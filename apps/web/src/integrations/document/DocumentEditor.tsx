@@ -1,5 +1,6 @@
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import UniqueID from "@tiptap/extension-unique-id";
 import { Bold, Code2, Heading2, Italic, List, Pilcrow } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
 
@@ -11,7 +12,13 @@ export default function DocumentEditor({
   onChange: (snapshot: Snapshot) => void;
 }) {
   const editor = useEditor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false } })],
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false } }),
+      UniqueID.configure({
+        types: ["paragraph", "heading", "codeBlock", "listItem"],
+        attributeName: "blockId",
+      }),
+    ],
     content: initial.data,
     immediatelyRender: false,
     editorProps: {

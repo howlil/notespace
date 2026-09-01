@@ -20,39 +20,44 @@ This first slice is a private, single-instance tool with **no authentication**. 
 
 ## Development
 
-Requires Node.js 24, pnpm 11.19.0 and Go 1.25+. Windows PowerShell is supported by these commands.
+Requires Node.js 24, pnpm 11.19.0, Go 1.25+ and Task 3.x. Windows PowerShell is supported by these commands.
 
 ```sh
 npm install --global pnpm@11.19.0
+go install github.com/go-task/task/v3/cmd/task@latest
 pnpm install --frozen-lockfile
 ```
 
-Terminal 1:
+Run the complete development stack from the repository root:
 
 ```sh
-cd apps/server
-go run ./cmd/notespace
+task dev
 ```
 
-Terminal 2 (repository root):
+Open **http://localhost:3000**. Task runs the Go API and Vite development server together. Vite forwards `/api` to Go on port 8080 and preserves the browser origin. The default database is relative to the server working directory (`apps/server/data/notespace.db`).
+
+Task is only the repository-level orchestration layer. pnpm continues to own frontend dependency and package scripts, Go owns backend build/test commands, and Docker Compose owns the self-hosted runtime.
+
+Useful commands:
 
 ```sh
-pnpm dev
+task --list
+task check
+task build
+task e2e
+task verify
+task up
+task down
 ```
-
-Open **http://localhost:3000**. Vite forwards `/api` to Go on port 8080 and preserves the browser origin. The default database is relative to the server working directory (`apps/server/data/notespace.db`).
 
 ## Production without Docker
 
 ```sh
-pnpm build
-cd apps/server
-go build -o ../../bin/notespace ./cmd/notespace
-cd ../..
+task build
 ./bin/notespace
 ```
 
-On Windows, build with `-o ../../bin/notespace.exe` and run `./bin/notespace.exe`. Run the binary from the repository root; it serves `apps/web/dist/client` and stores the database at `data/notespace.db`. Keep the same `NOTESPACE_DB` path when switching between development and production if you want the same data.
+On Windows, run `./bin/notespace.exe`. The Go binary serves `apps/web/dist/client` and stores the database at `data/notespace.db`. Keep the same `NOTESPACE_DB` path when switching between development and production if you want the same data.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
@@ -68,21 +73,16 @@ Each save carries a project version. Concurrent stale tabs receive `409`, retain
 
 ## Verification
 
+Install the Playwright browser once, then run the full local verification suite:
+
 ```sh
-pnpm build
-pnpm typecheck
-pnpm lint
-pnpm test
-cd apps/server
-go vet ./...
-go test -race ./...
-go build ./cmd/notespace
-cd ../..
 pnpm exec playwright install chromium
-pnpm test:e2e
+task verify
 ```
 
-Browser tests start an isolated Go instance on port 8081 with a fresh database in the OS temporary directory. Production build is required first. CI also runs Docker Compose and:
+`task verify` builds the production web assets and Go binary, runs TypeScript/lint/unit checks, Go vet and race tests, then executes the browser suite against an isolated Go instance with a fresh temporary SQLite database.
+
+CI intentionally runs the underlying pnpm, Go, Playwright and Docker commands directly so the release gate does not depend on an additional task-runner installation. CI also runs Docker Compose and:
 
 ```sh
 python3 scripts/smoke-persistence.py --compose-restart

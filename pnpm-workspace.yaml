@@ -1,0 +1,10 @@
+packages:
+  - apps/web
+allowBuilds:
+  esbuild: true
+  "@tailwindcss/oxide": true
+overrides:
+  # Excalidraw pins older transitive versions; retain fixes for published advisories.
+  '@excalidraw/excalidraw>nanoid': 3.3.18
+  '@excalidraw/mermaid-to-excalidraw>nanoid': 5.1.16
+  lodash-es: 4.18.1

@@ -1,0 +1,158 @@
+package httpapi_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/howlil/notespace/apps/server/internal/httpapi"
+	"github.com/howlil/notespace/apps/server/internal/persistence"
+	"github.com/howlil/notespace/apps/server/internal/project"
+)
+
+func call(t *testing.T, api http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	data, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(method, path, bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	return res
+}
+func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
+	t.Helper()
+	if res.Code != status {
+		t.Fatalf("status %d, want %d: %s", res.Code, status, res.Body.String())
+	}
+}
+func decodeProject(t *testing.T, res *httptest.ResponseRecorder) project.Project {
+	t.Helper()
+	var p project.Project
+	if err := json.Unmarshal(res.Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestProjectJourneyAndRestart(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "notespace.db")
+	store, err := persistence.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	api := httpapi.New(store, store.Healthy)
+	empty := call(t, api, "GET", "/api/projects", nil)
+	expect(t, empty, 200)
+	if strings.TrimSpace(empty.Body.String()) != "[]" {
+		t.Fatal(empty.Body.String())
+	}
+	created := call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems"})
+	expect(t, created, 201)
+	p := decodeProject(t, created)
+	update := project.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
+		Document: project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
+		Canvas:   project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
+	}
+	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	expect(t, saved, 200)
+	expected := decodeProject(t, saved)
+	if expected.Version != 2 {
+		t.Fatalf("version %d", expected.Version)
+	}
+	// A stale tab must not overwrite either surface.
+	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 409)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = persistence.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api = httpapi.New(store, store.Healthy)
+	restored := call(t, api, "GET", "/api/projects/"+p.ID, nil)
+	expect(t, restored, 200)
+	got := decodeProject(t, restored)
+	if got.Title != expected.Title || got.SplitRatio != expected.SplitRatio || got.Version != expected.Version || string(got.Document.Data) != string(expected.Document.Data) || string(got.Canvas.Data) != string(expected.Canvas.Data) {
+		t.Fatalf("restart changed content: %+v", got)
+	}
+	second := call(t, api, "POST", "/api/projects", map[string]string{"title": "Networking"})
+	expect(t, second, 201)
+	if other := decodeProject(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
+		t.Fatal("project content leaked")
+	}
+	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 204)
+	expect(t, call(t, api, "GET", "/api/projects/"+p.ID, nil), 404)
+	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 404)
+	expect(t, call(t, api, "GET", "/api/health", nil), 200)
+}
+
+func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	for _, title := range []string{"", "   ", strings.Repeat("a", 161)} {
+		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": title}), 400)
+	}
+	for _, body := range []string{`{"title":"ok","extra":true}`, `{"title":"ok"} {}`, `null`, strings.Repeat(" ", 10<<20) + `{}`} {
+		req := httptest.NewRequest("POST", "/api/projects", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		api.ServeHTTP(res, req)
+		if res.Code != 400 && res.Code != 413 {
+			t.Fatalf("malformed body accepted: %d", res.Code)
+		}
+	}
+	req := httptest.NewRequest("POST", "/api/projects", strings.NewReader(`{"title":"cross-origin"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://untrusted.example")
+	res := httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	expect(t, res, 403)
+	req = httptest.NewRequest("POST", "/api/projects", strings.NewReader(`{"title":"wrong media"}`))
+	res = httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	expect(t, res, 415)
+	list := call(t, api, "GET", "/api/projects", nil)
+	if strings.TrimSpace(list.Body.String()) != "[]" {
+		t.Fatal(list.Body.String())
+	}
+}
+
+func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Keep me"}))
+	update := project.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
+	update.Document.Format = "unknown"
+	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	update.Document = p.Document
+	update.Canvas.Data = json.RawMessage(`{"elements":null}`)
+	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	update.Canvas = p.Canvas
+	update.SplitRatio = .99
+	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	failure := call(t, api, "GET", "/api/projects", nil)
+	expect(t, failure, 500)
+	if strings.Contains(failure.Body.String(), "sql:") {
+		t.Fatal("storage internals leaked")
+	}
+}

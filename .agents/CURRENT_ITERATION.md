@@ -3,103 +3,104 @@
 ## Status
 
 - **Milestone:** Milestone 2 — Note ↔ Canvas Interoperability
-- **Milestone state:** IN PROGRESS
-- **Active slice:** Slice 1 — Stable document block identity
-- **Delivery surface:** PR #2, branch `feat/note-block-identities`
-- **Blocker:** none confirmed. GitHub currently reports the PR as mergeable; final-head verification must pass before integration.
+- **Milestone state:** COMPLETE / INTEGRATED
+- **Active slice:** none
+- **Integrated through:** PR #4, `master` commit `d27cc5dd1e3082350b506986f27c4267b3d4d901`
+- **Blocker:** none
 
-## Why this milestone exists
+## Why this milestone existed
 
-The completed baseline places the document and canvas side by side inside one Project, but they do not yet refer to the same idea semantically.
+The Milestone 1 workspace already placed a document and canvas inside one Project, but the two surfaces had no durable semantic relationship.
 
-Milestone 2 makes that product relationship real without turning Tiptap or Excalidraw internals into Notespace domain identity.
+Milestone 2 adds that relationship while keeping Notespace Project state—not Tiptap or Excalidraw internals—as the product source of truth.
 
-## Milestone outcome
+## Delivered outcome
 
-A user can create a durable relationship between a supported document block and a canvas object, navigate that relationship in both directions, edit ordinary content, and reopen the same relationship after reload/restart.
+A user can:
 
-## Scope in
+- edit supported Tiptap blocks with stable product-owned block IDs;
+- select a supported document block and a canvas object and create a Project-owned reference;
+- navigate from a selected document block to its linked canvas object;
+- navigate from a selected canvas object to its linked document block;
+- continue editing without changing the relationship identity;
+- reload or switch Projects and recover the persisted relationship;
+- keep a relationship as an explicit recoverable broken reference when its target is deleted;
+- remove a broken relationship explicitly instead of Notespace silently relinking it;
+- restart the self-hosted container without losing the Project relationship state.
 
-- stable product-owned identity for supported document blocks;
-- create a canvas reference from a selected document block;
-- Project-owned relationship persistence;
-- canvas reference → document block navigation;
-- document block → linked canvas object navigation;
-- recoverable orphan/broken-reference behavior;
-- durability through edit, reload, Project switching, and container restart;
-- migration/validation and risk-proportional unit/integration/browser/Docker verification.
+## Completed slices
 
-## Scope out
+### Slice 1 — Stable document block identity — COMPLETE
 
-- AI-generated linking or diagrams;
-- arbitrary semantic meaning for every canvas shape;
-- multi-block relation graphs;
-- collaboration/CRDT;
-- public sharing;
-- export/import expansion;
-- templates;
-- structured-diagram engines;
-- unrelated UI redesign or infrastructure work.
+Delivered through PR #2 (`feat: add stable document block identities`).
 
-## Ordered slices
+Evidence:
 
-### Slice 1 — Stable document block identity — ACTIVE
+- supported paragraphs, headings, code blocks, and list items receive stable Notespace-owned `blockId` values;
+- existing snapshots without IDs remain readable and are normalized through the document integration;
+- browser coverage verifies IDs survive edit + reload;
+- final PR head `6bbc1fee872f0a123575eed761af5f8c403dca23` passed Verify run #28;
+- integrated on `master` as commit `822743cb309c90b8d1d1f0162b7473bda5e77bb9`.
 
-Goal: supported Tiptap blocks receive stable product-owned IDs that survive normal editing and persistence.
+### Slice 2 — Create reference — COMPLETE
 
-Expected supported starting set:
+Delivered through PR #3 (`feat: create project-owned canvas references`).
 
-- paragraphs;
-- headings;
-- code blocks;
-- list items.
+Evidence:
 
-Existing Project snapshots without IDs must remain readable; missing IDs may be assigned through the document integration and persisted through the existing autosave path.
+- Project owns `references[]` with product-owned relationship ID, document `blockId`, and canvas `elementId`;
+- SQLite migration adds durable reference state without destructive schema work;
+- frontend creation uses current document-block and canvas-object selections while editor adapters expose only focused selection capabilities;
+- persistence/restart backend coverage includes references;
+- the initial Go formatting blocker was corrected without expanding scope;
+- final PR head `0b78b26c1ae34d5b15c41a2444cfb5875d06c8fe` passed Verify run #37;
+- integrated on `master` as commit `d0d73c6180c48459486b2c8371536354d9091929`.
 
-Current evidence:
+### Slice 3 — Navigate both ways — COMPLETE
 
-- PR #2 contains the stable-block-identity implementation;
-- PR #2 adds browser coverage comparing block IDs before and after reload;
-- the PR explicitly keeps cross-surface reference creation/navigation out of this slice;
-- canonical agent state has been synchronized onto the PR branch without changing the feature implementation;
-- GitHub currently reports PR #2 as mergeable.
+Delivered through PR #4 (`feat: navigate and recover note canvas references`).
 
-Slice gate before completion:
+Evidence:
 
-- final PR head remains mergeable with current `master`;
-- targeted block-ID behavior is verified through edit + reload;
-- relevant migration/adapter behavior is covered;
-- repository quality gates required by `QUALITY.md` pass for the final head;
-- no Project/document contract regression is introduced.
+- document block → canvas reference selects/reveals the linked Excalidraw object;
+- canvas object → document reference focuses/reveals the linked Tiptap block;
+- transient Excalidraw selection is reported independently from persisted scene-state changes;
+- document integration reports active block identity during both content and selection transactions;
+- Playwright lifecycle coverage verifies both navigation directions.
 
-### Slice 2 — Create reference — PENDING
+### Slice 4 — Durability gate — COMPLETE
 
-Let a user create one canvas reference from a selected supported document block. Store relationship meaning in Project-owned state and expose only the required adapter capability to the editors.
+Delivered through PR #4.
 
-### Slice 3 — Navigate both ways — PENDING
+Evidence:
 
-Support canvas reference → document target focus/reveal and document target → linked canvas object focus/select.
+- Playwright covers relationship creation, ordinary document editing, two-way navigation, reload, Project switching, canvas-target deletion, recoverable orphan state, and explicit broken-link removal;
+- `scripts/smoke-persistence.py --compose-restart` persists document block identity, canvas element identity, and their Project reference across a real Compose container restart;
+- final implementation head `1183fb6fa5da8cbb23368ba5a61714569ab20534` passed Verify run #41;
+- run #41 passed frozen dependency install, production build, TypeScript typecheck, lint, frontend unit tests, Go formatting, `go vet`, Go race tests, Go build, Playwright E2E, Docker Compose build/health, and restart-persistence smoke;
+- PR #4 integrated on `master` as commit `d27cc5dd1e3082350b506986f27c4267b3d4d901`.
 
-### Slice 4 — Durability gate — PENDING
+## Milestone acceptance result
 
-Prove edit, deletion/orphan handling, reload, Project switching, process/container restart, and final integration/release gates.
+**PASS.** The Milestone 2 outcome is implemented and integrated. The required relationship behavior is owned by the Project domain, works in both navigation directions, handles deleted targets explicitly, and survives the required durability boundaries.
 
-## Decisions active for this milestone
+No new product scope or architecture boundary was introduced to close the milestone.
+
+## Decisions retained
 
 - Project owns cross-surface relationships.
 - Product-owned stable IDs are relationship identity.
-- Visible labels, HTML/document positions, editor-generated incidental IDs, and canvas coordinates are not relational identity.
-- Tiptap and Excalidraw adapters expose focused capabilities; neither editor becomes the source of truth for the relationship.
-- A missing target is a recoverable broken reference; do not silently relink by text or proximity.
-- Expand supported block types only when a concrete use case requires it.
+- Visible labels, mutable document positions, canvas coordinates, and incidental editor identity are not relational identity.
+- Tiptap and Excalidraw remain adapters; neither owns the relationship.
+- Missing targets remain recoverable broken references until the user removes them explicitly.
+- Do not silently relink by text, position, or proximity.
+- Expand relationship cardinality or supported semantic models only when a concrete product requirement requests it.
 
-Durable rationale belongs in `DECISIONS.md`; this section records only decisions needed to execute the active milestone.
+Durable rationale belongs in `DECISIONS.md`; this file records only the completed milestone state and execution evidence.
 
 ## Completed baseline
 
-Milestone 1 / Core Project Workspace is integrated on `master` via PR #1.
-
-Verified baseline includes:
+Milestone 1 / Core Project Workspace remains integrated on `master` via PR #1 and continues to provide:
 
 - Project CRUD and durable Go + SQLite storage;
 - Tiptap document + Excalidraw canvas in one Project workspace;
@@ -108,17 +109,12 @@ Verified baseline includes:
 - production Go serving built frontend assets;
 - browser E2E and Docker restart-persistence coverage.
 
-The latest `master` also uses `Taskfile.yml` as the human/agent development orchestration entrypoint.
+`Taskfile.yml` remains the human/agent development orchestration entrypoint.
 
-## Risks
+## Known scope boundary
 
-- retrofitting IDs must not invalidate existing Tiptap snapshots;
-- editor normalization must not regenerate IDs during ordinary edits;
-- relationship state must not become embedded only in renderer-native data;
-- PR #2 originated before later `master` orchestration/documentation commits, so the final merge result must preserve current `master` behavior and canonical agent state.
+Milestone 2 intentionally does not add AI linking, semantic inference, multi-block relation graphs, collaboration/CRDT, public sharing, import/export expansion, templates, or structured-diagram engines.
 
 ## Next action
 
-**Run/await the final-head Slice 1 verification gate; if it passes and PR #2 remains mergeable, integrate Slice 1. If a gate fails, fix only that blocker and rerun the relevant gate.**
-
-Do not begin Slice 2 before Slice 1 is integrated or a concrete blocker requires replanning.
+**STOP. Milestone 2 is complete and integrated. Do not invent Milestone 3. Begin a new milestone only from new user intent.**

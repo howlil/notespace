@@ -46,8 +46,6 @@ test("references navigate both ways, survive edits and switching, and expose orp
     await page.mouse.down();
     await page.mouse.move(x + 150, y + 80, { steps: 8 });
     await page.mouse.up();
-    await page.getByTestId("toolbar-selection").locator("..").click();
-    await page.mouse.click(x + 70, y + 40);
 
     const link = page.getByRole("button", { name: "Link selections" });
     await expect(link).toBeEnabled();
@@ -116,15 +114,12 @@ test("references navigate both ways, survive edits and switching, and expose orp
 
     await goToCanvas.click();
     await expect(goToNote).toBeVisible();
-    const restoredBounds = await page
-      .locator(".excalidraw__canvas.interactive")
-      .boundingBox();
-    if (!restoredBounds) throw new Error("Canvas did not render after switching");
-    await page.mouse.click(
-      restoredBounds.x + restoredBounds.width / 2,
-      restoredBounds.y + restoredBounds.height / 2,
-    );
-    await page.keyboard.press("Delete");
+    const deleteCanvasObject = page.getByRole("button", {
+      name: "Delete",
+      exact: true,
+    });
+    await expect(deleteCanvasObject).toBeVisible();
+    await deleteCanvasObject.click();
     await expect
       .poll(async () => {
         const project = await read();

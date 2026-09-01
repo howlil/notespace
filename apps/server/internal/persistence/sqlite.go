@@ -49,9 +49,7 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 	doc, _ := json.Marshal(p.Document)
 	canvas, _ := json.Marshal(p.Canvas)
 	references, _ := json.Marshal(p.References)
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO projects(id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.Title, string(doc), string(canvas), string(references), p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO projects(id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?)`, p.ID, p.Title, string(doc), string(canvas), string(references), p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version)
 	return err
 }
 

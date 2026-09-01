@@ -35,27 +35,27 @@ type Summary struct {
 // canvas object. Targets may be absent after ordinary editing and are repaired
 // by the client rather than silently reassigned by the server.
 type Reference struct {
-	ID        string `json:"id"`
-	BlockID   string `json:"blockId"`
-	ElementID string `json:"elementId"`
+	ID	string	`json:"id"`
+	BlockID	string	`json:"blockId"`
+	ElementID	string	`json:"elementId"`
 }
 
 type Project struct {
 	Summary
-	Document   Snapshot    `json:"document"`
-	Canvas     Snapshot    `json:"canvas"`
-	References []Reference `json:"references"`
-	SplitRatio float64     `json:"splitRatio"`
+	Document	Snapshot	`json:"document"`
+	Canvas	Snapshot	`json:"canvas"`
+	References	[]Reference	`json:"references"`
+	SplitRatio	float64	`json:"splitRatio"`
 }
 
 // Update is a complete authored snapshot; Version is an optimistic concurrency guard.
 type Update struct {
-	Title      string      `json:"title"`
-	Document   Snapshot    `json:"document"`
-	Canvas     Snapshot    `json:"canvas"`
-	References []Reference `json:"references"`
-	SplitRatio float64     `json:"splitRatio"`
-	Version    int         `json:"version"`
+	Title	string	`json:"title"`
+	Document	Snapshot	`json:"document"`
+	Canvas	Snapshot	`json:"canvas"`
+	References	[]Reference	`json:"references"`
+	SplitRatio	float64	`json:"splitRatio"`
+	Version	int	`json:"version"`
 }
 
 type Store interface {

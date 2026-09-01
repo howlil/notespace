@@ -22,7 +22,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck && pnpm lint && pnpm test
-      - run: test -z "$(gofmt -l .)" && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
+      - run: gofmt -d .; test -z "$(gofmt -l .)" && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e

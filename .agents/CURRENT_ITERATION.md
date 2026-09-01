@@ -1,6 +1,6 @@
 # Current Iteration — Bootstrap the First End-to-End Project Slice
 
-**Status:** READY FOR IMPLEMENTATION AFTER REMAINING STACK APPROVAL
+**Status:** READY AFTER REMAINING DATA/EDITOR DECISIONS
 
 **Canonical role:** This file is the source of truth for the currently active meaningful iteration. Update it as work progresses. Do not create parallel sprint-state files.
 
@@ -25,9 +25,11 @@ Document | Canvas
       ↓
 Edit both surfaces
       ↓
-Reload
+Persist
       ↓
-Project still exists and reopens correctly
+Reload / reopen
+      ↓
+Same Project state
 ```
 
 This slice establishes the product invariant that a Project owns both linear and spatial work. It does not attempt to build the full product.
@@ -36,17 +38,16 @@ This slice establishes the product invariant that a Project owns both linear and
 
 Lifecycle position:
 
-`USER INTENT → UNDERSTAND → BOUND → SPECIFY → DESIGN → [IMPLEMENTATION DECISION GATE] → IMPLEMENT`
+`USER INTENT → UNDERSTAND → BOUND → SPECIFY → DESIGN → [REMAINING IMPLEMENTATION DECISIONS] → IMPLEMENT`
 
 Repository evidence checked on 2026-09-01:
 
 - repository: `howlil/notespace`;
 - default branch: `master`;
 - only branch currently visible: `master`;
-- repository root currently contains only `.agents/`;
-- no application source, package manifest, runtime config, tests, or deployment files are checked in.
+- repository currently contains the `.agents/` operating context but no application implementation yet.
 
-Therefore there is no existing implementation to preserve or audit yet. The next code-changing action is a bootstrap, not a refactor.
+The frontend technology decision is now resolved and documented in `.agents/skill/fe-skill.md`.
 
 ## Delta
 
@@ -55,130 +56,159 @@ Completed before implementation:
 - product/domain model established;
 - UI/product shape established;
 - architecture boundaries established;
-- Excalidraw direction established as the preferred freeform canvas engine behind a Notespace adapter;
 - self-hosted/free product constraint established;
-- quality and retrospective rules established;
-- first real end-to-end vertical slice bounded below;
-- client platform scope explicitly narrowed to Web + Windows desktop;
-- Windows desktop shell explicitly selected as Tauri.
+- first real end-to-end vertical slice bounded;
+- client platform scope narrowed to Web + Windows desktop;
+- Windows desktop shell selected as Tauri/WebView2;
+- Web confirmed as the primary implementation target;
+- frontend stack approved: TanStack Start + Vite + Tailwind CSS + Radix UI + Zustand;
+- frontend implementation rules externalized in `.agents/skill/fe-skill.md`;
+- Excalidraw remains the approved freeform canvas direction behind a Notespace-owned adapter.
 
 ## Next Move
 
-**Single next meaningful action:** resolve the remaining bootstrap stack decisions, then implement this vertical slice without expanding scope.
+**Single next meaningful action:** resolve the remaining persistence/runtime and document-editor decisions, then implement the first vertical slice using the approved frontend stack.
 
-The client platform boundary is no longer open:
-
-```text
-Notespace clients
-├── Web browser client
-└── Windows desktop client
-    └── Tauri shell using Windows WebView2
-```
-
-Tauri is intentionally treated as a native desktop shell around the web UI, not as a native WinUI rendering stack. The Windows product should reuse the approved web application UI where practical rather than create a second independent Windows UI implementation.
-
-Remaining material bootstrap decisions include the exact web framework/build tooling, persistence/runtime shape, document editor, and self-hosted packaging.
+Do not reopen the frontend framework decision during normal implementation.
 
 ---
 
-# Platform Scope — COMMITTED
+# Committed Client Platform Scope
 
-## Supported clients
-
-Current product scope supports exactly:
-
-1. a browser-based Web client;
-2. a Windows desktop client packaged with Tauri.
-
-Do not introduce macOS, Linux desktop, mobile, WinUI/WPF, Electron, Flutter, React Native, Qt, or another client runtime unless the user explicitly expands platform scope.
-
-## Windows Tauri model
-
-The Windows application should be understood as:
+Current supported clients:
 
 ```text
-Windows executable
-      ↓
-Tauri native shell / Rust host
-      ↓
-Windows WebView2
-      ↓
-Notespace web application UI
+Notespace
+├── Web browser client        ← BUILD FIRST
+└── Windows desktop client
+    └── Tauri + WebView2      ← LATER, same Web UI
 ```
 
-Implications:
+Do not introduce macOS, Linux desktop, mobile, WinUI/WPF, Electron, Flutter, React Native, Qt, or another client runtime without explicit user approval.
 
-- Windows UI is web-rendered, not WinUI-native;
-- do not duplicate the entire frontend for Windows;
-- desktop-only capabilities must stay behind a narrow platform bridge;
-- ordinary Project/domain/UI behavior should remain shared with the Web client;
-- avoid leaking Tauri APIs throughout domain and presentation code;
-- browser execution must not require Tauri globals;
-- Windows-specific filesystem/window/update/integration features may use Tauri commands/plugins only when required by a concrete feature.
+The Windows application is intentionally a thin Tauri desktop shell around the shared Web application. It is not a second frontend.
 
-Preferred dependency direction:
+Preferred platform dependency direction:
 
 ```text
-Notespace Web/Application UI
-          │
-          ├──────── browser adapter
-          │
-          └──────── desktop platform port
-                         ↓
-                      Tauri
-                         ↓
-                 Windows native APIs
+feature/application code
+          ↓
+     platform capability
+      ↙             ↘
+ browser            Tauri later
 ```
 
-Avoid:
+Ordinary Project/UI behavior must not require Tauri globals.
+
+---
+
+# Committed Frontend Stack
+
+Canonical frontend implementation rules live in:
+
+`.agents/skill/fe-skill.md`
+
+Approved stack:
 
 ```text
-components everywhere
-      ↓
-direct invoke("...") / Tauri plugin calls
-      ↓
-Windows-only coupling
+TanStack Start
+    ↓
+React + TypeScript
+    ↓
+TanStack Router/runtime
+    ↓
+Vite toolchain
+    ↓
+Tailwind CSS
+    ↓
+Radix UI primitives
+    ↓
+Zustand where shared client state is justified
 ```
 
-The Web client must remain a first-class runnable target.
+## Stack rules
+
+- **TanStack Start** is the Web application framework.
+- **Vite** is the build/dev toolchain used with TanStack Start; do not create a separate standalone Vite SPA.
+- **Tailwind CSS** implements styling according to `.agents/DESIGN.md`.
+- **Radix UI** supplies accessible low-level interactive primitives; it is not a full visual design system.
+- **Zustand** is available for justified cross-component client state, not as the default owner of all state.
+- **React + TypeScript** are the frontend implementation model implied by TanStack Start.
+- **Excalidraw** remains the preferred canvas integration behind a Notespace-owned adapter.
+
+Do not replace the approved frontend stack during this iteration unless the user explicitly changes it.
+
+The frontend skill's explicit technology decision supersedes the original architecture baseline that left `frontend framework/runtime` open.
+
+---
+
+# State Ownership for the Frontend
+
+Before introducing Zustand or another state location, classify ownership:
+
+```text
+local component interaction
+        ↓
+React local state
+
+navigation/shareable URL/history state
+        ↓
+TanStack route/search state
+
+route/server-loaded data
+        ↓
+TanStack data/application boundary
+
+editor/canvas transient interaction state
+        ↓
+editor/canvas integration boundary
+
+cross-component client state with no better owner
+        ↓
+Zustand
+```
+
+Do not create one giant global Zustand store.
+
+Do not mirror the complete Excalidraw scene or rich editor state into Zustand on every high-frequency update merely for consistency.
 
 ---
 
 # Iteration Goal
 
-Deliver the smallest runnable Notespace application that proves:
+Deliver the smallest runnable Notespace Web application that proves:
 
 > A user can create one Project from the dashboard, enter a resizable Document + Canvas workspace, make changes on both surfaces, reload the application, and recover the Project state.
 
-The primary implementation target for this iteration should be the Web application. The Tauri Windows shell should be introduced only to the extent required to prove the same application can run as the approved Windows desktop target without creating a second UI architecture.
+The Web application is the product-learning target for this iteration.
 
-This is the first coherent product slice because it crosses UI, domain state, persistence, and editor/canvas integration while remaining tightly bounded.
+Tauri is not required before the Web loop is working. Desktop work comes after the shared Web application has a stable core journey.
 
 ---
 
-# User-visible scope
+# User-visible Scope
 
-## 1. Dashboard
+## Dashboard
 
-Implement only what is needed for the primary path:
+Implement only what the core journey requires:
 
 - Notespace shell/brand;
+- useful zero-project empty state;
 - project list;
-- empty state when no projects exist;
 - `New Project` action;
-- click an existing Project to open it.
+- opening an existing Project.
 
 Do not implement yet:
 
 - Templates;
 - Favorites;
-- Trash behavior beyond what is already required by implementation scaffolding;
+- full Trash workflow;
 - project search;
 - folders/spaces/tags;
-- activity feed;
-- billing/account UI.
+- activity feeds;
+- account/billing/plan UI.
 
-## 2. Create Project
+## Create Project
 
 Minimal flow:
 
@@ -192,9 +222,11 @@ Create
 Project Workspace
 ```
 
-A Project is created as one domain entity. Do not create separate user-facing Note and Canvas resources.
+Creation produces one Project domain entity.
 
-## 3. Project Workspace
+Do not create independent user-facing Note and Canvas resources.
+
+## Project Workspace
 
 Required shape:
 
@@ -213,44 +245,42 @@ Required shape:
 
 Required behavior:
 
-- both surfaces belong to the same Project;
+- Document and Canvas remain siblings under one Project;
 - user can resize the split;
-- document side accepts basic editable text;
-- canvas side embeds the approved Excalidraw integration;
+- document side accepts basic editable content through the approved document-editor boundary;
+- canvas side uses the approved Excalidraw integration;
 - project title remains visible at workspace level;
-- navigating back to dashboard is possible.
+- user can return to Dashboard.
 
-## 4. Persistence
+## Persistence
 
-The minimum durability contract:
+Minimum durability contract:
 
 ```text
 create/edit
     ↓
 persist
     ↓
-reload process/page
+reload/reopen
     ↓
 restore
-    ↓
-same Project state
 ```
 
 Persist at least:
 
 - Project identity;
 - Project title;
-- document content required by the chosen editor representation;
+- document content required for the chosen editor representation;
 - canvas scene required by the Excalidraw adapter;
-- split ratio if inexpensive within the chosen architecture.
+- split ratio if inexpensive and intentional.
 
-Do not make the third-party editor or Excalidraw representation the entire Notespace domain model.
+Do not make editor/renderer payloads equal to the whole Notespace Project domain.
 
 ---
 
-# Domain invariant
+# Domain Invariant
 
-The implementation must preserve:
+Preserve:
 
 ```text
 Project
@@ -258,10 +288,10 @@ Project
 ├── title
 ├── document state
 ├── canvas state
-└── presentation/layout state as appropriate
+└── presentation/layout state where appropriate
 ```
 
-User-facing domain language must not drift into:
+Do not drift into:
 
 ```text
 Note
@@ -269,23 +299,55 @@ Canvas
 Project
 ```
 
-as three independent content types.
+as three independent top-level content types.
 
-Separate internal persistence tables/documents/modules are acceptable if useful, but ownership remains under Project and must not leak into conflicting product semantics.
+Internal storage may normalize state, but ownership remains Project-centric.
 
 ---
 
-# Integration boundaries
+# Frontend Source Strategy
 
-## Document editor
+Use a thin Web-first monorepo structure.
 
-The editor library remains an implementation decision until approved/selected.
+Conceptual starting point:
 
-Notespace owns the boundary around it. At minimum the domain/application layer should not require UI code everywhere to know editor-library internals.
+```text
+notespace/
+├── .agents/
+├── apps/
+│   └── web/
+├── package.json
+├── pnpm-workspace.yaml
+├── pnpm-lock.yaml
+└── tsconfig.base.json
+```
+
+Do not create many packages before real ownership/reuse pressure exists.
+
+Inside the Web app, organize by responsibility:
+
+```text
+apps/web/src/
+├── routes/
+├── app/
+├── domain/
+├── features/
+├── integrations/
+├── platform/
+└── shared/
+```
+
+Create only directories that gain actual owned code.
+
+Future Tauri shell may become `apps/desktop/` after the Web journey works. It should consume/reuse the Web application rather than duplicate it.
+
+---
+
+# Integration Boundaries
 
 ## Canvas
 
-Preferred direction already established:
+Approved direction:
 
 ```text
 Notespace Project
@@ -295,50 +357,56 @@ Canvas integration boundary
 @excalidraw/excalidraw
 ```
 
-Do not fork Excalidraw for this iteration.
+Rules:
 
-Do not add Eraser/structured diagram rendering in this iteration.
+- no Excalidraw fork during this iteration;
+- no Eraser/structured renderer;
+- do not spread Excalidraw internals through domain/dashboard code;
+- avoid pushing every high-frequency scene update through global Zustand state.
 
-Do not model all Project state as Excalidraw JSON.
+## Document editor
 
-## Desktop platform
+Still unresolved.
 
-Tauri must remain an integration boundary rather than becoming application architecture.
+Select it based on concrete Notespace behavior such as:
 
-Conceptually:
+- structured technical writing;
+- code blocks;
+- serialization stability;
+- accessibility;
+- extension model;
+- future stable block identity if cross-surface references are introduced.
 
-```text
-Feature/application code
-       ↓
-platform capability port
-       ↓
-Web implementation OR Tauri implementation
-```
+Do not implement a custom editor engine without evidence that mature editors fail the requirement.
 
-Examples of capabilities that may eventually justify a platform port:
+## Persistence/runtime
 
-- native file dialogs;
-- filesystem access;
-- app window controls;
-- desktop notifications;
-- auto-update;
-- OS integration.
+Still unresolved.
 
-Do not introduce these capabilities in this iteration unless they are required to satisfy an acceptance criterion.
+The decision must preserve:
+
+- simple self-hosting;
+- reliable persistence;
+- clear migration path;
+- browser-first correctness;
+- future Tauri compatibility;
+- low operational complexity.
+
+Do not let ad-hoc TanStack Start server functions silently become a permanent backend architecture before this boundary is intentionally resolved.
 
 ---
 
-# Explicit non-goals
+# Explicit Non-goals
 
 This iteration does **not** include:
 
 - AI;
 - Eraser diagrams;
+- structured diagram engine;
 - semantic/knowledge graph;
 - Note ↔ Canvas semantic references;
 - multiplayer collaboration;
 - CRDT;
-- authentication unless technically mandatory for the approved deployment model;
 - team/workspace membership;
 - templates;
 - advanced project organization;
@@ -346,17 +414,14 @@ This iteration does **not** include:
 - import/export;
 - backup UI;
 - instance administration UI;
-- macOS client;
-- Linux desktop client;
-- mobile clients;
-- WinUI/WPF native Windows UI;
+- macOS/Linux/mobile clients;
+- native WinUI/WPF frontend;
 - Electron;
-- desktop-only feature expansion unrelated to the core Project loop;
 - offline conflict resolution;
 - analytics;
+- a giant design-system package;
+- a giant shared Zustand store;
 - speculative abstraction for future renderers.
-
-Do not add these because they appear in long-term product documents or general desktop best practices.
 
 ---
 
@@ -366,52 +431,50 @@ The iteration is complete only when all applicable criteria have evidence.
 
 ## Primary journey
 
-1. Application starts successfully using documented local/self-hosted development instructions.
-2. With zero projects, the dashboard renders a useful empty state.
+1. Web application starts successfully using documented development instructions.
+2. Zero-project dashboard renders a useful empty state.
 3. User can create a Project with a title.
-4. Creation opens that Project's unified workspace.
-5. Workspace visibly contains Document and Canvas surfaces at the same time.
-6. User can change document content.
-7. User can create or modify at least one Excalidraw element on the canvas.
+4. Creation opens the unified Project workspace.
+5. Document and Canvas surfaces are visible together.
+6. User can edit document content.
+7. User can create or modify at least one Excalidraw element.
 8. User can drag the center splitter and both surfaces remain usable.
-9. Project state is persisted.
-10. Reloading the application restores the Project title, document state, and canvas state.
-11. Returning to dashboard shows the created Project.
-12. Reopening the Project restores the same persisted state.
+9. Project state becomes durable.
+10. Browser reload restores Project title, document state, and canvas state.
+11. Dashboard shows the created Project.
+12. Reopening restores the same state.
 
-## Platform
+## Frontend architecture
 
-13. The approved Web target runs independently in a normal supported browser without requiring Tauri runtime APIs.
-14. The same application UI can be launched in the Windows Tauri shell without maintaining a second Windows UI implementation.
-15. Tauri-specific calls, if any are needed, are isolated behind a platform integration boundary.
-
-## Domain/architecture
-
-16. There is one user-facing Project entity, not independent Note and Canvas resources.
-17. Excalidraw is behind a Notespace-owned integration boundary rather than spread through unrelated application code.
-18. Persistence failure is not reported as a successful save if the implementation has an explicit save state.
-19. No unrelated future feature is introduced.
+13. TanStack Start is the application framework; there is no duplicate standalone Vite SPA.
+14. Tailwind styling follows `.agents/DESIGN.md`.
+15. Radix interactive primitives preserve keyboard/focus/accessibility behavior where used.
+16. Zustand is used only for state with justified shared client ownership.
+17. Excalidraw remains behind a Notespace-owned integration boundary.
+18. The normal Web target runs without Tauri APIs.
+19. There is one user-facing Project entity, not independent Note and Canvas resources.
+20. No unrelated deferred feature is introduced.
 
 ## Quality
 
-20. Typecheck/static checks pass where the selected stack provides them.
-21. Lint/format checks pass where configured.
-22. Build passes for the Web target.
-23. Windows Tauri build/qualification passes once the desktop shell is introduced in this iteration.
-24. Tests cover the critical domain/persistence behavior appropriate to the selected architecture.
-25. At least one integration/e2e-level check protects the create → edit → reload → reopen journey, or the absence of that level is explicitly justified with equivalent evidence.
-26. The implementation is visually checked against `.agents/DESIGN.md` rather than accepted from component tests alone.
+21. TypeScript/typecheck passes.
+22. Configured lint/static checks pass.
+23. Web production build passes.
+24. Critical persistence/domain behavior has appropriate automated coverage.
+25. At least one browser-level/integration-level verification protects the create → edit → reload → reopen journey, or equivalent evidence is explicitly justified.
+26. UI is visually checked against `.agents/DESIGN.md`.
+27. Changed interactive primitives receive relevant keyboard/accessibility verification.
 
 ---
 
-# Implementation order
+# Implementation Order
 
-Once the remaining stack choices are approved, prefer this sequence:
+After the remaining persistence/runtime and document-editor decisions are approved:
 
 ```text
-1. Runnable Web application shell
+1. TanStack Start Web application shell
         ↓
-2. Project domain + persistence contract
+2. Project domain + persistence boundary
         ↓
 3. Dashboard empty/list state
         ↓
@@ -425,83 +488,43 @@ Once the remaining stack choices are approved, prefer this sequence:
         ↓
 8. Persist + restore both surfaces
         ↓
-9. Web end-to-end verification
+9. Browser end-to-end verification
         ↓
-10. Thin Windows Tauri shell using the same UI
-        ↓
-11. Windows qualification
-        ↓
-12. Quality gates
+10. Quality gates
         ↓
 STOP
 ```
 
-This ordering keeps product learning centered on one implementation while proving the approved Windows delivery target after the Web loop works.
-
-Do not build a second Windows frontend, a large Rust domain layer, a large backend layer, design system, or abstraction framework before the user journey exists.
+Do not introduce Tauri before the Web loop works unless a Web implementation decision specifically requires desktop proof.
 
 ---
 
-# Material Decision Gate — Remaining Initial Stack
+# Material Decision State
 
 ## Resolved
 
-The following are now approved:
-
-- client platforms: **Web + Windows only**;
-- Windows packaging/runtime: **Tauri**;
-- Windows UI strategy: reuse the Web application through WebView2 rather than WinUI/WPF native rendering;
-- Excalidraw remains the preferred primary canvas dependency behind a Notespace adapter.
+- product domain: Project-centric;
+- primary target: Web first;
+- secondary target: Windows desktop later;
+- Windows shell: Tauri + WebView2;
+- Web framework: TanStack Start;
+- frontend build/dev toolchain: Vite through TanStack Start;
+- frontend styling: Tailwind CSS;
+- accessible primitive layer: Radix UI;
+- shared client state option: Zustand with strict ownership rules;
+- canvas engine direction: Excalidraw behind an adapter.
 
 ## Still open
 
-Because the repository contains no application code, the following still require approval or explicit implementation evidence:
-
-- exact web framework/build system;
-- server/runtime shape, if any;
-- persistence/database choice;
 - document editor library;
+- persistence/database choice;
+- server/runtime shape if needed beyond the framework runtime;
+- schema/migration tooling;
 - self-hosted packaging baseline;
-- how Tauri desktop persistence/networking relates to the self-hosted server model if both are present.
+- authentication model, only if/when product requirements require it;
+- final desktop persistence/networking relationship when Tauri work begins.
 
-The remaining decisions should optimize for:
-
-1. simple self-hosting;
-2. shared Web/Windows UI without platform coupling;
-3. minimal operational dependencies;
-4. easy Excalidraw embedding;
-5. reliable persistence and migration path;
-6. testability;
-7. low framework ceremony;
-8. browser-first correctness;
-9. a thin Tauri shell rather than a second application architecture;
-10. ability to evolve without prematurely becoming distributed infrastructure.
-
-Do not optimize for hypothetical scale before product usage provides evidence.
-
----
-
-# Evidence currently available
-
-Repository evidence:
-
-- root contains only `.agents/`;
-- only `master` branch is currently visible;
-- no implementation source exists in GitHub at the time of this update.
-
-Product/architecture evidence:
-
-- `.agents/PROJECT.md`;
-- `.agents/ARCHITECTURE.md`;
-- `.agents/DESIGN.md`;
-- `.agents/QUALITY.md`.
-
-Explicit user platform decision on 2026-09-01:
-
-- Web client required;
-- Windows client required;
-- Windows client should use Tauri;
-- no macOS/Linux client in current scope.
+Do not reopen resolved decisions casually. Do not silently resolve remaining material decisions.
 
 ---
 
@@ -511,15 +534,15 @@ Stop and request user approval before proceeding if implementation requires:
 
 - changing the Project-centric domain model;
 - making Note and Canvas independent first-class resources;
-- replacing Excalidraw direction with another primary canvas engine;
+- replacing TanStack Start/Vite/Tailwind/Radix/Zustand as the approved frontend foundation;
+- replacing Excalidraw as primary canvas direction;
 - introducing macOS/Linux/mobile clients;
-- replacing Tauri with another Windows shell/runtime;
-- creating a separate WinUI/WPF Windows frontend;
-- introducing a major backend/service boundary not required by the slice;
-- choosing a materially different deployment model;
-- adding authentication/security boundaries not already approved;
+- replacing Tauri with another Windows runtime;
+- introducing a material backend/service architecture not yet approved;
+- choosing a persistence technology with material deployment/migration consequences without approval;
+- adding authentication/security boundaries not approved;
 - destructive persistence migrations;
-- public API/contract commitments;
+- new public contracts;
 - expanding this iteration into AI, collaboration, structured diagrams, or knowledge graph features.
 
 ---
@@ -528,10 +551,10 @@ Stop and request user approval before proceeding if implementation requires:
 
 When acceptance criteria pass:
 
-1. record verification evidence here briefly;
+1. record concise verification evidence here;
 2. mark the vertical slice complete;
-3. run a retrospective only if the iteration produced meaningful delivery evidence or friction;
+3. run a retrospective only if meaningful delivery evidence or friction exists;
 4. replace this file with the next active meaningful iteration;
-5. do not accumulate a permanent sprint diary in this file.
+5. do not accumulate a permanent sprint diary.
 
-The likely next product question after this slice is not predetermined. Use observed product state and user intent to select the next vertical slice.
+The next slice must be selected from actual product state and user intent, not a speculative roadmap.

@@ -45,7 +45,7 @@ type Project struct {
 	Document   Snapshot    `json:"document"`
 	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
-	SplitRatio float64  `json:"splitRatio"`
+	SplitRatio float64     `json:"splitRatio"`
 }
 
 // Update is a complete authored snapshot; Version is an optimistic concurrency guard.
@@ -54,7 +54,7 @@ type Update struct {
 	Document   Snapshot    `json:"document"`
 	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
-	SplitRatio float64  `json:"splitRatio"`
+	SplitRatio float64     `json:"splitRatio"`
 	Version    int      `json:"version"`
 }
 

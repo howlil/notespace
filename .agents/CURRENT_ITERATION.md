@@ -58,11 +58,10 @@ Existing Project snapshots without IDs must remain readable; missing IDs may be 
 
 Current evidence:
 
-- PR #2 exists with the stable-block-identity implementation;
+- PR #2 contains the stable-block-identity implementation;
 - PR #2 adds browser coverage comparing block IDs before and after reload;
 - the PR explicitly keeps cross-surface reference creation/navigation out of this slice;
-- PR head observed at `331084426a7a3f95cba3b925819c60a097b2c28c`;
-- GitHub combined commit status currently reports pending with no classic status entries.
+- canonical agent state has been synchronized onto the PR branch without changing the feature implementation; branch head after that documentation cleanup is `7da703c2f184778d2a4221c12951ba659c30993f`.
 
 Slice gate before completion:
 
@@ -115,10 +114,10 @@ The latest `master` also uses `Taskfile.yml` as the human/agent development orch
 - retrofitting IDs must not invalidate existing Tiptap snapshots;
 - editor normalization must not regenerate IDs during ordinary edits;
 - relationship state must not become embedded only in renderer-native data;
-- PR #2 was created before the latest `master` documentation/orchestration commits, so integration must preserve the canonical repository state.
+- PR #2 originated before the latest `master` orchestration/documentation commits, so integration must preserve current `master` behavior and canonical agent state.
 
 ## Next action
 
-**Synchronize PR #2 with current `master`, keep the canonical six-file `.agents` model intact, run the Slice 1 verification gate, and integrate Slice 1 only if the final head passes.**
+**Synchronize PR #2 with current `master`, run the Slice 1 verification gate, and integrate Slice 1 only if the final head passes.**
 
 Do not begin Slice 2 before Slice 1 is integrated or a concrete blocker requires replanning.

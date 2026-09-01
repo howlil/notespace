@@ -100,4 +100,4 @@ Editor selection and self-host packaging implement the authorized Sprint 1 scope
 
 Current scope excludes collaboration, AI, sharing, export, cross-surface references, icon libraries, desktop shells, and team permissions. Embedded Excalidraw provides its own native editing controls; Notespace does not add integrations for its optional hosted services.
 
-Iteration state, design rules, and evidence are maintained in [`.agents/CURRENT_ITERATION.md`](.agents/CURRENT_ITERATION.md).
+For repository agent guidance and authoritative project knowledge, start at [`AGENTS.md`](AGENTS.md). Active milestone state lives in [`.agents/CURRENT_ITERATION.md`](.agents/CURRENT_ITERATION.md).

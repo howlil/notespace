@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/dist
+**/.tanstack
+apps/web/public/excalidraw-assets
+data
+bin
+test-results
+playwright-report
+.env
+*.db*

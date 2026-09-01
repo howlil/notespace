@@ -73,6 +73,27 @@ Do not optimize testing for internal method coverage at the expense of observabl
 
 # 3. Baseline quality gates
 
+Implemented Sprint 1 commands (repository root unless noted):
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+cd apps/server
+go vet ./...
+go test -race ./...
+go build ./cmd/notespace
+cd ../..
+pnpm exec playwright install chromium
+pnpm test:e2e
+docker compose up --build -d --wait
+python3 scripts/smoke-persistence.py --compose-restart
+```
+
+The browser suite uses a fresh database in the OS temporary directory, outside the Playwright output directory. The Docker smoke script removes only its newly created test project. Do not delete or reset user projects to prepare verification. CI runs these gates in `.github/workflows/verify.yml`.
+
 Run only gates supported by the actual repository. Once stack is known, update this file with exact commands.
 
 Typical gates:

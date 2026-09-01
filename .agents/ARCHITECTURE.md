@@ -667,19 +667,13 @@ Examples:
 
 # 19. Open implementation decisions
 
-These remain open until the actual codebase or an explicit decision resolves them:
+Sprint 1 implements the previously approved frontend/backend skills and the user's execution scope:
 
-- frontend framework/runtime;
-- document editor library;
-- backend/runtime architecture if a backend exists;
-- database/persistence technology;
-- schema format and migration tooling;
-- local vs server-side thumbnail generation;
-- authentication mode;
-- deployment packaging;
-- test frameworks;
-- CI pipeline.
+- TanStack Start SPA mode, React 18, TypeScript, Vite, Tailwind and Radix dialogs. Route loaders call the same-origin Go API. No additional Node runtime process is deployed.
+- Tiptap StarterKit behind the document adapter; Excalidraw behind the canvas adapter. Each Project stores versioned snapshots of both and a split ratio.
+- Go `net/http` + `database/sql` + pure-Go `modernc.org/sqlite`. Explicit SQL, embedded transactional migrations, WAL + FULL synchronous, one database connection.
+- Go serves the Start-generated shell and assets. One Docker container, one SQLite volume; default published host interface is loopback.
+- Saves are debounced 650 ms, serialized per project and guarded by the last acknowledged version. Navigation flushes; failed saves preserve local state and block app navigation. Browser unload warns on unsaved changes. No durability claim applies before acknowledgement.
+- Go testing/httptest, Node's test runner for autosave ordering, Playwright for browser journeys, GitHub Actions for gates and Docker restart smoke coverage.
 
-When code lands, update this document to replace open decisions with observed repository facts.
-
-Do not rewrite product constraints merely to match an accidental early implementation choice.
+Still deferred/open: authentication, collaboration, portable import/export, real content thumbnail generation, and desktop networking. No public API compatibility guarantee is introduced by the initial internal CRUD API.

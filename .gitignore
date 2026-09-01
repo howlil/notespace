@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.output/
+.tanstack/
+data/
+*.db
+*.db-shm
+*.db-wal
+playwright-report/
+test-results/
+.env
+bin/
+apps/web/public/excalidraw-assets/

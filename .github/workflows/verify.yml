@@ -1,0 +1,40 @@
+name: Verify
+on:
+  pull_request:
+  push:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck && pnpm lint && pnpm test
+      - run: test -z "$(gofmt -l .)" && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
+        working-directory: apps/server
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: |
+            test-results/*.png
+            playwright-report/
+          retention-days: 7
+      - run: docker compose up --build -d --wait
+      - run: python3 scripts/smoke-persistence.py --compose-restart
+      - run: docker compose logs && docker compose down
+        if: always()

@@ -1,0 +1,21 @@
+{
+  "name": "notespace",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --filter @notespace/web dev",
+    "build": "pnpm --filter @notespace/web build",
+    "typecheck": "pnpm --filter @notespace/web typecheck",
+    "lint": "eslint apps/web/src tests --max-warnings 0",
+    "test": "node --experimental-strip-types --test apps/web/src/domain/project/autosave.test.ts",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.58.2",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.5.0",
+    "typescript-eslint": "^8.55.0"
+  }
+}

@@ -42,11 +42,7 @@ const CanvasEditor = lazy(
 );
 
 type FocusRequest = { id: string; request: number } | null;
-type ReferenceNotice = {
-  referenceId: string;
-  message: string;
-  broken: boolean;
-} | null;
+type BrokenReference = { referenceId: string; message: string } | null;
 
 function documentHasBlock(snapshot: Snapshot, blockId: string) {
   const visit = (value: unknown): boolean => {
@@ -112,8 +108,8 @@ export function Workspace({
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
   const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
-  const [referenceNotice, setReferenceNotice] =
-    useState<ReferenceNotice>(null);
+  const [brokenReference, setBrokenReference] =
+    useState<BrokenReference>(null);
   const navigationRequest = useRef(0);
   const [saver] = useState(
     () =>
@@ -183,7 +179,7 @@ export function Workspace({
         },
       ],
     });
-    setReferenceNotice(null);
+    setBrokenReference(null);
   }, [selectedBlockId, selectedElementId, update]);
 
   const blockReference = selectedBlockId
@@ -195,43 +191,33 @@ export function Workspace({
 
   function navigateToCanvas(reference: ProjectReference) {
     if (!canvasHasElement(current.current.canvas, reference.elementId)) {
-      setReferenceNotice({
+      setBrokenReference({
         referenceId: reference.id,
         message:
           "Linked canvas object no longer exists. The reference was kept until you remove it explicitly.",
-        broken: true,
       });
       return;
     }
+    setBrokenReference(null);
     setCanvasFocus({
       id: reference.elementId,
       request: ++navigationRequest.current,
-    });
-    setReferenceNotice({
-      referenceId: reference.id,
-      message: "Linked canvas object selected.",
-      broken: false,
     });
   }
 
   function navigateToDocument(reference: ProjectReference) {
     if (!documentHasBlock(current.current.document, reference.blockId)) {
-      setReferenceNotice({
+      setBrokenReference({
         referenceId: reference.id,
         message:
           "Linked document block no longer exists. The reference was kept until you remove it explicitly.",
-        broken: true,
       });
       return;
     }
+    setBrokenReference(null);
     setDocumentFocus({
       id: reference.blockId,
       request: ++navigationRequest.current,
-    });
-    setReferenceNotice({
-      referenceId: reference.id,
-      message: "Linked document block focused.",
-      broken: false,
     });
   }
 
@@ -241,7 +227,7 @@ export function Workspace({
         (reference) => reference.id !== referenceId,
       ),
     });
-    setReferenceNotice(null);
+    setBrokenReference(null);
   }
 
   function resize(value: number) {
@@ -277,26 +263,32 @@ export function Workspace({
           </div>
           <div className="header-actions">
             <button
-              className="secondary"
+              className="icon-button"
+              aria-label="Link selections"
+              title="Link selected document block and canvas object"
               disabled={!selectedBlockId || !selectedElementId}
               onClick={createReference}
             >
-              <Link2 size={14} /> Link selections
+              <Link2 size={16} />
             </button>
             {blockReference && (
               <button
-                className="secondary"
+                className="icon-button"
+                aria-label="Go to linked canvas object"
+                title="Go to linked canvas object"
                 onClick={() => navigateToCanvas(blockReference)}
               >
-                <Layers size={14} /> Go to canvas
+                <Layers size={16} />
               </button>
             )}
             {elementReference && (
               <button
-                className="secondary"
+                className="icon-button"
+                aria-label="Go to linked document block"
+                title="Go to linked document block"
                 onClick={() => navigateToDocument(elementReference)}
               >
-                <FileText size={14} /> Go to note
+                <FileText size={16} />
               </button>
             )}
             <span
@@ -334,20 +326,15 @@ export function Workspace({
             </button>
           </div>
         )}
-        {referenceNotice && (
-          <div
-            className={`reference-notice${referenceNotice.broken ? " reference-broken" : ""}`}
-            role={referenceNotice.broken ? "alert" : "status"}
-          >
-            <span>{referenceNotice.message}</span>
-            {referenceNotice.broken && (
-              <button
-                className="secondary"
-                onClick={() => removeReference(referenceNotice.referenceId)}
-              >
-                <Unlink size={14} /> Remove broken link
-              </button>
-            )}
+        {brokenReference && (
+          <div className="save-error" role="alert">
+            <span>{brokenReference.message}</span>
+            <button
+              className="secondary"
+              onClick={() => removeReference(brokenReference.referenceId)}
+            >
+              <Unlink size={14} /> Remove broken link
+            </button>
           </div>
         )}
         <div

@@ -55,7 +55,7 @@ type Update struct {
 	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
 	SplitRatio float64     `json:"splitRatio"`
-	Version    int      `json:"version"`
+	Version    int         `json:"version"`
 }
 
 type Store interface {

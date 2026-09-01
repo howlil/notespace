@@ -2,7 +2,7 @@
 
 This directory is the canonical operating context for software-engineering agents working on Notespace.
 
-It exists so an agent can understand the product, current iteration, architecture boundaries, design intent, and quality expectations without relying on chat history, model memory, or a vendor-specific planning feature.
+It exists so an agent can understand the product, current iteration, architecture boundaries, design intent, quality expectations, and implementation-specific skills without relying on chat history, model memory, or a vendor-specific planning feature.
 
 ## Read order
 
@@ -12,8 +12,14 @@ Before making a meaningful change, read in this order:
 2. `PROJECT.md` — what Notespace is, who it is for, product/domain model, behavior, constraints, non-goals.
 3. `ARCHITECTURE.md` — system boundaries, state ownership, data flow, technical invariants, open decisions.
 4. `DESIGN.md` — product shape, UI hierarchy, interaction and visual rules.
-5. `QUALITY.md` — verification expectations and release gates.
-6. `RETROSPECTIVE.md` — how to improve the delivery system after meaningful work.
+5. Relevant implementation skill under `skill/` for the area being changed.
+   - Frontend/Web work: `skill/fe-skill.md`.
+6. `QUALITY.md` — verification expectations and release gates.
+7. `RETROSPECTIVE.md` — how to improve the delivery system after meaningful work.
+
+Implementation skills specialize the canonical project rules; they do not replace them.
+
+For frontend work, `skill/fe-skill.md` contains the approved frontend stack and frontend-specific implementation rules. Its explicit frontend technology decisions supersede older baseline statements that left the frontend framework/runtime open.
 
 If repository code or explicit user instruction conflicts with these documents, stop and surface the contradiction. Do not silently reinterpret product behavior or architecture.
 
@@ -189,12 +195,13 @@ For a non-trivial task:
 
 1. Inspect `CURRENT_ITERATION.md`.
 2. Inspect relevant code/tests/configuration before proposing implementation.
-3. Restate the bounded behavior change if ambiguity exists.
-4. Identify ownership and blast radius.
-5. Implement the smallest vertical slice.
-6. Verify observable behavior.
-7. Run relevant quality gates.
-8. Update `CURRENT_ITERATION.md` with completed work, evidence, and next move.
-9. Stop when acceptance criteria are satisfied.
+3. Read the relevant implementation skill for the area being changed.
+4. Restate the bounded behavior change if ambiguity exists.
+5. Identify ownership and blast radius.
+6. Implement the smallest vertical slice.
+7. Verify observable behavior.
+8. Run relevant quality gates.
+9. Update `CURRENT_ITERATION.md` with completed work, evidence, and next move.
+10. Stop when acceptance criteria are satisfied.
 
 Do not continue adding “nice to have” work after the requested change is complete.

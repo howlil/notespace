@@ -14,12 +14,15 @@ Before making a meaningful change, read in this order:
 4. `DESIGN.md` — product shape, UI hierarchy, interaction and visual rules.
 5. Relevant implementation skill under `skill/` for the area being changed.
    - Frontend/Web work: `skill/fe-skill.md`.
+   - Backend/persistence work: `skill/go-sqlite-skill.md`.
 6. `QUALITY.md` — verification expectations and release gates.
 7. `RETROSPECTIVE.md` — how to improve the delivery system after meaningful work.
 
 Implementation skills specialize the canonical project rules; they do not replace them.
 
 For frontend work, `skill/fe-skill.md` contains the approved frontend stack and frontend-specific implementation rules. Its explicit frontend technology decisions supersede older baseline statements that left the frontend framework/runtime open.
+
+For backend/persistence work, `skill/go-sqlite-skill.md` contains the approved stdlib-first Go + SQLite stack and backend-specific implementation rules. Its explicit backend technology decisions supersede older baseline statements that left backend/runtime/persistence open.
 
 If repository code or explicit user instruction conflicts with these documents, stop and surface the contradiction. Do not silently reinterpret product behavior or architecture.
 

@@ -20,6 +20,11 @@ function findBlockPosition(editor: Editor, blockId: string) {
   return position;
 }
 
+function selectedBlockId(editor: Editor) {
+  const blockId = editor.state.selection.$from.parent.attrs.blockId;
+  return typeof blockId === "string" ? blockId : null;
+}
+
 export default function DocumentEditor({
   initial,
   onChange,
@@ -49,11 +54,12 @@ export default function DocumentEditor({
         spellcheck: "false",
       },
     },
-    onUpdate: ({ editor }) =>
-      onChange({ format: "tiptap", version: 1, data: editor.getJSON() }),
+    onUpdate: ({ editor }) => {
+      onChange({ format: "tiptap", version: 1, data: editor.getJSON() });
+      onBlockSelect?.(selectedBlockId(editor));
+    },
     onSelectionUpdate: ({ editor }) => {
-      const blockId = editor.state.selection.$from.parent.attrs.blockId;
-      onBlockSelect?.(typeof blockId === "string" ? blockId : null);
+      onBlockSelect?.(selectedBlockId(editor));
     },
   });
   const active = useEditorState({

@@ -1,679 +1,208 @@
-# Notespace — Architecture Boundaries and Engineering Model
+# Notespace — Architecture Boundaries
 
-This document defines architectural constraints and preferred system boundaries for Notespace.
+## Objective
 
-It deliberately separates **product invariants** from **implementation choices**. The GitHub repository was empty when this baseline was created, so framework/database/runtime choices that are not explicitly committed below must be verified against the code once implementation is pushed.
-
----
-
-# 1. Architecture objective
-
-Build the simplest self-hosted architecture that preserves the product model:
+Keep Notespace a simple self-hosted modular monolith whose implementation preserves one Project domain identity across document and canvas editing.
 
 ```text
-                         Notespace
-                            │
-                         Project
-                            │
-                ┌───────────┴───────────┐
-                │                       │
-         Document surface         Canvas surface
-                │                       │
-         editor adapter          canvas adapter
-                │                       │
-                └───────────┬───────────┘
-                            │
-                     Project services
-                            │
-                    persistence boundary
-                            │
-                 local/self-hosted storage
-```
-
-The architecture should make it easy to replace implementation primitives without changing the user-facing Project model.
-
----
-
-# 2. Core invariants
-
-## 2.1 Project is the aggregate/product ownership boundary
-
-A Project owns the user-visible context for both document and canvas state.
-
-Implementation may normalize or split storage, but the application must preserve one Project identity and lifecycle.
-
-Do not create independently navigable `Note` and `Canvas` aggregate roots without an explicit product requirement.
-
-## 2.2 Editor/renderer dependencies do not own the domain
-
-Excalidraw is expected to be the primary interactive canvas dependency, but Notespace must own the integration boundary.
-
-Preferred dependency direction:
-
-```text
-Notespace product/domain
+Browser / Project workspace
         ↓
-canvas port / adapter
-        ↓
-Excalidraw
+Notespace application boundary
+        ├── document integration → Tiptap
+        ├── canvas integration   → Excalidraw
+        └── Project API
+                ↓
+        Project service/domain
+                ↓
+          SQLite persistence
 ```
 
-Avoid:
+## Deployable shape
 
-```text
-UI + persistence + domain logic
-        ↓
-Excalidraw internals everywhere
-```
+Current production shape:
 
-Apply the same rule to the document editor.
+- `apps/web`: React + TanStack Start/Router + Vite frontend;
+- `apps/server`: Go HTTP server and Project domain/persistence;
+- SQLite is the durable store;
+- Go serves the built web shell/assets and same-origin API;
+- Docker packages the application as one self-hosted deployable.
 
-## 2.3 Persistence is replaceable behind a narrow boundary
+Do not split services or add infrastructure unless a concrete requirement proves the operational cost is justified.
 
-Self-hosting is product-critical; a particular database is not.
+## Ownership boundaries
 
-Product/domain code should not depend on database-specific query objects, ORM entities, or storage paths where avoidable.
+### Project domain
 
-Do not build a generic repository abstraction for every object preemptively. Create boundaries only where persistence concerns actually cross domain ownership.
+`apps/server/internal/project` owns the Project aggregate and its application-level contract.
 
-## 2.4 One deployable by default
-
-Until scale or isolation requirements prove otherwise, prefer a modular monolith/single self-hosted deployment over microservices.
-
-Reasoning:
-
-- local/self-hosted operation benefits from low operational complexity;
-- current product scope does not require independent service scaling;
-- backup/restore is simpler with a small number of owned state stores;
-- deployment and upgrades should remain understandable to individual users.
-
-A service split is a material architecture decision and requires evidence.
-
----
-
-# 3. Recommended logical modules
-
-These are responsibility boundaries, not mandatory directory names.
-
-```text
-Application Shell
-│
-├── Project Domain
-│   ├── project identity/metadata
-│   ├── lifecycle
-│   └── project-level preferences
-│
-├── Project Library
-│   ├── recent/all/search
-│   ├── favorites
-│   └── trash
-│
-├── Workspace
-│   ├── split/focus state
-│   ├── project navigation
-│   └── focus timer integration
-│
-├── Document Integration
-│   └── document-editor adapter
-│
-├── Canvas Integration
-│   └── Excalidraw adapter
-│
-├── Persistence
-│   ├── project persistence
-│   ├── document/canvas persistence
-│   └── transactional consistency as required
-│
-├── Portability
-│   ├── import
-│   ├── export
-│   └── backup/restore
-│
-└── Instance
-    ├── settings
-    ├── health/version
-    └── storage/runtime information
-```
-
-Do not create all modules as independent packages if the codebase does not need that isolation. Keep boundaries conceptual first; extract physical packages only when cohesion or dependency control benefits.
-
----
-
-# 4. Project state model
-
-A useful conceptual model:
+Current aggregate:
 
 ```text
 Project
-├── ProjectMetadata
-├── DocumentState
-├── CanvasState
-├── WorkspaceState
-└── FocusSessionState?     # only if persisted
+├── identity + title + timestamps + version
+├── versioned document snapshot
+├── versioned canvas snapshot
+└── split ratio
 ```
 
-The exact schema is implementation-specific.
+Rules:
 
-## ProjectMetadata
+- Project owns document and canvas state.
+- A separate independently navigable Note or Canvas aggregate requires explicit product approval.
+- Optimistic Project versioning is the current concurrent-write policy. Do not silently replace it with merge/CRDT semantics.
 
-Expected stable concerns:
+### HTTP boundary
 
-- Project ID;
-- title;
-- timestamps;
-- favorite/trash state if those features exist.
+`apps/server/internal/httpapi` owns HTTP request/response mapping, validation/error translation, and API composition.
 
-## DocumentState
+Keep product/domain rules out of route wiring where they can live in the Project service. Do not let browser-specific or editor-specific structures become server routing concerns.
 
-Owns document-editor content for the Project.
+### Persistence boundary
 
-The stored representation may be editor-native initially if that is the smallest correct choice, but application code should avoid assuming that representation is the universal product API.
+`apps/server/internal/persistence` owns SQLite persistence for Project state.
 
-## CanvasState
+Current constraints:
 
-Owns spatial state for the Project.
+- `database/sql` with pure-Go `modernc.org/sqlite`;
+- explicit SQL and embedded migrations;
+- one database connection in the current implementation;
+- SQLite WAL with FULL synchronous durability configuration;
+- persisted snapshots remain versioned so editor formats can evolve deliberately.
 
-Excalidraw data may be stored as a scene payload, but Notespace should wrap access through an integration boundary.
+Schema/data migrations are architecture-sensitive. Destructive or irreversible migrations require explicit user approval and recovery evidence.
 
-## WorkspaceState
+### Web application
 
-Examples:
+`apps/web` owns browser interaction and Project presentation.
 
-- split ratio;
-- document/canvas focus/collapse state;
-- optional last viewport state where useful.
+Keep responsibility local:
 
-Do not persist transient state merely because it exists in React/editor memory. Persist only what improves resume behavior or satisfies a feature requirement.
+- routes/loaders: navigation and data entry points;
+- Project/workspace domain modules: product behavior and client-side orchestration;
+- editor adapters/components: Tiptap/Excalidraw integration details;
+- generic UI primitives: presentation only, not Project semantics.
 
----
+Do not create a global state abstraction or shared utility layer without a demonstrated cross-cutting need.
 
-# 5. State taxonomy
+### Document integration
 
-Classify state before deciding where it lives.
+Tiptap is the current structured document editor. Notespace owns the serialized Project document snapshot and any product-owned block identity used for cross-surface relationships.
 
-## Domain state
-
-User-visible, durable product meaning.
-
-Examples:
-
-- project identity/title;
-- authored document content;
-- authored canvas scene;
-- favorite/trash status;
-- explicit cross-surface references when/if introduced.
-
-## Presentation state
-
-Visual/editor state that may be durable or transient depending on UX.
-
-Examples:
-
-- split ratio;
-- selected element;
-- active toolbar;
-- current zoom;
-- viewport position;
-- hovered item.
-
-## Runtime/instance state
-
-Operational facts about the self-hosted installation.
-
-Examples:
-
-- version;
-- health;
-- storage backend;
-- backup status;
-- data directory where relevant.
-
-Do not mix these categories in one unbounded state store.
-
----
-
-# 6. Data flow
-
-## 6.1 Open Project
+Dependency direction:
 
 ```text
-User selects Project
+Project/document behavior
         ↓
-Project application service
+Notespace document adapter
         ↓
-load Project metadata + owned content state
-        ↓
-Workspace initializes
-        ├── document adapter receives DocumentState
-        └── canvas adapter receives CanvasState
-        ↓
-workspace preferences restored
-        ↓
-user can edit both surfaces
+Tiptap
 ```
 
-## 6.2 Document edit
+Do not use mutable document position, visible label text, or editor-private incidental identity as a durable product relationship key.
+
+### Canvas integration
+
+Excalidraw is the current freeform canvas editor.
+
+Dependency direction:
 
 ```text
-User input
-   ↓
-Document editor
-   ↓
-Document adapter
-   ↓
-Notespace-owned change boundary
-   ↓
-persistence scheduling/commit
-```
-
-Do not send document changes through canvas code merely because both are visible in the same screen.
-
-## 6.3 Canvas edit
-
-```text
-Pointer/keyboard input
-   ↓
+Project/canvas behavior
+        ↓
+Notespace canvas adapter
+        ↓
 Excalidraw
-   ↓
-Canvas adapter
-   ↓
-Notespace-owned change boundary
-   ↓
-persistence scheduling/commit
 ```
 
-## 6.4 Cross-surface reference — future
+Excalidraw scene data may be persisted as a versioned canvas snapshot, but unrelated product code must not depend on Excalidraw internals. Product-owned relationship metadata may be carried through the adapter when required by a bounded feature.
 
-If implemented:
+## Major flows
+
+### Open Project
 
 ```text
-Document block identity
-        ↓
-Project-owned reference
-        ↓
-Canvas object custom metadata/reference
+route/load
+  → GET Project
+  → initialize workspace
+      ├── document adapter receives document snapshot
+      └── canvas adapter receives canvas snapshot
+  → restore split/layout state
 ```
 
-Use product-owned stable IDs for semantic references. Do not use pixel coordinates or mutable editor-generated labels as relational identity.
-
----
-
-# 7. Canvas integration boundary
-
-The canvas integration should make Excalidraw replaceable without pretending all canvas engines share identical capabilities.
-
-Avoid a giant generic interface that mirrors every Excalidraw API.
-
-Instead expose operations Notespace actually needs, for example conceptually:
-
-```ts
-interface ProjectCanvas {
-  load(scene: CanvasSnapshot): void;
-  snapshot(): CanvasSnapshot;
-  focus(): void;
-  export(options: ExportOptions): Promise<ExportResult>;
-}
-```
-
-Add domain-relevant operations only when a real Notespace feature needs them.
-
-If future functionality needs stable references to particular canvas elements, use Excalidraw `customData` or equivalent through the adapter, not directly from unrelated features.
-
----
-
-# 8. Document integration boundary
-
-The document editor must be selected based on required behavior, not popularity.
-
-Evaluate against:
-
-- structured text model;
-- Markdown interoperability if required;
-- code blocks and technical writing;
-- extension/plugin model;
-- serialization stability;
-- large-document performance;
-- copy/paste behavior;
-- future stable block identity if cross-surface references are introduced;
-- accessibility;
-- licensing and maintenance.
-
-Do not introduce a custom editor engine unless existing mature editors fail a concrete requirement.
-
----
-
-# 9. Persistence and consistency
-
-## 9.1 Durability expectation
-
-The user should not lose meaningful authored content during normal navigation, refresh, or restart.
-
-Persistence strategy must define:
-
-- when edits become durable;
-- what happens on save failure;
-- whether optimistic/local state can get ahead of durable state;
-- how the user is informed of unsaved/error state;
-- what crash/restart behavior is expected.
-
-## 9.2 Atomicity
-
-Because document and canvas are part of one Project but may be edited independently, do not force every keystroke and canvas move into one cross-surface transaction.
-
-Atomicity is required where a single product operation updates multiple pieces of state that must remain consistent.
-
-Examples of future operations that may require multi-record atomicity:
-
-- deleting a Project and its owned metadata/index records;
-- creating/removing a cross-surface reference;
-- restore/import of a complete Project.
-
-## 9.3 Autosave
-
-Autosave is a likely fit for the product, but implementation must avoid excessive writes.
-
-A typical strategy may use:
-
-- local in-memory updates immediately;
-- debounced or batched durable writes;
-- explicit flush on navigation/unload where reliable;
-- visible error/retry state.
-
-Do not choose debounce intervals without testing actual editor behavior and data size.
-
----
-
-# 10. Import, export, backup
-
-These are distinct concepts.
-
-## Import
-
-Transforms external content into Notespace-owned state.
-
-Requirements:
-
-- validate format;
-- reject malformed input safely;
-- avoid path traversal or unsafe file handling;
-- define partial failure behavior;
-- never silently overwrite an existing Project unless explicitly intended.
-
-## Export
-
-Produces user-portable data.
-
-Prefer formats that preserve user ownership and future migration options.
-
-If the primary export is a Notespace archive, document its version/schema sufficiently to support future migrations.
-
-## Backup
-
-Captures installation state for recovery.
-
-A backup must be evaluated by restore ability, not by archive creation alone.
-
-A “backup succeeded” claim should ultimately be backed by restore verification at least in tests or controlled qualification.
-
----
-
-# 11. Self-hosted deployment principles
-
-## Minimize operational dependencies
-
-Every required process, database, queue, object store, browser runtime, or external service increases self-hosting cost.
-
-Do not add infrastructure without a concrete requirement.
-
-## Explicit persistent data ownership
-
-The deployment must make durable data locations clear.
-
-Users/operators should be able to answer:
-
-- what must be persisted across container replacement;
-- what must be backed up;
-- what can be regenerated;
-- what version migrations change.
-
-## Upgrade safety
-
-Application upgrades must consider:
-
-- schema migrations;
-- backward compatibility where necessary;
-- backup before destructive migration;
-- rollback feasibility;
-- startup failure behavior.
-
-A destructive or irreversible migration is a stop condition requiring explicit review.
-
----
-
-# 12. Security model
-
-The exact authentication model is currently open; do not invent one without product requirements.
-
-Regardless of authentication, preserve these baseline controls.
-
-## Untrusted content
-
-Treat imported files, Markdown/HTML-like content, images, and editor payloads as untrusted input.
-
-Protect against:
-
-- XSS;
-- unsafe URL/embed behavior;
-- malicious SVG/HTML content;
-- archive bombs or oversized payloads;
-- path traversal;
-- arbitrary file reads/writes;
-- unsafe deserialization.
-
-## Browser rendering
-
-If rich content or embeds are rendered, use safe sanitization and restrictive defaults.
-
-Do not enable arbitrary script execution from Project content.
-
-## Server boundaries
-
-If the web frontend calls a backend API:
-
-- validate authorization/ownership at the server boundary when auth exists;
-- validate input schemas;
-- avoid trusting client-provided paths or storage IDs;
-- use CSRF protection where the chosen auth/session architecture requires it.
-
-## Secrets
-
-Secrets must come from deployment configuration, never Project data or committed source.
-
-Do not expose instance secrets through diagnostic/settings endpoints.
-
----
-
-# 13. Performance model
-
-Performance work should follow measurement.
-
-Potential hot paths:
-
-- loading a large Project;
-- serializing/deserializing Excalidraw scenes;
-- editor rendering for large documents;
-- autosave frequency;
-- dashboard thumbnail generation;
-- project search/indexing;
-- large image handling.
-
-Useful performance budgets should be established after a representative workload exists.
-
-Avoid speculative virtualization, worker farms, distributed caches, or custom rendering engines before profiling shows need.
-
----
-
-# 14. Reliability and failure modes
-
-Design explicit behavior for:
-
-## Persistence failure
-
-Expected system behavior:
-
-- keep the editing session alive where possible;
-- surface unsaved/error state;
-- retry safely;
-- do not report success before durable write succeeds.
-
-## Corrupt Project state
-
-The loader should fail locally to the affected Project where possible rather than crashing the entire instance.
-
-Provide diagnosable errors and preserve raw data for recovery when feasible.
-
-## Storage unavailable/full
-
-Treat disk/storage exhaustion as an operational failure that must be visible.
-
-## Failed import
-
-Do not leave half-created user-visible Projects without explicit recovery semantics.
-
-## Failed migration
-
-Startup/migration failure must not silently continue with partially transformed data.
-
----
-
-# 15. Observability
-
-Self-hosted observability should be useful without requiring a hosted telemetry vendor.
-
-Baseline goals:
-
-- structured application logs;
-- clear startup/configuration errors;
-- health/readiness indication where a server process exists;
-- migration logs;
-- backup/import/export operation results;
-- storage errors with actionable context.
-
-Metrics/tracing should be added when there is an operational question they answer.
-
-Do not add an observability stack purely for architecture completeness.
-
-Telemetry that sends user information outside the self-hosted instance requires explicit product/privacy review.
-
----
-
-# 16. Testing architecture
-
-Prefer tests at boundaries that protect observable behavior.
-
-## Unit tests
-
-Useful for:
-
-- pure domain transitions;
-- parsing/validation;
-- import/export transforms;
-- persistence mapping where logic exists;
-- timer state logic;
-- migration helpers.
-
-## Integration tests
-
-Useful for:
-
-- project persistence round trips;
-- Project create/open/delete/restore;
-- editor adapter serialization;
-- canvas adapter serialization;
-- import/export;
-- migration and backup/restore behavior.
-
-## UI/end-to-end tests
-
-Protect core journeys:
+### Edit and autosave
 
 ```text
-Dashboard → Create Project → Workspace → edit document/canvas → reload → state restored
+editor change
+  → local Project draft state
+  → serialized save queue / debounce
+  → complete Project update with optimistic version
+  → durable SQLite write
+  → acknowledged version replaces local version
 ```
 
-and high-risk workflows such as destructive operations and import.
+Current behavior uses serialized debounced saves, visible retry on failure, navigation flush where possible, and unload warning for unacknowledged changes.
 
-Do not test implementation trivia that makes refactoring unnecessarily expensive.
+### Cross-surface relationship
 
----
+Approved Milestone 2 architecture:
 
-# 17. Dependency strategy
+```text
+stable document block identity
+        ↕
+Project-owned relationship
+        ↕
+canvas object metadata / adapter capability
+```
 
-## Excalidraw
+Project-owned relationship state is authoritative. Missing targets must remain recoverable/diagnosable rather than triggering implicit relinking.
 
-Expected primary canvas dependency.
+## State taxonomy
 
-Integration rules:
+Keep these categories distinct:
 
-- prefer package integration over maintaining a fork;
-- pin/use a supported patched version;
-- wrap Notespace-specific behavior at the adapter boundary;
-- preserve ability to upgrade upstream;
-- do not copy internal Excalidraw implementation into the domain.
+- **Domain state:** Project identity, authored document/canvas content, durable relationships.
+- **Presentation state:** split ratio, selection, viewport/focus state where not explicitly persisted.
+- **Runtime/instance state:** server version, health, storage/configuration.
 
-Fork only if a proven product requirement cannot be supported through extension/integration APIs and the long-term maintenance cost is accepted.
+Do not put all categories into one unbounded state store.
 
-## Eraser diagrams
+## Security boundaries
 
-Deferred optional dependency for structured diagrams.
+Treat Project content, imported payloads, editor snapshots, files/images, URLs, and future embeds as untrusted input.
 
-Do not add in V1 without a concrete feature requiring deterministic structured layout.
+Preserve:
 
-## New dependencies
+- server-side schema/input validation;
+- no arbitrary script execution from Project content;
+- safe handling of HTML/SVG/URLs/files;
+- no client-controlled filesystem paths;
+- secrets only from deployment configuration;
+- no secret exposure through Project/diagnostic responses.
 
-For every dependency, record the problem, scope, operational impact, security/licensing implications, and replacement difficulty when material.
+Authentication/authorization is currently not a committed architecture. Introducing it changes the security boundary and requires explicit product/architecture approval.
 
----
+## Infrastructure boundaries
 
-# 18. Architecture decision thresholds
+Self-hosting is a product constraint:
 
-## Agent may decide locally
+- minimize mandatory processes and external services;
+- make durable data ownership explicit;
+- keep core editing functional without hosted dependencies;
+- preserve restart durability for acknowledged saves;
+- treat backup/restore and migrations as recovery concerns, not merely file operations.
 
-Examples:
+## Material changes requiring approval
 
-- helper placement;
-- internal function boundaries;
-- local state shape;
-- test structure;
-- small adapter methods;
-- refactor necessary to make the requested change safe.
+Stop and surface the decision before:
 
-## User approval required
-
-Examples:
-
-- introducing a separate backend/service;
-- replacing the primary editor/canvas engine;
 - changing Project ownership semantics;
-- introducing collaboration/CRDT architecture;
-- changing persistence technology in a way that affects deployment/migration;
-- adding external hosted infrastructure to a self-hosted default;
-- new public API/contracts;
-- authentication/authorization model;
-- destructive data migrations;
-- major plugin/extensibility architecture.
+- adding an independently deployed backend/service;
+- replacing Tiptap or Excalidraw as a primary editor;
+- replacing SQLite/persistence technology when migration/deployment semantics change;
+- introducing collaboration/CRDT/event-sourcing architecture;
+- adding authentication/authorization or external hosted infrastructure;
+- changing public API/data contracts;
+- destructive/irreversible data migrations;
+- adding a broad plugin/extensibility architecture.
 
----
-
-# 19. Open implementation decisions
-
-Sprint 1 implements the previously approved frontend/backend skills and the user's execution scope:
-
-- TanStack Start SPA mode, React 18, TypeScript, Vite, Tailwind and Radix dialogs. Route loaders call the same-origin Go API. No additional Node runtime process is deployed.
-- Tiptap StarterKit behind the document adapter; Excalidraw behind the canvas adapter. Each Project stores versioned snapshots of both and a split ratio.
-- Go `net/http` + `database/sql` + pure-Go `modernc.org/sqlite`. Explicit SQL, embedded transactional migrations, WAL + FULL synchronous, one database connection.
-- Go serves the Start-generated shell and assets. One Docker container, one SQLite volume; default published host interface is loopback.
-- Saves are debounced 650 ms, serialized per project and guarded by the last acknowledged version. Navigation flushes; failed saves preserve local state and block app navigation. Browser unload warns on unsaved changes. No durability claim applies before acknowledgement.
-- Go testing/httptest, Node's test runner for autosave ordering, Playwright for browser journeys, GitHub Actions for gates and Docker restart smoke coverage.
-
-Still deferred/open: authentication, collaboration, portable import/export, real content thumbnail generation, and desktop networking. No public API compatibility guarantee is introduced by the initial internal CRUD API.
+Local helper placement, small adapter methods, test structure, and refactors strictly required for an approved change remain implementation-level decisions.

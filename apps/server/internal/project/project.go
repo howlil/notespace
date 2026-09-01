@@ -90,6 +90,13 @@ func (s Service) Create(ctx context.Context, title string) (Project, error) {
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Project, error) {
 	u.Title = strings.TrimSpace(u.Title)
+	if u.References == nil {
+		current, err := s.Store.Get(ctx, id)
+		if err != nil {
+			return Project{}, err
+		}
+		u.References = current.References
+	}
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) {
 		return Project{}, ErrInvalid
 	}

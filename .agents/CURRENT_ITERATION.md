@@ -1,13 +1,13 @@
 # Sprint 1 — Core Project Workspace
 
-Status: IMPLEMENTED AND LOCALLY VERIFIED; REMOTE CI/DOCKER GATE PENDING
+Status: RELEASE READY — SPRINT 1 ACCEPTANCE COMPLETE
 Branch: `feat/sprint-1-core-workspace`
 
 ## Feature Compass
 - Shape: dashboard → create Project → structured Document + Excalidraw Canvas → autosave → reload/reopen.
-- Position: local implementation and verification complete. Explicit publication and merge authorization received. Remote CI/Docker verification is pending.
+- Position: implementation, local verification and remote CI/Docker verification complete. Release delivery is tracked in PR #1; merge is explicitly authorized after the final head passes CI.
 - Delta: repository started with `.agents` only. It now contains the Web/Go monorepo, SQLite migrations, unified API, editors, Docker packaging and verification scripts.
-- Next: publish the branch and PR, verify CI including Docker startup/restart persistence, then merge the verified head.
+- Next: Sprint 1 scope is complete. Use [PR #1](https://github.com/howlil/notespace/pull/1) for delivery status; subsequent product work needs a separately bounded iteration.
 
 ## Authorized scope
 The user's Sprint 1 execution request authorizes structured editor selection, dashboard recent/all/title search, create/open/delete, light/dark foundation, note + canvas persistence, and Docker self-host packaging. This extends the earlier minimal bootstrap scope for search/delete and resolves the editor decision for this slice.
@@ -36,7 +36,7 @@ AI, collaboration/CRDT, authentication/team permissions, templates, favorites, t
 - [x] Browser journey including structured note, drawing, switching, reload, search/delete and themes; zero page errors in the core journey.
 - [x] Browser failure handling/retry, blocked navigation on save failure, narrow layout and canvas select/move/delete/pan/zoom persistence.
 - [x] Final lint/typecheck, production build, 3 autosave tests, Go vet/race tests and CGO-free server build. Production process SIGTERM/restart preserves the complete Project. Production dependency audit: zero vulnerabilities after documented transitive overrides.
-- [ ] Docker startup/restart gate: first CI run found a localhost address-family mismatch during SPA prerender in Docker. Preview now binds explicitly to IPv4 loopback; repeat gate pending.
+- [x] Docker build/startup, healthy non-root container and restart-persistence smoke passed in GitHub Actions. Preview binds explicitly to IPv4 loopback to avoid Docker localhost address-family mismatches.
 - [x] Remote branch and [PR #1](https://github.com/howlil/notespace/pull/1) published with a tree identical to the local implementation. Merge explicitly authorized after CI passes.
 
 ## Known limits
@@ -50,13 +50,13 @@ No auth; host binds loopback by default. Acknowledged saves survive restart; for
 - Production smoke: real HTTP CRUD + SPA/deep-link serving pass; independent SIGTERM/restart round trip passes. Development startup and same-origin POST through Vite proxy pass (explicit `changeOrigin: false`).
 - Visual QA: dashboard empty/populated, workspace light/dark, 390px narrow viewport inspected. Screenshots: `docs/evidence/sprint-1/`.
 - Fixed findings: API/SPA mux startup conflict, differing SPA pending text causing deep-link hydration errors; tests retain coverage.
-- First remote CI run: frontend build/typecheck/lint, autosave tests, Go vet/race/build and all four standard Chromium E2E tests passed. Docker build exposed the preview loopback mismatch; the container gate remains required.
+- [Remote CI run 33524907104](https://github.com/howlil/notespace/actions/runs/33524907104): all steps passed on `be4cfa4e81629674a381f4636495d44de299d490`. Standard Chromium: four E2E tests passed in 22.7s. Docker Compose built and started a healthy container; smoke confirmed create/edit of both surfaces, reopen, direct workspace URL and container restart with intact state.
 
 ## Delivery boundary
 The user explicitly authorized publication of all Sprint 1 changes to public `howlil/notespace`, PR creation and merge after CI passes. Release readiness requires the Docker/CI gate; deployment is outside this task.
 
 ## Retrospective
-- Evidence: isolated handler tests passed before the production mux conflict was detected; direct workspace reload exposed differing prerendered pending text.
+- Evidence: isolated handler tests missed a production mux conflict; direct workspace reload exposed differing prerendered pending text; Docker CI exposed a localhost address-family mismatch in prerender.
 - Bottleneck/root cause: component boundaries did not exercise final production composition early enough.
-- Applied improvement: retain the production route assembly regression test and run browser tests against the built app served by Go.
-- Verification: route assembly, deep-link hydration and persistence failures now fail the local/CI gates.
+- Applied improvement: retain production route assembly regression coverage, browser tests against the built app served by Go, and Docker startup/restart smoke as required gates. Pin the preview listener to IPv4 loopback.
+- Verification: the full remote workflow passes; route assembly, deep-link hydration, container build/startup and restart persistence failures fail the delivery gate.

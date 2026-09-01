@@ -1,8 +1,8 @@
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import UniqueID from "@tiptap/extension-unique-id";
 import { Bold, Code2, Heading2, Italic, List, Pilcrow } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { assignMissingBlockIds, BlockIdentity } from "./blockIdentity";
 
 export default function DocumentEditor({
   initial,
@@ -12,7 +12,13 @@ export default function DocumentEditor({
   onChange: (snapshot: Snapshot) => void;
 }) {
   const editor = useEditor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false } }), BlockIdentity],
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false } }),
+      UniqueID.configure({
+        types: ["paragraph", "heading", "codeBlock", "listItem"],
+        attributeName: "blockId",
+      }),
+    ],
     content: initial.data,
     immediatelyRender: false,
     editorProps: {
@@ -22,10 +28,6 @@ export default function DocumentEditor({
         "aria-multiline": "true",
         spellcheck: "false",
       },
-    },
-    onCreate: ({ editor }) => {
-      if (assignMissingBlockIds(editor))
-        onChange({ format: "tiptap", version: 1, data: editor.getJSON() });
     },
     onUpdate: ({ editor }) =>
       onChange({ format: "tiptap", version: 1, data: editor.getJSON() }),

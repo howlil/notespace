@@ -15,9 +15,10 @@ import {
   Circle,
   FileText,
   Layers,
+  Link2,
   Loader2,
   RotateCw,
-  Link2,
+  Unlink,
 } from "lucide-react";
 import { Sidebar } from "../../app/Sidebar";
 import { ThemeToggle, useTheme } from "../../app/theme";
@@ -25,6 +26,7 @@ import { contentOf } from "../../domain/project/project";
 import type {
   Project,
   ProjectContent,
+  ProjectReference,
   ProjectSummary,
   Snapshot,
 } from "../../domain/project/project";
@@ -38,6 +40,36 @@ const DocumentEditor = lazy(
 const CanvasEditor = lazy(
   () => import("../../integrations/canvas/CanvasEditor"),
 );
+
+type FocusRequest = { id: string; request: number } | null;
+type BrokenReference = { referenceId: string; message: string } | null;
+
+function documentHasBlock(snapshot: Snapshot, blockId: string) {
+  const visit = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    const attrs = record.attrs;
+    if (
+      attrs &&
+      typeof attrs === "object" &&
+      (attrs as Record<string, unknown>).blockId === blockId
+    )
+      return true;
+    return Object.values(record).some(visit);
+  };
+  return visit(snapshot.data);
+}
+
+function canvasHasElement(snapshot: Snapshot, elementId: string) {
+  const elements = snapshot.data.elements;
+  if (!Array.isArray(elements)) return false;
+  return elements.some((value) => {
+    if (!value || typeof value !== "object") return false;
+    const element = value as Record<string, unknown>;
+    return element.id === elementId && element.isDeleted !== true;
+  });
+}
 
 class EditorBoundary extends Component<
   { children: ReactNode },
@@ -70,9 +102,15 @@ export function Workspace({
   const current = useRef<ProjectContent>(contentOf(project));
   const [title, setTitle] = useState(project.title);
   const [ratio, setRatio] = useState(project.splitRatio);
+  const [references, setReferences] = useState(project.references);
   const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
+  const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
+  const [brokenReference, setBrokenReference] =
+    useState<BrokenReference>(null);
+  const navigationRequest = useRef(0);
   const [saver] = useState(
     () =>
       new Autosave(project.version, (value: ProjectContent, version) =>
@@ -108,6 +146,7 @@ export function Workspace({
   const update = useCallback(
     (patch: Partial<ProjectContent>) => {
       current.current = { ...current.current, ...patch };
+      if (patch.references !== undefined) setReferences(patch.references);
       saver.schedule(current.current);
     },
     [saver],
@@ -122,9 +161,75 @@ export function Workspace({
   );
   const createReference = useCallback(() => {
     if (!selectedBlockId || !selectedElementId) return;
-    if (current.current.references.some((reference) => reference.blockId === selectedBlockId && reference.elementId === selectedElementId)) return;
-    update({ references: [...current.current.references, { id: crypto.randomUUID(), blockId: selectedBlockId, elementId: selectedElementId }] });
+    if (
+      current.current.references.some(
+        (reference) =>
+          reference.blockId === selectedBlockId &&
+          reference.elementId === selectedElementId,
+      )
+    )
+      return;
+    update({
+      references: [
+        ...current.current.references,
+        {
+          id: crypto.randomUUID(),
+          blockId: selectedBlockId,
+          elementId: selectedElementId,
+        },
+      ],
+    });
+    setBrokenReference(null);
   }, [selectedBlockId, selectedElementId, update]);
+
+  const blockReference = selectedBlockId
+    ? references.find((reference) => reference.blockId === selectedBlockId)
+    : undefined;
+  const elementReference = selectedElementId
+    ? references.find((reference) => reference.elementId === selectedElementId)
+    : undefined;
+
+  function navigateToCanvas(reference: ProjectReference) {
+    if (!canvasHasElement(current.current.canvas, reference.elementId)) {
+      setBrokenReference({
+        referenceId: reference.id,
+        message:
+          "Linked canvas object no longer exists. The reference was kept until you remove it explicitly.",
+      });
+      return;
+    }
+    setBrokenReference(null);
+    setCanvasFocus({
+      id: reference.elementId,
+      request: ++navigationRequest.current,
+    });
+  }
+
+  function navigateToDocument(reference: ProjectReference) {
+    if (!documentHasBlock(current.current.document, reference.blockId)) {
+      setBrokenReference({
+        referenceId: reference.id,
+        message:
+          "Linked document block no longer exists. The reference was kept until you remove it explicitly.",
+      });
+      return;
+    }
+    setBrokenReference(null);
+    setDocumentFocus({
+      id: reference.blockId,
+      request: ++navigationRequest.current,
+    });
+  }
+
+  function removeReference(referenceId: string) {
+    update({
+      references: current.current.references.filter(
+        (reference) => reference.id !== referenceId,
+      ),
+    });
+    setBrokenReference(null);
+  }
+
   function resize(value: number) {
     const next = Math.max(0.25, Math.min(0.7, value));
     setRatio(next);
@@ -157,9 +262,35 @@ export function Workspace({
             />
           </div>
           <div className="header-actions">
-            <button className="secondary" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}>
-              <Link2 size={14} /> Link selections
+            <button
+              className="icon-button"
+              aria-label="Link selections"
+              title="Link selected document block and canvas object"
+              disabled={!selectedBlockId || !selectedElementId}
+              onClick={createReference}
+            >
+              <Link2 size={16} />
             </button>
+            {blockReference && (
+              <button
+                className="icon-button"
+                aria-label="Go to linked canvas object"
+                title="Go to linked canvas object"
+                onClick={() => navigateToCanvas(blockReference)}
+              >
+                <Layers size={16} />
+              </button>
+            )}
+            {elementReference && (
+              <button
+                className="icon-button"
+                aria-label="Go to linked document block"
+                title="Go to linked document block"
+                onClick={() => navigateToDocument(elementReference)}
+              >
+                <FileText size={16} />
+              </button>
+            )}
             <span
               className={`save-status status-${status.state}`}
               role="status"
@@ -195,6 +326,17 @@ export function Workspace({
             </button>
           </div>
         )}
+        {brokenReference && (
+          <div className="save-error" role="alert">
+            <span>{brokenReference.message}</span>
+            <button
+              className="secondary"
+              onClick={() => removeReference(brokenReference.referenceId)}
+            >
+              <Unlink size={14} /> Remove broken link
+            </button>
+          </div>
+        )}
         <div
           className="workspace-split"
           ref={split}
@@ -218,6 +360,7 @@ export function Workspace({
                   initial={project.document}
                   onChange={updateDocument}
                   onBlockSelect={setSelectedBlockId}
+                  focusRequest={documentFocus}
                 />
               </Suspense>
             </EditorBoundary>
@@ -279,6 +422,7 @@ export function Workspace({
                   initial={project.canvas}
                   onChange={updateCanvas}
                   onElementSelect={setSelectedElementId}
+                  focusRequest={canvasFocus}
                   dark={dark}
                 />
               </Suspense>

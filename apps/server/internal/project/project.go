@@ -31,20 +31,31 @@ type Summary struct {
 	Version   int    `json:"version"`
 }
 
+// Reference is a product-owned relationship between one document block and one
+// canvas object. Targets may be absent after ordinary editing and are repaired
+// by the client rather than silently reassigned by the server.
+type Reference struct {
+	ID        string `json:"id"`
+	BlockID   string `json:"blockId"`
+	ElementID string `json:"elementId"`
+}
+
 type Project struct {
 	Summary
-	Document   Snapshot `json:"document"`
-	Canvas     Snapshot `json:"canvas"`
-	SplitRatio float64  `json:"splitRatio"`
+	Document   Snapshot    `json:"document"`
+	Canvas     Snapshot    `json:"canvas"`
+	References []Reference `json:"references"`
+	SplitRatio float64     `json:"splitRatio"`
 }
 
 // Update is a complete authored snapshot; Version is an optimistic concurrency guard.
 type Update struct {
-	Title      string   `json:"title"`
-	Document   Snapshot `json:"document"`
-	Canvas     Snapshot `json:"canvas"`
-	SplitRatio float64  `json:"splitRatio"`
-	Version    int      `json:"version"`
+	Title      string      `json:"title"`
+	Document   Snapshot    `json:"document"`
+	Canvas     Snapshot    `json:"canvas"`
+	References []Reference `json:"references"`
+	SplitRatio float64     `json:"splitRatio"`
+	Version    int         `json:"version"`
 }
 
 type Store interface {
@@ -71,6 +82,7 @@ func (s Service) Create(ctx context.Context, title string) (Project, error) {
 		Summary:    Summary{ID: rand.Text(), Title: title, CreatedAt: now, UpdatedAt: now, Version: 1},
 		Document:   Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
 		Canvas:     Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
+		References: []Reference{},
 		SplitRatio: 0.45,
 	}
 	return p, s.Store.Create(ctx, p)
@@ -78,10 +90,31 @@ func (s Service) Create(ctx context.Context, title string) (Project, error) {
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Project, error) {
 	u.Title = strings.TrimSpace(u.Title)
-	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) {
+	if u.References == nil {
+		current, err := s.Store.Get(ctx, id)
+		if err != nil {
+			return Project{}, err
+		}
+		u.References = current.References
+	}
+	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) {
 		return Project{}, ErrInvalid
 	}
 	return s.Store.Update(ctx, id, u)
+}
+
+func validReferences(references []Reference) bool {
+	if references == nil || len(references) > 1000 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, reference := range references {
+		if reference.ID == "" || reference.BlockID == "" || reference.ElementID == "" || seen[reference.ID] {
+			return false
+		}
+		seen[reference.ID] = true
+	}
+	return true
 }
 
 func validDocument(s Snapshot) bool {

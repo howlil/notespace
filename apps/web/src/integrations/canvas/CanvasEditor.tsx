@@ -20,10 +20,12 @@ window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
 export default function CanvasEditor({
   initial,
   onChange,
+  onElementSelect,
   dark,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
+  onElementSelect?: (elementId: string | null) => void;
   dark: boolean;
 }) {
   const [initialData] = useState(
@@ -58,6 +60,8 @@ export default function CanvasEditor({
     const first = last.current === "";
     last.current = serialized;
     if (!first) onChange({ format: "excalidraw", version: 1, data });
+    const selected = Object.entries(state.selectedElementIds).find(([, selected]) => selected)?.[0] ?? null;
+    onElementSelect?.(selected);
   }
   return (
     <div className="canvas-editor" aria-label="Project canvas">

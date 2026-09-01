@@ -7,9 +7,11 @@ import type { Snapshot } from "../../domain/project/project";
 export default function DocumentEditor({
   initial,
   onChange,
+  onBlockSelect,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
+  onBlockSelect?: (blockId: string | null) => void;
 }) {
   const editor = useEditor({
     extensions: [
@@ -31,6 +33,10 @@ export default function DocumentEditor({
     },
     onUpdate: ({ editor }) =>
       onChange({ format: "tiptap", version: 1, data: editor.getJSON() }),
+    onSelectionUpdate: ({ editor }) => {
+      const blockId = editor.state.selection.$from.parent.attrs.blockId;
+      onBlockSelect?.(typeof blockId === "string" ? blockId : null);
+    },
   });
   const active = useEditorState({
     editor,

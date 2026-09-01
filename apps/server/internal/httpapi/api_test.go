@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -60,8 +61,9 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	expect(t, created, 201)
 	p := decodeProject(t, created)
 	update := project.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
-		Document: project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
-		Canvas:   project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
+		Document:   project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
+		Canvas:     project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
+		References: []project.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
 	}
 	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
 	expect(t, saved, 200)
@@ -82,7 +84,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	restored := call(t, api, "GET", "/api/projects/"+p.ID, nil)
 	expect(t, restored, 200)
 	got := decodeProject(t, restored)
-	if got.Title != expected.Title || got.SplitRatio != expected.SplitRatio || got.Version != expected.Version || string(got.Document.Data) != string(expected.Document.Data) || string(got.Canvas.Data) != string(expected.Canvas.Data) {
+	if got.Title != expected.Title || got.SplitRatio != expected.SplitRatio || got.Version != expected.Version || string(got.Document.Data) != string(expected.Document.Data) || string(got.Canvas.Data) != string(expected.Canvas.Data) || !reflect.DeepEqual(got.References, expected.References) {
 		t.Fatalf("restart changed content: %+v", got)
 	}
 	second := call(t, api, "POST", "/api/projects", map[string]string{"title": "Networking"})

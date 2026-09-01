@@ -15,12 +15,19 @@ export interface ProjectSummary {
 export interface Project extends ProjectSummary {
   document: Snapshot;
   canvas: Snapshot;
+  references: ProjectReference[];
   splitRatio: number;
+}
+
+export interface ProjectReference {
+  id: string;
+  blockId: string;
+  elementId: string;
 }
 
 export type ProjectContent = Pick<
   Project,
-  "title" | "document" | "canvas" | "splitRatio"
+  "title" | "document" | "canvas" | "references" | "splitRatio"
 >;
 
 export function contentOf(project: Project): ProjectContent {
@@ -28,6 +35,7 @@ export function contentOf(project: Project): ProjectContent {
     title: project.title,
     document: project.document,
     canvas: project.canvas,
+    references: project.references,
     splitRatio: project.splitRatio,
   };
 }

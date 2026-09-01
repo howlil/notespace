@@ -35,9 +35,17 @@ with urllib.request.urlopen(args.url, timeout=10) as page:
 project = call('/api/projects', 'POST', {'title': 'Persistence smoke test'})
 path = '/api/projects/' + project['id']
 try:
-    update = {key: project[key] for key in ('title', 'document', 'canvas', 'splitRatio', 'version')}
-    update['document']['data'] = {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Raft and Paxos'}]}]}
+    update = {key: project[key] for key in ('title', 'document', 'canvas', 'references', 'splitRatio', 'version')}
+    update['document']['data'] = {
+        'type': 'doc',
+        'content': [{
+            'type': 'paragraph',
+            'attrs': {'blockId': 'raft'},
+            'content': [{'type': 'text', 'text': 'Raft and Paxos'}],
+        }],
+    }
     update['canvas']['data']['elements'] = [{'id': 'client', 'type': 'rectangle', 'x': 20, 'y': 30}]
+    update['references'] = [{'id': 'raft-client', 'blockId': 'raft', 'elementId': 'client'}]
     update['splitRatio'] = .6
     saved = call(path, 'PATCH', update)
     if args.compose_restart:
@@ -46,6 +54,6 @@ try:
     assert call(path) == saved, 'Persisted project changed across reopen/restart'
     with urllib.request.urlopen(args.url + '/projects/' + project['id'], timeout=10) as page:
         assert b'Notespace' in page.read(), 'Direct project URL does not serve app shell'
-    print('PASS: create, edit both surfaces, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
+    print('PASS: create, edit both surfaces, persist reference, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
 finally:
     call(path, 'DELETE')

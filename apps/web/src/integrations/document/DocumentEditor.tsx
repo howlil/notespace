@@ -1,17 +1,35 @@
+import type { Editor } from "@tiptap/core";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UniqueID from "@tiptap/extension-unique-id";
 import { Bold, Code2, Heading2, Italic, List, Pilcrow } from "lucide-react";
+import { useEffect } from "react";
 import type { Snapshot } from "../../domain/project/project";
+
+type FocusRequest = { id: string; request: number } | null;
+
+function findBlockPosition(editor: Editor, blockId: string) {
+  let position: number | null = null;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.attrs.blockId === blockId) {
+      position = pos + 1;
+      return false;
+    }
+    return true;
+  });
+  return position;
+}
 
 export default function DocumentEditor({
   initial,
   onChange,
   onBlockSelect,
+  focusRequest,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
   onBlockSelect?: (blockId: string | null) => void;
+  focusRequest?: FocusRequest;
 }) {
   const editor = useEditor({
     extensions: [
@@ -48,6 +66,14 @@ export default function DocumentEditor({
       code: editor?.isActive("codeBlock"),
     }),
   });
+
+  useEffect(() => {
+    if (!editor || !focusRequest) return;
+    const position = findBlockPosition(editor, focusRequest.id);
+    if (position === null) return;
+    editor.chain().focus().setTextSelection(position).scrollIntoView().run();
+  }, [editor, focusRequest]);
+
   if (!editor)
     return (
       <div className="editor-loading" role="status">

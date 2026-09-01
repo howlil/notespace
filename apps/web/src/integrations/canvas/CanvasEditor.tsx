@@ -2,12 +2,15 @@ import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFiles,
+  ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
+
+type FocusRequest = { id: string; request: number } | null;
 
 // Host fonts on the same instance; the editor must not depend on a public CDN.
 declare global {
@@ -21,11 +24,13 @@ export default function CanvasEditor({
   initial,
   onChange,
   onElementSelect,
+  focusRequest,
   dark,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
   onElementSelect?: (elementId: string | null) => void;
+  focusRequest?: FocusRequest;
   dark: boolean;
 }) {
   const [initialData] = useState(
@@ -38,12 +43,41 @@ export default function CanvasEditor({
         },
       }) as ExcalidrawInitialDataState,
   );
+  const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
+  const lastSelected = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!focusRequest || !api.current) return;
+    const element = api.current
+      .getSceneElements()
+      .find(
+        (candidate) =>
+          candidate.id === focusRequest.id && !candidate.isDeleted,
+      );
+    if (!element) return;
+    api.current.updateScene({
+      appState: { selectedElementIds: { [element.id]: true } },
+    });
+    api.current.scrollToContent(element, {
+      fitToContent: true,
+      animate: true,
+    });
+  }, [focusRequest]);
+
   function changed(
     elements: readonly OrderedExcalidrawElement[],
     state: AppState,
     files: BinaryFiles,
   ) {
+    const selected =
+      Object.entries(state.selectedElementIds).find(([, value]) => value)?.[0] ??
+      null;
+    if (selected !== lastSelected.current) {
+      lastSelected.current = selected;
+      onElementSelect?.(selected);
+    }
+
     // Selection, cursor, menus and collaborators are transient. Only resume-relevant state is stored.
     const data = {
       elements,
@@ -60,13 +94,14 @@ export default function CanvasEditor({
     const first = last.current === "";
     last.current = serialized;
     if (!first) onChange({ format: "excalidraw", version: 1, data });
-    const selected = Object.entries(state.selectedElementIds).find(([, selected]) => selected)?.[0] ?? null;
-    onElementSelect?.(selected);
   }
   return (
     <div className="canvas-editor" aria-label="Project canvas">
       <Excalidraw
         initialData={initialData}
+        excalidrawAPI={(value) => {
+          api.current = value;
+        }}
         onChange={changed}
         theme={dark ? "dark" : "light"}
         autoFocus={false}

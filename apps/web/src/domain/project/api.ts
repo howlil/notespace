@@ -56,6 +56,7 @@ export async function saveProject(
         current.splitRatio === content.splitRatio &&
         JSON.stringify(current.document) === JSON.stringify(content.document) &&
         JSON.stringify(current.canvas) === JSON.stringify(content.canvas)
+        && JSON.stringify(current.references) === JSON.stringify(content.references)
       )
         return current;
     }

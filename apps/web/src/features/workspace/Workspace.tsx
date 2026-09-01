@@ -17,6 +17,7 @@ import {
   Layers,
   Loader2,
   RotateCw,
+  Link2,
 } from "lucide-react";
 import { Sidebar } from "../../app/Sidebar";
 import { ThemeToggle, useTheme } from "../../app/theme";
@@ -70,6 +71,8 @@ export function Workspace({
   const [title, setTitle] = useState(project.title);
   const [ratio, setRatio] = useState(project.splitRatio);
   const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [saver] = useState(
     () =>
       new Autosave(project.version, (value: ProjectContent, version) =>
@@ -117,6 +120,11 @@ export function Workspace({
     (canvas: Snapshot) => update({ canvas }),
     [update],
   );
+  const createReference = useCallback(() => {
+    if (!selectedBlockId || !selectedElementId) return;
+    if (current.current.references.some((reference) => reference.blockId === selectedBlockId && reference.elementId === selectedElementId)) return;
+    update({ references: [...current.current.references, { id: crypto.randomUUID(), blockId: selectedBlockId, elementId: selectedElementId }] });
+  }, [selectedBlockId, selectedElementId, update]);
   function resize(value: number) {
     const next = Math.max(0.25, Math.min(0.7, value));
     setRatio(next);
@@ -149,6 +157,9 @@ export function Workspace({
             />
           </div>
           <div className="header-actions">
+            <button className="secondary" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}>
+              <Link2 size={14} /> Link selections
+            </button>
             <span
               className={`save-status status-${status.state}`}
               role="status"
@@ -206,6 +217,7 @@ export function Workspace({
                 <DocumentEditor
                   initial={project.document}
                   onChange={updateDocument}
+                  onBlockSelect={setSelectedBlockId}
                 />
               </Suspense>
             </EditorBoundary>
@@ -266,6 +278,7 @@ export function Workspace({
                 <CanvasEditor
                   initial={project.canvas}
                   onChange={updateCanvas}
+                  onElementSelect={setSelectedElementId}
                   dark={dark}
                 />
               </Suspense>

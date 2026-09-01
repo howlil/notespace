@@ -10,7 +10,7 @@ This skill complements:
 - `.agents/PROJECT.md`
 - `.agents/ARCHITECTURE.md`
 - `.agents/DESIGN.md`
-- `.agents/CURRENT_ITERATION.md`
+- `.agents/MILESTONE.md` and `.agents/STATE.md`
 - `.agents/QUALITY.md`
 
 If this file conflicts with explicit user direction, stop and surface the conflict. Do not silently change the approved frontend stack.
@@ -794,7 +794,7 @@ Every additional dependency follows the project dependency rule.
 For meaningful frontend work:
 
 ```text
-1. Read CURRENT_ITERATION.md
+1. Read MILESTONE.md and STATE.md
 2. Read PROJECT.md for behavior/domain
 3. Read DESIGN.md for visual/interaction intent
 4. Read this frontend skill
@@ -805,7 +805,7 @@ For meaningful frontend work:
 9. Implement the smallest vertical slice
 10. Verify in a real browser
 11. Run relevant quality gates
-12. Update CURRENT_ITERATION.md with evidence
+12. Update STATE.md with evidence
 13. STOP when acceptance criteria pass
 ```
 
@@ -842,7 +842,7 @@ Do not:
 
 Frontend work reaches release-ready state only when:
 
-1. requested product behavior matches `PROJECT.md` and `CURRENT_ITERATION.md`;
+1. requested product behavior matches `PROJECT.md`, `MILESTONE.md` and `STATE.md`;
 2. ownership is clear;
 3. state lives in the correct layer;
 4. TanStack Start routing/runtime patterns are used without turning routes into the entire architecture;
@@ -855,6 +855,6 @@ Frontend work reaches release-ready state only when:
 11. user-visible interactions have been verified in a real browser;
 12. visual changes have been inspected, not inferred from tests alone;
 13. no unrelated scope was added;
-14. `CURRENT_ITERATION.md` contains concise evidence and the next meaningful move.
+14. `STATE.md` contains concise evidence and the next meaningful move.
 
 Then stop.

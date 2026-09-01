@@ -8,15 +8,16 @@ It exists so an agent can understand the product, current iteration, architectur
 
 Before making a meaningful change, read in this order:
 
-1. `CURRENT_ITERATION.md` — what is active now, why, scope, progress, evidence, next move.
-2. `PROJECT.md` — what Notespace is, who it is for, product/domain model, behavior, constraints, non-goals.
-3. `ARCHITECTURE.md` — system boundaries, state ownership, data flow, technical invariants, open decisions.
-4. `DESIGN.md` — product shape, UI hierarchy, interaction and visual rules.
-5. Relevant implementation skill under `skill/` for the area being changed.
+1. `MILESTONE.md` — bounded outcome, scope, non-goals, ordered slices, decisions and exit criteria.
+2. `STATE.md` — the concise current milestone/slice, done, next action and blocker.
+3. `PROJECT.md` — what Notespace is, who it is for, product/domain model, behavior, constraints, non-goals.
+4. `ARCHITECTURE.md` — system boundaries, state ownership, data flow, technical invariants, open decisions.
+5. `DESIGN.md` — product shape, UI hierarchy, interaction and visual rules.
+6. Relevant implementation skill under `skill/` for the area being changed.
    - Frontend/Web work: `skill/fe-skill.md`.
    - Backend/persistence work: `skill/go-sqlite-skill.md`.
-6. `QUALITY.md` — verification expectations and release gates.
-7. `RETROSPECTIVE.md` — how to improve the delivery system after meaningful work.
+7. `QUALITY.md` — verification expectations and release gates.
+8. `RETROSPECTIVE.md` — how to improve the delivery system after meaningful work.
 
 Implementation skills specialize the canonical project rules; they do not replace them.
 
@@ -28,13 +29,15 @@ If repository code or explicit user instruction conflicts with these documents, 
 
 ---
 
-# Canonical engineering lifecycle
+# Milestone delivery model
 
 Use this lifecycle as the default:
 
-`USER INTENT → UNDERSTAND → BOUND → SPECIFY → DESIGN → IMPLEMENT → VERIFY → QUALITY GATES → RELEASE READY → STOP`
+`USER INTENT → UNDERSTAND → BOUND → MILESTONE PLAN → EXECUTE SLICES CONTINUOUSLY → MILESTONE GATE → RELEASE READY → STOP`
 
-Stages may be fused for small, unambiguous work. The lifecycle is a reasoning model, not mandatory ceremony.
+Plan at milestone boundaries. Execute continuously at slice boundaries. Integrate after each logical change: verify, run the risk-proportional gate, squash merge, update `STATE.md`, continue. Replan only when scope, contract, data, security, architecture, migration evidence, or product direction materially changes.
+
+Use the hierarchy `Milestone → Slice → Logical Change → Commit`. Use short-lived outcome branches (`feat/`, `fix/`, `refactor/`, `test/`, `chore/`, `docs/`), not sprint or iteration branches. `master` is the integration source of truth; delete branches after squash merge.
 
 ## Ownership
 
@@ -135,13 +138,13 @@ Do not declare success based only on code inspection.
 At any meaningful point in an iteration, an agent should be able to answer four questions without replaying chat history:
 
 1. **Feature Shape** — what will the feature look like and how will it behave?
-2. **Current Position** — where are we in the lifecycle/iteration?
+2. **Current Position** — which milestone and slice are active?
 3. **Delta** — what has changed from the previous working state?
 4. **Next Move** — what is the single next meaningful action?
 
 Keep this orientation compact. Do not repeat the entire specification unless needed.
 
-`CURRENT_ITERATION.md` is the canonical source of truth for active iteration state.
+`MILESTONE.md` and `STATE.md` are the canonical sources of active delivery state. Keep them concise; do not use them as sprint diaries or checkpoint logs.
 
 ---
 
@@ -196,7 +199,7 @@ For Notespace specifically, keep domain state independent from renderer/editor i
 
 For a non-trivial task:
 
-1. Inspect `CURRENT_ITERATION.md`.
+1. Inspect `MILESTONE.md` and `STATE.md`.
 2. Inspect relevant code/tests/configuration before proposing implementation.
 3. Read the relevant implementation skill for the area being changed.
 4. Restate the bounded behavior change if ambiguity exists.
@@ -204,7 +207,7 @@ For a non-trivial task:
 6. Implement the smallest vertical slice.
 7. Verify observable behavior.
 8. Run relevant quality gates.
-9. Update `CURRENT_ITERATION.md` with completed work, evidence, and next move.
+9. Update `STATE.md` with completed work, evidence link, and next move.
 10. Stop when acceptance criteria are satisfied.
 
 Do not continue adding “nice to have” work after the requested change is complete.

@@ -1,4 +1,10 @@
-# Sprint 1 — Core Project Workspace
+# Deprecated compatibility pointer
+
+Active delivery state moved to [MILESTONE.md](MILESTONE.md) and [STATE.md](STATE.md). Do not update this file or use it as an iteration log.
+
+---
+
+# Archived Sprint 1 — Core Project Workspace
 
 Status: RELEASE READY — SPRINT 1 ACCEPTANCE COMPLETE
 Branch: `feat/sprint-1-core-workspace`

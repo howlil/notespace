@@ -29,7 +29,7 @@ Do not run a retrospective after every trivial change.
 Start with observable evidence, for example:
 
 - requirement changes;
-- `CURRENT_ITERATION.md` history;
+- `MILESTONE.md` and `STATE.md` history;
 - git commits/diff size;
 - files changed;
 - PR/review cycles;
@@ -118,7 +118,7 @@ Good examples:
 - add exact quality command to `QUALITY.md` after stack is known;
 - clarify one architecture invariant in `ARCHITECTURE.md`;
 - add a script for a repeated local verification step;
-- update `CURRENT_ITERATION.md` before context switches;
+- update `STATE.md` before context switches;
 - add screenshot verification to UI acceptance criteria;
 - remove an unused abstraction/dependency.
 
@@ -149,7 +149,7 @@ or:
 
 ```text
 Improvement:
-Keep CURRENT_ITERATION.md updated at each meaningful slice boundary.
+Keep STATE.md updated at each meaningful slice boundary.
 
 Verification:
 A new agent can identify done/current/next work without reading chat or reconstructing git history.
@@ -184,7 +184,7 @@ Keep the output compact:
 
 Optional secondary finding only if it materially matters.
 
-Do not turn retrospectives into complete iteration summaries; git history and `CURRENT_ITERATION.md` already carry state/evidence.
+Do not turn retrospectives into complete iteration summaries; git history, `MILESTONE.md` and `STATE.md` already carry state/evidence.
 
 ---
 

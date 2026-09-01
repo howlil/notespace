@@ -17,16 +17,28 @@ async function create(page: Page, title: string) {
   return page.url().split("/").at(-1)!;
 }
 
+function blockIds(snapshot: { content: Array<{ attrs?: { blockId?: string }; content?: Array<{ attrs?: { blockId?: string } }> }> }) {
+  return snapshot.content.flatMap((block) => [
+    block.attrs?.blockId,
+    ...(block.content?.map((child) => child.attrs?.blockId) ?? []),
+  ]).filter(Boolean);
+}
+
 test("create → structured note + canvas → switch → reload → delete", async ({
   page,
   request,
 }) => {
   const errors: string[] = [];
+  const failures: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("requestfailed", (request) =>
+    failures.push(`${request.url()}: ${request.failure()?.errorText}`),
+  );
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "One project. Two ways to think." }),
   ).toBeVisible();
+  expect(failures).toEqual([]);
   await page.screenshot({
     path: "test-results/dashboard-empty.png",
     fullPage: true,
@@ -91,6 +103,8 @@ test("create → structured note + canvas → switch → reload → delete", asy
       expect.objectContaining({ type: "codeBlock" }),
     ]),
   );
+  const stableBlockIds = blockIds(stored.document.data);
+  expect(stableBlockIds).toHaveLength(4);
   await page.screenshot({
     path: "test-results/workspace-light.png",
     fullPage: true,
@@ -110,6 +124,8 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await expect(editor).toContainText("Consensus");
   await page.reload();
   await expect(editor).toContainText("Paxos");
+  const restored = await (await request.get(`/api/projects/${id}`)).json();
+  expect(blockIds(restored.document.data)).toEqual(stableBlockIds);
   await expect(page.getByRole("separator")).toHaveAttribute(
     "aria-valuenow",
     "48",

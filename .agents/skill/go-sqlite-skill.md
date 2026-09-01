@@ -9,7 +9,7 @@ This skill complements:
 - `.agents/README.md`
 - `.agents/PROJECT.md`
 - `.agents/ARCHITECTURE.md`
-- `.agents/CURRENT_ITERATION.md`
+- `.agents/MILESTONE.md` and `.agents/STATE.md`
 - `.agents/QUALITY.md`
 - `.agents/skill/fe-skill.md`
 
@@ -964,6 +964,6 @@ Relevant evidence includes:
 - SQL constraints/transactions behave as intended;
 - representative performance is sane for the changed path;
 - no framework/ORM/query-builder was introduced without approval;
-- `.agents/CURRENT_ITERATION.md` is updated with evidence and the next move.
+- `.agents/STATE.md` is updated with evidence and the next move.
 
 Stop when the approved acceptance criteria are satisfied.

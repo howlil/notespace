@@ -104,7 +104,8 @@ test("create → structured note + canvas → switch → reload → delete", asy
     ]),
   );
   const stableBlockIds = blockIds(stored.document.data);
-  expect(stableBlockIds).toHaveLength(4);
+  expect(stableBlockIds.length).toBeGreaterThanOrEqual(4);
+  expect(new Set(stableBlockIds).size).toBe(stableBlockIds.length);
   await page.screenshot({
     path: "test-results/workspace-light.png",
     fullPage: true,

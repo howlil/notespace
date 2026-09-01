@@ -1,0 +1,91 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available Notespace tasks
+    cmds:
+      - task --list
+
+  dev:
+    desc: Run the web and Go development servers together
+    deps:
+      - dev:web
+      - dev:server
+    failfast: true
+
+  dev:web:
+    internal: true
+    cmds:
+      - pnpm dev
+
+  dev:server:
+    internal: true
+    dir: apps/server
+    cmds:
+      - go run ./cmd/notespace
+
+  check:
+    desc: Run frontend and backend static checks and unit tests
+    deps:
+      - check:web
+      - check:server
+    failfast: true
+
+  check:web:
+    internal: true
+    cmds:
+      - pnpm typecheck
+      - pnpm lint
+      - pnpm test
+
+  check:server:
+    internal: true
+    dir: apps/server
+    cmds:
+      - go vet ./...
+      - go test -race ./...
+
+  build:
+    desc: Build the production web assets and Go binary
+    cmds:
+      - task: build:web
+      - task: build:server
+
+  build:web:
+    internal: true
+    cmds:
+      - pnpm build
+
+  build:server:
+    internal: true
+    dir: bin
+    cmds:
+      - go -C ../apps/server build -o ../../bin/notespace{{exeExt}} ./cmd/notespace
+
+  e2e:
+    desc: Build the web app and run browser tests against the real Go server
+    cmds:
+      - task: build:web
+      - pnpm test:e2e
+
+  verify:
+    desc: Run the full local release verification suite
+    cmds:
+      - task: build
+      - task: check
+      - pnpm test:e2e
+
+  up:
+    desc: Build and start the self-hosted Docker Compose stack
+    cmds:
+      - docker compose up --build -d --wait
+
+  down:
+    desc: Stop the Docker Compose stack without deleting persisted data
+    cmds:
+      - docker compose down
+
+  logs:
+    desc: Follow Docker Compose logs
+    cmds:
+      - docker compose logs -f

@@ -36,8 +36,8 @@ AI, collaboration/CRDT, authentication/team permissions, templates, favorites, t
 - [x] Browser journey including structured note, drawing, switching, reload, search/delete and themes; zero page errors in the core journey.
 - [x] Browser failure handling/retry, blocked navigation on save failure, narrow layout and canvas select/move/delete/pan/zoom persistence.
 - [x] Final lint/typecheck, production build, 3 autosave tests, Go vet/race tests and CGO-free server build. Production process SIGTERM/restart preserves the complete Project. Production dependency audit: zero vulnerabilities after documented transitive overrides.
-- [ ] Docker startup/restart gate: Docker is not installed in this runtime. Dockerfile/Compose/workflow provided and YAML parsed; do not claim container execution passed.
-- [ ] Remote branch/PR/merge: publication and merge explicitly authorized; delivery in progress.
+- [ ] Docker startup/restart gate: first CI run found a localhost address-family mismatch during SPA prerender in Docker. Preview now binds explicitly to IPv4 loopback; repeat gate pending.
+- [x] Remote branch and [PR #1](https://github.com/howlil/notespace/pull/1) published with a tree identical to the local implementation. Merge explicitly authorized after CI passes.
 
 ## Known limits
 No auth; host binds loopback by default. Acknowledged saves survive restart; forced close before acknowledgement can lose unsaved edits. Concurrent tabs receive a conflict, not automatic merging. Canvas adapter stores complete scene snapshots; large upstream editor chunks remain lazy-loaded.
@@ -50,6 +50,7 @@ No auth; host binds loopback by default. Acknowledged saves survive restart; for
 - Production smoke: real HTTP CRUD + SPA/deep-link serving pass; independent SIGTERM/restart round trip passes. Development startup and same-origin POST through Vite proxy pass (explicit `changeOrigin: false`).
 - Visual QA: dashboard empty/populated, workspace light/dark, 390px narrow viewport inspected. Screenshots: `docs/evidence/sprint-1/`.
 - Fixed findings: API/SPA mux startup conflict, differing SPA pending text causing deep-link hydration errors; tests retain coverage.
+- First remote CI run: frontend build/typecheck/lint, autosave tests, Go vet/race/build and all four standard Chromium E2E tests passed. Docker build exposed the preview loopback mismatch; the container gate remains required.
 
 ## Delivery boundary
 The user explicitly authorized publication of all Sprint 1 changes to public `howlil/notespace`, PR creation and merge after CI passes. Release readiness requires the Docker/CI gate; deployment is outside this task.

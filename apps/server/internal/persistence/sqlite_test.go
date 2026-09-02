@@ -51,7 +51,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 		t.Fatalf("WAL: %s %v", mode, err)
 	}
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil || count != 3 {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil || count != 4 {
 		t.Fatalf("migration ledger: %d %v", count, err)
 	}
 }

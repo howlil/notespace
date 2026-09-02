@@ -12,7 +12,7 @@ async function create(page: Page, title: string) {
     .getByRole("button", { name: "Create workspace", exact: true })
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();
   return page.url().split("/").at(-1)!;
 }
@@ -36,7 +36,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   );
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Make space for your thinking." }),
+    page.getByRole("heading", { name: "Categories" }),
   ).toBeVisible();
   expect(failures).toEqual([]);
   await page.screenshot({
@@ -45,17 +45,21 @@ test("create → structured note + canvas → switch → reload → delete", asy
   });
   const title = "Distributed Systems";
   const id = await create(page, title);
-  const editor = page.getByRole("textbox", { name: "Project document" });
-  await page.getByRole("button", { name: "Heading", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Workspace document" });
+  await editor.pressSequentially("/heading");
+  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
+  await page.getByRole("option", { name: /Heading/ }).click();
   await editor.pressSequentially("Consensus");
   await editor.press("Enter");
-  await page.getByRole("button", { name: "Bullet list", exact: true }).click();
+  await editor.pressSequentially("/bullet");
+  await page.getByRole("option", { name: /Bullet list/ }).click();
   await editor.pressSequentially("Raft");
   await editor.press("Enter");
   await editor.pressSequentially("Paxos");
   await editor.press("Enter");
   await editor.press("Enter");
-  await page.getByRole("button", { name: "Code block", exact: true }).click();
+  await editor.pressSequentially("/code");
+  await page.getByRole("option", { name: /Code block/ }).click();
   await editor.pressSequentially("quorum = majority(nodes)");
   await expect(editor.locator("h2")).toHaveText("Consensus");
   await expect(editor.locator("li")).toHaveCount(2);
@@ -88,7 +92,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await separator.press("ArrowRight");
   await expect(separator).toHaveAttribute("aria-valuenow", "48");
   await expect(
-    page.getByText("All changes saved", { exact: true }),
+    page.getByText("Saved", { exact: true }),
   ).toBeVisible();
   const stored = await (await request.get(`/api/projects/${id}`)).json();
   expect(
@@ -116,7 +120,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
     .click();
   const second = await create(page, "Networking");
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).not.toContainText("Consensus");
   await page
     .getByRole("link", { name: title, exact: true })
@@ -142,14 +146,12 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await page.getByRole("button", { name: "Use light theme" }).click();
   await page.screenshot({ path: "test-results/dashboard.png", fullPage: true });
   await expect(page.locator(".workspace-row")).toHaveCount(2);
-  await page
-    .getByRole("button", { name: `Delete ${title}`, exact: true })
-    .click();
+  await page.getByRole("button", { name: `Actions for ${title}`, exact: true }).click();
+  await page.getByRole("button", { name: "Delete workspace", exact: true }).click();
   await page.getByRole("button", { name: "Keep workspace" }).click();
   await expect(page.locator(".workspace-row")).toHaveCount(2);
-  await page
-    .getByRole("button", { name: `Delete ${title}`, exact: true })
-    .click();
+  await page.getByRole("button", { name: `Actions for ${title}`, exact: true }).click();
+  await page.getByRole("button", { name: "Delete workspace", exact: true }).click();
   await page
     .getByRole("button", { name: "Delete workspace", exact: true })
     .click();
@@ -176,7 +178,7 @@ test("failed autosave blocks navigation and retries without losing content", asy
     else await route.continue();
   });
   await page
-    .getByRole("textbox", { name: "Project document" })
+    .getByRole("textbox", { name: "Workspace document" })
     .fill("Keep this thought");
   await expect(page.getByRole("alert")).toContainText(
     "Storage temporarily unavailable",
@@ -186,16 +188,16 @@ test("failed autosave blocks navigation and retries without losing content", asy
     .click();
   await expect(page).toHaveURL(new RegExp(id));
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).toHaveText("Keep this thought");
   await page.unroute("**/api/projects/*");
   await page.getByRole("button", { name: "Retry save" }).click();
   await expect(
-    page.getByText("All changes saved", { exact: true }),
+    page.getByText("Saved", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).toHaveText("Keep this thought");
   await request.delete(`/api/projects/${id}`);
 });
@@ -207,7 +209,7 @@ test("narrow layout retains both editing surfaces without horizontal overflow", 
   await page.setViewportSize({ width: 390, height: 844 });
   const id = await create(page, `Narrow ${Date.now()}`);
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
   expect(

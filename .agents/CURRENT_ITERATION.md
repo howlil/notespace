@@ -1,37 +1,41 @@
-# Current Iteration — Milestone 3: Category Library and Focused Workspace
+# Current Iteration — Milestone 4: Workspace and Dashboard UI Consolidation
 
 ## Status
 
-- **Milestone:** Milestone 3 — Category Library and Focused Workspace
+- **Milestone:** Milestone 4 — Workspace and Dashboard UI Consolidation
 - **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
 - **Active slice:** final browser and production-composition gate
 - **Integrated through:** local working tree only
-- **Blocker:** Docker and the Playwright Chromium binary are not available in the current execution environment.
+- **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
 
 ## Why this milestone exists
 
-The prior flat Project library could not express a category containing multiple document + canvas workspaces, and it repeated library navigation in the editor itself.
+The category/workspace foundation still exposed too much wrapper UI: the workspace was visually clipped, the editor had redundant chrome, and the dashboard carried navigation/copy that did not help a small product.
 
 ## Delivered in the current working tree
 
-- Category → Workspace persistence, API, and a safe migration that assigns existing workspaces to `Uncategorized`.
-- A compact category-first home: one category section lists its workspaces and has a single local action to create another.
-- Collapsible/expandable home sidebar with category counts; the redundant `Workspace / Projects` breadcrumb and duplicated recent/all project views are removed.
-- Full-width workspace editor with library navigation only through the back control; workspace title is now quiet display text rather than a visible title input.
-- Creation uses a borderless, underline-only field to avoid the previous boxed/ringed visual treatment.
+- Dashboard is a compact category list without a sidebar, redundant library copy, duplicate actions, or always-visible delete links.
+- Workspace fills the viewport with no document/canvas headers or footer chrome and supports `Split`, `Note`, and `Canvas` views.
+- Workspace navigation includes same-category workspace switching and inline rename with Enter, Escape, and blur behavior.
+- Notes support multiple durable documents per workspace through `notes[]`; existing workspaces receive a default `Untitled` note through migration/backward-compatible fallback.
+- Fixed document formatting toolbar is replaced with keyboard-accessible slash commands for headings, lists, quote, code, divider, and checklist blocks.
+- Canvas controls are visually reduced and the bottom menu/ring treatment is removed; empty states remain direct and actionable.
 
 ## Evidence so far
 
 - `pnpm --filter @notespace/web typecheck` — PASS
 - `pnpm --filter @notespace/web build` — PASS
 - `pnpm lint` — PASS
-- `go test ./...` (server) — PASS
+- `pnpm test` — PASS (3 tests)
+- `git diff --check` — PASS
+- `go test ./...` — NOT RUN: Go is unavailable
+- Playwright E2E — NOT RUN: Go server, Docker, and Chromium are unavailable
 
 ## Next action
 
-Run the targeted Playwright category/workspace journey and production Compose verification in an environment with Docker and the Playwright Chromium binary, then integrate if green.
+Run the targeted Playwright journey and production Compose verification in an environment with Go, Docker, and the Playwright Chromium binary, then integrate if green.
 
-## Why this milestone existed
+## Previous Milestone Record
 
 The Milestone 1 workspace already placed a document and canvas inside one Project, but the two surfaces had no durable semantic relationship.
 
@@ -138,6 +142,4 @@ Milestone 1 / Core Project Workspace remains integrated on `master` via PR #1 an
 
 Milestone 2 intentionally does not add AI linking, semantic inference, multi-block relation graphs, collaboration/CRDT, public sharing, import/export expansion, templates, or structured-diagram engines.
 
-## Next action
-
-**STOP. Milestone 2 is complete and integrated. Do not invent Milestone 3. Begin a new milestone only from new user intent.**
+The previous relationship milestone remains complete and integrated. Its scope and evidence are retained below as historical context.

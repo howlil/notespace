@@ -12,14 +12,14 @@ async function create(page: Page, title: string) {
     .getByRole("button", { name: "Create workspace", exact: true })
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Project document" }),
+    page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();
   return page.url().split("/").at(-1)!;
 }
 
 async function waitSaved(page: Page) {
   await expect(
-    page.getByText("All changes saved", { exact: true }),
+    page.getByText("Saved", { exact: true }),
   ).toBeVisible();
 }
 
@@ -31,7 +31,7 @@ test("references navigate both ways, survive edits and switching, and expose orp
   const id = await create(page, title);
   let second = "";
   try {
-    const editor = page.getByRole("textbox", { name: "Project document" });
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
     await editor.fill("Linked thought");
     await waitSaved(page);
 

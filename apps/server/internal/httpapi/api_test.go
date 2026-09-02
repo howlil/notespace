@@ -79,6 +79,29 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	t.Fatalf("category count missing from %#v", categories)
 }
 
+func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
+	ctx := context.Background()
+	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Research"}))
+	second := project.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	update := project.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
+	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	expect(t, saved, 200)
+	got := decodeProject(t, saved)
+	if len(got.Notes) != 2 || got.Notes[1].Title != "References" {
+		t.Fatalf("notes not persisted: %+v", got.Notes)
+	}
+	reloaded := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	if len(reloaded.Notes) != 2 || reloaded.Notes[1].ID != "note-second" {
+		t.Fatalf("notes not durable: %+v", reloaded.Notes)
+	}
+}
+
 func TestProjectJourneyAndRestart(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "notespace.db")

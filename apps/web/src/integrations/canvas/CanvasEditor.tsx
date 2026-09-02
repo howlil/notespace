@@ -38,7 +38,7 @@ export default function CanvasEditor({
       ({
         ...initial.data,
         appState: {
-          viewBackgroundColor: "#f8f9fc",
+          viewBackgroundColor: dark ? "#1d1e24" : "#f8f9fc",
           ...(initial.data.appState as object),
         },
       }) as ExcalidrawInitialDataState,

@@ -75,6 +75,7 @@ export async function saveProject(
         current.title === content.title.trim() &&
         current.splitRatio === content.splitRatio &&
         JSON.stringify(current.document) === JSON.stringify(content.document) &&
+        JSON.stringify(current.notes) === JSON.stringify(content.notes) &&
         JSON.stringify(current.canvas) === JSON.stringify(content.canvas)
         && JSON.stringify(current.references) === JSON.stringify(content.references)
       )

@@ -32,8 +32,8 @@ type Summary struct {
 	Version    int    `json:"version"`
 }
 
-// Category is the library-level grouping for workspaces. A workspace remains
-// the aggregate that owns one document and one canvas.
+// Category is the library-level grouping for workspaces. A workspace owns its
+// notes and canvas as one editable aggregate.
 type CategorySummary struct {
 	ID             string `json:"id"`
 	Title          string `json:"title"`
@@ -51,9 +51,18 @@ type Reference struct {
 	ElementID string `json:"elementId"`
 }
 
+type Note struct {
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Document  Snapshot `json:"document"`
+	CreatedAt string   `json:"createdAt"`
+	UpdatedAt string   `json:"updatedAt"`
+}
+
 type Project struct {
 	Summary
 	Document   Snapshot    `json:"document"`
+	Notes      []Note      `json:"notes"`
 	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
 	SplitRatio float64     `json:"splitRatio"`
@@ -63,6 +72,7 @@ type Project struct {
 type Update struct {
 	Title      string      `json:"title"`
 	Document   Snapshot    `json:"document"`
+	Notes      []Note      `json:"notes"`
 	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
 	SplitRatio float64     `json:"splitRatio"`
@@ -144,6 +154,7 @@ func (s Service) Create(
 			Version:    1,
 		},
 		Document:   Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
+		Notes:      []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now}},
 		Canvas:     Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 		References: []Reference{},
 		SplitRatio: 0.45,
@@ -160,10 +171,31 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Project, erro
 		}
 		u.References = current.References
 	}
-	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) {
+	if u.Notes == nil {
+		current, err := s.Store.Get(ctx, id)
+		if err != nil {
+			return Project{}, err
+		}
+		u.Notes = current.Notes
+	}
+	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Project{}, ErrInvalid
 	}
 	return s.Store.Update(ctx, id, u)
+}
+
+func validNotes(notes []Note) bool {
+	if len(notes) == 0 || len(notes) > 100 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, note := range notes {
+		if note.ID == "" || seen[note.ID] || !ValidTitle(note.Title) || !validDocument(note.Document) {
+			return false
+		}
+		seen[note.ID] = true
+	}
+	return true
 }
 
 func validReferences(references []Reference) bool {

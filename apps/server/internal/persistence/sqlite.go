@@ -94,12 +94,13 @@ func (s *Store) CategoryExists(ctx context.Context, id string) (bool, error) {
 
 func (s *Store) Create(ctx context.Context, p project.Project) error {
 	doc, _ := json.Marshal(p.Document)
+	notes, _ := json.Marshal(p.Notes)
 	canvas, _ := json.Marshal(p.Canvas)
 	references, _ := json.Marshal(p.References)
 	_, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO projects(id,category_id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.CategoryID, p.Title, string(doc), string(canvas), string(references),
+		`INSERT INTO projects(id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.CategoryID, p.Title, string(doc), string(canvas), string(references), string(notes),
 		p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version,
 	)
 	return err
@@ -128,9 +129,9 @@ type scanner interface{ Scan(...any) error }
 
 func readProject(row scanner) (project.Project, error) {
 	var p project.Project
-	var doc, canvas, references string
+	var doc, canvas, references, notes string
 	err := row.Scan(
-		&p.ID, &p.CategoryID, &p.Title, &doc, &canvas, &references,
+		&p.ID, &p.CategoryID, &p.Title, &doc, &canvas, &references, &notes,
 		&p.SplitRatio, &p.CreatedAt, &p.UpdatedAt, &p.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -142,6 +143,12 @@ func readProject(row scanner) (project.Project, error) {
 	if err = json.Unmarshal([]byte(doc), &p.Document); err != nil {
 		return p, fmt.Errorf("decode document: %w", err)
 	}
+	if err = json.Unmarshal([]byte(notes), &p.Notes); err != nil {
+		return p, fmt.Errorf("decode notes: %w", err)
+	}
+	if len(p.Notes) == 0 {
+		p.Notes = []project.Note{{ID: p.ID + "-default", Title: "Untitled", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}}
+	}
 	if err = json.Unmarshal([]byte(canvas), &p.Canvas); err != nil {
 		return p, fmt.Errorf("decode canvas: %w", err)
 	}
@@ -151,7 +158,7 @@ func readProject(row scanner) (project.Project, error) {
 	return p, nil
 }
 
-const columns = `id,category_id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version`
+const columns = `id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version`
 
 func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
@@ -159,11 +166,12 @@ func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
 	doc, _ := json.Marshal(u.Document)
+	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
 	// Compare-and-swap prevents stale tabs or delayed requests from overwriting newer content.
-	p, err := readProject(s.db.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
-		u.Title, string(doc), string(canvas), string(references), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
+	p, err := readProject(s.db.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
+		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
 	if errors.Is(err, project.ErrNotFound) {
 		if _, getErr := s.Get(ctx, id); getErr != nil {
 			return p, getErr

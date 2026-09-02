@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - run: python3 scripts/probe-public-assets.py https://notespace.howlil.my.id
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

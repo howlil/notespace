@@ -30,6 +30,8 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	})
 	mux.HandleFunc("GET /api/projects", a.list)
 	mux.HandleFunc("POST /api/projects", a.create)
+	mux.HandleFunc("GET /api/categories", a.listCategories)
+	mux.HandleFunc("POST /api/categories", a.createCategory)
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
@@ -110,14 +112,38 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, data)
 }
-func (a API) create(w http.ResponseWriter, r *http.Request) {
+func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
+	data, err := a.service.Store.ListCategories(r.Context())
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, data)
+}
+func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Create(r.Context(), body.Title)
+	category, err := a.service.CreateCategory(r.Context(), body.Title)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	w.Header().Set("Location", "/api/categories/"+category.ID)
+	send(w, 201, category)
+}
+func (a API) create(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title      string `json:"title"`
+		CategoryID string `json:"categoryId"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	p, err := a.service.Create(r.Context(), body.Title, body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return

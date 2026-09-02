@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, FileText, LayoutGrid, Plus } from "lucide-react";
-import type { ProjectSummary } from "../domain/project/project";
+import { LayoutGrid, PanelLeftClose, PanelLeftOpen, Plus, Tag } from "lucide-react";
+import type { CategorySummary } from "../domain/project/project";
 
 export function Brand() {
   return (
@@ -14,57 +14,48 @@ export function Brand() {
 }
 
 export function Sidebar({
-  projects,
-  selected,
-  onCreate,
+  categories,
+  collapsed,
+  onToggle,
+  onCreateCategory,
 }: {
-  projects: ProjectSummary[];
-  selected?: string;
-  onCreate?: () => void;
+  categories: CategorySummary[];
+  collapsed: boolean;
+  onToggle: () => void;
+  onCreateCategory: () => void;
 }) {
   return (
-    <aside className="sidebar">
+    <aside className={collapsed ? "sidebar is-collapsed" : "sidebar"}>
       <Link to="/" className="brand-link" aria-label="Notespace home">
         <Brand />
       </Link>
-      {onCreate && (
-        <button className="primary new-sidebar" onClick={onCreate}>
+      <button className="sidebar-toggle icon-button" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+        {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+      </button>
+      {!collapsed && (
+        <button className="primary new-sidebar" onClick={onCreateCategory}>
           <Plus size={17} />
-          New project
+          New category
         </button>
       )}
       <nav aria-label="Main navigation">
-        <Link to="/" className={!selected ? "nav-item active" : "nav-item"}>
+        <Link to="/" className="nav-item active">
           <LayoutGrid size={17} />
-          All projects
-          {!selected && <span className="count">{projects.length}</span>}
+          {!collapsed && <>All categories <span className="count">{categories.length}</span></>}
         </Link>
       </nav>
-      <div className="sidebar-section">RECENT PROJECTS</div>
-      <nav aria-label="Recent projects" className="recent-nav">
-        {projects.slice(0, 7).map((project) => (
-          <Link
-            key={project.id}
-            to="/projects/$projectId"
-            params={{ projectId: project.id }}
-            className={selected === project.id ? "nav-item active" : "nav-item"}
-          >
-            <FileText size={16} />
-            <span className="truncate">{project.title}</span>
-          </Link>
-        ))}
-        {!projects.length && (
-          <p className="sidebar-hint">Your ideas will live here.</p>
-        )}
-      </nav>
-      <div className="sidebar-footer">
-        <div className="instance-label">
-          YOUR THINKING SPACE
-          <ArrowUpRight size={14} />
-        </div>
-        <p>Write. Draw. Understand.</p>
-        <span className="instance-tag">Self-hosted</span>
-      </div>
+      {!collapsed && <>
+        <div className="sidebar-section">CATEGORIES</div>
+        <nav aria-label="Categories" className="recent-nav">
+          {categories.map((category) => (
+            <span className="nav-item" key={category.id}>
+              <Tag size={15} />
+              <span className="truncate">{category.title}</span>
+              <span className="count">{category.workspaceCount}</span>
+            </span>
+          ))}
+        </nav>
+      </>}
     </aside>
   );
 }

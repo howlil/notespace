@@ -4,12 +4,12 @@ import type { Page } from "@playwright/test";
 async function create(page: Page, title: string) {
   await page.goto("/");
   await page
-    .getByRole("button", { name: "New project", exact: true })
-    .last()
+    .getByRole("button", { name: "New workspace", exact: true })
+    .first()
     .click();
-  await page.getByRole("textbox", { name: "Project title" }).fill(title);
+  await page.getByRole("textbox", { name: "Workspace title" }).fill(title);
   await page
-    .getByRole("button", { name: "Create project", exact: true })
+    .getByRole("button", { name: "Create workspace", exact: true })
     .click();
   await expect(
     page.getByRole("textbox", { name: "Project document" }),
@@ -101,11 +101,10 @@ test("references navigate both ways, survive edits and switching, and expose orp
     await expect(goToCanvas).toBeVisible();
 
     await page
-      .getByRole("link", { name: "Back to projects", exact: true })
+      .getByRole("link", { name: "Back to library", exact: true })
       .click();
     second = await create(page, `Other ${Date.now()}`);
     await page
-      .getByRole("navigation", { name: "Recent projects" })
       .getByRole("link", { name: title, exact: true })
       .click();
     await expect(editor).toContainText("Linked thought updated");

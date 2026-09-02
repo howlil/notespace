@@ -1,12 +1,35 @@
-# Current Iteration — Milestone 2: Note ↔ Canvas Interoperability
+# Current Iteration — Milestone 3: Category Library and Focused Workspace
 
 ## Status
 
-- **Milestone:** Milestone 2 — Note ↔ Canvas Interoperability
-- **Milestone state:** COMPLETE / INTEGRATED
-- **Active slice:** none
-- **Integrated through:** PR #4, `master` commit `d27cc5dd1e3082350b506986f27c4267b3d4d901`
-- **Blocker:** none
+- **Milestone:** Milestone 3 — Category Library and Focused Workspace
+- **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
+- **Active slice:** final browser and production-composition gate
+- **Integrated through:** local working tree only
+- **Blocker:** Docker and the Playwright Chromium binary are not available in the current execution environment.
+
+## Why this milestone exists
+
+The prior flat Project library could not express a category containing multiple document + canvas workspaces, and it repeated library navigation in the editor itself.
+
+## Delivered in the current working tree
+
+- Category → Workspace persistence, API, and a safe migration that assigns existing workspaces to `Uncategorized`.
+- A compact category-first home: one category section lists its workspaces and has a single local action to create another.
+- Collapsible/expandable home sidebar with category counts; the redundant `Workspace / Projects` breadcrumb and duplicated recent/all project views are removed.
+- Full-width workspace editor with library navigation only through the back control; workspace title is now quiet display text rather than a visible title input.
+- Creation uses a borderless, underline-only field to avoid the previous boxed/ringed visual treatment.
+
+## Evidence so far
+
+- `pnpm --filter @notespace/web typecheck` — PASS
+- `pnpm --filter @notespace/web build` — PASS
+- `pnpm lint` — PASS
+- `go test ./...` (server) — PASS
+
+## Next action
+
+Run the targeted Playwright category/workspace journey and production Compose verification in an environment with Docker and the Playwright Chromium binary, then integrate if green.
 
 ## Why this milestone existed
 

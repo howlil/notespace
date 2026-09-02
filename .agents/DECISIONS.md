@@ -4,7 +4,7 @@ Record only material decisions whose rationale should constrain future work. Act
 
 ## D001 — Project is the product aggregate
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-09-01
 
 Notespace exposes one Project identity that owns document, canvas, metadata, and relevant workspace state.
@@ -112,3 +112,19 @@ Notespace uses a calm editor/tool aesthetic with light/dark support, restrained 
 **Why:** the product should foreground thinking content and avoid resembling a SaaS analytics dashboard or generic AI productivity template.
 
 **Consequences:** avoid gratuitous gradients/glow/shine, excessive glass cards, decorative widgets, and marketing-style UI unless a concrete hierarchy/interaction need justifies them.
+
+## D009 — Category groups many workspaces
+
+**Status:** Accepted
+**Date:** 2026-09-03
+
+Categories are the library-level user-facing grouping. Each workspace owns exactly one document and one canvas; a category may own many workspaces.
+
+**Why:** a body of learning or work commonly has multiple distinct thinking spaces. Treating each one as a top-level project made the home screen duplicate navigation and obscured that relationship.
+
+**Consequences:**
+
+- the library presents categories and their nested workspaces rather than a flat project feed;
+- the workspace editor is full-width and does not retain the library sidebar;
+- existing persisted workspaces migrate safely into the `Uncategorized` category;
+- the existing `projects` API/storage naming remains an implementation compatibility detail while the user-facing model is Category → Workspace.

@@ -2,15 +2,15 @@
 
 ## Objective
 
-Keep Notespace a simple self-hosted modular monolith whose implementation preserves one Project domain identity across document and canvas editing.
+Keep Notespace a simple self-hosted modular monolith whose implementation preserves a Category → Workspace hierarchy while each workspace owns its document and canvas editing state.
 
 ```text
-Browser / Project workspace
+Browser / Category library or Workspace editor
         ↓
 Notespace application boundary
         ├── document integration → Tiptap
         ├── canvas integration   → Excalidraw
-        └── Project API
+        └── Category + Workspace API
                 ↓
         Project service/domain
                 ↓
@@ -31,23 +31,24 @@ Do not split services or add infrastructure unless a concrete requirement proves
 
 ## Ownership boundaries
 
-### Project domain
+### Category and workspace domain
 
-`apps/server/internal/project` owns the Project aggregate and its application-level contract.
+`apps/server/internal/project` owns the category summaries plus the workspace aggregate and their application-level contracts. The package and legacy HTTP paths retain `project` naming for compatibility.
 
 Current aggregate:
 
 ```text
-Project
-├── identity + title + timestamps + version
-├── versioned document snapshot
-├── versioned canvas snapshot
-└── split ratio
+Category
+└── Workspace
+    ├── identity + title + timestamps + version
+    ├── versioned document snapshot
+    ├── versioned canvas snapshot
+    └── split ratio
 ```
 
 Rules:
 
-- Project owns document and canvas state.
+- A category owns grouping only; a workspace owns document and canvas state.
 - A separate independently navigable Note or Canvas aggregate requires explicit product approval.
 - Optimistic Project versioning is the current concurrent-write policy. Do not silently replace it with merge/CRDT semantics.
 
@@ -59,7 +60,7 @@ Keep product/domain rules out of route wiring where they can live in the Project
 
 ### Persistence boundary
 
-`apps/server/internal/persistence` owns SQLite persistence for Project state.
+`apps/server/internal/persistence` owns SQLite persistence for category and workspace state.
 
 Current constraints:
 
@@ -73,7 +74,7 @@ Schema/data migrations are architecture-sensitive. Destructive or irreversible m
 
 ### Web application
 
-`apps/web` owns browser interaction and Project presentation.
+`apps/web` owns browser interaction and category/workspace presentation.
 
 Keep responsibility local:
 

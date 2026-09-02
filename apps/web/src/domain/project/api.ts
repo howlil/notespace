@@ -1,4 +1,9 @@
-import type { Project, ProjectContent, ProjectSummary } from "./project";
+import type {
+  CategorySummary,
+  Project,
+  ProjectContent,
+  ProjectSummary,
+} from "./project";
 
 export class APIError extends Error {
   readonly status: number;
@@ -28,10 +33,20 @@ const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 export const listProjects = () => request<ProjectSummary[]>("/api/projects");
+export const listCategories = () =>
+  request<CategorySummary[]>("/api/categories");
 export const getProject = (id: string) =>
   request<Project>(`/api/projects/${encodeURIComponent(id)}`);
-export const createProject = (title: string) =>
-  request<Project>("/api/projects", { method: "POST", ...json({ title }) });
+export const createProject = (title: string, categoryId: string) =>
+  request<Project>("/api/projects", {
+    method: "POST",
+    ...json({ title, categoryId }),
+  });
+export const createCategory = (title: string) =>
+  request<CategorySummary>("/api/categories", {
+    method: "POST",
+    ...json({ title }),
+  });
 export const deleteProject = (id: string) =>
   request<void>(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",

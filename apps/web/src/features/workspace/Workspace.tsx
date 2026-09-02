@@ -20,14 +20,12 @@ import {
   RotateCw,
   Unlink,
 } from "lucide-react";
-import { Sidebar } from "../../app/Sidebar";
 import { ThemeToggle, useTheme } from "../../app/theme";
 import { contentOf } from "../../domain/project/project";
 import type {
   Project,
   ProjectContent,
   ProjectReference,
-  ProjectSummary,
   Snapshot,
 } from "../../domain/project/project";
 import { saveProject } from "../../domain/project/api";
@@ -93,14 +91,11 @@ class EditorBoundary extends Component<
 
 export function Workspace({
   project,
-  projects,
 }: {
   project: Project;
-  projects: ProjectSummary[];
 }) {
   const { dark } = useTheme();
   const current = useRef<ProjectContent>(contentOf(project));
-  const [title, setTitle] = useState(project.title);
   const [ratio, setRatio] = useState(project.splitRatio);
   const [references, setReferences] = useState(project.references);
   const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
@@ -236,30 +231,15 @@ export function Workspace({
     update({ splitRatio: next });
   }
   return (
-    <div className="app-shell workspace-shell">
-      <Sidebar
-        projects={projects.map((p) =>
-          p.id === project.id ? { ...p, title } : p,
-        )}
-        selected={project.id}
-      />
+    <div className="workspace-shell">
       <main className="workspace-main">
         <header className="topbar workspace-header">
           <div className="workspace-identity">
-            <Link to="/" className="icon-button" aria-label="Back to projects">
+            <Link to="/" className="icon-button" aria-label="Back to library">
               <ArrowLeft size={18} />
             </Link>
             <span className="header-divider" />
-            <input
-              className="title-input"
-              aria-label="Project title"
-              maxLength={160}
-              value={title}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                update({ title: event.target.value });
-              }}
-            />
+            <span className="workspace-title">{project.title}</span>
           </div>
           <div className="header-actions">
             <button

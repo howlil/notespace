@@ -1,16 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getProject, listProjects } from "../domain/project/api";
+import { getProject } from "../domain/project/api";
 import { Workspace } from "../features/workspace/Workspace";
 import { RoutePending } from "../app/RoutePending";
 
 export const Route = createFileRoute("/projects/$projectId")({
   ssr: false,
   loader: async ({ params }) => {
-    const [project, projects] = await Promise.all([
-      getProject(params.projectId),
-      listProjects(),
-    ]);
-    return { project, projects };
+    return { project: await getProject(params.projectId) };
   },
   pendingComponent: RoutePending,
   component: ProjectRoute,

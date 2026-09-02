@@ -24,11 +24,22 @@ type Snapshot struct {
 }
 
 type Summary struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
-	Version   int    `json:"version"`
+	ID         string `json:"id"`
+	CategoryID string `json:"categoryId"`
+	Title      string `json:"title"`
+	CreatedAt  string `json:"createdAt"`
+	UpdatedAt  string `json:"updatedAt"`
+	Version    int    `json:"version"`
+}
+
+// Category is the library-level grouping for workspaces. A workspace remains
+// the aggregate that owns one document and one canvas.
+type CategorySummary struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	CreatedAt      string `json:"createdAt"`
+	UpdatedAt      string `json:"updatedAt"`
+	WorkspaceCount int    `json:"workspaceCount"`
 }
 
 // Reference is a product-owned relationship between one document block and one
@@ -59,6 +70,9 @@ type Update struct {
 }
 
 type Store interface {
+	CreateCategory(context.Context, CategorySummary) error
+	ListCategories(context.Context) ([]CategorySummary, error)
+	CategoryExists(context.Context, string) (bool, error)
 	Create(context.Context, Project) error
 	List(context.Context) ([]Summary, error)
 	Get(context.Context, string) (Project, error)
@@ -72,14 +86,54 @@ func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
 
-func (s Service) Create(ctx context.Context, title string) (Project, error) {
+func (s Service) CreateCategory(
+	ctx context.Context,
+	title string,
+) (CategorySummary, error) {
+	title = strings.TrimSpace(title)
+	if !ValidTitle(title) {
+		return CategorySummary{}, ErrInvalid
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	category := CategorySummary{
+		ID:        rand.Text(),
+		Title:     title,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	return category, s.Store.CreateCategory(ctx, category)
+}
+
+func (s Service) Create(
+	ctx context.Context,
+	title string,
+	categoryID ...string,
+) (Project, error) {
 	title = strings.TrimSpace(title)
 	if !ValidTitle(title) {
 		return Project{}, ErrInvalid
 	}
+	category := "legacy"
+	if len(categoryID) > 0 && strings.TrimSpace(categoryID[0]) != "" {
+		category = strings.TrimSpace(categoryID[0])
+	}
+	exists, err := s.Store.CategoryExists(ctx, category)
+	if err != nil {
+		return Project{}, err
+	}
+	if !exists {
+		return Project{}, ErrInvalid
+	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	p := Project{
-		Summary:    Summary{ID: rand.Text(), Title: title, CreatedAt: now, UpdatedAt: now, Version: 1},
+		Summary: Summary{
+			ID:         rand.Text(),
+			CategoryID: category,
+			Title:      title,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			Version:    1,
+		},
 		Document:   Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
 		Canvas:     Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 		References: []Reference{},

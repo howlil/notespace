@@ -4,12 +4,12 @@ import type { Page } from "@playwright/test";
 async function create(page: Page, title: string) {
   await page.goto("/");
   await page
-    .getByRole("button", { name: "New project", exact: true })
-    .last()
+    .getByRole("button", { name: "New workspace", exact: true })
+    .first()
     .click();
-  await page.getByRole("textbox", { name: "Project title" }).fill(title);
+  await page.getByRole("textbox", { name: "Workspace title" }).fill(title);
   await page
-    .getByRole("button", { name: "Create project", exact: true })
+    .getByRole("button", { name: "Create workspace", exact: true })
     .click();
   await expect(
     page.getByRole("textbox", { name: "Project document" }),
@@ -36,7 +36,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   );
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "One project. Two ways to think." }),
+    page.getByRole("heading", { name: "Make space for your thinking." }),
   ).toBeVisible();
   expect(failures).toEqual([]);
   await page.screenshot({
@@ -112,14 +112,13 @@ test("create → structured note + canvas → switch → reload → delete", asy
   });
 
   await page
-    .getByRole("link", { name: "Back to projects", exact: true })
+    .getByRole("link", { name: "Back to library", exact: true })
     .click();
   const second = await create(page, "Networking");
   await expect(
     page.getByRole("textbox", { name: "Project document" }),
   ).not.toContainText("Consensus");
   await page
-    .getByRole("navigation", { name: "Recent projects" })
     .getByRole("link", { name: title, exact: true })
     .click();
   await expect(editor).toContainText("Consensus");
@@ -138,26 +137,25 @@ test("create → structured note + canvas → switch → reload → delete", asy
     fullPage: true,
   });
   await page
-    .getByRole("link", { name: "Back to projects", exact: true })
+    .getByRole("link", { name: "Back to library", exact: true })
     .click();
   await page.getByRole("button", { name: "Use light theme" }).click();
   await page.screenshot({ path: "test-results/dashboard.png", fullPage: true });
-  await page.getByRole("textbox", { name: "Search projects" }).fill(title);
-  await expect(page.locator(".project-row")).toHaveCount(1);
+  await expect(page.locator(".workspace-row")).toHaveCount(2);
   await page
     .getByRole("button", { name: `Delete ${title}`, exact: true })
     .click();
   await page.getByRole("button", { name: "Keep project" }).click();
-  await expect(page.locator(".project-row")).toHaveCount(1);
+  await expect(page.locator(".workspace-row")).toHaveCount(2);
   await page
     .getByRole("button", { name: `Delete ${title}`, exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Delete project", exact: true })
+    .getByRole("button", { name: "Delete workspace", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "No matching projects" }),
-  ).toBeVisible();
+    page.locator(".workspace-row"),
+  ).toHaveCount(1);
   expect((await request.get(`/api/projects/${id}`)).status()).toBe(404);
   await request.delete(`/api/projects/${second}`);
   expect(errors).toEqual([]);
@@ -184,7 +182,7 @@ test("failed autosave blocks navigation and retries without losing content", asy
     "Storage temporarily unavailable",
   );
   await page
-    .getByRole("link", { name: "Back to projects", exact: true })
+    .getByRole("link", { name: "Back to library", exact: true })
     .click();
   await expect(page).toHaveURL(new RegExp(id));
   await expect(

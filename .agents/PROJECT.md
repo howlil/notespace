@@ -2,37 +2,39 @@
 
 ## Purpose
 
-Notespace is a free, self-hosted thinking workspace where linear writing and spatial drawing coexist inside one **Project**.
+Notespace is a free, self-hosted thinking library where linear writing and spatial drawing coexist inside a **workspace**.
 
-The product model is intentionally not “a notes app plus a whiteboard app.” A user works on one Project; the document and canvas are two first-class interaction surfaces owned by that same Project.
+The product model is intentionally not “a notes app plus a whiteboard app.” A category groups related workspaces; each workspace owns one document and one canvas as first-class interaction surfaces.
 
 ## Core product model
 
 ```text
 Notespace
-└── Project
-    ├── metadata
-    ├── document surface
-    ├── canvas surface
-    └── workspace state
+└── Category
+    └── Workspace
+        ├── metadata
+        ├── document surface
+        ├── canvas surface
+        └── workspace state
 ```
 
 ### Invariants
 
-- `Project` is the primary user-facing content identity and lifecycle boundary.
-- Document and canvas are sibling surfaces of one Project, not independently managed top-level resources.
+- `Category` is the library-level grouping and may contain many workspaces.
+- `Workspace` is the primary editable-content identity and lifecycle boundary.
+- Document and canvas are sibling surfaces of one workspace, not independently managed top-level resources.
 - Internally normalized/editor-native state must not leak into the product model as separate `Note` and `Canvas` products.
 - Notespace is free and self-hosted. Do not introduce SaaS plans, billing, quotas, upgrade prompts, team administration, or cloud-first assumptions without an explicit product decision.
 - The interface should remain a quiet, content-forward tool rather than an analytics/admin dashboard or generic AI productivity product.
 
 ## Current implemented baseline
 
-The current repository implements the first usable self-hosted Project workflow:
+The current repository implements the first usable self-hosted category/workspace workflow:
 
 ```text
 Dashboard
-  → create/search/open Project
-  → Project workspace
+  → create/open Category
+  → create/open Workspace in that category
   → edit document + canvas
   → autosave
   → reload/reopen with durable state
@@ -40,10 +42,10 @@ Dashboard
 
 Implemented product behavior includes:
 
-- Project creation, listing, title search, open, update, and permanent delete with confirmation;
+- category creation/listing and workspace creation, listing, open, update, and permanent delete with confirmation;
 - a Tiptap-based structured document surface;
 - an Excalidraw-based freeform canvas surface;
-- one resizable Project workspace with both surfaces visible together;
+- one full-width, resizable workspace with both surfaces visible together;
 - durable project snapshots with optimistic version conflict detection;
 - visible save failure/retry behavior and unload protection for unsaved changes;
 - light/dark theme foundation;
@@ -57,27 +59,26 @@ Favorites, trash/restore, templates, AI, collaboration, authentication/teams, ex
 
 The dashboard exists to resume or begin work quickly. Its primary jobs are:
 
-1. find recent/all Projects;
-2. search Projects;
-3. create a Project;
-4. open a Project;
-5. perform only currently implemented Project lifecycle actions.
+1. see categories and the workspaces inside them;
+2. create a category or a workspace within it;
+3. open a workspace;
+4. perform only currently implemented workspace lifecycle actions.
 
 Do not create separate global navigation for Notes and Canvases.
 
-### Project workspace
+### Workspace
 
-The workspace is one Project shell containing the document and canvas surfaces. Desktop uses a resizable split; narrow layouts may stack the same surfaces rather than creating a separate product mode.
+The workspace is one full-width shell containing the document and canvas surfaces. It deliberately has no library sidebar; desktop uses a resizable split and narrow layouts may stack the same surfaces rather than creating a separate product mode.
 
-Project-level navigation, layout state, save state, and future utilities belong to the Project shell, not to either editor integration.
+Workspace-level navigation, layout state, save state, and future utilities belong to the workspace shell, not to either editor integration.
 
 ### Document surface
 
-The document surface is the linear thinking representation of a Project. The current implementation uses Tiptap snapshots and supports structured technical writing such as paragraphs, headings, lists, code, and formatting exposed by the UI.
+The document surface is the linear thinking representation of a workspace. The current implementation uses Tiptap snapshots and supports structured technical writing such as paragraphs, headings, lists, code, and formatting exposed by the UI.
 
 ### Canvas surface
 
-The canvas surface is the spatial thinking representation of a Project. Excalidraw is the current primary freeform editor. It is an implementation dependency behind a Notespace-owned integration boundary, not the Notespace domain model.
+The canvas surface is the spatial thinking representation of a workspace. Excalidraw is the current primary freeform editor. It is an implementation dependency behind a Notespace-owned integration boundary, not the Notespace domain model.
 
 ### Cross-surface interoperability
 
@@ -92,14 +93,14 @@ The exact active slice and its current completion state live only in `CURRENT_IT
 
 ## Current server contract
 
-The current Project aggregate exposed by the backend contains:
+The current workspace aggregate exposed by the backend contains:
 
-- `id`, `title`, timestamps, and optimistic `version`;
+- `id`, `categoryId`, `title`, timestamps, and optimistic `version`;
 - versioned `document` snapshot with format `tiptap`;
 - versioned `canvas` snapshot with format `excalidraw`;
 - `splitRatio` constrained by the current server to `0.25..0.70`.
 
-A Project update is a complete authored snapshot guarded by the Project version. Concurrent stale updates fail as conflicts rather than being merged automatically.
+A workspace update is a complete authored snapshot guarded by its version. Concurrent stale updates fail as conflicts rather than being merged automatically.
 
 Any material change to this public/data contract, concurrency semantics, or Project ownership model requires explicit user approval.
 

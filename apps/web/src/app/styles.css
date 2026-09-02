@@ -19,8 +19,8 @@
   --ink: #252630;
   --muted: #787b8a;
   --line: #e4e5ec;
-  --accent: #7561bc;
-  --tint: #eeeaf8;
+  --accent: #4f7396;
+  --tint: #e8eef6;
   --button: #26262f;
   --button-text: #fff;
   --canvas: #f8f9fc;
@@ -34,8 +34,8 @@
   --ink: #e8e8ef;
   --muted: #999ba9;
   --line: #34353e;
-  --accent: #b1a0e9;
-  --tint: #302b42;
+  --accent: #7fa6c9;
+  --tint: #1b2636;
   --button: #e6e6ed;
   --button-text: #22232a;
   --canvas: #1d1e24;
@@ -94,6 +94,9 @@ input:focus-visible,
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
 }
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 60px minmax(0, 1fr);
+}
 .sidebar {
   background: var(--sidebar);
   border-right: 1px solid var(--line);
@@ -105,6 +108,30 @@ input:focus-visible,
   position: sticky;
   top: 0;
   height: 100dvh;
+}
+.sidebar.is-collapsed {
+  padding: 20px 10px;
+  align-items: center;
+}
+.sidebar-toggle {
+  align-self: flex-end;
+  margin: -4px 0 12px;
+}
+.sidebar.is-collapsed .sidebar-toggle {
+  align-self: center;
+  margin: 3px 0 14px;
+}
+.sidebar.is-collapsed .brand-link {
+  margin: 0 0 12px;
+}
+.sidebar.is-collapsed .brand {
+  font-size: 0;
+}
+.sidebar.is-collapsed .brand-mark {
+  margin: 0;
+}
+.sidebar.is-collapsed .nav-item {
+  padding: 9px;
 }
 .brand-link {
   display: block;
@@ -257,6 +284,15 @@ input:focus-visible,
   background: var(--surface);
   gap: 12px;
 }
+.dashboard-header {
+  padding: 0 48px;
+}
+.dashboard-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.3px;
+}
 .breadcrumb {
   font-size: 12px;
   color: var(--muted);
@@ -285,10 +321,123 @@ input:focus-visible,
   color: var(--accent);
 }
 .dashboard-content {
-  max-width: 1260px;
+  max-width: 1020px;
   margin: 0 auto;
   padding: 47px 48px 24px;
 }
+.category-page-heading {
+  margin-bottom: 34px;
+}
+.category-page-heading p {
+  max-width: 570px;
+  line-height: 1.65;
+}
+.category-list {
+  display: grid;
+  gap: 16px;
+}
+.category-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.category-card-header {
+  min-height: 80px;
+  padding: 15px 19px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.category-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.category-mark,
+.workspace-icon,
+.empty-mark {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--tint);
+  border-radius: 7px;
+}
+.category-mark {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+.category-title h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.category-title p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.compact-action {
+  min-height: 33px;
+  padding: 7px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.workspace-list {
+  border-top: 1px solid var(--line);
+}
+.workspace-row {
+  min-height: 55px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+.workspace-row:first-child { border-top: 0; }
+.workspace-row:hover { background: var(--bg); }
+.workspace-link {
+  min-width: 0;
+  flex: 1;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 19px;
+}
+.workspace-icon {
+  height: 28px;
+  width: 28px;
+  color: var(--muted);
+  background: var(--bg);
+}
+.workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.workspace-surfaces { margin-left: auto; display: flex; gap: 4px; color: var(--muted); }
+.workspace-link time { width: 94px; color: var(--muted); font-size: 10px; }
+.quiet-delete {
+  color: var(--muted);
+  border: 0;
+  background: transparent;
+  font-size: 10px;
+  padding: 8px 18px 8px 8px;
+}
+.quiet-delete:hover { color: var(--danger); }
+.workspace-empty {
+  min-height: 55px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.workspace-empty:hover { color: var(--accent); background: var(--bg); }
+.category-empty { min-height: 270px; }
+.empty-mark { width: 46px; height: 46px; margin-bottom: 15px; }
 .page-heading {
   display: flex;
   align-items: center;
@@ -597,6 +746,19 @@ h1 {
   background: var(--bg);
   color: var(--ink);
 }
+.create-dialog .seamless-input {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 11px 0;
+  font-size: 16px;
+  letter-spacing: -0.2px;
+}
+.create-dialog .seamless-input:focus-visible {
+  outline: 0;
+  border-bottom-color: var(--accent);
+}
 .dialog-content .form-error {
   margin: 10px 0;
   color: var(--danger);
@@ -610,6 +772,7 @@ h1 {
 }
 .workspace-shell {
   height: 100dvh;
+  min-width: 0;
 }
 .workspace-main {
   min-width: 0;
@@ -633,21 +796,14 @@ h1 {
   width: 1px;
   background: var(--line);
 }
-.title-input {
-  background: transparent;
-  border: 1px solid transparent;
+.workspace-title {
+  min-width: 0;
   color: var(--ink);
   font-size: 14px;
   font-weight: 500;
-  min-width: 0;
-  width: 100%;
-  max-width: 410px;
-  padding: 6px 8px;
-  border-radius: 5px;
+  overflow: hidden;
   text-overflow: ellipsis;
-}
-.title-input:hover {
-  border-color: var(--line);
+  white-space: nowrap;
 }
 .header-actions {
   display: flex;
@@ -910,6 +1066,7 @@ h1 {
   .sidebar {
     display: none;
   }
+  .app-shell.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
   .project-grid {
     gap: 10px;
   }
@@ -942,6 +1099,12 @@ h1 {
     padding: 9px;
     font-size: 11px;
   }
+  .dashboard-header { padding: 0 20px; }
+  .category-card-header { padding: 14px; align-items: flex-start; flex-direction: column; }
+  .compact-action { width: 100%; }
+  .workspace-link { padding: 0 14px; }
+  .workspace-surfaces, .workspace-link time { display: none; }
+  .quiet-delete { padding-right: 14px; }
   .eyebrow {
     letter-spacing: 1px;
     font-size: 8px !important;
@@ -1015,8 +1178,5 @@ h1 {
   }
   .workspace-identity {
     gap: 3px;
-  }
-  .title-input {
-    font-size: 12px;
   }
 }

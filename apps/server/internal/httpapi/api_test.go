@@ -43,6 +43,42 @@ func decodeProject(t *testing.T, res *httptest.ResponseRecorder) project.Project
 	return p
 }
 
+func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.CategorySummary {
+	t.Helper()
+	var categories []project.CategorySummary
+	if err := json.Unmarshal(res.Body.Bytes(), &categories); err != nil {
+		t.Fatal(err)
+	}
+	return categories
+}
+
+func TestCategoryGroupsWorkspaces(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Computer Science"})
+	expect(t, createdCategory, 201)
+	var category project.CategorySummary
+	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
+		t.Fatal(err)
+	}
+	createdWorkspace := call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems", "categoryId": category.ID})
+	expect(t, createdWorkspace, 201)
+	if workspace := decodeProject(t, createdWorkspace); workspace.CategoryID != category.ID {
+		t.Fatalf("workspace category = %q, want %q", workspace.CategoryID, category.ID)
+	}
+	categories := decodeCategories(t, call(t, api, "GET", "/api/categories", nil))
+	for _, listed := range categories {
+		if listed.ID == category.ID && listed.WorkspaceCount == 1 {
+			return
+		}
+	}
+	t.Fatalf("category count missing from %#v", categories)
+}
+
 func TestProjectJourneyAndRestart(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "notespace.db")

@@ -6,10 +6,19 @@ export interface Snapshot {
 
 export interface ProjectSummary {
   id: string;
+  categoryId: string;
   title: string;
   createdAt: string;
   updatedAt: string;
   version: number;
+}
+
+export interface CategorySummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  workspaceCount: number;
 }
 
 export interface Project extends ProjectSummary {

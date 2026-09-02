@@ -45,16 +45,56 @@ func Open(ctx context.Context, path string) (*Store, error) {
 func (s *Store) Close() error                      { return s.db.Close() }
 func (s *Store) Healthy(ctx context.Context) error { return s.db.PingContext(ctx) }
 
+func (s *Store) CreateCategory(ctx context.Context, category project.CategorySummary) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO categories(id,title,created_at,updated_at) VALUES (?,?,?,?)`,
+		category.ID,
+		category.Title,
+		category.CreatedAt,
+		category.UpdatedAt,
+	)
+	return err
+}
+
+func (s *Store) ListCategories(ctx context.Context) ([]project.CategorySummary, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []project.CategorySummary{}
+	for rows.Next() {
+		var category project.CategorySummary
+		if err := rows.Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt, &category.WorkspaceCount); err != nil {
+			return nil, err
+		}
+		out = append(out, category)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CategoryExists(ctx context.Context, id string) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, id).Scan(&count)
+	return count > 0, err
+}
+
 func (s *Store) Create(ctx context.Context, p project.Project) error {
 	doc, _ := json.Marshal(p.Document)
 	canvas, _ := json.Marshal(p.Canvas)
 	references, _ := json.Marshal(p.References)
-	_, err := s.db.ExecContext(ctx, `INSERT INTO projects(id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?)`, p.ID, p.Title, string(doc), string(canvas), string(references), p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version)
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO projects(id,category_id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.CategoryID, p.Title, string(doc), string(canvas), string(references),
+		p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version,
+	)
 	return err
 }
 
 func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,title,created_at,updated_at,version FROM projects ORDER BY updated_at DESC,id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,category_id,title,created_at,updated_at,version FROM projects ORDER BY updated_at DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +102,9 @@ func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
 	out := []project.Summary{}
 	for rows.Next() {
 		var p project.Summary
-		if err := rows.Scan(&p.ID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version); err != nil {
+		if err := rows.Scan(
+			&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -75,7 +117,10 @@ type scanner interface{ Scan(...any) error }
 func readProject(row scanner) (project.Project, error) {
 	var p project.Project
 	var doc, canvas, references string
-	err := row.Scan(&p.ID, &p.Title, &doc, &canvas, &references, &p.SplitRatio, &p.CreatedAt, &p.UpdatedAt, &p.Version)
+	err := row.Scan(
+		&p.ID, &p.CategoryID, &p.Title, &doc, &canvas, &references,
+		&p.SplitRatio, &p.CreatedAt, &p.UpdatedAt, &p.Version,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, project.ErrNotFound
 	}
@@ -94,7 +139,7 @@ func readProject(row scanner) (project.Project, error) {
 	return p, nil
 }
 
-const columns = `id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version`
+const columns = `id,category_id,title,document_state,canvas_state,references_state,split_ratio,created_at,updated_at,version`
 
 func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))

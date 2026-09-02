@@ -11,7 +11,6 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/probe-public-assets.py https://notespace.howlil.my.id
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -22,6 +21,7 @@ jobs:
       - run: npm install --global pnpm@11.19.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - run: python3 scripts/check-built-assets.py
       - run: pnpm typecheck && pnpm lint && pnpm test
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server

@@ -145,7 +145,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await page
     .getByRole("button", { name: `Delete ${title}`, exact: true })
     .click();
-  await page.getByRole("button", { name: "Keep project" }).click();
+  await page.getByRole("button", { name: "Keep workspace" }).click();
   await expect(page.locator(".workspace-row")).toHaveCount(2);
   await page
     .getByRole("button", { name: `Delete ${title}`, exact: true })

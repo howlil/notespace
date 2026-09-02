@@ -1,9 +1,11 @@
 """Exercise a running production instance; only removes the project it creates."""
 import argparse
 import json
+import re
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 parser = argparse.ArgumentParser()
@@ -29,9 +31,22 @@ def wait_ready():
         time.sleep(1)
     raise RuntimeError('Notespace did not become healthy')
 
+def assert_built_assets_served():
+    with urllib.request.urlopen(args.url, timeout=10) as page:
+        html = page.read().decode('utf-8')
+        assert 'Notespace' in html, 'Application shell missing'
+    refs = re.findall(r'(?:href|src)=["\']([^"\']+)["\']', html, re.IGNORECASE)
+    assets = list(dict.fromkeys(ref for ref in refs if ref.startswith('/assets/')))
+    assert assets, 'Application shell does not reference built assets'
+    for ref in assets:
+        url = urllib.parse.urljoin(args.url + '/', ref)
+        with urllib.request.urlopen(url, timeout=10) as response:
+            assert response.status == 200, f'Built asset unavailable: {ref}'
+            if urllib.parse.urlsplit(ref).path.endswith('.css'):
+                assert response.headers.get_content_type() == 'text/css', f'Stylesheet has wrong MIME type: {ref}'
+
 wait_ready()
-with urllib.request.urlopen(args.url, timeout=10) as page:
-    assert b'Notespace' in page.read(), 'Application shell missing'
+assert_built_assets_served()
 project = call('/api/projects', 'POST', {'title': 'Persistence smoke test'})
 path = '/api/projects/' + project['id']
 try:
@@ -51,9 +66,10 @@ try:
     if args.compose_restart:
         subprocess.run(['docker', 'compose', 'restart', 'notespace'], check=True)
         wait_ready()
+        assert_built_assets_served()
     assert call(path) == saved, 'Persisted project changed across reopen/restart'
     with urllib.request.urlopen(args.url + '/projects/' + project['id'], timeout=10) as page:
         assert b'Notespace' in page.read(), 'Direct project URL does not serve app shell'
-    print('PASS: create, edit both surfaces, persist reference, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
+    print('PASS: shell assets, create, edit both surfaces, persist reference, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
 finally:
     call(path, 'DELETE')

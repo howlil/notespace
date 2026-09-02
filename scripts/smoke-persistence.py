@@ -40,10 +40,13 @@ def assert_built_assets_served():
     assert assets, 'Application shell does not reference built assets'
     for ref in assets:
         url = urllib.parse.urljoin(args.url + '/', ref)
-        with urllib.request.urlopen(url, timeout=10) as response:
-            assert response.status == 200, f'Built asset unavailable: {ref}'
-            if urllib.parse.urlsplit(ref).path.endswith('.css'):
-                assert response.headers.get_content_type() == 'text/css', f'Stylesheet has wrong MIME type: {ref}'
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                assert response.status == 200, f'Built asset unavailable: {ref}'
+                if urllib.parse.urlsplit(ref).path.endswith('.css'):
+                    assert response.headers.get_content_type() == 'text/css', f'Stylesheet has wrong MIME type: {ref}'
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f'Built asset unavailable: {ref} returned HTTP {exc.code}') from exc
 
 wait_ready()
 assert_built_assets_served()

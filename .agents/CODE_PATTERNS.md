@@ -9,15 +9,20 @@ Use `Taskfile.yml` as the normal repo-level entrypoint:
 ```sh
 task dev
 task check
+task check:web
+task check:server
+task test:web TEST=path/to/test.ts
+task test:server PACKAGE=./internal/httpapi
 task build
 task e2e
+task e2e:target SPEC=tests/example.spec.ts
 task verify
 task up
 task down
 task logs
 ```
 
-Use underlying `pnpm`, `go`, Playwright, or Docker commands when a narrower diagnostic/test loop is useful. Keep Taskfile as the canonical human/agent orchestration layer; do not add Turborepo or another task orchestrator without a concrete need.
+Use the smallest focused test/check for the changed boundary before the full `task verify` gate. Use underlying `pnpm`, `go`, Playwright, or Docker commands when a narrower diagnostic/test loop is useful. Keep Taskfile as the canonical human/agent orchestration layer; do not add Turborepo or another task orchestrator without a concrete need.
 
 ## Project-centric naming
 
@@ -65,7 +70,7 @@ Rules:
 - treat the persisted wrapper as Notespace-owned even when `data` is editor-native;
 - evolve format/version deliberately;
 - existing valid snapshots must remain readable across non-destructive feature evolution;
-- stable product block IDs used for Milestone 2 must survive normal Tiptap normalization/editing and reload;
+- stable product block IDs used for cross-surface references must survive normal Tiptap normalization/editing and reload;
 - do not use text, DOM position, or mutable editor position as durable relationship identity.
 
 ## Canvas snapshot pattern
@@ -145,6 +150,8 @@ Use the narrowest layer that proves the behavior:
 
 Prefer testing product behavior and boundaries over implementation trivia. Regression tests should remain near the layer that previously failed.
 
+When a browser/E2E test fails and the cause is not immediately deterministic, inspect the captured trace/report/screenshot and actual browser state before changing implementation. Distinguish a product defect from test setup or an interaction that invalidates state; fix the owning boundary rather than making speculative changes.
+
 ## Change discipline
 
 For implementation work:
@@ -154,4 +161,8 @@ For implementation work:
 - keep refactors local to what the change requires;
 - remove dead code made obsolete by the change;
 - do not mix unrelated renames/reorganization/dependency upgrades into a feature slice;
+- do not bundle generic `.agents` housekeeping, workflow cleanup, or unrelated documentation rewrites into a feature slice; update active iteration evidence or durable decisions only when the slice actually requires it;
+- when maintenance/workflow hardening is independently requested, keep it as its own bounded logical change rather than hiding it inside product delivery;
+- integrate each completed slice after its relevant gates pass instead of accumulating completed slices into a giant milestone branch;
+- keep the next slice based on the latest integrated `master` so its PR contains only the new delta;
 - record material architectural/product decisions in `DECISIONS.md`, not as long code comments or temporary planning files.

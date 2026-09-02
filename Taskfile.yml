@@ -32,18 +32,34 @@ tasks:
     failfast: true
 
   check:web:
-    internal: true
+    desc: Run frontend typecheck, lint, and unit tests
     cmds:
       - pnpm typecheck
       - pnpm lint
       - pnpm test
 
   check:server:
-    internal: true
+    desc: Run Go formatting, vet, and race-test gates
     dir: apps/server
     cmds:
+      - node ../../scripts/check-gofmt.mjs
       - go vet ./...
       - go test -race ./...
+
+  test:web:
+    desc: Run one focused web unit test file (TEST=path/to/test.ts)
+    requires:
+      vars: [TEST]
+    cmds:
+      - node --experimental-strip-types --test "{{.TEST}}"
+
+  test:server:
+    desc: Run one focused Go package test (PACKAGE=./internal/package)
+    dir: apps/server
+    requires:
+      vars: [PACKAGE]
+    cmds:
+      - go test -race "{{.PACKAGE}}"
 
   build:
     desc: Build the production web assets and Go binary
@@ -67,6 +83,14 @@ tasks:
     cmds:
       - task: build:web
       - pnpm test:e2e
+
+  e2e:target:
+    desc: Build the web app and run one focused Playwright spec (SPEC=tests/example.spec.ts)
+    requires:
+      vars: [SPEC]
+    cmds:
+      - task: build:web
+      - pnpm exec playwright test "{{.SPEC}}"
 
   verify:
     desc: Run the full local release verification suite

@@ -17,17 +17,43 @@ Prefer evidence in this order:
 Primary commands:
 
 ```sh
-task dev      # web + Go development servers
-task check    # frontend typecheck/lint/unit + Go vet/race tests
-task build    # production web + Go binary
-task e2e      # built web + browser tests against real Go server
-task verify   # build + check + browser E2E
-task up       # build/start Docker Compose stack
-task down     # stop stack without deleting persisted data
-task logs     # follow compose logs
+task dev                                      # web + Go development servers
+task check                                    # frontend + backend static/unit gates
+task check:web                                # frontend typecheck/lint/unit
+task check:server                             # gofmt/vet/race-test gate
+task test:web TEST=path/to/test.ts            # one focused web unit test file
+task test:server PACKAGE=./internal/httpapi    # one focused Go package
+task build                                    # production web + Go binary
+task e2e                                      # built web + full browser suite
+task e2e:target SPEC=tests/example.spec.ts    # one focused browser spec
+task verify                                   # build + check + full browser E2E
+task up                                       # build/start Docker Compose stack
+task down                                     # stop stack without deleting persisted data
+task logs                                     # follow compose logs
 ```
 
-Underlying commands may be used for targeted diagnosis, but do not duplicate a second orchestration layer unless the repository requires it.
+Underlying commands may be used for targeted diagnosis when the Taskfile surface cannot express the needed filter. Do not duplicate a second orchestration layer unless the repository requires it.
+
+## Verification loop
+
+Use two loops instead of jumping directly to the most expensive gate:
+
+```text
+changed boundary
+  → smallest relevant targeted test/check
+  → fix until that boundary is green
+  → task verify
+  → CI/runtime gate when required
+```
+
+Examples:
+
+- pure web behavior: `task test:web TEST=...` and/or `task check:web`;
+- one Go package/boundary: `task test:server PACKAGE=...` and then `task check:server`;
+- one browser journey: `task e2e:target SPEC=...`;
+- cross-stack/release candidate: `task verify` after the focused loop is green.
+
+Targeted verification is a feedback-loop optimization, not a substitute for the required final gate. Do not invent unrelated tests merely to satisfy this sequence; use the narrowest existing or newly-required regression test that protects the changed behavior.
 
 ## Baseline gates
 
@@ -42,7 +68,22 @@ python3 scripts/smoke-persistence.py --compose-restart
 
 CI source: `.github/workflows/verify.yml`.
 
+The Go formatting check is shared through `scripts/check-gofmt.mjs` so local `task check:server` and CI fail on the same `gofmt -l .` condition.
+
 Do not claim a gate passed unless it was actually executed for the relevant code/head. If a required gate cannot run, record the reason and residual risk in `CURRENT_ITERATION.md`.
+
+## Failure diagnosis
+
+Diagnose from evidence before changing implementation.
+
+For Playwright/browser failures:
+
+1. inspect the failing assertion plus trace/report/screenshot or other captured browser state;
+2. identify whether the product behavior, test setup, or test interaction invalidated the expected state;
+3. make the smallest correction at the owning boundary;
+4. rerun the focused spec before the full suite.
+
+Do not change product behavior merely to make a brittle or state-invalidating test pass. Conversely, do not weaken a valid user-behavior assertion to hide a real product defect. CI browser artifacts are diagnostic evidence and should be inspected before speculative implementation changes when the failure is not immediately deterministic.
 
 ## Risk-proportional verification
 
@@ -84,7 +125,7 @@ Dashboard
   → authored state remains correct
 ```
 
-For Milestone 2, extend the applicable journey with stable block identity/reference creation/navigation and restart durability as each slice enters scope.
+For cross-surface references, extend the applicable journey with stable block identity/reference creation/navigation and restart durability when that boundary is affected.
 
 ## Frontend/editor checks
 

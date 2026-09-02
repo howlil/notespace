@@ -6,8 +6,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import "../app/styles.css";
 import { ThemeProvider } from "../app/theme";
-import styles from "../app/styles.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -16,7 +16,6 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Notespace — Write. Draw. Understand." },
     ],
-    links: [{ rel: "stylesheet", href: styles }],
   }),
   shellComponent: RootDocument,
   component: () => (

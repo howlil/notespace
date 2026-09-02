@@ -25,8 +25,8 @@ export const Route = createRootRoute({
   ),
   notFoundComponent: () => (
     <main className="route-message">
-      <h1>Project not found</h1>
-      <Link to="/">Back to projects</Link>
+      <h1>Workspace not found</h1>
+      <Link to="/">Back to library</Link>
     </main>
   ),
   errorComponent: ({ error, reset }) => (
@@ -36,7 +36,7 @@ export const Route = createRootRoute({
       <button className="primary" onClick={reset}>
         Try again
       </button>
-      <a href="/">Back to projects</a>
+      <a href="/">Back to library</a>
     </main>
   ),
 });

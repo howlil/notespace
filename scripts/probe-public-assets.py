@@ -25,3 +25,5 @@ for url in stylesheets:
             print("CSS_RESPONSE", response.status, response.headers.get("Content-Type"), response.headers.get("Cache-Control"), len(body))
     except urllib.error.HTTPError as exc:
         print("CSS_RESPONSE", exc.code, exc.headers.get("Content-Type"), exc.headers.get("Cache-Control"), len(exc.read()))
+
+raise RuntimeError("diagnostic probe complete")

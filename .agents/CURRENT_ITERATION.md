@@ -4,7 +4,7 @@
 
 - **Milestone:** Milestone 4 — Workspace and Dashboard UI Consolidation
 - **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
-- **Active slice:** final browser and production-composition gate
+- **Active slice:** note management, low-friction creation, and workspace focus mode
 - **Integrated through:** local working tree only
 - **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
 
@@ -18,8 +18,12 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - Workspace fills the viewport with no document/canvas headers or footer chrome and supports `Split`, `Note`, and `Canvas` views.
 - Workspace navigation includes same-category workspace switching and inline rename with Enter, Escape, and blur behavior.
 - Notes support multiple durable documents per workspace through `notes[]`; existing workspaces receive a default `Untitled` note through migration/backward-compatible fallback.
+- Active notes can be renamed inline or deleted with confirmation; the last remaining note is protected and references to deleted note blocks are cleaned up.
 - Fixed document formatting toolbar is replaced with keyboard-accessible slash commands for headings, lists, quote, code, divider, and checklist blocks.
 - Canvas controls are visually reduced and the bottom menu/ring treatment is removed; empty states remain direct and actionable.
+- Workspace title editing stays inline without a bordered/ring treatment.
+- Workspace `Focus mode` hides the top header for `Split`, `Note`, and `Canvas`; a small restore control and `Escape` keep the transition reversible.
+- Category and workspace creation use compact inline quick-create forms with Enter/Add submission instead of a modal step.
 
 ## Evidence so far
 
@@ -28,6 +32,8 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - `pnpm lint` — PASS
 - `pnpm test` — PASS (3 tests)
 - `git diff --check` — PASS
+- Targeted Playwright journeys — UPDATED but NOT RUN: Go server and Chromium are unavailable
+- Focus-mode interaction coverage — UPDATED but NOT RUN: Go server and Chromium are unavailable
 - `go test ./...` — NOT RUN: Go is unavailable
 - Playwright E2E — NOT RUN: Go server, Docker, and Chromium are unavailable
 

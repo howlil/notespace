@@ -7,10 +7,9 @@ async function create(page: Page, title: string) {
     .getByRole("button", { name: "New workspace", exact: true })
     .first()
     .click();
-  await page.getByRole("textbox", { name: "Workspace title" }).fill(title);
-  await page
-    .getByRole("button", { name: "Create workspace", exact: true })
-    .click();
+  const titleInput = page.getByRole("textbox", { name: "Workspace title" });
+  await titleInput.fill(title);
+  await titleInput.press("Enter");
   await expect(
     page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();
@@ -45,6 +44,28 @@ test("create → structured note + canvas → switch → reload → delete", asy
   });
   const title = "Distributed Systems";
   const id = await create(page, title);
+  await page.getByRole("button", { name: "Enter focus mode" }).click();
+  await expect(page.getByRole("button", { name: "Show workspace header" })).toBeVisible();
+  await expect(page.locator(".workspace-header")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".workspace-header")).toBeVisible();
+  await page.getByTitle("Rename workspace").click();
+  const workspaceTitle = page.getByRole("textbox", { name: "Workspace title" });
+  await workspaceTitle.fill(title);
+  await workspaceTitle.press("Enter");
+  await page.getByRole("button", { name: "Rename note", exact: true }).click();
+  const noteTitle = page.getByRole("textbox", { name: "Note title" });
+  await noteTitle.fill("Consensus notes");
+  await noteTitle.press("Enter");
+  await expect(page.getByText("Consensus notes", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "New note", exact: true }).click();
+  await page.getByRole("button", { name: "Rename note", exact: true }).click();
+  await page.getByRole("textbox", { name: "Note title" }).fill("Scratchpad");
+  await page.getByRole("textbox", { name: "Note title" }).press("Enter");
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Delete this note?" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await expect(page.getByText("Consensus notes", { exact: true })).toBeVisible();
   const editor = page.getByRole("textbox", { name: "Workspace document" });
   await editor.pressSequentially("/heading");
   await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();

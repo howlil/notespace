@@ -7,10 +7,9 @@ async function create(page: Page, title: string) {
     .getByRole("button", { name: "New workspace", exact: true })
     .first()
     .click();
-  await page.getByRole("textbox", { name: "Workspace title" }).fill(title);
-  await page
-    .getByRole("button", { name: "Create workspace", exact: true })
-    .click();
+  const titleInput = page.getByRole("textbox", { name: "Workspace title" });
+  await titleInput.fill(title);
+  await titleInput.press("Enter");
   await expect(
     page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();

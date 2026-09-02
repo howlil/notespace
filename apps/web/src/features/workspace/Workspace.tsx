@@ -18,11 +18,15 @@ import {
   Layers,
   Link2,
   Loader2,
+  Maximize2,
+  Minimize2,
   Pencil,
   Plus,
   RotateCw,
+  Trash2,
   Unlink,
 } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { ThemeToggle, useTheme } from "../../app/theme";
 import { contentOf } from "../../domain/project/project";
 import type {
@@ -54,6 +58,24 @@ function documentHasBlock(snapshot: Snapshot, blockId: string) {
     return Object.values(record).some(visit);
   };
   return visit(snapshot.data);
+}
+
+function documentBlockIds(snapshot: Snapshot) {
+  const ids = new Set<string>();
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    const attrs = record.attrs;
+    const blockId = attrs && typeof attrs === "object" ? (attrs as Record<string, unknown>).blockId : undefined;
+    if (typeof blockId === "string") ids.add(blockId);
+    Object.values(record).forEach(visit);
+  };
+  visit(snapshot.data);
+  return ids;
 }
 
 function canvasHasElement(snapshot: Snapshot, elementId: string) {
@@ -101,12 +123,18 @@ export function Workspace({
   const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
   const [brokenReference, setBrokenReference] = useState<BrokenReference>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [focusMode, setFocusMode] = useState(false);
   const [activeNoteId, setActiveNoteId] = useState(initialContent.notes[0]?.id ?? `${project.id}-default`);
   const [noteMenuOpen, setNoteMenuOpen] = useState(false);
+  const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState(project.title);
   const renameInput = useRef<HTMLInputElement>(null);
+  const noteRenameInput = useRef<HTMLInputElement>(null);
+  const noteRenameCancelled = useRef(false);
   const navigationRequest = useRef(0);
   const [saver] = useState(() => new Autosave(project.version, (value: ProjectContent, version) => saveProject(project.id, value, version)));
   const split = useRef<HTMLDivElement>(null);
@@ -122,6 +150,12 @@ export function Workspace({
     }
   }, [renaming]);
   useEffect(() => {
+    if (renamingNoteId) {
+      noteRenameInput.current?.focus();
+      noteRenameInput.current?.select();
+    }
+  }, [renamingNoteId]);
+  useEffect(() => {
     if (!noteMenuOpen && !workspaceMenuOpen) return;
     const closeMenus = (event: MouseEvent) => {
       const target = event.target;
@@ -132,6 +166,14 @@ export function Workspace({
     document.addEventListener("mousedown", closeMenus);
     return () => document.removeEventListener("mousedown", closeMenus);
   }, [noteMenuOpen, workspaceMenuOpen]);
+  useEffect(() => {
+    if (!focusMode) return;
+    const exitOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFocusMode(false);
+    };
+    document.addEventListener("keydown", exitOnEscape);
+    return () => document.removeEventListener("keydown", exitOnEscape);
+  }, [focusMode]);
   useBlocker({
     shouldBlockFn: async () => {
       try { await saver.flush(); return false; } catch { return true; }
@@ -175,6 +217,59 @@ export function Workspace({
     setActiveNoteId(note.id);
     setNoteMenuOpen(false);
   }, [update]);
+
+  function beginNoteRename() {
+    if (!activeNote) return;
+    noteRenameCancelled.current = false;
+    setNoteTitle(activeNote.title);
+    setNoteMenuOpen(false);
+    setRenamingNoteId(activeNote.id);
+  }
+
+  function cancelNoteRename() {
+    noteRenameCancelled.current = true;
+    setNoteTitle(activeNote?.title ?? "Untitled");
+    setRenamingNoteId(null);
+  }
+
+  function commitNoteRename() {
+    if (noteRenameCancelled.current) {
+      noteRenameCancelled.current = false;
+      return;
+    }
+    if (!renamingNoteId) return;
+    const next = noteTitle.trim();
+    if (!next) {
+      cancelNoteRename();
+      return;
+    }
+    const currentNote = current.current.notes.find((note) => note.id === renamingNoteId);
+    if (currentNote && next !== currentNote.title) {
+      const now = new Date().toISOString();
+      update({ notes: current.current.notes.map((note) => note.id === renamingNoteId ? { ...note, title: next, updatedAt: now } : note) });
+    }
+    setRenamingNoteId(null);
+  }
+
+  function removeNote() {
+    if (!deletingNote || current.current.notes.length <= 1) return;
+    const notes = current.current.notes.filter((note) => note.id !== deletingNote.id);
+    const nextActive = deletingNote.id === activeNoteId
+      ? notes[0]
+      : notes.find((note) => note.id === activeNoteId) ?? notes[0];
+    if (!nextActive) return;
+    const deletedBlockIds = documentBlockIds(deletingNote.document);
+    const references = current.current.references.filter((reference) => !deletedBlockIds.has(reference.blockId));
+    const patch: Partial<ProjectContent> = {
+      notes,
+      references,
+    };
+    if (deletingNote.id === activeNoteId) patch.document = nextActive.document;
+    update(patch);
+    setActiveNoteId(nextActive.id);
+    setSelectedBlockId(null);
+    setDeletingNote(null);
+  }
 
   const createReference = useCallback(() => {
     if (!selectedBlockId || !selectedElementId) return;
@@ -230,9 +325,9 @@ export function Workspace({
 
   const categoryWorkspaces = workspaces.filter((workspace) => workspace.categoryId === project.categoryId);
   return (
-    <div className="workspace-shell">
+    <div className={focusMode ? "workspace-shell is-focus-mode" : "workspace-shell"}>
       <main className="workspace-main">
-        <header className="topbar workspace-header">
+        {!focusMode && <header className="topbar workspace-header">
           <div className="workspace-identity">
             <Link to="/" className="icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
             <span className="header-divider" />
@@ -247,7 +342,7 @@ export function Workspace({
               </div>}
             </div>
             <span className="header-divider" />
-            {renaming ? <input ref={renameInput} className="inline-title-input" aria-label="Workspace title" value={renameTitle} maxLength={160} onChange={(event) => setRenameTitle(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitRename(); } if (event.key === "Escape") { setRenameTitle(current.current.title); setRenaming(false); } }} /> : <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }} title="Rename workspace"><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>}
+            {renaming ? <input ref={renameInput} data-inline-edit="workspace" className="inline-title-input" aria-label="Workspace title" value={renameTitle} maxLength={160} onChange={(event) => setRenameTitle(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitRename(); } if (event.key === "Escape") { setRenameTitle(current.current.title); setRenaming(false); } }} /> : <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }} title="Rename workspace"><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>}
           </div>
           <div className="header-actions">
             <div className="view-switcher" role="group" aria-label="Workspace view">
@@ -257,22 +352,29 @@ export function Workspace({
             {blockReference && <button className="icon-button" aria-label="Go to linked canvas object" title="Go to linked canvas object" onClick={() => navigateToCanvas(blockReference)}><Layers size={16} /></button>}
             {elementReference && <button className="icon-button" aria-label="Go to linked document block" title="Go to linked document block" onClick={() => navigateToDocument(elementReference)}><FileText size={16} /></button>}
             <span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span>
+            <button className="icon-button focus-mode-toggle" aria-label="Enter focus mode" title="Focus mode · hide header" onClick={() => setFocusMode(true)}><Maximize2 size={16} /></button>
             <ThemeToggle />
           </div>
-        </header>
+        </header>}
+        {focusMode && <button className="focus-mode-restore" aria-label="Show workspace header" title="Show workspace header · Escape" onClick={() => setFocusMode(false)}><Minimize2 size={14} /> <span>Show header</span></button>}
         {status.state === "error" && <div className="save-error" role="alert"><span>{status.message}</span><button className="secondary" onClick={() => void saver.flush().catch(() => {})}><RotateCw size={14} /> Retry save</button></div>}
         {brokenReference && <div className="save-error" role="alert"><span>{brokenReference.message}</span><button className="secondary" onClick={() => removeReference(brokenReference.referenceId)}><Unlink size={14} /> Remove broken link</button></div>}
         <div className={`workspace-split workspace-mode-${viewMode}`} ref={split} style={viewMode === "split" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : undefined}>
           {viewMode !== "canvas" && <section className="document-pane" aria-label="Document pane">
             <div className="note-strip">
-              <div className="note-switcher">
+              {renamingNoteId === activeNote?.id ? <input ref={noteRenameInput} data-inline-edit="note" className="inline-note-title-input" aria-label="Note title" value={noteTitle} maxLength={160} onChange={(event) => setNoteTitle(event.target.value)} onBlur={commitNoteRename} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitNoteRename(); } if (event.key === "Escape") cancelNoteRename(); }} /> : <div className="note-switcher">
                 <button className="note-switcher-trigger" aria-haspopup="listbox" aria-expanded={noteMenuOpen} onClick={() => setNoteMenuOpen((open) => !open)}><FileText size={15} /><span className="note-switcher-label">{activeNote?.title ?? "Untitled"}</span><ChevronDown size={14} /></button>
                 {noteMenuOpen && <div className="note-menu-popover" role="listbox" aria-label="Notes in this workspace">
                   {current.current.notes.map((note) => <button key={note.id} role="option" aria-selected={note.id === activeNote?.id} className={note.id === activeNote?.id ? "menu-item active" : "menu-item"} onClick={() => selectNote(note)}>{note.title}</button>)}
                   <button className="menu-item menu-item-muted" onClick={createNote}><Plus size={14} /> New note</button>
+                  <button className="menu-item" onClick={beginNoteRename}><Pencil size={14} /> Rename note</button>
+                  <button className="menu-item menu-item-danger" disabled={current.current.notes.length <= 1} title={current.current.notes.length <= 1 ? "A workspace needs one note" : "Delete note"} onClick={() => { if (activeNote && current.current.notes.length > 1) { setNoteMenuOpen(false); setDeletingNote(activeNote); } }}><Trash2 size={14} /> Delete note</button>
                 </div>}
+              </div>}
+              <div className="note-strip-actions">
+                {renamingNoteId !== activeNote?.id && <button className="icon-button" aria-label="Rename note" title="Rename note" onClick={beginNoteRename}><Pencil size={15} /></button>}
+                <button className="icon-button" aria-label="New note" title="New note" onClick={createNote}><Plus size={16} /></button>
               </div>
-              <button className="icon-button" aria-label="New note" title="New note" onClick={createNote}><Plus size={16} /></button>
             </div>
             <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening document…</div>}><DocumentEditor key={activeNote?.id} initial={activeNote?.document ?? current.current.document} onChange={updateDocument} onBlockSelect={setSelectedBlockId} focusRequest={documentFocus} /></Suspense></EditorBoundary>
           </section>}
@@ -280,6 +382,7 @@ export function Workspace({
           {viewMode !== "note" && <section className="canvas-pane" aria-label="Canvas pane"><EditorBoundary><Suspense fallback={<div className="editor-loading">Opening canvas…</div>}><CanvasEditor initial={current.current.canvas} onChange={updateCanvas} onElementSelect={setSelectedElementId} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary></section>}
         </div>
       </main>
+      <Dialog.Root open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content"><Dialog.Title>Delete this note?</Dialog.Title><Dialog.Description>“{deletingNote?.title}” will be removed from this workspace. Other notes and the canvas will stay.</Dialog.Description><div className="dialog-actions"><Dialog.Close className="secondary">Keep note</Dialog.Close><button className="danger" onClick={removeNote}>Delete note</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
     </div>
   );
 }

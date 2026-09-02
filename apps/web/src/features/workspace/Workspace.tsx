@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
   Check,
@@ -17,6 +18,7 @@ import {
   Layers,
   Link2,
   Loader2,
+  Pencil,
   RotateCw,
   Unlink,
 } from "lucide-react";
@@ -105,6 +107,9 @@ export function Workspace({
   const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
   const [brokenReference, setBrokenReference] =
     useState<BrokenReference>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTitle, setRenameTitle] = useState(project.title);
+  const [renameError, setRenameError] = useState("");
   const navigationRequest = useRef(0);
   const [saver] = useState(
     () =>
@@ -230,6 +235,13 @@ export function Workspace({
     setRatio(next);
     update({ splitRatio: next });
   }
+  async function renameWorkspace(event: React.FormEvent) {
+    event.preventDefault();
+    const next = renameTitle.trim();
+    if (!next || next === project.title) { setRenameOpen(false); return; }
+    update({ title: next });
+    setRenameOpen(false);
+  }
   return (
     <div className="workspace-shell">
       <main className="workspace-main">
@@ -239,7 +251,7 @@ export function Workspace({
               <ArrowLeft size={18} />
             </Link>
             <span className="header-divider" />
-            <span className="workspace-title">{project.title}</span>
+            <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenameError(""); setRenameOpen(true); }} title="Rename workspace"><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>
           </div>
           <div className="header-actions">
             <button
@@ -328,7 +340,7 @@ export function Workspace({
             <div className="pane-label">
               <FileText size={15} />
               <span>DOCUMENT</span>
-              <span className="pane-hint">Put it into words</span>
+              <span className="pane-hint">Write clearly</span>
             </div>
             <EditorBoundary>
               <Suspense
@@ -392,7 +404,7 @@ export function Workspace({
             <div className="pane-label">
               <Layers size={15} />
               <span>CANVAS</span>
-              <span className="pane-hint">See the connections</span>
+              <span className="pane-hint">Map the connections</span>
             </div>
             <EditorBoundary>
               <Suspense
@@ -409,6 +421,7 @@ export function Workspace({
             </EditorBoundary>
           </section>
         </div>
+        <Dialog.Root open={renameOpen} onOpenChange={setRenameOpen}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content create-dialog"><Dialog.Title>Rename workspace</Dialog.Title><Dialog.Description>Give this workspace a name you will recognize later.</Dialog.Description><form onSubmit={renameWorkspace}><input className="seamless-input" aria-label="Workspace title" autoFocus autoComplete="off" maxLength={160} required value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} /><p className="form-error" role="alert">{renameError}</p><div className="dialog-actions"><Dialog.Close className="secondary">Cancel</Dialog.Close><button className="primary" disabled={!renameTitle.trim()}>Save workspace</button></div></form></Dialog.Content></Dialog.Portal></Dialog.Root>
       </main>
     </div>
   );

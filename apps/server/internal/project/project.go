@@ -71,6 +71,7 @@ type Update struct {
 
 type Store interface {
 	CreateCategory(context.Context, CategorySummary) error
+	UpdateCategory(context.Context, string, string) (CategorySummary, error)
 	ListCategories(context.Context) ([]CategorySummary, error)
 	CategoryExists(context.Context, string) (bool, error)
 	Create(context.Context, Project) error
@@ -102,6 +103,14 @@ func (s Service) CreateCategory(
 		UpdatedAt: now,
 	}
 	return category, s.Store.CreateCategory(ctx, category)
+}
+
+func (s Service) UpdateCategory(ctx context.Context, id, title string) (CategorySummary, error) {
+	title = strings.TrimSpace(title)
+	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
+		return CategorySummary{}, ErrInvalid
+	}
+	return s.Store.UpdateCategory(ctx, id, title)
 }
 
 func (s Service) Create(

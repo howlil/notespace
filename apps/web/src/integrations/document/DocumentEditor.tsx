@@ -48,7 +48,7 @@ export default function DocumentEditor({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        "aria-label": "Project document",
+        "aria-label": "Workspace document",
         role: "textbox",
         "aria-multiline": "true",
         spellcheck: "false",

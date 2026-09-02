@@ -57,6 +57,18 @@ func (s *Store) CreateCategory(ctx context.Context, category project.CategorySum
 	return err
 }
 
+func (s *Store) UpdateCategory(ctx context.Context, id, title string) (project.CategorySummary, error) {
+	var category project.CategorySummary
+	err := s.db.QueryRowContext(ctx, `UPDATE categories SET title=?,updated_at=? WHERE id=? RETURNING id,title,created_at,updated_at`, title, time.Now().UTC().Format(time.RFC3339Nano), id).Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return category, project.ErrNotFound
+	}
+	if err != nil {
+		return category, err
+	}
+	return category, nil
+}
+
 func (s *Store) ListCategories(ctx context.Context) ([]project.CategorySummary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
 	if err != nil {

@@ -32,6 +32,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("POST /api/projects", a.create)
 	mux.HandleFunc("GET /api/categories", a.listCategories)
 	mux.HandleFunc("POST /api/categories", a.createCategory)
+	mux.HandleFunc("PATCH /api/categories/{id}", a.updateCategory)
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
@@ -134,6 +135,13 @@ func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", "/api/categories/"+category.ID)
 	send(w, 201, category)
+}
+func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
+	var body struct { Title string `json:"title"` }
+	if !decode(w, r, &body) { return }
+	category, err := a.service.UpdateCategory(r.Context(), r.PathValue("id"), body.Title)
+	if err != nil { fail(w, err); return }
+	send(w, 200, category)
 }
 func (a API) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {

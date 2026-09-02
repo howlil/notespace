@@ -43,6 +43,7 @@ export default function CanvasEditor({
         },
       }) as ExcalidrawInitialDataState,
   );
+  const [hasElements, setHasElements] = useState(() => Array.isArray(initial.data.elements) && initial.data.elements.length > 0);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
@@ -77,6 +78,7 @@ export default function CanvasEditor({
       lastSelected.current = selected;
       onElementSelect?.(selected);
     }
+    setHasElements(elements.length > 0);
 
     // Selection, cursor, menus and collaborators are transient. Only resume-relevant state is stored.
     const data = {
@@ -96,7 +98,8 @@ export default function CanvasEditor({
     if (!first) onChange({ format: "excalidraw", version: 1, data });
   }
   return (
-    <div className="canvas-editor" aria-label="Project canvas">
+    <div className="canvas-editor" aria-label="Workspace canvas">
+      {!hasElements && <div className="canvas-empty-hint" aria-hidden="true"><span className="canvas-empty-icon">+</span><strong>Start mapping</strong><span>Add a note, shape, image, or connection.</span></div>}
       <Excalidraw
         initialData={initialData}
         excalidrawAPI={(value) => {

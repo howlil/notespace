@@ -47,6 +47,11 @@ export const createCategory = (title: string) =>
     method: "POST",
     ...json({ title }),
   });
+export const updateCategory = (id: string, title: string) =>
+  request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    ...json({ title }),
+  });
 export const deleteProject = (id: string) =>
   request<void>(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",

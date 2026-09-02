@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FileText, Layers, Plus } from "lucide-react";
+import { FileText, Layers, Pencil, Plus } from "lucide-react";
 import { Sidebar } from "../../app/Sidebar";
 import { ThemeToggle } from "../../app/theme";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createCategory, createProject, deleteProject } from "../../domain/project/api";
+import { createCategory, createProject, deleteProject, updateCategory } from "../../domain/project/api";
 
 function editedAt(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
@@ -17,6 +17,7 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [createTarget, setCreateTarget] = useState<CreateTarget | null>(null);
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
+  const [renaming, setRenaming] = useState<CategorySummary | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -67,14 +68,27 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
     }
   }
 
+  async function rename(event: React.FormEvent) {
+    event.preventDefault();
+    if (!renaming || busy || !title.trim()) return;
+    setBusy(true); setError("");
+    try {
+      await updateCategory(renaming.id, title.trim());
+      setRenaming(null);
+      await router.invalidate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename this category.");
+    } finally { setBusy(false); }
+  }
+
   return (
     <div className={sidebarCollapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
-      <Sidebar categories={categories} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => !value)} onCreateCategory={() => beginCreate({ kind: "category" })} />
+      <Sidebar categories={categories} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => !value)} />
       <main className="dashboard">
-        <header className="topbar dashboard-header"><span className="dashboard-label">YOUR LIBRARY</span><ThemeToggle /></header>
+        <header className="topbar dashboard-header"><div><span className="dashboard-label">LIBRARY</span><span className="dashboard-context">Categories &nbsp;·&nbsp; Workspaces</span></div><ThemeToggle /></header>
         <div className="dashboard-content">
           <div className="page-heading category-page-heading">
-            <div><h1>Make space for your thinking.</h1><p>A category keeps related workspaces together—each with its own document and canvas.</p></div>
+            <div><p className="eyebrow">YOUR KNOWLEDGE, ORGANIZED</p><h1>Make space for your thinking.</h1><p>Organize workspaces by category. Each workspace holds one document and canvas.</p></div>
             <button className="primary" onClick={() => beginCreate({ kind: "category" })}><Plus size={17} /> New category</button>
           </div>
           {!categories.length ? (
@@ -83,10 +97,10 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
             <div className="category-list">
               {categories.map((category) => {
                 const categoryWorkspaces = workspaces.filter((workspace) => workspace.categoryId === category.id);
-                return <section className="category-card" key={category.id} aria-labelledby={`category-${category.id}`}>
+                return <section id={`category-section-${category.id}`} className={category.title.toLowerCase() === "uncategorized" ? "category-card category-card-system" : "category-card"} key={category.id} aria-labelledby={`category-${category.id}`}>
                   <div className="category-card-header">
-                    <div className="category-title"><span className="category-mark"><Layers size={16} /></span><div><h2 id={`category-${category.id}`}>{category.title}</h2><p>{categoryWorkspaces.length} workspace{categoryWorkspaces.length === 1 ? "" : "s"}</p></div></div>
-                    <button className="secondary compact-action" onClick={() => beginCreate({ kind: "workspace", category })}><Plus size={15} /> New workspace</button>
+                    <div className="category-title"><span className="category-mark"><Layers size={16} /></span><div><h2 id={`category-${category.id}`}>{category.title}</h2><p>{categoryWorkspaces.length} workspace{categoryWorkspaces.length === 1 ? "" : "s"} <span className="category-dot">·</span> updated {editedAt(category.updatedAt)}</p></div></div>
+                    <div className="category-actions"><button className="secondary compact-action" onClick={() => beginCreate({ kind: "workspace", category })}><Plus size={15} /> New workspace</button><button className="icon-button" aria-label={`Rename ${category.title}`} title="Rename category" onClick={() => { setTitle(category.title); setError(""); setRenaming(category); }}><Pencil size={15} /></button></div>
                   </div>
                   <div className="workspace-list">
                     {categoryWorkspaces.map((workspace) => <div className="workspace-row" key={workspace.id}>
@@ -105,6 +119,7 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
       </main>
       <Dialog.Root open={!!createTarget} onOpenChange={(open) => { if (!open && !busy) setCreateTarget(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content create-dialog"><Dialog.Title>{createTarget?.kind === "category" ? "Name this category" : "Name this workspace"}</Dialog.Title><Dialog.Description>{createTarget?.kind === "category" ? "Use a category for a body of work you want to return to." : `This workspace will live in ${createTarget?.kind === "workspace" ? createTarget.category.title : "this category"}.`}</Dialog.Description><form onSubmit={create}><input className="seamless-input" aria-label={createTarget?.kind === "category" ? "Category title" : "Workspace title"} autoFocus autoComplete="off" placeholder={createTarget?.kind === "category" ? "e.g. Computer Science" : "e.g. Distributed Systems"} maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} /><p className="form-error" role="alert">{error}</p><div className="dialog-actions"><Dialog.Close className="secondary" disabled={busy}>Cancel</Dialog.Close><button className="primary" disabled={busy || !title.trim()}>{busy ? "Creating…" : createTarget?.kind === "category" ? "Create category" : "Create workspace"}</button></div></form></Dialog.Content></Dialog.Portal></Dialog.Root>
       <Dialog.Root open={!!deleting} onOpenChange={(open) => { if (!open && !busy) setDeleting(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content"><Dialog.Title>Delete this workspace?</Dialog.Title><Dialog.Description>“{deleting?.title}” and its document and canvas will be permanently deleted.</Dialog.Description><p className="form-error" role="alert">{error}</p><div className="dialog-actions"><Dialog.Close className="secondary" disabled={busy}>Keep workspace</Dialog.Close><button className="danger" disabled={busy} onClick={() => void remove()}>{busy ? "Deleting…" : "Delete workspace"}</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+      <Dialog.Root open={!!renaming} onOpenChange={(open) => { if (!open && !busy) setRenaming(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content create-dialog"><Dialog.Title>Rename category</Dialog.Title><Dialog.Description>Use a short name that helps you find this group again.</Dialog.Description><form onSubmit={rename}><input className="seamless-input" aria-label="Category title" autoFocus autoComplete="off" maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} /><p className="form-error" role="alert">{error}</p><div className="dialog-actions"><Dialog.Close className="secondary" disabled={busy}>Cancel</Dialog.Close><button className="primary" disabled={busy || !title.trim()}>{busy ? "Saving…" : "Save category"}</button></div></form></Dialog.Content></Dialog.Portal></Dialog.Root>
     </div>
   );
 }

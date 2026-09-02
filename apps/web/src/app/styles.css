@@ -1180,3 +1180,47 @@ h1 {
     gap: 3px;
   }
 }
+
+/* Milestone 2–5 polish: compact library hierarchy, calm actions, and a seamless workspace. */
+.dashboard-header > div { display: flex; align-items: baseline; gap: 14px; }
+.dashboard-context { color: var(--muted); font-size: 11px; }
+.category-page-heading { align-items: flex-end; margin-bottom: 28px; }
+.category-page-heading .eyebrow { margin-bottom: 9px !important; }
+.category-page-heading h1 { font-size: clamp(26px, 3vw, 34px); }
+.category-page-heading p:not(.eyebrow) { margin-top: 8px; max-width: 520px; }
+.category-actions { display: flex; align-items: center; gap: 4px; }
+.category-actions .icon-button { width: 30px; height: 30px; }
+.category-dot { color: var(--line); padding: 0 2px; }
+.category-card-system { border-style: dashed; background: color-mix(in srgb, var(--surface) 92%, var(--bg)); }
+.category-card-system .category-mark { background: var(--bg); }
+.category-card-system .category-title h2 { color: var(--muted); }
+.workspace-row { transition: background .16s ease; }
+.workspace-link { outline-offset: -3px; }
+.workspace-empty { min-height: 76px; justify-content: flex-start; padding-left: 60px; }
+.workspace-empty::after { content: ""; }
+.empty-state.category-empty { min-height: 300px; border-style: solid; }
+.empty-state.category-empty h2 { margin: 0; }
+.sidebar .nav-item { transition: background .15s ease, color .15s ease; }
+.workspace-title-button { display: inline-flex; align-items: center; gap: 8px; max-width: min(45vw, 420px); border: 0; padding: 6px 8px; margin: -6px 0; border-radius: 7px; color: var(--ink); background: transparent; text-align: left; }
+.workspace-title-button:hover, .workspace-title-button:focus-visible { background: var(--tint); color: var(--accent); }
+.workspace-title-button svg { opacity: 0; transition: opacity .15s ease; flex-shrink: 0; }
+.workspace-title-button:hover svg, .workspace-title-button:focus-visible svg { opacity: 1; }
+.pane-label { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
+.canvas-pane .pane-label { background: color-mix(in srgb, var(--canvas) 86%, var(--surface)); }
+.canvas-editor { position: relative; }
+.canvas-empty-hint { position: absolute; z-index: 1; inset: 50% auto auto 50%; transform: translate(-50%, -40%); display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; color: var(--muted); text-align: center; }
+.canvas-empty-hint strong { color: var(--ink); font-size: 14px; font-weight: 500; }
+.canvas-empty-hint span:last-child { font-size: 11px; white-space: nowrap; }
+.canvas-empty-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px dashed var(--accent); border-radius: 9px; color: var(--accent); font-size: 20px; }
+/* Excalidraw surfaces should read as part of the canvas, not another card. */
+.canvas-editor .App-toolbar, .canvas-editor .App-menu_bottom, .canvas-editor .excalidraw .Island { box-shadow: none; }
+.canvas-editor .App-menu_bottom { background: transparent; border-color: transparent; }
+.canvas-editor .App-toolbar { border-color: color-mix(in srgb, var(--line) 65%, transparent); }
+.canvas-editor .excalidraw .FixedSideContainer { opacity: .86; }
+
+@media (max-width: 800px) {
+  .dashboard-header > div { gap: 8px; }
+  .dashboard-context { display: none; }
+  .category-page-heading { align-items: flex-start; }
+  .workspace-title-button { max-width: 42vw; }
+}

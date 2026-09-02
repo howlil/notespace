@@ -1023,6 +1023,14 @@ h1 {
 .route-message a {
   color: var(--accent);
 }
+.loading-shell { align-items: flex-start; max-width: 560px; margin: 0 auto; }
+.loading-brand { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 600; letter-spacing: -.5px; }
+.loading-brand .brand-mark { margin-right: 0; }
+.loading-skeleton { width: 100%; border-radius: 10px; background: var(--tint); animation: pulse 1.4s ease-in-out infinite; }
+.loading-skeleton-title { height: 36px; width: 58%; margin-top: 48px; }
+.loading-skeleton-card { height: 150px; margin-top: 18px; }
+.loading-label { color: var(--muted); font-size: 12px; margin-top: 18px; }
+@keyframes pulse { 50% { opacity: .55; } }
 .spin {
   animation: spin 1s linear infinite;
 }

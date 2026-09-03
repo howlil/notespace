@@ -95,16 +95,25 @@ jobs:
             test -f ".agents/$file"
           done
 
-      - uses: actions/setup-node@v4
-        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.server == 'true' || steps.changes.outputs.browser == 'true' }}
-        with:
-          node-version: '24'
-
       - uses: pnpm/action-setup@v4
         if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
         with:
           version: 11.19.0
           run_install: false
+
+      - name: Set up Node with pnpm cache
+        uses: actions/setup-node@v4
+        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Node for server tooling
+        uses: actions/setup-node@v4
+        if: ${{ steps.changes.outputs.server == 'true' && steps.changes.outputs.web != 'true' && steps.changes.outputs.browser != 'true' }}
+        with:
+          node-version: '24'
 
       - uses: actions/setup-go@v5
         if: ${{ steps.changes.outputs.server == 'true' || steps.changes.outputs.browser == 'true' }}
@@ -132,6 +141,7 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          save-always: true
 
       - name: Install Chromium system dependencies
         if: ${{ steps.changes.outputs.browser == 'true' }}
@@ -156,15 +166,17 @@ jobs:
           retention-days: 3
 
       - name: Validate production composition
-        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        id: compose-config
+        if: ${{ always() && steps.changes.outputs.deploy == 'true' }}
         run: docker compose -f compose.yaml config
 
       - name: Start production composition
-        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        id: compose-up
+        if: ${{ always() && steps.changes.outputs.deploy == 'true' && steps.compose-config.outcome == 'success' }}
         run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
 
       - name: Verify restart persistence
-        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        if: ${{ always() && steps.changes.outputs.deploy == 'true' && steps.compose-up.outcome == 'success' }}
         run: python3 scripts/smoke-persistence.py --compose-restart
         env:
           COMPOSE_FILE: compose.yaml:compose.ci.yaml

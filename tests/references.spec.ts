@@ -88,7 +88,7 @@ test("references navigate both ways, survive edits and switching, and expose orp
     expect((await read()).references[0]).toEqual(reference);
 
     await page.getByTestId("toolbar-selection").locator("..").click();
-    await page.mouse.click(bounds.x + 20, bounds.y + 20);
+    await page.keyboard.press("Escape");
     await expect(goToNote).toHaveCount(0);
     await expect(goToCanvas).toBeVisible();
     await goToCanvas.click();

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import "../app/styles.css";
+import "../app/workspace-responsive.css";
 import { ThemeProvider } from "../app/theme";
 
 export const Route = createRootRoute({

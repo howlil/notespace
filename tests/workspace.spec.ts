@@ -62,6 +62,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await page.getByRole("button", { name: "Rename note", exact: true }).click();
   await page.getByRole("textbox", { name: "Note title" }).fill("Scratchpad");
   await page.getByRole("textbox", { name: "Note title" }).press("Enter");
+  await page.getByRole("button", { name: "Scratchpad", exact: true }).click();
   await page.getByRole("button", { name: "Delete note", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Delete this note?" })).toBeVisible();
   await page.getByRole("button", { name: "Delete note", exact: true }).click();
@@ -143,6 +144,9 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await expect(
     page.getByRole("textbox", { name: "Workspace document" }),
   ).not.toContainText("Consensus");
+  await page
+    .getByRole("link", { name: "Back to library", exact: true })
+    .click();
   await page
     .getByRole("link", { name: title, exact: true })
     .click();

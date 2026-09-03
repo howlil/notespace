@@ -1,130 +1,115 @@
 # Notespace — Durable Decisions
 
-Record only material decisions whose rationale should constrain future work. Active execution detail belongs in `CURRENT_ITERATION.md`; generic workflow rules do not belong here.
+Record only material decisions whose rationale should constrain future work. Active execution belongs in `CURRENT_ITERATION.md`; generic workflow rules do not belong here.
 
-## D001 — Project is the product aggregate
+## D001 — Workspace is the authored-content aggregate
 
-**Status:** Accepted
-**Date:** 2026-09-01
+**Status:** Accepted; supersedes the original user-facing “Project” terminology  
+**Date:** 2026-09-03
 
-Notespace exposes one Project identity that owns document, canvas, metadata, and relevant workspace state.
+Notespace exposes Category → Workspace as the user-facing model. A workspace owns its notes, canvas, metadata, authored history, and cross-surface relationship state.
 
-**Why:** the product is a unified linear + spatial thinking workspace, not two independent applications/resources.
+Existing `Project`, `/api/projects`, `internal/project`, and related storage names remain implementation compatibility detail.
+
+**Why:** the product is a unified linear + spatial thinking workspace. “Project” obscured the library hierarchy after categories became first-class.
 
 **Consequences:**
 
-- do not create independently managed top-level Note/Canvas resources without explicit product approval;
-- cross-surface relationships belong to the Project domain;
-- editor/storage normalization may differ internally without changing product ownership.
+- do not create independently managed top-level Note/Canvas products without explicit approval;
+- do not reintroduce “Project” into new UI copy because legacy internals use it;
+- do not perform a broad internal rename unless the compatibility cost is explicitly worth it;
+- cross-surface relationships belong to the workspace/product domain.
 
 ## D002 — Single self-hosted deployable by default
 
 **Status:** Accepted  
 **Date:** 2026-09-01
 
-Use one Go-served application/container for the current product. The built web assets and same-origin API are composed into the same deployable.
+Use one Go-served application/container for the current product. Built web assets and same-origin API are composed into the same deployable.
 
-**Why:** self-hosting benefits from low operational complexity and current requirements do not justify service separation.
-
-**Consequences:** service splits, queues, hosted dependencies, or extra runtime processes require concrete evidence and user approval when they alter architecture/deployment boundaries.
+**Consequences:** service splits, queues, hosted dependencies, or extra runtime processes require concrete evidence and approval when they alter architecture/deployment boundaries.
 
 ## D003 — Tiptap and Excalidraw are adapters, not the domain
 
 **Status:** Accepted  
 **Date:** 2026-09-01
 
-Use Tiptap for the structured document surface and Excalidraw for the freeform canvas surface behind Notespace-owned boundaries.
+Use Tiptap for structured notes and Excalidraw for the canvas behind Notespace-owned boundaries.
 
-**Why:** mature editors solve interaction mechanics while Notespace differentiation is Project identity, persistence, navigation, and linear/spatial interoperability.
+**Consequences:** editor-native payloads may be stored in versioned snapshots, but product identity/relationships must remain Notespace-owned. Replacing either primary editor is material.
 
-**Consequences:**
-
-- editor-native payloads may be stored in versioned snapshots;
-- product code should not depend broadly on editor internals;
-- replacing either primary editor is a material architecture/product decision.
-
-## D004 — SQLite persistence with optimistic Project versioning
+## D004 — SQLite persistence with optimistic workspace versioning
 
 **Status:** Accepted  
 **Date:** 2026-09-01
 
-Use Go `database/sql` with pure-Go `modernc.org/sqlite`, explicit SQL, embedded migrations, one connection, WAL, and FULL synchronous mode. Project updates use optimistic version conflict detection.
+Use Go `database/sql` with pure-Go `modernc.org/sqlite`, explicit SQL, embedded migrations, one connection, WAL, and FULL synchronous mode. Existing project-named update contracts use optimistic version conflict detection.
 
-**Why:** this keeps the self-hosted runtime simple and CGO-free while providing durable local persistence and explicit concurrency failure semantics.
+**Consequences:** stale writes conflict rather than auto-merge. Persistence technology, conflict semantics, or destructive migration changes are material and durability claims require restart/reopen evidence.
+
+## D005 — Verification is boundary- and risk-proportional
+
+**Status:** Accepted; refines the original unconditional production-composition gate  
+**Date:** 2026-09-03
+
+Use the narrowest evidence that can prove the changed behavior, while preserving expensive integration/restart gates for boundaries that actually need them.
+
+**Evidence:** earlier production-composition failures proved browser + Go serving + Docker/restart checks are essential for cross-stack/runtime/durability changes, but running those gates for unrelated docs or isolated boundaries adds latency without additional signal.
 
 **Consequences:**
 
-- stale concurrent updates conflict rather than auto-merge;
-- changing persistence technology, conflict semantics, or destructive migration behavior is material;
-- durability claims must be verified through restart/reopen behavior.
-
-## D005 — Production-composition verification is a release gate
-
-**Status:** Accepted  
-**Date:** 2026-09-01
-
-Meaningful cross-stack/runtime changes are not considered fully verified solely by isolated package tests.
-
-**Evidence:** Sprint 1 exposed defects only in final composition: HTTP/API + SPA route assembly, direct-route hydration, and Docker localhost/address-family behavior.
-
-**Consequences:** keep browser tests against the built app served by Go and Docker startup/restart persistence smoke in the release-quality path when those boundaries are affected.
+- keep one stable GitHub `Verify` check;
+- web/UI changes require web static/unit checks plus browser verification against the real Go server;
+- Go changes require gofmt/vet/race/build;
+- HTTP boundary changes consumed by the web also require browser verification;
+- persistence/migration/Compose/runtime changes require production Compose + restart smoke;
+- docs/agent metadata do not require unrelated application builds;
+- changes to the workflow definition itself execute the full gate once;
+- never weaken a relevant assertion merely to make CI green.
 
 ## D006 — Taskfile is the repository orchestration entrypoint
 
 **Status:** Accepted  
 **Date:** 2026-09-02
 
-Use `Taskfile.yml` as the repo-level command surface for development, checking, building, E2E verification, and Compose operations. Keep pnpm and Go commands underneath rather than adding Turborepo for the current two-app polyglot repository.
-
-**Why:** the repository needs cross-language orchestration, not a JS-only build graph/caching layer. Taskfile keeps the command surface small and explicit.
-
-**Consequences:** add another orchestrator only when measured build/dependency-graph needs justify the extra system.
+Use `Taskfile.yml` as the repo-level command surface for development, checks, build, E2E, and Compose operations. Do not add Turborepo or another orchestrator without measured dependency-graph/build need.
 
 ## D007 — Cross-surface relationships use product-owned stable identity
-
-**Status:** Accepted for Milestone 2  
-**Date:** 2026-09-01
-
-Document ↔ canvas relationships are identified by Notespace-owned stable IDs/relationship state.
-
-**Rejected identity sources:**
-
-- visible text/labels;
-- DOM/document positions;
-- canvas coordinates;
-- renderer/editor incidental identity that Notespace does not control.
-
-**Why:** references must survive ordinary editing, normalization, reload, Project switching, and restart.
-
-**Consequences:**
-
-- start with supported text-oriented Tiptap blocks;
-- missing targets remain recoverable broken references rather than being silently relinked;
-- Tiptap/Excalidraw adapters expose focused lookup/focus/metadata capabilities without owning relationship truth.
-
-## D008 — Visual direction is restrained, content-first tooling
 
 **Status:** Accepted  
 **Date:** 2026-09-01
 
-Notespace uses a calm editor/tool aesthetic with light/dark support, restrained accents, low elevation, and current Geist typography.
+Note/block ↔ canvas relationships use Notespace-owned stable IDs/relationship state.
 
-**Why:** the product should foreground thinking content and avoid resembling a SaaS analytics dashboard or generic AI productivity template.
+Rejected identity sources include visible text, DOM/document position, canvas coordinates, and incidental editor identity that Notespace does not control.
 
-**Consequences:** avoid gratuitous gradients/glow/shine, excessive glass cards, decorative widgets, and marketing-style UI unless a concrete hierarchy/interaction need justifies them.
+Missing targets remain explicit/recoverable rather than being silently relinked.
 
-## D009 — Category groups many workspaces
+## D008 — Visual direction is restrained, content-first tooling
 
-**Status:** Accepted
+**Status:** Accepted and expanded by root `DESIGN.md`  
 **Date:** 2026-09-03
 
-Categories are the library-level user-facing grouping. Each workspace owns exactly one document and one canvas; a category may own many workspaces.
-
-**Why:** a body of learning or work commonly has multiple distinct thinking spaces. Treating each one as a top-level project made the home screen duplicate navigation and obscured that relationship.
+Notespace uses a clean, compact, minimalist, content-forward tool aesthetic with light/dark support, restrained steel-blue accent, low elevation, and purposeful motion/effects.
 
 **Consequences:**
 
-- the library presents categories and their nested workspaces rather than a flat project feed;
-- the workspace editor is full-width and does not retain the library sidebar;
-- existing persisted workspaces migrate safely into the `Uncategorized` category;
-- the existing `projects` API/storage naming remains an implementation compatibility detail while the user-facing model is Category → Workspace.
+- decision order is Product Intent → Information Hierarchy → Interaction Model → Visual Hierarchy → Components → Decoration;
+- avoid generic AI/SaaS slop, gratuitous gradients/glow/shine, excessive glass/card nesting, decorative bento, and low-density dashboards;
+- Home uses progressive disclosure; large category browsing belongs on category detail;
+- Workspace does not retain library sidebar chrome;
+- automated UI tests protect hierarchy/interaction/accessibility rather than exact pixels.
+
+## D009 — Category groups many workspaces
+
+**Status:** Accepted  
+**Date:** 2026-09-03
+
+Categories are the library-level grouping. A category may contain many workspaces; each workspace owns multiple notes and one canvas.
+
+**Consequences:**
+
+- Home shows category summaries and bounded previews rather than every workspace at once;
+- large collections move to category detail search/filter/sort/pagination;
+- existing persisted workspaces can remain compatible through legacy storage/API naming;
+- the workspace editor remains the full-screen focus surface.

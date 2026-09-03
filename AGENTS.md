@@ -1,62 +1,88 @@
 # Notespace Agent Entry Point
 
-This file is the thin, agent-agnostic gateway for repository work. It routes agents to authoritative project knowledge; it does not duplicate global SWE workflow rules.
+This file is the thin repository entrypoint for SWE agents. It routes to authoritative project knowledge and current repository evidence; it does not duplicate a generic agent handbook.
 
-## Canonical project knowledge
+## Canonical repository knowledge
 
-`.agents/` contains exactly these canonical files:
+`.agents/` contains exactly these durable files:
 
-- `.agents/PROJECT.md` — product intent, scope, behavior, contracts, non-goals, and project constraints.
-- `.agents/ARCHITECTURE.md` — responsibility placement, system/data/security/infrastructure boundaries, major flows, and invariants.
-- `.agents/CURRENT_ITERATION.md` — the single source of truth for the active milestone and slice, evidence, blockers, and next action.
-- `.agents/CODE_PATTERNS.md` — repository-specific implementation conventions and ownership patterns.
-- `.agents/QUALITY.md` — repository-specific verification commands and quality gates.
-- `.agents/DECISIONS.md` — durable material project/architecture decisions and rationale.
+- `.agents/PROJECT.md` — product purpose, user-visible model, scope, invariants, non-goals, and constraints.
+- `.agents/ARCHITECTURE.md` — responsibility placement, system/data/security/deployment boundaries, major flows, and invariants.
+- `.agents/CURRENT_ITERATION.md` — only the active milestone/engineering work, evidence, blocker, and single next action.
+- `.agents/CODE_PATTERNS.md` — repository-specific implementation conventions.
+- `.agents/QUALITY.md` — repository-specific verification strategy and commands.
+- `.agents/DECISIONS.md` — durable material decisions and rationale.
 
-Do not add workflow mirrors, sprint diaries, generic skills, temporary plans, or duplicate sources of truth under `.agents/`.
+Root `DESIGN.md` is the canonical UI quality/design contract.
 
-## Normal read order
+Do not add sprint diaries, duplicate workflow documents, generic skills, temporary plans, or historical archives under `.agents/`.
 
-Always read `.agents/CURRENT_ITERATION.md` before changing the repository.
+## Read order
 
-Then read only what the task requires:
+Start with `.agents/CURRENT_ITERATION.md`.
 
-1. `.agents/PROJECT.md` for product behavior, scope, contracts, or user-visible semantics.
-2. `.agents/ARCHITECTURE.md` for ownership, data flow, persistence, security, deployment, or boundary changes.
-3. `.agents/DECISIONS.md` for material decisions that constrain the implementation.
-4. `.agents/CODE_PATTERNS.md` before implementation or refactoring.
-5. `.agents/QUALITY.md` before claiming verification, release readiness, or completion.
+Then read only what the requested change requires:
 
-Inspect the current code and tests for implementation truth. Do not assume documentation overrides newer observable repository evidence unless it states an intentional product/architecture constraint.
+1. `.agents/PROJECT.md` for product behavior and scope.
+2. `DESIGN.md` for any user-facing UI/interaction work.
+3. `.agents/ARCHITECTURE.md` for ownership, data, persistence, security, or deployment boundaries.
+4. `.agents/DECISIONS.md` for durable constraints.
+5. `.agents/CODE_PATTERNS.md` before implementation/refactoring.
+6. `.agents/QUALITY.md` before claiming verification or release readiness.
 
-## Authority order
+Inspect current code/tests before implementation. Repository evidence is implementation truth; durable product/architecture constraints remain authoritative unless explicitly superseded.
 
-When sources conflict, use this order:
+## Authority
+
+When sources conflict:
 
 1. explicit current user instruction;
-2. `.agents/PROJECT.md` and approved durable entries in `.agents/DECISIONS.md`;
+2. `.agents/PROJECT.md`, `DESIGN.md`, and accepted `.agents/DECISIONS.md`;
 3. `.agents/ARCHITECTURE.md`;
 4. `.agents/CURRENT_ITERATION.md`;
 5. `.agents/CODE_PATTERNS.md` and `.agents/QUALITY.md`;
-6. current code and tests for implementation details;
-7. historical plans, old PR descriptions, stale docs, and chat history.
+6. current code/tests for implementation detail;
+7. historical PR text, old plans, stale docs, and chat history.
 
-## Operating boundary
+The user owns WHY, WHAT, product behavior, scope, architecture boundaries, acceptance criteria, public/data contracts, data ownership, security boundaries, and material technical decisions.
 
-The user owns WHY, WHAT, product behavior, scope, architecture boundaries, acceptance criteria, public contracts, data ownership, security boundaries, and material technical decisions.
+The agent owns repository inspection, local implementation design within those boundaries, coding, debugging, testing, evidence collection, and refactors strictly required by the change.
 
-The agent owns repository inspection, implementation design within approved boundaries, coding, testing, debugging, implementation-level decisions, local refactoring required by the change, and evidence collection.
+Stop for contradictions, destructive/irreversible migration, public contract change, security-boundary change, or major architecture change without explicit authorization.
 
-Stop and surface the decision instead of proceeding through a contradiction, destructive/irreversible migration, public contract change, security-boundary change, or major architecture change that lacks explicit authorization.
+## Delivery decomposition
 
-## Delivery model
+Use this hierarchy:
 
-Use the repository state in `.agents/CURRENT_ITERATION.md` as the resumable execution context.
+`Product Purpose → Core User Journey → Capability Map → Milestone → Slice → Logical Change → Task`
 
-Work hierarchy:
+Definitions:
 
-`Milestone → Slice → Logical Change → Commit`
+- **Milestone:** smallest coherent scope delivering one meaningful integrated product capability/workflow end-to-end.
+- **Slice:** smallest demonstrable vertical behavior/scenario that materially advances the milestone outcome.
+- **Logical Change:** coherent technical modification required by a slice or by explicitly requested engineering/reliability work.
+- **Task:** concrete implementation action inside a logical change.
 
-Plan at milestone boundaries. Execute ordered slices continuously. Integrate at logical-change boundaries. Do not create a new sprint/branch/plan merely because a small implementation step exists.
+Do not turn every bug fix, CI change, migration, reliability improvement, or infrastructure change into a fake product milestone. Classify engineering enablers as engineering enablers unless they independently create product capability.
 
-When the active milestone is complete, mark the milestone gate with evidence and stop. Do not invent the next milestone.
+Plan at milestone boundaries; execute ordered slices continuously. Do not create tiny milestones, PRs, or ceremony merely to count progress. Optimize for integrated user capability and short user-outcome lead time.
+
+## Implementation rule
+
+Choose the smallest coherent change that satisfies the requested behavior and preserves ownership boundaries:
+
+`reuse → extend existing owner → small local abstraction → new component → architecture change`
+
+Avoid unrelated refactors, speculative abstractions, future-proofing, dependency churn, and generic “best practice” expansion.
+
+## Verification rule
+
+Verification is risk-proportional and evidence-driven. Start with the narrowest test that proves the changed boundary; escalate only when the behavior crosses boundaries or risk requires it.
+
+CI uses one stable `Verify` check with conditional web, Go, browser, and production-composition gates. Do not bypass a relevant gate to make CI green, but do not run expensive unrelated gates merely as ceremony.
+
+For UI changes, protect stable user behavior and design contracts from `DESIGN.md`; do not substitute brittle pixel snapshots for hierarchy/interaction verification.
+
+## Stop rule
+
+Stop when the bounded acceptance criteria are satisfied and relevant gates are green. Record the evidence and one next action in `CURRENT_ITERATION.md`. Do not invent a new milestone or speculative polish automatically.

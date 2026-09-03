@@ -1,6 +1,6 @@
 # Notespace — Code Patterns
 
-This file contains repository-specific implementation conventions. It is not a generic frontend/Go skill or a duplicate of global SWE rules.
+This file contains repository-specific implementation conventions. It is not a generic SWE handbook.
 
 ## Repository command surface
 
@@ -22,111 +22,115 @@ task down
 task logs
 ```
 
-Use the smallest focused test/check for the changed boundary before the full `task verify` gate. Use underlying `pnpm`, `go`, Playwright, or Docker commands when a narrower diagnostic/test loop is useful. Keep Taskfile as the canonical human/agent orchestration layer; do not add Turborepo or another task orchestrator without a concrete need.
+Use the narrowest command that proves the changed boundary first. Use broader gates only when the behavior/risk crosses those boundaries. Do not add Turborepo or another orchestration layer without measured need.
 
-## Project-centric naming
+## Product naming
 
-Use `Project` for the user/domain aggregate that owns both editing surfaces.
+User-facing model is:
 
-Avoid introducing independent top-level domain concepts such as `Note` or `Canvas` when the code means the Project-owned document/canvas state. Implementation names may refer to `document`, `canvas`, Tiptap, or Excalidraw inside their owned boundary.
+`Category → Workspace → Notes / Canvas`
 
-## Web conventions
+Rules:
+
+- use `Category`, `Workspace`, `Note`, and `Canvas` in new UI copy and product-facing code where the user model is intended;
+- existing `Project`, `/api/projects`, `internal/project`, and related storage names are compatibility implementation detail;
+- do not perform a broad internal rename merely for cosmetic consistency unless explicitly requested;
+- do not reintroduce “Project” into user-facing UI because legacy code uses that term.
+
+## Web stack and ownership
 
 Current stack:
 
-- React 18 + TypeScript;
-- TanStack Start/Router in SPA-oriented deployment;
+- React + TypeScript;
+- TanStack Start/Router;
 - Vite;
-- Tailwind CSS 4;
-- Tiptap StarterKit;
+- Tailwind CSS 4 plus repository CSS tokens;
+- Tiptap;
 - Excalidraw;
-- Radix Dialog primitives;
+- Radix primitives where behavior-heavy accessible components are needed;
 - Geist font assets served locally.
 
 Patterns:
 
-- keep route code focused on routing/loading/navigation rather than making routes the entire application architecture;
-- keep Project behavior in Project/workspace/domain modules rather than generic UI components;
-- isolate Tiptap and Excalidraw specifics behind focused integration components/adapters;
-- prefer local state/logic until multiple real owners justify extraction;
-- do not introduce a global store, generic service layer, or utility dump preemptively;
-- preserve strict TypeScript boundaries; avoid widening editor payloads to `any` merely to bypass third-party types;
-- lazy-load/editor-split large editor dependencies when the existing implementation does so; do not eagerly move them into the primary bundle without evidence.
+- keep routes focused on loading/navigation rather than making them application architecture;
+- keep workspace/product behavior in domain/feature owners rather than generic UI components;
+- isolate Tiptap and Excalidraw specifics behind adapters/integration components;
+- prefer local state until multiple real owners justify extraction;
+- avoid preemptive global stores, generic service layers, and `utils` dumps;
+- preserve strict TypeScript boundaries; do not widen editor payloads to `any` to silence third-party types;
+- preserve lazy loading/code splitting for large editor dependencies where present.
 
-For user-facing UI, preserve the current restrained design direction documented in `PROJECT.md`; reuse existing tokens/components before inventing a parallel visual system.
+## UI implementation
 
-## Document snapshot pattern
+Root `DESIGN.md` is the visual/interaction contract.
 
-The server contract currently stores a versioned snapshot:
+Implementation rules:
 
-```text
-format: "tiptap"
-version: 1
-data: editor JSON
-```
+- start from product hierarchy and interaction state, not from decorative components;
+- reuse current tokens/components/primitives before adding parallel styling systems;
+- prefer Radix behavior primitives when they solve an existing accessibility/state-management problem;
+- keep density compact and surfaces restrained;
+- do not add card wrappers, modal flows, gradients, glow, glass, bento, or animation without a hierarchy/interaction reason;
+- do not remove visible keyboard focus merely to make the UI look cleaner;
+- for simple create/rename flows, prefer seamless inline interaction when it matches the current pattern;
+- preserve accessible names and keyboard reachability for interactive controls;
+- keep Home/library chrome out of the Workspace focus surface.
 
-Rules:
+## Workspace snapshots
 
-- treat the persisted wrapper as Notespace-owned even when `data` is editor-native;
-- evolve format/version deliberately;
-- existing valid snapshots must remain readable across non-destructive feature evolution;
-- stable product block IDs used for cross-surface references must survive normal Tiptap normalization/editing and reload;
-- do not use text, DOM position, or mutable editor position as durable relationship identity.
+The server stores versioned authored workspace state. Existing project-named structures may wrap:
 
-## Canvas snapshot pattern
-
-The server contract currently stores:
-
-```text
-format: "excalidraw"
-version: 1
-data: { elements, appState, files }
-```
+- workspace identity/metadata/version;
+- notes/document snapshots using Tiptap data;
+- Excalidraw canvas snapshot;
+- split/layout state;
+- Notespace-owned relationships.
 
 Rules:
 
-- keep Excalidraw-specific manipulation inside the canvas integration boundary;
-- expose only product-required adapter capabilities;
-- if product-owned reference metadata is carried by Excalidraw elements, keep Project relationship semantics outside renderer-native incidental identity;
-- preserve scene round-trip behavior when changing workspace/container sizing or editor lifecycle.
+- persisted wrappers remain Notespace-owned even when editor-native payloads live inside;
+- evolve format/version deliberately and preserve readable valid legacy snapshots;
+- stable product IDs used for relationships must survive ordinary editor normalization/editing/reload;
+- visible text, DOM positions, mutable editor positions, and canvas coordinates are not durable relationship identity.
 
-## Autosave/concurrency pattern
+## Autosave and concurrency
 
 Current behavior uses:
 
-- immediate local editing state;
-- serialized debounced saves;
-- complete Project snapshot updates;
-- optimistic server `version` guard;
+- immediate local authored state;
+- serialized/debounced saves;
+- complete workspace/project snapshot updates;
+- optimistic server version guard;
 - visible retry/error state;
 - navigation flush where possible;
-- unload warning while meaningful changes are unacknowledged.
+- unload warning while meaningful changes remain unacknowledged.
 
-Do not introduce parallel unsynchronized save paths. Any change to conflict/merge semantics is a material data/product decision.
+Do not create parallel unsynchronized save paths. Any change to merge/conflict semantics is material.
 
-## Go conventions
+## Go ownership
 
-Current server ownership:
+Current server boundaries:
 
 ```text
 apps/server/cmd/notespace        composition/startup
-apps/server/internal/project     Project domain/service contract
-apps/server/internal/httpapi     HTTP boundary
+apps/server/internal/project     workspace/category domain compatibility owner
+apps/server/internal/httpapi     HTTP mapping/boundary
 apps/server/internal/persistence SQLite implementation
+apps/server/internal/study       study activity domain
 apps/server/migrations           embedded schema migrations
 ```
 
 Patterns:
 
-- keep domain validation/invariants in `internal/project` when they are not transport/storage-specific;
-- keep HTTP mapping/status/error handling in `internal/httpapi`;
-- keep SQLite SQL/connection concerns in `internal/persistence`;
-- use explicit SQL and embedded migrations rather than adding an ORM without a concrete requirement;
-- keep the server CGO-free while `modernc.org/sqlite` remains the chosen persistence driver;
-- wrap errors only when context materially improves diagnosis; preserve domain error semantics needed by the HTTP boundary;
-- prefer small cohesive packages over generic `utils`/`common` packages.
+- domain invariants belong in the owning domain package when not transport/storage-specific;
+- HTTP mapping/status/error translation belongs in `internal/httpapi`;
+- SQL/connection concerns belong in `internal/persistence`;
+- use explicit SQL/embedded migrations rather than adding an ORM without a concrete requirement;
+- preserve CGO-free server while `modernc.org/sqlite` remains the chosen driver;
+- prefer small cohesive packages over generic `common`/`utils` packages;
+- wrap errors only when context materially improves diagnosis and preserve domain error semantics used by the HTTP boundary.
 
-## Persistence conventions
+## Persistence
 
 Current SQLite choices are intentional:
 
@@ -135,34 +139,31 @@ Current SQLite choices are intentional:
 - WAL;
 - FULL synchronous mode;
 - embedded ordered migrations;
-- optimistic Project version updates.
+- optimistic version updates;
+- stable Compose volume ownership.
 
-Do not change pragmas, connection model, schema ownership, or migration behavior as incidental cleanup. Changes need evidence tied to reliability/performance/feature requirements.
+Do not change pragmas, connection model, migration ownership, conflict semantics, or data-volume behavior as incidental cleanup.
 
-## Testing conventions
+## Testing
 
-Use the narrowest layer that proves the behavior:
+Use the narrowest layer that proves behavior:
 
-- Go package tests beside domain/HTTP/persistence/migration code;
-- focused web/domain unit tests for pure behavior such as autosave;
-- Playwright for cross-surface/browser behavior;
-- Docker persistence smoke for final deployment composition and restart durability.
+- focused web/domain unit tests for pure logic;
+- Go package tests for domain/HTTP/persistence/migrations;
+- Playwright for browser journeys, hierarchy, keyboard behavior, and cross-surface integration;
+- Docker restart smoke for deployment/persistence composition only.
 
-Prefer testing product behavior and boundaries over implementation trivia. Regression tests should remain near the layer that previously failed.
+UI/design tests should assert stable product contracts, not exact CSS implementation or pixel snapshots. Screenshot/trace artifacts are for diagnosis and review.
 
-When a browser/E2E test fails and the cause is not immediately deterministic, inspect the captured trace/report/screenshot and actual browser state before changing implementation. Distinguish a product defect from test setup or an interaction that invalidates state; fix the owning boundary rather than making speculative changes.
+When a browser test fails, inspect actual captured state before changing implementation. Distinguish a product defect from invalid test setup/interaction and fix the owning boundary.
 
 ## Change discipline
 
-For implementation work:
-
-- reuse the current ownership pattern first;
-- extend a cohesive existing module before adding a new abstraction;
-- keep refactors local to what the change requires;
+- reuse the current owner first;
+- extend a cohesive module before adding a new abstraction;
+- keep refactors local to the requested change;
 - remove dead code made obsolete by the change;
-- do not mix unrelated renames/reorganization/dependency upgrades into a feature slice;
-- do not bundle generic `.agents` housekeeping, workflow cleanup, or unrelated documentation rewrites into a feature slice; update active iteration evidence or durable decisions only when the slice actually requires it;
-- when maintenance/workflow hardening is independently requested, keep it as its own bounded logical change rather than hiding it inside product delivery;
-- integrate each completed slice after its relevant gates pass instead of accumulating completed slices into a giant milestone branch;
-- keep the next slice based on the latest integrated `master` so its PR contains only the new delta;
-- record material architectural/product decisions in `DECISIONS.md`, not as long code comments or temporary planning files.
+- avoid unrelated renames/reorganization/dependency upgrades;
+- keep explicitly requested CI/reliability/knowledge cleanup classified as engineering work, not a fake product slice;
+- update `CURRENT_ITERATION.md` with concise current evidence, not historical diaries;
+- integrate coherent logical changes after relevant gates pass.

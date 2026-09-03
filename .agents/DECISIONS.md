@@ -16,7 +16,7 @@ Existing `Project`, `/api/projects`, `internal/project`, and related storage nam
 **Consequences:**
 
 - do not create independently managed top-level Note/Canvas products without explicit approval;
-- do not reintroduce “Project” into new UI copy because legacy internals use it;
+- do not reintroduce “Project” into new UI copy because legacy internals use that term;
 - do not perform a broad internal rename unless the compatibility cost is explicitly worth it;
 - cross-surface relationships belong to the workspace/product domain.
 
@@ -49,30 +49,29 @@ Use Go `database/sql` with pure-Go `modernc.org/sqlite`, explicit SQL, embedded 
 
 ## D005 — Verification is boundary- and risk-proportional
 
-**Status:** Accepted; refines the original unconditional production-composition gate  
-**Date:** 2026-09-03
+**Status:** Accepted; supersedes the original unconditional browser/production-composition gate  
+**Date:** 2026-09-04
 
-Use the narrowest evidence that can prove the changed behavior, while preserving expensive integration/restart gates for boundaries that actually need them.
-
-**Evidence:** earlier production-composition failures proved browser + Go serving + Docker/restart checks are essential for cross-stack/runtime/durability changes, but running those gates for unrelated docs or isolated boundaries adds latency without additional signal.
+Use the narrowest automated evidence that can prove the changed behavior, while preserving expensive integration/restart gates for boundaries that actually need them.
 
 **Consequences:**
 
 - keep one stable GitHub `Verify` check;
-- web/UI changes require web static/unit checks plus browser verification against the real Go server;
+- web/UI changes require relevant static, unit/component, and deterministic integration checks;
 - Go changes require gofmt/vet/race/build;
-- HTTP boundary changes consumed by the web also require browser verification;
+- HTTP boundary changes consumed by the web require focused repository-owned contract/integration evidence when isolated tests cannot prove the path;
 - persistence/migration/Compose/runtime changes require production Compose + restart smoke;
 - docs/agent metadata do not require unrelated application builds;
-- changes to the workflow definition itself execute the full gate once;
-- never weaken a relevant assertion merely to make CI green.
+- changes to the workflow definition itself execute the relevant automated repository gates once;
+- manual acceptance, live-browser/black-box testing, and manual screenshot review are not merge/release gates;
+- never weaken a relevant automated assertion merely to make CI green.
 
 ## D006 — Taskfile is the repository orchestration entrypoint
 
 **Status:** Accepted  
-**Date:** 2026-09-02
+**Date:** 2026-09-04
 
-Use `Taskfile.yml` as the repo-level command surface for development, checks, build, E2E, and Compose operations. Do not add Turborepo or another orchestrator without measured dependency-graph/build need.
+Use `Taskfile.yml` as the repo-level command surface for development, checks, build, verification, and Compose operations. Do not add Turborepo or another orchestrator without measured dependency-graph/build need.
 
 ## D007 — Cross-surface relationships use product-owned stable identity
 

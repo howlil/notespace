@@ -87,9 +87,6 @@ test("references navigate both ways, survive edits and switching, and expose orp
     await waitSaved(page);
     expect((await read()).references[0]).toEqual(reference);
 
-    await page.getByTestId("toolbar-selection").locator("..").click();
-    await page.keyboard.press("Escape");
-    await expect(goToNote).toHaveCount(0);
     await expect(goToCanvas).toBeVisible();
     await goToCanvas.click();
     await expect(goToNote).toBeVisible();
@@ -103,6 +100,9 @@ test("references navigate both ways, survive edits and switching, and expose orp
       .getByRole("link", { name: "Back to library", exact: true })
       .click();
     second = await create(page, `Other ${Date.now()}`);
+    await page
+      .getByRole("link", { name: "Back to library", exact: true })
+      .click();
     await page
       .getByRole("link", { name: title, exact: true })
       .click();

@@ -31,6 +31,16 @@ type Summary struct {
 	CreatedAt  string `json:"createdAt"`
 	UpdatedAt  string `json:"updatedAt"`
 	Version    int    `json:"version"`
+	NoteCount  int    `json:"noteCount,omitempty"`
+	HasCanvas  bool   `json:"hasCanvas,omitempty"`
+}
+
+type WorkspacePage struct {
+	Items      []Summary `json:"items"`
+	Total      int       `json:"total"`
+	Offset     int       `json:"offset"`
+	Limit      int       `json:"limit"`
+	NextOffset *int      `json:"nextOffset,omitempty"`
 }
 
 // Category is the library-level grouping for workspaces. A workspace owns its
@@ -48,6 +58,7 @@ type CategorySummary struct {
 // by the client rather than silently reassigned by the server.
 type Reference struct {
 	ID        string `json:"id"`
+	NoteID    string `json:"noteId,omitempty"`
 	BlockID   string `json:"blockId"`
 	ElementID string `json:"elementId"`
 }
@@ -70,29 +81,32 @@ type Project struct {
 }
 
 type SearchResult struct {
-	WorkspaceID string `json:"workspaceId"`
+	Type           string `json:"type"`
+	CategoryID     string `json:"categoryId,omitempty"`
+	CategoryTitle  string `json:"categoryTitle,omitempty"`
+	WorkspaceID    string `json:"workspaceId"`
 	WorkspaceTitle string `json:"workspaceTitle"`
-	NoteID string `json:"noteId"`
-	NoteTitle string `json:"noteTitle"`
-	BlockID string `json:"blockId"`
-	Excerpt string `json:"excerpt"`
+	NoteID         string `json:"noteId"`
+	NoteTitle      string `json:"noteTitle"`
+	BlockID        string `json:"blockId"`
+	Excerpt        string `json:"excerpt"`
 }
 
 type HistoryEntry struct {
-	ID string `json:"id"`
+	ID          string `json:"id"`
 	WorkspaceID string `json:"workspaceId"`
-	Version int `json:"version"`
-	Title string `json:"title"`
-	CreatedAt string `json:"createdAt"`
+	Version     int    `json:"version"`
+	Title       string `json:"title"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type HistorySnapshot struct {
 	HistoryEntry
-	Document Snapshot `json:"document"`
-	Notes []Note `json:"notes"`
-	Canvas Snapshot `json:"canvas"`
+	Document   Snapshot    `json:"document"`
+	Notes      []Note      `json:"notes"`
+	Canvas     Snapshot    `json:"canvas"`
 	References []Reference `json:"references"`
-	SplitRatio float64 `json:"splitRatio"`
+	SplitRatio float64     `json:"splitRatio"`
 }
 
 // Update is a complete authored snapshot; Version is an optimistic concurrency guard.
@@ -114,6 +128,7 @@ type Store interface {
 	CategoryExists(context.Context, string) (bool, error)
 	Create(context.Context, Project) error
 	List(context.Context) ([]Summary, error)
+	ListCategoryWorkspaces(context.Context, string, string, string, string, string, int, int) (WorkspacePage, error)
 	Get(context.Context, string) (Project, error)
 	Update(context.Context, string, Update) (Project, error)
 	Delete(context.Context, string) error

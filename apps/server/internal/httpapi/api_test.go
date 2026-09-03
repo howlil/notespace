@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -77,6 +79,45 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 		}
 	}
 	t.Fatalf("category count missing from %#v", categories)
+}
+
+func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
+	expect(t, createdCategory, 201)
+	var category project.CategorySummary
+	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
+		t.Fatal(err)
+	}
+	for _, title := range []string{"Redis", "Postgres", "Go"} {
+		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": title, "categoryId": category.ID}), 201)
+	}
+	for i := 0; i < 100; i++ {
+		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Workspace " + strconv.Itoa(i), "categoryId": category.ID}), 201)
+	}
+	page := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?q=go&limit=1", nil)
+	expect(t, page, 200)
+	var result struct {
+		Items      []project.Summary `json:"items"`
+		Total      int               `json:"total"`
+		NextOffset *int              `json:"nextOffset"`
+	}
+	if err := json.Unmarshal(page.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || len(result.Items) != 1 || result.Items[0].Title != "Go" || result.NextOffset != nil {
+		t.Fatalf("scoped browser result = %+v", result)
+	}
+	all := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?sort=name&limit=50", nil)
+	expect(t, all, 200)
+	if !strings.Contains(all.Body.String(), `"total":103`) || !strings.Contains(all.Body.String(), `"nextOffset":50`) {
+		t.Fatalf("pagination metadata missing: %s", all.Body.String())
+	}
 }
 
 func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
@@ -261,7 +302,9 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 
 func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
 	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := httpapi.New(store, store.Healthy)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Backend Fundamentals"}))
@@ -274,13 +317,122 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	expect(t, call(t, api, "PUT", path, body), 200)
 	activity := call(t, api, "GET", "/api/study/activity?from=2026-09-03&to=2026-09-03", nil)
 	expect(t, activity, 200)
-	var summary struct { TodaySeconds int64 `json:"todaySeconds"`; Days []struct { ActiveSeconds int64 `json:"activeSeconds"` } `json:"days"` }
-	if err := json.Unmarshal(activity.Body.Bytes(), &summary); err != nil { t.Fatal(err) }
-	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 { t.Fatalf("unexpected activity: %+v", summary) }
+	var summary struct {
+		TodaySeconds int64 `json:"todaySeconds"`
+		Days         []struct {
+			ActiveSeconds int64 `json:"activeSeconds"`
+		} `json:"days"`
+	}
+	if err := json.Unmarshal(activity.Body.Bytes(), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 {
+		t.Fatalf("unexpected activity: %+v", summary)
+	}
 	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 204)
 	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
 	expect(t, detail, 200)
-	var day struct { Workspaces []struct { Title string `json:"title"`; Deleted bool `json:"deleted"`; ActiveSeconds int64 `json:"activeSeconds"` } `json:"workspaces"` }
-	if err := json.Unmarshal(detail.Body.Bytes(), &day); err != nil { t.Fatal(err) }
-	if len(day.Workspaces) != 1 || day.Workspaces[0].Title != "Backend Fundamentals" || !day.Workspaces[0].Deleted || day.Workspaces[0].ActiveSeconds != 600 { t.Fatalf("history lost: %+v", day.Workspaces) }
+	var day struct {
+		Workspaces []struct {
+			Title         string `json:"title"`
+			Deleted       bool   `json:"deleted"`
+			ActiveSeconds int64  `json:"activeSeconds"`
+		} `json:"workspaces"`
+	}
+	if err := json.Unmarshal(detail.Body.Bytes(), &day); err != nil {
+		t.Fatal(err)
+	}
+	if len(day.Workspaces) != 1 || day.Workspaces[0].Title != "Backend Fundamentals" || !day.Workspaces[0].Deleted || day.Workspaces[0].ActiveSeconds != 600 {
+		t.Fatalf("history lost: %+v", day.Workspaces)
+	}
+}
+
+func TestSearchReturnsExactParentBlockContext(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Search workspace"}))
+	p.Document = project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
+	p.Notes[0].Document = p.Document
+	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	expect(t, saved, 200)
+	results := call(t, api, "GET", "/api/search?q=consensus", nil)
+	expect(t, results, 200)
+	var got []project.SearchResult
+	if err := json.Unmarshal(results.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].BlockID != "block-raft" || got[0].NoteID != p.Notes[0].ID {
+		t.Fatalf("search context = %+v", got)
+	}
+}
+
+func TestHistoryStartsAtWorkspaceCreationAndExportIsPortable(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "history-export.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Portable workspace"}))
+	history := call(t, api, "GET", "/api/projects/"+p.ID+"/history", nil)
+	expect(t, history, 200)
+	var entries []project.HistoryEntry
+	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Version != p.Version {
+		t.Fatalf("initial history = %+v", entries)
+	}
+	export := call(t, api, "GET", "/api/projects/"+p.ID+"/export", nil)
+	expect(t, export, 200)
+	archive, err := zip.NewReader(bytes.NewReader(export.Body.Bytes()), int64(export.Body.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted := map[string]bool{"manifest.json": false, "notes/notes.json": false, "notes/0001.json": false, "canvas/workspace.excalidraw.json": false, "canvas/files.json": false, "relationships.json": false}
+	for _, file := range archive.File {
+		if _, ok := wanted[file.Name]; ok {
+			wanted[file.Name] = true
+		}
+	}
+	for name, found := range wanted {
+		if !found {
+			t.Fatalf("export missing %s", name)
+		}
+	}
+}
+
+func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "History"}))
+	first := p.Document
+	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
+	saved := decodeProject(t, call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
+	second := saved.Document
+	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
+	updated := call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	expect(t, updated, 200)
+	history := call(t, api, "GET", "/api/projects/"+p.ID+"/history", nil)
+	expect(t, history, 200)
+	var entries []project.HistoryEntry
+	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("history entries = %d, want initial checkpoint only", len(entries))
+	}
+	restore := call(t, api, "POST", "/api/projects/"+p.ID+"/history/"+entries[0].ID+"/restore", nil)
+	expect(t, restore, 200)
+	if got := decodeProject(t, restore); string(got.Document.Data) != string(p.Document.Data) {
+		t.Fatalf("restored document = %s, want %s", got.Document.Data, p.Document.Data)
+	}
 }

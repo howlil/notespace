@@ -33,18 +33,18 @@ export function Sidebar({
       <nav aria-label="Main navigation">
         <Link to="/" className="nav-item active">
           <LayoutGrid size={17} />
-          {!collapsed && <>All categories <span className="count">{categories.length}</span></>}
+          {!collapsed && <>Home <span className="count">{categories.length}</span></>}
         </Link>
       </nav>
       {!collapsed && <>
         <div className="sidebar-section">CATEGORIES</div>
         <nav aria-label="Categories" className="recent-nav">
           {categories.map((category) => (
-            <a className="nav-item" key={category.id} href={`#category-section-${category.id}`}>
+            <Link className="nav-item" key={category.id} to="/categories/$categoryId" params={{ categoryId: category.id }}>
               <Tag size={15} />
               <span className="truncate">{category.title}</span>
               <span className="count">{category.workspaceCount}</span>
-            </a>
+            </Link>
           ))}
         </nav>
       </>}

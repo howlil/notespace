@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +27,9 @@ type API struct {
 
 func New(store project.Store, health func(context.Context) error) http.Handler {
 	studyStore, ok := store.(study.Store)
-	if !ok { panic("httpapi: store does not implement study.Store") }
+	if !ok {
+		panic("httpapi: store does not implement study.Store")
+	}
 	a := API{service: project.Service{Store: store}, study: study.Service{Store: studyStore}, health: health}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +42,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("GET /api/projects", a.list)
 	mux.HandleFunc("POST /api/projects", a.create)
 	mux.HandleFunc("GET /api/categories", a.listCategories)
+	mux.HandleFunc("GET /api/categories/{id}/workspaces", a.listCategoryWorkspaces)
 	mux.HandleFunc("POST /api/categories", a.createCategory)
 	mux.HandleFunc("PATCH /api/categories/{id}", a.updateCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", a.deleteCategory)
@@ -145,6 +150,31 @@ func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, data)
 }
+
+func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
+	exists, err := a.service.Store.CategoryExists(r.Context(), r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	if !exists {
+		fail(w, project.ErrNotFound)
+		return
+	}
+	parseInt := func(key string, fallback int) int {
+		value, err := strconv.Atoi(r.URL.Query().Get(key))
+		if err != nil {
+			return fallback
+		}
+		return value
+	}
+	page, err := a.service.Store.ListCategoryWorkspaces(r.Context(), r.PathValue("id"), r.URL.Query().Get("q"), r.URL.Query().Get("sort"), r.URL.Query().Get("hasCanvas"), r.URL.Query().Get("hasNotes"), parseInt("offset", 0), parseInt("limit", 50))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, page)
+}
 func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
@@ -238,26 +268,68 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 
 func (a API) search(w http.ResponseWriter, r *http.Request) {
 	data, err := a.service.Store.Search(r.Context(), r.URL.Query().Get("q"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, data)
 }
 
 func (a API) export(w http.ResponseWriter, r *http.Request) {
 	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	var buffer bytes.Buffer
 	archive := zip.NewWriter(&buffer)
 	write := func(name string, value any) error {
 		file, err := archive.Create(name)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		return json.NewEncoder(file).Encode(value)
 	}
-	manifest := map[string]any{"format": "notespace-workspace", "version": 1, "workspace": map[string]any{"id": p.ID, "categoryId": p.CategoryID, "title": p.Title, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}, "notes": p.Notes}
-	if err := write("manifest.json", manifest); err != nil { fail(w, err); return }
-	if err := write("notes/notes.json", p.Notes); err != nil { fail(w, err); return }
-	if err := write("canvas/workspace.excalidraw.json", p.Canvas); err != nil { fail(w, err); return }
-	if err := write("relationships.json", p.References); err != nil { fail(w, err); return }
-	if err := archive.Close(); err != nil { fail(w, err); return }
+	noteFiles := make([]map[string]any, 0, len(p.Notes))
+	for index, note := range p.Notes {
+		noteFiles = append(noteFiles, map[string]any{"id": note.ID, "title": note.Title, "file": fmt.Sprintf("notes/%04d.json", index+1)})
+	}
+	manifest := map[string]any{"format": "notespace-workspace", "version": 2, "workspace": map[string]any{"id": p.ID, "categoryId": p.CategoryID, "title": p.Title, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}, "notes": noteFiles, "canvas": "canvas/workspace.excalidraw.json", "relationships": "relationships.json"}
+	if err := write("manifest.json", manifest); err != nil {
+		fail(w, err)
+		return
+	}
+	if err := write("notes/notes.json", p.Notes); err != nil {
+		fail(w, err)
+		return
+	}
+	for index, note := range p.Notes {
+		if err := write(fmt.Sprintf("notes/%04d.json", index+1), note); err != nil {
+			fail(w, err)
+			return
+		}
+	}
+	if err := write("canvas/workspace.excalidraw.json", p.Canvas); err != nil {
+		fail(w, err)
+		return
+	}
+	var canvasData map[string]json.RawMessage
+	if err := json.Unmarshal(p.Canvas.Data, &canvasData); err == nil {
+		if files, ok := canvasData["files"]; ok {
+			if err := write("canvas/files.json", files); err != nil {
+				fail(w, err)
+				return
+			}
+		}
+	}
+	if err := write("relationships.json", p.References); err != nil {
+		fail(w, err)
+		return
+	}
+	if err := archive.Close(); err != nil {
+		fail(w, err)
+		return
+	}
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="notespace-workspace.zip"`)
 	w.WriteHeader(http.StatusOK)
@@ -265,25 +337,43 @@ func (a API) export(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) history(w http.ResponseWriter, r *http.Request) {
-	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil { fail(w, err); return }
+	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil {
+		fail(w, err)
+		return
+	}
 	data, err := a.service.Store.ListHistory(r.Context(), r.PathValue("id"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, data)
 }
 
 func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
 	data, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, data)
 }
 
 func (a API) restore(w http.ResponseWriter, r *http.Request) {
 	current, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	snapshot, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	restored, err := a.service.Update(r.Context(), current.ID, project.Update{Title: snapshot.Title, Document: snapshot.Document, Notes: snapshot.Notes, Canvas: snapshot.Canvas, References: snapshot.References, SplitRatio: snapshot.SplitRatio, Version: current.Version})
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, restored)
 }
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
@@ -300,31 +390,53 @@ func (a API) delete(w http.ResponseWriter, r *http.Request) {
 
 func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var body study.Heartbeat
-	if !decode(w, r, &body) { return }
+	if !decode(w, r, &body) {
+		return
+	}
 	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	session, err := a.study.Record(r.Context(), p.ID, p.Title, r.PathValue("sessionId"), body)
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, session)
 }
 
 func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
-	if date == "" { date = time.Now().Format(study.DateLayout) }
-	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil { fail(w, err); return }
+	if date == "" {
+		date = time.Now().Format(study.DateLayout)
+	}
+	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil {
+		fail(w, err)
+		return
+	}
 	stats, err := a.study.GetWorkspaceStats(r.Context(), r.PathValue("id"), date)
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, stats)
 }
 
 func (a API) activity(w http.ResponseWriter, r *http.Request) {
 	data, err := a.study.GetActivity(r.Context(), r.URL.Query().Get("from"), r.URL.Query().Get("to"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, data)
 }
 
 func (a API) dayDetail(w http.ResponseWriter, r *http.Request) {
 	data, err := a.study.GetDayDetail(r.Context(), r.PathValue("date"))
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, data)
 }

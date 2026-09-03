@@ -11,6 +11,16 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   version: number;
+  noteCount?: number;
+  hasCanvas?: boolean;
+}
+
+export interface WorkspacePage {
+  items: ProjectSummary[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset?: number;
 }
 
 export interface CategorySummary {
@@ -39,6 +49,7 @@ export interface Project extends ProjectSummary {
 
 export interface ProjectReference {
   id: string;
+  noteId?: string;
   blockId: string;
   elementId: string;
 }

@@ -20,7 +20,7 @@ function level(seconds: number) {
   return 0;
 }
 
-export function StudyActivityDashboard() {
+export function StudyActivityDashboard({ compact = false }: { compact?: boolean }) {
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detail, setDetail] = useState<StudyDayDetail | null>(null);
@@ -57,7 +57,7 @@ export function StudyActivityDashboard() {
     return { column: Math.floor(difference / 7) + 1, row: (difference % 7) + 1 };
   }
 
-  return <section className="study-activity" aria-labelledby="study-activity-title">
+  return <section className={compact ? "study-activity study-activity-compact" : "study-activity"} aria-labelledby="study-activity-title">
     <div className="study-activity-heading"><div><h2 id="study-activity-title">Learning activity</h2><p>Active study time over the last year</p></div>{error && <span className="study-inline-error" role="alert"><AlertCircle size={14} /> {error}</span>}</div>
     <div className="study-summary">
       <div><span>Today</span><strong>{loading ? "—" : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>

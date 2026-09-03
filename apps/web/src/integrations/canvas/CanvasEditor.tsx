@@ -47,6 +47,19 @@ export default function CanvasEditor({
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
+  const lastExternalScene = useRef(JSON.stringify(initial.data));
+
+  useEffect(() => {
+    if (!api.current) return;
+    const signature = JSON.stringify(initial.data);
+    if (signature === lastExternalScene.current) return;
+    const elements = Array.isArray(initial.data.elements)
+      ? initial.data.elements as OrderedExcalidrawElement[]
+      : [];
+    setHasElements(elements.length > 0);
+    api.current.updateScene({ elements });
+    lastExternalScene.current = signature;
+  }, [initial]);
 
   useEffect(() => {
     if (!focusRequest || !api.current) return;
@@ -95,6 +108,7 @@ export default function CanvasEditor({
     if (serialized === last.current) return;
     const first = last.current === "";
     last.current = serialized;
+    lastExternalScene.current = serialized;
     if (!first) onChange({ format: "excalidraw", version: 1, data });
   }
   return (

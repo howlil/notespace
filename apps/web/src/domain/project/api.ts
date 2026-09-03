@@ -3,6 +3,7 @@ import type {
   Project,
   ProjectContent,
   ProjectSummary,
+  WorkspacePage,
 } from "./project";
 
 export class APIError extends Error {
@@ -35,6 +36,22 @@ const json = (body: unknown) => ({
 export const listProjects = () => request<ProjectSummary[]>("/api/projects");
 export const listCategories = () =>
   request<CategorySummary[]>("/api/categories");
+export const getCategory = async (id: string) => {
+  const categories = await listCategories();
+  const category = categories.find((item) => item.id === id);
+  if (!category) throw new APIError(404, "Category not found.");
+  return category;
+};
+export const listCategoryWorkspaces = (categoryId: string, params: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number } = {}) => {
+  const search = new URLSearchParams();
+  if (params.query) search.set("q", params.query);
+  if (params.sort) search.set("sort", params.sort);
+  if (params.hasCanvas) search.set("hasCanvas", "true");
+  if (params.hasNotes) search.set("hasNotes", "true");
+  if (params.offset) search.set("offset", String(params.offset));
+  if (params.limit) search.set("limit", String(params.limit));
+  return request<WorkspacePage>(`/api/categories/${encodeURIComponent(categoryId)}/workspaces?${search}`);
+};
 export const getProject = (id: string) =>
   request<Project>(`/api/projects/${encodeURIComponent(id)}`);
 export const createProject = (title: string, categoryId: string) =>
@@ -65,7 +82,7 @@ export const deleteProject = (id: string) =>
   request<void>(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
-export type SearchResult = { workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
+export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
 export type HistoryEntry = { id: string; workspaceId: string; version: number; title: string; createdAt: string };
 export type HistorySnapshot = HistoryEntry & { document: Project["document"]; notes: Project["notes"]; canvas: Project["canvas"]; references: Project["references"]; splitRatio: number };

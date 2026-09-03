@@ -1,12 +1,12 @@
-# Current Iteration — Milestones 5–8: Visual Knowledge Workflow
+# Current Iteration — M9: Scalable Knowledge Navigation & Discovery
 
 ## Status
 
-- **Milestone:** M5 Visual Sensemaking → M6 Retrieval & Context → M7 Capture & Portability → M8 History & Recovery
-- **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
-- **Active slices:** semantic note/canvas workflow; exact-context search; portable export/source capture; bounded history restore
+- **Milestone:** M9 — Scalable Knowledge Navigation & Discovery
+- **Milestone state:** IMPLEMENTED / CODE + BACKEND VERIFIED; BROWSER ACCEPTANCE PENDING
+- **Active slices:** Home progressive disclosure; category detail browser; global/scoped discovery and consistent actions
 - **Integrated through:** local working tree; ready to merge to `master`
-- **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
+- **Blocker:** The Playwright Chromium binary and Docker are not available in the current execution environment; Go verification runs through repository-local tooling.
 
 ## Why this milestone exists
 
@@ -34,10 +34,16 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - Category and workspace rename/delete actions now use inline, underline-only controls; non-empty category deletion is rejected to prevent accidental cascade loss.
 - Slash-command Insert block options include semantic icons so each block type is scannable.
 - Compose uses an explicit stable physical data-volume name via `NOTESPACE_DATA_VOLUME`; redeploys must keep that value and must not use `docker compose down -v`.
-- M5 adds selected-block promotion to a semantic canvas card, canvas-to-note promotion, durable references, and source-preserving card metadata.
-- M6 adds workspace-wide exact-context search and opens the selected note/block through URL context.
-- M7 adds portable ZIP export (`manifest.json`, notes, canvas, relationships) and URL source capture on canvas; image/file insertion continues through Excalidraw's native canvas flow.
-- M8 adds bounded SQLite workspace checkpoints before authored updates plus history preview metadata and restore.
+- M5 adds selected-block promotion to a valid semantic canvas card, canvas-to-note promotion, note-aware durable references, and source-preserving card metadata. The canvas adapter synchronizes externally-created elements into the live scene.
+- M6 adds workspace-wide search with parent block context and opens the selected note/block through URL context; search failures are visible instead of appearing as empty results.
+- M7 adds portable ZIP export (`manifest.json`, individual notes, canvas, canvas files, and relationships) and validated HTTP(S) source capture on canvas; image/file insertion continues through Excalidraw's native canvas flow.
+- M8 adds an initial and bounded SQLite workspace checkpoint history, atomic authored-update checkpoints, content metadata preview, and restore error handling.
+- M8 history storage now separates high-frequency autosave from durable checkpoints: layout-only and rapid no-op checkpoints are skipped, authored snapshots are deduplicated with SHA-256 metadata, and new payloads are stored as zlib-compressed BLOBs with a legacy 0006 decoder fallback.
+- Workspace deletion removes checkpoint metadata and payload rows in the same transaction; checkpoint insertion, retention pruning, and authored workspace update commit or roll back together.
+
+- M9 Home is recent-first and summary-first: categories are collapsed by default, expanded categories show at most five recent workspaces, and large collections move to a dedicated category browser.
+- M9 category browsing has a server-side category workspace endpoint with scoped query, stable sorting, has-notes/has-canvas filters, bounded pages, and content metadata for dense rows.
+- M9 global search now returns category, workspace, note, and exact block result types; Home exposes a keyboard-accessible `Cmd/Ctrl+K` focus shortcut, and category/workspace actions use consistent overflow menus.
 
 ## Evidence so far
 
@@ -46,20 +52,24 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - `pnpm lint` — PASS
 - `pnpm test` — PASS (3 tests)
 - `git diff --check` — PASS
-- Targeted Playwright journeys — UPDATED but NOT RUN: Go server and Chromium are unavailable
-- Focus-mode interaction coverage — UPDATED but NOT RUN: Go server and Chromium are unavailable
-- `go test ./...` — NOT RUN: Go is unavailable
-- Playwright E2E — NOT RUN: Go server, Docker, and Chromium are unavailable
+- Targeted Playwright journeys — UPDATED but NOT RUN: Chromium is unavailable
+- Focus-mode interaction coverage — UPDATED but NOT RUN: Chromium is unavailable
+- `go test ./...` — PASS via repository tooling
+- `go vet ./...` — PASS via repository tooling
+- `go build ./...` — PASS via repository tooling
+- M8 storage policy tests — PASS: initial checkpoint, rapid/layout dedupe, compressed payload, legacy-compatible restore, and delete cleanup.
+- M9 category browser API coverage — PASS: scoped search, stable sort, pagination metadata, and large-collection response shape.
+- Playwright E2E — NOT RUN: Chromium is unavailable
 
 ## Additional fix evidence
 
 - Frontend typecheck, production build, lint, frontend unit tests, and `git diff --check` — PASS.
 - Backend API coverage added for category/workspace rename, inline-management deletion behavior, and non-cascading category deletion.
-- Go and Docker checks — NOT RUN: binaries are unavailable in the current environment.
+- Docker checks — NOT RUN: Docker is unavailable in the current environment.
 
 ## Next action
 
-Run backend integration checks when Go is available, then merge M5–M8 to `master`. E2E/Compose verification remains the only deferred release check if the required binaries are unavailable.
+Run the M9 golden path with a large synthetic dataset when Chromium is available. E2E remains the only deferred release check; code and backend integration gates are green.
 
 ## Previous Milestone Record
 

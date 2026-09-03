@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import {
   ArrowLeft,
   Check,
@@ -109,11 +110,39 @@ function documentBlockText(snapshot: Snapshot, blockId: string) {
   return result.trim();
 }
 
+function documentText(snapshot: Snapshot) {
+  let result = "";
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.text === "string") result += `${record.text} `;
+    if (record.content) visit(record.content);
+  };
+  visit(snapshot.data);
+  return result.trim();
+}
+
+function canvasObjectCount(snapshot: Snapshot) {
+  return Array.isArray(snapshot.data.elements)
+    ? snapshot.data.elements.filter((value) => value && typeof value === "object" && (value as Record<string, unknown>).isDeleted !== true).length
+    : 0;
+}
+
 function canvasElementText(snapshot: Snapshot, elementId: string) {
-  const element = snapshot.data.elements;
-  if (!Array.isArray(element)) return "";
-  const found = element.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId) as Record<string, unknown> | undefined;
-  return typeof found?.text === "string" ? found.text : "";
+  const elements = snapshot.data.elements;
+  if (!Array.isArray(elements)) return "";
+  const found = elements.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId) as Record<string, unknown> | undefined;
+  if (typeof found?.text === "string") return found.text;
+  const label = elements.find((value) => {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as Record<string, unknown>;
+    if (candidate.containerId === elementId && typeof candidate.text === "string") return true;
+    const customData = candidate.customData;
+    const meta = customData && typeof customData === "object" ? (customData as Record<string, unknown>).notespace : undefined;
+    return meta && typeof meta === "object" && (meta as Record<string, unknown>).kind === "semantic-card-label" && (meta as Record<string, unknown>).cardId === elementId;
+  }) as Record<string, unknown> | undefined;
+  return typeof label?.text === "string" ? label.text : "";
 }
 
 function canvasHasElement(snapshot: Snapshot, elementId: string) {
@@ -173,6 +202,7 @@ export function Workspace({
   const [historyPreview, setHistoryPreview] = useState<HistorySnapshot | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
+  const [actionFeedback, setActionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState(project.title);
   const renameInput = useRef<HTMLInputElement>(null);
@@ -271,58 +301,133 @@ export function Workspace({
   const updateCanvas = useCallback((canvas: Snapshot) => update({ canvas }), [update]);
 
   const promoteBlockToCanvas = useCallback(() => {
-    if (!selectedBlockId) return;
+    if (!selectedBlockId) {
+      setActionFeedback({ kind: "error", message: "Select a note block first." });
+      return;
+    }
     const text = documentBlockText(current.current.document, selectedBlockId);
-    if (!text) return;
+    if (!text) {
+      setActionFeedback({ kind: "error", message: "This block has no text to send to the canvas." });
+      return;
+    }
     const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
     const x = 120 + (elements.length % 4) * 260;
     const y = 120 + Math.floor(elements.length / 4) * 150;
     const cardId = crypto.randomUUID();
-    const now = Date.now();
-    const base = { angle: 0, strokeColor: "#4f7396", backgroundColor: "#e8eef6", fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], frameId: null, roundness: { type: 3 }, seed: now, version: 1, versionNonce: now, isDeleted: false, boundElements: null, updated: now, link: null, locked: false };
-    const rectangle = { ...base, id: cardId, type: "rectangle", x, y, width: 230, height: 110, customData: { notespace: { kind: "semantic-card", noteId: activeNote?.id ?? "", blockId: selectedBlockId } } };
-    const label = { ...base, id: crypto.randomUUID(), type: "text", x: x + 14, y: y + 14, width: 202, height: 80, text: text.slice(0, 180), originalText: text.slice(0, 180), fontSize: 16, fontFamily: 1, textAlign: "left", verticalAlign: "top", containerId: null, autoResize: true, customData: { notespace: { kind: "semantic-card-label", cardId, noteId: activeNote?.id ?? "", blockId: selectedBlockId } } };
-    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, rectangle, label] } }, references: [...current.current.references, { id: crypto.randomUUID(), blockId: selectedBlockId, elementId: cardId }] });
+    const generated = convertToExcalidrawElements([{
+      type: "rectangle",
+      id: cardId,
+      x,
+      y,
+      width: 230,
+      height: 110,
+      strokeColor: "#4f7396",
+      backgroundColor: "#e8eef6",
+      fillStyle: "solid",
+      strokeWidth: 1,
+      roughness: 0,
+      customData: { notespace: { kind: "semantic-card", noteId: activeNote?.id ?? "", blockId: selectedBlockId } },
+      label: {
+        text: text.slice(0, 180),
+        fontSize: 16,
+        fontFamily: 1,
+        textAlign: "left",
+        verticalAlign: "top",
+        customData: { notespace: { kind: "semantic-card-label", cardId, noteId: activeNote?.id ?? "", blockId: selectedBlockId } },
+      },
+    }], { regenerateIds: false });
+    const card = generated.find((element) => element.id === cardId);
+    if (!card) {
+      setActionFeedback({ kind: "error", message: "Could not create the semantic card." });
+      return;
+    }
+    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, ...generated] } }, references: [...current.current.references, { id: crypto.randomUUID(), noteId: activeNote?.id, blockId: selectedBlockId, elementId: cardId }] });
     setSelectedElementId(cardId);
     setViewMode("split");
+    setCanvasFocus({ id: cardId, request: ++navigationRequest.current });
+    setActionFeedback({ kind: "success", message: "Semantic card added to the canvas." });
   }, [activeNote?.id, selectedBlockId, update]);
 
   const promoteCanvasToNote = useCallback(() => {
-    if (!selectedElementId) return;
+    if (!selectedElementId) {
+      setActionFeedback({ kind: "error", message: "Select a canvas object first." });
+      return;
+    }
     const text = canvasElementText(current.current.canvas, selectedElementId);
-    if (!text) return;
+    if (!text) {
+      setActionFeedback({ kind: "error", message: "This canvas object has no text to expand." });
+      return;
+    }
     const now = new Date().toISOString();
     const note: Note = { id: crypto.randomUUID(), title: text.slice(0, 42), document: { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", attrs: { blockId: crypto.randomUUID() }, content: [{ type: "text", text }] }] } }, createdAt: now, updatedAt: now };
     update({ notes: [...current.current.notes, note], document: note.document });
     setActiveNoteId(note.id);
     setSelectedBlockId(null);
+    setActionFeedback({ kind: "success", message: "New note created from the canvas text." });
   }, [selectedElementId, update]);
 
   function captureSource() {
     let url: URL;
-    try { url = new URL(sourceUrl.trim()); } catch { return; }
+    try { url = new URL(sourceUrl.trim()); } catch {
+      setActionFeedback({ kind: "error", message: "Enter a valid http(s) URL." });
+      return;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      setActionFeedback({ kind: "error", message: "Only http and https sources are supported." });
+      return;
+    }
     const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
-    const now = Date.now();
-    const source = { id: crypto.randomUUID(), type: "text", x: 120 + (elements.length % 4) * 260, y: 120 + Math.floor(elements.length / 4) * 150, width: 260, height: 50, angle: 0, text: url.href, originalText: url.href, fontSize: 16, fontFamily: 1, textAlign: "left", verticalAlign: "top", containerId: null, autoResize: true, strokeColor: "#4f7396", backgroundColor: "transparent", fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], frameId: null, roundness: null, seed: now, version: 1, versionNonce: now, isDeleted: false, boundElements: null, updated: now, link: url.href, locked: false, customData: { notespace: { kind: "source", url: url.href } } };
+    const source = convertToExcalidrawElements([{
+      id: crypto.randomUUID(),
+      type: "text",
+      x: 120 + (elements.length % 4) * 260,
+      y: 120 + Math.floor(elements.length / 4) * 150,
+      text: url.href,
+      fontSize: 16,
+      fontFamily: 1,
+      textAlign: "left",
+      verticalAlign: "top",
+      link: url.href,
+      customData: { notespace: { kind: "source", url: url.href } },
+    }], { regenerateIds: false })[0];
     update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, source] } } });
     setSourceUrl("");
     setCaptureOpen(false);
+    setSelectedElementId(source.id);
+    setCanvasFocus({ id: source.id, request: ++navigationRequest.current });
+    setActionFeedback({ kind: "success", message: "Source added to the canvas." });
   }
 
   async function openHistory() {
     setHistoryOpen((open) => !open);
-    if (!historyEntries.length) setHistoryEntries(await listHistory(project.id).catch(() => []));
+    if (!historyEntries.length) {
+      try {
+        setHistoryEntries(await listHistory(project.id));
+        setActionFeedback(null);
+      } catch (error) {
+        setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspace history." });
+      }
+    }
   }
 
   async function previewHistory(entry: HistoryEntry) {
-    setHistoryPreview(await getHistorySnapshot(project.id, entry.id).catch(() => null));
+    try {
+      setHistoryPreview(await getHistorySnapshot(project.id, entry.id));
+      setActionFeedback(null);
+    } catch (error) {
+      setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not load this checkpoint." });
+    }
   }
 
   async function restoreSelectedHistory() {
     if (!historyPreview) return;
-    await saver.flush();
-    await restoreHistory(project.id, historyPreview.id);
-    window.location.reload();
+    try {
+      await saver.flush();
+      await restoreHistory(project.id, historyPreview.id);
+      window.location.reload();
+    } catch (error) {
+      setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not restore this checkpoint." });
+    }
   }
 
   function selectNote(note: Note) {
@@ -396,11 +501,11 @@ export function Workspace({
   const createReference = useCallback(() => {
     if (!selectedBlockId || !selectedElementId) return;
     if (current.current.references.some((reference) => reference.blockId === selectedBlockId && reference.elementId === selectedElementId)) return;
-    update({ references: [...current.current.references, { id: crypto.randomUUID(), blockId: selectedBlockId, elementId: selectedElementId }] });
+    update({ references: [...current.current.references, { id: crypto.randomUUID(), noteId: activeNote?.id, blockId: selectedBlockId, elementId: selectedElementId }] });
     setBrokenReference(null);
-  }, [selectedBlockId, selectedElementId, update]);
+  }, [activeNote?.id, selectedBlockId, selectedElementId, update]);
 
-  const blockReference = selectedBlockId ? references.find((reference) => reference.blockId === selectedBlockId) : undefined;
+  const blockReference = selectedBlockId ? references.find((reference) => reference.blockId === selectedBlockId && (!reference.noteId || reference.noteId === activeNote?.id)) : undefined;
   const elementReference = selectedElementId ? references.find((reference) => reference.elementId === selectedElementId) : undefined;
 
   function navigateToCanvas(reference: ProjectReference) {
@@ -414,11 +519,17 @@ export function Workspace({
   }
 
   function navigateToDocument(reference: ProjectReference) {
-    if (!documentHasBlock(current.current.document, reference.blockId)) {
+    const targetNote = reference.noteId ? current.current.notes.find((note) => note.id === reference.noteId) : activeNote;
+    const targetDocument = targetNote?.document ?? current.current.document;
+    if (!documentHasBlock(targetDocument, reference.blockId)) {
       setBrokenReference({ referenceId: reference.id, message: "Linked document block no longer exists. The reference was kept until you remove it explicitly." });
       return;
     }
     setBrokenReference(null);
+    if (targetNote && targetNote.id !== activeNote?.id) {
+      current.current = { ...current.current, document: targetNote.document };
+      setActiveNoteId(targetNote.id);
+    }
     setViewMode("split");
     setDocumentFocus({ id: reference.blockId, request: ++navigationRequest.current });
   }
@@ -473,11 +584,11 @@ export function Workspace({
             <button className="icon-button" aria-label="Link selections" title="Link selected document block and canvas object" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}><Link2 size={16} /></button>
             {blockReference && <button className="icon-button" aria-label="Go to linked canvas object" title="Go to linked canvas object" onClick={() => navigateToCanvas(blockReference)}><Layers size={16} /></button>}
             {elementReference && <button className="icon-button" aria-label="Go to linked document block" title="Go to linked document block" onClick={() => navigateToDocument(elementReference)}><FileText size={16} /></button>}
-            <button className="secondary compact-action" disabled={!selectedBlockId} onClick={promoteBlockToCanvas}><Layers size={13} /> Send to canvas</button>
-            <button className="secondary compact-action" disabled={!selectedElementId} onClick={promoteCanvasToNote}><FileText size={13} /> Expand to note</button>
+            <button className="secondary compact-action" disabled={!selectedBlockId} title={!selectedBlockId ? "Select a note block first" : "Create a semantic card from the selected block"} onClick={promoteBlockToCanvas}><Layers size={13} /> Send to canvas</button>
+            <button className="secondary compact-action" disabled={!selectedElementId} title={!selectedElementId ? "Select a canvas object first" : "Create a note from the selected canvas text"} onClick={promoteCanvasToNote}><FileText size={13} /> Expand to note</button>
             {captureOpen ? <input className="workspace-capture-input" aria-label="Source URL" autoFocus placeholder="Paste URL" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") captureSource(); if (event.key === "Escape") setCaptureOpen(false); }} /> : <button className="icon-button" aria-label="Capture source URL" title="Capture source URL" onClick={() => setCaptureOpen(true)}><Globe size={16} /></button>}
             <a className="icon-button" aria-label="Export workspace" title="Export workspace" href={exportWorkspace(project.id)} download><Download size={16} /></a>
-            <div className="workspace-menu history-menu"><button className="icon-button" aria-label="Workspace history" title="Workspace history" aria-expanded={historyOpen} onClick={() => void openHistory()}><HistoryIcon size={16} /></button>{historyOpen && <div className="workspace-menu-popover history-popover"><div className="menu-heading">History</div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "menu-item active" : "menu-item"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <span className="history-empty">No checkpoints yet.</span>}{historyPreview && <div className="history-preview"><span>Preview v{historyPreview.version}</span><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>
+            <div className="workspace-menu history-menu"><button className="icon-button" aria-label="Workspace history" title="Workspace history" aria-expanded={historyOpen} onClick={() => void openHistory()}><HistoryIcon size={16} /></button>{historyOpen && <div className="workspace-menu-popover history-popover"><div className="menu-heading">History</div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "menu-item active" : "menu-item"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <span className="history-empty">No checkpoints yet.</span>}{historyPreview && <div className="history-preview"><div><strong>Preview v{historyPreview.version}</strong><span>{historyPreview.notes.length} note{historyPreview.notes.length === 1 ? "" : "s"} · {canvasObjectCount(historyPreview.canvas)} canvas object{canvasObjectCount(historyPreview.canvas) === 1 ? "" : "s"}</span><p>{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p></div><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>
             <StudyIndicator study={study} />
             <span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span>
             <button className="icon-button focus-mode-toggle" aria-label="Enter focus mode" title="Focus mode · hide header" onClick={() => setFocusMode(true)}><Maximize2 size={16} /></button>
@@ -485,6 +596,7 @@ export function Workspace({
           </div>
         </header>}
         {focusMode && <button className="focus-mode-restore" aria-label="Show workspace header" title="Show workspace header · Escape" onClick={() => setFocusMode(false)}><Minimize2 size={14} /> <span>Show header</span></button>}
+        {actionFeedback && <div className={`workspace-feedback workspace-feedback-${actionFeedback.kind}`} role={actionFeedback.kind === "error" ? "alert" : "status"}>{actionFeedback.message}</div>}
         {status.state === "error" && <div className="save-error" role="alert"><span>{status.message}</span><button className="secondary" onClick={() => void saver.flush().catch(() => {})}><RotateCw size={14} /> Retry save</button></div>}
         {brokenReference && <div className="save-error" role="alert"><span>{brokenReference.message}</span><button className="secondary" onClick={() => removeReference(brokenReference.referenceId)}><Unlink size={14} /> Remove broken link</button></div>}
         <div className={`workspace-split workspace-mode-${viewMode}`} ref={split} style={viewMode === "split" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : undefined}>

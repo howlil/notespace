@@ -6,6 +6,7 @@ import { Brand } from "../../app/Sidebar";
 import { ThemeToggle } from "../../app/theme";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { createCategory, createProject, deleteProject, updateCategory } from "../../domain/project/api";
+import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 
 function editedAt(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
@@ -93,6 +94,7 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
             <div><h1>Categories</h1><p>{categories.length} categor{categories.length === 1 ? "y" : "ies"} <span>·</span> {workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</p></div>
             {createTarget?.kind === "category" ? <form className="quick-create" onSubmit={create}><input aria-label="Category title" autoFocus autoComplete="off" placeholder="Category name" maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setCreateTarget(null); }} /><button className="primary" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add"}</button><button type="button" className="icon-button" aria-label="Cancel new category" onClick={() => setCreateTarget(null)}><span aria-hidden="true">×</span></button>{error && <span className="quick-create-error" role="alert">{error}</span>}</form> : <button className="primary" onClick={() => beginCreate({ kind: "category" })}><Plus size={17} /> New category</button>}
           </div>
+          <StudyActivityDashboard />
           {!categories.length ? (
             <section className="empty-state category-empty"><span className="empty-mark"><Layers size={22} /></span><h2>No categories yet</h2><p>Create one to start organizing workspaces.</p></section>
           ) : (

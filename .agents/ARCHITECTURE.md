@@ -15,6 +15,7 @@ Notespace application boundary
         Project service/domain
                 ↓
           SQLite persistence
+        Study activity API → Study service/domain → SQLite persistence
 ```
 
 ## Deployable shape
@@ -71,6 +72,18 @@ Current constraints:
 - persisted snapshots remain versioned so editor formats can evolve deliberately.
 
 Schema/data migrations are architecture-sensitive. Destructive or irreversible migrations require explicit user approval and recovery evidence.
+
+### Study activity domain
+
+`apps/server/internal/study` owns automatic study sessions and derived activity summaries. Study sessions are persisted separately from the versioned Project snapshot because heartbeat writes are cumulative telemetry, not authored content updates.
+
+Rules:
+
+- browser activity contributes cumulative `active_seconds`; persistence uses a monotonic maximum so retries cannot double-count;
+- `activity_date` is the browser's local calendar date, with the client splitting a session at midnight;
+- streaks are derived from daily totals using the 10 active-minute study-day threshold rather than stored counters;
+- study rows intentionally do not cascade with workspace deletion and retain a workspace title snapshot for history;
+- the study domain does not depend on Tiptap or Excalidraw internals.
 
 ### Web application
 

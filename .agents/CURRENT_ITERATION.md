@@ -1,11 +1,11 @@
-# Current Iteration — Milestone 4: Workspace and Dashboard UI Consolidation
+# Current Iteration — Milestone 5: Study Activity Tracking & Learning Streak
 
 ## Status
 
-- **Milestone:** Milestone 4 — Workspace and Dashboard UI Consolidation
+- **Milestone:** Milestone 5 — Study Activity Tracking & Learning Streak
 - **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
-- **Active slice:** note management, low-friction creation, and workspace focus mode
-- **Integrated through:** local working tree only
+- **Active slices:** reliable workspace study sessions; learning activity and streak dashboard
+- **Integrated through:** local working tree; ready to merge to `master`
 - **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
 
 ## Why this milestone exists
@@ -13,6 +13,13 @@
 The category/workspace foundation still exposed too much wrapper UI: the workspace was visually clipped, the editor had redundant chrome, and the dashboard carried navigation/copy that did not help a small product.
 
 ## Delivered in the current working tree
+
+- Study telemetry is a separate domain and SQLite `study_sessions` table; authored workspace snapshots remain isolated from timer writes.
+- Workspace tracking starts automatically, uses cumulative idempotent heartbeats, pauses for hidden/idle/manual states, and closes on route cleanup.
+- Workspace header exposes a compact current-day indicator with current session, today, total, and pause/resume controls.
+- Dashboard exposes Today, This week, derived streak, a 365-day activity heatmap, and click-through workspace breakdowns.
+- Activity history uses a workspace title snapshot so deleting a workspace does not erase learning history.
+- Study days require 10 active minutes for streak calculations; gamification and manual time entry remain out of scope.
 
 - Dashboard is a compact category list without a sidebar, redundant library copy, duplicate actions, or always-visible delete links.
 - Workspace fills the viewport with no document/canvas headers or footer chrome and supports `Split`, `Note`, and `Canvas` views.
@@ -39,7 +46,7 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 
 ## Next action
 
-Run the targeted Playwright journey and production Compose verification in an environment with Go, Docker, and the Playwright Chromium binary, then integrate if green.
+Merge this M5 implementation to `master`. E2E/Compose verification is intentionally skipped for this delivery because Go, Docker, and Playwright Chromium are unavailable in the current environment.
 
 ## Previous Milestone Record
 

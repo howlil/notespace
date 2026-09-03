@@ -217,3 +217,29 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 		t.Fatal("storage internals leaked")
 	}
 }
+
+func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
+	if err != nil { t.Fatal(err) }
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Backend Fundamentals"}))
+	body := map[string]any{"activityDate": "2026-09-03", "activeSeconds": 120, "finish": false}
+	path := "/api/workspaces/" + p.ID + "/study-sessions/session-1"
+	expect(t, call(t, api, "PUT", path, body), 200)
+	body["activeSeconds"] = 60
+	expect(t, call(t, api, "PUT", path, body), 200)
+	body["activeSeconds"] = 600
+	expect(t, call(t, api, "PUT", path, body), 200)
+	activity := call(t, api, "GET", "/api/study/activity?from=2026-09-03&to=2026-09-03", nil)
+	expect(t, activity, 200)
+	var summary struct { TodaySeconds int64 `json:"todaySeconds"`; Days []struct { ActiveSeconds int64 `json:"activeSeconds"` } `json:"days"` }
+	if err := json.Unmarshal(activity.Body.Bytes(), &summary); err != nil { t.Fatal(err) }
+	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 { t.Fatalf("unexpected activity: %+v", summary) }
+	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 204)
+	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
+	expect(t, detail, 200)
+	var day struct { Workspaces []struct { Title string `json:"title"`; Deleted bool `json:"deleted"`; ActiveSeconds int64 `json:"activeSeconds"` } `json:"workspaces"` }
+	if err := json.Unmarshal(detail.Body.Bytes(), &day); err != nil { t.Fatal(err) }
+	if len(day.Workspaces) != 1 || day.Workspaces[0].Title != "Backend Fundamentals" || !day.Workspaces[0].Deleted || day.Workspaces[0].ActiveSeconds != 600 { t.Fatalf("history lost: %+v", day.Workspaces) }
+}

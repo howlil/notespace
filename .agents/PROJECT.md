@@ -15,6 +15,7 @@ Notespace
         ├── metadata
         ├── document surface
         ├── canvas surface
+        ├── study activity sessions
         └── workspace state
 ```
 
@@ -25,7 +26,7 @@ Notespace
 - Document and canvas are sibling surfaces of one workspace, not independently managed top-level resources.
 - Internally normalized/editor-native state must not leak into the product model as separate `Note` and `Canvas` products.
 - Notespace is free and self-hosted. Do not introduce SaaS plans, billing, quotas, upgrade prompts, team administration, or cloud-first assumptions without an explicit product decision.
-- The interface should remain a quiet, content-forward tool rather than an analytics/admin dashboard or generic AI productivity product.
+- Study activity may summarize time, streak, and history, but the interface should remain a quiet, content-forward tool rather than an analytics/admin dashboard or generic AI productivity product.
 
 ## Current implemented baseline
 
@@ -50,8 +51,11 @@ Implemented product behavior includes:
 - visible save failure/retry behavior and unload protection for unsaved changes;
 - light/dark theme foundation;
 - self-hosted Docker packaging with Go + SQLite persistence.
+- automatic study sessions with idle/visibility handling, cumulative heartbeat persistence, daily activity, streak derivation, and history that survives workspace deletion.
 
 Favorites, trash/restore, templates, AI, collaboration, authentication/teams, export/import, structured diagrams, and semantic cross-surface relationships are not part of that completed baseline unless a current milestone explicitly brings one into scope.
+
+Study activity explicitly excludes Pomodoro controls, manual time entry, goals, notifications, XP/badges, leaderboards, productivity scores, streak freezes, calendar integration, social comparison, and AI study analysis.
 
 ## Product behavior
 

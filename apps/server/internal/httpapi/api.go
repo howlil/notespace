@@ -9,17 +9,22 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/study"
 )
 
 type API struct {
 	service project.Service
+	study   study.Service
 	health  func(context.Context) error
 }
 
 func New(store project.Store, health func(context.Context) error) http.Handler {
-	a := API{service: project.Service{Store: store}, health: health}
+	studyStore, ok := store.(study.Store)
+	if !ok { panic("httpapi: store does not implement study.Store") }
+	a := API{service: project.Service{Store: store}, study: study.Service{Store: studyStore}, health: health}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -36,6 +41,10 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
+	mux.HandleFunc("PUT /api/workspaces/{id}/study-sessions/{sessionId}", a.studyHeartbeat)
+	mux.HandleFunc("GET /api/workspaces/{id}/study", a.workspaceStudy)
+	mux.HandleFunc("GET /api/study/activity", a.activity)
+	mux.HandleFunc("GET /api/study/activity/{date}", a.dayDetail)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { send(w, 404, map[string]string{"error": "Not found"}) })
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -99,6 +108,10 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 400, map[string]string{"error": "Invalid title, content, version, or split ratio"})
 	case errors.Is(err, project.ErrConflict):
 		send(w, 409, map[string]string{"error": "This project changed in another tab. Your edits remain here; reload only after preserving them."})
+	case errors.Is(err, study.ErrNotFound):
+		send(w, 404, map[string]string{"error": "Study session not found"})
+	case errors.Is(err, study.ErrInvalid):
+		send(w, 400, map[string]string{"error": "Invalid study activity"})
 	default:
 		slog.Error("project operation failed", "error", err)
 		send(w, 500, map[string]string{"error": "Unable to access project storage. Please retry."})
@@ -189,4 +202,35 @@ func (a API) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, 204, nil)
+}
+
+func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var body study.Heartbeat
+	if !decode(w, r, &body) { return }
+	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
+	if err != nil { fail(w, err); return }
+	session, err := a.study.Record(r.Context(), p.ID, p.Title, r.PathValue("sessionId"), body)
+	if err != nil { fail(w, err); return }
+	send(w, 200, session)
+}
+
+func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if date == "" { date = time.Now().Format(study.DateLayout) }
+	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil { fail(w, err); return }
+	stats, err := a.study.GetWorkspaceStats(r.Context(), r.PathValue("id"), date)
+	if err != nil { fail(w, err); return }
+	send(w, 200, stats)
+}
+
+func (a API) activity(w http.ResponseWriter, r *http.Request) {
+	data, err := a.study.GetActivity(r.Context(), r.URL.Query().Get("from"), r.URL.Query().Get("to"))
+	if err != nil { fail(w, err); return }
+	send(w, 200, data)
+}
+
+func (a API) dayDetail(w http.ResponseWriter, r *http.Request) {
+	data, err := a.study.GetDayDetail(r.Context(), r.PathValue("date"))
+	if err != nil { fail(w, err); return }
+	send(w, 200, data)
 }

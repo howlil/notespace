@@ -40,6 +40,8 @@ import type {
 import { saveProject } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
+import { StudyIndicator } from "../study/StudyIndicator";
+import { useStudySession } from "../study/use-study-session";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -141,6 +143,7 @@ export function Workspace({
   const dragging = useRef(false);
 
   const activeNote = current.current.notes.find((note) => note.id === activeNoteId) ?? current.current.notes[0];
+  const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => saver.subscribe(setStatus), [saver]);
   useEffect(() => {
@@ -351,6 +354,7 @@ export function Workspace({
             <button className="icon-button" aria-label="Link selections" title="Link selected document block and canvas object" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}><Link2 size={16} /></button>
             {blockReference && <button className="icon-button" aria-label="Go to linked canvas object" title="Go to linked canvas object" onClick={() => navigateToCanvas(blockReference)}><Layers size={16} /></button>}
             {elementReference && <button className="icon-button" aria-label="Go to linked document block" title="Go to linked document block" onClick={() => navigateToDocument(elementReference)}><FileText size={16} /></button>}
+            <StudyIndicator study={study} />
             <span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span>
             <button className="icon-button focus-mode-toggle" aria-label="Enter focus mode" title="Focus mode · hide header" onClick={() => setFocusMode(true)}><Maximize2 size={16} /></button>
             <ThemeToggle />

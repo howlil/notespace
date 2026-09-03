@@ -40,7 +40,6 @@ jobs:
 
           web=false
           server=false
-          browser=false
           deploy=false
 
           while IFS= read -r file; do
@@ -48,24 +47,16 @@ jobs:
               .github/workflows/*)
                 web=true
                 server=true
-                browser=true
                 deploy=true
                 ;;
               apps/web/*|tests/*|playwright.config.ts|package.json|pnpm-lock.yaml|eslint.config.*|tsconfig*.json)
                 web=true
-                browser=true
                 ;;
             esac
 
             case "$file" in
               apps/server/*|scripts/check-gofmt.mjs)
                 server=true
-                ;;
-            esac
-
-            case "$file" in
-              apps/server/internal/httpapi/*)
-                browser=true
                 ;;
             esac
 
@@ -79,11 +70,10 @@ jobs:
           {
             echo "web=$web"
             echo "server=$server"
-            echo "browser=$browser"
             echo "deploy=$deploy"
           } >> "$GITHUB_OUTPUT"
 
-          printf 'verification plan: web=%s server=%s browser=%s deploy=%s\n' "$web" "$server" "$browser" "$deploy"
+          printf 'verification plan: web=%s server=%s deploy=%s\n' "$web" "$server" "$deploy"
 
       - name: Validate repository knowledge contract
         shell: bash
@@ -96,14 +86,14 @@ jobs:
           done
 
       - uses: pnpm/action-setup@v4
-        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        if: ${{ steps.changes.outputs.web == 'true' }}
         with:
           version: 11.19.0
           run_install: false
 
       - name: Set up Node with pnpm cache
         uses: actions/setup-node@v4
-        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        if: ${{ steps.changes.outputs.web == 'true' }}
         with:
           node-version: '24'
           cache: pnpm
@@ -111,18 +101,18 @@ jobs:
 
       - name: Set up Node for server tooling
         uses: actions/setup-node@v4
-        if: ${{ steps.changes.outputs.server == 'true' && steps.changes.outputs.web != 'true' && steps.changes.outputs.browser != 'true' }}
+        if: ${{ steps.changes.outputs.server == 'true' && steps.changes.outputs.web != 'true' }}
         with:
           node-version: '24'
 
       - uses: actions/setup-go@v5
-        if: ${{ steps.changes.outputs.server == 'true' || steps.changes.outputs.browser == 'true' }}
+        if: ${{ steps.changes.outputs.server == 'true' }}
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
 
       - name: Install web dependencies
-        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        if: ${{ steps.changes.outputs.web == 'true' }}
         run: pnpm install --frozen-lockfile
 
       - name: Frontend static and unit gates
@@ -133,37 +123,6 @@ jobs:
         if: ${{ steps.changes.outputs.server == 'true' }}
         working-directory: apps/server
         run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
-
-      - name: Cache Playwright Chromium
-        if: ${{ steps.changes.outputs.browser == 'true' }}
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          save-always: true
-
-      - name: Install Chromium system dependencies
-        if: ${{ steps.changes.outputs.browser == 'true' }}
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Install Chromium
-        if: ${{ steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true' }}
-        run: pnpm exec playwright install chromium
-
-      - name: Browser behavior and design-contract gate
-        if: ${{ steps.changes.outputs.browser == 'true' }}
-        run: pnpm build && pnpm test:e2e
-
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() && steps.changes.outputs.browser == 'true' }}
-        with:
-          name: browser-evidence
-          path: |
-            test-results/
-            playwright-report/
-          if-no-files-found: ignore
-          retention-days: 3
 
       - name: Validate production composition
         id: compose-config

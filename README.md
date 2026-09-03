@@ -44,7 +44,6 @@ Useful commands:
 task --list
 task check
 task build
-task e2e
 task verify
 task up
 task down
@@ -73,20 +72,21 @@ Each save carries a project version. Concurrent stale tabs receive `409`, retain
 
 ## Verification
 
-Install the Playwright browser once, then run the full local verification suite:
+Run the local automated verification suite:
 
 ```sh
-pnpm exec playwright install chromium
 task verify
 ```
 
-`task verify` builds the production web assets and Go binary, runs TypeScript/lint/unit checks, Go vet and race tests, then executes the browser suite against an isolated Go instance with a fresh temporary SQLite database.
+`task verify` builds the production web assets and Go binary, then runs TypeScript/lint/unit checks plus Go vet/race checks. CI selects the relevant deterministic web, Go, and production-composition gates based on changed boundaries.
 
-CI intentionally runs the underlying pnpm, Go, Playwright and Docker commands directly so the release gate does not depend on an additional task-runner installation. CI also runs Docker Compose and:
+Persistence/runtime changes additionally use Docker Compose and restart-durability smoke:
 
 ```sh
 python3 scripts/smoke-persistence.py --compose-restart
 ```
+
+Manual acceptance testing, live-browser/black-box testing, Playwright browser qualification, and manual screenshot review are not required merge or release gates. Environment-specific residual risk that cannot be automated should be documented rather than converted into a human acceptance step.
 
 ## Implementation boundaries
 

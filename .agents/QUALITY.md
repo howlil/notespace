@@ -2,203 +2,156 @@
 
 ## Principle
 
-Use the smallest evidence set that proves the requested behavior and protects the changed boundary. Do not treat compilation, a plausible implementation, or an open PR as completion.
+Use the smallest evidence set that proves the requested behavior and protects the changed boundary. Verification exists to reduce product/reliability risk, not to maximize test count or gate count.
 
-Prefer evidence in this order:
+Evidence priority:
 
 1. observable user behavior;
 2. boundary/invariant behavior;
 3. internal correctness/static checks.
 
-## Canonical task entrypoint
+Do not claim a gate passed unless it ran on the relevant head.
 
-`Taskfile.yml` is the preferred repository-level command surface for humans and agents.
+## Local command surface
 
-Primary commands:
+`Taskfile.yml` is the normal human/agent entrypoint:
 
 ```sh
-task dev                                      # web + Go development servers
-task check                                    # frontend + backend static/unit gates
-task check:web                                # frontend typecheck/lint/unit
-task check:server                             # gofmt/vet/race-test gate
-task test:web TEST=path/to/test.ts            # one focused web unit test file
-task test:server PACKAGE=./internal/httpapi    # one focused Go package
-task build                                    # production web + Go binary
-task e2e                                      # built web + full browser suite
-task e2e:target SPEC=tests/example.spec.ts    # one focused browser spec
-task verify                                   # build + check + full browser E2E
-task up                                       # build/start Docker Compose stack
-task down                                     # stop stack without deleting persisted data
-task logs                                     # follow compose logs
+task dev
+task check
+task check:web
+task check:server
+task test:web TEST=path/to/test.ts
+task test:server PACKAGE=./internal/httpapi
+task build
+task e2e
+task e2e:target SPEC=tests/example.spec.ts
+task verify
+task up
+task down
+task logs
 ```
 
-Underlying commands may be used for targeted diagnosis when the Taskfile surface cannot express the needed filter. Do not duplicate a second orchestration layer unless the repository requires it.
+Use underlying pnpm/Go/Playwright/Docker commands when a narrower diagnosis is required. Do not add another orchestration system without measured need.
 
-## Verification loop
+## Verification ladder
 
-Use two loops instead of jumping directly to the most expensive gate:
+Use this escalation model:
 
 ```text
-changed boundary
-  → smallest relevant targeted test/check
-  → fix until that boundary is green
-  → task verify
-  → CI/runtime gate when required
+changed behavior/boundary
+  → focused test/check
+  → owning package/surface gate
+  → browser/integration gate when user-visible boundaries cross
+  → production composition/restart gate when runtime or durability changes
 ```
 
-Examples:
+Do not jump to the most expensive layer first. Do not skip a layer that is the only one capable of proving the changed behavior.
 
-- pure web behavior: `task test:web TEST=...` and/or `task check:web`;
-- one Go package/boundary: `task test:server PACKAGE=...` and then `task check:server`;
-- one browser journey: `task e2e:target SPEC=...`;
-- cross-stack/release candidate: `task verify` after the focused loop is green.
+## CI model
 
-Targeted verification is a feedback-loop optimization, not a substitute for the required final gate. Do not invent unrelated tests merely to satisfy this sequence; use the narrowest existing or newly-required regression test that protects the changed behavior.
+GitHub Actions exposes one stable required check: `Verify`.
 
-## Baseline gates
+The job classifies changed files and conditionally runs these gates:
 
-For a meaningful cross-stack/release candidate change, the current repository supports:
+| Changed boundary | Required CI evidence |
+| --- | --- |
+| docs / `.agents` / non-runtime metadata | repository knowledge contract only |
+| web code, UI, tests, JS/TS dependency/config | TypeScript + lint + web unit + production web build + Playwright |
+| Go server code | gofmt + vet + race tests + Go build |
+| HTTP API boundary | Go gates + Playwright against the real Go server |
+| persistence/migrations/Compose/runtime smoke | relevant Go gates + production Compose + restart-persistence smoke |
+| workflow definition itself | full web + Go + browser + production-composition gate |
 
-```sh
-pnpm install --frozen-lockfile
-task verify
-docker compose up --build -d --wait
-python3 scripts/smoke-persistence.py --compose-restart
-```
+Outdated PR runs are cancelled through workflow concurrency so CI capacity follows the newest head.
 
-CI source: `.github/workflows/verify.yml`.
+This matrix is a default risk classifier, not permission to ignore a material risk that path classification cannot see. If a logical change crosses boundaries unexpectedly, run the broader gate explicitly.
 
-The Go formatting check is shared through `scripts/check-gofmt.mjs` so local `task check:server` and CI fail on the same `gofmt -l .` condition.
+## Web and design verification
 
-Do not claim a gate passed unless it was actually executed for the relevant code/head. If a required gate cannot run, record the reason and residual risk in `CURRENT_ITERATION.md`.
+For user-facing changes, verify stable behavior rather than implementation trivia or exact pixels.
 
-## Failure diagnosis
+Applicable contracts include:
 
-Diagnose from evidence before changing implementation.
+- Home remains resume/search-first and progressively discloses category contents;
+- the Home sidebar remains collapsible and does not become duplicate application chrome;
+- global search remains keyboard reachable (`Cmd/Ctrl+K`);
+- category detail supports scalable browsing rather than expanding Home into a file explorer;
+- workspace does not retain the library sidebar;
+- focus mode is reversible;
+- Note/Canvas/Split remain views of one workspace;
+- inline create/rename/actions remain keyboard reachable where applicable;
+- light/dark and narrow layouts remain coherent when affected;
+- destructive/error states remain understandable.
 
-For Playwright/browser failures:
+`DESIGN.md` is the canonical design quality contract. Automated design checks should protect hierarchy, interaction, accessibility, and state transitions. Do not add brittle screenshot-diff gates for subjective polish. Playwright screenshots/traces are diagnostic/review evidence.
 
-1. inspect the failing assertion plus trace/report/screenshot or other captured browser state;
-2. identify whether the product behavior, test setup, or test interaction invalidated the expected state;
-3. make the smallest correction at the owning boundary;
+### Playwright failure rule
+
+When browser CI fails:
+
+1. inspect the failing assertion and trace/report/screenshot;
+2. determine whether product behavior, test setup, or an invalid interaction caused the state;
+3. fix the owning boundary;
 4. rerun the focused spec before the full suite.
 
-Do not change product behavior merely to make a brittle or state-invalidating test pass. Conversely, do not weaken a valid user-behavior assertion to hide a real product defect. CI browser artifacts are diagnostic evidence and should be inspected before speculative implementation changes when the failure is not immediately deterministic.
+Do not weaken a valid product assertion merely to green CI. Do not change product behavior to satisfy a brittle test.
 
-## Risk-proportional verification
+## Backend verification
 
-### Low risk
+For Go changes, start with the affected package where possible, then run the repository server gate before integration:
 
-Examples: copy, isolated styling, documentation, non-behavioral local refactor.
-
-Use targeted static/test/build evidence appropriate to the changed surface.
-
-### Medium risk
-
-Examples: dashboard/workspace interaction, editor integration, autosave behavior, persistence mapping, Project API behavior.
-
-Normally require:
-
-- targeted automated tests;
-- relevant static checks;
-- production build when runtime composition may change;
-- browser/integration verification for observable behavior.
-
-### High risk
-
-Examples: schema/data migration, destructive operations, backup/restore, security boundary, editor replacement, persistence technology change, public/data contract change.
-
-Require explicit acceptance criteria plus failure-path/recovery evidence. Material architecture, security, contract, or destructive changes also require user approval before implementation.
-
-## Core regression journey
-
-Protect this user journey when affected:
-
-```text
-Dashboard
-  → create/open Project
-  → edit document
-  → edit canvas
-  → save
-  → navigate/reload
-  → reopen Project
-  → authored state remains correct
+```sh
+task test:server PACKAGE=./internal/httpapi
+task check:server
 ```
 
-For cross-surface references, extend the applicable journey with stable block identity/reference creation/navigation and restart durability when that boundary is affected.
+The repository gate includes gofmt, `go vet`, `go test -race ./...`, and a production Go build in CI.
 
-## Frontend/editor checks
+Changes to HTTP mapping used by the web app also require browser verification because static/package tests cannot prove the integrated user journey.
 
-For changes touching the web workspace, verify applicable behavior:
+## Persistence and migration verification
 
-- correct Project identity after navigation/switching;
-- Tiptap content serialization and reload;
-- Excalidraw scene load/edit/save/reload;
-- split/layout interactions do not corrupt editor state;
-- keyboard/pointer behavior remains usable;
-- save failure/retry/conflict states remain observable;
-- narrow layout and light/dark mode remain coherent when affected;
-- user-facing controls remain keyboard reachable and labelled where needed.
-
-Editor dependency upgrades require interaction regression testing, not only TypeScript compatibility.
-
-## Persistence checks
-
-A persistence change must prove the relevant form of:
+A durability claim must prove the relevant form of:
 
 ```text
-write → durable store → reload/restart → equivalent user-visible state
+write → durable store → reload/restart → equivalent acknowledged user-visible state
 ```
 
-Test conflict/failure/malformed data paths when affected. Do not report autosave correctness from in-memory behavior alone.
+Persistence/migration changes require focused database tests plus production-composition restart smoke. Test failure/conflict/malformed or legacy data paths when the change affects them.
 
-For migrations, test existing representative data plus empty/fresh state. Destructive or irreversible migration is a stop condition pending explicit approval.
+Destructive or irreversible migration is a stop condition pending explicit user approval and recovery evidence.
 
-## Security checks
+## Deployment/runtime verification
 
-For changes touching untrusted content, storage paths, import/upload/embed behavior, HTML/SVG rendering, authentication, or external URLs, explicitly review applicable risks:
+Run Compose build/health/restart smoke only when deployment/runtime/persistence composition changes or when explicitly preparing a release candidate that needs production-composition evidence.
 
-- schema/input validation;
-- XSS/output sanitization;
-- unsafe URL/file handling;
-- path traversal;
-- size/resource abuse;
-- authorization/ownership when auth exists;
-- secret exposure;
-- dependency advisories.
+Verify:
 
-## Docker/self-host checks
+- Compose configuration resolves;
+- image/container starts and becomes healthy;
+- acknowledged authored state survives restart;
+- verification does not delete persisted user data;
+- `docker compose down -v` is never used as a normal verification step.
 
-When deployment/runtime/persistence composition changes, verify:
+Do not run Docker merely because a CSS, copy, isolated component, or documentation file changed.
 
-- image builds;
-- container becomes healthy;
-- app runs as intended under Compose;
-- acknowledged Project state survives process/container restart;
-- verification does not delete/reset user data.
+## Dependency changes
 
-## Dependency gate
+Add/upgrade dependencies only for a concrete requirement. Evaluate necessity, maintenance/security/license state, bundle/runtime impact, transitive infrastructure, and replacement difficulty.
 
-Add or upgrade a dependency only when it solves a concrete requirement. For material dependencies, evaluate:
-
-- necessity and scope;
-- maintenance/security/license state;
-- bundle/runtime/self-host impact;
-- transitive infrastructure requirements;
-- replacement difficulty.
-
-Prefer existing repository capabilities over introducing a new library for trivial code.
+A dependency change that can alter browser/runtime behavior must execute the relevant browser or server gate even when the source diff itself is small.
 
 ## Release-ready evidence
 
-Before marking a slice or milestone release-ready, record in `CURRENT_ITERATION.md`:
+Before marking a slice or engineering change complete, record in `CURRENT_ITERATION.md`:
 
-- what observable behavior changed;
-- tests/checks actually run and their result;
-- CI/Docker evidence when required;
-- known limitation or skipped gate;
-- the single next action, or `STOP` when the milestone gate is complete.
+- observable behavior/capability changed;
+- focused checks actually run;
+- broader CI/browser/Docker evidence when required;
+- skipped gate and residual risk, if any;
+- single next action or `STOP`.
 
 ## Stop rule
 
-Stop when the bounded acceptance criteria are satisfied and the relevant gates pass. Do not continue with speculative polish, future abstractions, unrelated refactors, or an automatically invented next milestone.
+Stop when the bounded acceptance criteria are met and relevant risk-proportional gates pass. Do not add verification layers, speculative tests, unrelated refactors, or polish solely to create more evidence.

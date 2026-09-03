@@ -1,43 +1,177 @@
 name: Verify
+
 on:
   pull_request:
   push:
     branches: [master]
+
 permissions:
   contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      CI: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed boundaries
+        id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+
+          base="$BASE_SHA"
+          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          fi
+
+          git diff --name-only "$base" "$GITHUB_SHA" | tee changed-files.txt
+
+          web=false
+          server=false
+          browser=false
+          deploy=false
+
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/*)
+                web=true
+                server=true
+                browser=true
+                deploy=true
+                ;;
+              apps/web/*|tests/*|playwright.config.ts|package.json|pnpm-lock.yaml|eslint.config.*|tsconfig*.json)
+                web=true
+                browser=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/server/*|scripts/check-gofmt.mjs)
+                server=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/server/internal/httpapi/*)
+                browser=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/server/internal/persistence/*|apps/server/migrations/*|compose.yaml|compose.ci.yaml|Dockerfile|scripts/smoke-persistence.py)
+                deploy=true
+                ;;
+            esac
+          done < changed-files.txt
+
+          {
+            echo "web=$web"
+            echo "server=$server"
+            echo "browser=$browser"
+            echo "deploy=$deploy"
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'verification plan: web=%s server=%s browser=%s deploy=%s\n' "$web" "$server" "$browser" "$deploy"
+
+      - name: Validate repository knowledge contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f AGENTS.md
+          test -f DESIGN.md
+          for file in PROJECT.md ARCHITECTURE.md CURRENT_ITERATION.md CODE_PATTERNS.md QUALITY.md DECISIONS.md; do
+            test -f ".agents/$file"
+          done
+
       - uses: actions/setup-node@v4
+        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.server == 'true' || steps.changes.outputs.browser == 'true' }}
         with:
           node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        with:
+          version: 11.19.0
+          run_install: false
+
       - uses: actions/setup-go@v5
+        if: ${{ steps.changes.outputs.server == 'true' || steps.changes.outputs.browser == 'true' }}
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
-      - run: npm install --global pnpm@11.19.0
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm typecheck && pnpm lint && pnpm test
-      - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
+
+      - name: Install web dependencies
+        if: ${{ steps.changes.outputs.web == 'true' || steps.changes.outputs.browser == 'true' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend static and unit gates
+        if: ${{ steps.changes.outputs.web == 'true' }}
+        run: pnpm typecheck && pnpm lint && pnpm test
+
+      - name: Backend static, race, and build gates
+        if: ${{ steps.changes.outputs.server == 'true' }}
         working-directory: apps/server
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+        run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
+
+      - name: Cache Playwright Chromium
+        if: ${{ steps.changes.outputs.browser == 'true' }}
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chromium system dependencies
+        if: ${{ steps.changes.outputs.browser == 'true' }}
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Chromium
+        if: ${{ steps.changes.outputs.browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true' }}
+        run: pnpm exec playwright install chromium
+
+      - name: Browser behavior and design-contract gate
+        if: ${{ steps.changes.outputs.browser == 'true' }}
+        run: pnpm build && pnpm test:e2e
+
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && steps.changes.outputs.browser == 'true' }}
         with:
           name: browser-evidence
           path: |
-            test-results/*.png
+            test-results/
             playwright-report/
-          retention-days: 7
-      - run: docker compose -f compose.yaml config
-      - run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
-      - run: python3 scripts/smoke-persistence.py --compose-restart
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Validate production composition
+        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        run: docker compose -f compose.yaml config
+
+      - name: Start production composition
+        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
+
+      - name: Verify restart persistence
+        if: ${{ steps.changes.outputs.deploy == 'true' }}
+        run: python3 scripts/smoke-persistence.py --compose-restart
         env:
           COMPOSE_FILE: compose.yaml:compose.ci.yaml
-      - run: docker compose -f compose.yaml -f compose.ci.yaml logs && docker compose -f compose.yaml -f compose.ci.yaml down
-        if: always()
+
+      - name: Collect production logs and stop composition
+        if: ${{ always() && steps.changes.outputs.deploy == 'true' }}
+        shell: bash
+        run: |
+          docker compose -f compose.yaml -f compose.ci.yaml logs || true
+          docker compose -f compose.yaml -f compose.ci.yaml down

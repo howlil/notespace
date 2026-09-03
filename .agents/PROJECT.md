@@ -1,166 +1,152 @@
-# Notespace — Project Product Contract
+# Notespace — Product Contract
 
 ## Purpose
 
-Notespace is a free, self-hosted thinking library where linear writing and spatial drawing coexist inside a **workspace**.
+Notespace is a free, self-hosted knowledge workspace where structured notes and spatial thinking coexist without turning the library into a file explorer or analytics dashboard.
 
-The product model is intentionally not “a notes app plus a whiteboard app.” A category groups related workspaces; each workspace owns one document and one canvas as first-class interaction surfaces.
-
-## Core product model
+Primary product model:
 
 ```text
 Notespace
 └── Category
     └── Workspace
         ├── metadata
-        ├── document surface
-        ├── canvas surface
-        ├── study activity sessions
-        └── workspace state
+        ├── Notes[]
+        ├── Canvas
+        ├── cross-surface relationships
+        ├── authored history/checkpoints
+        └── study activity
 ```
 
-### Invariants
+User-facing terminology is **Category → Workspace → Notes / Canvas**. Existing `project` package/API/storage names are compatibility implementation detail and must not leak back into new UI copy.
 
-- `Category` is the library-level grouping and may contain many workspaces.
-- `Workspace` is the primary editable-content identity and lifecycle boundary.
-- Document and canvas are sibling surfaces of one workspace, not independently managed top-level resources.
-- Internally normalized/editor-native state must not leak into the product model as separate `Note` and `Canvas` products.
-- Notespace is free and self-hosted. Do not introduce SaaS plans, billing, quotas, upgrade prompts, team administration, or cloud-first assumptions without an explicit product decision.
-- Study activity may summarize time, streak, and history, but the interface should remain a quiet, content-forward tool rather than an analytics/admin dashboard or generic AI productivity product.
+## Core user journeys
 
-## Current implemented baseline
-
-The current repository implements the first usable self-hosted category/workspace workflow:
+### Resume work
 
 ```text
-Dashboard
-  → create/open Category
-  → create/open Workspace in that category
-  → edit document + canvas
-  → autosave
-  → reload/reopen with durable state
+Home → Recent workspaces → Workspace → Continue editing
 ```
 
-Implemented product behavior includes:
+### Find knowledge
 
-- category creation/listing/update/delete and workspace creation, listing, open, update, rename, and permanent delete;
-- category deletion is intentionally limited to empty categories so authored workspace data cannot be removed accidentally;
-- a Tiptap-based structured document surface;
-- an Excalidraw-based freeform canvas surface;
-- one full-width, resizable workspace with both surfaces visible together;
-- durable project snapshots with optimistic version conflict detection;
-- visible save failure/retry behavior and unload protection for unsaved changes;
-- light/dark theme foundation;
-- self-hosted Docker packaging with Go + SQLite persistence;
-- Compose deployments use a stable named volume controlled by `NOTESPACE_DATA_VOLUME`; redeploys preserve data when that value remains stable and `down -v` is avoided.
-- automatic study sessions with idle/visibility handling, cumulative heartbeat persistence, daily activity, streak derivation, and history that survives workspace deletion.
-- selected document blocks can become source-linked semantic canvas cards, canvas text can be promoted into notes, and references remain product-owned;
-- workspace search returns note/block context and can open the exact note/block; workspace export is a portable ZIP rather than a SQLite dump;
-- source URLs can be captured as canvas links, and the latest 50 authored checkpoints can be previewed/restored per workspace.
+```text
+Home → Global search → Category / Workspace / Note / Block → Exact context
+```
 
-Favorites, trash/restore, templates, AI, collaboration, authentication/teams, export/import, structured diagrams, and semantic cross-surface relationships are not part of that completed baseline unless a current milestone explicitly brings one into scope.
+### Browse large knowledge collections
 
-Study activity explicitly excludes Pomodoro controls, manual time entry, goals, notifications, XP/badges, leaderboards, productivity scores, streak freezes, calendar integration, social comparison, and AI study analysis.
+```text
+Home → Category summary → Expand bounded preview → View all → Category detail → Search/filter/sort → Workspace
+```
 
-## Product behavior
+### Focus work
 
-### Dashboard / library
+```text
+Workspace → Note / Canvas / Split → optional Focus mode → edit/save
+```
 
-The dashboard exists to resume or begin work quickly. Its primary jobs are:
+## Product invariants
 
-1. see categories and the workspaces inside them;
-2. create a category or a workspace within it;
-3. open a workspace;
-4. perform only currently implemented workspace lifecycle actions.
+- A Category is a library-level grouping and may contain many workspaces.
+- A Workspace is the primary authored-content identity and lifecycle boundary.
+- A Workspace may contain multiple durable notes plus one canvas surface.
+- Notes and Canvas are workspace-owned surfaces, not independent top-level library products.
+- Cross-surface relationships are Notespace-owned and use stable product identity rather than visible text, mutable positions, or canvas coordinates.
+- Workspace authored state uses optimistic version conflict detection; stale writes fail rather than silently merging.
+- Study telemetry is separate from authored workspace snapshots.
+- Notespace remains free and self-hosted by default. Do not add SaaS billing, hosted-service dependency, team admin, quota, or upgrade machinery without explicit product approval.
 
-Do not create separate global navigation for Notes and Canvases.
+## Current implemented capability
+
+The repository currently supports:
+
+- Category CRUD with non-empty deletion protection.
+- Recent-first Home with collapsible library sidebar, global search, bounded category previews, and dedicated category detail browsing.
+- Category detail server-side query, stable sorting, has-notes/has-canvas filters, and bounded pagination.
+- Workspace create/open/rename/delete and same-category switching.
+- Multiple durable notes per workspace with inline rename/delete and last-note protection.
+- Tiptap structured writing with slash-command insertion.
+- Excalidraw canvas with reduced chrome.
+- Split / Note / Canvas workspace views and reversible Focus mode.
+- Product-owned note-block ↔ canvas relationships and navigation.
+- Workspace/global search that can open exact note/block context.
+- Portable ZIP export and bounded workspace checkpoint history/restore.
+- Automatic study sessions, daily activity, streak derivation, and history retained after workspace deletion.
+- Go + SQLite persistence and one-container self-hosted deployment.
+- Stable Compose data volume via `NOTESPACE_DATA_VOLUME`; normal operations must not use `docker compose down -v`.
+
+## Surface contracts
+
+### Home
+
+Home exists to resume, search, and progressively browse. It must not become a full file explorer, category manager, and analytics dashboard simultaneously.
+
+Priority:
+
+1. resume/search;
+2. recent workspaces;
+3. category summaries;
+4. bounded expanded previews;
+5. secondary study activity.
+
+The sidebar is library navigation only and may collapse. Avoid duplicate navigation/action surfaces.
+
+### Category detail
+
+Category detail is the scale surface for large workspace collections. Search/filter/sort/pagination belong here rather than expanding all data on Home.
 
 ### Workspace
 
-The workspace is one full-width shell containing the document and canvas surfaces. It deliberately has no library sidebar; desktop uses a resizable split and narrow layouts may stack the same surfaces rather than creating a separate product mode.
+Workspace is full-screen work context and does not retain the library sidebar. Note, Canvas, and Split are workspace views. Workspace chrome may hide in Focus mode but must remain immediately restorable.
 
-Workspace-level navigation, layout state, save state, and future utilities belong to the workspace shell, not to either editor integration.
+### Notes
 
-### Document surface
+Notes are structured linear thinking surfaces owned by the workspace. Persisted Tiptap/editor-native state remains behind Notespace-owned note identity and snapshot contracts.
 
-The document surface is the linear thinking representation of a workspace. The current implementation uses Tiptap snapshots and supports structured technical writing such as paragraphs, headings, lists, code, and formatting exposed by the UI.
+### Canvas
 
-### Canvas surface
+Canvas is the spatial thinking surface owned by the workspace. Excalidraw remains an adapter; renderer internals are not product identity.
 
-The canvas surface is the spatial thinking representation of a workspace. Excalidraw is the current primary freeform editor. It is an implementation dependency behind a Notespace-owned integration boundary, not the Notespace domain model.
+## Current data/API compatibility
 
-### Cross-surface interoperability
+Backend code and routes still use `project` naming in places for compatibility. Treat this as internal debt, not authorization for user-facing Project terminology.
 
-The approved direction for Milestone 2 is to let document blocks and canvas objects refer to the same ideas through **Project-owned stable identity and relationships**.
-
-Required semantic constraint:
-
-- product-owned IDs/relationships are authoritative;
-- editor labels, document positions, canvas coordinates, and renderer-native incidental identity are not relational identity.
-
-The exact active slice and its current completion state live only in `CURRENT_ITERATION.md`.
-
-## Current server contract
-
-The current workspace aggregate exposed by the backend contains:
-
-- `id`, `categoryId`, `title`, timestamps, and optimistic `version`;
-- versioned `document` snapshot with format `tiptap`;
-- versioned `canvas` snapshot with format `excalidraw`;
-- `splitRatio` constrained by the current server to `0.25..0.70`.
-
-A workspace update is a complete authored snapshot guarded by its version. Concurrent stale updates fail as conflicts rather than being merged automatically.
-
-Any material change to this public/data contract, concurrency semantics, or Project ownership model requires explicit user approval.
+Material changes to workspace ownership, optimistic concurrency, persistence format compatibility, public API/data contracts, or cross-surface identity require explicit user approval.
 
 ## Self-hosting contract
 
-The default product remains simple to operate locally/self-hosted:
+- Prefer one deployable application/container.
+- Keep durable data ownership and restart behavior explicit.
+- Core editing must not require a hosted service.
+- Secrets/configuration belong to deployment config, never authored content.
+- Destructive/irreversible data changes require explicit approval and recovery planning.
 
-- one deployable application/container is preferred;
-- persistent user data must have explicit ownership and backup implications;
-- no hosted service is required for core Project editing;
-- secrets/configuration belong to deployment configuration, never Project content;
-- destructive or irreversible data changes require explicit review.
+## Design contract
 
-## Design direction
+Root `DESIGN.md` is authoritative for visual/interaction quality.
 
-Reference exploration: `https://www.figma.com/design/qS29iOvAMP0MDeS8YJpTIY`
+Summary direction:
 
-Durable visual constraints:
+- clean, compact, minimalist, restrained, content-forward;
+- product-specific hierarchy before decoration;
+- restrained steel-blue accent, neutral dominant surfaces, low elevation;
+- no generic AI/SaaS slop, gratuitous glow/gradient/glass/bento/card nesting;
+- reuse existing tokens and behavior primitives before inventing new systems;
+- automated UI verification protects hierarchy/interaction/accessibility rather than exact pixels.
 
-- calm, precise, editor/tool-like, content-forward;
-- light and dark mode capable;
-- Geist typography in the current implementation;
-- restrained accents and low elevation;
-- visual effects only when they communicate hierarchy, focus, selection, or layering;
-- avoid giant gradients, neon glow, gratuitous shine, excessive glass cards, decorative sparkles, oversized empty cards, and other generic “AI slop” patterns;
-- do not add dashboard widgets, marketing surfaces, or decorative complexity without a product need.
+## Non-goals unless explicitly promoted
 
-Repository behavior and explicit user decisions outrank exploratory Figma details.
-
-## Non-goals unless explicitly promoted into scope
-
-- Notion-style database/wiki expansion;
-- an Excalidraw wrapper as the entire product identity;
-- Eraser/structured-diagram engine as the primary canvas;
-- AI generation/assistant features;
-- multiplayer collaboration or CRDT architecture;
-- teams/organizations/public sharing;
 - SaaS billing/hosting machinery;
-- microservices, event sourcing, distributed caches, or speculative infrastructure;
-- plugin/template marketplaces;
-- analytics/productivity scoring.
+- generic Notion-style database/wiki expansion;
+- independent top-level Note or Canvas libraries;
+- multiplayer/CRDT collaboration;
+- teams/organizations/public sharing;
+- AI assistant/generation as default product scope;
+- microservices/event sourcing/distributed caches;
+- plugin/template marketplace;
+- productivity scores, XP, badges, leaderboards, or gamification-heavy study analytics.
 
-## Open/deferred decisions
+## Scope rule
 
-These are not implementation authorization by themselves:
-
-- authentication/authorization model;
-- import/export and backup UX beyond existing persistence guarantees;
-- structured semantic diagram support;
-- favorites, trash/restore, and templates;
-- future cross-surface relationship expansion beyond the bounded active milestone;
-- any hosted/cloud distribution model.
-
-Promote an item only through explicit user intent or a bounded milestone recorded in `CURRENT_ITERATION.md`.
+A future idea is not authorization. Promote new capability only through explicit user intent or an active milestone in `CURRENT_ITERATION.md`. Prefer core user pain and integrated workflow value over nice-to-have feature count.

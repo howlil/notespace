@@ -128,7 +128,9 @@ type Store interface {
 	CategoryExists(context.Context, string) (bool, error)
 	Create(context.Context, Project) error
 	List(context.Context) ([]Summary, error)
+	ListRecent(context.Context, int) ([]Summary, error)
 	ListCategoryWorkspaces(context.Context, string, string, string, string, string, int, int) (WorkspacePage, error)
+	Move(context.Context, string, string) (Project, error)
 	Get(context.Context, string) (Project, error)
 	Update(context.Context, string, Update) (Project, error)
 	Delete(context.Context, string) error
@@ -188,6 +190,20 @@ func (s Service) Rename(ctx context.Context, id, title string) (Project, error) 
 		SplitRatio: current.SplitRatio,
 		Version:    current.Version,
 	})
+}
+
+func (s Service) Move(ctx context.Context, id, categoryID string) (Project, error) {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(categoryID) == "" {
+		return Project{}, ErrInvalid
+	}
+	exists, err := s.Store.CategoryExists(ctx, categoryID)
+	if err != nil {
+		return Project{}, err
+	}
+	if !exists {
+		return Project{}, ErrNotFound
+	}
+	return s.Store.Move(ctx, id, categoryID)
 }
 
 func (s Service) Create(

@@ -34,6 +34,13 @@ const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 export const listProjects = () => request<ProjectSummary[]>("/api/projects");
+export const listRecentWorkspaces = (limit = 12) => request<ProjectSummary[]>(`/api/projects?limit=${limit}`);
+export const listAllWorkspaces = (params: { offset?: number; limit?: number } = {}) => {
+  const search = new URLSearchParams();
+  if (params.offset) search.set("offset", String(params.offset));
+  if (params.limit) search.set("limit", String(params.limit));
+  return request<WorkspacePage>(`/api/workspaces?${search}`);
+};
 export const listCategories = () =>
   request<CategorySummary[]>("/api/categories");
 export const getCategory = async (id: string) => {
@@ -81,6 +88,11 @@ export const renameProject = (id: string, title: string) =>
 export const deleteProject = (id: string) =>
   request<void>(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",
+  });
+export const moveProject = (id: string, categoryId: string) =>
+  request<Project>(`/api/projects/${encodeURIComponent(id)}/category`, {
+    method: "PATCH",
+    ...json({ categoryId }),
   });
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);

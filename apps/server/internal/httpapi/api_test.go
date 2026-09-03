@@ -161,6 +161,51 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	}
 }
 
+func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
+	ctx := context.Background()
+	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+
+	var firstCategory, secondCategory project.CategorySummary
+	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Learning"}).Body.Bytes(), &firstCategory); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Career"}).Body.Bytes(), &secondCategory); err != nil {
+		t.Fatal(err)
+	}
+	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems", "categoryId": firstCategory.ID}))
+
+	moved := call(t, api, "PATCH", "/api/projects/"+workspace.ID+"/category", map[string]string{"categoryId": secondCategory.ID})
+	expect(t, moved, 200)
+	if got := decodeProject(t, moved).CategoryID; got != secondCategory.ID {
+		t.Fatalf("moved workspace category = %q, want %q", got, secondCategory.ID)
+	}
+
+	all := call(t, api, "GET", "/api/workspaces?limit=1", nil)
+	expect(t, all, 200)
+	var page struct {
+		Items      []project.Summary `json:"items"`
+		Total      int               `json:"total"`
+		NextOffset *int              `json:"nextOffset"`
+	}
+	if err := json.Unmarshal(all.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != workspace.ID || page.NextOffset != nil {
+		t.Fatalf("bounded library page = %+v", page)
+	}
+
+	oldCategory := call(t, api, "GET", "/api/categories/"+firstCategory.ID+"/workspaces?limit=5", nil)
+	expect(t, oldCategory, 200)
+	if strings.Contains(oldCategory.Body.String(), workspace.ID) {
+		t.Fatalf("moved workspace still appears in source category: %s", oldCategory.Body.String())
+	}
+}
+
 func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	ctx := context.Background()
 	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))

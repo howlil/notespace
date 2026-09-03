@@ -40,6 +40,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 		send(w, 200, map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("GET /api/projects", a.list)
+	mux.HandleFunc("GET /api/workspaces", a.listWorkspaces)
 	mux.HandleFunc("POST /api/projects", a.create)
 	mux.HandleFunc("GET /api/categories", a.listCategories)
 	mux.HandleFunc("GET /api/categories/{id}/workspaces", a.listCategoryWorkspaces)
@@ -49,6 +50,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
+	mux.HandleFunc("PATCH /api/projects/{id}/category", a.move)
 	mux.HandleFunc("GET /api/projects/{id}/export", a.export)
 	mux.HandleFunc("GET /api/projects/{id}/history", a.history)
 	mux.HandleFunc("GET /api/projects/{id}/history/{historyId}", a.historySnapshot)
@@ -135,12 +137,38 @@ func fail(w http.ResponseWriter, err error) {
 }
 
 func (a API) list(w http.ResponseWriter, r *http.Request) {
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if r.URL.Query().Get("limit") != "" {
+		data, listErr := a.service.Store.ListRecent(r.Context(), limit)
+		if listErr != nil {
+			fail(w, listErr)
+			return
+		}
+		send(w, 200, data)
+		return
+	}
 	data, err := a.service.Store.List(r.Context())
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, data)
+}
+
+func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
+	parseInt := func(key string, fallback int) int {
+		value, err := strconv.Atoi(r.URL.Query().Get(key))
+		if err != nil {
+			return fallback
+		}
+		return value
+	}
+	page, err := a.service.Store.ListCategoryWorkspaces(r.Context(), "", r.URL.Query().Get("q"), r.URL.Query().Get("sort"), r.URL.Query().Get("hasCanvas"), r.URL.Query().Get("hasNotes"), parseInt("offset", 0), parseInt("limit", 50))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, page)
 }
 func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
 	data, err := a.service.Store.ListCategories(r.Context())
@@ -259,6 +287,21 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := a.service.Rename(r.Context(), r.PathValue("id"), body.Title)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, p)
+}
+
+func (a API) move(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CategoryID string `json:"categoryId"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	p, err := a.service.Move(r.Context(), r.PathValue("id"), body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return

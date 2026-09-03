@@ -1,46 +1,12 @@
-import {
-  Component,
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
-import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  Circle,
-  FileText,
-  Download,
-  Globe,
-  History as HistoryIcon,
-  Layers,
-  Link2,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  Pencil,
-  Plus,
-  RotateCw,
-  Trash2,
-  Unlink,
-} from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Circle, Download, FileText, History as HistoryIcon, Layers, Link2, Loader2, MoreHorizontal, Pencil, Plus, RotateCw, Unlink } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ThemeToggle, useTheme } from "../../app/theme";
+import { useTheme } from "../../app/theme";
 import { contentOf } from "../../domain/project/project";
-import type {
-  Note,
-  Project,
-  ProjectContent,
-  ProjectReference,
-  ProjectSummary,
-  Snapshot,
-} from "../../domain/project/project";
+import type { Note, Project, ProjectContent, ProjectReference, Snapshot } from "../../domain/project/project";
 import { exportWorkspace, getHistorySnapshot, listHistory, restoreHistory, saveProject } from "../../domain/project/api";
 import type { HistoryEntry, HistorySnapshot } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
@@ -50,579 +16,85 @@ import { useStudySession } from "../study/use-study-session";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
-
 type FocusRequest = { id: string; request: number } | null;
 type BrokenReference = { referenceId: string; message: string } | null;
-type ViewMode = "split" | "note" | "canvas";
+type Pane = { id: string; kind: "note" | "canvas"; noteId?: string };
+type PaneNode = { kind: "leaf"; pane: Pane } | { kind: "split"; id: string; direction: "row" | "column"; ratio: number; first: PaneNode; second: PaneNode };
 
-function documentHasBlock(snapshot: Snapshot, blockId: string) {
-  const visit = (value: unknown): boolean => {
-    if (Array.isArray(value)) return value.some(visit);
-    if (!value || typeof value !== "object") return false;
-    const record = value as Record<string, unknown>;
-    const attrs = record.attrs;
-    if (attrs && typeof attrs === "object" && (attrs as Record<string, unknown>).blockId === blockId) return true;
-    return Object.values(record).some(visit);
-  };
-  return visit(snapshot.data);
-}
+function newId() { return crypto.randomUUID(); }
+function blankDocument(): Snapshot { return { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph" }] } }; }
+function documentHasBlock(snapshot: Snapshot, blockId: string) { const visit = (value: unknown): boolean => { if (Array.isArray(value)) return value.some(visit); if (!value || typeof value !== "object") return false; const record = value as Record<string, unknown>; const attrs = record.attrs; if (attrs && typeof attrs === "object" && (attrs as Record<string, unknown>).blockId === blockId) return true; return Object.values(record).some(visit); }; return visit(snapshot.data); }
+function documentBlockText(snapshot: Snapshot, blockId: string) { let result = ""; const visit = (value: unknown) => { if (Array.isArray(value)) { value.forEach(visit); return; } if (!value || typeof value !== "object") return; const record = value as Record<string, unknown>; const attrs = record.attrs; if (attrs && typeof attrs === "object" && (attrs as Record<string, unknown>).blockId === blockId) { const collect = (child: unknown) => { if (Array.isArray(child)) { child.forEach(collect); return; } if (!child || typeof child !== "object") return; const item = child as Record<string, unknown>; if (typeof item.text === "string") result += `${item.text} `; collect(item.content); }; collect(record); return; } Object.values(record).forEach(visit); }; visit(snapshot.data); return result.trim(); }
+function documentText(snapshot: Snapshot) { let result = ""; const visit = (value: unknown) => { if (Array.isArray(value)) { value.forEach(visit); return; } if (!value || typeof value !== "object") return; const record = value as Record<string, unknown>; if (typeof record.text === "string") result += `${record.text} `; if (record.content) visit(record.content); }; visit(snapshot.data); return result.trim(); }
+function canvasObjectCount(snapshot: Snapshot) { return Array.isArray(snapshot.data.elements) ? snapshot.data.elements.filter((value) => value && typeof value === "object" && (value as Record<string, unknown>).isDeleted !== true).length : 0; }
+function canvasElementText(snapshot: Snapshot, elementId: string) { const elements = snapshot.data.elements; if (!Array.isArray(elements)) return ""; const found = elements.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId) as Record<string, unknown> | undefined; if (typeof found?.text === "string") return found.text; const label = elements.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).containerId === elementId && typeof (value as Record<string, unknown>).text === "string") as Record<string, unknown> | undefined; return typeof label?.text === "string" ? label.text : ""; }
+function canvasHasElement(snapshot: Snapshot, elementId: string) { return Array.isArray(snapshot.data.elements) && snapshot.data.elements.some((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId && (value as Record<string, unknown>).isDeleted !== true); }
+function leafCount(node: PaneNode): number { return node.kind === "leaf" ? 1 : leafCount(node.first) + leafCount(node.second); }
+function leaves(node: PaneNode): Pane[] { return node.kind === "leaf" ? [node.pane] : [...leaves(node.first), ...leaves(node.second)]; }
+function findPane(node: PaneNode, id: string): Pane | undefined { return node.kind === "leaf" ? node.pane.id === id ? node.pane : undefined : findPane(node.first, id) ?? findPane(node.second, id); }
+function mapNode(node: PaneNode, id: string, transform: (node: PaneNode) => PaneNode): PaneNode { if (node.kind === "leaf") return node.pane.id === id ? transform(node) : node; return { ...node, first: mapNode(node.first, id, transform), second: mapNode(node.second, id, transform) }; }
+function updateSplit(node: PaneNode, id: string, ratio: number): PaneNode { if (node.kind === "leaf") return node; if (node.id === id) return { ...node, ratio: Math.max(.2, Math.min(.8, ratio)) }; return { ...node, first: updateSplit(node.first, id, ratio), second: updateSplit(node.second, id, ratio) }; }
+function removeNode(node: PaneNode, id: string): PaneNode { if (node.kind === "leaf") return node; if (node.first.kind === "leaf" && node.first.pane.id === id) return node.second; if (node.second.kind === "leaf" && node.second.pane.id === id) return node.first; return { ...node, first: removeNode(node.first, id), second: removeNode(node.second, id) }; }
+function defaultLayout(noteId: string): PaneNode { return { kind: "leaf", pane: { id: newId(), kind: "note", noteId } }; }
+function restoreLayout(key: string, noteIds: Set<string>, canvasExists: boolean): PaneNode { try { const stored = JSON.parse(localStorage.getItem(key) ?? "null") as PaneNode | null; const clean = (node: PaneNode): PaneNode | null => { if (!node || (node.kind !== "leaf" && node.kind !== "split")) return null; if (node.kind === "leaf") { if (node.pane.kind === "canvas") { if (!canvasExists) return null; canvasExists = false; return node; } if (node.pane.kind !== "note" || !node.pane.noteId || !noteIds.has(node.pane.noteId)) return null; return node; } const first = clean(node.first); const second = clean(node.second); if (!first) return second; if (!second) return first; return { ...node, ratio: Math.max(.2, Math.min(.8, node.ratio || .5)), first, second }; }; const result = stored ? clean(stored) : null; if (result && leafCount(result) <= 4) return result; } catch { /* corrupt UI state should not block authored content */ } return defaultLayout([...noteIds][0] ?? ""); }
 
-function documentBlockIds(snapshot: Snapshot) {
-  const ids = new Set<string>();
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    const record = value as Record<string, unknown>;
-    const attrs = record.attrs;
-    const blockId = attrs && typeof attrs === "object" ? (attrs as Record<string, unknown>).blockId : undefined;
-    if (typeof blockId === "string") ids.add(blockId);
-    Object.values(record).forEach(visit);
-  };
-  visit(snapshot.data);
-  return ids;
-}
+class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } render() { return this.state.failed ? <div className="editor-loading" role="alert">This editor could not open. Your stored content is preserved. Reload to retry.</div> : this.props.children; } }
 
-function documentBlockText(snapshot: Snapshot, blockId: string) {
-  let result = "";
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) { value.forEach(visit); return; }
-    if (!value || typeof value !== "object") return;
-    const record = value as Record<string, unknown>;
-    const attrs = record.attrs;
-    const matches = attrs && typeof attrs === "object" && (attrs as Record<string, unknown>).blockId === blockId;
-    if (matches) {
-      const collect = (child: unknown) => {
-        if (Array.isArray(child)) { child.forEach(collect); return; }
-        if (!child || typeof child !== "object") return;
-        const item = child as Record<string, unknown>;
-        if (typeof item.text === "string") result += `${item.text} `;
-        collect(item.content);
-      };
-      collect(record);
-      return;
-    }
-    Object.values(record).forEach(visit);
-  };
-  visit(snapshot.data);
-  return result.trim();
-}
-
-function documentText(snapshot: Snapshot) {
-  let result = "";
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) { value.forEach(visit); return; }
-    if (!value || typeof value !== "object") return;
-    const record = value as Record<string, unknown>;
-    if (typeof record.text === "string") result += `${record.text} `;
-    if (record.content) visit(record.content);
-  };
-  visit(snapshot.data);
-  return result.trim();
-}
-
-function canvasObjectCount(snapshot: Snapshot) {
-  return Array.isArray(snapshot.data.elements)
-    ? snapshot.data.elements.filter((value) => value && typeof value === "object" && (value as Record<string, unknown>).isDeleted !== true).length
-    : 0;
-}
-
-function canvasElementText(snapshot: Snapshot, elementId: string) {
-  const elements = snapshot.data.elements;
-  if (!Array.isArray(elements)) return "";
-  const found = elements.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId) as Record<string, unknown> | undefined;
-  if (typeof found?.text === "string") return found.text;
-  const label = elements.find((value) => {
-    if (!value || typeof value !== "object") return false;
-    const candidate = value as Record<string, unknown>;
-    if (candidate.containerId === elementId && typeof candidate.text === "string") return true;
-    const customData = candidate.customData;
-    const meta = customData && typeof customData === "object" ? (customData as Record<string, unknown>).notespace : undefined;
-    return meta && typeof meta === "object" && (meta as Record<string, unknown>).kind === "semantic-card-label" && (meta as Record<string, unknown>).cardId === elementId;
-  }) as Record<string, unknown> | undefined;
-  return typeof label?.text === "string" ? label.text : "";
-}
-
-function canvasHasElement(snapshot: Snapshot, elementId: string) {
-  const elements = snapshot.data.elements;
-  if (!Array.isArray(elements)) return false;
-  return elements.some((value) => {
-    if (!value || typeof value !== "object") return false;
-    const element = value as Record<string, unknown>;
-    return element.id === elementId && element.isDeleted !== true;
-  });
-}
-
-function blankDocument(): Snapshot {
-  return { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph" }] } };
-}
-
-class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  render() {
-    return this.state.failed ? (
-      <div className="editor-loading" role="alert">This editor could not open. Your stored content is preserved. Reload to retry.</div>
-    ) : this.props.children;
-  }
-}
-
-export function Workspace({
-  project,
-  workspaces,
-  categoryTitle,
-}: {
-  project: Project;
-  workspaces: ProjectSummary[];
-  categoryTitle: string;
-}) {
+export function Workspace({ project, categoryTitle }: { project: Project; categoryTitle: string }) {
   const { dark } = useTheme();
-  const initialContent = contentOf(project);
-  const current = useRef<ProjectContent>(initialContent);
-  const [ratio, setRatio] = useState(project.splitRatio);
-  const [references, setReferences] = useState(project.references);
-  const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
-  const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
-  const [brokenReference, setBrokenReference] = useState<BrokenReference>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
-  const [focusMode, setFocusMode] = useState(false);
-  const [activeNoteId, setActiveNoteId] = useState(initialContent.notes[0]?.id ?? `${project.id}-default`);
-  const [noteMenuOpen, setNoteMenuOpen] = useState(false);
-  const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null);
-  const [noteTitle, setNoteTitle] = useState("");
-  const [deletingNote, setDeletingNote] = useState<Note | null>(null);
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
-  const [historyPreview, setHistoryPreview] = useState<HistorySnapshot | null>(null);
-  const [captureOpen, setCaptureOpen] = useState(false);
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [actionFeedback, setActionFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const [renameTitle, setRenameTitle] = useState(project.title);
-  const renameInput = useRef<HTMLInputElement>(null);
-  const noteRenameInput = useRef<HTMLInputElement>(null);
-  const noteRenameCancelled = useRef(false);
-  const navigationRequest = useRef(0);
+  const initial = contentOf(project); const current = useRef<ProjectContent>(initial);
+  const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${project.id}`, new Set(initial.notes.map((note) => note.id)), true));
+  const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
+  const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
+  const [references, setReferences] = useState(project.references); const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null); const [selectedBlockNoteId, setSelectedBlockNoteId] = useState<string | null>(null); const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null); const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null); const [brokenReference, setBrokenReference] = useState<BrokenReference>(null); const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]); const [historyPreview, setHistoryPreview] = useState<HistorySnapshot | null>(null); const [historyOpen, setHistoryOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false); const [renameTitle, setRenameTitle] = useState(project.title); const renameInput = useRef<HTMLInputElement>(null); const [deletingNote, setDeletingNote] = useState<Note | null>(null); const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null); const [noteTitle, setNoteTitle] = useState(""); const noteRenameInput = useRef<HTMLInputElement>(null); const navigationRequest = useRef(0);
   const [saver] = useState(() => new Autosave(project.version, (value: ProjectContent, version) => saveProject(project.id, value, version)));
-  const split = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const activeNote = current.current.notes.find((note) => note.id === activeNoteId) ?? current.current.notes[0];
   const study = useStudySession(project.id, current.current.title);
-
   useEffect(() => saver.subscribe(setStatus), [saver]);
   useEffect(() => {
-    if (renaming) {
-      renameInput.current?.focus();
-      renameInput.current?.select();
-    }
-  }, [renaming]);
-  useEffect(() => {
-    if (renamingNoteId) {
-      noteRenameInput.current?.focus();
-      noteRenameInput.current?.select();
-    }
-  }, [renamingNoteId]);
-  useEffect(() => {
-    if (!noteMenuOpen && !workspaceMenuOpen) return;
-    const closeMenus = (event: MouseEvent) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest(".workspace-menu, .note-switcher")) return;
-      setNoteMenuOpen(false);
-      setWorkspaceMenuOpen(false);
+    const keepPaneMenuClicksLocal = (event: MouseEvent) => {
+      if ((event.target as Element).closest(".pane-actions > summary, .pane-note-switcher > summary")) event.stopPropagation();
     };
-    document.addEventListener("mousedown", closeMenus);
-    return () => document.removeEventListener("mousedown", closeMenus);
-  }, [noteMenuOpen, workspaceMenuOpen]);
-  useEffect(() => {
-    if (!focusMode) return;
-    const exitOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFocusMode(false);
-    };
-    document.addEventListener("keydown", exitOnEscape);
-    return () => document.removeEventListener("keydown", exitOnEscape);
-  }, [focusMode]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const noteId = params.get("note");
-    const blockId = params.get("block");
-    if (noteId && current.current.notes.some((note) => note.id === noteId)) setActiveNoteId(noteId);
-    if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current });
-  }, [project.id]);
-  useBlocker({
-    shouldBlockFn: async () => {
-      try { await saver.flush(); return false; } catch { return true; }
-    },
-    enableBeforeUnload: () => saver.dirty,
-  });
-  useEffect(() => {
-    const flush = () => { if (document.visibilityState === "hidden") void saver.flush().catch(() => {}); };
-    document.addEventListener("visibilitychange", flush);
-    return () => {
-      document.removeEventListener("visibilitychange", flush);
-      void saver.flush().catch(() => {});
-    };
-  }, [saver]);
+    document.addEventListener("mousedown", keepPaneMenuClicksLocal, true);
+    return () => document.removeEventListener("mousedown", keepPaneMenuClicksLocal, true);
+  }, []);
+  useEffect(() => { localStorage.setItem(`notespace.workspace-layout:${project.id}`, JSON.stringify(layout)); }, [layout, project.id]);
+  useEffect(() => { if (renaming) { renameInput.current?.focus(); renameInput.current?.select(); } }, [renaming]);
+  useEffect(() => { if (renamingNoteId) { noteRenameInput.current?.focus(); noteRenameInput.current?.select(); } }, [renamingNoteId]);
+  useEffect(() => { const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && maximizedPaneId) setMaximizedPaneId(null); }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, [maximizedPaneId]);
+  useEffect(() => { const params = new URLSearchParams(window.location.search); const noteId = params.get("note"); const blockId = params.get("block"); if (noteId) { const pane = leaves(layout).find((item) => item.kind === "note" && item.noteId === noteId); if (pane) setActivePaneId(pane.id); } if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current }); }, [layout, project.id]);
+  useBlocker({ shouldBlockFn: async () => { try { await saver.flush(); return false; } catch { return true; } }, enableBeforeUnload: () => saver.dirty });
+  useEffect(() => { const flush = () => { if (document.visibilityState === "hidden") void saver.flush().catch(() => {}); }; document.addEventListener("visibilitychange", flush); return () => { document.removeEventListener("visibilitychange", flush); void saver.flush().catch(() => {}); }; }, [saver]);
 
-  const update = useCallback((patch: Partial<ProjectContent>) => {
-    current.current = { ...current.current, ...patch };
-    if (patch.references !== undefined) setReferences(patch.references);
-    saver.schedule(current.current);
-  }, [saver]);
-
-  const updateDocument = useCallback((document: Snapshot) => {
-    const now = new Date().toISOString();
-    const notes = current.current.notes.map((note) => note.id === activeNoteId ? { ...note, document, updatedAt: now } : note);
-    const textByBlock = new Map<string, string>();
-    for (const reference of current.current.references) {
-      if (reference.blockId && !textByBlock.has(reference.blockId)) textByBlock.set(reference.blockId, documentBlockText(document, reference.blockId).slice(0, 180));
-    }
-    const existing = Array.isArray(current.current.canvas.data.elements) ? current.current.canvas.data.elements : [];
-    const elements = existing.map((value) => {
-      if (!value || typeof value !== "object") return value;
-      const element = value as Record<string, unknown>;
-      const customData = element.customData;
-      const meta = customData && typeof customData === "object" ? (customData as Record<string, unknown>).notespace : undefined;
-      if (!meta || typeof meta !== "object") return value;
-      const blockId = (meta as Record<string, unknown>).blockId;
-      if (typeof blockId !== "string" || !textByBlock.has(blockId) || element.type !== "text") return value;
-      const text = textByBlock.get(blockId) ?? "";
-      return { ...element, text, originalText: text };
-    });
-    update({ document, notes, canvas: elements.length === existing.length ? { ...current.current.canvas, data: { ...current.current.canvas.data, elements } } : current.current.canvas });
-  }, [activeNoteId, update]);
-
+  const update = useCallback((patch: Partial<ProjectContent>) => { current.current = { ...current.current, ...patch }; if (patch.references !== undefined) setReferences(patch.references); saver.schedule(current.current); }, [saver]);
+  const updateDocument = useCallback((paneId: string, document: Snapshot) => { const pane = findPane(layout, paneId); if (!pane?.noteId) return; const now = new Date().toISOString(); const notes = current.current.notes.map((note) => note.id === pane.noteId ? { ...note, document, updatedAt: now } : note); const elements = Array.isArray(current.current.canvas.data.elements) ? current.current.canvas.data.elements.map((value) => { if (!value || typeof value !== "object") return value; const element = value as Record<string, unknown>; const meta = element.customData && typeof element.customData === "object" ? (element.customData as Record<string, unknown>).notespace : undefined; const blockId = meta && typeof meta === "object" ? (meta as Record<string, unknown>).blockId : undefined; if (typeof blockId !== "string" || element.type !== "text") return value; const text = documentBlockText(document, blockId); return text ? { ...element, text, originalText: text } : value; }) : []; update({ document, notes, canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements } } }); }, [layout, update]);
   const updateCanvas = useCallback((canvas: Snapshot) => update({ canvas }), [update]);
 
-  const promoteBlockToCanvas = useCallback(() => {
-    if (!selectedBlockId) {
-      setActionFeedback({ kind: "error", message: "Select a note block first." });
-      return;
-    }
-    const text = documentBlockText(current.current.document, selectedBlockId);
-    if (!text) {
-      setActionFeedback({ kind: "error", message: "This block has no text to send to the canvas." });
-      return;
-    }
-    const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
-    const x = 120 + (elements.length % 4) * 260;
-    const y = 120 + Math.floor(elements.length / 4) * 150;
-    const cardId = crypto.randomUUID();
-    const generated = convertToExcalidrawElements([{
-      type: "rectangle",
-      id: cardId,
-      x,
-      y,
-      width: 230,
-      height: 110,
-      strokeColor: "#4f7396",
-      backgroundColor: "#e8eef6",
-      fillStyle: "solid",
-      strokeWidth: 1,
-      roughness: 0,
-      customData: { notespace: { kind: "semantic-card", noteId: activeNote?.id ?? "", blockId: selectedBlockId } },
-      label: {
-        text: text.slice(0, 180),
-        fontSize: 16,
-        fontFamily: 1,
-        textAlign: "left",
-        verticalAlign: "top",
-        customData: { notespace: { kind: "semantic-card-label", cardId, noteId: activeNote?.id ?? "", blockId: selectedBlockId } },
-      },
-    }], { regenerateIds: false });
-    const card = generated.find((element) => element.id === cardId);
-    if (!card) {
-      setActionFeedback({ kind: "error", message: "Could not create the semantic card." });
-      return;
-    }
-    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, ...generated] } }, references: [...current.current.references, { id: crypto.randomUUID(), noteId: activeNote?.id, blockId: selectedBlockId, elementId: cardId }] });
-    setSelectedElementId(cardId);
-    setViewMode("split");
-    setCanvasFocus({ id: cardId, request: ++navigationRequest.current });
-    setActionFeedback({ kind: "success", message: "Semantic card added to the canvas." });
-  }, [activeNote?.id, selectedBlockId, update]);
+  function splitPane(paneId: string, direction: "row" | "column") { if (leafCount(layout) >= 4) return; const source = findPane(layout, paneId); if (!source) return; if (source.kind === "canvas" && leaves(layout).some((pane) => pane.kind === "canvas")) return; const unused = current.current.notes.find((note) => !leaves(layout).some((pane) => pane.noteId === note.id)); if (!unused) { setFeedback({ kind: "error", message: "Create another note before splitting this pane." }); return; } const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId: unused.id } }; setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction, ratio: .5, first: node, second: next }))); setActivePaneId(next.pane.id); }
+  function addCanvasPane(paneId: string) { const existing = leaves(layout).find((pane) => pane.kind === "canvas"); if (existing) { setActivePaneId(existing.id); return; } if (leafCount(layout) >= 4) return; const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "canvas" } }; setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: next }))); setActivePaneId(next.pane.id); }
+  function closePane(paneId: string) { if (leafCount(layout) <= 1) return; const next = removeNode(layout, paneId); setLayout(next); if (activePaneId === paneId) setActivePaneId(leaves(next)[0]?.id ?? ""); if (maximizedPaneId === paneId) setMaximizedPaneId(null); }
+  function switchPaneNote(paneId: string, noteId: string) { const duplicate = leaves(layout).find((pane) => pane.kind === "note" && pane.noteId === noteId && pane.id !== paneId); if (duplicate) { setActivePaneId(duplicate.id); return; } setLayout((value) => mapNode(value, paneId, (node) => node.kind === "leaf" ? { ...node, pane: { ...node.pane, kind: "note", noteId } } : node)); setActivePaneId(paneId); }
+  function createNote(paneId: string) { const now = new Date().toISOString(); const note: Note = { id: newId(), title: "Untitled", document: blankDocument(), createdAt: now, updatedAt: now }; update({ notes: [...current.current.notes, note], document: note.document }); switchPaneNote(paneId, note.id); }
+  function beginRenameNote(pane: Pane) { if (!pane.noteId) return; const note = current.current.notes.find((item) => item.id === pane.noteId); if (!note) return; setNoteTitle(note.title); setRenamingNoteId(pane.id); }
+  function commitRenameNote(pane: Pane) { const value = noteTitle.trim(); if (!pane.noteId || !value) { setRenamingNoteId(null); return; } update({ notes: current.current.notes.map((note) => note.id === pane.noteId ? { ...note, title: value, updatedAt: new Date().toISOString() } : note) }); setRenamingNoteId(null); }
+  function removeNote() { if (!deletingNote || current.current.notes.length <= 1) return; const notes = current.current.notes.filter((note) => note.id !== deletingNote.id); const target = leaves(layout).find((pane) => pane.noteId === deletingNote.id); const replacement = notes[0]; update({ notes, document: replacement.document, references: current.current.references.filter((reference) => reference.noteId !== deletingNote.id) }); if (target) switchPaneNote(target.id, replacement.id); setDeletingNote(null); }
+  function createReference() { if (!selectedBlockId || !selectedElementId || current.current.references.some((reference) => reference.blockId === selectedBlockId && reference.elementId === selectedElementId)) return; update({ references: [...current.current.references, { id: newId(), noteId: selectedBlockNoteId ?? undefined, blockId: selectedBlockId, elementId: selectedElementId }] }); setFeedback({ kind: "success", message: "Selections linked." }); setSelectedBlockId(null); setSelectedElementId(null); }
+  function promoteBlockToCanvas() { if (!selectedBlockId) return; const note = current.current.notes.find((item) => item.id === selectedBlockNoteId) ?? current.current.notes[0]; const text = documentBlockText(note.document, selectedBlockId); if (!text) return; const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : []; const cardId = newId(); const generated = convertToExcalidrawElements([{ type: "rectangle", id: cardId, x: 120 + (elements.length % 4) * 260, y: 120 + Math.floor(elements.length / 4) * 150, width: 230, height: 110, strokeColor: "#4f7396", backgroundColor: "#e8eef6", fillStyle: "solid", strokeWidth: 1, roughness: 0, customData: { notespace: { kind: "semantic-card", noteId: note.id, blockId: selectedBlockId } }, label: { text: text.slice(0, 180), fontSize: 16, fontFamily: 1, textAlign: "left", verticalAlign: "top", customData: { notespace: { kind: "semantic-card-label", cardId, noteId: note.id, blockId: selectedBlockId } } } }], { regenerateIds: false }); const card = generated.find((element) => element.id === cardId); if (!card) return; update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, ...generated] } }, references: [...current.current.references, { id: newId(), noteId: note.id, blockId: selectedBlockId, elementId: cardId }] }); setSelectedElementId(cardId); addCanvasPane(activePaneId); setFeedback({ kind: "success", message: "Semantic card added to Canvas." }); }
+  function promoteCanvasToNote() { if (!selectedElementId) return; const text = canvasElementText(current.current.canvas, selectedElementId); if (!text) return; const now = new Date().toISOString(); const note: Note = { id: newId(), title: text.slice(0, 48), document: { ...blankDocument(), data: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] } }, createdAt: now, updatedAt: now }; update({ notes: [...current.current.notes, note], document: note.document }); const canvas = leaves(layout).find((pane) => pane.kind === "canvas"); if (canvas) { const pane = { id: newId(), kind: "note" as const, noteId: note.id }; setLayout((value) => mapNode(value, canvas.id, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: { kind: "leaf", pane } }))); setActivePaneId(pane.id); } }
+  async function openHistory() { setHistoryOpen((value) => !value); if (!historyEntries.length) { try { setHistoryEntries(await listHistory(project.id)); } catch (err) { setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Could not load history." }); } } }
+  async function previewHistory(entry: HistoryEntry) { try { setHistoryPreview(await getHistorySnapshot(project.id, entry.id)); } catch (err) { setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Could not load checkpoint." }); } }
+  async function restoreSelectedHistory() { if (!historyPreview) return; try { await saver.flush(); await restoreHistory(project.id, historyPreview.id); window.location.reload(); } catch (err) { setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Could not restore checkpoint." }); } }
+  function navigateToCanvas(reference: ProjectReference) { if (!canvasHasElement(current.current.canvas, reference.elementId)) { setBrokenReference({ referenceId: reference.id, message: "Linked Canvas object no longer exists. The reference was kept." }); return; } const canvas = leaves(layout).find((pane) => pane.kind === "canvas"); if (canvas) setActivePaneId(canvas.id); else addCanvasPane(activePaneId); setCanvasFocus({ id: reference.elementId, request: ++navigationRequest.current }); }
+  function navigateToNote(reference: ProjectReference) { const note = reference.noteId ? current.current.notes.find((item) => item.id === reference.noteId) : current.current.notes[0]; if (!note || !documentHasBlock(note.document, reference.blockId)) { setBrokenReference({ referenceId: reference.id, message: "Linked note block no longer exists. The reference was kept." }); return; } const pane = leaves(layout).find((item) => item.kind === "note" && item.noteId === note.id); if (pane) setActivePaneId(pane.id); else { const target = leaves(layout).find((item) => item.kind === "note"); if (target) switchPaneNote(target.id, note.id); } setDocumentFocus({ id: reference.blockId, request: ++navigationRequest.current }); }
+  const blockReference = selectedBlockId ? references.find((reference) => reference.blockId === selectedBlockId && (!reference.noteId || reference.noteId === selectedBlockNoteId)) : undefined; const elementReference = selectedElementId ? references.find((reference) => reference.elementId === selectedElementId) : undefined;
+  function renameWorkspace() { const value = renameTitle.trim(); if (value && value !== current.current.title) update({ title: value }); setRenaming(false); }
 
-  const promoteCanvasToNote = useCallback(() => {
-    if (!selectedElementId) {
-      setActionFeedback({ kind: "error", message: "Select a canvas object first." });
-      return;
-    }
-    const text = canvasElementText(current.current.canvas, selectedElementId);
-    if (!text) {
-      setActionFeedback({ kind: "error", message: "This canvas object has no text to expand." });
-      return;
-    }
-    const now = new Date().toISOString();
-    const note: Note = { id: crypto.randomUUID(), title: text.slice(0, 42), document: { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", attrs: { blockId: crypto.randomUUID() }, content: [{ type: "text", text }] }] } }, createdAt: now, updatedAt: now };
-    update({ notes: [...current.current.notes, note], document: note.document });
-    setActiveNoteId(note.id);
-    setSelectedBlockId(null);
-    setActionFeedback({ kind: "success", message: "New note created from the canvas text." });
-  }, [selectedElementId, update]);
+  function PaneView({ pane }: { pane: Pane }) { const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined; const isActive = pane.id === activePaneId; return <section className={isActive ? "authoring-pane is-active" : "authoring-pane"} onMouseDown={() => setActivePaneId(pane.id)} aria-label={pane.kind === "canvas" ? "Canvas pane" : `${note?.title ?? "Note"} note pane`}><header className="pane-header">{pane.kind === "note" ? renamingNoteId === pane.id ? <input ref={noteRenameInput} className="pane-title-input" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNoteId(null); }} /> : <details className="pane-note-switcher"><summary><FileText size={14} /><span>{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary><div className="pane-note-menu" role="listbox" aria-label="Notes in this workspace">{current.current.notes.map((item) => <button key={item.id} role="option" aria-selected={item.id === pane.noteId} onClick={() => switchPaneNote(pane.id, item.id)}>{item.title}</button>)}<button className="menu-item-muted" onClick={() => createNote(pane.id)}><Plus size={13} /> New note</button></div></details> : <span className="pane-title"><Layers size={14} /> Canvas</span>}<details className="pane-actions"><summary aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary><div className="pane-menu">{pane.kind === "note" && <button onClick={() => createNote(pane.id)}>Open another note</button>}<button onClick={() => addCanvasPane(pane.id)}>Open Canvas</button><button disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button><button disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button><button onClick={() => setMaximizedPaneId(pane.id)}>Maximize pane</button>{pane.kind === "note" && <><button onClick={() => beginRenameNote(pane)}>Rename note</button><button disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button></>}<button disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button></div></details></header>{pane.kind === "note" && note ? <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening note…</div>}><DocumentEditor key={pane.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(id) => { setSelectedBlockId(id); setSelectedBlockNoteId(pane.noteId ?? null); }} focusRequest={documentFocus} /></Suspense></EditorBoundary> : <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening Canvas…</div>}><CanvasEditor initial={current.current.canvas} onChange={updateCanvas} onElementSelect={setSelectedElementId} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>}</section>; }
+  function renderNode(node: PaneNode): ReactNode { if (node.kind === "leaf") return <PaneView key={node.pane.id} pane={node.pane} />; const ratio = node.ratio; return <div className={`pane-group pane-group-${node.direction}`} key={node.id} style={node.direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}>{renderNode(node.first)}<div className="pane-resizer" role="separator" tabIndex={0} aria-label={`Resize ${node.direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); const start = node.direction === "row" ? event.clientX : event.clientY; const bounds = event.currentTarget.parentElement?.getBoundingClientRect(); if (!bounds) return; const size = node.direction === "row" ? bounds.width : bounds.height; const move = (moveEvent: PointerEvent) => { const position = node.direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); }; const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", stop); }} /><div>{renderNode(node.second)}</div></div>; }
 
-  function captureSource() {
-    let url: URL;
-    try { url = new URL(sourceUrl.trim()); } catch {
-      setActionFeedback({ kind: "error", message: "Enter a valid http(s) URL." });
-      return;
-    }
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      setActionFeedback({ kind: "error", message: "Only http and https sources are supported." });
-      return;
-    }
-    const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
-    const source = convertToExcalidrawElements([{
-      id: crypto.randomUUID(),
-      type: "text",
-      x: 120 + (elements.length % 4) * 260,
-      y: 120 + Math.floor(elements.length / 4) * 150,
-      text: url.href,
-      fontSize: 16,
-      fontFamily: 1,
-      textAlign: "left",
-      verticalAlign: "top",
-      link: url.href,
-      customData: { notespace: { kind: "source", url: url.href } },
-    }], { regenerateIds: false })[0];
-    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, source] } } });
-    setSourceUrl("");
-    setCaptureOpen(false);
-    setSelectedElementId(source.id);
-    setCanvasFocus({ id: source.id, request: ++navigationRequest.current });
-    setActionFeedback({ kind: "success", message: "Source added to the canvas." });
-  }
-
-  async function openHistory() {
-    setHistoryOpen((open) => !open);
-    if (!historyEntries.length) {
-      try {
-        setHistoryEntries(await listHistory(project.id));
-        setActionFeedback(null);
-      } catch (error) {
-        setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspace history." });
-      }
-    }
-  }
-
-  async function previewHistory(entry: HistoryEntry) {
-    try {
-      setHistoryPreview(await getHistorySnapshot(project.id, entry.id));
-      setActionFeedback(null);
-    } catch (error) {
-      setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not load this checkpoint." });
-    }
-  }
-
-  async function restoreSelectedHistory() {
-    if (!historyPreview) return;
-    try {
-      await saver.flush();
-      await restoreHistory(project.id, historyPreview.id);
-      window.location.reload();
-    } catch (error) {
-      setActionFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not restore this checkpoint." });
-    }
-  }
-
-  function selectNote(note: Note) {
-    current.current = { ...current.current, document: note.document };
-    setActiveNoteId(note.id);
-    setSelectedBlockId(null);
-    setNoteMenuOpen(false);
-  }
-
-  const createNote = useCallback(() => {
-    const now = new Date().toISOString();
-    const note: Note = { id: crypto.randomUUID(), title: "Untitled", document: blankDocument(), createdAt: now, updatedAt: now };
-    update({ notes: [...current.current.notes, note], document: note.document });
-    setActiveNoteId(note.id);
-    setNoteMenuOpen(false);
-  }, [update]);
-
-  function beginNoteRename() {
-    if (!activeNote) return;
-    noteRenameCancelled.current = false;
-    setNoteTitle(activeNote.title);
-    setNoteMenuOpen(false);
-    setRenamingNoteId(activeNote.id);
-  }
-
-  function cancelNoteRename() {
-    noteRenameCancelled.current = true;
-    setNoteTitle(activeNote?.title ?? "Untitled");
-    setRenamingNoteId(null);
-  }
-
-  function commitNoteRename() {
-    if (noteRenameCancelled.current) {
-      noteRenameCancelled.current = false;
-      return;
-    }
-    if (!renamingNoteId) return;
-    const next = noteTitle.trim();
-    if (!next) {
-      cancelNoteRename();
-      return;
-    }
-    const currentNote = current.current.notes.find((note) => note.id === renamingNoteId);
-    if (currentNote && next !== currentNote.title) {
-      const now = new Date().toISOString();
-      update({ notes: current.current.notes.map((note) => note.id === renamingNoteId ? { ...note, title: next, updatedAt: now } : note) });
-    }
-    setRenamingNoteId(null);
-  }
-
-  function removeNote() {
-    if (!deletingNote || current.current.notes.length <= 1) return;
-    const notes = current.current.notes.filter((note) => note.id !== deletingNote.id);
-    const nextActive = deletingNote.id === activeNoteId
-      ? notes[0]
-      : notes.find((note) => note.id === activeNoteId) ?? notes[0];
-    if (!nextActive) return;
-    const deletedBlockIds = documentBlockIds(deletingNote.document);
-    const references = current.current.references.filter((reference) => !deletedBlockIds.has(reference.blockId));
-    const patch: Partial<ProjectContent> = {
-      notes,
-      references,
-    };
-    if (deletingNote.id === activeNoteId) patch.document = nextActive.document;
-    update(patch);
-    setActiveNoteId(nextActive.id);
-    setSelectedBlockId(null);
-    setDeletingNote(null);
-  }
-
-  const createReference = useCallback(() => {
-    if (!selectedBlockId || !selectedElementId) return;
-    if (current.current.references.some((reference) => reference.blockId === selectedBlockId && reference.elementId === selectedElementId)) return;
-    update({ references: [...current.current.references, { id: crypto.randomUUID(), noteId: activeNote?.id, blockId: selectedBlockId, elementId: selectedElementId }] });
-    setBrokenReference(null);
-  }, [activeNote?.id, selectedBlockId, selectedElementId, update]);
-
-  const blockReference = selectedBlockId ? references.find((reference) => reference.blockId === selectedBlockId && (!reference.noteId || reference.noteId === activeNote?.id)) : undefined;
-  const elementReference = selectedElementId ? references.find((reference) => reference.elementId === selectedElementId) : undefined;
-
-  function navigateToCanvas(reference: ProjectReference) {
-    if (!canvasHasElement(current.current.canvas, reference.elementId)) {
-      setBrokenReference({ referenceId: reference.id, message: "Linked canvas object no longer exists. The reference was kept until you remove it explicitly." });
-      return;
-    }
-    setBrokenReference(null);
-    setViewMode("split");
-    setCanvasFocus({ id: reference.elementId, request: ++navigationRequest.current });
-  }
-
-  function navigateToDocument(reference: ProjectReference) {
-    const targetNote = reference.noteId ? current.current.notes.find((note) => note.id === reference.noteId) : activeNote;
-    const targetDocument = targetNote?.document ?? current.current.document;
-    if (!documentHasBlock(targetDocument, reference.blockId)) {
-      setBrokenReference({ referenceId: reference.id, message: "Linked document block no longer exists. The reference was kept until you remove it explicitly." });
-      return;
-    }
-    setBrokenReference(null);
-    if (targetNote && targetNote.id !== activeNote?.id) {
-      current.current = { ...current.current, document: targetNote.document };
-      setActiveNoteId(targetNote.id);
-    }
-    setViewMode("split");
-    setDocumentFocus({ id: reference.blockId, request: ++navigationRequest.current });
-  }
-
-  function removeReference(referenceId: string) {
-    update({ references: current.current.references.filter((reference) => reference.id !== referenceId) });
-    setBrokenReference(null);
-  }
-
-  function resize(value: number) {
-    const next = Math.max(0.25, Math.min(0.7, value));
-    setRatio(next);
-    update({ splitRatio: next });
-  }
-
-  function commitRename() {
-    const next = renameTitle.trim();
-    if (!next) {
-      setRenameTitle(current.current.title);
-      setRenaming(false);
-      return;
-    }
-    if (next !== current.current.title) update({ title: next });
-    setRenaming(false);
-  }
-
-  const categoryWorkspaces = workspaces.filter((workspace) => workspace.categoryId === project.categoryId);
-  return (
-    <div className={focusMode ? "workspace-shell is-focus-mode" : "workspace-shell"}>
-      <main className="workspace-main">
-        {!focusMode && <header className="topbar workspace-header">
-          <div className="workspace-identity">
-            <Link to="/" className="icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
-            <span className="header-divider" />
-            <div className="workspace-menu">
-              <button className="workspace-switcher-trigger" aria-haspopup="menu" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((open) => !open)}>
-                <span className="workspace-category">{categoryTitle}</span><ChevronDown size={14} />
-              </button>
-              {workspaceMenuOpen && <div className="workspace-menu-popover" role="menu">
-                <div className="menu-heading">Workspaces</div>
-                {categoryWorkspaces.map((workspace) => <Link key={workspace.id} to="/projects/$projectId" params={{ projectId: workspace.id }} role="menuitem" className={workspace.id === project.id ? "menu-item active" : "menu-item"} onClick={() => setWorkspaceMenuOpen(false)}>{workspace.title}{workspace.id === project.id && <Check size={14} />}</Link>)}
-                <Link to="/" role="menuitem" className="menu-item menu-item-muted" onClick={() => setWorkspaceMenuOpen(false)}><Plus size={14} /> New workspace</Link>
-              </div>}
-            </div>
-            <span className="header-divider" />
-            {renaming ? <input ref={renameInput} data-inline-edit="workspace" className="inline-title-input" aria-label="Workspace title" value={renameTitle} maxLength={160} onChange={(event) => setRenameTitle(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitRename(); } if (event.key === "Escape") { setRenameTitle(current.current.title); setRenaming(false); } }} /> : <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }} title="Rename workspace"><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>}
-          </div>
-          <div className="header-actions">
-            <div className="view-switcher" role="group" aria-label="Workspace view">
-              {(["split", "note", "canvas"] as const).map((mode) => <button key={mode} className={viewMode === mode ? "view-mode active" : "view-mode"} aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
-            </div>
-            <button className="icon-button" aria-label="Link selections" title="Link selected document block and canvas object" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}><Link2 size={16} /></button>
-            {blockReference && <button className="icon-button" aria-label="Go to linked canvas object" title="Go to linked canvas object" onClick={() => navigateToCanvas(blockReference)}><Layers size={16} /></button>}
-            {elementReference && <button className="icon-button" aria-label="Go to linked document block" title="Go to linked document block" onClick={() => navigateToDocument(elementReference)}><FileText size={16} /></button>}
-            <button className="secondary compact-action" disabled={!selectedBlockId} title={!selectedBlockId ? "Select a note block first" : "Create a semantic card from the selected block"} onClick={promoteBlockToCanvas}><Layers size={13} /> Send to canvas</button>
-            <button className="secondary compact-action" disabled={!selectedElementId} title={!selectedElementId ? "Select a canvas object first" : "Create a note from the selected canvas text"} onClick={promoteCanvasToNote}><FileText size={13} /> Expand to note</button>
-            {captureOpen ? <input className="workspace-capture-input" aria-label="Source URL" autoFocus placeholder="Paste URL" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") captureSource(); if (event.key === "Escape") setCaptureOpen(false); }} /> : <button className="icon-button" aria-label="Capture source URL" title="Capture source URL" onClick={() => setCaptureOpen(true)}><Globe size={16} /></button>}
-            <a className="icon-button" aria-label="Export workspace" title="Export workspace" href={exportWorkspace(project.id)} download><Download size={16} /></a>
-            <div className="workspace-menu history-menu"><button className="icon-button" aria-label="Workspace history" title="Workspace history" aria-expanded={historyOpen} onClick={() => void openHistory()}><HistoryIcon size={16} /></button>{historyOpen && <div className="workspace-menu-popover history-popover"><div className="menu-heading">History</div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "menu-item active" : "menu-item"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <span className="history-empty">No checkpoints yet.</span>}{historyPreview && <div className="history-preview"><div><strong>Preview v{historyPreview.version}</strong><span>{historyPreview.notes.length} note{historyPreview.notes.length === 1 ? "" : "s"} · {canvasObjectCount(historyPreview.canvas)} canvas object{canvasObjectCount(historyPreview.canvas) === 1 ? "" : "s"}</span><p>{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p></div><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>
-            <StudyIndicator study={study} />
-            <span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span>
-            <button className="icon-button focus-mode-toggle" aria-label="Enter focus mode" title="Focus mode · hide header" onClick={() => setFocusMode(true)}><Maximize2 size={16} /></button>
-            <ThemeToggle />
-          </div>
-        </header>}
-        {focusMode && <button className="focus-mode-restore" aria-label="Show workspace header" title="Show workspace header · Escape" onClick={() => setFocusMode(false)}><Minimize2 size={14} /> <span>Show header</span></button>}
-        {actionFeedback && <div className={`workspace-feedback workspace-feedback-${actionFeedback.kind}`} role={actionFeedback.kind === "error" ? "alert" : "status"}>{actionFeedback.message}</div>}
-        {status.state === "error" && <div className="save-error" role="alert"><span>{status.message}</span><button className="secondary" onClick={() => void saver.flush().catch(() => {})}><RotateCw size={14} /> Retry save</button></div>}
-        {brokenReference && <div className="save-error" role="alert"><span>{brokenReference.message}</span><button className="secondary" onClick={() => removeReference(brokenReference.referenceId)}><Unlink size={14} /> Remove broken link</button></div>}
-        <div className={`workspace-split workspace-mode-${viewMode}`} ref={split} style={viewMode === "split" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : undefined}>
-          {viewMode !== "canvas" && <section className="document-pane" aria-label="Document pane">
-            <div className="note-strip">
-              {renamingNoteId === activeNote?.id ? <input ref={noteRenameInput} data-inline-edit="note" className="inline-note-title-input" aria-label="Note title" value={noteTitle} maxLength={160} onChange={(event) => setNoteTitle(event.target.value)} onBlur={commitNoteRename} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitNoteRename(); } if (event.key === "Escape") cancelNoteRename(); }} /> : <div className="note-switcher">
-                <button className="note-switcher-trigger" aria-haspopup="listbox" aria-expanded={noteMenuOpen} onClick={() => setNoteMenuOpen((open) => !open)}><FileText size={15} /><span className="note-switcher-label">{activeNote?.title ?? "Untitled"}</span><ChevronDown size={14} /></button>
-                {noteMenuOpen && <div className="note-menu-popover" role="listbox" aria-label="Notes in this workspace">
-                  {current.current.notes.map((note) => <button key={note.id} role="option" aria-selected={note.id === activeNote?.id} className={note.id === activeNote?.id ? "menu-item active" : "menu-item"} onClick={() => selectNote(note)}>{note.title}</button>)}
-                  <button className="menu-item menu-item-muted" onClick={createNote}><Plus size={14} /> New note</button>
-                  <button className="menu-item" onClick={beginNoteRename}><Pencil size={14} /> Rename note</button>
-                  <button className="menu-item menu-item-danger" disabled={current.current.notes.length <= 1} title={current.current.notes.length <= 1 ? "A workspace needs one note" : "Delete note"} onClick={() => { if (activeNote && current.current.notes.length > 1) { setNoteMenuOpen(false); setDeletingNote(activeNote); } }}><Trash2 size={14} /> Delete note</button>
-                </div>}
-              </div>}
-              <div className="note-strip-actions">
-                {renamingNoteId !== activeNote?.id && <button className="icon-button" aria-label="Rename note" title="Rename note" onClick={beginNoteRename}><Pencil size={15} /></button>}
-                <button className="icon-button" aria-label="New note" title="New note" onClick={createNote}><Plus size={16} /></button>
-              </div>
-            </div>
-            <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening document…</div>}><DocumentEditor key={activeNote?.id} initial={activeNote?.document ?? current.current.document} onChange={updateDocument} onBlockSelect={setSelectedBlockId} focusRequest={documentFocus} /></Suspense></EditorBoundary>
-          </section>}
-          {viewMode === "split" && <div role="separator" tabIndex={0} aria-label="Resize document and canvas" aria-orientation="vertical" aria-valuemin={25} aria-valuemax={70} aria-valuenow={Math.round(ratio * 100)} className="splitter" onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); resize(ratio + (event.key === "ArrowLeft" ? -0.025 : 0.025)); } if (event.key === "Home") { event.preventDefault(); resize(0.45); } }} onPointerDown={(event) => { dragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={(event) => { if (dragging.current && split.current) { const bounds = split.current.getBoundingClientRect(); resize((event.clientX - bounds.left) / bounds.width); } }} onPointerUp={() => { dragging.current = false; }} onPointerCancel={() => { dragging.current = false; }} onDoubleClick={() => resize(0.45)}><span /></div>}
-          {viewMode !== "note" && <section className="canvas-pane" aria-label="Canvas pane"><EditorBoundary><Suspense fallback={<div className="editor-loading">Opening canvas…</div>}><CanvasEditor initial={current.current.canvas} onChange={updateCanvas} onElementSelect={setSelectedElementId} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary></section>}
-        </div>
-      </main>
-      <Dialog.Root open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content"><Dialog.Title>Delete this note?</Dialog.Title><Dialog.Description>“{deletingNote?.title}” will be removed from this workspace. Other notes and the canvas will stay.</Dialog.Description><div className="dialog-actions"><Dialog.Close className="secondary">Keep note</Dialog.Close><button className="danger" onClick={removeNote}>Delete note</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
-    </div>
-  );
+  const visible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? <PaneView pane={findPane(layout, maximizedPaneId)!} /> : renderNode(layout)) : renderNode(layout);
+  return <div className="workspace-shell"><main className="workspace-main"><header className="topbar workspace-header"><div className="workspace-identity"><Link to="/" className="icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link><span className="workspace-breadcrumb">{categoryTitle} /</span>{renaming ? <input ref={renameInput} className="inline-title-input" aria-label="Workspace title" value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onBlur={renameWorkspace} onKeyDown={(event) => { if (event.key === "Enter") renameWorkspace(); if (event.key === "Escape") setRenaming(false); }} /> : <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }}><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>}</div><div className="header-actions"><StudyIndicator study={study} /><span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span><details className="workspace-overflow"><summary className="icon-button" aria-label="Workspace actions"><MoreHorizontal size={18} /></summary><div className="workspace-menu-popover"><button className="menu-item" onClick={() => void openHistory()}><HistoryIcon size={14} /> History</button><a className="menu-item" href={exportWorkspace(project.id)} download><Download size={14} /> Export</a></div></details></div></header>{(selectedBlockId || selectedElementId) && <div className="context-bar" role="toolbar" aria-label="Contextual authoring actions">{selectedBlockId && <button className="secondary compact-action" onClick={promoteBlockToCanvas}><Layers size={13} /> Send to Canvas</button>}{selectedBlockId && blockReference && <button className="secondary compact-action" onClick={() => navigateToCanvas(blockReference)}><Layers size={13} /> Go to linked Canvas</button>}{selectedElementId && <button className="secondary compact-action" onClick={promoteCanvasToNote}><FileText size={13} /> Expand to note</button>}{selectedElementId && elementReference && <button className="secondary compact-action" onClick={() => navigateToNote(elementReference)}><FileText size={13} /> Go to linked note</button>}{selectedBlockId && selectedElementId && <button className="primary compact-action" onClick={createReference}><Link2 size={13} /> Link selections</button>}</div>}{feedback && <div className={`workspace-feedback workspace-feedback-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"}>{feedback.message}</div>}{status.state === "error" && <div className="save-error" role="alert"><span>{status.message}</span><button className="secondary" onClick={() => void saver.flush().catch(() => {})}><RotateCw size={14} /> Retry save</button></div>}{brokenReference && <div className="save-error" role="alert"><span>{brokenReference.message}</span><button className="secondary" onClick={() => { update({ references: references.filter((reference) => reference.id !== brokenReference.referenceId) }); setBrokenReference(null); }}><Unlink size={14} /> Remove link</button></div>}<div className={maximizedPaneId ? "authoring-canvas is-maximized" : "authoring-canvas"}>{visible}</div>{maximizedPaneId && <button className="restore-pane-button" onClick={() => setMaximizedPaneId(null)}>Restore layout <span>Esc</span></button>}</main><Dialog.Root open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content"><Dialog.Title>Delete this note?</Dialog.Title><Dialog.Description>“{deletingNote?.title}” will be removed from this workspace.</Dialog.Description><div className="dialog-actions"><Dialog.Close className="secondary">Keep note</Dialog.Close><button className="danger" onClick={removeNote}>Delete note</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>{historyOpen && <div className="history-drawer"><div className="history-drawer-heading"><strong>History</strong><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "history-entry active" : "history-entry"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <p className="history-empty">No checkpoints yet.</p>}{historyPreview && <div className="history-preview"><strong>Preview v{historyPreview.version}</strong><span>{historyPreview.notes.length} notes · {canvasObjectCount(historyPreview.canvas)} Canvas objects</span><p>{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>;
 }

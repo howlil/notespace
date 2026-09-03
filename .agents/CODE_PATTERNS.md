@@ -14,15 +14,13 @@ task check:server
 task test:web TEST=path/to/test.ts
 task test:server PACKAGE=./internal/httpapi
 task build
-task e2e
-task e2e:target SPEC=tests/example.spec.ts
 task verify
 task up
 task down
 task logs
 ```
 
-Use the narrowest command that proves the changed boundary first. Use broader gates only when the behavior/risk crosses those boundaries. Do not add Turborepo or another orchestration layer without measured need.
+Use the narrowest deterministic command that proves the changed boundary first. Use broader automated gates only when the behavior/risk crosses those boundaries. Do not add Turborepo or another orchestration layer without measured need.
 
 ## Product naming
 
@@ -146,16 +144,16 @@ Do not change pragmas, connection model, migration ownership, conflict semantics
 
 ## Testing
 
-Use the narrowest layer that proves behavior:
+Use the narrowest automated layer that proves behavior:
 
 - focused web/domain unit tests for pure logic;
 - Go package tests for domain/HTTP/persistence/migrations;
-- Playwright for browser journeys, hierarchy, keyboard behavior, and cross-surface integration;
+- deterministic component/integration tests for cross-owner interaction semantics where isolated tests are insufficient;
 - Docker restart smoke for deployment/persistence composition only.
 
-UI/design tests should assert stable product contracts, not exact CSS implementation or pixel snapshots. Screenshot/trace artifacts are for diagnosis and review.
+Manual acceptance testing, live-browser/black-box testing, and manual screenshot review are not required merge or release gates. UI/design tests should assert stable product contracts, not exact CSS implementation or pixel snapshots.
 
-When a browser test fails, inspect actual captured state before changing implementation. Distinguish a product defect from invalid test setup/interaction and fix the owning boundary.
+When an environment-specific behavior cannot be reproduced deterministically, document the residual risk rather than introducing a human/browser acceptance requirement.
 
 ## Change discipline
 
@@ -166,4 +164,4 @@ When a browser test fails, inspect actual captured state before changing impleme
 - avoid unrelated renames/reorganization/dependency upgrades;
 - keep explicitly requested CI/reliability/knowledge cleanup classified as engineering work, not a fake product slice;
 - update `CURRENT_ITERATION.md` with concise current evidence, not historical diaries;
-- integrate coherent logical changes after relevant gates pass.
+- integrate coherent logical changes after relevant automated gates pass.

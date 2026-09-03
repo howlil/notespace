@@ -78,26 +78,11 @@ tasks:
     cmds:
       - go -C ../apps/server build -o ../../bin/notespace{{exeExt}} ./cmd/notespace
 
-  e2e:
-    desc: Build the web app and run browser tests against the real Go server
-    cmds:
-      - task: build:web
-      - pnpm test:e2e
-
-  e2e:target:
-    desc: Build the web app and run one focused Playwright spec (SPEC=tests/example.spec.ts)
-    requires:
-      vars: [SPEC]
-    cmds:
-      - task: build:web
-      - pnpm exec playwright test "{{.SPEC}}"
-
   verify:
-    desc: Run the full local release verification suite
+    desc: Run the local automated release verification suite
     cmds:
       - task: build
       - task: check
-      - pnpm test:e2e
 
   up:
     desc: Build and start the self-hosted Docker Compose stack

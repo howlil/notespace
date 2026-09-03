@@ -145,6 +145,9 @@ test("create → structured note + canvas → switch → reload → delete", asy
     page.getByRole("textbox", { name: "Workspace document" }),
   ).not.toContainText("Consensus");
   await page
+    .getByRole("link", { name: "Back to library", exact: true })
+    .click();
+  await page
     .getByRole("link", { name: title, exact: true })
     .click();
   await expect(editor).toContainText("Consensus");

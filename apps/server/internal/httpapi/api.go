@@ -38,8 +38,10 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("GET /api/categories", a.listCategories)
 	mux.HandleFunc("POST /api/categories", a.createCategory)
 	mux.HandleFunc("PATCH /api/categories/{id}", a.updateCategory)
+	mux.HandleFunc("DELETE /api/categories/{id}", a.deleteCategory)
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
+	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
 	mux.HandleFunc("PUT /api/workspaces/{id}/study-sessions/{sessionId}", a.studyHeartbeat)
 	mux.HandleFunc("GET /api/workspaces/{id}/study", a.workspaceStudy)
@@ -108,6 +110,8 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 400, map[string]string{"error": "Invalid title, content, version, or split ratio"})
 	case errors.Is(err, project.ErrConflict):
 		send(w, 409, map[string]string{"error": "This project changed in another tab. Your edits remain here; reload only after preserving them."})
+	case errors.Is(err, project.ErrNotEmpty):
+		send(w, 409, map[string]string{"error": "Delete or move the workspaces in this category first."})
 	case errors.Is(err, study.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Study session not found"})
 	case errors.Is(err, study.ErrInvalid):
@@ -150,11 +154,29 @@ func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	send(w, 201, category)
 }
 func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
-	var body struct { Title string `json:"title"` }
-	if !decode(w, r, &body) { return }
+	var body struct {
+		Title string `json:"title"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
 	category, err := a.service.UpdateCategory(r.Context(), r.PathValue("id"), body.Title)
-	if err != nil { fail(w, err); return }
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	send(w, 200, category)
+}
+func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
+	if strings.TrimSpace(r.PathValue("id")) == "" || r.PathValue("id") == "legacy" {
+		fail(w, project.ErrInvalid)
+		return
+	}
+	if err := a.service.Store.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 204, nil)
 }
 func (a API) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -186,6 +208,20 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := a.service.Update(r.Context(), r.PathValue("id"), body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, p)
+}
+func (a API) rename(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title string `json:"title"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	p, err := a.service.Rename(r.Context(), r.PathValue("id"), body.Title)
 	if err != nil {
 		fail(w, err)
 		return

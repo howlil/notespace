@@ -5,6 +5,7 @@ services:
       NOTESPACE_BIND_IP: "${NOTESPACE_BIND_IP:-0.0.0.0}"
       NOTESPACE_PORT: "${NOTESPACE_PORT:-8080}"
       NOTESPACE_ADDR: "${NOTESPACE_BIND_IP:-0.0.0.0}:${NOTESPACE_PORT:-8080}"
+      NOTESPACE_DB: /data/notespace.db
     expose:
       - "8080"
     volumes:
@@ -18,3 +19,5 @@ services:
 
 volumes:
   notespace-data:
+    # Keep the physical volume name stable when the Compose project name changes during redeploy.
+    name: "${NOTESPACE_DATA_VOLUME:-notespace-data}"

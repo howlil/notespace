@@ -15,6 +15,7 @@ var (
 	ErrNotFound = errors.New("project not found")
 	ErrConflict = errors.New("project changed in another session")
 	ErrInvalid  = errors.New("invalid project input")
+	ErrNotEmpty = errors.New("category still contains workspaces")
 )
 
 type Snapshot struct {
@@ -82,6 +83,7 @@ type Update struct {
 type Store interface {
 	CreateCategory(context.Context, CategorySummary) error
 	UpdateCategory(context.Context, string, string) (CategorySummary, error)
+	DeleteCategory(context.Context, string) error
 	ListCategories(context.Context) ([]CategorySummary, error)
 	CategoryExists(context.Context, string) (bool, error)
 	Create(context.Context, Project) error
@@ -121,6 +123,26 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 		return CategorySummary{}, ErrInvalid
 	}
 	return s.Store.UpdateCategory(ctx, id, title)
+}
+
+func (s Service) Rename(ctx context.Context, id, title string) (Project, error) {
+	title = strings.TrimSpace(title)
+	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
+		return Project{}, ErrInvalid
+	}
+	current, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return Project{}, err
+	}
+	return s.Update(ctx, id, Update{
+		Title:      title,
+		Document:   current.Document,
+		Notes:      current.Notes,
+		Canvas:     current.Canvas,
+		References: current.References,
+		SplitRatio: current.SplitRatio,
+		Version:    current.Version,
+	})
 }
 
 func (s Service) Create(

@@ -14,9 +14,9 @@ cd notespace
 docker compose up --build -d --wait
 ```
 
-Open **http://localhost:8080**. `.env.example` documents optional port/bind settings; the defaults need no configuration. Compose runs one Go process serving the built web app and API, with SQLite in the `notespace-data` volume. No Node process or external database is needed at runtime.
+Open **http://localhost:8080**. `.env.example` documents optional port/bind and data-volume settings; the defaults need no configuration. Compose runs one Go process serving the built web app and API, with SQLite in the explicitly named `notespace-data` volume. The explicit volume name keeps data attached to the installation even when a deployment tool changes the Compose project name. No Node process or external database is needed at runtime.
 
-This first slice is a private, single-instance tool with **no authentication**. The host port binds to loopback. Use a trusted private network or an authenticating reverse proxy if exposing it beyond your machine. Do not use `docker compose down -v` unless you intend to remove all project data. For a simple consistent backup, stop the container and copy the entire volume, including any SQLite WAL files, before starting it again.
+This first slice is a private, single-instance tool with **no authentication**. The host port binds to loopback. Use a trusted private network or an authenticating reverse proxy if exposing it beyond your machine. Do not use `docker compose down -v` unless you intend to remove all project data. For a simple consistent backup, stop the container and copy the entire volume, including any SQLite WAL files, before starting it again. Redeploy with the same `NOTESPACE_DATA_VOLUME` value; `docker compose down` without `-v` preserves the data volume.
 
 ## Development
 

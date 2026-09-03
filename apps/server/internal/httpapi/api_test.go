@@ -79,6 +79,47 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	t.Fatalf("category count missing from %#v", categories)
 }
 
+func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
+	ctx := context.Background()
+	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+
+	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
+	expect(t, createdCategory, 201)
+	var category project.CategorySummary
+	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
+		t.Fatal(err)
+	}
+
+	renameCategory := call(t, api, "PATCH", "/api/categories/"+category.ID, map[string]string{"title": "Backend Engineering"})
+	expect(t, renameCategory, 200)
+	if got := decodeCategories(t, call(t, api, "GET", "/api/categories", nil))[0].Title; got != "Backend Engineering" {
+		t.Fatalf("category title = %q, want %q", got, "Backend Engineering")
+	}
+
+	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Go", "categoryId": category.ID}))
+	renameWorkspace := call(t, api, "PATCH", "/api/projects/"+workspace.ID+"/title", map[string]string{"title": "Golang"})
+	expect(t, renameWorkspace, 200)
+	if got := decodeProject(t, renameWorkspace).Title; got != "Golang" {
+		t.Fatalf("workspace title = %q, want %q", got, "Golang")
+	}
+
+	// Category deletion must not cascade into authored workspace data.
+	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
+	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), 200)
+	expect(t, call(t, api, "DELETE", "/api/projects/"+workspace.ID, nil), 204)
+	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
+	for _, listed := range decodeCategories(t, call(t, api, "GET", "/api/categories", nil)) {
+		if listed.ID == category.ID {
+			t.Fatal("deleted category remains listed")
+		}
+	}
+}
+
 func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	ctx := context.Background()
 	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))

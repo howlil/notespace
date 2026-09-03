@@ -70,6 +70,8 @@ Current constraints:
 - one database connection in the current implementation;
 - SQLite WAL with FULL synchronous durability configuration;
 - persisted snapshots remain versioned so editor formats can evolve deliberately.
+- Compose maps `/data` to a stable physical named volume configured by `NOTESPACE_DATA_VOLUME`; changing or removing that volume is a deployment-level data-loss operation.
+- Category deletion is transactional and refuses non-empty categories; workspace title rename reuses optimistic version checks so metadata edits cannot overwrite newer authored state.
 
 Schema/data migrations are architecture-sensitive. Destructive or irreversible migrations require explicit user approval and recovery evidence.
 

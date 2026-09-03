@@ -43,14 +43,16 @@ Dashboard
 
 Implemented product behavior includes:
 
-- category creation/listing and workspace creation, listing, open, update, and permanent delete with confirmation;
+- category creation/listing/update/delete and workspace creation, listing, open, update, rename, and permanent delete;
+- category deletion is intentionally limited to empty categories so authored workspace data cannot be removed accidentally;
 - a Tiptap-based structured document surface;
 - an Excalidraw-based freeform canvas surface;
 - one full-width, resizable workspace with both surfaces visible together;
 - durable project snapshots with optimistic version conflict detection;
 - visible save failure/retry behavior and unload protection for unsaved changes;
 - light/dark theme foundation;
-- self-hosted Docker packaging with Go + SQLite persistence.
+- self-hosted Docker packaging with Go + SQLite persistence;
+- Compose deployments use a stable named volume controlled by `NOTESPACE_DATA_VOLUME`; redeploys preserve data when that value remains stable and `down -v` is avoided.
 - automatic study sessions with idle/visibility handling, cumulative heartbeat persistence, daily activity, streak derivation, and history that survives workspace deletion.
 
 Favorites, trash/restore, templates, AI, collaboration, authentication/teams, export/import, structured diagrams, and semantic cross-surface relationships are not part of that completed baseline unless a current milestone explicitly brings one into scope.

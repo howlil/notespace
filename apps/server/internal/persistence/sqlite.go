@@ -70,6 +70,32 @@ func (s *Store) UpdateCategory(ctx context.Context, id, title string) (project.C
 	return category, nil
 }
 
+func (s *Store) DeleteCategory(ctx context.Context, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists == 0 {
+		return project.ErrNotFound
+	}
+	var workspaces int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE category_id=?`, id).Scan(&workspaces); err != nil {
+		return err
+	}
+	if workspaces > 0 {
+		return project.ErrNotEmpty
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id=?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) ListCategories(ctx context.Context) ([]project.CategorySummary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
 	if err != nil {

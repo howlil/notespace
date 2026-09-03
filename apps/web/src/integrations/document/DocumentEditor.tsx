@@ -5,6 +5,8 @@ import StarterKit from "@tiptap/starter-kit";
 import UniqueID from "@tiptap/extension-unique-id";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { Code2, Heading2, List, ListChecks, ListOrdered, Minus, Quote } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -54,17 +56,18 @@ type SlashCommand = {
   label: string;
   description: string;
   keywords: string;
+  icon: LucideIcon;
   run: (editor: Editor) => void;
 };
 
 const slashCommands: SlashCommand[] = [
-  { label: "Heading", description: "Large section heading", keywords: "heading h2", run: (editor) => { editor.chain().focus().toggleHeading({ level: 2 }).run(); } },
-  { label: "Bullet list", description: "Turn this into a list", keywords: "bullet list ul", run: (editor) => { editor.chain().focus().toggleBulletList().run(); } },
-  { label: "Numbered list", description: "Create an ordered list", keywords: "numbered ordered list ol", run: (editor) => { editor.chain().focus().toggleOrderedList().run(); } },
-  { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
-  { label: "Code block", description: "Write formatted code", keywords: "code pre", run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
-  { label: "Divider", description: "Add a horizontal rule", keywords: "divider rule line", run: (editor) => { editor.chain().focus().setHorizontalRule().run(); } },
-  { label: "Checklist", description: "Track tasks inline", keywords: "check task todo", run: (editor) => { editor.chain().focus().toggleWrap("taskList").run(); } },
+  { label: "Heading", description: "Large section heading", keywords: "heading h2", icon: Heading2, run: (editor) => { editor.chain().focus().toggleHeading({ level: 2 }).run(); } },
+  { label: "Bullet list", description: "Turn this into a list", keywords: "bullet list ul", icon: List, run: (editor) => { editor.chain().focus().toggleBulletList().run(); } },
+  { label: "Numbered list", description: "Create an ordered list", keywords: "numbered ordered list ol", icon: ListOrdered, run: (editor) => { editor.chain().focus().toggleOrderedList().run(); } },
+  { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", icon: Quote, run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
+  { label: "Code block", description: "Write formatted code", keywords: "code pre", icon: Code2, run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
+  { label: "Divider", description: "Add a horizontal rule", keywords: "divider rule line", icon: Minus, run: (editor) => { editor.chain().focus().setHorizontalRule().run(); } },
+  { label: "Checklist", description: "Track tasks inline", keywords: "check task todo", icon: ListChecks, run: (editor) => { editor.chain().focus().toggleWrap("taskList").run(); } },
 ];
 
 type SlashMenu = { from: number; query: string; x: number; y: number } | null;
@@ -216,8 +219,8 @@ export default function DocumentEditor({
               onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
               onClick={() => runSlashCommand(command)}
             >
-              <span className="slash-command-name">{command.label}</span>
-              <span className="slash-command-description">{command.description}</span>
+              <span className="slash-command-icon"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
+              <span className="slash-command-copy"><span className="slash-command-name">{command.label}</span><span className="slash-command-description">{command.description}</span></span>
             </button>
           ))}
         </div>

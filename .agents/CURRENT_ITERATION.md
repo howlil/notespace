@@ -3,9 +3,9 @@
 ## Status
 
 - **Milestone:** Milestone 5 — Study Activity Tracking & Learning Streak
-- **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
+- **Milestone state:** IMPLEMENTED / ADDITIONAL FIXES READY TO INTEGRATE
 - **Active slices:** reliable workspace study sessions; learning activity and streak dashboard
-- **Integrated through:** local working tree; ready to merge to `master`
+- **Integrated through:** local working tree; additional fixes ready to merge to `master`
 - **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
 
 ## Why this milestone exists
@@ -31,6 +31,9 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - Workspace title editing stays inline without a bordered/ring treatment.
 - Workspace `Focus mode` hides the top header for `Split`, `Note`, and `Canvas`; a small restore control and `Escape` keep the transition reversible.
 - Category and workspace creation use compact inline quick-create forms with Enter/Add submission instead of a modal step.
+- Category and workspace rename/delete actions now use inline, underline-only controls; non-empty category deletion is rejected to prevent accidental cascade loss.
+- Slash-command Insert block options include semantic icons so each block type is scannable.
+- Compose uses an explicit stable physical data-volume name via `NOTESPACE_DATA_VOLUME`; redeploys must keep that value and must not use `docker compose down -v`.
 
 ## Evidence so far
 
@@ -44,9 +47,15 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - `go test ./...` — NOT RUN: Go is unavailable
 - Playwright E2E — NOT RUN: Go server, Docker, and Chromium are unavailable
 
+## Additional fix evidence
+
+- Frontend typecheck, production build, lint, frontend unit tests, and `git diff --check` — PASS.
+- Backend API coverage added for category/workspace rename, inline-management deletion behavior, and non-cascading category deletion.
+- Go and Docker checks — NOT RUN: binaries are unavailable in the current environment.
+
 ## Next action
 
-Merge this M5 implementation to `master`. E2E/Compose verification is intentionally skipped for this delivery because Go, Docker, and Playwright Chromium are unavailable in the current environment.
+Merge the additional durability and inline-management fixes to `master`. E2E/Compose verification is intentionally skipped for this delivery because Go, Docker, and Playwright Chromium are unavailable in the current environment.
 
 ## Previous Milestone Record
 

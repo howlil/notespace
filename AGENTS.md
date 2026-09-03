@@ -77,12 +77,12 @@ Avoid unrelated refactors, speculative abstractions, future-proofing, dependency
 
 ## Verification rule
 
-Verification is risk-proportional and evidence-driven. Start with the narrowest test that proves the changed boundary; escalate only when the behavior crosses boundaries or risk requires it.
+Verification is risk-proportional, automated, and evidence-driven. Start with the narrowest deterministic test/check that proves the changed boundary; escalate only when the behavior crosses repository-owned boundaries or risk requires another automated layer.
 
-CI uses one stable `Verify` check with conditional web, Go, browser, and production-composition gates. Do not bypass a relevant gate to make CI green, but do not run expensive unrelated gates merely as ceremony.
+CI uses one stable `Verify` check with conditional web, Go, and production-composition gates. Manual acceptance testing, black-box/browser testing, live-browser verification, and manual visual review are not required merge or release gates. Do not bypass a relevant automated gate to make CI green, but do not run expensive unrelated gates merely as ceremony.
 
-For UI changes, protect stable user behavior and design contracts from `DESIGN.md`; do not substitute brittle pixel snapshots for hierarchy/interaction verification.
+For UI changes, protect stable behavior and design contracts from `DESIGN.md` through deterministic component/static/build evidence where applicable; do not create a manual screenshot-review completion gate.
 
 ## Stop rule
 
-Stop when the bounded acceptance criteria are satisfied and relevant gates are green. Record the evidence and one next action in `CURRENT_ITERATION.md`. Do not invent a new milestone or speculative polish automatically.
+Stop when the bounded product criteria are satisfied and relevant automated gates are green. Record the evidence and one next action in `CURRENT_ITERATION.md`. Do not invent a new milestone or speculative polish automatically.

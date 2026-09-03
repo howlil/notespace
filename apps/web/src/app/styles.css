@@ -1762,6 +1762,20 @@ h1 {
 .inline-confirm { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .danger-text, .danger-icon { color: var(--danger); }
 .dashboard-inline-error { margin: -10px 0 14px; color: var(--danger); font-size: 10px; }
+.workspace-capture-input { width: 118px; border: 0; border-bottom: 1px solid var(--accent); border-radius: 0; outline: 0; background: transparent; color: var(--ink); padding: 5px 2px; font-size: 10px; }
+.history-popover { width: 245px; max-height: 360px; overflow: auto; }
+.history-popover .menu-item { display: grid; gap: 3px; justify-content: stretch; }
+.history-popover .menu-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
+.history-empty { display: block; padding: 8px 9px; color: var(--muted); font-size: 10px; }
+.history-preview { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding: 8px 9px 2px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.global-search { position: relative; display: flex; align-items: center; gap: 8px; min-height: 36px; margin: 0 0 18px; padding: 0 11px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.global-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); padding: 8px 0; font-size: 11px; }
+.global-search input::placeholder { color: var(--muted); }
+.global-search-results { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); box-shadow: 0 10px 24px #0002; }
+.search-result { display: grid; gap: 2px; padding: 8px 9px; border-radius: 5px; }
+.search-result:hover, .search-result:focus-visible { background: var(--tint); }
+.search-result strong { font-size: 11px; font-weight: 500; }
+.search-result span, .search-result-empty { color: var(--muted); font-size: 10px; }
 .inline-title-input[data-inline-edit="workspace"],
 .inline-note-title-input[data-inline-edit="note"] {
   border: 0;

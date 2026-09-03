@@ -69,6 +69,32 @@ type Project struct {
 	SplitRatio float64     `json:"splitRatio"`
 }
 
+type SearchResult struct {
+	WorkspaceID string `json:"workspaceId"`
+	WorkspaceTitle string `json:"workspaceTitle"`
+	NoteID string `json:"noteId"`
+	NoteTitle string `json:"noteTitle"`
+	BlockID string `json:"blockId"`
+	Excerpt string `json:"excerpt"`
+}
+
+type HistoryEntry struct {
+	ID string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Version int `json:"version"`
+	Title string `json:"title"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type HistorySnapshot struct {
+	HistoryEntry
+	Document Snapshot `json:"document"`
+	Notes []Note `json:"notes"`
+	Canvas Snapshot `json:"canvas"`
+	References []Reference `json:"references"`
+	SplitRatio float64 `json:"splitRatio"`
+}
+
 // Update is a complete authored snapshot; Version is an optimistic concurrency guard.
 type Update struct {
 	Title      string      `json:"title"`
@@ -91,6 +117,10 @@ type Store interface {
 	Get(context.Context, string) (Project, error)
 	Update(context.Context, string, Update) (Project, error)
 	Delete(context.Context, string) error
+	Search(context.Context, string) ([]SearchResult, error)
+	ListHistory(context.Context, string) ([]HistoryEntry, error)
+	GetHistory(context.Context, string, string) (HistorySnapshot, error)
+	CreateHistory(context.Context, HistorySnapshot) error
 }
 
 type Service struct{ Store Store }

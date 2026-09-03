@@ -2,12 +2,14 @@ package persistence
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/project"
@@ -192,6 +194,8 @@ func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 }
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
+	previous, err := s.Get(ctx, id)
+	if err != nil { return project.Project{}, err }
 	doc, _ := json.Marshal(u.Document)
 	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
@@ -205,7 +209,9 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 		}
 		return p, project.ErrConflict
 	}
-	return p, err
+	if err != nil { return p, err }
+	_ = s.CreateHistory(ctx, project.HistorySnapshot{HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: previous.ID, Version: previous.Version, Title: previous.Title, CreatedAt: previous.UpdatedAt}, Document: previous.Document, Notes: previous.Notes, Canvas: previous.Canvas, References: previous.References, SplitRatio: previous.SplitRatio})
+	return p, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {
@@ -218,6 +224,91 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return project.ErrNotFound
 	}
 	return err
+}
+
+func (s *Store) Search(ctx context.Context, query string) ([]project.SearchResult, error) {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" { return []project.SearchResult{}, nil }
+	projects, err := s.List(ctx)
+	if err != nil { return nil, err }
+	results := make([]project.SearchResult, 0)
+	for _, summary := range projects {
+		p, err := s.Get(ctx, summary.ID)
+		if err != nil { return nil, err }
+		for _, note := range p.Notes {
+			walkSearch(note.Document.Data, func(blockID, text string) {
+				if strings.Contains(strings.ToLower(note.Title), query) || strings.Contains(strings.ToLower(text), query) {
+					results = append(results, project.SearchResult{WorkspaceID: p.ID, WorkspaceTitle: p.Title, NoteID: note.ID, NoteTitle: note.Title, BlockID: blockID, Excerpt: excerpt(text, query)})
+				}
+			})
+		}
+	}
+	return results, nil
+}
+
+func walkSearch(value json.RawMessage, visit func(string, string)) {
+	var node any
+	if json.Unmarshal(value, &node) != nil { return }
+	var walk func(any)
+	walk = func(value any) {
+		if object, ok := value.(map[string]any); ok {
+			if text, ok := object["text"].(string); ok {
+				blockID := ""
+				if attrs, ok := object["attrs"].(map[string]any); ok { blockID, _ = attrs["blockId"].(string) }
+				visit(blockID, text)
+			}
+			for _, child := range object { walk(child) }
+			return
+		}
+		if list, ok := value.([]any); ok { for _, child := range list { walk(child) } }
+	}
+	walk(node)
+}
+
+func excerpt(text, query string) string {
+	text = strings.TrimSpace(text)
+	if len(text) <= 140 { return text }
+	index := strings.Index(strings.ToLower(text), query)
+	if index < 0 { return text[:140] + "…" }
+	start := index - 55
+	if start < 0 { start = 0 }
+	end := start + 140
+	if end > len(text) { end = len(text) }
+	return text[start:end]
+}
+
+func (s *Store) CreateHistory(ctx context.Context, snapshot project.HistorySnapshot) error {
+	document, _ := json.Marshal(snapshot.Document)
+	notes, _ := json.Marshal(snapshot.Notes)
+	canvas, _ := json.Marshal(snapshot.Canvas)
+	references, _ := json.Marshal(snapshot.References)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO workspace_history(id,workspace_id,version,title,document_state,notes_state,canvas_state,references_state,split_ratio,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, snapshot.ID, snapshot.WorkspaceID, snapshot.Version, snapshot.Title, document, notes, canvas, references, snapshot.SplitRatio, snapshot.CreatedAt)
+	if err == nil {
+		_, err = s.db.ExecContext(ctx, `DELETE FROM workspace_history WHERE workspace_id=? AND id NOT IN (SELECT id FROM workspace_history WHERE workspace_id=? ORDER BY created_at DESC LIMIT 50)`, snapshot.WorkspaceID, snapshot.WorkspaceID)
+	}
+	return err
+}
+
+func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]project.HistoryEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,workspace_id,version,title,created_at FROM workspace_history WHERE workspace_id=? ORDER BY created_at DESC LIMIT 50`, workspaceID)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	entries := []project.HistoryEntry{}
+	for rows.Next() { var entry project.HistoryEntry; if err := rows.Scan(&entry.ID, &entry.WorkspaceID, &entry.Version, &entry.Title, &entry.CreatedAt); err != nil { return nil, err }; entries = append(entries, entry) }
+	return entries, rows.Err()
+}
+
+func (s *Store) GetHistory(ctx context.Context, workspaceID, historyID string) (project.HistorySnapshot, error) {
+	var snapshot project.HistorySnapshot
+	var document, notes, canvas, references string
+	err := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,version,title,document_state,notes_state,canvas_state,references_state,split_ratio,created_at FROM workspace_history WHERE workspace_id=? AND id=?`, workspaceID, historyID).Scan(&snapshot.ID, &snapshot.WorkspaceID, &snapshot.Version, &snapshot.Title, &document, &notes, &canvas, &references, &snapshot.SplitRatio, &snapshot.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) { return snapshot, project.ErrNotFound }
+	if err != nil { return snapshot, err }
+	if err = json.Unmarshal([]byte(document), &snapshot.Document); err != nil { return snapshot, err }
+	if err = json.Unmarshal([]byte(notes), &snapshot.Notes); err != nil { return snapshot, err }
+	if err = json.Unmarshal([]byte(canvas), &snapshot.Canvas); err != nil { return snapshot, err }
+	if err = json.Unmarshal([]byte(references), &snapshot.References); err != nil { return snapshot, err }
+	return snapshot, nil
 }
 
 func scanStudySession(row scanner) (study.Session, error) {

@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { FileText, Layers, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { FileText, Layers, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Brand } from "../../app/Sidebar";
 import { ThemeToggle } from "../../app/theme";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createCategory, createProject, deleteCategory, deleteProject, renameProject, updateCategory } from "../../domain/project/api";
+import { createCategory, createProject, deleteCategory, deleteProject, renameProject, searchNotespace, updateCategory } from "../../domain/project/api";
+import type { SearchResult } from "../../domain/project/api";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 
 function editedAt(value: string) {
@@ -24,8 +25,18 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const navigate = useNavigate();
   const router = useRouter();
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) { setSearchResults([]); return; }
+    let cancelled = false;
+    void searchNotespace(query).then((results) => { if (!cancelled) setSearchResults(results.slice(0, 8)); }).catch(() => { if (!cancelled) setSearchResults([]); });
+    return () => { cancelled = true; };
+  }, [searchQuery]);
 
   function beginCreate(target: CreateTarget) {
     setError("");
@@ -144,6 +155,7 @@ export function Dashboard({ categories, workspaces }: { categories: CategorySumm
             <div><h1>Categories</h1><p>{categories.length} categor{categories.length === 1 ? "y" : "ies"} <span>·</span> {workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</p></div>
             {createTarget?.kind === "category" ? <form className="quick-create" onSubmit={create}><input aria-label="Category title" autoFocus autoComplete="off" placeholder="Category name" maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setCreateTarget(null); }} /><button className="primary" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add"}</button><button type="button" className="icon-button" aria-label="Cancel new category" onClick={() => setCreateTarget(null)}><span aria-hidden="true">×</span></button>{error && <span className="quick-create-error" role="alert">{error}</span>}</form> : <button className="primary" onClick={() => beginCreate({ kind: "category" })}><Plus size={17} /> New category</button>}
           </div>
+          <div className="global-search"><Search size={15} aria-hidden="true" /><input aria-label="Search Notespace" placeholder="Search notes, blocks, and workspaces" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />{searchQuery.trim().length >= 2 && <div className="global-search-results" role="listbox" aria-label="Search results">{searchResults.length ? searchResults.map((result) => <a key={`${result.workspaceId}-${result.noteId}-${result.blockId}`} href={`/projects/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}&block=${encodeURIComponent(result.blockId)}`} role="option" className="search-result"><strong>{result.noteTitle}</strong><span>{result.workspaceTitle} · {result.excerpt || "Open note"}</span></a>) : <span className="search-result-empty">No matching knowledge</span>}</div>}</div>
           {error && !createTarget && <p className="dashboard-inline-error" role="alert">{error}</p>}
           <StudyActivityDashboard />
           {!categories.length ? (

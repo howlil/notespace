@@ -72,6 +72,9 @@ Current constraints:
 - persisted snapshots remain versioned so editor formats can evolve deliberately.
 - Compose maps `/data` to a stable physical named volume configured by `NOTESPACE_DATA_VOLUME`; changing or removing that volume is a deployment-level data-loss operation.
 - Category deletion is transactional and refuses non-empty categories; workspace title rename reuses optimistic version checks so metadata edits cannot overwrite newer authored state.
+- Search traverses Project-owned note snapshots and returns product IDs for exact-context navigation; it does not introduce a graph aggregate.
+- History stores bounded pre-update workspace snapshots in SQLite and restores through the normal optimistic Project update path.
+- Export is assembled at the HTTP boundary as a portable ZIP containing manifest, notes, canvas, and relationships; editor-native state remains inside those versioned files.
 
 Schema/data migrations are architecture-sensitive. Destructive or irreversible migrations require explicit user approval and recovery evidence.
 

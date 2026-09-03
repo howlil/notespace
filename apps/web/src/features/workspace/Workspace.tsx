@@ -15,6 +15,9 @@ import {
   ChevronDown,
   Circle,
   FileText,
+  Download,
+  Globe,
+  History as HistoryIcon,
   Layers,
   Link2,
   Loader2,
@@ -37,7 +40,8 @@ import type {
   ProjectSummary,
   Snapshot,
 } from "../../domain/project/project";
-import { saveProject } from "../../domain/project/api";
+import { exportWorkspace, getHistorySnapshot, listHistory, restoreHistory, saveProject } from "../../domain/project/api";
+import type { HistoryEntry, HistorySnapshot } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
@@ -78,6 +82,38 @@ function documentBlockIds(snapshot: Snapshot) {
   };
   visit(snapshot.data);
   return ids;
+}
+
+function documentBlockText(snapshot: Snapshot, blockId: string) {
+  let result = "";
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    const attrs = record.attrs;
+    const matches = attrs && typeof attrs === "object" && (attrs as Record<string, unknown>).blockId === blockId;
+    if (matches) {
+      const collect = (child: unknown) => {
+        if (Array.isArray(child)) { child.forEach(collect); return; }
+        if (!child || typeof child !== "object") return;
+        const item = child as Record<string, unknown>;
+        if (typeof item.text === "string") result += `${item.text} `;
+        collect(item.content);
+      };
+      collect(record);
+      return;
+    }
+    Object.values(record).forEach(visit);
+  };
+  visit(snapshot.data);
+  return result.trim();
+}
+
+function canvasElementText(snapshot: Snapshot, elementId: string) {
+  const element = snapshot.data.elements;
+  if (!Array.isArray(element)) return "";
+  const found = element.find((value) => value && typeof value === "object" && (value as Record<string, unknown>).id === elementId) as Record<string, unknown> | undefined;
+  return typeof found?.text === "string" ? found.text : "";
 }
 
 function canvasHasElement(snapshot: Snapshot, elementId: string) {
@@ -132,6 +168,11 @@ export function Workspace({
   const [noteTitle, setNoteTitle] = useState("");
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyPreview, setHistoryPreview] = useState<HistorySnapshot | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState(project.title);
   const renameInput = useRef<HTMLInputElement>(null);
@@ -177,6 +218,13 @@ export function Workspace({
     document.addEventListener("keydown", exitOnEscape);
     return () => document.removeEventListener("keydown", exitOnEscape);
   }, [focusMode]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const noteId = params.get("note");
+    const blockId = params.get("block");
+    if (noteId && current.current.notes.some((note) => note.id === noteId)) setActiveNoteId(noteId);
+    if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current });
+  }, [project.id]);
   useBlocker({
     shouldBlockFn: async () => {
       try { await saver.flush(); return false; } catch { return true; }
@@ -201,10 +249,81 @@ export function Workspace({
   const updateDocument = useCallback((document: Snapshot) => {
     const now = new Date().toISOString();
     const notes = current.current.notes.map((note) => note.id === activeNoteId ? { ...note, document, updatedAt: now } : note);
-    update({ document, notes });
+    const textByBlock = new Map<string, string>();
+    for (const reference of current.current.references) {
+      if (reference.blockId && !textByBlock.has(reference.blockId)) textByBlock.set(reference.blockId, documentBlockText(document, reference.blockId).slice(0, 180));
+    }
+    const existing = Array.isArray(current.current.canvas.data.elements) ? current.current.canvas.data.elements : [];
+    const elements = existing.map((value) => {
+      if (!value || typeof value !== "object") return value;
+      const element = value as Record<string, unknown>;
+      const customData = element.customData;
+      const meta = customData && typeof customData === "object" ? (customData as Record<string, unknown>).notespace : undefined;
+      if (!meta || typeof meta !== "object") return value;
+      const blockId = (meta as Record<string, unknown>).blockId;
+      if (typeof blockId !== "string" || !textByBlock.has(blockId) || element.type !== "text") return value;
+      const text = textByBlock.get(blockId) ?? "";
+      return { ...element, text, originalText: text };
+    });
+    update({ document, notes, canvas: elements.length === existing.length ? { ...current.current.canvas, data: { ...current.current.canvas.data, elements } } : current.current.canvas });
   }, [activeNoteId, update]);
 
   const updateCanvas = useCallback((canvas: Snapshot) => update({ canvas }), [update]);
+
+  const promoteBlockToCanvas = useCallback(() => {
+    if (!selectedBlockId) return;
+    const text = documentBlockText(current.current.document, selectedBlockId);
+    if (!text) return;
+    const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
+    const x = 120 + (elements.length % 4) * 260;
+    const y = 120 + Math.floor(elements.length / 4) * 150;
+    const cardId = crypto.randomUUID();
+    const now = Date.now();
+    const base = { angle: 0, strokeColor: "#4f7396", backgroundColor: "#e8eef6", fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], frameId: null, roundness: { type: 3 }, seed: now, version: 1, versionNonce: now, isDeleted: false, boundElements: null, updated: now, link: null, locked: false };
+    const rectangle = { ...base, id: cardId, type: "rectangle", x, y, width: 230, height: 110, customData: { notespace: { kind: "semantic-card", noteId: activeNote?.id ?? "", blockId: selectedBlockId } } };
+    const label = { ...base, id: crypto.randomUUID(), type: "text", x: x + 14, y: y + 14, width: 202, height: 80, text: text.slice(0, 180), originalText: text.slice(0, 180), fontSize: 16, fontFamily: 1, textAlign: "left", verticalAlign: "top", containerId: null, autoResize: true, customData: { notespace: { kind: "semantic-card-label", cardId, noteId: activeNote?.id ?? "", blockId: selectedBlockId } } };
+    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, rectangle, label] } }, references: [...current.current.references, { id: crypto.randomUUID(), blockId: selectedBlockId, elementId: cardId }] });
+    setSelectedElementId(cardId);
+    setViewMode("split");
+  }, [activeNote?.id, selectedBlockId, update]);
+
+  const promoteCanvasToNote = useCallback(() => {
+    if (!selectedElementId) return;
+    const text = canvasElementText(current.current.canvas, selectedElementId);
+    if (!text) return;
+    const now = new Date().toISOString();
+    const note: Note = { id: crypto.randomUUID(), title: text.slice(0, 42), document: { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", attrs: { blockId: crypto.randomUUID() }, content: [{ type: "text", text }] }] } }, createdAt: now, updatedAt: now };
+    update({ notes: [...current.current.notes, note], document: note.document });
+    setActiveNoteId(note.id);
+    setSelectedBlockId(null);
+  }, [selectedElementId, update]);
+
+  function captureSource() {
+    let url: URL;
+    try { url = new URL(sourceUrl.trim()); } catch { return; }
+    const elements = Array.isArray(current.current.canvas.data.elements) ? [...current.current.canvas.data.elements] : [];
+    const now = Date.now();
+    const source = { id: crypto.randomUUID(), type: "text", x: 120 + (elements.length % 4) * 260, y: 120 + Math.floor(elements.length / 4) * 150, width: 260, height: 50, angle: 0, text: url.href, originalText: url.href, fontSize: 16, fontFamily: 1, textAlign: "left", verticalAlign: "top", containerId: null, autoResize: true, strokeColor: "#4f7396", backgroundColor: "transparent", fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], frameId: null, roundness: null, seed: now, version: 1, versionNonce: now, isDeleted: false, boundElements: null, updated: now, link: url.href, locked: false, customData: { notespace: { kind: "source", url: url.href } } };
+    update({ canvas: { ...current.current.canvas, data: { ...current.current.canvas.data, elements: [...elements, source] } } });
+    setSourceUrl("");
+    setCaptureOpen(false);
+  }
+
+  async function openHistory() {
+    setHistoryOpen((open) => !open);
+    if (!historyEntries.length) setHistoryEntries(await listHistory(project.id).catch(() => []));
+  }
+
+  async function previewHistory(entry: HistoryEntry) {
+    setHistoryPreview(await getHistorySnapshot(project.id, entry.id).catch(() => null));
+  }
+
+  async function restoreSelectedHistory() {
+    if (!historyPreview) return;
+    await saver.flush();
+    await restoreHistory(project.id, historyPreview.id);
+    window.location.reload();
+  }
 
   function selectNote(note: Note) {
     current.current = { ...current.current, document: note.document };
@@ -354,6 +473,11 @@ export function Workspace({
             <button className="icon-button" aria-label="Link selections" title="Link selected document block and canvas object" disabled={!selectedBlockId || !selectedElementId} onClick={createReference}><Link2 size={16} /></button>
             {blockReference && <button className="icon-button" aria-label="Go to linked canvas object" title="Go to linked canvas object" onClick={() => navigateToCanvas(blockReference)}><Layers size={16} /></button>}
             {elementReference && <button className="icon-button" aria-label="Go to linked document block" title="Go to linked document block" onClick={() => navigateToDocument(elementReference)}><FileText size={16} /></button>}
+            <button className="secondary compact-action" disabled={!selectedBlockId} onClick={promoteBlockToCanvas}><Layers size={13} /> Send to canvas</button>
+            <button className="secondary compact-action" disabled={!selectedElementId} onClick={promoteCanvasToNote}><FileText size={13} /> Expand to note</button>
+            {captureOpen ? <input className="workspace-capture-input" aria-label="Source URL" autoFocus placeholder="Paste URL" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") captureSource(); if (event.key === "Escape") setCaptureOpen(false); }} /> : <button className="icon-button" aria-label="Capture source URL" title="Capture source URL" onClick={() => setCaptureOpen(true)}><Globe size={16} /></button>}
+            <a className="icon-button" aria-label="Export workspace" title="Export workspace" href={exportWorkspace(project.id)} download><Download size={16} /></a>
+            <div className="workspace-menu history-menu"><button className="icon-button" aria-label="Workspace history" title="Workspace history" aria-expanded={historyOpen} onClick={() => void openHistory()}><HistoryIcon size={16} /></button>{historyOpen && <div className="workspace-menu-popover history-popover"><div className="menu-heading">History</div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "menu-item active" : "menu-item"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <span className="history-empty">No checkpoints yet.</span>}{historyPreview && <div className="history-preview"><span>Preview v{historyPreview.version}</span><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>
             <StudyIndicator study={study} />
             <span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span>
             <button className="icon-button focus-mode-toggle" aria-label="Enter focus mode" title="Focus mode · hide header" onClick={() => setFocusMode(true)}><Maximize2 size={16} /></button>

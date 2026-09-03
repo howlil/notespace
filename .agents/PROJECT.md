@@ -54,6 +54,9 @@ Implemented product behavior includes:
 - self-hosted Docker packaging with Go + SQLite persistence;
 - Compose deployments use a stable named volume controlled by `NOTESPACE_DATA_VOLUME`; redeploys preserve data when that value remains stable and `down -v` is avoided.
 - automatic study sessions with idle/visibility handling, cumulative heartbeat persistence, daily activity, streak derivation, and history that survives workspace deletion.
+- selected document blocks can become source-linked semantic canvas cards, canvas text can be promoted into notes, and references remain product-owned;
+- workspace search returns note/block context and can open the exact note/block; workspace export is a portable ZIP rather than a SQLite dump;
+- source URLs can be captured as canvas links, and the latest 50 authored checkpoints can be previewed/restored per workspace.
 
 Favorites, trash/restore, templates, AI, collaboration, authentication/teams, export/import, structured diagrams, and semantic cross-surface relationships are not part of that completed baseline unless a current milestone explicitly brings one into scope.
 

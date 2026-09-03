@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,11 +44,16 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
+	mux.HandleFunc("GET /api/projects/{id}/export", a.export)
+	mux.HandleFunc("GET /api/projects/{id}/history", a.history)
+	mux.HandleFunc("GET /api/projects/{id}/history/{historyId}", a.historySnapshot)
+	mux.HandleFunc("POST /api/projects/{id}/history/{historyId}/restore", a.restore)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
 	mux.HandleFunc("PUT /api/workspaces/{id}/study-sessions/{sessionId}", a.studyHeartbeat)
 	mux.HandleFunc("GET /api/workspaces/{id}/study", a.workspaceStudy)
 	mux.HandleFunc("GET /api/study/activity", a.activity)
 	mux.HandleFunc("GET /api/study/activity/{date}", a.dayDetail)
+	mux.HandleFunc("GET /api/search", a.search)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { send(w, 404, map[string]string{"error": "Not found"}) })
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -227,6 +234,57 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, 200, p)
+}
+
+func (a API) search(w http.ResponseWriter, r *http.Request) {
+	data, err := a.service.Store.Search(r.Context(), r.URL.Query().Get("q"))
+	if err != nil { fail(w, err); return }
+	send(w, 200, data)
+}
+
+func (a API) export(w http.ResponseWriter, r *http.Request) {
+	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
+	if err != nil { fail(w, err); return }
+	var buffer bytes.Buffer
+	archive := zip.NewWriter(&buffer)
+	write := func(name string, value any) error {
+		file, err := archive.Create(name)
+		if err != nil { return err }
+		return json.NewEncoder(file).Encode(value)
+	}
+	manifest := map[string]any{"format": "notespace-workspace", "version": 1, "workspace": map[string]any{"id": p.ID, "categoryId": p.CategoryID, "title": p.Title, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}, "notes": p.Notes}
+	if err := write("manifest.json", manifest); err != nil { fail(w, err); return }
+	if err := write("notes/notes.json", p.Notes); err != nil { fail(w, err); return }
+	if err := write("canvas/workspace.excalidraw.json", p.Canvas); err != nil { fail(w, err); return }
+	if err := write("relationships.json", p.References); err != nil { fail(w, err); return }
+	if err := archive.Close(); err != nil { fail(w, err); return }
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="notespace-workspace.zip"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buffer.Bytes())
+}
+
+func (a API) history(w http.ResponseWriter, r *http.Request) {
+	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil { fail(w, err); return }
+	data, err := a.service.Store.ListHistory(r.Context(), r.PathValue("id"))
+	if err != nil { fail(w, err); return }
+	send(w, 200, data)
+}
+
+func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
+	data, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
+	if err != nil { fail(w, err); return }
+	send(w, 200, data)
+}
+
+func (a API) restore(w http.ResponseWriter, r *http.Request) {
+	current, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
+	if err != nil { fail(w, err); return }
+	snapshot, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
+	if err != nil { fail(w, err); return }
+	restored, err := a.service.Update(r.Context(), current.ID, project.Update{Title: snapshot.Title, Document: snapshot.Document, Notes: snapshot.Notes, Canvas: snapshot.Canvas, References: snapshot.References, SplitRatio: snapshot.SplitRatio, Version: current.Version})
+	if err != nil { fail(w, err); return }
+	send(w, 200, restored)
 }
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(r.PathValue("id")) == "" {

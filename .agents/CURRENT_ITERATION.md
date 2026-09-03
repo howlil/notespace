@@ -1,11 +1,11 @@
-# Current Iteration — Milestone 5: Study Activity Tracking & Learning Streak
+# Current Iteration — Milestones 5–8: Visual Knowledge Workflow
 
 ## Status
 
-- **Milestone:** Milestone 5 — Study Activity Tracking & Learning Streak
-- **Milestone state:** IMPLEMENTED / ADDITIONAL FIXES READY TO INTEGRATE
-- **Active slices:** reliable workspace study sessions; learning activity and streak dashboard
-- **Integrated through:** local working tree; additional fixes ready to merge to `master`
+- **Milestone:** M5 Visual Sensemaking → M6 Retrieval & Context → M7 Capture & Portability → M8 History & Recovery
+- **Milestone state:** IMPLEMENTED / LOCAL VERIFICATION
+- **Active slices:** semantic note/canvas workflow; exact-context search; portable export/source capture; bounded history restore
+- **Integrated through:** local working tree; ready to merge to `master`
 - **Blocker:** Go, Docker, and the Playwright Chromium binary are not available in the current execution environment.
 
 ## Why this milestone exists
@@ -34,6 +34,10 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 - Category and workspace rename/delete actions now use inline, underline-only controls; non-empty category deletion is rejected to prevent accidental cascade loss.
 - Slash-command Insert block options include semantic icons so each block type is scannable.
 - Compose uses an explicit stable physical data-volume name via `NOTESPACE_DATA_VOLUME`; redeploys must keep that value and must not use `docker compose down -v`.
+- M5 adds selected-block promotion to a semantic canvas card, canvas-to-note promotion, durable references, and source-preserving card metadata.
+- M6 adds workspace-wide exact-context search and opens the selected note/block through URL context.
+- M7 adds portable ZIP export (`manifest.json`, notes, canvas, relationships) and URL source capture on canvas; image/file insertion continues through Excalidraw's native canvas flow.
+- M8 adds bounded SQLite workspace checkpoints before authored updates plus history preview metadata and restore.
 
 ## Evidence so far
 
@@ -55,7 +59,7 @@ The category/workspace foundation still exposed too much wrapper UI: the workspa
 
 ## Next action
 
-Merge the additional durability and inline-management fixes to `master`. E2E/Compose verification is intentionally skipped for this delivery because Go, Docker, and Playwright Chromium are unavailable in the current environment.
+Run backend integration checks when Go is available, then merge M5–M8 to `master`. E2E/Compose verification remains the only deferred release check if the required binaries are unavailable.
 
 ## Previous Milestone Record
 

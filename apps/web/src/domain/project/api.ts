@@ -65,6 +65,14 @@ export const deleteProject = (id: string) =>
   request<void>(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+export type SearchResult = { workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
+export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
+export type HistoryEntry = { id: string; workspaceId: string; version: number; title: string; createdAt: string };
+export type HistorySnapshot = HistoryEntry & { document: Project["document"]; notes: Project["notes"]; canvas: Project["canvas"]; references: Project["references"]; splitRatio: number };
+export const listHistory = (id: string) => request<HistoryEntry[]>(`/api/projects/${encodeURIComponent(id)}/history`);
+export const getHistorySnapshot = (id: string, historyId: string) => request<HistorySnapshot>(`/api/projects/${encodeURIComponent(id)}/history/${encodeURIComponent(historyId)}`);
+export const restoreHistory = (id: string, historyId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/history/${encodeURIComponent(historyId)}/restore`, { method: "POST" });
+export const exportWorkspace = (id: string) => `/api/projects/${encodeURIComponent(id)}/export`;
 
 export type StudyStats = { todaySeconds: number; totalSeconds: number };
 export type StudySession = {

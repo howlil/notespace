@@ -54,7 +54,6 @@
   .authoring-canvas { height: calc(100dvh - 58px); padding: 7px; }
   .pane-group-row { grid-template-columns: 1fr !important; grid-template-rows: minmax(0, 1fr) 7px minmax(0, 1fr); }
   .pane-group-row > .pane-resizer { cursor: row-resize; }
-  .context-bar { flex-wrap: wrap; padding: 5px 10px; }
   .workspace-header .header-actions { gap: 4px; }
   .pane-note-switcher > summary span { max-width: 45vw; }
 }

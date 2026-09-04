@@ -61,10 +61,10 @@ export const listCategoryWorkspaces = (categoryId: string, params: { query?: str
 };
 export const getProject = (id: string) =>
   request<Project>(`/api/projects/${encodeURIComponent(id)}`);
-export const createProject = (title: string, categoryId: string) =>
+export const createProject = (title: string, categoryId?: string) =>
   request<Project>("/api/projects", {
     method: "POST",
-    ...json({ title, categoryId }),
+    ...json({ title, ...(categoryId ? { categoryId } : {}) }),
   });
 export const createCategory = (title: string) =>
   request<CategorySummary>("/api/categories", {

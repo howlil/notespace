@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
+import { IconButton } from "../components/ui";
 
 const Theme = createContext<{ dark: boolean; toggle: () => void }>({
   dark: false,
@@ -50,13 +51,12 @@ export const useTheme = () => useContext(Theme);
 export function ThemeToggle() {
   const { dark, toggle } = useTheme();
   return (
-    <button
-      className="icon-button"
+    <IconButton
       aria-label={dark ? "Use light theme" : "Use dark theme"}
       title={dark ? "Use light theme" : "Use dark theme"}
       onClick={toggle}
     >
       {dark ? <Sun size={18} /> : <Moon size={18} />}
-    </button>
+    </IconButton>
   );
 }

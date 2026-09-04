@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import type { Page, APIRequestContext } from "@playwright/test";
 
 /**
- * Create a workspace via the Home UI and navigate into it.
+ * Create a workspace via the Library sidebar and navigate into it.
  * Returns the workspace ID extracted from the URL.
  */
 export async function createWorkspace(
@@ -22,7 +22,8 @@ export async function createWorkspace(
   await expect(
     page.getByRole("textbox", { name: "Workspace document" }),
   ).toBeVisible();
-  return page.url().split("/").at(-1)!;
+  const pathname = new URL(page.url()).pathname;
+  return pathname.split("/").filter(Boolean).at(-1)!;
 }
 
 /** Wait for autosave to complete. */
@@ -36,6 +37,15 @@ export async function openPaneMenu(page: Page): Promise<void> {
   const open = await details.getAttribute("open");
   if (open === null) {
     await page.locator('summary[aria-label^="Actions for"]').first().click();
+  }
+}
+
+/** Open the note switcher menu for the first pane. */
+export async function openNoteSwitcher(page: Page): Promise<void> {
+  const details = page.locator("details.pane-note-switcher").first();
+  const open = await details.getAttribute("open");
+  if (open === null) {
+    await details.locator("> summary").click();
   }
 }
 
@@ -73,13 +83,15 @@ export async function deleteCategory(
   }
 }
 
-/** Take a labeled screenshot and save to test-results/. */
+/** Take a labeled screenshot and save to test-results/ only if explicitly requested. */
 export async function capture(
   page: Page,
   name: string,
 ): Promise<void> {
-  await page.screenshot({
-    path: `test-results/${name}.png`,
-    fullPage: true,
-  });
+  if (process.env.CAPTURE_SCREENSHOTS) {
+    await page.screenshot({
+      path: `test-results/${name}.png`,
+      fullPage: true,
+    });
+  }
 }

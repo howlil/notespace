@@ -2,13 +2,14 @@
   "name": "notespace",
   "private": true,
   "packageManager": "pnpm@11.19.0",
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter @notespace/web dev",
     "build": "pnpm --filter @notespace/web build",
     "typecheck": "pnpm --filter @notespace/web typecheck",
     "lint": "eslint apps/web/src tests --max-warnings 0",
-    "test": "node --experimental-strip-types --test apps/web/src/domain/project/autosave.test.ts",
-    "test:e2e": "playwright test"
+    "test": "node --experimental-strip-types --test apps/web/src/domain/project/autosave.test.ts tests/design-contract.test.ts",
+    "test:e2e": "pnpm build && playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

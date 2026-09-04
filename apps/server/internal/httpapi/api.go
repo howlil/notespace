@@ -119,11 +119,11 @@ func send(w http.ResponseWriter, status int, value any) {
 func fail(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, project.ErrNotFound):
-		send(w, 404, map[string]string{"error": "Project not found"})
+		send(w, 404, map[string]string{"error": "Workspace not found"})
 	case errors.Is(err, project.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid title, content, version, or split ratio"})
 	case errors.Is(err, project.ErrConflict):
-		send(w, 409, map[string]string{"error": "This project changed in another tab. Your edits remain here; reload only after preserving them."})
+		send(w, 409, map[string]string{"error": "This workspace changed in another tab. Your edits remain here; reload only after preserving them."})
 	case errors.Is(err, project.ErrNotEmpty):
 		send(w, 409, map[string]string{"error": "Delete or move the workspaces in this category first."})
 	case errors.Is(err, study.ErrNotFound):
@@ -131,8 +131,8 @@ func fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, study.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid study activity"})
 	default:
-		slog.Error("project operation failed", "error", err)
-		send(w, 500, map[string]string{"error": "Unable to access project storage. Please retry."})
+		slog.Error("workspace operation failed", "error", err)
+		send(w, 500, map[string]string{"error": "Unable to access workspace storage. Please retry."})
 	}
 }
 

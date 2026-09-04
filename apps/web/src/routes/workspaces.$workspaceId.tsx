@@ -3,23 +3,25 @@ import { getProject, listCategories } from "../domain/project/api";
 import { Workspace } from "../features/workspace/Workspace";
 import { RoutePending } from "../components/feedback/RoutePending";
 
-export const Route = createFileRoute("/projects/$projectId")({
+export const Route = createFileRoute("/workspaces/$workspaceId")({
   ssr: false,
   loader: async ({ params }) => {
     const [project, categories] = await Promise.all([
-      getProject(params.projectId),
+      getProject(params.workspaceId),
       listCategories(),
     ]);
     return {
       project,
-      categoryTitle: categories.find((category) => category.id === project.categoryId)?.title ?? "Category",
+      categoryTitle:
+        categories.find((category) => category.id === project.categoryId)
+          ?.title ?? "Category",
     };
   },
   pendingComponent: RoutePending,
-  component: ProjectRoute,
+  component: WorkspaceRoute,
 });
 
-function ProjectRoute() {
+function WorkspaceRoute() {
   const data = Route.useLoaderData();
   return <Workspace key={data.project.id} {...data} />;
 }

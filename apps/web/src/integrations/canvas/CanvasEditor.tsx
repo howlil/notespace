@@ -126,17 +126,28 @@ export default function CanvasEditor({
         validateEmbeddable={false}
         UIOptions={{
           canvasActions: {
-            loadScene: false,
+            loadScene: true,
             saveToActiveFile: false,
-            export: false,
+            export: { saveFileToDisk: true },
             toggleTheme: false,
-            saveAsImage: false,
+            saveAsImage: true,
+          },
+          tools: {
+            image: true,
           },
         }}
       >
         <MainMenu>
           <MainMenu.DefaultItems.ClearCanvas />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.LoadScene />
+          <MainMenu.DefaultItems.SaveAsImage />
+          <MainMenu.DefaultItems.Export />
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.CommandPalette />
+          <MainMenu.DefaultItems.SearchMenu />
+          <MainMenu.DefaultItems.Help />
         </MainMenu>
       </Excalidraw>
     </div>

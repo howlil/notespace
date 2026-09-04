@@ -55,6 +55,23 @@ func run() error {
 	return nil
 }
 
+// isClientNavigationRoute defines the authoritative single source of truth for SPA client routes.
+func isClientNavigationRoute(clean string) bool {
+	if clean == "/" {
+		return true
+	}
+	prefixes := []string{"/categories/", "/workspaces/", "/projects/"}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(clean, prefix) {
+			rest := strings.TrimPrefix(clean, prefix)
+			if rest != "" && !strings.Contains(rest, "/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func routes(api http.Handler, webDir string) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
@@ -67,10 +84,8 @@ func routes(api http.Handler, webDir string) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		clean := path.Clean("/" + r.URL.Path)
-		// Only explicit app routes use the Start SPA shell; missing assets stay 404.
-		if clean == "/" ||
-			(strings.HasPrefix(clean, "/projects/") && !strings.Contains(strings.TrimPrefix(clean, "/projects/"), "/")) ||
-			(strings.HasPrefix(clean, "/categories/") && !strings.Contains(strings.TrimPrefix(clean, "/categories/"), "/")) {
+		// Only explicit client navigation routes use the SPA shell; missing assets/unknown routes stay 404.
+		if isClientNavigationRoute(clean) {
 			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
 			return

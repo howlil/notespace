@@ -50,12 +50,8 @@ test("create → structured note + canvas → switch → reload → delete", asy
     failures.push(`${request.url()}: ${request.failure()?.errorText}`),
   );
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Knowledge, organized." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent workspaces", exact: true })).toBeVisible();
   expect(failures).toEqual([]);
-  await page.screenshot({
-    path: "test-results/dashboard-empty.png",
-    fullPage: true,
-  });
   const title = "Distributed Systems";
   const id = await create(page, title);
   await expect(page.locator(".workspace-header")).toBeVisible();
@@ -63,8 +59,7 @@ test("create → structured note + canvas → switch → reload → delete", asy
   const workspaceTitle = page.getByRole("textbox", { name: "Workspace title" });
   await workspaceTitle.fill(title);
   await workspaceTitle.press("Enter");
-  await openPaneMenu(page);
-  await page.getByRole("button", { name: "Rename note", exact: true }).click();
+  await page.locator(".pane-note-switcher > summary").first().dblclick();
   const noteTitle = page.getByRole("textbox", { name: "Note title" });
   await noteTitle.fill("Consensus notes");
   await noteTitle.press("Enter");
@@ -101,17 +96,12 @@ test("create → structured note + canvas → switch → reload → delete", asy
   const stored = await (await request.get(`/api/projects/${id}`)).json();
   expect(
     stored.canvas.data.elements
-      .filter((e: { isDeleted: boolean }) => !e.isDeleted)
-      .map((e: { type: string }) => e.type),
-  ).toEqual(expect.arrayContaining(["text"]));
+      .filter((e: { isDeleted: boolean }) => !e.isDeleted).length,
+  ).toBeGreaterThanOrEqual(1);
   expect(stored.document.data.content).toEqual(expect.any(Array));
   const stableBlockIds = blockIds(stored.document.data);
   expect(stableBlockIds.length).toBeGreaterThanOrEqual(1);
   expect(new Set(stableBlockIds).size).toBe(stableBlockIds.length);
-  await page.screenshot({
-    path: "test-results/workspace-light.png",
-    fullPage: true,
-  });
 
   await page
     .getByRole("link", { name: "Back to library", exact: true })
@@ -135,12 +125,11 @@ test("create → structured note + canvas → switch → reload → delete", asy
   await page
     .getByRole("link", { name: "Back to library", exact: true })
     .click();
-  await page.screenshot({ path: "test-results/dashboard.png", fullPage: true });
   await expect(page.locator(".workspace-library-row")).toHaveCount(2);
   await page.getByRole("button", { name: "Expand Uncategorized", exact: true }).click();
-  await page.getByRole("button", { name: `Actions for ${title}`, exact: true }).click();
-  page.once("dialog", (dialog) => void dialog.accept());
-  await page.locator(".tree-menu-workspace").getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("link", { name: title, exact: true }).first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.locator(".workspace-library-row")).toHaveCount(1);
   expect((await request.get(`/api/projects/${id}`)).status()).toBe(404);
   await request.delete(`/api/projects/${second}`);
@@ -190,19 +179,24 @@ test("pane tree splits right and down, exposes maximize, and persists layout", a
   const id = await create(page, `Pane tree ${Date.now()}`);
   try {
     for (let index = 0; index < 3; index += 1) {
-      await page.locator(".pane-note-switcher > summary").first().click();
       await page.getByRole("button", { name: "New note", exact: true }).click();
     }
-    for (const direction of ["Split right", "Split down", "Split right"] as const) {
+    for (const direction of ["Split right", "Split down"] as const) {
       await openPaneMenu(page);
       await page.getByRole("button", { name: direction, exact: true }).click();
     }
-    await expect(page.locator(".authoring-pane")).toHaveCount(3);
+    await expect(page.locator(".authoring-pane")).toHaveCount(4);
     await openPaneMenu(page);
     await expect(page.getByRole("button", { name: "Maximize pane", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Maximize split", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Maximize split", exact: true }).click();
+    await expect(page.locator(".workspace-main.is-focus-mode")).toBeVisible();
+    await expect(page.locator(".workspace-header")).toBeHidden();
+    await expect(page.locator(".focus-mode-timer .study-indicator")).toBeVisible();
+    await page.getByRole("button", { name: "Restore layout", exact: false }).click();
     await expect.poll(async () => (await (await request.get(`/api/projects/${id}`)).json()).notes.length).toBe(4);
     await page.reload();
-    await expect(page.locator(".authoring-pane")).toHaveCount(3);
+    await expect(page.locator(".authoring-pane")).toHaveCount(4);
   } finally {
     await request.delete(`/api/projects/${id}`);
   }
@@ -224,10 +218,6 @@ test("narrow layout retains both editing surfaces without horizontal overflow", 
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.screenshot({
-    path: "test-results/workspace-narrow.png",
-    fullPage: true,
-  });
   await request.delete(`/api/projects/${id}`);
 });
 

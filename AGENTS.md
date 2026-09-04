@@ -86,3 +86,11 @@ For UI changes, protect stable behavior and design contracts from `DESIGN.md` th
 ## Stop rule
 
 Stop when the bounded product criteria are satisfied and relevant automated gates are green. Record the evidence and one next action in `CURRENT_ITERATION.md`. Do not invent a new milestone or speculative polish automatically.
+
+_________________
+Notespace  [icon]
+_________________
+
+[] []
+
+[] wkwkw

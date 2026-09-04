@@ -115,9 +115,9 @@ jobs:
         if: ${{ steps.changes.outputs.web == 'true' }}
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend static and unit gates
+      - name: Frontend static, unit, and build gates
         if: ${{ steps.changes.outputs.web == 'true' }}
-        run: pnpm typecheck && pnpm lint && pnpm test
+        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
 
       - name: Backend static, race, and build gates
         if: ${{ steps.changes.outputs.server == 'true' }}

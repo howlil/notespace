@@ -3,9 +3,11 @@ import { expect, test } from "@playwright/test";
 test("design contract: Library is one progressive category tree", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Knowledge, organized." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent workspaces", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New category" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New workspace" }).first()).toBeVisible();
+  await expect(page.locator(".dashboard-brand")).toHaveCount(0);
 
   const search = page.getByRole("textbox", { name: "Search Notespace" });
   await page.keyboard.press("Control+K");
@@ -20,8 +22,21 @@ test("design contract: Library is one progressive category tree", async ({ page 
 
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(page.getByRole("button", { name: "Expand sidebar", exact: true }).first()).toBeVisible();
+  await expect(page.locator(".sidebar.is-collapsed .brand-link")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Categories" })).toHaveCount(0);
   await expect(page.getByRole("main")).toBeVisible();
+});
+
+test("design contract: sidebar tree uses inline editing and contextual actions", async ({ page }) => {
+  await page.goto("/");
+  const category = page.locator(".tree-label").filter({ hasText: "Uncategorized" }).first();
+  await category.dblclick();
+  await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await category.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "New workspace" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Rename" })).toHaveCount(0);
 });
 
 test("design contract: workspace creation stays in Library and authoring shell is focused", async ({

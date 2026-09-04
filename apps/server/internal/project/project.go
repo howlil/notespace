@@ -12,11 +12,15 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("project not found")
-	ErrConflict = errors.New("project changed in another session")
+	ErrNotFound = errors.New("workspace not found")
+	ErrConflict = errors.New("workspace changed in another session")
 	ErrInvalid  = errors.New("invalid project input")
 	ErrNotEmpty = errors.New("category still contains workspaces")
 )
+
+// UncategorizedCategoryID is the stable compatibility category used when a
+// workspace is created from the library root without an explicit category.
+const UncategorizedCategoryID = "legacy"
 
 type Snapshot struct {
 	Format  string          `json:"format"`
@@ -215,7 +219,7 @@ func (s Service) Create(
 	if !ValidTitle(title) {
 		return Project{}, ErrInvalid
 	}
-	category := "legacy"
+	category := UncategorizedCategoryID
 	if len(categoryID) > 0 && strings.TrimSpace(categoryID[0]) != "" {
 		category = strings.TrimSpace(categoryID[0])
 	}

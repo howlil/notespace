@@ -81,6 +81,20 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	t.Fatalf("category count missing from %#v", categories)
 }
 
+func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+
+	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Root workspace"}))
+	if workspace.CategoryID != project.UncategorizedCategoryID {
+		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, project.UncategorizedCategoryID)
+	}
+}
+
 func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
 	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
 	if err != nil {

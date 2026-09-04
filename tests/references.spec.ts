@@ -29,7 +29,8 @@ test("contextual note and Canvas references navigate both ways and survive reloa
     await editor.click();
     await waitSaved(page);
 
-    await page.getByRole("button", { name: "Send to Canvas", exact: true }).click();
+    await editor.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Send to Canvas", exact: true }).click();
     await waitSaved(page);
     await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
 
@@ -41,11 +42,14 @@ test("contextual note and Canvas references navigate both ways and survive reloa
     const linked = await read();
     expect(linked.references).toHaveLength(1);
 
-    const goToNote = page.getByRole("button", { name: "Go to linked note", exact: true });
-    const goToCanvas = page.getByRole("button", { name: "Go to linked Canvas", exact: true });
-    await expect(goToNote).toBeVisible();
+    await editor.click({ button: "right" });
+    const goToCanvas = page.getByRole("menuitem", { name: "Go to linked Canvas", exact: true });
     await expect(goToCanvas).toBeVisible();
     await goToCanvas.click();
+
+    await page.locator(".excalidraw__canvas.interactive").first().click({ button: "right" });
+    const goToNote = page.getByRole("menuitem", { name: "Go to linked note", exact: true });
+    await expect(goToNote).toBeVisible();
     await goToNote.click();
     await expect(editor).toBeVisible();
 

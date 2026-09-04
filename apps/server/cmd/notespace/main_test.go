@@ -18,7 +18,7 @@ func TestProductionRoutes(t *testing.T) {
 		method, path string
 		status       int
 	}{
-		{"GET", "/", 200}, {"GET", "/projects/example", 200}, {"GET", "/assets/missing.js", 404},
+		{"GET", "/", 200}, {"GET", "/projects/example", 200}, {"GET", "/categories/example", 200}, {"GET", "/assets/missing.js", 404},
 		{"PATCH", "/api/projects/example", 204}, {"GET", "/api/health", 204}, {"POST", "/", 405},
 	} {
 		res := httptest.NewRecorder()

@@ -68,7 +68,9 @@ func routes(api http.Handler, webDir string) http.Handler {
 		w.Header().Set("Referrer-Policy", "same-origin")
 		clean := path.Clean("/" + r.URL.Path)
 		// Only explicit app routes use the Start SPA shell; missing assets stay 404.
-		if clean == "/" || (strings.HasPrefix(clean, "/projects/") && !strings.Contains(strings.TrimPrefix(clean, "/projects/"), "/")) {
+		if clean == "/" ||
+			(strings.HasPrefix(clean, "/projects/") && !strings.Contains(strings.TrimPrefix(clean, "/projects/"), "/")) ||
+			(strings.HasPrefix(clean, "/categories/") && !strings.Contains(strings.TrimPrefix(clean, "/categories/"), "/")) {
 			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
 			return

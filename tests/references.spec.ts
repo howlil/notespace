@@ -24,7 +24,9 @@ test("contextual note and Canvas references navigate both ways and survive reloa
   const id = await create(page, `Reference ${Date.now()}`);
   try {
     const editor = page.getByRole("textbox", { name: "Workspace document" });
+    await editor.click();
     await editor.fill("Linked thought");
+    await editor.click();
     await waitSaved(page);
 
     await page.getByRole("button", { name: "Send to Canvas", exact: true }).click();

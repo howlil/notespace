@@ -26,7 +26,11 @@ function blockIds(snapshot: { content: Array<{ attrs?: { blockId?: string }; con
 }
 
 async function openPaneMenu(page: Page) {
-  await page.locator('summary[aria-label^="Actions for"]').first().click();
+  const details = page.locator("details.pane-actions").first();
+  const open = await details.getAttribute("open");
+  if (open === null) {
+    await page.locator('summary[aria-label^="Actions for"]').first().click();
+  }
 }
 
 async function openCanvas(page: Page) {

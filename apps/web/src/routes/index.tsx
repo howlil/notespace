@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories, listProjects } from "../domain/project/api";
+import { listCategories, listRecentWorkspaces } from "../domain/project/api";
 import { Dashboard } from "../features/dashboard/Dashboard";
 import { RoutePending } from "../app/RoutePending";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   loader: async () => {
-    const [categories, workspaces] = await Promise.all([
+    const [categories, recentWorkspaces] = await Promise.all([
       listCategories(),
-      listProjects(),
+      listRecentWorkspaces(),
     ]);
-    return { categories, workspaces };
+    return { categories, recentWorkspaces };
   },
   pendingComponent: RoutePending,
   component: DashboardRoute,

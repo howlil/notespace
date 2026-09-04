@@ -173,6 +173,26 @@ func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) ListRecent(ctx context.Context, limit int) ([]project.Summary, error) {
+	if limit < 1 || limit > 100 {
+		limit = 12
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id,category_id,title,created_at,updated_at,version FROM projects ORDER BY updated_at DESC,id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []project.Summary{}
+	for rows.Next() {
+		var p project.Summary
+		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, sortBy, hasCanvas, hasNotes string, offset, limit int) (project.WorkspacePage, error) {
 	if limit < 1 || limit > 100 {
 		limit = 50
@@ -189,8 +209,12 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	case "notes":
 		orderBy = "json_array_length(p.notes_state) DESC, p.updated_at DESC, p.id"
 	}
-	conditions := []string{"p.category_id=?"}
-	args := []any{categoryID}
+	conditions := []string{"1=1"}
+	args := []any{}
+	if strings.TrimSpace(categoryID) != "" {
+		conditions = append(conditions, "p.category_id=?")
+		args = append(args, categoryID)
+	}
 	if strings.TrimSpace(query) != "" {
 		conditions = append(conditions, "LOWER(p.title) LIKE ?")
 		args = append(args, "%"+strings.ToLower(strings.TrimSpace(query))+"%")
@@ -228,6 +252,30 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 		page.NextOffset = &next
 	}
 	return page, nil
+}
+
+func (s *Store) Move(ctx context.Context, id, categoryID string) (project.Project, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return project.Project{}, err
+	}
+	defer tx.Rollback()
+	var categoryExists int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, categoryID).Scan(&categoryExists); err != nil {
+		return project.Project{}, err
+	}
+	if categoryExists == 0 {
+		return project.Project{}, project.ErrNotFound
+	}
+	moved, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET category_id=?,updated_at=? WHERE id=? RETURNING `+columns,
+		categoryID, time.Now().UTC().Format(time.RFC3339Nano), id))
+	if err != nil {
+		return project.Project{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return project.Project{}, err
+	}
+	return moved, nil
 }
 
 type scanner interface{ Scan(...any) error }

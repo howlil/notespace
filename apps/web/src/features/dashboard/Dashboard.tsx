@@ -1,80 +1,94 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Layers, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { ArrowRight, FileText, Folder, Search } from "lucide-react";
 import { Sidebar, Brand } from "../../app/Sidebar";
-import { ThemeToggle } from "../../app/theme";
-import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createCategory, createProject, deleteCategory, searchNotespace, updateCategory } from "../../domain/project/api";
+import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
+import { createProject, listAllWorkspaces, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
-type CreateTarget = { kind: "category" } | { kind: "workspace"; category?: CategorySummary };
 
-export function Dashboard({ categories, workspaces }: { categories: CategorySummary[]; workspaces: ProjectSummary[] }) {
+type Props = { categories: CategorySummary[]; recentWorkspaces: ProjectSummary[]; initialSelectedCategoryId?: string; initialCategoryPage?: WorkspacePage };
+type LibraryView = "recent" | "all" | "category";
+
+export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [createTarget, setCreateTarget] = useState<CreateTarget | null>(null);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
-  const categoryRenameCancelled = useRef(false);
-  const [title, setTitle] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
+  const [recentItems, setRecentItems] = useState(recentWorkspaces);
+  const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
+  const [pageCategoryId, setPageCategoryId] = useState(initialSelectedCategoryId ?? "");
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createCategoryId, setCreateCategoryId] = useState(initialSelectedCategoryId ?? categories[0]?.id ?? "");
+  const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate(); const router = useRouter();
-  const recentWorkspaces = useMemo(() => workspaces.slice(0, 6), [workspaces]);
+  const selectedCategory = useMemo(() => categories.find((category) => category.id === selectedCategoryId), [categories, selectedCategoryId]);
 
   useEffect(() => {
-    const query = searchQuery.trim();
-    if (query.length < 2) { setSearchResults([]); setSearchError(""); return; }
-    let cancelled = false; setSearchError("");
-    void searchNotespace(query).then((results) => { if (!cancelled) setSearchResults(results.slice(0, 10)); }).catch((err) => { if (!cancelled) { setSearchResults([]); setSearchError(err instanceof Error ? err.message : "Search is unavailable. Please retry."); } });
+    const normalized = query.trim();
+    if (normalized.length < 2) { setSearchResults([]); setSearchError(""); return; }
+    let cancelled = false;
+    void searchNotespace(normalized).then((results) => { if (!cancelled) setSearchResults(results.slice(0, 10)); }).catch((err) => { if (!cancelled) { setSearchResults([]); setSearchError(err instanceof Error ? err.message : "Search is unavailable."); } });
     return () => { cancelled = true; };
-  }, [searchQuery]);
+  }, [query]);
 
   useEffect(() => {
-    function focusSearch(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); searchInput.current?.focus(); }
-    }
-    window.addEventListener("keydown", focusSearch);
-    return () => window.removeEventListener("keydown", focusSearch);
+    const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); searchInput.current?.focus(); } };
+    window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  function beginCreate(target: CreateTarget) { setError(""); setTitle(""); if (target.kind === "workspace") { setSelectedCategoryId(target.category?.id ?? categories[0]?.id ?? ""); setCreateTarget({ kind: "workspace" }); return; } setCreateTarget(target); }
-  async function create(event: React.FormEvent) {
-    event.preventDefault(); if (!createTarget || busy || !title.trim()) return; setBusy(true); setError("");
-    try {
-      if (createTarget.kind === "category") await createCategory(title.trim());
-      else { const categoryId = createTarget.category?.id ?? selectedCategoryId; if (!categoryId) { setError("Create a category first."); return; } const workspace = await createProject(title.trim(), categoryId); setCreateTarget(null); await router.invalidate(); await navigate({ to: "/projects/$projectId", params: { projectId: workspace.id } }); return; }
-      setCreateTarget(null); await router.invalidate();
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not create this item."); } finally { setBusy(false); }
+  async function selectCategory(categoryId: string, force = false) {
+    setSelectedCategoryId(categoryId); setView("category"); setPageError("");
+    if (!force && pageCategoryId === categoryId && page) return;
+    setPageLoading(true);
+    try { setPage(await listCategoryWorkspaces(categoryId, { limit: 50 })); setPageCategoryId(categoryId); }
+    catch (err) { setPageError(err instanceof Error ? err.message : "Could not load this category."); }
+    finally { setPageLoading(false); }
   }
-  function beginCategoryRename(category: CategorySummary) { categoryRenameCancelled.current = false; setError(""); setTitle(category.title); setEditingCategoryId(category.id); }
-  async function commitCategoryRename() { if (categoryRenameCancelled.current) { categoryRenameCancelled.current = false; return; } if (!editingCategoryId || busy || !title.trim()) return; setBusy(true); setError(""); try { await updateCategory(editingCategoryId, title.trim()); setEditingCategoryId(null); await router.invalidate(); } catch (err) { setError(err instanceof Error ? err.message : "Could not rename this category."); } finally { setBusy(false); } }
-  async function removeCategory(category: CategorySummary) { if (busy) return; setBusy(true); setError(""); try { await deleteCategory(category.id); setDeletingCategoryId(null); await router.invalidate(); } catch (err) { setError(err instanceof Error ? err.message : "Delete or move the workspaces in this category first."); } finally { setBusy(false); } }
-  function toggleCategory(id: string) { setExpanded((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
+
+  async function openAll() {
+    setView("all"); setPageError(""); setPageLoading(true);
+    try { setPage(await listAllWorkspaces({ limit: 50 })); setPageCategoryId(""); }
+    catch (err) { setPageError(err instanceof Error ? err.message : "Could not load all workspaces."); }
+    finally { setPageLoading(false); }
+  }
+
+  async function createWorkspace(event: React.FormEvent) {
+    event.preventDefault();
+    if (!createTitle.trim() || !createCategoryId) return;
+    try {
+      await createProject(createTitle.trim(), createCategoryId);
+      setCreateTitle(""); setCreatingWorkspace(false); setRecentItems(await listRecentWorkspaces(20)); await router.invalidate();
+      if (createCategoryId === selectedCategoryId) await selectCategory(createCategoryId);
+    } catch (err) { setPageError(err instanceof Error ? err.message : "Could not create workspace."); }
+  }
+
   function searchHref(result: SearchResult) {
     if (result.type === "category" && result.categoryId) return `/categories/${encodeURIComponent(result.categoryId)}`;
     if (result.type === "workspace") return `/projects/${encodeURIComponent(result.workspaceId)}`;
     return `/projects/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}${result.blockId ? `&block=${encodeURIComponent(result.blockId)}` : ""}`;
   }
 
-  return <div className={collapsed ? "app-shell dashboard-app-shell sidebar-collapsed" : "app-shell dashboard-app-shell"}><Sidebar categories={categories} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} /><main className="dashboard">
-    <header className="topbar dashboard-header"><div><Link to="/" className="dashboard-brand" aria-label="Notespace home"><Brand /></Link><span className="dashboard-context">Home</span></div><ThemeToggle /></header>
+  function refreshLibrary() { void router.invalidate(); void listRecentWorkspaces(20).then(setRecentItems).catch(() => {}); if (selectedCategoryId) void selectCategory(selectedCategoryId, true); }
+  const items = view === "recent" ? recentItems : (page?.items ?? []);
+  const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
+  const description = view === "recent" ? "Pick up where you left off." : view === "all" ? "Browse the complete workspace library in bounded pages." : `${page?.total ?? selectedCategory?.workspaceCount ?? 0} workspace${(page?.total ?? selectedCategory?.workspaceCount ?? 0) === 1 ? "" : "s"}`;
+
+  return <div className={collapsed ? "app-shell dashboard-app-shell sidebar-collapsed" : "app-shell dashboard-app-shell"}><Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} /><main className="dashboard">
+    <header className="topbar dashboard-header"><div><Link to="/" className="dashboard-brand" aria-label="Notespace home"><Brand /></Link><span className="dashboard-context">Library</span></div><span className="library-count">{categories.length} categor{categories.length === 1 ? "y" : "ies"}</span></header>
     <div className="dashboard-content">
-      <div className="dashboard-heading"><div><h1>Home</h1><p>Continue where you left off.</p></div>{categories.length ? (createTarget?.kind === "workspace" && !createTarget.category ? <form className="quick-create" onSubmit={create}><input aria-label="Workspace title" autoFocus autoComplete="off" placeholder="Workspace name" maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} /><select aria-label="Workspace category" value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}</select><button className="primary" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add"}</button><button type="button" className="icon-button" aria-label="Cancel new workspace" onClick={() => setCreateTarget(null)}>×</button></form> : <button className="primary" onClick={() => beginCreate({ kind: "workspace" })}><Plus size={17} /> New workspace</button>) : <button className="secondary" onClick={() => beginCreate({ kind: "category" })}><Plus size={17} /> Create category</button>}</div>
-      <div className="global-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Search Notespace" placeholder="Search notes, blocks, workspaces, categories…" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />{searchQuery.trim().length >= 2 && <div className="global-search-results" role="listbox" aria-label="Search results">{searchError ? <span className="search-result-empty search-result-error">{searchError}</span> : searchResults.length ? searchResults.map((result) => <a key={`${result.type}-${result.categoryId}-${result.workspaceId}-${result.noteId}-${result.blockId}-${result.excerpt}`} href={searchHref(result)} role="option" className="search-result"><strong>{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong><span>{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span></a>) : <span className="search-result-empty">No matching knowledge</span>}</div>}</div>
-      {error && !createTarget && <p className="dashboard-inline-error" role="alert">{error}</p>}
-      <section className="recent-section" aria-labelledby="recent-title"><div className="section-heading"><h2 id="recent-title">Recent workspaces</h2></div>{recentWorkspaces.length ? <div className="recent-grid">{recentWorkspaces.map((workspace) => <Link key={workspace.id} to="/projects/$projectId" params={{ projectId: workspace.id }} className="recent-card"><FileText size={16} /><strong>{workspace.title}</strong><time dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time></Link>)}</div> : <p className="section-empty">No workspaces yet. Create one to start.</p>}</section>
+      <div className="dashboard-heading"><div><p className="eyebrow">LIBRARY</p><h1>Knowledge, organized.</h1><p>Categories hold workspaces. Choose a workspace to start authoring.</p></div>{creatingWorkspace ? <form className="quick-create" onSubmit={(event) => void createWorkspace(event)}><input autoFocus aria-label="Workspace title" placeholder="Workspace name" value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setCreatingWorkspace(false); }} /><select aria-label="Workspace category" value={createCategoryId} onChange={(event) => setCreateCategoryId(event.target.value)}>{categories.map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}</select><button className="primary" disabled={!createTitle.trim() || !createCategoryId}>Create</button><button type="button" className="icon-button" aria-label="Cancel new workspace" onClick={() => setCreatingWorkspace(false)}>×</button></form> : <button className="primary" onClick={() => setCreatingWorkspace(true)}>+ New workspace</button>}</div>
+      <div className="global-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Search Notespace" placeholder="Search notes, blocks, workspaces, categories…" value={query} onChange={(event) => setQuery(event.target.value)} />{query.trim().length >= 2 && <div className="global-search-results" role="listbox" aria-label="Search results">{searchError ? <span className="search-result-empty search-result-error">{searchError}</span> : searchResults.length ? searchResults.map((result) => <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="search-result"><strong>{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong><span>{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span></a>) : <span className="search-result-empty">No matching knowledge</span>}</div>}</div>
+      <nav className="library-tabs" aria-label="Library views"><button className={view === "recent" ? "library-tab active" : "library-tab"} onClick={() => setView("recent")}>Recent</button><button className={view === "all" ? "library-tab active" : "library-tab"} onClick={() => void openAll()}>All workspaces</button>{selectedCategory && <button className={view === "category" ? "library-tab active" : "library-tab"} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</button>}</nav>
+      <section className="library-main-pane" aria-labelledby="library-list-title"><div className="section-heading"><div><p className="eyebrow">{view === "category" ? "SELECTED CATEGORY" : "WORKSPACE LIBRARY"}</p><h2 id="library-list-title">{heading}</h2><p>{description}</p></div>{view === "category" && selectedCategory && <Link className="secondary compact-action" to="/categories/$categoryId" params={{ categoryId: selectedCategory.id }}>Manage category <ArrowRight size={14} /></Link>}</div>{pageError && <p className="dashboard-inline-error" role="alert">{pageError}</p>}{pageLoading ? <p className="library-loading">Loading workspaces…</p> : items.length ? <div className="workspace-library-list">{items.map((workspace) => <Link key={workspace.id} to="/projects/$projectId" params={{ projectId: workspace.id }} className="workspace-library-row"><span className="workspace-row-icon"><FileText size={16} /></span><span className="workspace-row-copy"><strong>{workspace.title}</strong><span>{view === "all" ? `${categories.find((category) => category.id === workspace.categoryId)?.title ?? "Category"} · ` : ""}{workspace.noteCount ?? 0} note{workspace.noteCount === 1 ? "" : "s"}{workspace.hasCanvas ? " · Canvas" : ""}</span></span><time dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time><ArrowRight size={15} /></Link>)}</div> : <div className="empty-state category-empty"><span className="empty-mark"><Folder size={22} /></span><h2>{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2><p>Use New workspace in the Library sidebar to create one without leaving this view.</p></div>}</section>
       <StudyActivityDashboard compact />
-      <section aria-labelledby="categories-title"><div className="section-heading"><div><h2 id="categories-title">Categories</h2><p>{categories.length} categor{categories.length === 1 ? "y" : "ies"} · {workspaces.length} workspace{workspaces.length === 1 ? "" : "s"}</p></div>{createTarget?.kind === "category" ? <form className="quick-create" onSubmit={create}><input aria-label="Category title" autoFocus autoComplete="off" placeholder="Category name" maxLength={160} required value={title} onChange={(event) => setTitle(event.target.value)} /><button className="primary" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add"}</button><button type="button" className="icon-button" aria-label="Cancel new category" onClick={() => setCreateTarget(null)}>×</button></form> : <button className="secondary compact-action" onClick={() => beginCreate({ kind: "category" })}><Plus size={15} /> New category</button>}</div>
-        {!categories.length ? <section className="empty-state category-empty"><span className="empty-mark"><Layers size={22} /></span><h2>No categories yet</h2><p>Create one to start organizing workspaces.</p></section> : <div className="category-list">{categories.map((category) => { const categoryWorkspaces = workspaces.filter((workspace) => workspace.categoryId === category.id); const isExpanded = expanded.has(category.id); const preview = categoryWorkspaces.slice(0, 5); const systemCategory = category.title.toLowerCase() === "uncategorized"; return <section className={systemCategory ? "category-card category-card-system" : "category-card"} key={category.id}><div className="category-card-header"><button className="category-summary-toggle" aria-expanded={isExpanded} onClick={() => toggleCategory(category.id)}><span className="category-chevron">{isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span><span className="category-mark"><Layers size={16} /></span><span className="category-summary-copy">{editingCategoryId === category.id ? <input className="inline-dashboard-input category-name-input" aria-label="Category title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} onBlur={() => void commitCategoryRename()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitCategoryRename(); } if (event.key === "Escape") { categoryRenameCancelled.current = true; setTitle(category.title); setEditingCategoryId(null); } }} /> : <strong>{category.title}</strong>}<span>{category.workspaceCount} workspace{category.workspaceCount === 1 ? "" : "s"} · updated {editedAt(category.updatedAt)}</span></span></button><div className="category-actions">{deletingCategoryId === category.id ? <span className="inline-confirm"><span>Delete?</span><button className="text-button" onClick={() => setDeletingCategoryId(null)}>Keep</button><button className="text-button danger-text" disabled={busy} onClick={() => void removeCategory(category)}>Delete</button></span> : <details className="workspace-menu"><summary className="icon-button" aria-label={`Actions for ${category.title}`} title="Category actions"><MoreHorizontal size={17} /></summary><div className="workspace-menu-popover workspace-menu-right"><button className="menu-item" onClick={() => beginCategoryRename(category)}><Pencil size={14} /> Rename</button><button className="menu-item" onClick={() => beginCreate({ kind: "workspace", category })}><Plus size={14} /> New workspace</button>{category.id !== "legacy" && <button className="menu-item menu-item-danger" onClick={() => setDeletingCategoryId(category.id)}><Trash2 size={14} /> Delete</button>}</div></details>}</div></div>{isExpanded && <div className="category-preview">{preview.map((workspace) => <Link key={workspace.id} to="/projects/$projectId" params={{ projectId: workspace.id }} className="preview-row"><span>{workspace.title}</span><time dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time></Link>)}<Link to="/categories/$categoryId" params={{ categoryId: category.id }} className="view-all-row">{categoryWorkspaces.length > preview.length ? `View all ${category.workspaceCount} workspaces` : "Open category"}<ChevronRight size={14} /></Link>{!categoryWorkspaces.length && <button className="workspace-empty" onClick={() => beginCreate({ kind: "workspace", category })}><Plus size={15} /> Create the first workspace</button>}</div>}</section>; })}</div>}
-      </section>
     </div>
   </main></div>;
 }

@@ -20,6 +20,28 @@ Home
 
 M9 implementation is integrated as `66207d6c3f01e95483c608ebc7d272d740fb183d`.
 
+## M10 — Library Tree & Multi-Pane Authoring
+
+State: **implemented on `feat/m10-library-tree-multi-pane`; pending review and merge.**
+
+Delivered product outcome:
+
+```text
+Library tree
+  -> bounded Category -> Workspace navigation
+  -> inline Category and Workspace management
+  -> create Workspace without leaving Library
+
+Workspace
+  -> focused shell with overflow actions
+  -> Note and Canvas pane tree
+  -> split, resize, switch, close, maximize, and restore
+  -> four-pane limit and one-Canvas limit
+  -> contextual Note <-> Canvas actions
+```
+
+M10 verification: web checks, server checks, production build, and 8 browser behavior tests pass on this branch.
+
 ## Active engineering enabler
 
 **Risk-based CI + repository agent/design alignment**

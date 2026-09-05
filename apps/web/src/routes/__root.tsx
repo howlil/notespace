@@ -11,6 +11,7 @@ import { Button } from "../components/ui";
 import { ThemeProvider } from "../providers/theme-provider";
 import { ToastProvider } from "../providers/toast-provider";
 import { NativePopupManager } from "../components/ui/dismissable";
+import { QuickCapture } from "../features/capture/QuickCapture";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -31,6 +32,7 @@ export const Route = createRootRoute({
       <ToastProvider>
         <ThemeProvider>
           <Outlet />
+          <QuickCapture />
         </ThemeProvider>
       </ToastProvider>
     </NativePopupManager>

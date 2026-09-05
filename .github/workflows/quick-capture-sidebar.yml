@@ -56,10 +56,7 @@ jobs:
 
           rm .github/workflows/quick-capture-sidebar.yml
           git diff --check
-          git diff --exit-code -- apps/web/src/features/capture/QuickCapture.tsx apps/web/src/components/layout/Sidebar.tsx apps/web/src/routes/__root.tsx >/dev/null && {
-            echo "No source changes produced" >&2
-            exit 1
-          }
+          test -n "$(git diff --name-only -- apps/web/src/features/capture/QuickCapture.tsx apps/web/src/components/layout/Sidebar.tsx apps/web/src/routes/__root.tsx)"
       - name: Commit directly to master
         run: |
           git config user.name "github-actions[bot]"

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
-import { FileUp, Plus } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../components/ui";
+import { FileUp, SquarePen } from "lucide-react";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
 import { contentOf } from "../../domain/project/project";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { getProject, listCategories, listProjects, saveProject } from "../../domain/project/api";
@@ -11,8 +10,6 @@ import { useToast } from "../../providers/toast-provider";
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
 
 export function QuickCapture() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const librarySurface = !/^\/(?:workspaces|projects)\//.test(pathname);
   const { showToast } = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -24,7 +21,6 @@ export function QuickCapture() {
   const [body, setBody] = useState("");
 
   useEffect(() => {
-    if (!librarySurface) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -33,7 +29,7 @@ export function QuickCapture() {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [librarySurface]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -100,21 +96,17 @@ export function QuickCapture() {
     }
   }
 
-  if (!librarySurface) return null;
-
   return (
     <>
-      <Button
+      <IconButton
         type="button"
-        variant="secondary"
-        size="sm"
-        className="fixed bottom-4 right-4 z-30 shadow-sm"
+        className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
         onClick={() => setOpen(true)}
         aria-label="Quick capture"
+        title="Quick capture (Ctrl/Cmd + Shift + N)"
       >
-        <Plus size={14} aria-hidden="true" />
-        Quick capture
-      </Button>
+        <SquarePen size={16} aria-hidden="true" />
+      </IconButton>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,520px)]">
           <DialogTitle>Quick capture</DialogTitle>

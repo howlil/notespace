@@ -7,6 +7,7 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTr
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../domain/project/api";
+import { QuickCapture } from "../../features/capture/QuickCapture";
 
 export function Brand() {
   return (
@@ -175,6 +176,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
         <div className="flex items-center gap-[3px] border-b border-line py-2 max-[480px]:mb-[3px]" aria-label="Library actions">
           <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
           <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
+          <QuickCapture />
         </div>
         <AnimatePresence initial={false}>
           {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}

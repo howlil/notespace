@@ -125,12 +125,7 @@
   *,
   *::before,
   *::after {
-    /* Keep stateful vendor animations functional while making motion
-       effectively instantaneous. `animation: none` can strand animated
-       drawers/popovers in their off-screen starting state. */
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 }

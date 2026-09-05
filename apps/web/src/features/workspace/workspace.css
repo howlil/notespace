@@ -42,6 +42,7 @@
 
 .pane-note-menu, .pane-menu { position: absolute; z-index: 30; top: 28px; right: 0; display: grid; min-width: 165px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 80px); gap: 2px; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); padding: 5px; box-shadow: 0 10px 24px #0002; }
 .pane-header > .pane-title + .pane-actions > .pane-menu { right: auto; left: 0; }
+.pane-header > .pane-actions:first-child > .pane-menu { right: auto; left: 0; }
 .pane-note-menu { right: auto; left: 0; }
 .pane-note-menu button, .pane-menu button { border: 0; background: transparent; color: var(--ink); padding: 7px 8px; text-align: left; font-size: 10px; }
 .pane-note-menu button:hover, .pane-note-menu button[aria-selected="true"], .pane-menu button:hover { background: var(--tint); color: var(--accent); }

@@ -20,6 +20,10 @@ function assetKey(workspaceId: string, assetId: string) {
   return `${workspaceId}:${assetId}`;
 }
 
+function assetUrl(workspaceId: string, assetId: string) {
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(assetId)}`;
+}
+
 function openDatabase() {
   if (databasePromise) return databasePromise;
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
@@ -35,7 +39,7 @@ function openDatabase() {
   return databasePromise;
 }
 
-function putAsset(record: StoredImageAsset) {
+function putLocalCache(record: StoredImageAsset) {
   memoryAssets.set(record.key, record);
   return openDatabase().then((database) => {
     if (!database) return;
@@ -46,6 +50,55 @@ function putAsset(record: StoredImageAsset) {
       transaction.onerror = () => resolve();
     });
   });
+}
+
+async function readLocalCache(workspaceId: string, id: string) {
+  const key = assetKey(workspaceId, id);
+  const cached = memoryAssets.get(key);
+  if (cached) return cached;
+  const database = await openDatabase();
+  if (!database) return null;
+  return new Promise<StoredImageAsset | null>((resolve) => {
+    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key);
+    request.onerror = () => resolve(null);
+    request.onsuccess = () => {
+      const record = request.result as StoredImageAsset | undefined;
+      if (record) memoryAssets.set(key, record);
+      resolve(record ?? null);
+    };
+  });
+}
+
+async function uploadAsset(workspaceId: string, id: string, blob: Blob) {
+  const response = await fetch(assetUrl(workspaceId, id), {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || "Could not store image on this Notespace instance.");
+  }
+}
+
+async function loadRemoteAsset(workspaceId: string, id: string) {
+  const response = await fetch(assetUrl(workspaceId, id), { signal: AbortSignal.timeout(20_000) });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Could not load image from this Notespace instance.");
+  const blob = await response.blob();
+  const createdAtHeader = response.headers.get("X-Notespace-Created-At");
+  const createdAt = createdAtHeader ? Date.parse(createdAtHeader) : Date.now();
+  const record: StoredImageAsset = {
+    key: assetKey(workspaceId, id),
+    id,
+    workspaceId,
+    blob,
+    mimeType: blob.type || response.headers.get("Content-Type") || "application/octet-stream",
+    createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+  };
+  await putLocalCache(record);
+  return record;
 }
 
 export function createLocalAssetId() {
@@ -75,12 +128,13 @@ export async function normalizeImageBlob(source: Blob) {
     }
   }
 
-  if (normalized.size > MAX_ASSET_BYTES) throw new Error("This image is larger than the 8 MiB local limit.");
+  if (normalized.size > MAX_ASSET_BYTES) throw new Error("This image is larger than the 8 MiB asset limit.");
   return normalized;
 }
 
 export async function storeImageAsset(workspaceId: string, id: string, source: Blob) {
   const blob = await normalizeImageBlob(source);
+  await uploadAsset(workspaceId, id, blob);
   const record: StoredImageAsset = {
     key: assetKey(workspaceId, id),
     id,
@@ -89,26 +143,27 @@ export async function storeImageAsset(workspaceId: string, id: string, source: B
     mimeType: blob.type || source.type,
     createdAt: Date.now(),
   };
-  await putAsset(record);
+  await putLocalCache(record);
   return record;
 }
 
 export async function loadImageAsset(workspaceId: string, id: string) {
   const key = assetKey(workspaceId, id);
-  const cached = memoryAssets.get(key);
-  if (cached) return cached;
-  const database = await openDatabase();
-  if (!database) return null;
+  const memory = memoryAssets.get(key);
+  if (memory) return memory;
 
-  return new Promise<LocalImageAsset | null>((resolve) => {
-    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key);
-    request.onerror = () => resolve(null);
-    request.onsuccess = () => {
-      const record = request.result as StoredImageAsset | undefined;
-      if (record) memoryAssets.set(key, record);
-      resolve(record ?? null);
-    };
-  });
+  try {
+    const remote = await loadRemoteAsset(workspaceId, id);
+    if (remote) return remote;
+  } catch {
+    // A local cache may still make an acknowledged legacy workspace readable.
+  }
+
+  const legacy = await readLocalCache(workspaceId, id);
+  if (!legacy) return null;
+  // Read-through migration: legacy browser-only assets become server-owned once seen.
+  try { await uploadAsset(workspaceId, id, legacy.blob); } catch { /* keep legacy readable offline */ }
+  return legacy;
 }
 
 export async function blobFromDataUrl(dataUrl: string) {

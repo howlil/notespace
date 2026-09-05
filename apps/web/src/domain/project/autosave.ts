@@ -1,9 +1,9 @@
 export type SaveStatus = {
-  state: "saved" | "pending" | "saving" | "error";
+  state: "saved" | "pending" | "saving" | "error" | "conflict";
   message?: string;
 };
 
-/** One in-flight write per project; edits during a write are coalesced into the next snapshot. */
+/** One in-flight write per workspace; edits during a write are coalesced into the next snapshot. */
 export class Autosave<T> {
   private pending: T | undefined;
   private active: Promise<void> | undefined;
@@ -13,6 +13,8 @@ export class Autosave<T> {
   private listeners = new Set<(status: SaveStatus) => void>();
   private persist: (value: T, version: number) => Promise<{ version: number }>;
   private delay: number;
+  private blockedByConflict = false;
+  private conflictError: Error | undefined;
 
   constructor(
     version: number,
@@ -24,7 +26,7 @@ export class Autosave<T> {
     this.delay = delay;
   }
   get dirty() {
-    return this.pending !== undefined || this.active !== undefined;
+    return this.pending !== undefined || this.active !== undefined || this.blockedByConflict;
   }
   subscribe(listener: (status: SaveStatus) => void) {
     this.listeners.add(listener);
@@ -39,6 +41,10 @@ export class Autosave<T> {
   }
   schedule(value: T) {
     this.pending = value;
+    if (this.blockedByConflict) {
+      this.emit({ state: "conflict", message: this.conflictError?.message });
+      return;
+    }
     this.emit({ state: "pending" });
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -47,6 +53,7 @@ export class Autosave<T> {
   }
   flush(): Promise<void> {
     clearTimeout(this.timer);
+    if (this.blockedByConflict) return Promise.reject(this.conflictError ?? new Error("Workspace conflict"));
     if (this.active) return this.active;
     if (this.pending === undefined) return Promise.resolve();
     this.active = this.drain().finally(() => {
@@ -64,14 +71,15 @@ export class Autosave<T> {
         this.version = saved.version;
       } catch (error) {
         if (this.pending === undefined) this.pending = snapshot;
-        this.emit({
-          state: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Save failed. Please retry.",
-        });
-        throw error;
+        const normalized = error instanceof Error ? error : new Error("Save failed. Please retry.");
+        if (normalized.name === "WorkspaceConflictError") {
+          this.blockedByConflict = true;
+          this.conflictError = normalized;
+          this.emit({ state: "conflict", message: normalized.message });
+        } else {
+          this.emit({ state: "error", message: normalized.message });
+        }
+        throw normalized;
       }
     }
     this.emit({ state: "saved" });

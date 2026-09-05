@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "./index";
+import { useExclusivePopup } from "./dismissable";
 
 type Props = {
   open: boolean;
@@ -26,6 +27,8 @@ export function ConfirmDialog({
   onOpenChange,
   onConfirm,
 }: Props) {
+  useExclusivePopup(open, () => onOpenChange(false));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

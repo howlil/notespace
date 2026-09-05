@@ -1,15 +1,22 @@
 import type { Editor } from "@tiptap/core";
 import { mergeAttributes, Node as TiptapNode } from "@tiptap/core";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
+import type { NodeViewProps } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Highlight from "@tiptap/extension-highlight";
 import UniqueID from "@tiptap/extension-unique-id";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Code2, Heading2, List, ListChecks, ListOrdered, Minus, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
+import { useDismissablePopup } from "../../components/ui/dismissable";
+import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { useToast } from "../../providers/toast-provider";
+import "./document-editor.css";
 
 type FocusRequest = { id: string; request: number } | null;
+type HighlightRequest = number | null;
 
 const TaskList = TiptapNode.create({
   name: "taskList",
@@ -72,22 +79,92 @@ const slashCommands: SlashCommand[] = [
 
 type SlashMenu = { from: number; query: string; x: number; y: number } | null;
 
+function LocalImageView({ node, workspaceId }: NodeViewProps & { workspaceId: string }) {
+  const assetId = typeof node.attrs.assetId === "string" ? node.attrs.assetId : "";
+  const fallbackSrc = typeof node.attrs.src === "string" && !node.attrs.src.startsWith("notespace-asset:") ? node.attrs.src : null;
+  const [src, setSrc] = useState<string | null>(fallbackSrc);
+
+  useEffect(() => {
+    if (!assetId) {
+      setSrc(fallbackSrc);
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    setSrc(null);
+    void loadImageAsset(workspaceId, assetId).then((asset) => {
+      if (!active || !asset) return;
+      objectUrl = URL.createObjectURL(asset.blob);
+      setSrc(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [assetId, fallbackSrc, workspaceId]);
+
+  return (
+    <NodeViewWrapper className="document-image-node">
+      {src ? <img src={src} alt={node.attrs.alt || "Pasted image"} draggable={false} /> : <span className="document-image-missing">Image is stored locally on this device.</span>}
+    </NodeViewWrapper>
+  );
+}
+
+function createLocalImageExtension(workspaceId: string) {
+  return TiptapNode.create({
+    name: "image",
+    group: "block",
+    atom: true,
+    draggable: true,
+    selectable: true,
+    addAttributes() {
+      return {
+        assetId: { default: null },
+        src: { default: null },
+        alt: { default: "Pasted image" },
+      };
+    },
+    parseHTML() {
+      return [{ tag: "img[src]" }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      const attributes = { ...HTMLAttributes };
+      delete attributes.assetId;
+      return ["img", mergeAttributes(attributes)];
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer((props) => <LocalImageView {...props} workspaceId={workspaceId} />);
+    },
+  });
+}
+
 export default function DocumentEditor({
   initial,
   onChange,
   onBlockSelect,
   focusRequest,
+  highlightRequest = null,
+  workspaceId,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
-  onBlockSelect?: (blockId: string | null) => void;
+  onBlockSelect?: (blockId: string | null, hasTextSelection: boolean) => void;
   focusRequest?: FocusRequest;
+  highlightRequest?: HighlightRequest;
+  workspaceId: string;
 }) {
+  const { showToast } = useToast();
   const slashMenuRef = useRef<SlashMenu>(null);
+  const documentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const selectedCommandRef = useRef(0);
   const [slashMenu, setSlashMenu] = useState<SlashMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
+  const dismissSlashMenu = useCallback(() => {
+    slashMenuRef.current = null;
+    setSlashMenu(null);
+  }, []);
+  useDismissablePopup(documentRef, !!slashMenu, dismissSlashMenu);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -113,11 +190,30 @@ export default function DocumentEditor({
     setSelectedCommand(0);
   }
 
+  async function insertPastedImages(files: File[]) {
+    const currentEditor = editorRef.current;
+    if (!currentEditor) return;
+    try {
+      for (const file of files) {
+        const assetId = createLocalAssetId();
+        await storeImageAsset(workspaceId, assetId, file);
+        currentEditor.chain().focus().insertContent({
+          type: "image",
+          attrs: { assetId, src: `notespace-asset://${assetId}`, alt: "Pasted image" },
+        }).run();
+      }
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this image locally." });
+    }
+  }
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false } }),
+      createLocalImageExtension(workspaceId),
       TaskList,
       TaskItem,
+      Highlight,
       UniqueID.configure({
         types: ["paragraph", "heading", "codeBlock", "listItem", "taskItem"],
         attributeName: "blockId",
@@ -132,7 +228,29 @@ export default function DocumentEditor({
         "aria-multiline": "true",
         spellcheck: "false",
       },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.items ?? [])
+          .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+          .map((item) => item.getAsFile())
+          .filter((file): file is File => file !== null);
+        if (!files.length) return false;
+        event.preventDefault();
+        void insertPastedImages(files);
+        return true;
+      },
       handleKeyDown: (_view, event) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor) return false;
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+          event.preventDefault();
+          currentEditor.commands.selectAll();
+          return true;
+        }
+        if ((event.key === "Backspace" || event.key === "Delete") && !currentEditor.state.selection.empty) {
+          event.preventDefault();
+          currentEditor.commands.deleteSelection();
+          return true;
+        }
         const menu = slashMenuRef.current;
         if (!menu) return false;
         const filtered = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes(menu.query.toLowerCase()));
@@ -170,11 +288,11 @@ export default function DocumentEditor({
     },
     onUpdate: ({ editor: changed }) => {
       onChange({ format: "tiptap", version: 1, data: changed.getJSON() });
-      onBlockSelect?.(selectedBlockId(changed));
+      onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
     },
     onSelectionUpdate: ({ editor: changed }) => {
-      onBlockSelect?.(selectedBlockId(changed));
+      onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
     },
   });
@@ -198,14 +316,20 @@ export default function DocumentEditor({
     editor.chain().focus().setTextSelection(position).scrollIntoView().run();
   }, [editor, focusRequest]);
 
+  useEffect(() => {
+    if (!editor || highlightRequest === null) return;
+    if (editor.state.selection.empty) return;
+    editor.chain().focus().toggleHighlight().run();
+  }, [editor, highlightRequest]);
+
   if (!editor) {
     return <div className="editor-loading" role="status">Opening document…</div>;
   }
 
   const filteredCommands = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes((slashMenu?.query ?? "").toLowerCase()));
   return (
-    <div className="document-editor">
-      <EditorContent editor={editor} />
+    <div ref={documentRef} className="document-editor">
+      <EditorContent editor={editor} className="document-editor-content" />
       {slashMenu && filteredCommands.length > 0 && (
         <div className="slash-menu" role="listbox" aria-label="Insert block" style={{ left: slashMenu.x, top: slashMenu.y }}>
           <div className="slash-menu-label">Insert block</div>

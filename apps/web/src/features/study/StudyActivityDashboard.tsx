@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { getStudyActivity, getStudyDayDetail } from "../../domain/project/api";
 import type { StudyActivity, StudyDayDetail } from "../../domain/project/api";
+import { useToast } from "../../providers/toast-provider";
 import { formatDay, formatDuration, localDate } from "./study-timer";
+import "./study.css";
 
 function dateWithOffset(days: number) {
   const date = new Date();
@@ -21,27 +23,29 @@ function level(seconds: number) {
 }
 
 export function StudyActivityDashboard({ compact = false }: { compact?: boolean }) {
+  const { showToast } = useToast();
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detail, setDetail] = useState<StudyDayDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [error, setError] = useState("");
   const from = useMemo(() => dateWithOffset(-364), []);
   const to = useMemo(() => dateWithOffset(0), []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void getStudyActivity(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load study activity."); }).finally(() => { if (!cancelled) setLoading(false); });
+    setLoadError(null);
+    void getStudyActivity(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) { setActivity(null); setLoadError(err instanceof Error ? err.message : "Could not load study activity."); showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load study activity." }); } }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [from, to]);
+  }, [from, to, showToast]);
 
   function selectDay(date: string) {
     setSelectedDate(date);
     setDetail(null);
     setDetailLoading(true);
-    void getStudyDayDetail(date).then(setDetail).catch(() => setError("Could not load this day." )).finally(() => setDetailLoading(false));
+    void getStudyDayDetail(date).then(setDetail).catch(() => showToast({ kind: "error", message: "Could not load this day." })).finally(() => setDetailLoading(false));
   }
 
   const gridStart = useMemo(() => {
@@ -58,15 +62,15 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
   }
 
   return <section className={compact ? "study-activity study-activity-compact" : "study-activity"} aria-labelledby="study-activity-title">
-    <div className="study-activity-heading"><div><h2 id="study-activity-title">Learning activity</h2><p>Active study time over the last year</p></div>{error && <span className="study-inline-error" role="alert"><AlertCircle size={14} /> {error}</span>}</div>
+    <div className="study-activity-heading"><div><h2 id="study-activity-title">Learning activity</h2><p>Active study time over the last year</p></div></div>
     <div className="study-summary">
       <div><span>Today</span><strong>{loading ? "—" : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
       <div><span>This week</span><strong>{loading ? "—" : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
       <div><span>Streak</span><strong>{loading ? "—" : `${activity?.currentStreak ?? 0} days`}</strong></div>
     </div>
-    {loading ? <div className="study-loading"><Loader2 size={16} className="spin" /> Loading activity…</div> : <>
+    {loading ? <div className="study-loading"><Loader2 size={16} className="spin" /> Loading activity…</div> : loadError ? <div className="study-loading study-error-state">{loadError}</div> : <>
       <div className="heatmap-scroll"><div className="heatmap" aria-label="Learning activity heatmap">
-        {activity?.days.map((day) => { const spot = position(day.date); return <button key={day.date} className={`heatmap-day level-${level(day.activeSeconds)}`} style={{ gridColumn: spot.column, gridRow: spot.row }} title={`${formatDay(day.date)} · ${formatDuration(day.activeSeconds)}`} aria-label={`${formatDay(day.date)}: ${formatDuration(day.activeSeconds)}`} onClick={() => selectDay(day.date)} aria-pressed={selectedDate === day.date} />; })}
+        {(activity?.days ?? []).map((day) => { const spot = position(day.date); return <button key={day.date} className={`heatmap-day level-${level(day.activeSeconds)}`} style={{ gridColumn: spot.column, gridRow: spot.row }} title={`${formatDay(day.date)} · ${formatDuration(day.activeSeconds)}`} aria-label={`${formatDay(day.date)}: ${formatDuration(day.activeSeconds)}`} onClick={() => selectDay(day.date)} aria-pressed={selectedDate === day.date} />; })}
       </div></div>
       <div className="heatmap-legend"><span>Less</span>{[0, 1, 2, 3, 4, 5].map((value) => <i key={value} className={`heatmap-day level-${value}`} aria-hidden="true" />)}<span>More</span></div>
     </>}

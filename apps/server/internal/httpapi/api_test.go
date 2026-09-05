@@ -243,6 +243,58 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	}
 }
 
+func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := httpapi.New(store, store.Healthy)
+	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Note actions"}))
+	note := p.Notes[0]
+	note.Document = project.Snapshot{
+		Format:  "tiptap",
+		Version: 1,
+		Data:    json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"highlight-block"},"content":[{"type":"text","text":"Marked","marks":[{"type":"highlight"}]}]}]}`),
+	}
+	canvas := project.Snapshot{
+		Format:  "excalidraw",
+		Version: 1,
+		Data:    json.RawMessage(`{"elements":[{"id":"linked-element","type":"rectangle"}],"appState":{},"files":{}}`),
+	}
+	update := project.Update{
+		Title:      p.Title,
+		Version:    p.Version,
+		Document:   note.Document,
+		Notes:      []project.Note{note},
+		Canvas:     canvas,
+		References: []project.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
+		SplitRatio: p.SplitRatio,
+	}
+	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	expect(t, saved, 200)
+	reloaded := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	if len(reloaded.Notes) != 1 || string(reloaded.Notes[0].Document.Data) != string(note.Document.Data) {
+		t.Fatalf("highlighted note was not persisted: %+v", reloaded.Notes)
+	}
+	if !reflect.DeepEqual(reloaded.References, update.References) {
+		t.Fatalf("reference mapping was not persisted: %+v", reloaded.References)
+	}
+
+	second := project.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	deleted := update
+	deleted.Version = reloaded.Version
+	deleted.Document = second.Document
+	deleted.Notes = []project.Note{second}
+	deleted.References = []project.Reference{}
+	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, deleted), 200)
+	afterDelete := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	if len(afterDelete.Notes) != 1 || afterDelete.Notes[0].ID != second.ID || len(afterDelete.References) != 0 {
+		t.Fatalf("note deletion mapping was not persisted: notes=%+v references=%+v", afterDelete.Notes, afterDelete.References)
+	}
+}
+
 func TestProjectJourneyAndRestart(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "notespace.db")

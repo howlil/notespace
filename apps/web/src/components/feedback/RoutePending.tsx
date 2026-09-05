@@ -1,3 +1,5 @@
+import "./route-pending.css";
+
 // Start serves one prerendered SPA shell for every URL, so pending markup must match.
 export function RoutePending() {
   return (
@@ -5,9 +7,9 @@ export function RoutePending() {
       <div className="loading-layout">
         <section className="loading-copy" aria-label="Loading status">
           <div className="loading-brand"><span className="brand-mark">n<span>·</span></span><span>notespace</span><span className="brand-dot">.</span></div>
-          <p className="loading-eyebrow">PERSONAL KNOWLEDGE WORKSPACE</p>
-          <h1>Make space for better thinking.</h1>
-          <p className="loading-description">Opening your library and workspaces.</p>
+          <p className="loading-eyebrow">OPENING NOTESPACE</p>
+          <h1>Loading your library.</h1>
+          <p className="loading-description">Preparing your workspace.</p>
           <div className="loading-progress" aria-hidden="true"><span /></div>
           <div className="loading-state"><span className="loading-state-dot" aria-hidden="true" /><span>Preparing your workspace</span><span className="loading-state-mark" aria-hidden="true">···</span></div>
         </section>
@@ -22,3 +24,4 @@ export function RoutePending() {
     </main>
   );
 }
+import "./route-pending.css";

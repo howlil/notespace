@@ -7,8 +7,10 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import "../styles/globals.css";
-import "../styles/workspace-responsive.css";
+import "../components/feedback/route-pending.css";
 import { ThemeProvider } from "../providers/theme-provider";
+import { ToastProvider } from "../providers/toast-provider";
+import { NativePopupManager } from "../components/ui/dismissable";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -23,9 +25,13 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootDocument,
   component: () => (
-    <ThemeProvider>
-      <Outlet />
-    </ThemeProvider>
+    <NativePopupManager>
+      <ToastProvider>
+        <ThemeProvider>
+          <Outlet />
+        </ThemeProvider>
+      </ToastProvider>
+    </NativePopupManager>
   ),
   notFoundComponent: () => (
     <main className="route-message">

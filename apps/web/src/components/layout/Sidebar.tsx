@@ -4,8 +4,10 @@ import { Link } from "@tanstack/react-router";
 import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, cn } from "../ui";
+import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../domain/project/api";
+import "./sidebar.css";
 
 export function Brand() {
   return <span className="brand"><span className="brand-mark">n<span>·</span></span>notespace<span className="brand-dot">.</span></span>;
@@ -15,6 +17,7 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; colla
 type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
 
 export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory, onChanged }: Props) {
+  const { showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [children, setChildren] = useState<Record<string, ProjectSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
@@ -23,7 +26,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
   const [creating, setCreating] = useState<{ kind: "category" | "workspace"; categoryId?: string } | null>(null);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
-  const [error, setError] = useState("");
   const uncategorized = categories.find((category) => category.id === "legacy") ?? categories.find((category) => category.title.toLowerCase() === "uncategorized");
 
   async function toggleCategory(category: CategorySummary) {
@@ -38,12 +40,11 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     onSelectCategory(category.id);
     if (children[category.id]) return;
     setLoading(category.id);
-    setError("");
     try {
       const page = await listCategoryWorkspaces(category.id, { limit: 5 });
       setChildren((current) => ({ ...current, [category.id]: page.items }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load workspaces.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." });
     } finally {
       setLoading(null);
     }
@@ -51,7 +52,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
 
   function startCreate(kind: "category" | "workspace", categoryId?: string) {
     setTitle("");
-    setError("");
     setCreating({ kind, categoryId });
     if (categoryId) setExpanded((current) => new Set(current).add(categoryId));
   }
@@ -60,7 +60,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     event.preventDefault();
     const next = title.trim();
     if (!creating || !next) return;
-    setError("");
     try {
       const target = creating;
       if (target.kind === "category") await createCategory(next);
@@ -74,7 +73,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
         setExpanded((current) => new Set(current).add(target.categoryId!));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create this item.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create this item." });
     }
   }
 
@@ -88,7 +87,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       setEditingCategory(null);
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not rename category.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." });
     }
   }
 
@@ -102,7 +101,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       setEditingWorkspace(null);
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not rename workspace.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
     }
   }
 
@@ -110,7 +109,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     if (!deleting) return;
     const target = deleting;
     setDeleting(null);
-    setError("");
     try {
       if (target.kind === "category") {
         await deleteCategory(target.item.id);
@@ -121,10 +119,16 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
         });
       } else {
         await deleteProject(target.item.id);
+        setChildren((current) => Object.fromEntries(
+          Object.entries(current).map(([categoryId, workspaces]) => [
+            categoryId,
+            workspaces.filter((workspace) => workspace.id !== target.item.id),
+          ]),
+        ));
       }
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : target.kind === "category" ? "Delete the workspaces in this category first." : "Could not delete workspace.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : target.kind === "category" ? "Delete the workspaces in this category first." : "Could not delete workspace." });
     }
   }
 
@@ -137,7 +141,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       setChildren({});
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not move workspace.");
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not move workspace." });
     }
   }
 
@@ -150,7 +154,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
 
   function clearTransientState() {
     setCreating(null);
-    setError("");
   }
 
   function handleTriggerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -180,17 +183,18 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
           {categories.map((category) => {
             const isOpen = expanded.has(category.id);
             const items = children[category.id] ?? [];
-            return <div className="tree-category" key={category.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void dropWorkspace(category.id, event)}>
+            const isSystemCategory = category.id === "legacy";
+            return <div className={isSystemCategory ? "tree-category is-system-category" : "tree-category"} key={category.id} data-system-category={isSystemCategory ? "true" : undefined} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void dropWorkspace(category.id, event)}>
               <ContextMenu onOpenChange={(open) => { if (open) clearTransientState(); }}>
                 <ContextMenuTrigger asChild>
                   <div className={selectedCategoryId === category.id ? "tree-row is-selected" : "tree-row"} onContextMenu={handleTriggerContextMenu} onKeyDown={handleTriggerKeyDown}>
                     <IconButton className="tree-expander" aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
-                    {editingCategory === category.id ? <Input className="tree-inline-input" autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") setEditingCategory(null); }} /> : <button className="tree-label" onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => setEditingCategory(category.id)}><span>{category.title}</span><small>{category.workspaceCount}</small></button>}
+                    {editingCategory === category.id && !isSystemCategory ? <Input className="tree-inline-input" autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") setEditingCategory(null); }} /> : <button className="tree-label" onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}><span>{category.title}</span><small>{isSystemCategory ? "Default" : category.workspaceCount}</small></button>}
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onSelect={() => startCreate("workspace", category.id)}><Plus size={13} /> New workspace</ContextMenuItem>
-                  <ContextMenuItem className="text-[var(--danger)]" onSelect={() => setDeleting({ kind: "category", item: category })}><Trash2 size={13} /> Delete</ContextMenuItem>
+                  {!isSystemCategory && <ContextMenuItem className="text-[var(--danger)]" onSelect={() => setDeleting({ kind: "category", item: category })}><Trash2 size={13} /> Delete</ContextMenuItem>}
                 </ContextMenuContent>
               </ContextMenu>
               {isOpen && <div className="tree-children">
@@ -212,7 +216,6 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
             </div>;
           })}
         </nav>
-        {error && <p className="sidebar-error" role="alert">{error}</p>}
       </>}
     </aside>
     <ConfirmDialog open={!!deleting} title={deleting?.kind === "category" ? "Delete this category?" : "Delete this workspace?"} description={deleting ? `“${deleting.item.title}” will be removed.` : ""} confirmLabel="Delete" onOpenChange={(open) => { if (!open) setDeleting(null); }} onConfirm={() => void confirmDelete()} />

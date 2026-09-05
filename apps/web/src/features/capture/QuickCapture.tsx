@@ -3,10 +3,10 @@ import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
 import { contentOf } from "../../domain/project/project";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { getProject, listCategories, listRecentWorkspaces, saveProject, searchNotespace } from "../../domain/project/api";
+import { getProject, listAllWorkspaces, listCategories, listRecentWorkspaces, saveProject } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../providers/toast-provider";
-import { recentWorkspaceOptions, searchWorkspaceOptions } from "./workspace-options";
+import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
@@ -80,8 +80,8 @@ export function QuickCapture() {
     let active = true;
     const timer = window.setTimeout(() => {
       setSearching(true);
-      void searchNotespace(query)
-        .then((results) => { if (active) setSearchWorkspaces(searchWorkspaceOptions(results)); })
+      void listAllWorkspaces({ query, limit: recentWorkspaceLimit })
+        .then((page) => { if (active) setSearchWorkspaces(workspaceOptions(page.items, categories)); })
         .catch((error) => {
           if (active) showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not search workspaces." });
         })
@@ -91,9 +91,9 @@ export function QuickCapture() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, showToast, workspaceQuery]);
+  }, [categories, open, showToast, workspaceQuery]);
 
-  const recentOptions = useMemo(() => recentWorkspaceOptions(workspaces, categories), [categories, workspaces]);
+  const recentOptions = useMemo(() => workspaceOptions(workspaces, categories), [categories, workspaces]);
   const options = workspaceQuery.trim() ? searchWorkspaces : recentOptions;
   const effectiveWorkspaceId = options.some((option) => option.id === workspaceId) ? workspaceId : options[0]?.id ?? "";
 

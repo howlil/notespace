@@ -4,7 +4,7 @@
 
 **M11 — Durability, Retrieval & Recovery Constraint Remediation**
 
-State: **implementation complete; integration gate pending**.
+State: **implementation and formatting complete; final integration gate pending**.
 
 ## Product outcome
 

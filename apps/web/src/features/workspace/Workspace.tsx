@@ -15,7 +15,7 @@ import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
-import { MAX_WORKSPACE_PANES, canAddPane, defaultLayout, findContainingSplit, findPane, findSplit, hasCanvasPane, leafCount, leaves, mapNode, removeNode, restoreLayout, updateSplit } from "./pane-layout";
+import { MAX_WORKSPACE_PANES, canAddPane, findContainingSplit, findPane, findSplit, hasCanvasPane, leafCount, leaves, mapNode, removeNode, restoreLayout, updateSplit } from "./pane-layout";
 import type { Pane, PaneNode } from "./pane-layout";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));

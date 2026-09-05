@@ -79,7 +79,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
 
   return (
     <ToastPrimitive.Viewport
-      className="fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] m-0 flex w-[min(336px,calc(100vw-32px))] list-none flex-col gap-1.5 p-0 outline-none max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-3 max-[480px]:w-auto"
+      className="fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] m-0 flex w-[min(336px,calc(100vw_-_32px))] list-none flex-col gap-1.5 p-0 outline-none max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-3 max-[480px]:w-auto"
       aria-label="Notifications"
     >
       <AnimatePresence initial={false}>

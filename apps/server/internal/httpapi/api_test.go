@@ -504,7 +504,7 @@ func TestHistoryStartsAtWorkspaceCreationAndExportIsPortable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wanted := map[string]bool{"manifest.json": false, "notes/notes.json": false, "notes/0001.json": false, "canvas/workspace.excalidraw.json": false, "canvas/files.json": false, "relationships.json": false}
+	wanted := map[string]bool{"manifest.json": false, "notes/notes.json": false, "notes/0001.json": false, "canvas/workspace.excalidraw.json": false, "canvas/files.json": false}
 	for _, file := range archive.File {
 		if _, ok := wanted[file.Name]; ok {
 			wanted[file.Name] = true

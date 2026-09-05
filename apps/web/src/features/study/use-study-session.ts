@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getWorkspaceStudy, recordStudyHeartbeat } from "../../domain/project/api";
-import { IDLE_AFTER_MS, localDate } from "./study-timer";
+import { combineStudyStats, IDLE_AFTER_MS, localDate, rollStudyBaseline } from "./study-timer";
 
 export type StudySessionState = {
   currentSeconds: number;
@@ -21,7 +21,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   const manualPaused = useRef(false);
   const mounted = useRef(true);
   const [currentSeconds, setCurrentSeconds] = useState(0);
-  const [remoteStats, setRemoteStats] = useState({ todaySeconds: 0, totalSeconds: 0 });
+  const [baselineStats, setBaselineStats] = useState({ todaySeconds: 0, totalSeconds: 0 });
   const [tracking, setTracking] = useState(true);
   const [pausedReason, setPausedReason] = useState<StudySessionState["pausedReason"]>(null);
 
@@ -36,8 +36,13 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     const send = (finish = false, sentId = sessionId.current, sentDate = activityDate.current, seconds = activeSeconds.current) => {
       void recordStudyHeartbeat(workspaceId, sentId, { activityDate: sentDate, activeSeconds: seconds, finish }).catch(() => {});
     };
-    send(false, id, date, 0);
-    void getWorkspaceStudy(workspaceId, localDate()).then((stats) => { if (mounted.current) setRemoteStats(stats); }).catch(() => {});
+
+    // Read the durable baseline before creating this session so the UI can add
+    // currentSeconds without double-counting the active session.
+    void getWorkspaceStudy(workspaceId, date)
+      .then((stats) => { if (!stopped && mounted.current) setBaselineStats(stats); })
+      .catch(() => {})
+      .finally(() => { if (!stopped) send(false, id, date, 0); });
 
     const markActivity = () => {
       if (manualPaused.current || document.visibilityState === "hidden") return;
@@ -63,7 +68,9 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       if (nextDate !== activityDate.current) {
         const oldId = sessionId.current;
         const oldDate = activityDate.current;
-        send(true, oldId, oldDate, activeSeconds.current);
+        const completedSeconds = activeSeconds.current;
+        send(true, oldId, oldDate, completedSeconds);
+        setBaselineStats((value) => rollStudyBaseline(value, completedSeconds));
         sessionId.current = crypto.randomUUID();
         activityDate.current = nextDate;
         activeSeconds.current = 0;
@@ -107,10 +114,11 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     setPausedReason(null);
   }
 
+  const totals = combineStudyStats(baselineStats, currentSeconds);
   return {
     currentSeconds,
-    todaySeconds: Math.max(remoteStats.todaySeconds, currentSeconds),
-    totalSeconds: Math.max(remoteStats.totalSeconds, currentSeconds),
+    todaySeconds: totals.todaySeconds,
+    totalSeconds: totals.totalSeconds,
     tracking,
     pausedReason,
     pause,

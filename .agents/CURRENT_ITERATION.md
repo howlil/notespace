@@ -4,7 +4,7 @@
 
 **M11 — Durability, Retrieval & Recovery Constraint Remediation**
 
-State: **implementation complete; compatibility fixes applied; final verification running**.
+State: **implementation complete; legacy relationship export assertion removed; final verification running**.
 
 ## Product outcome
 
@@ -43,6 +43,7 @@ SAVE
 - Browser IndexedDB is now cache + migration fallback, not durable ownership.
 - Legacy browser-only images are uploaded to the server when read.
 - Workspace ZIP export includes durable image binaries while preserving the legacy `canvas/files.json` export artifact for compatibility.
+- `relationships.json` is no longer part of the export contract because cross-surface relationship semantics were removed from the product.
 
 ### Slice 3 — Indexed global retrieval
 - Added SQLite FTS5 `workspace_search` projection and version/category/title metadata.

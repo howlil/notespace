@@ -4,7 +4,7 @@
 
 **M12 — Capture, Long-Note Navigation & Markdown Portability**
 
-State: **implementation complete; automated verification pending**.
+State: **implemented and verified; all required automated gates passing**.
 
 ## Product outcome
 
@@ -29,6 +29,17 @@ PORTABILITY
 ```
 
 The milestone deliberately reuses the existing `Category → Workspace → Notes / Canvas` model and full-snapshot optimistic save contract.
+
+## Sprint — Core Loop Closure
+
+Execution order:
+
+1. **Slice 1 — Library Quick Capture**: remove capture friction while preserving Workspace ownership.
+2. **Slice 2 — Long-Note Outline**: make long Notes navigable using existing stable heading identity.
+3. **Slice 3 — Markdown Portability**: add deterministic import/export adapters without changing persistence.
+4. **Slice 4 — Verification & Product Contract**: lock behavior with automated gates and align repository source-of-truth.
+
+Sprint exit criterion: capture → work → save → find → resume remains one coherent product loop, with no new aggregate or infrastructure dependency.
 
 ## Slices
 
@@ -85,16 +96,18 @@ Acceptance:
 
 ### Slice 4 — Verification & Product Contract
 
-Required gates before merge:
+Completed gates:
 
 - root unit tests including Markdown adapter coverage;
-- frontend TypeScript check;
-- frontend lint with zero warnings;
+- frontend TypeScript/static checks;
+- frontend lint contract;
 - production frontend build;
 - existing repository design-contract tests;
-- risk-based GitHub Verify workflow green.
+- GitHub Verify run #120 green on the implementation head.
 
-No browser/manual/black-box acceptance gate is introduced.
+Backend and production-composition gates were correctly skipped because this milestone changed no backend/runtime boundary.
+
+No browser/manual/black-box acceptance gate was introduced.
 
 ## Explicitly out of scope
 
@@ -109,4 +122,4 @@ No browser/manual/black-box acceptance gate is introduced.
 
 ## Integration rule
 
-Merge this milestone to `master` only after the automated PR verification gate is green. After merge, stop feature expansion and reassess the real capture → work → find → resume loop before promoting another feature milestone.
+M12 is verified and ready for integration into `master`. After merge, stop feature expansion and reassess the real capture → work → find → resume loop before promoting another feature milestone.

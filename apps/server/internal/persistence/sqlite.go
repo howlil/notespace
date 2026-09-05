@@ -371,12 +371,15 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	result, err := tx.ExecContext(ctx, `DELETE FROM projects WHERE id=?`, id)
-	count, err := result.RowsAffected()
-	if err == nil && count == 0 {
-		return project.ErrNotFound
-	}
 	if err != nil {
 		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return project.ErrNotFound
 	}
 	return tx.Commit()
 }
@@ -468,22 +471,47 @@ func walkSearch(value json.RawMessage, visit func(string, string)) {
 
 func excerpt(text, query string) string {
 	text = strings.TrimSpace(text)
-	if len(text) <= 140 {
+	runes := []rune(text)
+	if len(runes) <= 140 {
 		return text
 	}
-	index := strings.Index(strings.ToLower(text), query)
+	index := runeIndexFold(text, query)
 	if index < 0 {
-		return text[:140] + "…"
+		return string(runes[:140]) + "…"
 	}
 	start := index - 55
 	if start < 0 {
 		start = 0
 	}
 	end := start + 140
-	if end > len(text) {
-		end = len(text)
+	if end > len(runes) {
+		end = len(runes)
 	}
-	return text[start:end]
+	return string(runes[start:end])
+}
+
+func runeIndexFold(text, query string) int {
+	haystack := []rune(strings.ToLower(text))
+	needle := []rune(strings.ToLower(strings.TrimSpace(query)))
+	if len(needle) == 0 {
+		return 0
+	}
+	if len(needle) > len(haystack) {
+		return -1
+	}
+	for start := 0; start <= len(haystack)-len(needle); start++ {
+		matched := true
+		for offset := range needle {
+			if haystack[start+offset] != needle[offset] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return start
+		}
+	}
+	return -1
 }
 
 type execContext interface {
@@ -659,6 +687,10 @@ func shouldCreateHistory(ctx context.Context, db queryer, previous project.Histo
 	if !found {
 		return true, nil
 	}
+	createdAt, parseErr := time.Parse(time.RFC3339Nano, latest.CreatedAt)
+	if parseErr == nil && now.Before(createdAt.Add(historyCheckpointInterval)) {
+		return false, nil
+	}
 	previousHash, err := historyAuthoredHash(previous)
 	if err != nil {
 		return false, err
@@ -666,11 +698,7 @@ func shouldCreateHistory(ctx context.Context, db queryer, previous project.Histo
 	if previousHash == latest.Hash {
 		return false, nil
 	}
-	createdAt, err := time.Parse(time.RFC3339Nano, latest.CreatedAt)
-	if err != nil {
-		return true, nil
-	}
-	return !now.Before(createdAt.Add(historyCheckpointInterval)), nil
+	return true, nil
 }
 
 func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]project.HistoryEntry, error) {

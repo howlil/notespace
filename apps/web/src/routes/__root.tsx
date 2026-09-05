@@ -7,10 +7,12 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import "../styles/globals.css";
-import "../components/feedback/route-pending.css";
+import { Button } from "../components/ui";
 import { ThemeProvider } from "../providers/theme-provider";
 import { ToastProvider } from "../providers/toast-provider";
 import { NativePopupManager } from "../components/ui/dismissable";
+
+const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -34,19 +36,17 @@ export const Route = createRootRoute({
     </NativePopupManager>
   ),
   notFoundComponent: () => (
-    <main className="route-message">
-      <h1>Workspace not found</h1>
-      <Link to="/">Back to library</Link>
+    <main className={routeMessageClass}>
+      <h1 className="m-0 text-2xl font-medium tracking-tight text-ink">Workspace not found</h1>
+      <Link className="text-accent hover:underline" to="/">Back to library</Link>
     </main>
   ),
   errorComponent: ({ error, reset }) => (
-    <main className="route-message">
-      <h1>Unable to open Notespace</h1>
-      <p>{error.message}</p>
-      <button className="primary" onClick={reset}>
-        Try again
-      </button>
-      <a href="/">Back to library</a>
+    <main className={routeMessageClass}>
+      <h1 className="m-0 text-2xl font-medium tracking-tight text-ink">Unable to open Notespace</h1>
+      <p className="m-0 max-w-xl text-sm text-muted">{error.message}</p>
+      <Button onClick={reset}>Try again</Button>
+      <a className="text-accent hover:underline" href="/">Back to library</a>
     </main>
   ),
 });

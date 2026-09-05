@@ -4,8 +4,7 @@ import { Link, useBlocker } from "@tanstack/react-router";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { ArrowLeft, Check, ChevronDown, Circle, Download, FileText, Highlighter, History as HistoryIcon, Layers, Link2, Loader2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "../../components/ui";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, cn } from "../../components/ui";
 import { useDismissablePopup, useExclusivePopup } from "../../components/ui/dismissable";
 import { ThemeToggle, useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
@@ -17,13 +16,17 @@ import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
-import "./workspace.css";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
 type FocusRequest = { id: string; request: number } | null;
 type Pane = { id: string; kind: "note" | "canvas"; noteId?: string };
 type PaneNode = { kind: "leaf"; pane: Pane } | { kind: "split"; id: string; direction: "row" | "column"; ratio: number; first: PaneNode; second: PaneNode };
+
+const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";
+const paneMenuButtonClass = "border-0 bg-transparent px-2 py-[7px] text-left text-[10px] text-ink hover:bg-tint hover:text-accent disabled:opacity-50";
+const iconActionClass = "grid size-8 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
+const popupClass = "absolute z-30 grid min-w-[165px] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]";
 
 function newId() { return crypto.randomUUID(); }
 const LINKABLE_BLOCK_TYPES = new Set(["paragraph", "heading", "codeBlock", "listItem", "taskItem"]);
@@ -80,7 +83,11 @@ function removeNode(node: PaneNode, id: string): PaneNode { if (node.kind === "l
 function defaultLayout(noteId: string): PaneNode { return { kind: "split", id: newId(), direction: "row", ratio: .5, first: { kind: "leaf", pane: { id: newId(), kind: "note", noteId } }, second: { kind: "leaf", pane: { id: newId(), kind: "canvas" } } }; }
 function restoreLayout(key: string, noteIds: Set<string>, canvasExists: boolean): PaneNode { try { const stored = JSON.parse(localStorage.getItem(key) ?? "null") as PaneNode | null; const clean = (node: PaneNode): PaneNode | null => { if (!node || (node.kind !== "leaf" && node.kind !== "split")) return null; if (node.kind === "leaf") { if (node.pane.kind === "canvas") { if (!canvasExists) return null; canvasExists = false; return node; } if (node.pane.kind !== "note" || !node.pane.noteId || !noteIds.has(node.pane.noteId)) return null; return node; } const first = clean(node.first); const second = clean(node.second); if (!first) return second; if (!second) return first; return { ...node, ratio: Math.max(.2, Math.min(.8, node.ratio || .5)), first, second }; }; const result = stored ? clean(stored) : null; if (result && leafCount(result) <= 4) return result; } catch { /* corrupt UI state should not block authored content */ } return defaultLayout([...noteIds][0] ?? ""); }
 
-class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } render() { return this.state.failed ? <div className="editor-loading" role="alert">This editor could not open. Your stored content is preserved. Reload to retry.</div> : this.props.children; } }
+class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <div className={editorLoadingClass} role="alert">This editor could not open. Your stored content is preserved. Reload to retry.</div> : this.props.children; }
+}
 
 export function Workspace({ project, categoryTitle }: { project: Project; categoryTitle: string }) {
   const { dark } = useTheme();
@@ -148,13 +155,15 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   const blockReference = selectedBlockId ? references.find((reference) => reference.blockId === selectedBlockId && (!reference.noteId || reference.noteId === selectedBlockNoteId)) : undefined; const elementReference = selectedElementId ? references.find((reference) => reference.elementId === selectedElementId) : undefined;
   function renameWorkspace() { const value = renameTitle.trim(); if (value && value !== current.current.title) update({ title: value }); setRenaming(false); }
 
+  const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
+
   function selectionContext(pane: Pane, content: ReactNode) {
     const noteSelection = pane.kind === "note" && !!selectedBlockId && selectedBlockNoteId === pane.noteId;
     const textSelection = noteSelection && selectedTextPaneId === pane.id;
     const canvasSelection = pane.kind === "canvas" && !!selectedElementId;
     const noteLinkHint = !noteSelection ? "Select a block in this Note first" : !selectedElementId ? "Select a Canvas object first" : null;
     return <ContextMenu>
-      <ContextMenuTrigger asChild><div className="pane-content-context">{content}</div></ContextMenuTrigger>
+      <ContextMenuTrigger asChild><div className="pane-content-context flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden">{content}</div></ContextMenuTrigger>
       <ContextMenuContent>
         {textSelection && <ContextMenuItem onSelect={highlightSelectedText}><Highlighter size={13} /> Highlight text</ContextMenuItem>}
         {noteSelection && <ContextMenuItem onSelect={promoteBlockToCanvas}><Layers size={13} /> Send to Canvas</ContextMenuItem>}
@@ -175,7 +184,7 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
             }) : <ContextMenuItem disabled>Select a Canvas object first</ContextMenuItem>}
           </ContextMenuSubContent>
         </ContextMenuSub>}
-        {pane.kind === "note" && <ContextMenuItem disabled={!!noteLinkHint} onSelect={createReference}><Link2 size={13} /> Link selected block to Canvas {noteLinkHint && <span className="ml-auto text-[10px] text-[var(--muted)]">{noteLinkHint}</span>}</ContextMenuItem>}
+        {pane.kind === "note" && <ContextMenuItem disabled={!!noteLinkHint} onSelect={createReference}><Link2 size={13} /> Link selected block to Canvas {noteLinkHint && <span className="ml-auto text-[10px] text-muted">{noteLinkHint}</span>}</ContextMenuItem>}
       </ContextMenuContent>
     </ContextMenu>;
   }
@@ -184,39 +193,187 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined;
     const isActive = pane.id === activePaneId;
     const containingSplit = findContainingSplit(layout, pane.id);
-    const noteHeader = pane.kind === "note" && (renamingNote?.paneId === pane.id ? <input ref={noteRenameInput} className="pane-title-input" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} /> : <div className="pane-note-controls">
-      <details className="pane-note-switcher">
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <summary onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}><FileText size={14} /><span>{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => beginRenameNote(pane)}><Pencil size={13} /> Rename note</ContextMenuItem>
-            <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => { if (note) setDeletingNote(note); }}><Trash2 size={13} /> Delete note</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-        <div className="pane-note-menu" role="listbox" aria-label="Notes in this workspace">
-          {current.current.notes.map((item) => <ContextMenu key={item.id}>
-            <ContextMenuTrigger asChild>
-              <button role="option" aria-selected={item.id === pane.noteId} onClick={() => switchPaneNote(pane.id, item.id)} onDoubleClick={(event) => { event.preventDefault(); switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}>{item.title}</button>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem onSelect={() => switchPaneNote(pane.id, item.id)}><MoveRight size={13} /> Move to this pane</ContextMenuItem>
-              <ContextMenuItem onSelect={() => { switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}><Pencil size={13} /> Rename note</ContextMenuItem>
-              <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => setDeletingNote(item)}><Trash2 size={13} /> Delete note</ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>)}
+    const noteHeader = pane.kind === "note" && (
+      renamingNote?.paneId === pane.id ? (
+        <input ref={noteRenameInput} className="w-[45%] min-w-0 border-0 bg-transparent px-0 py-1 text-[10px] text-ink outline-0" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} />
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <details className="pane-note-switcher relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1.5 text-[10px] text-ink" onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}><FileText size={14} /><span className="max-w-[25vw] overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[45vw]">{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onSelect={() => beginRenameNote(pane)}><Pencil size={13} /> Rename note</ContextMenuItem>
+                <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => { if (note) setDeletingNote(note); }}><Trash2 size={13} /> Delete note</ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+            <div className={cn(popupClass, "top-7 right-auto left-0")} role="listbox" aria-label="Notes in this workspace">
+              {current.current.notes.map((item) => <ContextMenu key={item.id}>
+                <ContextMenuTrigger asChild>
+                  <button className={paneMenuButtonClass} role="option" aria-selected={item.id === pane.noteId} onClick={() => switchPaneNote(pane.id, item.id)} onDoubleClick={(event) => { event.preventDefault(); switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}>{item.title}</button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => switchPaneNote(pane.id, item.id)}><MoveRight size={13} /> Move to this pane</ContextMenuItem>
+                  <ContextMenuItem onSelect={() => { switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}><Pencil size={13} /> Rename note</ContextMenuItem>
+                  <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => setDeletingNote(item)}><Trash2 size={13} /> Delete note</ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>)}
+            </div>
+          </details>
+          <button className="grid size-6 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" type="button" aria-label="New note" title="New note" onClick={() => createNote(pane.id)}><Plus size={14} /></button>
         </div>
-      </details>
-      <button className="pane-add-note" type="button" aria-label="New note" title="New note" onClick={() => createNote(pane.id)}><Plus size={14} /></button>
-    </div>);
-    const surface = pane.kind === "note" && note ? <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening note…</div>}><DocumentEditor key={pane.id} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(id, hasTextSelection) => { setSelectedBlockId(id); setSelectedBlockNoteId(pane.noteId ?? null); setSelectedTextPaneId(hasTextSelection ? pane.id : null); }} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} /></Suspense></EditorBoundary> : <EditorBoundary><Suspense fallback={<div className="editor-loading">Opening Canvas…</div>}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} onElementSelect={setSelectedElementId} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>;
-    return <section key={pane.id} className={isActive ? "authoring-pane is-active" : "authoring-pane"} onMouseDown={() => setActivePaneId(pane.id)} aria-label={pane.kind === "canvas" ? "Canvas pane" : `${note?.title ?? "Note"} note pane`}><header className="pane-header">{noteHeader ?? <span className="pane-title"><Layers size={14} /> Canvas</span>}<details className="pane-actions"><summary aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary><div className="pane-menu">{pane.kind === "canvas" && <button onClick={() => openNotePane(pane.id)}>Open note</button>}{pane.kind === "note" && <><button onClick={() => addCanvasPane(pane.id)}>Open Canvas</button><button disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button><button disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button><button onClick={() => beginRenameNote(pane)}>Rename note</button><button disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button></>}{containingSplit && <button onClick={() => maximizeSplit(pane.id)}>Maximize split</button>}<button onClick={() => maximizePane(pane.id)}>Maximize pane</button><button disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button></div></details></header>{selectionContext(pane, surface)}</section>;
+      )
+    );
+    const surface = pane.kind === "note" && note ? (
+      <EditorBoundary><Suspense fallback={<div className={editorLoadingClass}>Opening note…</div>}><DocumentEditor key={pane.id} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(id, hasTextSelection) => { setSelectedBlockId(id); setSelectedBlockNoteId(pane.noteId ?? null); setSelectedTextPaneId(hasTextSelection ? pane.id : null); }} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} /></Suspense></EditorBoundary>
+    ) : (
+      <EditorBoundary><Suspense fallback={<div className={editorLoadingClass}>Opening Canvas…</div>}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} onElementSelect={setSelectedElementId} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>
+    );
+
+    return (
+      <section key={pane.id} className={cn("grid h-full min-h-0 min-w-0 w-full grid-rows-[34px_minmax(0,1fr)] overflow-visible bg-surface", isActive && "border-transparent")} onMouseDown={() => setActivePaneId(pane.id)} aria-label={pane.kind === "canvas" ? "Canvas pane" : `${note?.title ?? "Note"} note pane`}>
+        <header className="flex min-w-0 items-center justify-between gap-2 border-b border-line pr-2 pl-[11px]">
+          {noteHeader ?? <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-ink"><Layers size={14} /> Canvas</span>}
+          <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
+            <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
+            <div className={cn(
+              popupClass,
+              "pane-menu top-7 right-0",
+              focusMode && "fixed top-[calc(var(--workspace-header-height)_+_34px)] right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_var(--workspace-header-height)_-_46px)]",
+            )}>
+              {pane.kind === "canvas" && <button className={paneMenuButtonClass} onClick={() => openNotePane(pane.id)}>Open note</button>}
+              {pane.kind === "note" && <>
+                <button className={paneMenuButtonClass} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
+                <button className={paneMenuButtonClass} disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button>
+                <button className={paneMenuButtonClass} disabled={leafCount(layout) >= 4} title={leafCount(layout) >= 4 ? "Maximum 4 panes per workspace." : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button>
+                <button className={paneMenuButtonClass} onClick={() => beginRenameNote(pane)}>Rename note</button>
+                <button className={paneMenuButtonClass} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button>
+              </>}
+              {containingSplit && <button className={paneMenuButtonClass} onClick={() => maximizeSplit(pane.id)}>Maximize split</button>}
+              <button className={paneMenuButtonClass} onClick={() => maximizePane(pane.id)}>Maximize pane</button>
+              <button className={paneMenuButtonClass} disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button>
+            </div>
+          </details>
+        </header>
+        {selectionContext(pane, surface)}
+      </section>
+    );
   }
-  function renderNode(node: PaneNode): ReactNode { if (node.kind === "leaf") return renderPane(node.pane); const ratio = node.ratio; return <div className={`pane-group pane-group-${node.direction}`} key={node.id} style={node.direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}>{renderNode(node.first)}<div className="pane-resizer" role="separator" tabIndex={0} aria-label={`Resize ${node.direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); const start = node.direction === "row" ? event.clientX : event.clientY; const bounds = event.currentTarget.parentElement?.getBoundingClientRect(); if (!bounds) return; const size = node.direction === "row" ? bounds.width : bounds.height; const move = (moveEvent: PointerEvent) => { const position = node.direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); }; const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", stop); }} /><div>{renderNode(node.second)}</div></div>; }
+
+  function renderNode(node: PaneNode): ReactNode {
+    if (node.kind === "leaf") return renderPane(node.pane);
+    const ratio = node.ratio;
+    return (
+      <div
+        className={cn(
+          "grid h-full min-h-0 min-w-0 w-full gap-0 [&>div]:grid [&>div]:min-h-0 [&>div]:min-w-0",
+          node.direction === "column" && "grid-cols-1",
+          node.direction === "row" && "max-[760px]:!grid-cols-1 max-[760px]:!grid-rows-[minmax(0,1fr)_7px_minmax(0,1fr)]",
+        )}
+        key={node.id}
+        style={node.direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}
+      >
+        {renderNode(node.first)}
+        <div
+          className={cn(
+            "relative z-5 grid place-items-center bg-transparent after:absolute after:top-1/2 after:left-1/2 after:h-[14px] after:w-[3px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-[color-mix(in_srgb,var(--line)_72%,transparent)] after:opacity-80 after:content-[''] hover:after:h-[18px] hover:after:w-1 hover:after:bg-accent focus-visible:after:h-[18px] focus-visible:after:w-1 focus-visible:after:bg-accent",
+            node.direction === "row" ? "cursor-col-resize max-[760px]:cursor-row-resize" : "cursor-row-resize after:h-[3px] after:w-[14px] hover:after:h-[3px] hover:after:w-[18px] focus-visible:after:h-[3px] focus-visible:after:w-[18px]",
+          )}
+          role="separator"
+          tabIndex={0}
+          aria-label={`Resize ${node.direction === "row" ? "horizontal" : "vertical"} panes`}
+          onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            const start = node.direction === "row" ? event.clientX : event.clientY;
+            const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+            if (!bounds) return;
+            const size = node.direction === "row" ? bounds.width : bounds.height;
+            const move = (moveEvent: PointerEvent) => { const position = node.direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); };
+            const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); };
+            window.addEventListener("pointermove", move); window.addEventListener("pointerup", stop);
+          }}
+        />
+        <div>{renderNode(node.second)}</div>
+      </div>
+    );
+  }
 
   const maximizedSplit = maximizedSplitId ? findSplit(layout, maximizedSplitId) : undefined;
-  const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
   const visible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
-  return <div className="workspace-shell"><main className={focusMode ? "workspace-main is-focus-mode" : "workspace-main"}><header className="topbar workspace-header"><div className="workspace-identity"><Link to="/" className="icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link><span className="workspace-breadcrumb">{categoryTitle} /</span>{renaming ? <input ref={renameInput} className="inline-title-input" aria-label="Workspace title" value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onBlur={renameWorkspace} onKeyDown={(event) => { if (event.key === "Enter") renameWorkspace(); if (event.key === "Escape") setRenaming(false); }} /> : <button className="workspace-title-button" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }}><span className="workspace-title">{current.current.title}</span><Pencil size={13} /></button>}</div><div className="header-actions">{!focusMode && <StudyIndicator study={study} />}<span className={`save-status status-${status.state}`} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="spin" /> : <Circle size={10} />}{status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}</span><details className="workspace-overflow"><summary className="icon-button" aria-label="Workspace actions"><MoreHorizontal size={18} /></summary><div className="workspace-menu-popover"><button className="menu-item" onClick={() => void openHistory()}><HistoryIcon size={14} /> History</button><a className="menu-item" href={exportWorkspace(project.id)} download><Download size={14} /> Export</a></div></details><ThemeToggle /></div></header>{focusMode && <div className="focus-mode-timer"><StudyIndicator study={study} /></div>}<div className={focusMode ? "authoring-canvas is-maximized" : "authoring-canvas"}>{visible}</div>{focusMode && <button className="restore-pane-button" onClick={() => { setMaximizedPaneId(null); setMaximizedSplitId(null); }}>Restore layout <span>Esc</span></button>}</main><Dialog.Root open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content"><Dialog.Title>Delete this note?</Dialog.Title><Dialog.Description>“{deletingNote?.title}” will be removed from this workspace.</Dialog.Description><div className="dialog-actions"><Dialog.Close className="secondary">Keep note</Dialog.Close><button className="danger" onClick={removeNote}>Delete note</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>{historyOpen && <div ref={historyDrawerRef} className="history-drawer"><div className="history-drawer-heading"><strong>History</strong><button className="icon-button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></div>{historyEntries.length ? historyEntries.map((entry) => <button key={entry.id} className={historyPreview?.id === entry.id ? "history-entry active" : "history-entry"} onClick={() => void previewHistory(entry)}><span>{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></button>) : <p className="history-empty">No checkpoints yet.</p>}{historyPreview && <div className="history-preview"><strong>Preview v{historyPreview.version}</strong><span>{historyPreview.notes.length} notes · {canvasObjectCount(historyPreview.canvas)} Canvas objects</span><p>{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p><button className="text-button" onClick={() => void restoreSelectedHistory()}>Restore</button></div>}</div>}</div>;
+
+  return (
+    <div className="h-dvh min-w-0">
+      <main className="flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:min-h-dvh max-[560px]:[--workspace-header-height:44px]">
+        <header className={cn(
+          "workspace-header flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:min-h-11 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:justify-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]",
+          focusMode && "hidden",
+        )}>
+          <div className="flex min-w-0 flex-1 items-center gap-[9px] max-[560px]:w-full max-[560px]:gap-[3px]">
+            <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
+            <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
+            {renaming ? (
+              <input ref={renameInput} className="w-[min(32vw,360px)] min-w-[110px] border-0 bg-transparent px-[7px] py-1.5 text-sm text-ink outline-0 max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1" aria-label="Workspace title" value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onBlur={renameWorkspace} onKeyDown={(event) => { if (event.key === "Enter") renameWorkspace(); if (event.key === "Escape") setRenaming(false); }} />
+            ) : (
+              <button className="group inline-flex max-w-[min(32vw,360px)] items-center gap-2 rounded-[7px] border-0 bg-transparent px-[7px] py-[5px] text-left text-ink hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }}>
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{current.current.title}</span><Pencil size={13} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 max-[760px]:gap-1 max-[560px]:w-full max-[560px]:min-w-0 max-[560px]:overflow-x-auto max-[560px]:overscroll-x-contain max-[560px]:pb-px max-[560px]:[scrollbar-width:none] max-[560px]:[&::-webkit-scrollbar]:hidden max-[560px]:[&>*]:shrink-0">
+            {!focusMode && <StudyIndicator study={study} />}
+            <span className={cn("flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px] max-[560px]:text-[9px]", status.state === "error" && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">
+              {status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="animate-spin" /> : <Circle size={10} />}
+              {status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "error" ? "Not saved" : "Unsaved"}
+            </span>
+            <details className="relative shrink-0 [&>summary::-webkit-details-marker]:hidden">
+              <summary className={cn(iconActionClass, "cursor-pointer list-none")} aria-label="Workspace actions"><MoreHorizontal size={18} /></summary>
+              <div className="absolute top-[calc(100%+6px)] right-0 z-20 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] gap-0.5 rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]">
+                <button className="flex min-h-[31px] w-max max-w-[calc(100vw_-_42px)] items-center justify-start gap-2 rounded-[5px] border-0 bg-transparent px-[9px] py-1.5 text-left text-[11px] text-ink hover:bg-tint hover:text-accent" onClick={() => void openHistory()}><HistoryIcon size={14} /> History</button>
+                <a className="flex min-h-[31px] w-max max-w-[calc(100vw_-_42px)] items-center justify-start gap-2 rounded-[5px] px-[9px] py-1.5 text-left text-[11px] text-ink hover:bg-tint hover:text-accent" href={exportWorkspace(project.id)} download><Download size={14} /> Export</a>
+              </div>
+            </details>
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {focusMode && <div className="fixed top-[max(12px,env(safe-area-inset-top))] right-[max(12px,env(safe-area-inset-right))] z-55 [&_[role=dialog]]:right-0 [&_[role=dialog]]:max-w-[calc(100vw_-_24px)]"><StudyIndicator study={study} /></div>}
+
+        <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:h-[calc(100dvh_-_58px)] max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
+
+        {focusMode && <button className="fixed right-[18px] bottom-[18px] z-50 flex items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-2 text-[10px] text-ink shadow-[0_8px_20px_#0002]" onClick={() => { setMaximizedPaneId(null); setMaximizedSplitId(null); }}>Restore layout <span className="text-[9px] text-muted">Esc</span></button>}
+      </main>
+
+      <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
+        <DialogContent>
+          <DialogTitle>Delete this note?</DialogTitle>
+          <DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose>
+            <Button variant="danger" onClick={removeNote}>Delete note</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {historyOpen && (
+        <div ref={historyDrawerRef} className="fixed top-[60px] right-[15px] z-45 max-h-[calc(100dvh_-_80px)] w-[min(235px,calc(100vw_-_30px))] overflow-auto rounded-lg border border-line bg-surface p-2.5 shadow-[0_14px_32px_#0003]">
+          <div className="mb-[7px] flex items-center justify-between gap-2 text-[11px]"><strong>History</strong><button className={iconActionClass} onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></div>
+          {historyEntries.length ? historyEntries.map((entry) => (
+            <button key={entry.id} className={cn("grid w-full gap-[3px] rounded-[5px] border-0 bg-transparent p-2 text-left text-[10px] text-ink hover:bg-tint", historyPreview?.id === entry.id && "bg-tint")} onClick={() => void previewHistory(entry)}>
+              <span className="text-[9px] text-muted">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span>
+            </button>
+          )) : <p className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">No checkpoints yet.</p>}
+          {historyPreview && (
+            <div className="mt-1.5 grid gap-[5px] border-t border-line px-2 pt-[9px] pb-[3px] text-[10px]">
+              <strong className="text-[10px] font-[550] text-ink">Preview v{historyPreview.version}</strong>
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{historyPreview.notes.length} notes · {canvasObjectCount(historyPreview.canvas)} Canvas objects</span>
+              <p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p>
+              <button className="border-0 bg-transparent p-[3px] text-left text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => void restoreSelectedHistory()}>Restore</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

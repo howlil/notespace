@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { FileText, Folder, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Input } from "../../components/ui";
+import { Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { useDismissablePopup } from "../../components/ui/dismissable";
@@ -10,12 +10,13 @@ import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domai
 import { listAllWorkspaces, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
-import "./dashboard.css";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
 type Props = { categories: CategorySummary[]; recentWorkspaces: ProjectSummary[]; initialSelectedCategoryId?: string; initialCategoryPage?: WorkspacePage };
 type LibraryView = "recent" | "all" | "category";
+
+const tabClass = "border-0 border-b-2 border-b-transparent bg-transparent px-2.5 py-2 text-[10px] text-muted";
 
 export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
   const router = useRouter();
@@ -74,14 +75,69 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
   const description = view === "recent" ? "Pick up where you left off." : view === "all" ? "Browse the complete workspace library in bounded pages." : `${page?.total ?? selectedCategory?.workspaceCount ?? 0} workspace${(page?.total ?? selectedCategory?.workspaceCount ?? 0) === 1 ? "" : "s"}`;
 
-  return <div className={collapsed ? "app-shell dashboard-app-shell sidebar-collapsed" : "app-shell dashboard-app-shell"}><Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} /><main className="dashboard">
-    <header className="topbar dashboard-header"><div className="dashboard-topbar-actions"><ThemeToggle /></div></header>
-    <div className="dashboard-content">
-      <div className="dashboard-heading"><div><h1 id="library-list-title">{heading}</h1><p>{description}</p></div></div>
-      <div ref={searchRef} className="global-search"><Search size={15} aria-hidden="true" /><Input ref={searchInput} aria-label="Search Notespace" placeholder="Search notes, blocks, workspaces, categories…" value={query} onFocus={() => setSearchOpen(query.trim().length >= 2)} onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }} />{query.trim().length >= 2 && searchOpen && <div className="global-search-results" role="listbox" aria-label="Search results">{searchResults.length ? searchResults.map((result) => <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="search-result"><strong>{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong><span>{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span></a>) : <span className="search-result-empty">No matching knowledge</span>}</div>}</div>
-      <nav className="library-tabs" aria-label="Library views"><button className={view === "recent" ? "library-tab active" : "library-tab"} onClick={() => setView("recent")}>Recent</button><button className={view === "all" ? "library-tab active" : "library-tab"} onClick={() => void openAll()}>All workspaces</button>{selectedCategory && <button className={view === "category" ? "library-tab active" : "library-tab"} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</button>}</nav>
-      <section className="library-main-pane" aria-labelledby="library-list-title">{pageLoading ? <p className="library-loading">Loading workspaces…</p> : items.length ? <div className="workspace-library-list">{items.map((workspace) => <Link key={workspace.id} to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className="workspace-library-row"><span className="workspace-row-icon"><FileText size={16} /></span><span className="workspace-row-copy"><strong>{workspace.title}</strong><span>{view === "all" ? `${categories.find((category) => category.id === workspace.categoryId)?.title ?? "Category"} · ` : ""}{workspace.noteCount ?? 0} note{workspace.noteCount === 1 ? "" : "s"}{workspace.hasCanvas ? " · Canvas" : ""}</span></span><time dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time></Link>)}</div> : <div className="empty-state category-empty"><span className="empty-mark"><Folder size={22} /></span><h2>{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2><p>Create a workspace from the sidebar.</p></div>}</section>
-      <StudyActivityDashboard compact />
+  return (
+    <div className={cn(
+      "grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[800px]:grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
+      collapsed && "grid-cols-[60px_minmax(0,1fr)]",
+    )}>
+      <Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} />
+      <main className="min-h-dvh min-w-0">
+        <header className="flex min-h-12 items-center justify-end gap-3 border-b border-line bg-surface px-6 max-[560px]:px-5">
+          <div className="ml-auto flex items-center gap-2.5 [&>button]:size-[30px]"><ThemeToggle /></div>
+        </header>
+        <div className="mx-auto w-full max-w-[1200px] px-8 pt-[29px] pb-9 max-[800px]:px-[18px] max-[800px]:pt-[22px] max-[800px]:pb-[30px] max-[560px]:p-5 max-[560px]:pt-6">
+          <div className="mb-[22px] flex items-center justify-between gap-5 max-[800px]:items-start max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:gap-3">
+            <div><h1 id="library-list-title" className="m-0 text-[23px] font-medium leading-tight tracking-[-.5px] text-ink">{heading}</h1><p className="mt-[5px] mb-0 text-[11px] text-muted">{description}</p></div>
+          </div>
+          <div ref={searchRef} className="relative mb-[18px] flex min-h-9 items-center gap-2 border-b border-line px-[11px] text-muted">
+            <Search size={15} aria-hidden="true" />
+            <Input
+              ref={searchInput}
+              className="min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] focus:border-transparent"
+              aria-label="Search Notespace"
+              placeholder="Search notes, blocks, workspaces, categories…"
+              value={query}
+              onFocus={() => setSearchOpen(query.trim().length >= 2)}
+              onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }}
+            />
+            {query.trim().length >= 2 && searchOpen && (
+              <div className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid gap-0.5 rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]" role="listbox" aria-label="Search results">
+                {searchResults.length ? searchResults.map((result) => (
+                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="grid gap-0.5 rounded-[5px] px-[9px] py-2 hover:bg-tint focus-visible:bg-tint">
+                    <strong className="text-[11px] font-medium text-ink">{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong>
+                    <span className="text-[10px] text-muted">{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span>
+                  </a>
+                )) : <span className="px-[9px] py-2 text-[10px] text-muted">No matching knowledge</span>}
+              </div>
+            )}
+          </div>
+          <nav className="mb-[17px] flex items-center gap-1 border-b border-line" aria-label="Library views">
+            <button className={cn(tabClass, view === "recent" && "border-b-accent text-ink")} onClick={() => setView("recent")}>Recent</button>
+            <button className={cn(tabClass, view === "all" && "border-b-accent text-ink")} onClick={() => void openAll()}>All workspaces</button>
+            {selectedCategory && <button className={cn(tabClass, view === "category" && "border-b-accent text-ink")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</button>}
+          </nav>
+          <section className="min-w-0" aria-labelledby="library-list-title">
+            {pageLoading ? <p className="py-6 text-[11px] text-muted">Loading workspaces…</p> : items.length ? (
+              <div className="border-t border-line">
+                {items.map((workspace) => (
+                  <Link key={workspace.id} to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className="grid min-h-[62px] grid-cols-[28px_minmax(0,1fr)_78px] items-center gap-2.5 border-b border-line px-[11px] text-ink hover:bg-tint focus-visible:bg-tint max-[800px]:grid-cols-[28px_minmax(0,1fr)_16px]">
+                    <span className="text-accent"><FileText size={16} /></span>
+                    <span className="grid min-w-0 gap-1"><strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium">{workspace.title}</strong><span className="text-[10px] text-muted">{view === "all" ? `${categories.find((category) => category.id === workspace.categoryId)?.title ?? "Category"} · ` : ""}{workspace.noteCount ?? 0} note{workspace.noteCount === 1 ? "" : "s"}{workspace.hasCanvas ? " · Canvas" : ""}</span></span>
+                    <time className="text-[10px] text-muted max-[800px]:hidden" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-[35px] text-center">
+                <span className="mb-[15px] grid size-[46px] place-items-center rounded-[7px] bg-tint text-accent"><Folder size={22} /></span>
+                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                <p className="mt-2 mb-[18px] text-[13px] leading-normal text-muted">Create a workspace from the sidebar.</p>
+              </div>
+            )}
+          </section>
+          <StudyActivityDashboard compact />
+        </div>
+      </main>
     </div>
-  </main></div>;
+  );
 }

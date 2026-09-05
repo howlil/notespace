@@ -47,8 +47,9 @@ const json = (body: unknown) => ({
 });
 export const listProjects = () => request<ProjectSummary[]>("/api/projects");
 export const listRecentWorkspaces = (limit = 12) => request<ProjectSummary[]>(`/api/projects?limit=${limit}`);
-export const listAllWorkspaces = (params: { offset?: number; limit?: number } = {}) => {
+export const listAllWorkspaces = (params: { query?: string; offset?: number; limit?: number } = {}) => {
   const search = new URLSearchParams();
+  if (params.query) search.set("q", params.query);
   if (params.offset) search.set("offset", String(params.offset));
   if (params.limit) search.set("limit", String(params.limit));
   return request<WorkspacePage>(`/api/workspaces?${search}`);

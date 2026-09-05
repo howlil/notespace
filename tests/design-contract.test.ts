@@ -83,7 +83,7 @@ test("capture contract: Quick Capture is a bounded searchable sidebar action", (
   const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), root=source(ROOT_ROUTE);
   assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>/);
   assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
-  assert.match(capture,/listRecentWorkspaces\(recentWorkspaceLimit\)/); assert.match(capture,/searchNotespace\(query\)/); assert.doesNotMatch(capture,/listProjects\(/);
+  assert.match(capture,/listRecentWorkspaces\(recentWorkspaceLimit\)/); assert.match(capture,/listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/); assert.doesNotMatch(capture,/listProjects\(/); assert.doesNotMatch(capture,/searchNotespace\(/);
   assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>/);
 });
 

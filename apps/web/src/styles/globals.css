@@ -3,8 +3,7 @@
 @import "@fontsource/geist/latin-600.css";
 @import "tailwindcss";
 
-/* The global sheet is intentionally limited to design tokens and document
-   defaults. Feature styling lives beside the component that owns it. */
+/* Tailwind entrypoint, design tokens, and document-level defaults only. */
 @theme {
   --font-sans: "Geist", system-ui, sans-serif;
   --color-background: var(--bg);
@@ -19,6 +18,25 @@
   --color-button: var(--button);
   --color-button-text: var(--button-text);
   --color-canvas: var(--canvas);
+  --color-success: var(--success);
+
+  --animate-loading-progress: loading-progress 1.6s ease-in-out infinite;
+  --animate-soft-pulse: soft-pulse 1.4s ease-in-out infinite;
+  --animate-toast-progress: toast-progress var(--toast-duration, 4200ms) linear forwards;
+
+  @keyframes loading-progress {
+    from { transform: translateX(-135%); }
+    to { transform: translateX(330%); }
+  }
+
+  @keyframes soft-pulse {
+    50% { opacity: 0.55; }
+  }
+
+  @keyframes toast-progress {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
 }
 
 :root {
@@ -35,6 +53,7 @@
   --button-text: #fff;
   --canvas: #f8f9fc;
   --danger: #b13e4b;
+  --success: #6f947d;
 }
 
 :root[data-theme="dark"] {
@@ -51,6 +70,7 @@
   --button-text: #22232a;
   --canvas: #1d1e24;
   --danger: #ff9aa5;
+  --success: #6f947d;
 }
 
 @layer base {
@@ -88,19 +108,9 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  button {
-    cursor: pointer;
-  }
-
-  button:disabled {
-    cursor: wait;
-    opacity: 0.5;
-  }
-
-  a {
-    color: inherit;
-    text-decoration: none;
-  }
+  button { cursor: pointer; }
+  button:disabled { cursor: wait; opacity: 0.5; }
+  a { color: inherit; text-decoration: none; }
 
   button:focus-visible,
   a:focus-visible,
@@ -115,10 +125,6 @@
     outline: 0;
     box-shadow: none;
   }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {

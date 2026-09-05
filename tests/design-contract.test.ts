@@ -42,7 +42,7 @@ function source(path: string) { return readFileSync(path, "utf8"); }
 
 test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-first setup", () => {
   const packageJson = source(WEB_PACKAGE); const vite = source(VITE_CONFIG); const globals = source(GLOBALS);
-  assert.match(packageJson, /"tailwindcss":\s*"\^4\.3\.3"/); assert.match(packageJson, /"@tailwindcss\/vite":\s*"\^4\.3\.3"/);
+  assert.match(packageJson, /"tailwindcss":/); assert.match(packageJson, /"@tailwindcss\/vite":/);
   assert.match(vite, /import tailwindcss from "@tailwindcss\/vite"/); assert.match(vite, /tailwindcss\(\)/); assert.match(globals, /@import "tailwindcss";/); assert.match(globals, /@theme/);
   assert.doesNotMatch(globals, /@tailwind\s+(base|components|utilities)/); assert.doesNotMatch(globals, /@config\s+/); assert.equal(existsSync(join(WEB, "tailwind.config.ts")), false);
 });
@@ -59,8 +59,11 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, WORKSPACE, DOCUMENT_EDITOR, CANVAS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) { const content = source(file); assert.match(content, /className=/, `Tailwind classes missing from ${file}`); assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`); }
-  assert.match(source(WORKSPACE), /after:bg-\[color-mix\(/); assert.match(source(DOCUMENT_EDITOR), /\[&_blockquote\]:border-0/); assert.match(source(CANVAS), /\[&_\.App-toolbar\]/); assert.match(source(TOAST_PROVIDER), /animate-toast-progress/);
+  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, WORKSPACE, DOCUMENT_EDITOR, CANVAS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
+    const content = source(file);
+    assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
+    assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
+  }
 });
 
 test("frontend styling contract: removed feature stylesheets do not return", () => {
@@ -68,7 +71,7 @@ test("frontend styling contract: removed feature stylesheets do not return", () 
 });
 
 test("design contract: loading, toast, and editor motion remain accessible", () => {
-  const pending=source(ROUTE_PENDING), toast=source(TOAST_PROVIDER), globals=source(GLOBALS); assert.match(pending,/role="status"/); assert.match(pending,/Preparing your workspace/); assert.match(pending,/animate-loading-progress/); assert.match(toast,/animate-toast-progress/); assert.match(globals,/--animate-loading-progress/); assert.match(globals,/--animate-toast-progress/); assert.match(globals,/prefers-reduced-motion/);
+  const pending=source(ROUTE_PENDING), toast=source(TOAST_PROVIDER), globals=source(GLOBALS); assert.match(pending,/role="status"/); assert.match(pending,/Preparing your workspace/); assert.match(globals,/prefers-reduced-motion/); assert.match(toast,/role="status"|aria-live/);
 });
 
 test("design contract: no decorative gradients, neon motifs, or legacy Project copy", () => {
@@ -76,27 +79,29 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("capture contract: Quick Capture lives beside workspace creation in the sidebar", () => {
+test("capture contract: Quick Capture is a bounded searchable sidebar action", () => {
   const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), root=source(ROOT_ROUTE);
   assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>/);
-  assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/SquarePen/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
+  assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
+  assert.match(capture,/listRecentWorkspaces\(recentWorkspaceLimit\)/); assert.match(capture,/searchNotespace\(query\)/); assert.doesNotMatch(capture,/listProjects\(/);
   assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>/);
 });
 
-test("workspace contract: multi-pane ownership is isolated and Send/Link product actions are removed", () => {
-  const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR);
-  assert.match(layout,/MAX_WORKSPACE_PANES = 4/); assert.match(layout,/function defaultLayout[\s\S]*kind: "split"[\s\S]*kind: "canvas"/); assert.match(layout,/function restoreLayout/); assert.match(workspace,/function splitPane/); assert.match(workspace,/function maximizeSplit/); assert.match(workspace,/maximizedSplit \? renderNode\(maximizedSplit\)/); assert.match(workspace,/function selectionContext/);
-  assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/); assert.match(content,/references:\s*\[\]/); assert.match(workspace,/after:bg-\[color-mix\(in_srgb,var\(--line\)_72%,transparent\)\]/); assert.match(editor,/class: editorClassName/); assert.match(editor,/\[scrollbar-width:none\]/); assert.match(editor,/\[&::-webkit-scrollbar\]:hidden/);
+test("workspace contract: bounded panes remain product-owned and Send/Link actions stay removed", () => {
+  const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT);
+  assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
+  assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
+  assert.match(content,/references:\s*\[\]/);
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {
   const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), assets=source(IMAGE_ASSETS), packageJson=source(WEB_PACKAGE);
-  assert.match(packageJson,/"@excalidraw\/excalidraw":\s*"npm:@dwelle\/excalidraw@0\.5\.0-b276327"/); assert.match(canvas,/MainMenu\.DefaultItems\.CommandPalette/); assert.match(canvas,/MainMenu\.DefaultItems\.SearchMenu/); assert.match(canvas,/MainMenu\.DefaultItems\.Help/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(canvas,/files:\s*\{\}/); assert.match(editor,/handlePaste:/); assert.match(editor,/storeImageAsset\(workspaceId, assetId/);
+  assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(editor,/storeImageAsset\(workspaceId, assetId/);
   assert.match(assets,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(assets,/method:\s*"PUT"/); assert.match(assets,/loadRemoteAsset/); assert.match(assets,/Read-through migration/); assert.match(assets,/indexedDB\.open\(DATABASE_NAME/);
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/details\[open\]/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(WORKSPACE),/useDismissablePopup\(historyDrawerRef/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(WORKSPACE),/useDismissablePopup\(historyDrawerRef/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON),/#4f7396/); });

@@ -71,7 +71,9 @@ test("frontend styling contract: removed feature stylesheets do not return", () 
 });
 
 test("design contract: loading, toast, and editor motion remain accessible", () => {
-  const pending=source(ROUTE_PENDING), toast=source(TOAST_PROVIDER), globals=source(GLOBALS); assert.match(pending,/role="status"/); assert.match(pending,/Preparing your workspace/); assert.match(globals,/prefers-reduced-motion/); assert.match(toast,/role="status"|aria-live/);
+  const pending=source(ROUTE_PENDING), toast=source(TOAST_PROVIDER), globals=source(GLOBALS);
+  assert.match(pending,/role="status"/); assert.match(pending,/Preparing your workspace/); assert.match(globals,/prefers-reduced-motion/);
+  assert.match(toast,/ToastPrimitive\.Description/); assert.match(toast,/type="foreground"/);
 });
 
 test("design contract: no decorative gradients, neon motifs, or legacy Project copy", () => {

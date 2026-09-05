@@ -74,7 +74,7 @@ Acceptance:
 User outcome:
 
 - Opening Quick Capture loads at most the 20 most recent Workspaces plus the remembered destination instead of loading the complete Workspace library.
-- Typing in the Workspace field searches the existing indexed Notespace search endpoint and collapses Note/Block matches to unique Workspace destinations.
+- Typing in the Workspace field queries the existing paginated Workspace endpoint by title with a 20-result bound; choosing a capture destination does not invoke global Note/Block retrieval.
 - Empty search results cannot silently capture into a hidden previous Workspace.
 - Note Markdown export embeds durable Notespace images as data URLs so exported Markdown no longer contains unusable `notespace-asset://` links.
 - If an image cannot be loaded, export remains usable and emits explicit fallback text plus a user-visible warning.
@@ -84,7 +84,7 @@ Acceptance:
 
 - Quick Capture no longer calls the unbounded `listProjects()` path;
 - remembered Workspace fallback still works when it is outside the recent set;
-- search result duplicates for one Workspace collapse to one option;
+- typed destination search returns a bounded title-scoped Workspace page;
 - Markdown adapter extracts unique asset IDs and substitutes supplied portable sources;
 - proprietary asset URLs never leak into exported Markdown without a portable replacement.
 

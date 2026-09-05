@@ -4,35 +4,13 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogT
 import { contentOf } from "../../domain/project/project";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { getProject, listCategories, listRecentWorkspaces, saveProject, searchNotespace } from "../../domain/project/api";
-import type { SearchResult } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../providers/toast-provider";
+import { recentWorkspaceOptions, searchWorkspaceOptions } from "./workspace-options";
+import type { CaptureWorkspaceOption } from "./workspace-options";
 
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
 const recentWorkspaceLimit = 20;
-
-type CaptureWorkspaceOption = {
-  id: string;
-  title: string;
-  categoryId: string;
-  categoryTitle?: string;
-};
-
-function searchWorkspaceOptions(results: SearchResult[]): CaptureWorkspaceOption[] {
-  const seen = new Set<string>();
-  const options: CaptureWorkspaceOption[] = [];
-  for (const result of results) {
-    if (!result.workspaceId || seen.has(result.workspaceId)) continue;
-    seen.add(result.workspaceId);
-    options.push({
-      id: result.workspaceId,
-      title: result.workspaceTitle || "Untitled",
-      categoryId: result.categoryId ?? "",
-      categoryTitle: result.categoryTitle,
-    });
-  }
-  return options;
-}
 
 export function QuickCapture() {
   const { showToast } = useToast();
@@ -103,12 +81,7 @@ export function QuickCapture() {
     const timer = window.setTimeout(() => {
       setSearching(true);
       void searchNotespace(query)
-        .then((results) => {
-          if (!active) return;
-          const options = searchWorkspaceOptions(results);
-          setSearchWorkspaces(options);
-          if (options.length && !options.some((option) => option.id === workspaceId)) setWorkspaceId(options[0].id);
-        })
+        .then((results) => { if (active) setSearchWorkspaces(searchWorkspaceOptions(results)); })
         .catch((error) => {
           if (active) showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not search workspaces." });
         })
@@ -118,25 +91,18 @@ export function QuickCapture() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, showToast, workspaceId, workspaceQuery]);
+  }, [open, showToast, workspaceQuery]);
 
-  const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category.title])), [categories]);
-  const options = useMemo<CaptureWorkspaceOption[]>(() => {
-    if (workspaceQuery.trim()) return searchWorkspaces;
-    return workspaces.map((workspace) => ({
-      id: workspace.id,
-      title: workspace.title,
-      categoryId: workspace.categoryId,
-      categoryTitle: categoryById.get(workspace.categoryId),
-    }));
-  }, [categoryById, searchWorkspaces, workspaceQuery, workspaces]);
+  const recentOptions = useMemo(() => recentWorkspaceOptions(workspaces, categories), [categories, workspaces]);
+  const options = workspaceQuery.trim() ? searchWorkspaces : recentOptions;
+  const effectiveWorkspaceId = options.some((option) => option.id === workspaceId) ? workspaceId : options[0]?.id ?? "";
 
   async function capture() {
     const value = body.trim();
-    if (!value || !workspaceId || saving) return;
+    if (!value || !effectiveWorkspaceId || saving) return;
     setSaving(true);
     try {
-      const workspace = await getProject(workspaceId);
+      const workspace = await getProject(effectiveWorkspaceId);
       const content = contentOf(workspace);
       const document = markdownToSnapshot(value);
       const now = new Date().toISOString();
@@ -153,6 +119,7 @@ export function QuickCapture() {
         document,
       }, workspace.version);
       localStorage.setItem(lastWorkspaceKey, workspace.id);
+      setWorkspaceId(workspace.id);
       setBody("");
       setOpen(false);
       showToast({ kind: "success", message: `Captured to ${workspace.title}.` });
@@ -206,7 +173,7 @@ export function QuickCapture() {
               </span>
               <select
                 className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
-                value={options.some((option) => option.id === workspaceId) ? workspaceId : ""}
+                value={effectiveWorkspaceId}
                 onChange={(event) => setWorkspaceId(event.target.value)}
                 disabled={loading || searching || saving || options.length === 0}
               >
@@ -253,7 +220,7 @@ export function QuickCapture() {
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button type="button" onClick={() => void capture()} disabled={saving || loading || searching || !body.trim() || !workspaceId}>
+            <Button type="button" onClick={() => void capture()} disabled={saving || loading || searching || !body.trim() || !effectiveWorkspaceId}>
               {saving ? "Saving…" : "Capture"}
             </Button>
           </DialogFooter>

@@ -77,8 +77,10 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   return (
     <div className={cn(
-      "grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[800px]:grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
-      collapsed && "grid-cols-[60px_minmax(0,1fr)]",
+      "grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
+      collapsed
+        ? "grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]"
+        : "grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]",
     )}>
       <Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} />
       <main className="min-h-dvh min-w-0">

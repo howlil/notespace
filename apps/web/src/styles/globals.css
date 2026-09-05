@@ -3,7 +3,7 @@
 @import "@fontsource/geist/latin-600.css";
 @import "tailwindcss";
 
-/* Tailwind entrypoint, design tokens, and document-level defaults only. */
+/* Tailwind entrypoint, design tokens, shared utilities, and document-level defaults. */
 @theme {
   --font-sans: "Geist", system-ui, sans-serif;
   --color-background: var(--bg);
@@ -37,6 +37,10 @@
     from { transform: scaleX(1); }
     to { transform: scaleX(0); }
   }
+}
+
+@utility pane-actions {
+  margin-left: auto;
 }
 
 :root {

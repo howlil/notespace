@@ -1,0 +1,66 @@
+name: Apply M11 compatibility fixes
+
+on:
+  push:
+    branches:
+      - feat/m11-constraint-remediation
+    paths:
+      - .github/workflows/m11-compat-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/m11-constraint-remediation
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply compatibility fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          api = Path("apps/server/internal/httpapi/api.go")
+          text = api.read_text()
+          needle = '''\tif err := writeJSON("canvas/workspace.excalidraw.json", p.Canvas); err != nil {
+          \t\tfail(w, err)
+          \t\treturn
+          \t}
+          '''
+          replacement = needle + '''\tvar canvasData map[string]json.RawMessage
+          \tif err := json.Unmarshal(p.Canvas.Data, &canvasData); err == nil {
+          \t\tfiles := json.RawMessage(`{}`)
+          \t\tif persisted, ok := canvasData["files"]; ok && len(persisted) > 0 {
+          \t\t\tfiles = persisted
+          \t\t}
+          \t\tif err := writeJSON("canvas/files.json", files); err != nil {
+          \t\t\tfail(w, err)
+          \t\t\treturn
+          \t\t}
+          \t}
+          '''
+          if text.count(needle) != 1:
+              raise SystemExit("export insertion point not found exactly once")
+          api.write_text(text.replace(needle, replacement, 1))
+
+          test = Path("apps/server/internal/persistence/sqlite_test.go")
+          text = test.read_text()
+          old = "err != nil || count != 7"
+          if text.count(old) != 1:
+              raise SystemExit("migration ledger assertion not found exactly once")
+          test.write_text(text.replace(old, "err != nil || count != 9", 1))
+          PY
+          gofmt -w apps/server/internal/httpapi/api.go apps/server/internal/persistence/sqlite_test.go
+          git rm .github/workflows/m11-compat-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/server/internal/httpapi/api.go apps/server/internal/persistence/sqlite_test.go
+          git commit -m "fix(server): preserve export compatibility and migration ledger"
+          git push origin HEAD:feat/m11-constraint-remediation

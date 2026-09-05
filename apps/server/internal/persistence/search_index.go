@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
@@ -130,11 +131,16 @@ ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=exc
 }
 
 func safeFTSQuery(query string) string {
-	parts := []string{}
-	for _, token := range strings.Fields(strings.TrimSpace(query)) {
-		token = strings.ReplaceAll(token, `"`, `""`)
-		if token != "" {
-			parts = append(parts, `"`+token+`"*`)
+	// Keep user input out of FTS5 query syntax. unicode61 applies its own
+	// tokenization to indexed content, so searching Unicode letter/digit terms
+	// as quoted prefixes preserves normal search while punctuation stays inert.
+	terms := strings.FieldsFunc(strings.TrimSpace(query), func(r rune) bool {
+		return r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	parts := make([]string, 0, len(terms))
+	for _, term := range terms {
+		if term != "" {
+			parts = append(parts, `"`+term+`"*`)
 		}
 	}
 	return strings.Join(parts, " AND ")
@@ -188,7 +194,7 @@ WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match
 		}
 		excerptValue := title
 		if kind == "block" {
-			excerptValue = excerpt(content, strings.ToLower(query))
+			excerptValue = excerpt(content, query)
 		}
 		results = append(results, project.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, NoteTitle: noteTitle, BlockID: blockID, Excerpt: excerptValue})
 	}

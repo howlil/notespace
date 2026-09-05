@@ -12,6 +12,7 @@ const ROUTE_PENDING = join(WEB_SRC, "components", "feedback", "RoutePending.tsx"
 const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
 const CATEGORY_DETAIL = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
+const QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
@@ -73,6 +74,13 @@ test("design contract: loading, toast, and editor motion remain accessible", () 
 test("design contract: no decorative gradients, neon motifs, or legacy Project copy", () => {
   const content=collectFiles(WEB_SRC,[".tsx"]).map(source).join("\n"); assert.doesNotMatch(`${source(GLOBALS)}\n${content}`,/linear-gradient|radial-gradient|conic-gradient/i); assert.doesNotMatch(content,/#(00ff00|ff00ff|00ffff|ff0033)/i); assert.doesNotMatch(content,/[\u2728\u{1FA84}]/u); assert.doesNotMatch(content,/ai-powered|magic wand|smart assistant/i);
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
+});
+
+test("capture contract: Quick Capture lives beside workspace creation in the sidebar", () => {
+  const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), root=source(ROOT_ROUTE);
+  assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>/);
+  assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/SquarePen/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
+  assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>/);
 });
 
 test("workspace contract: multi-pane ownership is isolated and Send/Link product actions are removed", () => {

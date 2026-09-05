@@ -445,6 +445,17 @@ func (a API) export(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
+	var canvasData map[string]json.RawMessage
+	if err := json.Unmarshal(p.Canvas.Data, &canvasData); err == nil {
+		files := json.RawMessage(`{}`)
+		if persisted, ok := canvasData["files"]; ok && len(persisted) > 0 {
+			files = persisted
+		}
+		if err := writeJSON("canvas/files.json", files); err != nil {
+			fail(w, err)
+			return
+		}
+	}
 	for _, value := range assets {
 		file, err := archive.Create("assets/" + value.ID)
 		if err != nil {

@@ -7,9 +7,10 @@ import Highlight from "@tiptap/extension-highlight";
 import UniqueID from "@tiptap/extension-unique-id";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { Code2, Heading2, List, ListChecks, ListOrdered, Minus, Quote } from "lucide-react";
+import { Code2, Download, Heading2, List, ListChecks, ListOrdered, ListTree, Minus, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
+import { snapshotToMarkdown } from "../../domain/document/markdown";
 import { cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
@@ -17,6 +18,7 @@ import { useToast } from "../../providers/toast-provider";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
+type OutlineItem = { id: string; level: number; text: string };
 
 const editorClassName = cn(
   "h-full min-h-[350px] flex-1 overflow-x-hidden overflow-y-auto px-[30px] pt-[27px] pb-20 text-sm leading-[1.9] outline-none [overflow-wrap:anywhere] [scrollbar-width:none] [-ms-overflow-style:none]",
@@ -61,6 +63,17 @@ function findBlockPosition(editor: Editor, blockId: string) {
 function selectedBlockId(editor: Editor) {
   const blockId = editor.state.selection.$from.parent.attrs.blockId;
   return typeof blockId === "string" ? blockId : null;
+}
+
+function outlineItems(editor: Editor): OutlineItem[] {
+  const items: OutlineItem[] = [];
+  editor.state.doc.descendants((node) => {
+    if (node.type.name !== "heading") return true;
+    const id = node.attrs.blockId;
+    if (typeof id === "string" && node.textContent.trim()) items.push({ id, level: Number(node.attrs.level) || 1, text: node.textContent.trim() });
+    return true;
+  });
+  return items;
 }
 
 type SlashCommand = { label: string; description: string; keywords: string; icon: LucideIcon; run: (editor: Editor) => void };
@@ -120,8 +133,11 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
   const selectedCommandRef = useRef(0);
   const [slashMenu, setSlashMenu] = useState<SlashMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [, setOutlineRevision] = useState(0);
   const dismissSlashMenu = useCallback(() => { slashMenuRef.current = null; setSlashMenu(null); }, []);
-  useDismissablePopup(documentRef, !!slashMenu, dismissSlashMenu);
+  const dismissEditorPopup = useCallback(() => { dismissSlashMenu(); setOutlineOpen(false); }, [dismissSlashMenu]);
+  useDismissablePopup(documentRef, !!slashMenu || outlineOpen, dismissEditorPopup);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -133,6 +149,7 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
     const from = selection.$from.pos - match[0].length + (match[0].startsWith(" ") ? 1 : 0);
     const coords = nextEditor.view.coordsAtPos(selection.from);
     const next = { from, query: match[1], x: coords.left, y: coords.bottom + 8 };
+    setOutlineOpen(false);
     slashMenuRef.current = next; setSlashMenu(next); selectedCommandRef.current = 0; setSelectedCommand(0);
   }
 
@@ -179,7 +196,12 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
         return false;
       },
     },
-    onUpdate: ({ editor: changed }) => { onChange({ format: "tiptap", version: 1, data: changed.getJSON() }); onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty); syncSlashMenu(changed); },
+    onUpdate: ({ editor: changed }) => {
+      onChange({ format: "tiptap", version: 1, data: changed.getJSON() });
+      onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
+      syncSlashMenu(changed);
+      setOutlineRevision((value) => value + 1);
+    },
     onSelectionUpdate: ({ editor: changed }) => { onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty); syncSlashMenu(changed); },
   });
 
@@ -191,6 +213,25 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
     if (!menu || !currentEditor) return;
     currentEditor.chain().focus().deleteRange({ from: menu.from, to: currentEditor.state.selection.from }).run();
     command.run(currentEditor); slashMenuRef.current = null; setSlashMenu(null);
+  }
+
+  function focusHeading(blockId: string) {
+    if (!editor) return;
+    const position = findBlockPosition(editor, blockId);
+    if (position === null) return;
+    editor.chain().focus().setTextSelection(position).scrollIntoView().run();
+    setOutlineOpen(false);
+  }
+
+  function exportMarkdown() {
+    if (!editor) return;
+    const markdown = snapshotToMarkdown({ format: "tiptap", version: 1, data: editor.getJSON() });
+    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "notespace-note.md";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   useEffect(() => {
@@ -209,8 +250,33 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
   if (!editor) return <div className="grid flex-1 place-items-center p-10 text-center text-xs text-muted" role="status">Opening document…</div>;
 
   const filteredCommands = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes((slashMenu?.query ?? "").toLowerCase()));
+  const outline = outlineOpen ? outlineItems(editor) : [];
   return (
-    <div ref={documentRef} className="h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
+    <div ref={documentRef} className="relative h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
+      <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-md border border-line bg-surface/90 p-0.5 opacity-70 shadow-sm backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
+        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={exportMarkdown}>
+          <Download size={14} aria-hidden="true" />
+        </button>
+        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
+          <ListTree size={14} aria-hidden="true" />
+        </button>
+      </div>
+      {outlineOpen && (
+        <nav className="absolute right-3 top-12 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]" aria-label="Note outline">
+          <div className="px-2 py-1.5 text-[10px] font-medium text-muted">Outline</div>
+          {outline.length ? outline.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="block w-full truncate rounded px-2 py-1.5 text-left text-[11px] text-ink hover:bg-tint"
+              style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 10}px` }}
+              onClick={() => focusHeading(item.id)}
+            >
+              {item.text}
+            </button>
+          )) : <p className="m-0 px-2 py-3 text-[10px] leading-4 text-muted">Add headings to navigate long notes.</p>}
+        </nav>
+      )}
       <EditorContent editor={editor} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden" />
       {slashMenu && filteredCommands.length > 0 && (
         <div className="fixed z-30 max-h-[min(330px,calc(100vh_-_24px))] w-[220px] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]" role="listbox" aria-label="Insert block" style={{ left: slashMenu.x, top: slashMenu.y }}>

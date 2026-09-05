@@ -22,6 +22,9 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 
 ## Core user journeys
 
+### Capture knowledge
+`Home / Category → Quick Capture → Workspace → durable Note`
+
 ### Resume work
 `Home → Recent workspaces → Workspace → Continue editing`
 
@@ -40,8 +43,10 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 - A Workspace is the primary authored-content identity and lifecycle boundary.
 - A Workspace may contain multiple durable notes plus one canvas surface.
 - Notes and Canvas are workspace-owned surfaces, not independent top-level library products.
+- Quick Capture creates a workspace-owned Note; it does not introduce an Inbox or independent Note aggregate.
+- Markdown is an interoperability format, not canonical persistence. Authored state remains the existing Tiptap/Workspace snapshot contract.
 - Notespace does **not** provide cross-surface Send/Link semantics. Note and Canvas content remain independently authored surfaces inside the same workspace.
-- Stable note block identity remains product-owned for exact-context search/deep links; it is not a relationship feature.
+- Stable note block identity remains product-owned for exact-context search/deep links and heading navigation; it is not a relationship feature.
 - Workspace authored state uses optimistic version conflict detection; stale writes fail rather than silently merging.
 - A real version conflict stops autosave and requires explicit reload/recovery rather than blind retry.
 - Image binaries are durable server-owned workspace assets. Browser IndexedDB may cache or migrate legacy assets but is not the source of truth.
@@ -52,10 +57,11 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 
 - Category CRUD with non-empty deletion protection.
 - Recent-first Home with collapsible library sidebar, global search, bounded category previews, and dedicated category detail browsing.
+- Library Quick Capture via `Ctrl/Cmd + Shift + N`, with remembered Workspace destination and Markdown file ingestion into a new workspace-owned Note.
 - Category detail server-side query, stable sorting, has-notes/has-canvas filters, and bounded pagination.
 - Workspace create/open/rename/delete and same-category switching.
 - Multiple durable notes per workspace with inline rename/delete and last-note protection.
-- Tiptap structured writing with slash-command insertion.
+- Tiptap structured writing with slash-command insertion, heading-derived Outline navigation, and per-note human-readable Markdown export.
 - Excalidraw canvas with reduced chrome.
 - Split workspace authoring with bounded pane tree: maximum four panes and one Canvas pane.
 - Workspace/global search backed by a lazily synchronized SQLite FTS projection and exact note/block context.
@@ -69,18 +75,18 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 ## Surface contracts
 
 ### Home
-Home exists to resume, search, and progressively browse. It must not become a full file explorer, category manager, and analytics dashboard simultaneously.
+Home exists to capture, resume, search, and progressively browse. It must not become a full file explorer, category manager, and analytics dashboard simultaneously.
 
-Priority: resume/search → recent workspaces → category summaries → bounded expanded previews → secondary study activity.
+Priority: quick capture/resume/search → recent workspaces → category summaries → bounded expanded previews → secondary study activity.
 
 ### Category detail
-Category detail is the scale surface for large workspace collections. Search/filter/sort/pagination belong here rather than expanding all data on Home.
+Category detail is the scale surface for large workspace collections. Search/filter/sort/pagination belong here rather than expanding all data on Home. Quick Capture may target any existing Workspace without changing category navigation.
 
 ### Workspace
 Workspace is full-screen work context and does not retain the library sidebar. Note and Canvas panes may be split, resized, closed, or focused within the bounded pane model. Do not reintroduce Send/Link actions between surfaces.
 
 ### Notes
-Notes are structured linear thinking surfaces owned by the workspace. Persisted Tiptap/editor-native state remains behind Notespace-owned note identity and snapshot contracts.
+Notes are structured linear thinking surfaces owned by the workspace. Persisted Tiptap/editor-native state remains behind Notespace-owned note identity and snapshot contracts. Long-note navigation is derived from current heading nodes and stable block IDs; Markdown import/export is an adapter around this state rather than an alternate source of truth.
 
 ### Canvas
 Canvas is the spatial thinking surface owned by the workspace. Excalidraw remains an adapter; renderer internals are not product identity.

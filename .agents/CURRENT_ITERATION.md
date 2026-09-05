@@ -2,76 +2,124 @@
 
 ## Active milestone
 
-**M11 — Durability, Retrieval & Recovery Constraint Remediation**
+**M12 — Capture, Long-Note Navigation & Markdown Portability**
 
-State: **implementation complete; legacy relationship export assertion removed; final verification running**.
+State: **implemented and verified; all required automated gates passing**.
 
 ## Product outcome
 
-Notespace keeps its simple single-user self-hosted architecture while removing prototype-era constraints that threatened data durability, retrieval scale, recovery clarity, and Workspace maintainability.
+Notespace closes the remaining core knowledge-loop gaps without adding a new top-level object, database system, plugin system, AI surface, or backend service.
 
 ```text
-AUTHORED WORK
-  ├── Notes
-  ├── Canvas
-  └── Images
-       ↓ durable
-SQLite / stable volume
+CAPTURE
+  library surface
+      ↓ Ctrl/Cmd + Shift + N
+  choose Workspace
+      ↓
+  durable Note
 
-GLOBAL SEARCH
-  authored snapshots
-       ↓ derived projection
-  SQLite FTS
-       ↓
-  exact Workspace / Note / Block context
+WORK
+  long Note
+      ↓ headings
+  Outline → exact heading
 
-SAVE
-  ├── retryable transport failure → Retry
-  └── version conflict → Stop + explicit reload
+PORTABILITY
+  Markdown file → Note
+  Note → Markdown file
 ```
+
+The milestone deliberately reuses the existing `Category → Workspace → Notes / Canvas` model and full-snapshot optimistic save contract.
+
+## Sprint — Core Loop Closure
+
+Execution order:
+
+1. **Slice 1 — Library Quick Capture**: remove capture friction while preserving Workspace ownership.
+2. **Slice 2 — Long-Note Outline**: make long Notes navigable using existing stable heading identity.
+3. **Slice 3 — Markdown Portability**: add deterministic import/export adapters without changing persistence.
+4. **Slice 4 — Verification & Product Contract**: lock behavior with automated gates and align repository source-of-truth.
+
+Sprint exit criterion: capture → work → save → find → resume remains one coherent product loop, with no new aggregate or infrastructure dependency.
 
 ## Slices
 
-### Slice 1 — Remove cross-surface Send/Link semantics
-- Removed `Send to Canvas`, `Send to Note`, Link, linked-navigation, semantic-card creation, and Canvas↔Note relationship actions from Workspace UI/behavior.
-- Existing legacy references normalize to an empty compatibility field on Workspace load/save and history restore.
-- Stable block IDs remain solely for exact-context retrieval/deep links.
+### Slice 1 — Library Quick Capture
 
-### Slice 2 — Durable server-owned image assets
-- Added workspace-scoped SQLite asset persistence with 8 MiB normalized image limit.
-- Added same-origin GET/PUT/DELETE asset API.
-- Browser IndexedDB is now cache + migration fallback, not durable ownership.
-- Legacy browser-only images are uploaded to the server when read.
-- Workspace ZIP export includes durable image binaries while preserving the legacy `canvas/files.json` export artifact for compatibility.
-- `relationships.json` is no longer part of the export contract because cross-surface relationship semantics were removed from the product.
+User outcome:
 
-### Slice 3 — Indexed global retrieval
-- Added SQLite FTS5 `workspace_search` projection and version/category/title metadata.
-- Search lazily rebuilds only stale/new workspace projection rows instead of decoding every workspace on every query.
-- Search still returns exact Category / Workspace / Note / Block context.
-- No external search service or second deployable process was introduced.
+- From Home or Category surfaces, `Ctrl/Cmd + Shift + N` opens Quick Capture.
+- A compact persistent Quick Capture action provides pointer discoverability.
+- User chooses an existing Workspace and writes without opening the Workspace first.
+- The most recently used capture Workspace is remembered locally.
+- Capture creates one durable Note inside the selected Workspace; it does not create an Inbox, independent Note aggregate, or new persistence model.
+- Capture uses the existing Workspace fetch + optimistic snapshot save contract; version conflicts remain explicit rather than silently overwriting another tab.
 
-### Slice 4 — Deterministic optimistic-conflict recovery
-- Lost-acknowledgement detection remains idempotent.
-- A genuine HTTP 409 becomes `WorkspaceConflictError` and an Autosave `conflict` state.
-- Automatic retry stops after a true conflict; UI offers explicit reload rather than a misleading retry loop.
+Acceptance:
 
-### Slice 5 — Workspace invariant ownership
-- Extracted pane-tree operations/invariants to `features/workspace/pane-layout.ts`.
-- Extracted authored content normalization/helpers to `features/workspace/workspace-content.ts`.
-- Workspace remains local React orchestration; no Redux/global store was added.
-- Max four panes and max one Canvas remain explicit product constraints.
+- empty capture cannot be submitted;
+- no Workspace means capture remains disabled;
+- successful capture closes the dialog and reports the destination Workspace;
+- library navigation remains unchanged;
+- Quick Capture is not injected over the full-screen Workspace surface.
 
-## Verification contract
+### Slice 2 — Long-Note Outline
 
-Required before merge:
+User outcome:
 
-- `task check:web`
-- `task check:server`
-- `task build`
-- targeted persistence tests for asset restart durability and exact block FTS retrieval
-- existing risk-based GitHub Verify workflow green
+- Every Note editor exposes a small Outline action.
+- Outline is derived directly from current Tiptap heading nodes.
+- Heading hierarchy is reflected by indentation.
+- Selecting an Outline item moves the editor to the exact stable heading block and restores editing focus.
+- Notes without headings show an explanatory empty state rather than an empty menu.
+
+Acceptance:
+
+- no separate outline persistence/index is introduced;
+- outline updates from authored editor state;
+- heading navigation uses existing stable `blockId` identity;
+- popup behavior remains dismissible and does not coexist with the slash-command popup.
+
+### Slice 3 — Markdown Portability
+
+User outcome:
+
+- Quick Capture can load `.md` / `.markdown` files before saving them as Notes.
+- Imported Markdown preserves the core structures Notespace already authors: headings, paragraphs, bullet/ordered lists, blockquotes, code blocks, horizontal rules, links, bold, italic, strike, and inline code where representable.
+- Every Note editor can download its current authored content as a human-readable `.md` file.
+
+Acceptance:
+
+- no Markdown parser dependency is added;
+- conversion remains a small deterministic adapter around the existing Tiptap snapshot contract;
+- imported blocks receive stable block IDs so search/deep-link normalization does not depend on a later edit;
+- JSON/ZIP recovery contracts remain unchanged; Markdown is interoperability, not a replacement persistence format.
+
+### Slice 4 — Verification & Product Contract
+
+Completed gates:
+
+- root unit tests including Markdown adapter coverage;
+- frontend TypeScript/static checks;
+- frontend lint contract;
+- production frontend build;
+- existing repository design-contract tests;
+- GitHub Verify run #120 green on the implementation head.
+
+Backend and production-composition gates were correctly skipped because this milestone changed no backend/runtime boundary.
+
+No browser/manual/black-box acceptance gate was introduced.
+
+## Explicitly out of scope
+
+- backlinks / graph view;
+- independent top-level Notes;
+- generic properties/databases;
+- template/plugin marketplace;
+- AI assistant or semantic search;
+- collaboration/CRDT;
+- Markdown as the canonical persistence format;
+- reopening cross-surface Send/Link semantics removed by M11.
 
 ## Integration rule
 
-Merge this milestone to `master` only after the PR verification gate is green. After merge, update this file to record the verified commit and stop; do not promote new feature scope automatically.
+M12 is verified and ready for integration into `master`. After merge, stop feature expansion and reassess the real capture → work → find → resume loop before promoting another feature milestone.

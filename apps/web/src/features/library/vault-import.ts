@@ -29,7 +29,7 @@ function contentOf(snapshot: Snapshot) {
 }
 
 // Existing Markdown parsing remains authoritative. This adapter only interleaves
-// standalone Markdown image lines so vault assets become native Notespace image nodes.
+// standalone image embeds so selected vault assets become native Notespace image nodes.
 export function markdownWithVaultImages(markdown: string, resolveImage: VaultImageResolver): Snapshot {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const content: JsonNode[] = [];
@@ -43,23 +43,26 @@ export function markdownWithVaultImages(markdown: string, resolveImage: VaultIma
   };
 
   for (const line of lines) {
-    const image = line.match(/^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/);
-    if (!image) {
+    const markdownImage = line.match(/^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/);
+    const obsidianImage = line.match(/^\s*!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]\s*$/);
+    const source = markdownImage?.[2] ?? obsidianImage?.[1];
+    if (!source) {
       chunk.push(line);
       continue;
     }
-    const resolved = resolveImage(image[2]);
+    const resolved = resolveImage(source);
     if (!resolved) {
       chunk.push(line);
       continue;
     }
     flush();
+    const sourceBasename = source.split("/").pop()?.replace(/\.[^.]+$/, "") || "Imported image";
     content.push({
       type: "image",
       attrs: {
         assetId: resolved.assetId,
         src: resolved.src,
-        alt: image[1] || "Imported image",
+        alt: markdownImage?.[1] || obsidianImage?.[2] || sourceBasename,
       },
     });
   }

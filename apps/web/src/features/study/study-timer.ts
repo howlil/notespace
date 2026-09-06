@@ -1,6 +1,21 @@
-export const IDLE_AFTER_MS = 10 * 60 * 1000;
-
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
+
+export type ManualStudySession = {
+  segmentId: string;
+  activityDate: string;
+  status: "running" | "paused";
+  sessionAccumulatedSeconds: number;
+  segmentAccumulatedSeconds: number;
+  runningSince: number | null;
+  baselineTodaySeconds: number;
+  baselineTotalSeconds: number;
+};
+
+export type CompletedStudySegment = {
+  id: string;
+  date: string;
+  activeSeconds: number;
+};
 
 export function localDate(date = new Date()) {
   const year = date.getFullYear();
@@ -9,18 +24,93 @@ export function localDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function combineStudyStats(baseline: StudyBaseline, currentSeconds: number) {
-  const current = Math.max(0, currentSeconds);
+function nextLocalDay(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day + 1);
+}
+
+function elapsedSeconds(from: number | null, to: number) {
+  if (from === null) return 0;
+  return Math.max(0, Math.floor((to - from) / 1000));
+}
+
+export function currentSessionSeconds(session: ManualStudySession, now = Date.now()) {
+  return Math.max(0, session.sessionAccumulatedSeconds)
+    + (session.status === "running" ? elapsedSeconds(session.runningSince, now) : 0);
+}
+
+export function currentSegmentSeconds(session: ManualStudySession, now = Date.now()) {
+  return Math.max(0, session.segmentAccumulatedSeconds)
+    + (session.status === "running" ? elapsedSeconds(session.runningSince, now) : 0);
+}
+
+export function materializeStudySession(session: ManualStudySession, now = Date.now()): ManualStudySession {
+  if (session.status !== "running") return session;
+  const elapsed = elapsedSeconds(session.runningSince, now);
   return {
-    todaySeconds: Math.max(0, baseline.todaySeconds) + current,
-    totalSeconds: Math.max(0, baseline.totalSeconds) + current,
+    ...session,
+    status: "paused",
+    sessionAccumulatedSeconds: Math.max(0, session.sessionAccumulatedSeconds) + elapsed,
+    segmentAccumulatedSeconds: Math.max(0, session.segmentAccumulatedSeconds) + elapsed,
+    runningSince: null,
   };
 }
 
-export function rollStudyBaseline(baseline: StudyBaseline, completedSeconds: number): StudyBaseline {
+export function resumeStudySession(session: ManualStudySession, now = Date.now()): ManualStudySession {
+  if (session.status !== "paused") return session;
+  return { ...session, status: "running", runningSince: now };
+}
+
+export function advanceStudySession(
+  session: ManualStudySession,
+  now: number,
+  idFactory: () => string,
+): { session: ManualStudySession; completed: CompletedStudySegment[] } {
+  const targetDate = localDate(new Date(now));
+  if (session.activityDate >= targetDate) return { session, completed: [] };
+
+  const completed: CompletedStudySegment[] = [];
+  let current = { ...session };
+
+  if (current.status === "paused") {
+    completed.push({ id: current.segmentId, date: current.activityDate, activeSeconds: Math.max(0, current.segmentAccumulatedSeconds) });
+    return {
+      completed,
+      session: {
+        ...current,
+        segmentId: idFactory(),
+        activityDate: targetDate,
+        segmentAccumulatedSeconds: 0,
+        baselineTodaySeconds: 0,
+      },
+    };
+  }
+
+  while (current.activityDate < targetDate) {
+    const boundary = nextLocalDay(current.activityDate).getTime();
+    const elapsed = elapsedSeconds(current.runningSince, Math.min(boundary, now));
+    const segmentSeconds = Math.max(0, current.segmentAccumulatedSeconds) + elapsed;
+    const sessionSeconds = Math.max(0, current.sessionAccumulatedSeconds) + elapsed;
+    completed.push({ id: current.segmentId, date: current.activityDate, activeSeconds: segmentSeconds });
+    const nextDate = localDate(new Date(boundary));
+    current = {
+      ...current,
+      segmentId: idFactory(),
+      activityDate: nextDate,
+      sessionAccumulatedSeconds: sessionSeconds,
+      segmentAccumulatedSeconds: 0,
+      runningSince: boundary,
+      baselineTodaySeconds: 0,
+    };
+  }
+
+  return { session: current, completed };
+}
+
+export function combineStudyStats(baseline: StudyBaseline, todayCurrentSeconds: number, totalCurrentSeconds = todayCurrentSeconds) {
   return {
-    todaySeconds: 0,
-    totalSeconds: Math.max(0, baseline.totalSeconds) + Math.max(0, completedSeconds),
+    todaySeconds: Math.max(0, baseline.todaySeconds) + Math.max(0, todayCurrentSeconds),
+    totalSeconds: Math.max(0, baseline.totalSeconds) + Math.max(0, totalCurrentSeconds),
   };
 }
 

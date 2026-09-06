@@ -43,7 +43,7 @@ export function LibraryTools() {
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<TrashWorkspace | null>(null);
   const restoreInput = useRef<HTMLInputElement>(null);
-  const vaultInput = useRef<HTMLInputElement>(null);
+  const vaultInput = useRef<HTMLInputElement | null>(null);
 
   const categoryNames = useMemo(() => new Map(categories.map((category) => [category.id, category.title])), [categories]);
 

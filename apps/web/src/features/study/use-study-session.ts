@@ -48,13 +48,15 @@ function readStoredSession(workspaceId: string): ManualStudySession | null {
   }
 }
 
-export function useStudySession(workspaceId: string, _workspaceTitle: string): StudySessionState {
+export function useStudySession(workspaceId: string, workspaceTitle: string): StudySessionState {
+  void workspaceTitle;
   const [session, setSession] = useState<ManualStudySession | null>(null);
   const sessionRef = useRef<ManualStudySession | null>(null);
   const [baseline, setBaseline] = useState({ todaySeconds: 0, totalSeconds: 0 });
   const [baselineDate, setBaselineDate] = useState(localDate());
   const [clock, setClock] = useState(Date.now());
   const [ready, setReady] = useState(false);
+  const sessionStatus = session?.status ?? "idle";
 
   const commitSession = useCallback((next: ManualStudySession | null) => {
     sessionRef.current = next;
@@ -119,12 +121,12 @@ export function useStudySession(workspaceId: string, _workspaceTitle: string): S
       const current = sessionRef.current;
       if (!current) return;
       reconcile(current, now);
-    }, session?.status === "running" ? 1000 : 60_000);
+    }, sessionStatus === "running" ? 1000 : 60_000);
     return () => window.clearInterval(interval);
-  }, [reconcile, session?.status]);
+  }, [reconcile, sessionStatus]);
 
   useEffect(() => {
-    if (!session || session.status !== "running") return;
+    if (sessionStatus !== "running") return;
     const heartbeat = window.setInterval(() => {
       const current = sessionRef.current;
       if (!current || current.status !== "running") return;
@@ -140,7 +142,7 @@ export function useStudySession(workspaceId: string, _workspaceTitle: string): S
         sendSegment(current.segmentId, current.activityDate, currentSegmentSeconds(current, now), false);
       }
     };
-  }, [reconcile, sendSegment, session?.status]);
+  }, [reconcile, sendSegment, sessionStatus]);
 
   function start() {
     if (!ready || sessionRef.current) return;
@@ -218,7 +220,7 @@ export function useStudySession(workspaceId: string, _workspaceTitle: string): S
     currentSeconds,
     todaySeconds: totals.todaySeconds,
     totalSeconds: totals.totalSeconds,
-    status: session?.status ?? "idle",
+    status: sessionStatus,
     ready,
     start,
     pause,

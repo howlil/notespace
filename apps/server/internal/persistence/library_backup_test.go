@@ -32,7 +32,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.TrashWorkspace(ctx, workspace.ID); err != nil {
+	if err := store.TrashWorkspaceAtomic(ctx, workspace.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, project.ErrNotFound) {
@@ -90,7 +90,7 @@ func TestFullLibraryBackupRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	backup, err := store.ExportBackupJSON(ctx)
+	backup, err := store.ExportBackupJSONAtomic(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

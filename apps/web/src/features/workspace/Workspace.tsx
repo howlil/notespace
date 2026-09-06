@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, Circle, Download, FileText, Highlighter, History as HistoryIcon, Layers, Loader2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Circle, Download, FileText, Highlighter, History as HistoryIcon, Layers, Loader2, Maximize2, Minimize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, cn } from "../../components/ui";
 import { useDismissablePopup, useExclusivePopup } from "../../components/ui/dismissable";
 import { ThemeToggle, useTheme } from "../../providers/theme-provider";
@@ -135,18 +135,16 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     setActivePaneId(next.pane.id);
   }
   function addCanvasPane(paneId: string) {
-    const existing = leaves(layout).find((pane) => pane.kind === "canvas");
-    if (existing) { setActivePaneId(existing.id); return; }
     if (!canAddPane(layout) || hasCanvasPane(layout)) return;
     const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "canvas" } };
     setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: next })));
     setActivePaneId(next.pane.id);
   }
   function openNotePane(paneId: string) {
-    const existing = leaves(layout).find((pane) => pane.kind === "note");
-    if (existing) { setActivePaneId(existing.id); return; }
-    const noteId = current.current.notes[0]?.id;
-    if (!noteId || !canAddPane(layout)) return;
+    if (!canAddPane(layout)) return;
+    const openNoteIds = new Set(leaves(layout).map((pane) => pane.noteId).filter((noteId): noteId is string => Boolean(noteId)));
+    const noteId = current.current.notes.find((note) => !openNoteIds.has(note.id))?.id;
+    if (!noteId) return;
     const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId } };
     setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: next })));
     setActivePaneId(next.pane.id);
@@ -206,6 +204,16 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   function renameWorkspace() { const value = renameTitle.trim(); if (value && value !== current.current.title) update({ title: value }); setRenaming(false); }
 
   const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
+  const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
+  const activeSplit = activePane ? findContainingSplit(layout, activePane.id) : undefined;
+  const maximizeLabel = focusMode ? "Restore layout" : activeSplit ? "Maximize active split" : "Maximize active pane";
+
+  function toggleActiveMaximize() {
+    if (focusMode) { setMaximizedPaneId(null); setMaximizedSplitId(null); return; }
+    if (!activePane) return;
+    if (activeSplit) { maximizeSplit(activePane.id); return; }
+    maximizePane(activePane.id);
+  }
 
   function selectionContext(pane: Pane, content: ReactNode) {
     const textSelection = pane.kind === "note" && selectedTextPaneId === pane.id;
@@ -221,7 +229,10 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   function renderPane(pane: Pane) {
     const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined;
     const isActive = pane.id === activePaneId;
-    const containingSplit = findContainingSplit(layout, pane.id);
+    const paneLimitReached = !canAddPane(layout);
+    const canvasOpen = hasCanvasPane(layout);
+    const openNoteIds = new Set(leaves(layout).map((item) => item.noteId).filter((noteId): noteId is string => Boolean(noteId)));
+    const hasUnopenedNote = current.current.notes.some((item) => !openNoteIds.has(item.id));
     const noteHeader = pane.kind === "note" && (
       renamingNote?.paneId === pane.id ? (
         <input ref={noteRenameInput} className="w-[45%] min-w-0 border-0 bg-transparent px-0 py-1 text-[10px] text-ink outline-0" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} />
@@ -254,8 +265,9 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
         </div>
       )
     );
+    const toolbarTargetId = `note-pane-toolbar-${pane.id}`;
     const surface = pane.kind === "note" && note ? (
-      <EditorBoundary><Suspense fallback={<div className={editorLoadingClass}>Opening note…</div>}><DocumentEditor key={pane.id} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<div className={editorLoadingClass}>Opening note…</div>}><DocumentEditor key={pane.id} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} /></Suspense></EditorBoundary>
     ) : (
       <EditorBoundary><Suspense fallback={<div className={editorLoadingClass}>Opening Canvas…</div>}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} dark={dark} /></Suspense></EditorBoundary>
     );
@@ -264,22 +276,23 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
       <section key={pane.id} className={cn("grid h-full min-h-0 min-w-0 w-full grid-rows-[34px_minmax(0,1fr)] overflow-visible bg-surface", isActive && "border-transparent")} onMouseDown={() => setActivePaneId(pane.id)} aria-label={pane.kind === "canvas" ? "Canvas pane" : `${note?.title ?? "Note"} note pane`}>
         <header className="flex min-w-0 items-center justify-between gap-2 border-b border-line pr-2 pl-[11px]">
           {noteHeader ?? <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-ink"><Layers size={14} /> Canvas</span>}
-          <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
-            <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
-            <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-[calc(var(--workspace-header-height)_+_34px)] right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_var(--workspace-header-height)_-_46px)]")}>
-              {pane.kind === "canvas" && <button className={paneMenuButtonClass} onClick={() => openNotePane(pane.id)}>Open note</button>}
-              {pane.kind === "note" && <>
-                <button className={paneMenuButtonClass} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
-                <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button>
-                <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button>
-                <button className={paneMenuButtonClass} onClick={() => beginRenameNote(pane)}>Rename note</button>
-                <button className={paneMenuButtonClass} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button>
-              </>}
-              {containingSplit && <button className={paneMenuButtonClass} onClick={() => maximizeSplit(pane.id)}>Maximize split</button>}
-              <button className={paneMenuButtonClass} onClick={() => maximizePane(pane.id)}>Maximize pane</button>
-              <button className={paneMenuButtonClass} disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button>
-            </div>
-          </details>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {pane.kind === "note" && <div id={toolbarTargetId} className="flex items-center gap-0.5" />}
+            <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
+              <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
+              <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-[calc(var(--workspace-header-height)_+_34px)] right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_var(--workspace-header-height)_-_46px)]")}>
+                {pane.kind === "canvas" && <button className={paneMenuButtonClass} disabled={paneLimitReached || !hasUnopenedNote} title={paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : !hasUnopenedNote ? "All notes are already open." : undefined} onClick={() => openNotePane(pane.id)}>Open note</button>}
+                {pane.kind === "note" && <>
+                  <button className={paneMenuButtonClass} disabled={paneLimitReached || canvasOpen} title={canvasOpen ? "Canvas is already open." : paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
+                  <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button>
+                  <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button>
+                  <button className={paneMenuButtonClass} onClick={() => beginRenameNote(pane)}>Rename note</button>
+                  <button className={paneMenuButtonClass} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button>
+                </>}
+                <button className={paneMenuButtonClass} disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button>
+              </div>
+            </details>
+          </div>
         </header>
         {selectionContext(pane, surface)}
       </section>
@@ -316,14 +329,14 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   return (
     <div className="h-dvh min-w-0">
       <main className="flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:min-h-dvh max-[560px]:[--workspace-header-height:44px]">
-        <header className={cn("workspace-header flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:min-h-11 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:justify-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]", focusMode && "hidden")}>
+        <header className="workspace-header flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:min-h-11 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:justify-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]">
           <div className="flex min-w-0 flex-1 items-center gap-[9px] max-[560px]:w-full max-[560px]:gap-[3px]">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
             {renaming ? <input ref={renameInput} className="w-[min(32vw,360px)] min-w-[110px] border-0 bg-transparent px-[7px] py-1.5 text-sm text-ink outline-0 max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1" aria-label="Workspace title" value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onBlur={renameWorkspace} onKeyDown={(event) => { if (event.key === "Enter") renameWorkspace(); if (event.key === "Escape") setRenaming(false); }} /> : <button className="group inline-flex max-w-[min(32vw,360px)] items-center gap-2 rounded-[7px] border-0 bg-transparent px-[7px] py-[5px] text-left text-ink hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1" onClick={() => { setRenameTitle(current.current.title); setRenaming(true); }}><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">{current.current.title}</span><Pencil size={13} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" /></button>}
           </div>
           <div className="flex items-center gap-2 max-[760px]:gap-1 max-[560px]:w-full max-[560px]:min-w-0 max-[560px]:overflow-x-auto max-[560px]:overscroll-x-contain max-[560px]:pb-px max-[560px]:[scrollbar-width:none] max-[560px]:[&::-webkit-scrollbar]:hidden max-[560px]:[&>*]:shrink-0">
-            {!focusMode && <StudyIndicator study={study} />}
+            <StudyIndicator study={study} />
             <span className={cn("flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px] max-[560px]:text-[9px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
             <details className="relative shrink-0 [&>summary::-webkit-details-marker]:hidden">
               <summary className={cn(iconActionClass, "cursor-pointer list-none")} aria-label="Workspace actions"><MoreHorizontal size={18} /></summary>
@@ -332,12 +345,11 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
                 <a className="flex min-h-[31px] w-max max-w-[calc(100vw_-_42px)] items-center justify-start gap-2 rounded-[5px] px-[9px] py-1.5 text-left text-[11px] text-ink hover:bg-tint hover:text-accent" href={exportWorkspace(project.id)} download><Download size={14} /> Export</a>
               </div>
             </details>
+            <button type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}>{focusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
             <ThemeToggle />
           </div>
         </header>
-        {focusMode && <div className="fixed top-[max(12px,env(safe-area-inset-top))] right-[max(12px,env(safe-area-inset-right))] z-55 [&_[role=dialog]]:right-0 [&_[role=dialog]]:max-w-[calc(100vw_-_24px)]"><StudyIndicator study={study} /></div>}
         <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:h-[calc(100dvh_-_58px)] max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
-        {focusMode && <button className="fixed right-[18px] bottom-[18px] z-50 flex items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-2 text-[10px] text-ink shadow-[0_8px_20px_#0002]" onClick={() => { setMaximizedPaneId(null); setMaximizedSplitId(null); }}>Restore layout <span className="text-[9px] text-muted">Esc</span></button>}
       </main>
       <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
         <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose><Button variant="danger" onClick={removeNote}>Delete note</Button></DialogFooter></DialogContent>

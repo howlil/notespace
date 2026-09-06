@@ -51,6 +51,9 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 - A real version conflict stops autosave and requires explicit reload/recovery rather than blind retry.
 - Image binaries are durable server-owned workspace assets. Browser IndexedDB may cache or migrate legacy assets but is not the source of truth.
 - Study telemetry is separate from authored workspace snapshots.
+- Study tracking is user-controlled: Start, Pause/Resume, and End are explicit actions. Workspace open/close, tab visibility, and idle detection must not create, pause, or end a logical study session.
+- A workspace may have multiple completed study sessions on the same day. Daily, weekly, streak, and lifetime totals derive from durable session activity rather than one mutable per-day counter.
+- A logical manual session may cross midnight; persistence may split it into local-date segments for daily accounting without exposing an automatic End to the user.
 - Notespace remains free and self-hosted by default. Do not add SaaS billing, hosted-service dependency, team admin, quota, or upgrade machinery without explicit product approval.
 
 ## Current implemented capability
@@ -67,7 +70,7 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 - Workspace/global search backed by a lazily synchronized SQLite FTS projection and exact note/block context.
 - Server-owned image assets persisted in SQLite, read-through migration for legacy browser-only images, and asset-complete workspace ZIP export.
 - Portable ZIP export and bounded workspace checkpoint history/restore.
-- Automatic study sessions, daily activity, streak derivation, and history retained after workspace deletion.
+- Manual workspace study sessions with explicit Start, Pause/Resume, and End; multiple sessions per day, local-date activity, streak derivation, and history retained after workspace deletion.
 - Explicit optimistic-conflict UX: network failures are retryable; true 409 conflicts stop autosave and require reload.
 - Go + SQLite persistence and one-container self-hosted deployment.
 - Stable Compose data volume via `NOTESPACE_DATA_VOLUME`; normal operations must not use `docker compose down -v`.

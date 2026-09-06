@@ -6,6 +6,7 @@ services:
       NOTESPACE_PORT: "${NOTESPACE_PORT:-8080}"
       NOTESPACE_ADDR: "${NOTESPACE_BIND_IP:-0.0.0.0}:${NOTESPACE_PORT:-8080}"
       NOTESPACE_DB: /data/notespace.db
+      NOTESPACE_PASSWORD: "${NOTESPACE_PASSWORD:-}"
     expose:
       - "8080"
     volumes:

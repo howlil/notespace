@@ -7,13 +7,13 @@ import Highlight from "@tiptap/extension-highlight";
 import UniqueID from "@tiptap/extension-unique-id";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { Code2, Download, Heading2, List, ListChecks, ListOrdered, ListTree, Minus, Quote } from "lucide-react";
+import { Code2, Download, Heading2, List, ListOrdered, ListTree, Minus, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { snapshotToMarkdown } from "../../domain/document/markdown";
+import { snapshotAssetIds, snapshotToMarkdown } from "../../domain/document/markdown";
 import { cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
-import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { blobToDataUrl, createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -35,6 +35,9 @@ const editorClassName = cn(
   "max-[1150px]:px-[22px] max-[1150px]:pt-[25px] max-[1150px]:pb-[60px] max-[800px]:px-[18px] max-[800px]:pt-[22px] max-[800px]:pb-[70px]",
 );
 
+// Retain the legacy task-list schema so existing authored snapshots remain
+// readable. New checklist creation stays hidden until checked-state interaction
+// has a complete persistence contract.
 const TaskList = TiptapNode.create({
   name: "taskList",
   group: "block",
@@ -85,7 +88,6 @@ const slashCommands: SlashCommand[] = [
   { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", icon: Quote, run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
   { label: "Code block", description: "Write formatted code", keywords: "code pre", icon: Code2, run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
   { label: "Divider", description: "Add a horizontal rule", keywords: "divider rule line", icon: Minus, run: (editor) => { editor.chain().focus().setHorizontalRule().run(); } },
-  { label: "Checklist", description: "Track tasks inline", keywords: "check task todo", icon: ListChecks, run: (editor) => { editor.chain().focus().toggleWrap("taskList").run(); } },
 ];
 
 type SlashMenu = { from: number; query: string; x: number; y: number } | null;
@@ -110,7 +112,7 @@ function LocalImageView({ node, workspaceId }: NodeViewProps & { workspaceId: st
 
   return (
     <NodeViewWrapper className="my-3.5 block max-w-full">
-      {src ? <img className="block h-auto max-w-full rounded-lg border border-line" src={src} alt={node.attrs.alt || "Pasted image"} draggable={false} /> : <span className="block rounded-lg border border-dashed border-line p-3 text-[11px] text-muted">Image is stored locally on this device.</span>}
+      {src ? <img className="block h-auto max-w-full rounded-lg border border-line" src={src} alt={node.attrs.alt || "Pasted image"} draggable={false} /> : <span className="block rounded-lg border border-dashed border-line p-3 text-[11px] text-muted">Image could not be loaded.</span>}
     </NodeViewWrapper>
   );
 }
@@ -162,7 +164,7 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
         await storeImageAsset(workspaceId, assetId, file);
         currentEditor.chain().focus().insertContent({ type: "image", attrs: { assetId, src: `notespace-asset://${assetId}`, alt: "Pasted image" } }).run();
       }
-    } catch (error) { showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this image locally." }); }
+    } catch (error) { showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this image." }); }
   }
 
   const editor = useEditor({
@@ -223,15 +225,28 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
     setOutlineOpen(false);
   }
 
-  function exportMarkdown() {
+  async function exportMarkdown() {
     if (!editor) return;
-    const markdown = snapshotToMarkdown({ format: "tiptap", version: 1, data: editor.getJSON() });
+    const snapshot: Snapshot = { format: "tiptap", version: 1, data: editor.getJSON() };
+    const assetSources: Record<string, string> = {};
+    let missingAssets = 0;
+    await Promise.all(snapshotAssetIds(snapshot).map(async (assetId) => {
+      try {
+        const asset = await loadImageAsset(workspaceId, assetId);
+        if (!asset) { missingAssets += 1; return; }
+        assetSources[assetId] = await blobToDataUrl(asset.blob);
+      } catch {
+        missingAssets += 1;
+      }
+    }));
+    const markdown = snapshotToMarkdown(snapshot, assetSources);
     const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = "notespace-note.md";
     link.click();
     URL.revokeObjectURL(url);
+    if (missingAssets > 0) showToast({ kind: "error", message: `Exported note, but ${missingAssets} image${missingAssets === 1 ? "" : "s"} could not be embedded.` });
   }
 
   useEffect(() => {
@@ -254,7 +269,7 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
   return (
     <div ref={documentRef} className="relative h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
       <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-md border border-line bg-surface/90 p-0.5 opacity-70 shadow-sm backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
-        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={exportMarkdown}>
+        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={() => void exportMarkdown()}>
           <Download size={14} aria-hidden="true" />
         </button>
         <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>

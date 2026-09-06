@@ -155,6 +155,35 @@ func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
 	}
 }
 
+func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "delete-error.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	p, err := (project.Service{Store: store}).Create(ctx, "Delete failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `CREATE TRIGGER block_project_delete BEFORE DELETE ON projects BEGIN SELECT RAISE(ABORT, 'delete blocked'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(ctx, p.ID); err == nil {
+		t.Fatal("delete should return the SQLite trigger error")
+	}
+	if _, err := store.Get(ctx, p.ID); err != nil {
+		t.Fatalf("workspace should remain after failed delete: %v", err)
+	}
+	entries, err := store.ListHistory(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("delete transaction should roll back checkpoint removal")
+	}
+}
+
 func TestHistoryReadsLegacy0006Rows(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "legacy-history.db"))

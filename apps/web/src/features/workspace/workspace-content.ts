@@ -2,11 +2,11 @@ import type { ProjectContent, Snapshot } from "../../domain/project/project";
 
 const BLOCK_TYPES_WITH_IDENTITY = new Set(["paragraph", "heading", "codeBlock", "listItem", "taskItem"]);
 
-function newId() {
+function newId(): string {
   return crypto.randomUUID();
 }
 
-export function blankDocument(blockId = newId()): Snapshot {
+export function blankDocument(blockId: string = newId()): Snapshot {
   return { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", attrs: { blockId } }] } };
 }
 

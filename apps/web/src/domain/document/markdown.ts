@@ -9,6 +9,8 @@ type JsonNode = {
   marks?: Mark[];
 };
 
+type AssetSources = Record<string, string>;
+
 function newBlockId() {
   return crypto.randomUUID();
 }
@@ -127,16 +129,16 @@ function inlineMarkdown(node: JsonNode): string {
   return value;
 }
 
-function blockMarkdown(node: JsonNode, depth = 0): string {
+function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): string {
   const inline = () => (node.content ?? []).map(inlineMarkdown).join("");
   if (node.type === "paragraph") return inline();
   if (node.type === "heading") return `${"#".repeat(Math.max(1, Math.min(3, Number(node.attrs?.level) || 1)))} ${inline()}`;
   if (node.type === "horizontalRule") return "---";
   if (node.type === "codeBlock") return `\`\`\`\n${inline()}\n\`\`\``;
-  if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");
+  if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");
   if (node.type === "bulletList" || node.type === "orderedList") {
     return (node.content ?? []).map((item, index) => {
-      const body = (item.content ?? []).map((child) => blockMarkdown(child, depth + 1)).filter(Boolean).join(" ");
+      const body = (item.content ?? []).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join(" ");
       const marker = node.type === "orderedList" ? `${index + 1}.` : "-";
       return `${"  ".repeat(depth)}${marker} ${body}`;
     }).join("\n");
@@ -144,21 +146,35 @@ function blockMarkdown(node: JsonNode, depth = 0): string {
   if (node.type === "taskList") {
     return (node.content ?? []).map((item) => {
       const checked = item.attrs?.checked === true ? "x" : " ";
-      const body = (item.content ?? []).map((child) => blockMarkdown(child, depth + 1)).filter(Boolean).join(" ");
+      const body = (item.content ?? []).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join(" ");
       return `${"  ".repeat(depth)}- [${checked}] ${body}`;
     }).join("\n");
   }
   if (node.type === "image") {
     const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "image";
-    const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
-    return src ? `![${alt}](${src})` : "";
+    const assetId = typeof node.attrs?.assetId === "string" ? node.attrs.assetId : "";
+    const authoredSrc = typeof node.attrs?.src === "string" ? node.attrs.src : "";
+    const src = assetId && assetSources[assetId] ? assetSources[assetId] : authoredSrc;
+    if (src && !src.startsWith("notespace-asset://")) return `![${alt}](${src})`;
+    return assetId ? `[Image: ${alt}]` : "";
   }
-  return (node.content ?? []).map((child) => blockMarkdown(child, depth)).filter(Boolean).join("\n");
+  return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).filter(Boolean).join("\n");
 }
 
-export function snapshotToMarkdown(snapshot: Snapshot): string {
+export function snapshotAssetIds(snapshot: Snapshot): string[] {
   const root = snapshot.data as JsonNode;
-  return (root.content ?? []).map((node) => blockMarkdown(node)).filter(Boolean).join("\n\n").trimEnd() + "\n";
+  const ids = new Set<string>();
+  const visit = (node: JsonNode) => {
+    if (node.type === "image" && typeof node.attrs?.assetId === "string" && node.attrs.assetId) ids.add(node.attrs.assetId);
+    for (const child of node.content ?? []) visit(child);
+  };
+  visit(root);
+  return [...ids];
+}
+
+export function snapshotToMarkdown(snapshot: Snapshot, assetSources: AssetSources = {}): string {
+  const root = snapshot.data as JsonNode;
+  return (root.content ?? []).map((node) => blockMarkdown(node, assetSources)).filter(Boolean).join("\n\n").trimEnd() + "\n";
 }
 
 export function captureTitle(markdown: string) {

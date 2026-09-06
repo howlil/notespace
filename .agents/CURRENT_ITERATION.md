@@ -2,124 +2,126 @@
 
 ## Active milestone
 
-**M12 — Capture, Long-Note Navigation & Markdown Portability**
+**M13 — Quality & Correctness Remediation**
 
-State: **implemented and verified; all required automated gates passing**.
+State: **implemented and verified; ready for integration after the final exact-head Verify gate**.
 
 ## Product outcome
 
-Notespace closes the remaining core knowledge-loop gaps without adding a new top-level object, database system, plugin system, AI surface, or backend service.
+Notespace keeps the existing product and architecture while making the core loop safer under storage failure, long-running study sessions, unusual search input, large libraries, and Markdown export.
 
 ```text
-CAPTURE
-  library surface
-      ↓ Ctrl/Cmd + Shift + N
-  choose Workspace
+AUTHOR / CAPTURE
       ↓
-  durable Note
-
-WORK
-  long Note
-      ↓ headings
-  Outline → exact heading
-
-PORTABILITY
-  Markdown file → Note
-  Note → Markdown file
+SAVE / DELETE ── storage failure → controlled error, never panic
+      ↓
+FIND ─────────── punctuation / Unicode → deterministic retrieval
+      ↓
+STUDY ────────── persisted baseline + current session → correct totals
+      ↓
+EXPORT ───────── Note images → self-contained Markdown
 ```
 
-The milestone deliberately reuses the existing `Category → Workspace → Notes / Canvas` model and full-snapshot optimistic save contract.
+This is a remediation milestone, not a feature-expansion milestone. It deliberately avoids schema migration, a new persistence model, global state, new infrastructure, or a new product surface.
 
-## Sprint — Core Loop Closure
+## Sprint — Core Correctness Before New Features
 
 Execution order:
 
-1. **Slice 1 — Library Quick Capture**: remove capture friction while preserving Workspace ownership.
-2. **Slice 2 — Long-Note Outline**: make long Notes navigable using existing stable heading identity.
-3. **Slice 3 — Markdown Portability**: add deterministic import/export adapters without changing persistence.
-4. **Slice 4 — Verification & Product Contract**: lock behavior with automated gates and align repository source-of-truth.
+1. **Slice 1 — Persistence & Retrieval Safety**
+2. **Slice 2 — Study Accounting Correctness**
+3. **Slice 3 — Bounded Capture & Portable Export**
+4. **Slice 4 — Behavioral Invariants & Verification**
 
-Sprint exit criterion: capture → work → save → find → resume remains one coherent product loop, with no new aggregate or infrastructure dependency.
+Sprint exit criterion: all changed web/server/persistence boundaries pass deterministic automated gates on the final PR head, including production-composition restart verification because persistence code changed.
 
 ## Slices
 
-### Slice 1 — Library Quick Capture
+### Slice 1 — Persistence & Retrieval Safety
 
 User outcome:
 
-- From Home or Category surfaces, `Ctrl/Cmd + Shift + N` opens Quick Capture.
-- A compact persistent Quick Capture action provides pointer discoverability.
-- User chooses an existing Workspace and writes without opening the Workspace first.
-- The most recently used capture Workspace is remembered locally.
-- Capture creates one durable Note inside the selected Workspace; it does not create an Inbox, independent Note aggregate, or new persistence model.
-- Capture uses the existing Workspace fetch + optimistic snapshot save contract; version conflicts remain explicit rather than silently overwriting another tab.
+- Workspace deletion returns a controlled error if SQLite rejects the delete; a storage error cannot trigger a nil `sql.Result` panic.
+- Failed deletion remains transactional: Workspace and checkpoint history are preserved when the delete transaction aborts.
+- Search punctuation such as quotes is treated as user text rather than FTS5 query syntax.
+- Unicode search terms and long Unicode excerpts remain valid UTF-8 and preserve exact block context.
+- Rapid autosaves inside the five-minute history checkpoint window avoid hashing the full authored aggregate when a checkpoint cannot yet be created.
 
 Acceptance:
 
-- empty capture cannot be submitted;
-- no Workspace means capture remains disabled;
-- successful capture closes the dialog and reports the destination Workspace;
-- library navigation remains unchanged;
-- Quick Capture is not injected over the full-screen Workspace surface.
+- regression test forces SQLite to reject project deletion and proves error + rollback rather than panic;
+- quoted and Unicode FTS queries execute without syntax failure and resolve the expected block;
+- excerpt truncation is rune-safe and bounded;
+- history checkpoint semantics remain unchanged: identical authored state does not create a checkpoint, changed authored state creates one only after the interval.
 
-### Slice 2 — Long-Note Outline
+### Slice 2 — Study Accounting Correctness
 
 User outcome:
 
-- Every Note editor exposes a small Outline action.
-- Outline is derived directly from current Tiptap heading nodes.
-- Heading hierarchy is reflected by indentation.
-- Selecting an Outline item moves the editor to the exact stable heading block and restores editing focus.
-- Notes without headings show an explanatory empty state rather than an empty menu.
+- `Today` and `Total` show persisted study time plus the active local session instead of `max(persisted, current)`.
+- A new browser session reads its durable baseline before registering the new zero-second session, preventing active-session double counting.
+- Midnight rollover finalizes the old session, moves those seconds into total baseline, resets today's baseline, and starts a new session at zero.
 
 Acceptance:
 
-- no separate outline persistence/index is introduced;
-- outline updates from authored editor state;
-- heading navigation uses existing stable `blockId` identity;
-- popup behavior remains dismissible and does not coexist with the slash-command popup.
+- 60m persisted today + 10m active displays 70m today;
+- persisted total + current session is additive;
+- rollover resets today's display while preserving completed time in total;
+- negative/invalid local counters cannot produce negative displayed totals.
 
-### Slice 3 — Markdown Portability
+### Slice 3 — Bounded Capture & Portable Export
 
 User outcome:
 
-- Quick Capture can load `.md` / `.markdown` files before saving them as Notes.
-- Imported Markdown preserves the core structures Notespace already authors: headings, paragraphs, bullet/ordered lists, blockquotes, code blocks, horizontal rules, links, bold, italic, strike, and inline code where representable.
-- Every Note editor can download its current authored content as a human-readable `.md` file.
+- Opening Quick Capture loads at most the 20 most recent Workspaces plus the remembered destination instead of loading the complete Workspace library.
+- Typing in the Workspace field queries the existing paginated Workspace endpoint by title with a 20-result bound; choosing a capture destination does not invoke global Note/Block retrieval.
+- Empty search results cannot silently capture into a hidden previous Workspace.
+- Note Markdown export embeds durable Notespace images as data URLs so exported Markdown no longer contains unusable `notespace-asset://` links.
+- If an image cannot be loaded, export remains usable and emits explicit fallback text plus a user-visible warning.
+- New checklist creation is removed from the slash menu until checked-state interaction has a complete persistence contract; legacy task-list schema remains readable.
 
 Acceptance:
 
-- no Markdown parser dependency is added;
-- conversion remains a small deterministic adapter around the existing Tiptap snapshot contract;
-- imported blocks receive stable block IDs so search/deep-link normalization does not depend on a later edit;
-- JSON/ZIP recovery contracts remain unchanged; Markdown is interoperability, not a replacement persistence format.
+- Quick Capture no longer calls the unbounded `listProjects()` path;
+- remembered Workspace fallback still works when it is outside the recent set;
+- typed destination search returns a bounded title-scoped Workspace page;
+- Markdown adapter extracts unique asset IDs and substitutes supplied portable sources;
+- proprietary asset URLs never leak into exported Markdown without a portable replacement.
 
-### Slice 4 — Verification & Product Contract
+### Slice 4 — Behavioral Invariants & Verification
 
-Completed gates:
+Engineering outcome:
 
-- root unit tests including Markdown adapter coverage;
-- frontend TypeScript/static checks;
-- frontend lint contract;
-- production frontend build;
-- existing repository design-contract tests;
-- GitHub Verify run #120 green on the implementation head.
+- Added focused unit coverage for study totals/rollover, capture option mapping, pane-tree invariants, authored-content normalization, Markdown image portability, delete failure rollback, FTS punctuation, and Unicode excerpts.
+- Reduced static design-contract assertions that pinned exact dependency versions, internal function names, or exact Tailwind implementation fragments when behavioral/unit coverage owns the invariant better.
+- Kept the existing TypeScript strict mode, React Hooks linting, Go vet/race checks, build gates, and persistence restart smoke.
 
-Backend and production-composition gates were correctly skipped because this milestone changed no backend/runtime boundary.
+Verification evidence on implementation head (`Verify` #130):
 
-No browser/manual/black-box acceptance gate was introduced.
+- `pnpm typecheck` — pass;
+- `pnpm lint` — pass;
+- `pnpm test` — pass;
+- `pnpm build` — pass;
+- Go formatting check — pass;
+- `go vet ./...` — pass;
+- `go test -race ./...` — pass;
+- production Go build — pass;
+- Compose config/build/health — pass;
+- restart-persistence smoke — pass.
 
-## Explicitly out of scope
+No manual/browser/black-box acceptance gate was required.
 
-- backlinks / graph view;
-- independent top-level Notes;
-- generic properties/databases;
-- template/plugin marketplace;
-- AI assistant or semantic search;
-- collaboration/CRDT;
-- Markdown as the canonical persistence format;
-- reopening cross-surface Send/Link semantics removed by M11.
+## Explicitly deferred / out of scope
+
+These audit findings are real but are not safe local-remediation work:
+
+- **Authentication/access control**: changing the public security boundary requires an explicit deployment/product decision about trusted reverse proxy vs application-owned authentication.
+- **Note-scoped persistence**: replacing full Workspace snapshot writes changes the API/persistence concurrency contract and requires measured save-size/latency evidence first.
+- **Top-level legacy `document` retirement**: removing the compatibility field requires a backward-compatible data/API migration plan.
+- **Asset reachability GC**: deleting unreferenced binaries requires an explicit retention rule covering current snapshots and retained history before destructive cleanup is safe.
+- **Large `Workspace.tsx` decomposition**: extract further orchestration only when a concrete change requires it; do not refactor solely for file size.
+- Existing optional Playwright files are not promoted back into merge gates; black-box coverage remains outside the repository's required verification model.
 
 ## Integration rule
 
-M12 is verified and ready for integration into `master`. After merge, stop feature expansion and reassess the real capture → work → find → resume loop before promoting another feature milestone.
+Merge PR #16 to `master` only after the final risk-based `Verify` run is green on this documentation-complete head. After merge, stop and reassess before promoting a new feature milestone.

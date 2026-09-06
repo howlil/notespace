@@ -2,126 +2,74 @@
 
 ## Active milestone
 
-**M13 — Quality & Correctness Remediation**
+**M14 — Intentional Study Sessions**
 
-State: **implemented and verified; ready for integration after the final exact-head Verify gate**.
+State: **implemented on `master` and verified**.
 
 ## Product outcome
 
-Notespace keeps the existing product and architecture while making the core loop safer under storage failure, long-running study sessions, unusual search input, large libraries, and Markdown export.
+Workspace study time is controlled by explicit user intent rather than inferred browser activity.
 
 ```text
-AUTHOR / CAPTURE
-      ↓
-SAVE / DELETE ── storage failure → controlled error, never panic
-      ↓
-FIND ─────────── punctuation / Unicode → deterministic retrieval
-      ↓
-STUDY ────────── persisted baseline + current session → correct totals
-      ↓
-EXPORT ───────── Note images → self-contained Markdown
+IDLE
+ ↓ Start
+RUNNING
+ ↓ Pause
+PAUSED
+ ↓ Resume
+RUNNING
+ ↓ End
+ENDED
 ```
 
-This is a remediation milestone, not a feature-expansion milestone. It deliberately avoids schema migration, a new persistence model, global state, new infrastructure, or a new product surface.
+A workspace may record multiple completed sessions on the same day. `Today`, weekly activity, streaks, and lifetime totals derive from the durable session ledger.
 
-## Sprint — Core Correctness Before New Features
+## Implemented behavior
 
-Execution order:
+- Opening a Workspace no longer auto-starts study tracking.
+- Tab visibility, focus, pointer/input activity, and idle detection no longer auto-pause or auto-resume study tracking.
+- Leaving/reloading a Workspace no longer auto-ends the logical session.
+- Start creates a new manual logical session.
+- Pause freezes elapsed time without completing the session.
+- Resume continues the same logical session.
+- End explicitly completes the session and returns the Workspace timer to idle.
+- Multiple Start → End cycles on the same date remain separate durable study records and aggregate into that day's total.
+- An active logical session survives reload/navigation through local session state rather than becoming a hidden implicit End.
+- A running session that crosses local midnight remains one logical user session while persistence is split into per-date segments so daily totals remain correct.
+- The compact Workspace header exposes Start, Pause/Resume, and End directly; the activity popover remains the summary surface for Current session, Today, and Total.
 
-1. **Slice 1 — Persistence & Retrieval Safety**
-2. **Slice 2 — Study Accounting Correctness**
-3. **Slice 3 — Bounded Capture & Portable Export**
-4. **Slice 4 — Behavioral Invariants & Verification**
+## Engineering scope
 
-Sprint exit criterion: all changed web/server/persistence boundaries pass deterministic automated gates on the final PR head, including production-composition restart verification because persistence code changed.
+The existing study API and SQLite schema were reused. No migration, backend contract change, new dependency, global state library, or deployment change was required.
 
-## Slices
+The browser feature now owns the manual lifecycle and uses the existing monotonic `active_seconds` heartbeat boundary for durable per-date segments.
 
-### Slice 1 — Persistence & Retrieval Safety
+## Verification evidence
 
-User outcome:
+Runtime implementation head: `4c63571866501ca49b2d3a20933bad9f589c2d07`.
 
-- Workspace deletion returns a controlled error if SQLite rejects the delete; a storage error cannot trigger a nil `sql.Result` panic.
-- Failed deletion remains transactional: Workspace and checkpoint history are preserved when the delete transaction aborts.
-- Search punctuation such as quotes is treated as user text rather than FTS5 query syntax.
-- Unicode search terms and long Unicode excerpts remain valid UTF-8 and preserve exact block context.
-- Rapid autosaves inside the five-minute history checkpoint window avoid hashing the full authored aggregate when a checkpoint cannot yet be created.
+GitHub Actions `Verify` run **#138** passed on that runtime head:
 
-Acceptance:
+- TypeScript typecheck — pass;
+- ESLint — pass;
+- web unit tests — pass;
+- production web build — pass;
+- repository knowledge contract — pass.
 
-- regression test forces SQLite to reject project deletion and proves error + rollback rather than panic;
-- quoted and Unicode FTS queries execute without syntax failure and resolve the expected block;
-- excerpt truncation is rune-safe and bounded;
-- history checkpoint semantics remain unchanged: identical authored state does not create a checkpoint, changed authored state creates one only after the interval.
+Backend and production-composition gates were correctly skipped because this change did not modify their boundaries.
 
-### Slice 2 — Study Accounting Correctness
+Focused study-timer unit coverage proves:
 
-User outcome:
+- running time accumulates only while the logical session is running;
+- Pause freezes elapsed time and Resume continues the same session;
+- midnight splits persistence by local date without resetting the logical session total;
+- Today and Total can aggregate different portions of a cross-day session;
+- negative counters remain clamped.
 
-- `Today` and `Total` show persisted study time plus the active local session instead of `max(persisted, current)`.
-- A new browser session reads its durable baseline before registering the new zero-second session, preventing active-session double counting.
-- Midnight rollover finalizes the old session, moves those seconds into total baseline, resets today's baseline, and starts a new session at zero.
+## Remaining material gap
 
-Acceptance:
+None for the requested manual Start / Pause / Resume / End behavior.
 
-- 60m persisted today + 10m active displays 70m today;
-- persisted total + current session is additive;
-- rollover resets today's display while preserving completed time in total;
-- negative/invalid local counters cannot produce negative displayed totals.
+## Next action
 
-### Slice 3 — Bounded Capture & Portable Export
-
-User outcome:
-
-- Opening Quick Capture loads at most the 20 most recent Workspaces plus the remembered destination instead of loading the complete Workspace library.
-- Typing in the Workspace field queries the existing paginated Workspace endpoint by title with a 20-result bound; choosing a capture destination does not invoke global Note/Block retrieval.
-- Empty search results cannot silently capture into a hidden previous Workspace.
-- Note Markdown export embeds durable Notespace images as data URLs so exported Markdown no longer contains unusable `notespace-asset://` links.
-- If an image cannot be loaded, export remains usable and emits explicit fallback text plus a user-visible warning.
-- New checklist creation is removed from the slash menu until checked-state interaction has a complete persistence contract; legacy task-list schema remains readable.
-
-Acceptance:
-
-- Quick Capture no longer calls the unbounded `listProjects()` path;
-- remembered Workspace fallback still works when it is outside the recent set;
-- typed destination search returns a bounded title-scoped Workspace page;
-- Markdown adapter extracts unique asset IDs and substitutes supplied portable sources;
-- proprietary asset URLs never leak into exported Markdown without a portable replacement.
-
-### Slice 4 — Behavioral Invariants & Verification
-
-Engineering outcome:
-
-- Added focused unit coverage for study totals/rollover, capture option mapping, pane-tree invariants, authored-content normalization, Markdown image portability, delete failure rollback, FTS punctuation, and Unicode excerpts.
-- Reduced static design-contract assertions that pinned exact dependency versions, internal function names, or exact Tailwind implementation fragments when behavioral/unit coverage owns the invariant better.
-- Kept the existing TypeScript strict mode, React Hooks linting, Go vet/race checks, build gates, and persistence restart smoke.
-
-Verification evidence on implementation head (`Verify` #130):
-
-- `pnpm typecheck` — pass;
-- `pnpm lint` — pass;
-- `pnpm test` — pass;
-- `pnpm build` — pass;
-- Go formatting check — pass;
-- `go vet ./...` — pass;
-- `go test -race ./...` — pass;
-- production Go build — pass;
-- Compose config/build/health — pass;
-- restart-persistence smoke — pass.
-
-No manual/browser/black-box acceptance gate was required.
-
-## Explicitly deferred / out of scope
-
-These audit findings are real but are not safe local-remediation work:
-
-- **Authentication/access control**: changing the public security boundary requires an explicit deployment/product decision about trusted reverse proxy vs application-owned authentication.
-- **Note-scoped persistence**: replacing full Workspace snapshot writes changes the API/persistence concurrency contract and requires measured save-size/latency evidence first.
-- **Top-level legacy `document` retirement**: removing the compatibility field requires a backward-compatible data/API migration plan.
-- **Asset reachability GC**: deleting unreferenced binaries requires an explicit retention rule covering current snapshots and retained history before destructive cleanup is safe.
-- **Large `Workspace.tsx` decomposition**: extract further orchestration only when a concrete change requires it; do not refactor solely for file size.
-- Existing optional Playwright files are not promoted back into merge gates; black-box coverage remains outside the repository's required verification model.
-
-## Integration rule
-
-Merge PR #16 to `master` only after the final risk-based `Verify` run is green on this documentation-complete head. After merge, stop and reassess before promoting a new feature milestone.
+**STOP.** Reassess only when a new user-visible study requirement is explicitly requested.

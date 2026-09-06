@@ -4,7 +4,7 @@
 
 **M13 — Quality & Correctness Remediation**
 
-State: **implementation complete; automated verification pending**.
+State: **implemented and verified; ready for integration after the final exact-head Verify gate**.
 
 ## Product outcome
 
@@ -92,25 +92,24 @@ Acceptance:
 
 Engineering outcome:
 
-- Add focused unit coverage for study totals/rollover, capture option mapping, pane-tree invariants, authored-content normalization, Markdown image portability, delete failure rollback, FTS punctuation, and Unicode excerpts.
-- Reduce static design-contract assertions that pin exact dependency versions, internal function names, or exact Tailwind implementation fragments when behavioral/unit coverage owns the invariant better.
-- Keep the existing TypeScript strict mode, React Hooks linting, Go vet/race checks, build gates, and persistence restart smoke.
+- Added focused unit coverage for study totals/rollover, capture option mapping, pane-tree invariants, authored-content normalization, Markdown image portability, delete failure rollback, FTS punctuation, and Unicode excerpts.
+- Reduced static design-contract assertions that pinned exact dependency versions, internal function names, or exact Tailwind implementation fragments when behavioral/unit coverage owns the invariant better.
+- Kept the existing TypeScript strict mode, React Hooks linting, Go vet/race checks, build gates, and persistence restart smoke.
 
-Required final gates:
+Verification evidence on implementation head (`Verify` #130):
 
-- `pnpm typecheck`
-- `pnpm lint`
-- `pnpm test`
-- `pnpm build`
-- Go formatting check
-- `go vet ./...`
-- `go test -race ./...`
-- production Go build
-- Compose config/build/health
-- restart-persistence smoke
-- final GitHub `Verify` green on the exact PR head
+- `pnpm typecheck` — pass;
+- `pnpm lint` — pass;
+- `pnpm test` — pass;
+- `pnpm build` — pass;
+- Go formatting check — pass;
+- `go vet ./...` — pass;
+- `go test -race ./...` — pass;
+- production Go build — pass;
+- Compose config/build/health — pass;
+- restart-persistence smoke — pass.
 
-No manual/browser/black-box acceptance gate is required.
+No manual/browser/black-box acceptance gate was required.
 
 ## Explicitly deferred / out of scope
 
@@ -125,4 +124,4 @@ These audit findings are real but are not safe local-remediation work:
 
 ## Integration rule
 
-Open one PR from `m13-quality-correctness-remediation` to `master`. Merge only after the final risk-based `Verify` run is green on the exact head SHA. After merge, stop and reassess before promoting a new feature milestone.
+Merge PR #16 to `master` only after the final risk-based `Verify` run is green on this documentation-complete head. After merge, stop and reassess before promoting a new feature milestone.

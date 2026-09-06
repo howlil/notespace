@@ -88,6 +88,17 @@ export const getHistorySnapshot = (id: string, historyId: string) => request<His
 export const restoreHistory = (id: string, historyId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/history/${encodeURIComponent(historyId)}/restore`, { method: "POST" });
 export const exportWorkspace = (id: string) => `/api/projects/${encodeURIComponent(id)}/export`;
 
+export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
+export const listTrash = () => request<TrashWorkspace[]>("/api/trash");
+export const restoreTrashedWorkspace = (id: string) => request<Project>(`/api/trash/${encodeURIComponent(id)}`, { method: "POST" });
+export const deleteTrashedWorkspace = (id: string) => request<void>(`/api/trash/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const exportLibraryBackup = () => "/api/backup";
+export const restoreLibraryBackup = (file: File) => request<void>("/api/backup/restore", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: file,
+});
+
 export type StudyStats = { todaySeconds: number; totalSeconds: number };
 export type StudySession = { id: string; workspaceId: string; workspaceTitleSnapshot: string; activityDate: string; startedAt: string; endedAt: string | null; activeSeconds: number; lastHeartbeatAt: string };
 export type StudyDay = { date: string; activeSeconds: number };

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
-import { useRouterState } from "@tanstack/react-router";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { contentOf } from "../../domain/project/project";
@@ -35,7 +33,6 @@ function findVaultFile(files: Map<string, File>, sourcePath: string) {
 }
 
 export function LibraryTools() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,28 +40,10 @@ export function LibraryTools() {
   const [categoryId, setCategoryId] = useState("");
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<TrashWorkspace | null>(null);
-  const [sidebarActions, setSidebarActions] = useState<Element | null>(null);
   const restoreInput = useRef<HTMLInputElement>(null);
   const vaultInput = useRef<HTMLInputElement | null>(null);
 
   const categoryNames = useMemo(() => new Map(categories.map((category) => [category.id, category.title])), [categories]);
-
-  useEffect(() => {
-    if (pathname.startsWith("/workspaces/") || pathname.startsWith("/projects/")) {
-      setSidebarActions(null);
-      return;
-    }
-
-    const syncSidebarActions = () => {
-      const next = document.querySelector('[aria-label="Library actions"]');
-      setSidebarActions((current) => current === next ? current : next);
-    };
-
-    syncSidebarActions();
-    const observer = new MutationObserver(syncSidebarActions);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,22 +165,17 @@ export function LibraryTools() {
     if (imported) window.location.assign("/");
   }
 
-  if (pathname.startsWith("/workspaces/") || pathname.startsWith("/projects/")) return null;
-
   return (
     <>
-      {sidebarActions ? createPortal(
-        <IconButton
-          type="button"
-          className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
-          onClick={() => setOpen(true)}
-          aria-label="Library tools"
-          title="Library tools"
-        >
-          <ArchiveRestore size={16} aria-hidden="true" />
-        </IconButton>,
-        sidebarActions,
-      ) : null}
+      <IconButton
+        type="button"
+        className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
+        onClick={() => setOpen(true)}
+        aria-label="Library tools"
+        title="Library tools"
+      >
+        <ArchiveRestore size={16} aria-hidden="true" />
+      </IconButton>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,620px)]">

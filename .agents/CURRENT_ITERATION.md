@@ -1,14 +1,18 @@
 # Current Iteration
 
-## Active milestone
+## Status
 
-**M16 — Workspace Interaction Reliability**
+**No active milestone.**
 
-State: **implementation complete; merge is gated by exact-head deterministic Verify**.
+Latest completed milestone: **M16 — Workspace Interaction Reliability**.
 
-## Product outcome
+- PR: #19
+- exact-head Verify: #161 — success
+- merged commit: `f35438b6f805fb607fe5d33a76b2729642760e02`
 
-Workspace interaction remains predictable across Note/Canvas panes, focus mode, and sidebar collapse/expand without adding new product surface area.
+## Product outcome shipped
+
+Workspace and library interaction ownership is now explicit enough that the demonstrated pane/sidebar regressions have one deterministic source of behavior instead of UI-local guesses.
 
 ```text
 OPEN WORKSPACE / LIBRARY
@@ -19,46 +23,29 @@ CONSISTENT ACTION AVAILABILITY
         ↓
 STABLE FOCUS / SPLIT / REOPEN
         ↓
-NO DOM-LIFECYCLE HACKS
+DIRECT SIDEBAR OWNERSHIP
 ```
-
-This milestone fixes a demonstrated reliability bottleneck. It does not expand persistence, collaboration, search, study, or library product scope.
-
-## Sprint
-
-One sprint, three slices:
 
 ### Slice 1 — Pane interaction ownership
 
-User-visible outcome:
+Completed:
 
-- Open Note, Open Canvas, Split right/down, Close pane, and Maximize/Focus derive from one pane interaction policy;
-- a single-note workspace cannot expose a usable note split action;
-- Canvas cannot be opened twice;
-- pane-capacity and unopened-note constraints cannot drift between menu rendering and action execution;
-- focus target follows the active pane's containing split, otherwise the active pane itself.
-
-Implementation boundary:
-
-- `features/workspace/pane-layout.ts` owns pure pane interaction state and focus-target derivation;
-- `Workspace.tsx` consumes those rules rather than recomputing availability independently.
+- `pane-layout.ts` owns pane capacity, Canvas uniqueness, unopened-note availability, split/open/close availability, and active focus-target derivation;
+- `Workspace.tsx` consumes that policy for both rendered menu state and action execution;
+- single-note workspaces cannot expose usable note split actions;
+- focus follows the active pane's containing split, otherwise the active pane.
 
 ### Slice 2 — Sidebar action ownership
 
-User-visible outcome:
+Completed:
 
-- New Category, New Workspace, Quick Capture, and Library Tools consistently return after sidebar collapse/expand;
-- Library Tools remains in the sidebar action row and keeps the existing backup/restore/import/trash behavior.
-
-Implementation boundary:
-
-- Sidebar directly renders the Library Tools trigger;
-- root-level `createPortal`, DOM query, `MutationObserver`, and route-dependent attachment logic are removed;
-- no global state library or new shell abstraction is introduced.
+- Sidebar directly renders New Category, New Workspace, Quick Capture, and Library Tools;
+- Library Tools no longer discovers Sidebar through `querySelector`, `MutationObserver`, route inspection, or a root `createPortal`;
+- collapse/expand recreates the complete action row through normal React ownership.
 
 ### Slice 3 — Focused regression coverage
 
-Verification protects only the interaction invariants that already caused regressions:
+Completed deterministic coverage for:
 
 - single-note pane availability;
 - unopened-note and pane-capacity rules;
@@ -66,21 +53,20 @@ Verification protects only the interaction invariants that already caused regres
 - close-pane availability;
 - active focus target;
 - direct Sidebar ownership of Quick Capture and Library Tools;
-- absence of DOM attachment hacks.
+- absence of the removed DOM attachment mechanism.
 
-No broad browser/black-box suite is promoted to a merge gate.
+No broad browser/black-box suite was promoted to a merge gate.
 
-## Explicit non-goals
+## Explicitly unchanged
 
-- Workspace persistence redesign;
-- per-Note versioning;
-- SQLite concurrency changes;
-- global client state management;
-- new pane types;
-- more than four panes;
-- collaboration/CRDT;
-- feature additions unrelated to interaction reliability.
+- Workspace persistence and optimistic versioning;
+- SQLite connection model;
+- max four panes / one Canvas;
+- authored Note/Canvas semantics;
+- study behavior;
+- search and library data contracts;
+- collaboration remains out of scope.
 
-## Exit criterion
+## Next meaningful action
 
-Merge this milestone only when the exact PR head passes the repository Verify workflow. After merge, stop and reassess actual product friction rather than automatically creating another milestone.
+Use the product and identify the next demonstrated user-facing bottleneck. Do not promote another milestone from architectural possibility or feature inventory alone.

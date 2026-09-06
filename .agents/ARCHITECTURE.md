@@ -78,10 +78,14 @@ Schema/data migrations are architecture-sensitive. Destructive or irreversible m
 
 ## Study activity domain
 
-`apps/server/internal/study` owns automatic study sessions and derived activity summaries. Telemetry stays separate from authored workspace versioning.
+`apps/server/internal/study` owns durable study segments and derived activity summaries. The browser workspace feature owns the user-visible manual session lifecycle. Study telemetry stays separate from authored workspace versioning.
 
-- heartbeats use monotonic `active_seconds`;
+- Start, Pause/Resume, and End are explicit user actions; focus, visibility, idle state, and workspace unmount do not own those transitions;
+- an active logical session is retained client-side so reload/navigation does not implicitly End it;
+- heartbeats persist monotonic `active_seconds` for the current local-date segment;
+- a logical manual session may span midnight; the browser finalizes the old date segment and continues the same logical session in a new date segment without exposing an automatic End;
 - `activity_date` follows browser local date;
+- multiple durable segments/sessions on one date aggregate into daily totals;
 - streaks derive from daily totals with the 10 active-minute threshold;
 - study rows intentionally survive workspace deletion and retain title snapshots.
 
@@ -95,6 +99,8 @@ Responsibility boundaries:
 - Project/workspace domain modules: authored state and API orchestration;
 - `features/workspace/pane-layout.ts`: pane-tree invariants (max four panes, max one Canvas), layout repair, split/resize tree operations;
 - `features/workspace/workspace-content.ts`: note snapshot normalization, stable block identity, legacy relationship cleanup, history-preview helpers;
+- `features/study/use-study-session.ts`: manual study-session state machine and local continuity across reload/navigation;
+- `features/study/study-timer.ts`: pure elapsed-time, pause/resume, rollover, and aggregation logic;
 - editor adapters: Tiptap/Excalidraw integration details;
 - `domain/assets/local-image-assets.ts`: server-backed durable asset transfer plus browser cache/read-through migration;
 - generic UI primitives: presentation only.

@@ -5,6 +5,19 @@ export type PaneNode =
   | { kind: "leaf"; pane: Pane }
   | { kind: "split"; id: string; direction: "row" | "column"; ratio: number; first: PaneNode; second: PaneNode };
 
+export type PaneInteractionState = {
+  paneLimitReached: boolean;
+  canvasOpen: boolean;
+  hasUnopenedNote: boolean;
+  nextUnopenedNoteId?: string;
+  canOpenNote: boolean;
+  canOpenCanvas: boolean;
+  canSplitNote: boolean;
+  canClosePane: boolean;
+};
+
+export type PaneFocusTarget = { kind: "pane" | "split"; id: string };
+
 function newId() {
   return crypto.randomUUID();
 }
@@ -25,6 +38,25 @@ export function canAddPane(node: PaneNode) {
   return leafCount(node) < MAX_WORKSPACE_PANES;
 }
 
+export function paneInteractionState(node: PaneNode, noteIds: readonly string[]): PaneInteractionState {
+  const panes = leaves(node);
+  const paneLimitReached = panes.length >= MAX_WORKSPACE_PANES;
+  const canvasOpen = panes.some((pane) => pane.kind === "canvas");
+  const openNoteIds = new Set(panes.map((pane) => pane.noteId).filter((noteId): noteId is string => Boolean(noteId)));
+  const nextUnopenedNoteId = noteIds.find((noteId) => !openNoteIds.has(noteId));
+  const hasUnopenedNote = Boolean(nextUnopenedNoteId);
+  return {
+    paneLimitReached,
+    canvasOpen,
+    hasUnopenedNote,
+    nextUnopenedNoteId,
+    canOpenNote: !paneLimitReached && hasUnopenedNote,
+    canOpenCanvas: !paneLimitReached && !canvasOpen,
+    canSplitNote: !paneLimitReached && hasUnopenedNote,
+    canClosePane: panes.length > 1,
+  };
+}
+
 export function findPane(node: PaneNode, id: string): Pane | undefined {
   return node.kind === "leaf" ? (node.pane.id === id ? node.pane : undefined) : findPane(node.first, id) ?? findPane(node.second, id);
 }
@@ -40,6 +72,11 @@ export function findContainingSplit(node: PaneNode, paneId: string): Extract<Pan
   return findContainingSplit(node.first, paneId)
     ?? findContainingSplit(node.second, paneId)
     ?? (leaves(node.first).some((pane) => pane.id === paneId) || leaves(node.second).some((pane) => pane.id === paneId) ? node : undefined);
+}
+
+export function paneFocusTarget(node: PaneNode, paneId: string): PaneFocusTarget {
+  const split = findContainingSplit(node, paneId);
+  return split ? { kind: "split", id: split.id } : { kind: "pane", id: paneId };
 }
 
 export function mapNode(node: PaneNode, id: string, transform: (node: PaneNode) => PaneNode): PaneNode {

@@ -223,7 +223,7 @@ func (s *Store) ExportBackupJSONAtomic(ctx context.Context) ([]byte, error) {
 	data, err := json.Marshal(libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories: categories, Workspaces: workspaces, Trash: trash, Study: sessions,
+		Categories:  categories, Workspaces: workspaces, Trash: trash, Study: sessions,
 	})
 	if err != nil {
 		return nil, err

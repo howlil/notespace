@@ -13,6 +13,7 @@ const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
 const CATEGORY_DETAIL = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
 const QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
+const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
@@ -59,7 +60,7 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, WORKSPACE, DOCUMENT_EDITOR, CANVAS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -81,17 +82,20 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("capture contract: Quick Capture is a bounded searchable sidebar action", () => {
-  const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), root=source(ROOT_ROUTE);
-  assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>/);
+test("capture contract: Quick Capture and Library Tools are direct sidebar actions", () => {
+  const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>[\s\S]*<LibraryTools \/>/);
   assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
   assert.match(capture,/listRecentWorkspaces\(recentWorkspaceLimit\)/); assert.match(capture,/listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/); assert.doesNotMatch(capture,/listProjects\(/); assert.doesNotMatch(capture,/searchNotespace\(/);
-  assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>/);
+  assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>|<LibraryTools \/>/);
+  assert.doesNotMatch(tools,/createPortal|MutationObserver|querySelector|useRouterState/);
 });
 
-test("workspace contract: bounded panes remain product-owned and Send/Link actions stay removed", () => {
+test("workspace contract: bounded panes use one interaction policy and Send/Link actions stay removed", () => {
   const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
+  assert.match(layout,/function paneInteractionState/); assert.match(layout,/function paneFocusTarget/);
+  assert.match(workspace,/paneInteractionState\(layout/); assert.match(workspace,/paneFocusTarget\(layout/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.match(content,/references:\s*\[\]/);
 });

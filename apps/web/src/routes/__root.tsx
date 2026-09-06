@@ -12,7 +12,6 @@ import { ThemeProvider } from "../providers/theme-provider";
 import { ToastProvider } from "../providers/toast-provider";
 import { NativePopupManager } from "../components/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
-import { LibraryTools } from "../features/library/LibraryTools";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -33,7 +32,6 @@ export const Route = createRootRoute({
       <ToastProvider>
         <ThemeProvider>
           <QuickOpen />
-          <LibraryTools />
           <Outlet />
         </ThemeProvider>
       </ToastProvider>

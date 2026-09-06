@@ -15,7 +15,7 @@ import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
-import { MAX_WORKSPACE_PANES, canAddPane, findContainingSplit, findPane, findSplit, hasCanvasPane, leafCount, leaves, mapNode, removeNode, restoreLayout, updateSplit } from "./pane-layout";
+import { findPane, findSplit, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit } from "./pane-layout";
 import type { Pane, PaneNode } from "./pane-layout";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
@@ -123,34 +123,34 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     update({ document, notes });
   }, [layout, update]);
   const updateCanvas = useCallback((canvas: Snapshot) => update({ canvas }), [update]);
+  const interactionState = () => paneInteractionState(layout, current.current.notes.map((note) => note.id));
 
   function splitPane(paneId: string, direction: "row" | "column") {
-    if (!canAddPane(layout)) return;
+    const interaction = interactionState();
+    if (!interaction.canSplitNote || !interaction.nextUnopenedNoteId) return;
     const source = findPane(layout, paneId);
     if (!source || source.kind === "canvas") return;
-    const unused = current.current.notes.find((note) => !leaves(layout).some((pane) => pane.noteId === note.id));
-    if (!unused) { showToast({ kind: "error", message: "Create another note before splitting this pane." }); return; }
+    const unused = current.current.notes.find((note) => note.id === interaction.nextUnopenedNoteId);
+    if (!unused) return;
     const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId: unused.id } };
     setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction, ratio: .5, first: node, second: next })));
     setActivePaneId(next.pane.id);
   }
   function addCanvasPane(paneId: string) {
-    if (!canAddPane(layout) || hasCanvasPane(layout)) return;
+    if (!interactionState().canOpenCanvas) return;
     const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "canvas" } };
     setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: next })));
     setActivePaneId(next.pane.id);
   }
   function openNotePane(paneId: string) {
-    if (!canAddPane(layout)) return;
-    const openNoteIds = new Set(leaves(layout).map((pane) => pane.noteId).filter((noteId): noteId is string => Boolean(noteId)));
-    const noteId = current.current.notes.find((note) => !openNoteIds.has(note.id))?.id;
-    if (!noteId) return;
-    const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId } };
+    const interaction = interactionState();
+    if (!interaction.canOpenNote || !interaction.nextUnopenedNoteId) return;
+    const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId: interaction.nextUnopenedNoteId } };
     setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction: "row", ratio: .5, first: node, second: next })));
     setActivePaneId(next.pane.id);
   }
   function closePane(paneId: string) {
-    if (leafCount(layout) <= 1) return;
+    if (!interactionState().canClosePane) return;
     const next = removeNode(layout, paneId);
     setLayout(next);
     if (activePaneId === paneId) setActivePaneId(leaves(next)[0]?.id ?? "");
@@ -158,7 +158,7 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     if (maximizedSplitId && !findSplit(next, maximizedSplitId)) setMaximizedSplitId(null);
   }
   function maximizePane(paneId: string) { setMaximizedSplitId(null); setMaximizedPaneId(paneId); }
-  function maximizeSplit(paneId: string) { const split = findContainingSplit(layout, paneId); if (!split) return; setMaximizedPaneId(null); setMaximizedSplitId(split.id); }
+  function maximizeSplit(splitId: string) { setMaximizedPaneId(null); setMaximizedSplitId(splitId); }
   function switchPaneNote(paneId: string, noteId: string) {
     const duplicate = leaves(layout).find((pane) => pane.kind === "note" && pane.noteId === noteId && pane.id !== paneId);
     if (duplicate) { setActivePaneId(duplicate.id); return; }
@@ -205,14 +205,14 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
 
   const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
-  const activeSplit = activePane ? findContainingSplit(layout, activePane.id) : undefined;
-  const maximizeLabel = focusMode ? "Restore layout" : activeSplit ? "Maximize active split" : "Maximize active pane";
+  const activeFocusTarget = activePane ? paneFocusTarget(layout, activePane.id) : undefined;
+  const maximizeLabel = focusMode ? "Restore layout" : activeFocusTarget?.kind === "split" ? "Maximize active split" : "Maximize active pane";
 
   function toggleActiveMaximize() {
     if (focusMode) { setMaximizedPaneId(null); setMaximizedSplitId(null); return; }
-    if (!activePane) return;
-    if (activeSplit) { maximizeSplit(activePane.id); return; }
-    maximizePane(activePane.id);
+    if (!activeFocusTarget) return;
+    if (activeFocusTarget.kind === "split") { maximizeSplit(activeFocusTarget.id); return; }
+    maximizePane(activeFocusTarget.id);
   }
 
   function selectionContext(pane: Pane, content: ReactNode) {
@@ -229,13 +229,9 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   function renderPane(pane: Pane) {
     const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined;
     const isActive = pane.id === activePaneId;
-    const paneLimitReached = !canAddPane(layout);
-    const canvasOpen = hasCanvasPane(layout);
-    const openNoteIds = new Set(leaves(layout).map((item) => item.noteId).filter((noteId): noteId is string => Boolean(noteId)));
-    const hasUnopenedNote = current.current.notes.some((item) => !openNoteIds.has(item.id));
-    const canSplitNote = !paneLimitReached && hasUnopenedNote;
-    const paneCapacityTitle = paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined;
-    const noUnusedNoteTitle = !hasUnopenedNote ? "Create another note before opening another note pane." : undefined;
+    const interaction = interactionState();
+    const paneCapacityTitle = interaction.paneLimitReached ? "Maximum 4 panes per workspace." : undefined;
+    const noUnusedNoteTitle = !interaction.hasUnopenedNote ? "Create another note before opening another note pane." : undefined;
     const noteHeader = pane.kind === "note" && (
       renamingNote?.paneId === pane.id ? (
         <input ref={noteRenameInput} className="w-[45%] min-w-0 border-0 bg-transparent px-0 py-1 text-[10px] text-ink outline-0" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} />
@@ -285,14 +281,14 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
             <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
               <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
               <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-9 right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_48px)]")}>
-                {pane.kind === "canvas" && <button className={paneMenuButtonClass} disabled={paneLimitReached || !hasUnopenedNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => openNotePane(pane.id)}>Open note</button>}
+                {pane.kind === "canvas" && <button className={paneMenuButtonClass} disabled={!interaction.canOpenNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => openNotePane(pane.id)}>Open note</button>}
                 {pane.kind === "note" && <>
-                  <button className={paneMenuButtonClass} disabled={paneLimitReached || canvasOpen} title={canvasOpen ? "Canvas is already open." : paneCapacityTitle} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
-                  <button className={paneMenuButtonClass} disabled={!canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</button>
-                  <button className={paneMenuButtonClass} disabled={!canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</button>
+                  <button className={paneMenuButtonClass} disabled={!interaction.canOpenCanvas} title={interaction.canvasOpen ? "Canvas is already open." : paneCapacityTitle} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
+                  <button className={paneMenuButtonClass} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</button>
+                  <button className={paneMenuButtonClass} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</button>
                   <button className={paneMenuButtonClass} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button>
                 </>}
-                <button className={paneMenuButtonClass} disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button>
+                <button className={paneMenuButtonClass} disabled={!interaction.canClosePane} onClick={() => closePane(pane.id)}>Close pane</button>
               </div>
             </details>
           </div>

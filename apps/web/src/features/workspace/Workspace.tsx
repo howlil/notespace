@@ -233,6 +233,9 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     const canvasOpen = hasCanvasPane(layout);
     const openNoteIds = new Set(leaves(layout).map((item) => item.noteId).filter((noteId): noteId is string => Boolean(noteId)));
     const hasUnopenedNote = current.current.notes.some((item) => !openNoteIds.has(item.id));
+    const canSplitNote = !paneLimitReached && hasUnopenedNote;
+    const paneCapacityTitle = paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined;
+    const noUnusedNoteTitle = !hasUnopenedNote ? "Create another note before opening another note pane." : undefined;
     const noteHeader = pane.kind === "note" && (
       renamingNote?.paneId === pane.id ? (
         <input ref={noteRenameInput} className="w-[45%] min-w-0 border-0 bg-transparent px-0 py-1 text-[10px] text-ink outline-0" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} />
@@ -275,18 +278,18 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
     return (
       <section key={pane.id} className={cn("grid h-full min-h-0 min-w-0 w-full grid-rows-[34px_minmax(0,1fr)] overflow-visible bg-surface", isActive && "border-transparent")} onMouseDown={() => setActivePaneId(pane.id)} aria-label={pane.kind === "canvas" ? "Canvas pane" : `${note?.title ?? "Note"} note pane`}>
         <header className="flex min-w-0 items-center justify-between gap-2 border-b border-line pr-2 pl-[11px]">
-          {noteHeader ?? <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-ink"><Layers size={14} /> Canvas</span>}
-          <div className="flex shrink-0 items-center gap-0.5">
+          {noteHeader ?? <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[10px] text-ink"><Layers size={14} /> Canvas</span>}
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
             {pane.kind === "note" && <div id={toolbarTargetId} className="flex items-center gap-0.5" />}
+            {focusMode && isActive && <button type="button" className="grid size-[26px] place-items-center rounded-[5px] border-0 bg-transparent text-muted hover:bg-tint hover:text-accent" onClick={toggleActiveMaximize} aria-label="Restore layout" title="Restore layout"><Minimize2 size={15} /></button>}
             <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
               <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${pane.kind === "canvas" ? "Canvas" : note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
-              <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-[calc(var(--workspace-header-height)_+_34px)] right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_var(--workspace-header-height)_-_46px)]")}>
-                {pane.kind === "canvas" && <button className={paneMenuButtonClass} disabled={paneLimitReached || !hasUnopenedNote} title={paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : !hasUnopenedNote ? "All notes are already open." : undefined} onClick={() => openNotePane(pane.id)}>Open note</button>}
+              <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-9 right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_48px)]")}>
+                {pane.kind === "canvas" && <button className={paneMenuButtonClass} disabled={paneLimitReached || !hasUnopenedNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => openNotePane(pane.id)}>Open note</button>}
                 {pane.kind === "note" && <>
-                  <button className={paneMenuButtonClass} disabled={paneLimitReached || canvasOpen} title={canvasOpen ? "Canvas is already open." : paneLimitReached ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
-                  <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "row")}>Split right</button>
-                  <button className={paneMenuButtonClass} disabled={!canAddPane(layout)} title={!canAddPane(layout) ? `Maximum ${MAX_WORKSPACE_PANES} panes per workspace.` : undefined} onClick={() => splitPane(pane.id, "column")}>Split down</button>
-                  <button className={paneMenuButtonClass} onClick={() => beginRenameNote(pane)}>Rename note</button>
+                  <button className={paneMenuButtonClass} disabled={paneLimitReached || canvasOpen} title={canvasOpen ? "Canvas is already open." : paneCapacityTitle} onClick={() => addCanvasPane(pane.id)}>Open Canvas</button>
+                  <button className={paneMenuButtonClass} disabled={!canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</button>
+                  <button className={paneMenuButtonClass} disabled={!canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</button>
                   <button className={paneMenuButtonClass} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</button>
                 </>}
                 <button className={paneMenuButtonClass} disabled={leafCount(layout) <= 1} onClick={() => closePane(pane.id)}>Close pane</button>
@@ -328,8 +331,8 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
 
   return (
     <div className="h-dvh min-w-0">
-      <main className="flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:min-h-dvh max-[560px]:[--workspace-header-height:44px]">
-        <header className="workspace-header flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:min-h-11 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:justify-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]">
+      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:min-h-dvh max-[560px]:[--workspace-header-height:44px]", focusMode && "is-focus-mode")}>
+        <header className={cn("workspace-header flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:min-h-11 max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:justify-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]", focusMode && "hidden")}>
           <div className="flex min-w-0 flex-1 items-center gap-[9px] max-[560px]:w-full max-[560px]:gap-[3px]">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
@@ -345,7 +348,7 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
                 <a className="flex min-h-[31px] w-max max-w-[calc(100vw_-_42px)] items-center justify-start gap-2 rounded-[5px] px-[9px] py-1.5 text-left text-[11px] text-ink hover:bg-tint hover:text-accent" href={exportWorkspace(project.id)} download><Download size={14} /> Export</a>
               </div>
             </details>
-            <button type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}>{focusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+            <button type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={17} /></button>
             <ThemeToggle />
           </div>
         </header>

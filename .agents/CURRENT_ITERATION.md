@@ -4,11 +4,11 @@
 
 **M15 — Trust, Portability & Deliberate Recall**
 
-State: **implementation in progress**.
+State: **implementation complete; integration is gated only by the final exact-head Verify run**.
 
 ## Product outcome
 
-Notespace becomes safe enough to trust with a durable personal knowledge library, easier to enter and navigate at scale, and capable of one evidence-based learning loop without expanding into generic productivity, collaboration, AI, or gamification.
+Notespace is safer to trust with a durable personal knowledge library, easier to enter and navigate at scale, and now supports one evidence-based recall loop without expanding into generic productivity, collaboration, AI, or gamification.
 
 ```text
 CAPTURE / AUTHOR
@@ -26,7 +26,7 @@ RECALL ─────── Try from memory → reveal source
 
 ## Sprint — Core Trust Before More Surface Area
 
-Execution order:
+Execution order completed:
 
 1. **Slice 1 — Workspace Trash & Restore**
 2. **Slice 2 — Lossless Full-Library Backup & Restore**
@@ -35,139 +35,137 @@ Execution order:
 5. **Slice 5 — Universal Quick Open**
 6. **Slice 6 — Deliberate Recall**
 
-One branch and one integration PR own the milestone. Each slice must remain vertically usable; no independent infrastructure, account platform, plugin framework, analytics expansion, or new top-level knowledge aggregate is authorized.
+One branch and PR #18 own the milestone. No independent infrastructure, account platform, plugin framework, analytics expansion, or new top-level knowledge aggregate was introduced.
 
 ## Slice 1 — Workspace Trash & Restore
 
 User outcome:
 
-- deleting a Workspace moves it out of the active library instead of destroying authored content immediately;
-- Trash lists deleted Workspaces with their original Category and deletion time;
-- Restore returns the same Workspace identity, Notes, Canvas, history, assets, and study association to the active library;
-- permanent deletion is explicit and destructive.
+- deleting a Workspace removes it from the active library without immediately destroying recoverable authored work;
+- Library tools lists Trash with the original Category and deletion time;
+- Restore returns the same Workspace identity, Notes, Canvas, checkpoint history, and image assets;
+- permanent deletion is a separate explicit destructive action;
+- historical study telemetry remains independent from authored Workspace deletion.
 
-Implementation boundary:
+Implementation:
 
-- add nullable `deleted_at` to the existing Workspace row;
-- all active list, category count, get/edit, and search paths exclude trashed Workspaces;
-- soft deletion must not remove history/assets;
-- permanent deletion reuses the existing transactional hard-delete behavior.
+- migration `0010_workspace_trash.sql` adds a compact durable Trash store rather than changing every active-library query with a `deleted_at` predicate;
+- Trash stores a complete versioned Workspace envelope containing authored snapshot, bounded checkpoint history, and durable assets;
+- capture of the envelope, Trash insertion, checkpoint removal, and active Workspace deletion occur inside one SQLite transaction so autosave cannot land between snapshot and deletion;
+- active list/category/search behavior therefore continues to operate only on the existing active Workspace table;
+- Category deletion refuses while recoverable Trash still references it;
+- permanent deletion drops the Trash envelope while study history keeps its title snapshot.
 
-Acceptance:
-
-- deleted Workspace disappears from Home/category/search but appears in Trash;
-- restoring it makes the same Workspace readable again with history/assets intact;
-- permanent deletion removes authored Workspace/history/assets while historical study telemetry retains its title snapshot;
-- Category deletion still refuses when active or trashed Workspaces depend on it.
+Acceptance evidence is owned by focused persistence tests plus the final repository verification gate.
 
 ## Slice 2 — Lossless Full-Library Backup & Restore
 
 User outcome:
 
-- one action exports a versioned Notespace backup containing all durable user-owned data;
-- a fresh compatible Notespace installation can restore that backup and recover the same library state.
+- one action exports a versioned Notespace backup containing all canonical durable library data;
+- a compatible fresh installation can restore it and recover the same library state.
 
 Backup contract:
 
 - Categories;
-- active and trashed Workspaces with complete authored snapshots;
-- Workspace history/checkpoint payloads;
+- active Workspaces with complete authored snapshots;
+- trashed Workspaces;
+- Workspace checkpoint history/payloads;
 - durable image assets;
 - study-session ledger;
-- derived FTS/search rows are excluded and rebuilt lazily.
+- derived FTS/search rows are excluded and rebuilt from authored state.
 
-Acceptance:
+Implementation:
 
-- backup is versioned and rejected when format/version is unsupported;
-- restore is transactional: malformed/incomplete backup cannot leave a partially replaced library;
-- restored IDs and timestamps remain stable;
-- search projection is regenerated from restored authored state rather than treated as source data.
+- export is captured through one SQLite read transaction for a consistent point-in-time backup;
+- restore validates format/version and core category/workspace references before mutation;
+- restore replaces canonical library state transactionally, so malformed or failed restore cannot leave a partially replaced library;
+- IDs, authored timestamps, history timestamps, and asset identity are retained.
 
 ## Slice 3 — Optional Single-User Remote Protection
 
 User outcome:
 
-- a self-hosted instance intentionally exposed beyond a trusted private network can require one shared owner password without introducing accounts, teams, RBAC, invitations, sessions, or SaaS identity infrastructure.
+- an intentionally remote self-hosted instance can require one owner password without introducing accounts, registration, sessions, teams, RBAC, OAuth, SSO, or SaaS identity infrastructure.
 
-Implementation boundary:
+Implementation:
 
-- optional `NOTESPACE_PASSWORD` deployment setting;
-- when configured, all application/API access except health probing requires HTTP Basic authentication;
+- optional `NOTESPACE_PASSWORD` setting;
 - fixed owner username `notespace`;
-- password comparison uses constant-time comparison;
-- when unset, the existing private/local deployment behavior remains unchanged.
-
-Acceptance:
-
-- configured instance returns `401` + authentication challenge without valid credentials;
-- valid owner credentials reach existing routes unchanged;
-- `/api/health` remains available for container/platform health checks;
-- deployment documentation states that TLS must terminate at the reverse proxy/platform before Basic auth is suitable for remote use.
+- when configured, application/API requests require HTTP Basic authentication except `/api/health`;
+- credentials are compared with constant-time comparison;
+- when unset, existing private-network behavior remains unchanged;
+- README and `.env.example` explicitly require TLS termination at the reverse proxy/platform for remote Basic-auth use.
 
 ## Slice 4 — Bulk Markdown / Obsidian-Vault Migration
 
 User outcome:
 
-- user can select a Markdown folder/vault and migrate many documents in one operation instead of importing files individually;
-- imported Markdown becomes native Notespace Workspaces/Notes in a chosen Category;
-- relative image files referenced by Markdown are copied into server-owned Workspace assets when present.
+- user selects a Markdown folder/vault and migrates many documents in one operation;
+- each Markdown document becomes a native Workspace/Note in a chosen Category;
+- selected relative image files referenced by Markdown or Obsidian image embeds are copied into server-owned Workspace assets.
 
-Implementation boundary:
+Implementation:
 
 - browser directory/multi-file ingestion only; no vendor-specific importer framework;
-- one Markdown file maps to one Workspace containing one native Note;
-- basename becomes Workspace/Note title unless Markdown provides a better heading-derived title;
-- existing Markdown adapter remains the canonical conversion path, extended only for standalone image references.
-
-Acceptance:
-
-- multiple `.md`/`.markdown` files import in one user action;
-- non-Markdown files are ignored except image files referenced by selected Markdown;
-- duplicate input paths do not create duplicate assets within one imported Workspace;
-- partial file failure is surfaced with an explicit imported/failed count rather than silently discarded.
+- one `.md`/`.markdown` file maps to one Workspace containing one native Note;
+- first H1-H3 is preferred as title, otherwise filename is used;
+- existing Markdown parser remains authoritative;
+- standalone `![alt](relative/path)` and Obsidian `![[image.ext]]` / `![[image.ext|alt]]` can resolve to selected local image assets;
+- ordinary wiki-links remain text; no backlink/relationship system was introduced;
+- partial failures are surfaced as imported/failed counts.
 
 ## Slice 5 — Universal Quick Open
 
 User outcome:
 
-- `Ctrl/Cmd + K` works from Home, Category, or full-screen Workspace;
-- user can immediately open recent Workspaces or search Category / Workspace / Note / Block and land on exact context.
+- `Ctrl/Cmd + K` works from Home, Category, and full-screen Workspace;
+- empty query exposes bounded recent Workspaces;
+- typed query searches Category / Workspace / Note / Block and preserves exact Note/block deep links.
 
-Implementation boundary:
+Implementation:
 
-- root-level command surface;
-- reuse current recent-workspace APIs and FTS search endpoint;
-- no generic command framework, plugin action registry, or second search backend.
-
-Acceptance:
-
-- empty query shows bounded recent destinations;
-- typed query uses existing global search and preserves note/block deep links;
-- selecting a result closes the surface and navigates directly;
-- Home's inline search remains available but no longer owns the global shortcut.
+- root-level Quick Open surface;
+- reuses existing recent-workspace API and SQLite FTS search endpoint;
+- no second search backend, generic command framework, or plugin registry;
+- Home's inline search remains a visible library surface while the keyboard shortcut is owned globally.
 
 ## Slice 6 — Deliberate Recall
 
 User outcome:
 
-- from a Workspace Note, user can hide the source, write what they remember, then reveal the source for self-comparison.
+- from a Workspace, user can select an existing Note, hide the source, write what they remember, then reveal the source for self-comparison.
 
-Implementation boundary:
+Implementation:
 
-- Recall is an ephemeral study interaction over the currently selected Note;
-- no generated questions, score, grade, spaced-repetition scheduler, review database, XP, badges, or streak changes;
-- authored Note remains unchanged.
+- Recall is an ephemeral interaction entered from Quick Open for the current Workspace;
+- response state exists only in the dialog and is discarded on close;
+- source is rendered from the existing Note snapshot only after Reveal;
+- authored Note, timer/streak data, and persistence are unchanged;
+- no generated questions, score, grade, spaced-repetition scheduler, review database, XP, badges, or leaderboard.
 
-Acceptance:
+## Verification status
 
-- Recall starts with source content hidden;
-- user can type unrestricted recall text without mutating the Note;
-- Reveal displays recall text beside/before the source text for comparison;
-- closing Recall discards the temporary response.
+Risk boundaries changed: web UI, persistence/destructive behavior, deployment security, import/export, and global navigation.
 
-## Final verification gate
+Qualification run #149 already proved:
 
-Because this milestone changes persistence, destructive behavior, deployment security, import/export, and global navigation, the final exact PR head must pass all deterministic repository gates, including Go race tests, web type/lint/unit/build checks, production composition, and restart-persistence verification selected by CI.
+- repository knowledge contract — pass;
+- production Compose config/build/start — pass;
+- migration `0010_workspace_trash.sql` applied in production composition — pass;
+- production application health — pass;
+- restart-persistence smoke — pass;
+- one frontend TypeScript ref-mutability defect was detected and corrected before final integration.
+
+The final exact PR head must still pass the complete deterministic gate sequence:
+
+- web TypeScript;
+- lint;
+- unit tests;
+- production web build;
+- Go formatting/vet/race tests/build;
+- Compose production build/health;
+- restart persistence.
 
 No manual browser/black-box gate is introduced.
 
@@ -185,4 +183,4 @@ No manual browser/black-box gate is introduced.
 
 ## Sprint exit criterion
 
-All six user-visible capabilities are integrated coherently on one final PR head, deterministic gates are green, documentation/product contract matches shipped behavior, and the PR is merged into `master`.
+PR #18 is merged into `master` only when the final exact-head deterministic Verify run is green. After merge, stop and reassess product friction before promoting another milestone.

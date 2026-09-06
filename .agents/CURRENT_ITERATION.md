@@ -2,185 +2,85 @@
 
 ## Active milestone
 
-**M15 — Trust, Portability & Deliberate Recall**
+**M16 — Workspace Interaction Reliability**
 
-State: **implementation complete; integration is gated only by the final exact-head Verify run**.
+State: **implementation complete; merge is gated by exact-head deterministic Verify**.
 
 ## Product outcome
 
-Notespace is safer to trust with a durable personal knowledge library, easier to enter and navigate at scale, and now supports one evidence-based recall loop without expanding into generic productivity, collaboration, AI, or gamification.
+Workspace interaction remains predictable across Note/Canvas panes, focus mode, and sidebar collapse/expand without adding new product surface area.
 
 ```text
-CAPTURE / AUTHOR
-      ↓
-SAFE DELETE ── Restore / Permanent delete
-      ↓
-OWN DATA ───── Full backup / restore / Markdown migration
-      ↓
-OPEN SAFELY ── Optional single-user protection
-      ↓
-FIND FAST ──── Universal Quick Open
-      ↓
-RECALL ─────── Try from memory → reveal source
+OPEN WORKSPACE / LIBRARY
+        ↓
+ONE INTERACTION POLICY
+        ↓
+CONSISTENT ACTION AVAILABILITY
+        ↓
+STABLE FOCUS / SPLIT / REOPEN
+        ↓
+NO DOM-LIFECYCLE HACKS
 ```
 
-## Sprint — Core Trust Before More Surface Area
+This milestone fixes a demonstrated reliability bottleneck. It does not expand persistence, collaboration, search, study, or library product scope.
 
-Execution order completed:
+## Sprint
 
-1. **Slice 1 — Workspace Trash & Restore**
-2. **Slice 2 — Lossless Full-Library Backup & Restore**
-3. **Slice 3 — Optional Single-User Remote Protection**
-4. **Slice 4 — Bulk Markdown / Obsidian-Vault Migration**
-5. **Slice 5 — Universal Quick Open**
-6. **Slice 6 — Deliberate Recall**
+One sprint, three slices:
 
-One branch and PR #18 own the milestone. No independent infrastructure, account platform, plugin framework, analytics expansion, or new top-level knowledge aggregate was introduced.
+### Slice 1 — Pane interaction ownership
 
-## Slice 1 — Workspace Trash & Restore
+User-visible outcome:
 
-User outcome:
+- Open Note, Open Canvas, Split right/down, Close pane, and Maximize/Focus derive from one pane interaction policy;
+- a single-note workspace cannot expose a usable note split action;
+- Canvas cannot be opened twice;
+- pane-capacity and unopened-note constraints cannot drift between menu rendering and action execution;
+- focus target follows the active pane's containing split, otherwise the active pane itself.
 
-- deleting a Workspace removes it from the active library without immediately destroying recoverable authored work;
-- Library tools lists Trash with the original Category and deletion time;
-- Restore returns the same Workspace identity, Notes, Canvas, checkpoint history, and image assets;
-- permanent deletion is a separate explicit destructive action;
-- historical study telemetry remains independent from authored Workspace deletion.
+Implementation boundary:
 
-Implementation:
+- `features/workspace/pane-layout.ts` owns pure pane interaction state and focus-target derivation;
+- `Workspace.tsx` consumes those rules rather than recomputing availability independently.
 
-- migration `0010_workspace_trash.sql` adds a compact durable Trash store rather than changing every active-library query with a `deleted_at` predicate;
-- Trash stores a complete versioned Workspace envelope containing authored snapshot, bounded checkpoint history, and durable assets;
-- capture of the envelope, Trash insertion, checkpoint removal, and active Workspace deletion occur inside one SQLite transaction so autosave cannot land between snapshot and deletion;
-- active list/category/search behavior therefore continues to operate only on the existing active Workspace table;
-- Category deletion refuses while recoverable Trash still references it;
-- permanent deletion drops the Trash envelope while study history keeps its title snapshot.
+### Slice 2 — Sidebar action ownership
 
-Acceptance evidence is owned by focused persistence tests plus the final repository verification gate.
+User-visible outcome:
 
-## Slice 2 — Lossless Full-Library Backup & Restore
+- New Category, New Workspace, Quick Capture, and Library Tools consistently return after sidebar collapse/expand;
+- Library Tools remains in the sidebar action row and keeps the existing backup/restore/import/trash behavior.
 
-User outcome:
+Implementation boundary:
 
-- one action exports a versioned Notespace backup containing all canonical durable library data;
-- a compatible fresh installation can restore it and recover the same library state.
+- Sidebar directly renders the Library Tools trigger;
+- root-level `createPortal`, DOM query, `MutationObserver`, and route-dependent attachment logic are removed;
+- no global state library or new shell abstraction is introduced.
 
-Backup contract:
+### Slice 3 — Focused regression coverage
 
-- Categories;
-- active Workspaces with complete authored snapshots;
-- trashed Workspaces;
-- Workspace checkpoint history/payloads;
-- durable image assets;
-- study-session ledger;
-- derived FTS/search rows are excluded and rebuilt from authored state.
+Verification protects only the interaction invariants that already caused regressions:
 
-Implementation:
+- single-note pane availability;
+- unopened-note and pane-capacity rules;
+- Canvas uniqueness;
+- close-pane availability;
+- active focus target;
+- direct Sidebar ownership of Quick Capture and Library Tools;
+- absence of DOM attachment hacks.
 
-- export is captured through one SQLite read transaction for a consistent point-in-time backup;
-- restore validates format/version and core category/workspace references before mutation;
-- restore replaces canonical library state transactionally, so malformed or failed restore cannot leave a partially replaced library;
-- IDs, authored timestamps, history timestamps, and asset identity are retained.
-
-## Slice 3 — Optional Single-User Remote Protection
-
-User outcome:
-
-- an intentionally remote self-hosted instance can require one owner password without introducing accounts, registration, sessions, teams, RBAC, OAuth, SSO, or SaaS identity infrastructure.
-
-Implementation:
-
-- optional `NOTESPACE_PASSWORD` setting;
-- fixed owner username `notespace`;
-- when configured, application/API requests require HTTP Basic authentication except `/api/health`;
-- credentials are compared with constant-time comparison;
-- when unset, existing private-network behavior remains unchanged;
-- README and `.env.example` explicitly require TLS termination at the reverse proxy/platform for remote Basic-auth use.
-
-## Slice 4 — Bulk Markdown / Obsidian-Vault Migration
-
-User outcome:
-
-- user selects a Markdown folder/vault and migrates many documents in one operation;
-- each Markdown document becomes a native Workspace/Note in a chosen Category;
-- selected relative image files referenced by Markdown or Obsidian image embeds are copied into server-owned Workspace assets.
-
-Implementation:
-
-- browser directory/multi-file ingestion only; no vendor-specific importer framework;
-- one `.md`/`.markdown` file maps to one Workspace containing one native Note;
-- first H1-H3 is preferred as title, otherwise filename is used;
-- existing Markdown parser remains authoritative;
-- standalone `![alt](relative/path)` and Obsidian `![[image.ext]]` / `![[image.ext|alt]]` can resolve to selected local image assets;
-- ordinary wiki-links remain text; no backlink/relationship system was introduced;
-- partial failures are surfaced as imported/failed counts.
-
-## Slice 5 — Universal Quick Open
-
-User outcome:
-
-- `Ctrl/Cmd + K` works from Home, Category, and full-screen Workspace;
-- empty query exposes bounded recent Workspaces;
-- typed query searches Category / Workspace / Note / Block and preserves exact Note/block deep links.
-
-Implementation:
-
-- root-level Quick Open surface;
-- reuses existing recent-workspace API and SQLite FTS search endpoint;
-- no second search backend, generic command framework, or plugin registry;
-- Home's inline search remains a visible library surface while the keyboard shortcut is owned globally.
-
-## Slice 6 — Deliberate Recall
-
-User outcome:
-
-- from a Workspace, user can select an existing Note, hide the source, write what they remember, then reveal the source for self-comparison.
-
-Implementation:
-
-- Recall is an ephemeral interaction entered from Quick Open for the current Workspace;
-- response state exists only in the dialog and is discarded on close;
-- source is rendered from the existing Note snapshot only after Reveal;
-- authored Note, timer/streak data, and persistence are unchanged;
-- no generated questions, score, grade, spaced-repetition scheduler, review database, XP, badges, or leaderboard.
-
-## Verification status
-
-Risk boundaries changed: web UI, persistence/destructive behavior, deployment security, import/export, and global navigation.
-
-Qualification run #149 already proved:
-
-- repository knowledge contract — pass;
-- production Compose config/build/start — pass;
-- migration `0010_workspace_trash.sql` applied in production composition — pass;
-- production application health — pass;
-- restart-persistence smoke — pass;
-- one frontend TypeScript ref-mutability defect was detected and corrected before final integration.
-
-The final exact PR head must still pass the complete deterministic gate sequence:
-
-- web TypeScript;
-- lint;
-- unit tests;
-- production web build;
-- Go formatting/vet/race tests/build;
-- Compose production build/health;
-- restart persistence.
-
-No manual browser/black-box gate is introduced.
+No broad browser/black-box suite is promoted to a merge gate.
 
 ## Explicit non-goals
 
-- Archive or multi-stage document lifecycle;
-- automatic Trash retention/cleanup scheduler;
-- cloud backup or third-party storage integration;
-- accounts, registration, sessions, teams, RBAC, OAuth, SSO;
-- Notion/Evernote/vendor-specific importer zoo;
-- generic command palette framework;
-- AI question generation or AI writing;
-- flashcard database, spaced repetition, grading, learning score, XP, badges, leaderboard;
-- collaboration or synchronization architecture.
+- Workspace persistence redesign;
+- per-Note versioning;
+- SQLite concurrency changes;
+- global client state management;
+- new pane types;
+- more than four panes;
+- collaboration/CRDT;
+- feature additions unrelated to interaction reliability.
 
-## Sprint exit criterion
+## Exit criterion
 
-PR #18 is merged into `master` only when the final exact-head deterministic Verify run is green. After merge, stop and reassess product friction before promoting another milestone.
+Merge this milestone only when the exact PR head passes the repository Verify workflow. After merge, stop and reassess actual product friction rather than automatically creating another milestone.

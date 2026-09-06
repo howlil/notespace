@@ -14,12 +14,12 @@ import (
 const maxBackupBytes = 256 << 20
 
 type libraryStore interface {
-	TrashWorkspace(context.Context, string) error
+	TrashWorkspaceAtomic(context.Context, string) error
 	ListTrashJSON(context.Context) ([]byte, error)
 	RestoreTrashedWorkspace(context.Context, string) (project.Project, error)
 	DeleteTrashedWorkspace(context.Context, string) error
 	CategoryHasTrash(context.Context, string) (bool, error)
-	ExportBackupJSON(context.Context) ([]byte, error)
+	ExportBackupJSONAtomic(context.Context) ([]byte, error)
 	RestoreBackupJSON(context.Context, []byte) error
 }
 
@@ -61,7 +61,7 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 			if !sameOriginMutation(w, r) {
 				return
 			}
-			if err := library.TrashWorkspace(r.Context(), id); err != nil {
+			if err := library.TrashWorkspaceAtomic(r.Context(), id); err != nil {
 				fail(w, err)
 				return
 			}
@@ -70,6 +70,9 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 		}
 
 		if id, match := singlePathID(r.URL.Path, "/api/categories/"); match && r.Method == http.MethodDelete {
+			if !sameOriginMutation(w, r) {
+				return
+			}
 			hasTrash, err := library.CategoryHasTrash(r.Context(), id)
 			if err != nil {
 				fail(w, err)
@@ -94,7 +97,7 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 			return
 
 		case r.URL.Path == "/api/backup" && r.Method == http.MethodGet:
-			data, err := library.ExportBackupJSON(r.Context())
+			data, err := library.ExportBackupJSONAtomic(r.Context())
 			if err != nil {
 				fail(w, err)
 				return

@@ -55,19 +55,13 @@ export function LibraryTools() {
       return;
     }
 
-    const findSidebarActions = () => document.querySelector('[aria-label="Library actions"]');
-    const current = findSidebarActions();
-    if (current) {
-      setSidebarActions(current);
-      return;
-    }
+    const syncSidebarActions = () => {
+      const next = document.querySelector('[aria-label="Library actions"]');
+      setSidebarActions((current) => current === next ? current : next);
+    };
 
-    const observer = new MutationObserver(() => {
-      const next = findSidebarActions();
-      if (!next) return;
-      setSidebarActions(next);
-      observer.disconnect();
-    });
+    syncSidebarActions();
+    const observer = new MutationObserver(syncSidebarActions);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [pathname]);

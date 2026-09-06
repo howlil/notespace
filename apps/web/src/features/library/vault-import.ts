@@ -1,5 +1,5 @@
 import type { Snapshot } from "../../domain/project/project";
-import { markdownToSnapshot } from "../../domain/document/markdown";
+import { markdownToSnapshot } from "../../domain/document/markdown.ts";
 
 export type ResolvedVaultImage = { assetId: string; src: string };
 export type VaultImageResolver = (source: string) => ResolvedVaultImage | null;

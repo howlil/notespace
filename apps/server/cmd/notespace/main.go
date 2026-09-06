@@ -33,9 +33,10 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := httpapi.WithLibraryRoutes(httpapi.New(store, store.Healthy), store)
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
-	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: routes(api, webDir), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
+	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	failures := make(chan error, 1)
 	go func() { failures <- server.ListenAndServe() }()
 	slog.Info("notespace listening", "address", server.Addr)

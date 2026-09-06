@@ -7,6 +7,7 @@ import Highlight from "@tiptap/extension-highlight";
 import UniqueID from "@tiptap/extension-unique-id";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { Code2, Download, Heading2, List, ListOrdered, ListTree, Minus, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
@@ -127,7 +128,7 @@ function createLocalImageExtension(workspaceId: string) {
   });
 }
 
-export default function DocumentEditor({ initial, onChange, onBlockSelect, focusRequest, highlightRequest = null, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onBlockSelect?: (blockId: string | null, hasTextSelection: boolean) => void; focusRequest?: FocusRequest; highlightRequest?: HighlightRequest; workspaceId: string }) {
+export default function DocumentEditor({ initial, onChange, onBlockSelect, focusRequest, highlightRequest = null, workspaceId, toolbarTargetId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onBlockSelect?: (blockId: string | null, hasTextSelection: boolean) => void; focusRequest?: FocusRequest; highlightRequest?: HighlightRequest; workspaceId: string; toolbarTargetId?: string }) {
   const { showToast } = useToast();
   const slashMenuRef = useRef<SlashMenu>(null);
   const documentRef = useRef<HTMLDivElement>(null);
@@ -136,10 +137,27 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
   const [slashMenu, setSlashMenu] = useState<SlashMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setOutlineRevision] = useState(0);
   const dismissSlashMenu = useCallback(() => { slashMenuRef.current = null; setSlashMenu(null); }, []);
-  const dismissEditorPopup = useCallback(() => { dismissSlashMenu(); setOutlineOpen(false); }, [dismissSlashMenu]);
-  useDismissablePopup(documentRef, !!slashMenu || outlineOpen, dismissEditorPopup);
+  useDismissablePopup(documentRef, !!slashMenu, dismissSlashMenu);
+
+  useEffect(() => {
+    if (!toolbarTargetId) { setToolbarTarget(null); return; }
+    setToolbarTarget(document.getElementById(toolbarTargetId));
+  }, [toolbarTargetId]);
+
+  useEffect(() => {
+    if (!outlineOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (documentRef.current?.contains(target) || toolbarTarget?.contains(target)) return;
+      setOutlineOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [outlineOpen, toolbarTarget]);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -266,18 +284,22 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
 
   const filteredCommands = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes((slashMenu?.query ?? "").toLowerCase()));
   const outline = outlineOpen ? outlineItems(editor) : [];
+  const toolbarButtons = <>
+    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={() => void exportMarkdown()}>
+      <Download size={14} aria-hidden="true" />
+    </button>
+    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
+      <ListTree size={14} aria-hidden="true" />
+    </button>
+  </>;
+
   return (
     <div ref={documentRef} className="relative h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
-      <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-md border border-line bg-surface/90 p-0.5 opacity-70 shadow-sm backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
-        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={() => void exportMarkdown()}>
-          <Download size={14} aria-hidden="true" />
-        </button>
-        <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
-          <ListTree size={14} aria-hidden="true" />
-        </button>
-      </div>
+      {toolbarTarget ? createPortal(<div className="flex items-center gap-0.5">{toolbarButtons}</div>, toolbarTarget) : !toolbarTargetId ? (
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-md border border-line bg-surface/90 p-0.5 opacity-70 shadow-sm backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">{toolbarButtons}</div>
+      ) : null}
       {outlineOpen && (
-        <nav className="absolute right-3 top-12 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]" aria-label="Note outline">
+        <nav className={cn("absolute right-3 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]", toolbarTarget ? "top-2" : "top-12")} aria-label="Note outline">
           <div className="px-2 py-1.5 text-[10px] font-medium text-muted">Outline</div>
           {outline.length ? outline.map((item) => (
             <button

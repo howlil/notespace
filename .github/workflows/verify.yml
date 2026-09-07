@@ -85,6 +85,24 @@ jobs:
             test -f ".agents/$file"
           done
 
+      - name: Enforce append-only SQL migrations
+        if: ${{ steps.changes.outputs.server == 'true' }}
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$BASE_SHA"
+          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          fi
+          violations="$(git diff --name-status "$base" "$GITHUB_SHA" -- 'apps/server/migrations/*.sql' | awk '$1 !~ /^A/ {print}')"
+          if [[ -n "$violations" ]]; then
+            echo "Released SQL migrations are append-only. Add a new migration instead of changing an existing one:"
+            echo "$violations"
+            exit 1
+          fi
+
       - uses: pnpm/action-setup@v4
         if: ${{ steps.changes.outputs.web == 'true' }}
         with:
@@ -123,6 +141,23 @@ jobs:
         if: ${{ steps.changes.outputs.server == 'true' }}
         working-directory: apps/server
         run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
+
+      - name: Persistence scale evidence
+        if: ${{ steps.changes.outputs.server == 'true' }}
+        working-directory: apps/server
+        env:
+          NOTESPACE_SCALE_EVIDENCE: "1"
+          NOTESPACE_SCALE_EVIDENCE_FILE: ${{ runner.temp }}/notespace-scale-evidence.json
+        run: go test ./internal/persistence -run '^TestPersistenceScaleEvidence$' -count=1 -v
+
+      - name: Upload persistence scale evidence
+        if: ${{ always() && steps.changes.outputs.server == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistence-scale-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/notespace-scale-evidence.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Validate production composition
         id: compose-config

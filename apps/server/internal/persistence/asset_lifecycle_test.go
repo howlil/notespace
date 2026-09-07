@@ -27,7 +27,6 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image-1", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("image-bytes")}); err != nil {
 		t.Fatal(err)
 	}
-	// Upload-before-save is staged and must survive an unrelated save.
 	workspace, err = service.Update(ctx, workspace.ID, project.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspace.Notes, Canvas: workspace.Canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +54,12 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	}
 	if _, err := store.GetAsset(ctx, workspace.ID, "image-1"); !errors.Is(err, asset.ErrNotFound) {
 		t.Fatalf("removed image blob still exists: %v", err)
+	}
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image-1", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("late-upload")}); !errors.Is(err, asset.ErrNotFound) {
+		t.Fatalf("late upload resurrected deleted image: %v", err)
+	}
+	if _, err := store.GetAsset(ctx, workspace.ID, "image-1"); !errors.Is(err, asset.ErrNotFound) {
+		t.Fatalf("late upload left deleted image data behind: %v", err)
 	}
 }
 

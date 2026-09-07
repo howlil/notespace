@@ -33,8 +33,15 @@ SELECT p.id, substr(CAST(j.value AS TEXT), length('notespace-asset://') + 1)
 FROM projects p, json_tree(p.references_state) j
 WHERE j.type='text' AND j.key='src' AND CAST(j.value AS TEXT) LIKE 'notespace-asset://%';
 
--- Existing assets were created before staged/live ownership existed. Startup is
--- a quiescent boundary, so reconcile them immediately and remove legacy orphans.
+CREATE TABLE workspace_asset_tombstones (
+  workspace_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id,id)
+);
+
+-- Existing assets predate staged/live ownership. Startup is a quiescent
+-- boundary: keep referenced blobs and discard legacy orphans.
 UPDATE workspace_assets
 SET staged=0
 WHERE EXISTS (
@@ -57,6 +64,19 @@ BEGIN
       SELECT 1 FROM workspace_asset_references r
       WHERE r.workspace_id=NEW.id AND r.asset_id=workspace_assets.id
     );
+
+  -- Tombstone a live asset before deleting it. A delayed Canvas upload with the
+  -- same fileId cannot resurrect data after the authored delete has committed.
+  INSERT INTO workspace_asset_tombstones(workspace_id,id,deleted_at)
+  SELECT workspace_id,id,strftime('%Y-%m-%dT%H:%M:%fZ','now')
+  FROM workspace_assets
+  WHERE workspace_id=NEW.id
+    AND staged=0
+    AND NOT EXISTS (
+      SELECT 1 FROM workspace_asset_references r
+      WHERE r.workspace_id=NEW.id AND r.asset_id=workspace_assets.id
+    )
+  ON CONFLICT(workspace_id,id) DO UPDATE SET deleted_at=excluded.deleted_at;
 
   DELETE FROM workspace_assets
   WHERE workspace_id=NEW.id

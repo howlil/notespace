@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { mergeAttributes, Node as TiptapNode } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { Code2, Download, Heading2, List, ListOrdered, ListTree, Minus, Quote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { snapshotAssetIds, snapshotToMarkdown } from "../../domain/document/markdown";
+import { looksLikeMarkdown, markdownToSnapshot, snapshotAssetIds, snapshotToMarkdown } from "../../domain/document/markdown";
 import { cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import { blobToDataUrl, createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
@@ -20,6 +20,7 @@ import { useToast } from "../../providers/toast-provider";
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
 type OutlineItem = { id: string; level: number; text: string };
+type EditorJson = { type?: string; content?: JSONContent[] };
 
 const editorClassName = cn(
   "h-full min-h-[350px] flex-1 overflow-x-hidden overflow-y-auto px-[30px] pt-[27px] pb-20 text-sm leading-[1.9] outline-none [overflow-wrap:anywhere] [scrollbar-width:none] [-ms-overflow-style:none]",
@@ -198,13 +199,19 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.items ?? []).filter((item) => item.kind === "file" && item.type.startsWith("image/")).map((item) => item.getAsFile()).filter((file): file is File => file !== null);
-        if (!files.length) return false;
-        event.preventDefault(); void insertPastedImages(files); return true;
+        if (files.length) { event.preventDefault(); void insertPastedImages(files); return true; }
+
+        const text = event.clipboardData?.getData("text/plain") ?? "";
+        if (!looksLikeMarkdown(text)) return false;
+        const root = markdownToSnapshot(text).data as EditorJson;
+        if (!root.content?.length) return false;
+        event.preventDefault();
+        editorRef.current?.chain().focus().insertContent(root.content).run();
+        return true;
       },
       handleKeyDown: (_view, event) => {
         const currentEditor = editorRef.current;
         if (!currentEditor) return false;
-        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") { event.preventDefault(); currentEditor.commands.selectAll(); return true; }
         if ((event.key === "Backspace" || event.key === "Delete") && !currentEditor.state.selection.empty) { event.preventDefault(); currentEditor.commands.deleteSelection(); return true; }
         const menu = slashMenuRef.current;
         if (!menu) return false;

@@ -2,64 +2,45 @@
 
 ## Status
 
-**No active milestone.**
+**Milestone: Editor Completeness — integration gate.**
 
-Latest completed user-facing change: **Markdown rich paste + editor select-all reliability**.
+PR #25 implements the current user-facing editor milestone and is awaiting exact-head verification before merge.
 
-- PR #20 — core Markdown rich paste + native Mod-A select-all
-  - exact-head Verify #164 — success
-  - merged commit: `349eeebbed20aab444b0f9387fc367e7b1a78056`
-- PR #21 — GFM tables, nested lists, and task state
-  - exact-head Verify #167 — success
-  - merged commit: `795693e9887eb6a40d0bea1d37a2795858e4e442`
+## Product outcome
 
-## Product outcome shipped
+Notespace Note authoring now covers the highest-frequency document operations without requiring Markdown knowledge or paste-only workarounds:
 
-A copied Markdown response can now be pasted directly into a Note and becomes editable native Tiptap content at the current selection instead of remaining Markdown source text.
+- viewport-aware slash-command and selection-popup placement with flip + clamp behavior;
+- selection formatting for bold, italic, strike, inline code, highlight, and links;
+- proper link create/edit/remove/open/copy interactions;
+- local Find & Replace;
+- interactive checklist creation and toggling;
+- table insertion plus row/column/table editing controls;
+- syntax-highlighted code blocks with language, copy, and wrapping controls;
+- inline and block mathematics via Tiptap Mathematics + KaTeX;
+- image insertion plus alt-text and removal controls;
+- Motion React on meaningful contextual surfaces with user reduced-motion respected.
 
-```text
-COPY MARKDOWN RESPONSE
-        ↓
-PASTE INTO NOTE
-        ↓
-DETECT AUTHORED MARKDOWN
-        ↓
-PARSE TO TIPTAP NODES
-        ↓
-EDIT AS RICH CONTENT
-```
+## Regression fixed
 
-Supported common AI-response Markdown includes:
+Slash-command popup positioning is no longer hard-coded below the caret. When the caret is near the bottom of the viewport, the popup flips above; horizontal and vertical placement is clamped to remain visible.
 
-- headings H1-H6;
-- bold, italic, combined emphasis, strike, inline code, and links;
-- fenced code blocks;
-- blockquotes and dividers;
-- bullet and ordered lists, including nested list structure and non-1 ordered starts;
-- task lists with checked/unchecked state preserved;
-- GFM pipe tables, with or without outer pipes.
+## Architecture / scope
 
-Plain prose continues through native plain-text paste; existing rich-HTML paste remains native; pasted image files keep the durable workspace-asset path. The editor now has local Tiptap schema/rendering support for pasted tables and task checked state without introducing a second persistence format.
+- Tiptap snapshot persistence remains canonical authored state.
+- Markdown remains an interoperability adapter, now preserving the newly authored editor structures where applicable.
+- No backend API, SQLite schema, workspace ownership, autosave, or deployment contract changes.
+- Motion is limited to contextual UI/state transitions; typing, caret movement, pane resizing, canvas interaction, and scrolling remain unanimated.
 
-`Ctrl/Cmd + A` is no longer shadowed by a local editor handler. StarterKit/ProseMirror owns the standard Mod-A whole-document selection behavior.
+## Verification required
 
-## Evidence
+Before merge:
 
-- focused Markdown adapter tests: 8/8 passed locally, including nested lists, task state, table detection, and table round-trip;
-- PR #20 exact-head `Verify` #164: success;
-- PR #21 exact-head `Verify` #167: success;
-- frontend static/type, lint, unit, and production build gates passed on both exact heads;
-- backend and production-composition gates were correctly skipped because no server, persistence, migration, or runtime boundary changed.
-
-## Explicitly unchanged
-
-- Tiptap snapshot persistence remains canonical authored state;
-- Markdown remains an interoperability adapter rather than a second persistence format;
-- image durability and workspace asset ownership are unchanged;
-- optimistic versioning/autosave behavior is unchanged;
-- backend API, SQLite schema, deployment composition, and study behavior are unchanged;
-- task-list authoring/toggling remains outside this change; pasted checked state is preserved and rendered.
+1. exact-head PR `Verify` must complete successfully;
+2. frontend typecheck, lint, unit tests, and production build must pass;
+3. PR must remain mergeable at the verified head;
+4. merge must use that exact head SHA.
 
 ## Next meaningful action
 
-STOP. Use the product and identify the next demonstrated user-facing bottleneck; do not promote follow-up work from feature inventory alone.
+Merge PR #25 after the exact-head verification gate is green, then update this file on `master` only if material shipped-state evidence differs from the PR result.

@@ -87,3 +87,23 @@ test("quick capture derives a compact title from markdown", () => {
   assert.equal(captureTitle("## MVCC in PostgreSQL\nnotes"), "MVCC in PostgreSQL");
   assert.equal(captureTitle("- review WAL internals"), "review WAL internals");
 });
+
+test("markdown export preserves authored code language and mathematics", () => {
+  const snapshot = {
+    format: "tiptap" as const,
+    version: 1,
+    data: {
+      type: "doc",
+      content: [
+        { type: "codeBlock", attrs: { language: "typescript" }, content: [{ type: "text", text: "const x = 1;" }] },
+        { type: "paragraph", content: [{ type: "text", text: "Area: " }, { type: "inlineMath", attrs: { latex: "A=\\pi r^2" } }] },
+        { type: "blockMath", attrs: { latex: "E=mc^2" } },
+      ],
+    },
+  };
+
+  const markdown = snapshotToMarkdown(snapshot);
+  assert.ok(markdown.includes("```typescript\nconst x = 1;\n```"));
+  assert.ok(markdown.includes("Area: $A=\\pi r^2$"));
+  assert.ok(markdown.includes("$$\nE=mc^2\n$$"));
+});

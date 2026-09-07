@@ -11,6 +11,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/migrations"
 )
 
 const libraryBackupFormat = "notespace-backup"
@@ -76,7 +77,7 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(envelope)
+	payload, err := encodeTrashEnvelope(envelope)
 	if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {
 	if err != nil {
 		return record, err
 	}
-	if err := json.Unmarshal(payload, &record.Payload); err != nil {
+	if err := decodeTrashEnvelope(payload, &record.Payload); err != nil {
 		return record, fmt.Errorf("decode trash payload: %w", err)
 	}
 	return record, nil
@@ -185,6 +186,9 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 			return err
 		}
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE workspace_assets SET staged=0 WHERE workspace_id=? AND EXISTS (SELECT 1 FROM workspace_asset_references r WHERE r.workspace_id=? AND r.asset_id=workspace_assets.id)`, workspace.ID, workspace.ID); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -210,6 +214,9 @@ func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (project
 		return project.Project{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_trash WHERE id=?`, id); err != nil {
+		return project.Project{}, err
+	}
+	if err := migrations.Validate(ctx, tx); err != nil {
 		return project.Project{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -254,7 +261,7 @@ func (s *Store) trashRecords(ctx context.Context) ([]trashRecord, error) {
 		if err := rows.Scan(&record.ID, &record.CategoryID, &record.Title, &record.DeletedAt, &payload); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(payload, &record.Payload); err != nil {
+		if err := decodeTrashEnvelope(payload, &record.Payload); err != nil {
 			return nil, fmt.Errorf("decode trash payload %s: %w", record.ID, err)
 		}
 		records = append(records, record)
@@ -337,10 +344,19 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 	if !categoryIDs[project.UncategorizedCategoryID] {
 		return project.ErrInvalid
 	}
+	workspaceIDs := map[string]bool{}
 	for _, envelope := range backup.Workspaces {
-		if envelope.Project.ID == "" || !categoryIDs[envelope.Project.CategoryID] {
+		if envelope.Project.ID == "" || workspaceIDs[envelope.Project.ID] || !categoryIDs[envelope.Project.CategoryID] {
 			return project.ErrInvalid
 		}
+		workspaceIDs[envelope.Project.ID] = true
+	}
+	trashIDs := map[string]bool{}
+	for _, record := range backup.Trash {
+		if record.ID == "" || trashIDs[record.ID] || record.Payload.Project.ID != record.ID || workspaceIDs[record.ID] {
+			return project.ErrInvalid
+		}
+		trashIDs[record.ID] = true
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -374,7 +390,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		}
 	}
 	for _, record := range backup.Trash {
-		payload, err := json.Marshal(record.Payload)
+		payload, err := encodeTrashEnvelope(record.Payload)
 		if err != nil {
 			return err
 		}
@@ -386,6 +402,9 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO study_sessions(id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at) VALUES (?,?,?,?,?,?,?,?)`, session.ID, session.WorkspaceID, session.WorkspaceTitleSnapshot, session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
 			return err
 		}
+	}
+	if err := migrations.Validate(ctx, tx); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

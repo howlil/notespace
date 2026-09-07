@@ -11,7 +11,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
-const maxBackupBytes = 256 << 20
+const maxBackupBytes = 512 << 20
 
 type libraryStore interface {
 	TrashWorkspaceAtomic(context.Context, string) error
@@ -19,7 +19,8 @@ type libraryStore interface {
 	RestoreTrashedWorkspace(context.Context, string) (project.Project, error)
 	DeleteTrashedWorkspace(context.Context, string) error
 	CategoryHasTrash(context.Context, string) (bool, error)
-	ExportBackupJSONAtomic(context.Context) ([]byte, error)
+	ExportBackupArchiveAtomic(context.Context) ([]byte, error)
+	RestoreBackupArchive(context.Context, []byte) error
 	RestoreBackupJSON(context.Context, []byte) error
 }
 
@@ -97,13 +98,17 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 			return
 
 		case r.URL.Path == "/api/backup" && r.Method == http.MethodGet:
-			data, err := library.ExportBackupJSONAtomic(r.Context())
+			data, err := library.ExportBackupArchiveAtomic(r.Context())
 			if err != nil {
 				fail(w, err)
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Disposition", `attachment; filename="notespace-backup.json"`)
+			if len(data) > maxBackupBytes {
+				send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 512 MiB round-trip limit"})
+				return
+			}
+			w.Header().Set("Content-Type", "application/zip")
+			w.Header().Set("Content-Disposition", `attachment; filename="notespace-backup.zip"`)
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(data)
 			return
@@ -113,8 +118,8 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 				return
 			}
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-			if err != nil || mediaType != "application/json" {
-				send(w, http.StatusUnsupportedMediaType, map[string]string{"error": "Expected a Notespace JSON backup"})
+			if err != nil || (mediaType != "application/zip" && mediaType != "application/x-zip-compressed" && mediaType != "application/json") {
+				send(w, http.StatusUnsupportedMediaType, map[string]string{"error": "Expected a Notespace ZIP backup or legacy JSON backup"})
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, maxBackupBytes)
@@ -122,13 +127,18 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 			if err != nil {
 				var tooLarge *http.MaxBytesError
 				if errors.As(err, &tooLarge) {
-					send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 256 MiB restore limit"})
+					send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 512 MiB restore limit"})
 					return
 				}
 				fail(w, err)
 				return
 			}
-			if err := library.RestoreBackupJSON(r.Context(), data); err != nil {
+			if mediaType == "application/json" {
+				err = library.RestoreBackupJSON(r.Context(), data)
+			} else {
+				err = library.RestoreBackupArchive(r.Context(), data)
+			}
+			if err != nil {
 				fail(w, err)
 				return
 			}

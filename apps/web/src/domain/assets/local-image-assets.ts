@@ -52,6 +52,19 @@ function putLocalCache(record: StoredImageAsset) {
   });
 }
 
+async function removeLocalCache(workspaceId: string, id: string) {
+  const key = assetKey(workspaceId, id);
+  memoryAssets.delete(key);
+  const database = await openDatabase();
+  if (!database) return;
+  await new Promise<void>((resolve) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).delete(key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => resolve();
+  });
+}
+
 async function readLocalCache(workspaceId: string, id: string) {
   const key = assetKey(workspaceId, id);
   const cached = memoryAssets.get(key);
@@ -76,10 +89,14 @@ async function uploadAsset(workspaceId: string, id: string, blob: Blob) {
     body: blob,
     signal: AbortSignal.timeout(20_000),
   });
+  // A 404 means the workspace/asset ownership disappeared while this upload was
+  // in flight. Treat it as a discarded staged upload and do not cache the blob.
+  if (response.status === 404) return false;
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.error || "Could not store image on this Notespace instance.");
   }
+  return true;
 }
 
 async function loadRemoteAsset(workspaceId: string, id: string) {
@@ -134,7 +151,11 @@ export async function normalizeImageBlob(source: Blob) {
 
 export async function storeImageAsset(workspaceId: string, id: string, source: Blob) {
   const blob = await normalizeImageBlob(source);
-  await uploadAsset(workspaceId, id, blob);
+  const accepted = await uploadAsset(workspaceId, id, blob);
+  if (!accepted) {
+    await removeLocalCache(workspaceId, id);
+    return null;
+  }
   const record: StoredImageAsset = {
     key: assetKey(workspaceId, id),
     id,
@@ -145,6 +166,28 @@ export async function storeImageAsset(workspaceId: string, id: string, source: B
   };
   await putLocalCache(record);
   return record;
+}
+
+export async function pruneLocalImageCache(workspaceId: string, referencedIds: Iterable<string>) {
+  const keep = new Set(referencedIds);
+  for (const record of [...memoryAssets.values()]) {
+    if (record.workspaceId === workspaceId && !keep.has(record.id)) memoryAssets.delete(record.key);
+  }
+  const database = await openDatabase();
+  if (!database) return;
+  await new Promise<void>((resolve) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    const request = transaction.objectStore(STORE_NAME).openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const record = cursor.value as StoredImageAsset;
+      if (record.workspaceId === workspaceId && !keep.has(record.id)) cursor.delete();
+      cursor.continue();
+    };
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => resolve();
+  });
 }
 
 export async function loadImageAsset(workspaceId: string, id: string) {
@@ -162,7 +205,15 @@ export async function loadImageAsset(workspaceId: string, id: string) {
   const legacy = await readLocalCache(workspaceId, id);
   if (!legacy) return null;
   // Read-through migration: legacy browser-only assets become server-owned once seen.
-  try { await uploadAsset(workspaceId, id, legacy.blob); } catch { /* keep legacy readable offline */ }
+  try {
+    const accepted = await uploadAsset(workspaceId, id, legacy.blob);
+    if (!accepted) {
+      await removeLocalCache(workspaceId, id);
+      return null;
+    }
+  } catch {
+    // Keep legacy readable when the server is temporarily unavailable.
+  }
   return legacy;
 }
 

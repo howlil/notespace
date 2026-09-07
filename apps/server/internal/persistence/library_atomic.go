@@ -97,7 +97,7 @@ func (s *Store) TrashWorkspaceAtomic(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(envelope)
+	payload, err := encodeTrashEnvelope(envelope)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func trashRecordsTx(ctx context.Context, tx *sql.Tx) ([]trashRecord, error) {
 		if err := rows.Scan(&record.ID, &record.CategoryID, &record.Title, &record.DeletedAt, &payload); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(payload, &record.Payload); err != nil {
+		if err := decodeTrashEnvelope(payload, &record.Payload); err != nil {
 			return nil, fmt.Errorf("decode trash payload %s: %w", record.ID, err)
 		}
 		records = append(records, record)
@@ -176,60 +176,65 @@ func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]study.Session, error) {
 	return sessions, rows.Err()
 }
 
-func (s *Store) ExportBackupJSONAtomic(ctx context.Context) ([]byte, error) {
+func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, err
+		return libraryBackup{}, err
 	}
 	defer tx.Rollback()
 	categories, err := categoriesTx(ctx, tx)
 	if err != nil {
-		return nil, err
+		return libraryBackup{}, err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT id FROM projects ORDER BY updated_at DESC,id`)
 	if err != nil {
-		return nil, err
+		return libraryBackup{}, err
 	}
 	ids := []string{}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return nil, err
+			return libraryBackup{}, err
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return nil, err
+		return libraryBackup{}, err
 	}
 	rows.Close()
 	workspaces := make([]workspaceEnvelope, 0, len(ids))
 	for _, id := range ids {
 		envelope, err := snapshotWorkspaceTx(ctx, tx, id)
 		if err != nil {
-			return nil, err
+			return libraryBackup{}, err
 		}
 		workspaces = append(workspaces, envelope)
 	}
 	trash, err := trashRecordsTx(ctx, tx)
 	if err != nil {
-		return nil, err
+		return libraryBackup{}, err
 	}
 	sessions, err := studySessionsTx(ctx, tx)
 	if err != nil {
-		return nil, err
+		return libraryBackup{}, err
 	}
-	data, err := json.Marshal(libraryBackup{
+	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Categories:  categories, Workspaces: workspaces, Trash: trash, Study: sessions,
-	})
+	}
+	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+		return libraryBackup{}, err
+	}
+	return backup, nil
+}
+
+func (s *Store) ExportBackupJSONAtomic(ctx context.Context) ([]byte, error) {
+	backup, err := s.libraryBackupAtomic(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		return nil, err
-	}
-	return data, nil
+	return json.Marshal(backup)
 }

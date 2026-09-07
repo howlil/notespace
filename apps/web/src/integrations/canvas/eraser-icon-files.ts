@@ -34,6 +34,7 @@ export async function ensureEraserDiagramIconFiles(
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         asset = await storeImageAsset(workspaceId, fileId, await response.blob());
       }
+      if (!asset) throw new Error("Could not resolve diagram icon asset.");
 
       const dataURL = await blobToDataUrl(asset.blob);
       additions.push({

@@ -2,106 +2,109 @@
 
 ## Status
 
-**Milestone: Native Structured Diagrams — integration gate.**
+**Milestone: Data Durability & Scale Foundation — integration gate.**
 
-The implementation is intentionally bounded to the first useful Eraser-style diagramming slice inside the existing Notespace Canvas. Excalidraw remains the native visual editor; Notespace owns structured diagram identity and persistence.
+This milestone hardens the existing single-instance SQLite architecture. It does not replace SQLite, split the workspace aggregate, or normalize Notes without evidence.
 
 ## Product outcome
 
-A user can create and maintain technical diagrams without leaving a workspace or depending on an external diagram SaaS:
-
-- open a dedicated **Diagram** tool from Canvas;
-- create an **Architecture** or **Flowchart** starter;
-- search and insert curated **General / Tech / AWS / GCP / Azure** components;
-- connect exactly two selected diagram nodes;
-- group multiple selected nodes into a visible boundary;
-- auto-layout a managed diagram;
-- move and resize generated nodes with native Excalidraw interactions while Notespace synchronizes geometry back into its model;
-- reopen the workspace with stable Notespace diagram/node/edge/group IDs preserved in the canvas snapshot;
-- **Detach** a managed diagram to ordinary Excalidraw shapes without deleting the rendered content.
+Notespace data remains recoverable and internally consistent as workspaces accumulate notes, canvas images, history, trash, and study records. Image deletion has an explicit storage invariant: once an authored workspace save removes the final reference to an image, the corresponding durable SQLite BLOB is deleted and the same asset ID cannot be resurrected by a delayed upload or browser cache.
 
 ## Slices
 
-### S1 — Structured diagram domain and persistence
+### S1 — Backup round-trip safety
 
-**Capability:** Notespace can distinguish a managed diagram from ordinary freeform canvas content.
+**Capability:** a full Notespace library can be exported and restored without Base64-amplifying binary assets.
 
-- add a small Notespace-owned `StructuredDiagram` model for diagram, node, edge, and group identity;
-- store version-compatible structured metadata inside the existing Excalidraw canvas snapshot instead of adding a backend schema or service;
-- validate restored metadata and ignore malformed payloads;
-- synchronize native shape move/resize/delete events back to the structured model;
-- keep Excalidraw element IDs as rendering references, not product identity.
+- introduce backup archive v2 as ZIP;
+- keep authored metadata in `manifest.json` and binary assets as raw `blobs/<sha256>` entries;
+- deduplicate identical blobs by SHA-256;
+- record blob size/hash and validate both before restore;
+- reject duplicate/unsafe ZIP entries and checksum mismatch before replacing library data;
+- retain legacy JSON v1 restore compatibility;
+- export v2 as `notespace-backup.zip` and allow the web restore flow to accept ZIP or legacy JSON;
+- prove export → destructive replacement → restore returns workspace identity/content, assets, categories, trash/history, and study data.
 
-**Acceptance:** IDs and geometry survive snapshot round-trip; deleting a native node removes invalid structured edges/groups instead of silently relinking them.
+**Acceptance:** exported v2 manifest contains no Base64 asset payload; tampered archives fail without changing the current library; a valid v2 archive round-trips through the supported restore path.
 
-### S2 — Native Architecture and Flowchart rendering
+### S2 — Migration immutability and schema drift detection
 
-**Capability:** a managed diagram renders as ordinary editable Excalidraw elements.
+**Capability:** a running database can prove that released migrations and the physical schema still match repository expectations.
 
-- add Architecture and Flowchart starter templates;
-- convert the structured model to native Excalidraw rectangles/diamonds/ellipses/arrows;
-- use bound labels so node text travels with its shape;
-- wait for canvas fonts before programmatic conversion to avoid incorrect text metrics;
-- use deterministic layered layout: horizontal for Architecture, vertical for Flowchart.
+- extend `schema_migrations` metadata with SHA-256 checksum and applied timestamp while remaining compatible with existing name-only ledgers;
+- backfill checksum metadata for already-applied migrations;
+- reject startup when an applied migration checksum differs from the embedded migration;
+- maintain a physical SQLite schema fingerprint after successful migration/integrity validation;
+- reject unexpected schema drift before applying later migrations;
+- add CI enforcement that released `apps/server/migrations/*.sql` files are append-only.
 
-**Acceptance:** generated content is selectable, movable, resizable, and saved through the existing canvas autosave path.
+**Acceptance:** migration mutation or unexpected physical schema drift produces a deterministic startup/test failure; new migrations remain append-only.
 
-### S3 — Searchable component palette
+### S3 — Integrity gates and restore validation
 
-**Capability:** users can insert technical components without drawing every node manually.
+**Capability:** Notespace detects structural database corruption/constraint violations at safe boundaries rather than treating a successful `Ping` as sufficient integrity evidence.
 
-- expose a compact Canvas **Diagram** entry point;
-- provide Architecture / Flowchart mode switching;
-- add search over labels, provider names, and practical keywords;
-- provide General, Tech, AWS, GCP, and Azure categories;
-- use the existing Lucide dependency for the picker UI and compact provider/technology glyphs in generated nodes; no external icon CDN/runtime dependency.
+- run `PRAGMA foreign_key_check` and `PRAGMA quick_check` after migrations before serving;
+- expose the same validation over a transaction so a replacement library can be checked before commit;
+- run integrity validation during full-library restore after replacement rows are staged and before commit;
+- keep HTTP health lightweight; do not run database-wide checks for each health request.
 
-**Acceptance:** filtering is deterministic and inserting a component either adds to the active managed diagram or starts a new one-node diagram.
+**Acceptance:** FK violations or failed quick-check prevent startup/restore completion; a failed restore rolls back instead of leaving a partially replaced library.
 
-### S4 — Structured editing actions
+### S4 — Image asset lifecycle and irreversible authored deletion
 
-**Capability:** users can evolve a diagram instead of only inserting static templates.
+**Capability:** durable image ownership follows authored workspace references instead of accumulating orphan BLOBs.
 
-- map native Excalidraw selection back to Notespace node IDs;
-- connect exactly two selected nodes;
-- group two or more selected nodes;
-- recalculate a diagram with Auto layout;
-- preserve unrelated freeform Excalidraw objects while a managed diagram is regenerated.
+- add `staged` lifecycle state to `workspace_assets` so upload-before-save remains safe;
+- derive live asset references from workspace Document, Notes, Canvas, and compatibility reference snapshots (`assetId`, `fileId`, and `notespace-asset://` sources);
+- promote a staged asset to live when an authored save references it;
+- when a later authored save removes the final reference, tombstone the asset ID and hard-delete its row from `workspace_assets` in the same database update boundary;
+- reject later PUT/read-through migration attempts for a tombstoned `(workspace_id, asset_id)` so delayed uploads cannot resurrect deleted data;
+- prune the browser memory/IndexedDB compatibility cache after an acknowledged save using the server-authored reference set;
+- garbage-collect abandoned staged uploads after a grace period;
+- migrate existing referenced assets to live and remove pre-existing unreferenced legacy orphans.
 
-**Acceptance:** structured actions affect only the active diagram and do not rewrite unrelated canvas content.
+**Acceptance:** deterministic persistence tests cover both Tiptap image `assetId` and Excalidraw `fileId`: after final authored reference removal, `GetAsset` returns not-found and a late upload with the same ID remains rejected.
 
-### S5 — Detach to Freeform
+### S5 — Trash/storage amplification removal
 
-**Capability:** structured management is optional and reversible.
+**Capability:** deleting a workspace to Trash does not duplicate binary images as Base64 JSON.
 
-- remove only the selected diagram's Notespace structured metadata;
-- leave all rendered Excalidraw shapes/arrows in place;
-- stop future auto-layout/synchronization for the detached diagram.
+- replace new trash payload encoding with a binary compressed envelope;
+- preserve workspace identity, authored snapshots, bounded history, and raw asset bytes;
+- keep legacy JSON trash decoding for existing installations;
+- keep Trash → Restore atomic and category fallback behavior unchanged.
 
-**Acceptance:** detach is non-destructive and persists immediately through the existing canvas snapshot contract.
+**Acceptance:** newly trashed workspace payload is not JSON/Base64; restore returns the original workspace/history/assets; permanent trash deletion removes the stored trash payload.
 
-### S6 — Verification and integration
+### S6 — Workspace scale evidence, not speculative normalization
 
-**Capability:** the milestone can merge without weakening existing Notespace behavior.
+**Capability:** future normalization decisions are based on repository-owned measurements rather than architecture preference.
 
-- add focused model tests for search, layout, stable identity, connection/group behavior, snapshot round-trip, move/resize/delete synchronization, and bound-label selection;
-- include the new focused test in the repository-owned `pnpm test` gate;
-- require frontend typecheck, lint, unit tests, production build, and exact-head GitHub `Verify` before merge;
-- no backend API, SQLite schema, deployment topology, external SaaS, or new runtime dependency changes.
+- add deterministic persistence evidence for database bytes, WAL bytes, backup bytes, representative workspace JSON size, update/autosave operation latency, and FTS sync latency;
+- report p50/p95 for repeated update and FTS synchronization samples;
+- publish the evidence as a short-lived CI artifact for persistence-affecting changes;
+- keep the current workspace aggregate/schema unchanged in this milestone.
+
+**Decision rule:** Notes/Canvas normalization is not authorized by this milestone. Consider a schema boundary change only if measured workspace payload, autosave p95, WAL amplification, or FTS p95 demonstrates a material bottleneck.
 
 ## Architecture boundaries
 
-- `StructuredDiagram` is Notespace domain state stored inside the versioned canvas snapshot.
-- Excalidraw is the renderer/editor adapter and remains replaceable behind the existing canvas boundary.
-- Generated shapes are native Excalidraw elements, not embedded images or iframes.
-- Curated icons/components are local metadata/UI; no Eraser API key, iframe, hosted dependency, or remote icon CDN is introduced.
-- Existing freeform Canvas, image asset vault, cross-surface references, autosave, and workspace ownership remain unchanged.
+- SQLite remains the durable single-instance store.
+- Existing optimistic workspace versioning remains the write-conflict policy.
+- Backup v2 changes portability encoding, not authored domain ownership; JSON v1 import remains supported for compatibility.
+- FTS remains a derived projection.
+- Study sessions continue to survive workspace deletion intentionally.
+- No PostgreSQL migration, service split, CRDT, or Note normalization is included.
 
 ## Verification required
 
 Before merge:
 
-1. exact-head PR `Verify` completes successfully;
-2. frontend typecheck, lint, unit tests, and production build pass;
-3. PR remains mergeable at the verified head;
-4. merge uses that exact head SHA.
+1. frontend typecheck, lint, unit tests, and production build pass;
+2. Go format/static checks, tests including race gate, and server build pass;
+3. migration append-only enforcement passes;
+4. backup round-trip/tamper tests, migration integrity tests, and asset hard-delete/no-resurrection tests pass;
+5. production composition + restart persistence smoke test passes;
+6. persistence scale-evidence test completes and its artifact is produced;
+7. exact-head PR `Verify` is green and PR remains mergeable at that verified head.

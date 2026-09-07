@@ -52,15 +52,15 @@ type archiveTrashRecord struct {
 }
 
 type libraryArchiveManifest struct {
-	Format        string                    `json:"format"`
-	Version       int                       `json:"version"`
-	SchemaVersion int                       `json:"schemaVersion"`
-	GeneratedAt   string                    `json:"generatedAt"`
-	Categories    []project.CategorySummary `json:"categories"`
+	Format        string                     `json:"format"`
+	Version       int                        `json:"version"`
+	SchemaVersion int                        `json:"schemaVersion"`
+	GeneratedAt   string                     `json:"generatedAt"`
+	Categories    []project.CategorySummary  `json:"categories"`
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
-	Trash         []archiveTrashRecord      `json:"trash"`
-	Study         []study.Session           `json:"studySessions"`
-	Blobs         []archiveBlob             `json:"blobs"`
+	Trash         []archiveTrashRecord       `json:"trash"`
+	Study         []study.Session            `json:"studySessions"`
+	Blobs         []archiveBlob              `json:"blobs"`
 }
 
 func archiveHash(data []byte) string {

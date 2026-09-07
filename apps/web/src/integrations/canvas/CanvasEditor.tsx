@@ -34,6 +34,7 @@ import {
 import { useToast } from "../../providers/toast-provider";
 import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
+import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -217,7 +218,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const value = api.current;
     if (!value) return;
     await document.fonts.ready;
-    const nextElements = replaceStructuredDiagramElements(value.getSceneElements(), previous, next, dark);
+    const iconLoad = await ensureEraserDiagramIconFiles(value, next, workspaceId);
+    if (iconLoad.failed.length) {
+      showToast({ kind: "error", message: "Some Eraser icons could not load. Text fallback was kept for those nodes." });
+    }
+    const nextElements = replaceStructuredDiagramElements(value.getSceneElements(), previous, next, dark, iconLoad.available);
     const nextDiagrams = previous
       ? diagramsRef.current.map((diagram) => diagram.id === previous.id ? next : diagram)
       : [...diagramsRef.current, next];
@@ -226,7 +231,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramSelection({ diagramId: next.id, nodeIds: [] });
     value.updateScene({ elements: nextElements });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
-  }, [dark, emitSnapshot, updateDiagramSelection, updateDiagramState]);
+  }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
   const createStarter = useCallback((kind: DiagramKind) => {
     void applyDiagram(null, createStarterDiagram(kind, canvasOrigin()));

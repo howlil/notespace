@@ -14,6 +14,7 @@ import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
+import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit } from "./pane-layout";
 import type { Pane, PaneNode } from "./pane-layout";
@@ -345,6 +346,7 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
               </div>
             </details>
             <button type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={17} /></button>
+            <WorkspaceGuide />
             <ThemeToggle />
           </div>
         </header>

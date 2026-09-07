@@ -16,6 +16,7 @@ export function WorkspaceGuide() {
   return (
     <div ref={rootRef} className="relative shrink-0 [.workspace-header_&]:hidden">
       <IconButton
+        className="size-[30px]"
         aria-label="How to use Notespace"
         title="How to use Notespace"
         aria-expanded={open}
@@ -92,11 +93,11 @@ export function WorkspaceGuide() {
 
                     <div className="bg-surface">
                       <div className="flex h-8 items-center gap-1.5 border-b border-line px-3 text-[9px] font-medium text-ink"><Layers size={11} /> Canvas</div>
-                      <div className="grid min-h-[182px] place-items-center bg-[radial-gradient(circle_at_center,var(--tint)_0,transparent_65%)] p-3">
+                      <div className="grid min-h-[182px] place-items-center bg-canvas p-3">
                         <div className="grid w-full max-w-[210px] justify-items-center gap-1.5">
                           <div className={`${canvasNodeClass} min-w-[92px]`}>Page fault</div>
                           <span className="text-[10px] text-muted">↓</span>
-                          <div className={`${canvasNodeClass} min-w-[110px] border-accent/50 bg-tint`}>Replacement</div>
+                          <div className={`${canvasNodeClass} min-w-[110px] border-accent bg-tint`}>Replacement</div>
                           <div className="grid w-full grid-cols-[1fr_28px_1fr] items-start pt-1">
                             <div className="grid justify-items-center gap-1"><span className="text-[9px] text-muted">↙</span><div className={`${canvasNodeClass} min-w-[64px]`}>FIFO</div></div>
                             <div />
@@ -165,9 +166,9 @@ function BoundaryRule({ number, children }: { number: string; children: string }
 }
 
 function GuideExample({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
-  return <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2"><span className="text-[9px] text-muted">{label}</span><strong className={`text-right text-[10px] font-medium ${muted ? "text-muted line-through decoration-line" : "text-ink"}`}>{value}</strong></div>;
+  return <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2"><span className="text-[9px] text-muted">{label}</span><strong className={`text-right text-[10px] font-medium ${muted ? "text-muted line-through" : "text-ink"}`}>{value}</strong></div>;
 }
 
 function StructureChip({ children, active = false }: { children: string; active?: boolean }) {
-  return <span className={`rounded-md border px-2 py-1 ${active ? "border-accent/50 bg-tint text-accent" : "border-line bg-surface text-ink"}`}>{children}</span>;
+  return <span className={`rounded-md border px-2 py-1 ${active ? "border-accent bg-tint text-accent" : "border-line bg-surface text-ink"}`}>{children}</span>;
 }

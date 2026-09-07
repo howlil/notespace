@@ -30,14 +30,18 @@ export function placeEditorPopup(
   anchor: RectAnchor,
   popup: Size,
   viewport: Viewport,
-  options: { gap?: number; padding?: number } = {},
+  options: { gap?: number; padding?: number; prefer?: FloatingPlacement } = {},
 ): FloatingPosition {
   const gap = options.gap ?? 8;
   const padding = options.padding ?? 12;
+  const prefer = options.prefer ?? "bottom";
   const below = viewport.height - padding - anchor.bottom;
   const above = anchor.top - padding;
-  const needsFlip = below < popup.height + gap && above > below;
-  const placement: FloatingPlacement = needsFlip ? "top" : "bottom";
+  const required = popup.height + gap;
+
+  let placement = prefer;
+  if (prefer === "bottom" && below < required && above > below) placement = "top";
+  if (prefer === "top" && above < required && below > above) placement = "bottom";
 
   const x = clamp(anchor.left, padding, viewport.width - popup.width - padding);
   const preferredY = placement === "top"

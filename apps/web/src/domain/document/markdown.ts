@@ -10,6 +10,8 @@ type JsonNode = {
 };
 
 type AssetSources = Record<string, string>;
+type ListLine = { indent: number; ordered: boolean; start: number; value: string };
+type TaskLine = { indent: number; checked: boolean; value: string };
 
 function newBlockId() {
   return crypto.randomUUID();
@@ -18,7 +20,7 @@ function newBlockId() {
 function inlineNodes(value: string): JsonNode[] {
   if (!value) return [];
   const nodes: JsonNode[] = [];
-  const pattern = /(\*\*\*[^*]+\*\*\*|___[^_]+___|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*]+\*|_[^_]+_|\[[^\]]+\]\([^)]+\))/g;
+  const pattern = /(\*\*\*[^*]+\*\*\*|(?<!\w)___[^_]+___(?!\w)|\*\*[^*]+\*\*|(?<!\w)__[^_]+__(?!\w)|~~[^~]+~~|`[^`]+`|\*[^*]+\*|(?<!\w)_[^_]+_(?!\w)|\[[^\]]+\]\([^)]+\))/g;
   let cursor = 0;
   for (const match of value.matchAll(pattern)) {
     const index = match.index ?? 0;
@@ -47,24 +49,143 @@ function listItem(value: string): JsonNode {
   return { type: "listItem", attrs: { blockId: newBlockId() }, content: [paragraph(value)] };
 }
 
+function taskItem(value: string, checked: boolean): JsonNode {
+  return { type: "taskItem", attrs: { blockId: newBlockId(), checked }, content: [paragraph(value)] };
+}
+
+function indentation(value: string) {
+  return value.replace(/\t/g, "  ").length;
+}
+
+function listLine(line: string): ListLine | null {
+  const match = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/);
+  if (!match) return null;
+  const ordered = /^\d/.test(match[2]);
+  return { indent: indentation(match[1]), ordered, start: ordered ? Number(match[2].match(/^\d+/)?.[0] ?? 1) : 1, value: match[3] };
+}
+
+function taskLine(line: string): TaskLine | null {
+  const match = line.match(/^(\s*)[-*+]\s+\[([ xX])\]\s+(.+)$/);
+  return match ? { indent: indentation(match[1]), checked: match[2].toLowerCase() === "x", value: match[3] } : null;
+}
+
+function parseTaskList(lines: string[], startIndex: number, baseIndent: number): [JsonNode, number] {
+  const items: JsonNode[] = [];
+  let index = startIndex;
+  while (index < lines.length) {
+    const current = taskLine(lines[index]);
+    if (!current || current.indent !== baseIndent) break;
+    const item = taskItem(current.value, current.checked);
+    items.push(item);
+    index += 1;
+
+    const nestedTask = index < lines.length ? taskLine(lines[index]) : null;
+    const nestedList = index < lines.length ? listLine(lines[index]) : null;
+    const nestedIndent = nestedTask?.indent ?? nestedList?.indent ?? -1;
+    if (nestedIndent > baseIndent) {
+      const [nested, next] = nestedTask
+        ? parseTaskList(lines, index, nestedIndent)
+        : parseList(lines, index, nestedIndent);
+      item.content?.push(nested);
+      index = next;
+    }
+  }
+  return [{ type: "taskList", content: items }, index];
+}
+
+function parseList(lines: string[], startIndex: number, baseIndent: number): [JsonNode, number] {
+  const first = listLine(lines[startIndex]);
+  if (!first) return [{ type: "bulletList", content: [] }, startIndex];
+  const items: JsonNode[] = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const current = listLine(lines[index]);
+    if (!current || current.indent < baseIndent) break;
+    if (current.indent > baseIndent) {
+      if (!items.length) break;
+      const nestedTask = taskLine(lines[index]);
+      const [nested, next] = nestedTask
+        ? parseTaskList(lines, index, current.indent)
+        : parseList(lines, index, current.indent);
+      items[items.length - 1].content?.push(nested);
+      index = next;
+      continue;
+    }
+    if (current.ordered !== first.ordered || taskLine(lines[index])) break;
+    items.push(listItem(current.value));
+    index += 1;
+  }
+
+  return [{ type: first.ordered ? "orderedList" : "bulletList", ...(first.ordered ? { attrs: { start: first.start } } : {}), content: items }, index];
+}
+
+function splitTableRow(line: string): string[] {
+  let value = line.trim();
+  if (value.startsWith("|")) value = value.slice(1);
+  if (value.endsWith("|") && !value.endsWith("\\|")) value = value.slice(0, -1);
+  const cells: string[] = [];
+  let cell = "";
+  let escaped = false;
+  let inCode = false;
+  for (const character of value) {
+    if (escaped) { cell += character; escaped = false; continue; }
+    if (character === "\\") { escaped = true; cell += character; continue; }
+    if (character === "`") { inCode = !inCode; cell += character; continue; }
+    if (character === "|" && !inCode) { cells.push(cell.trim().replace(/\\\|/g, "|")); cell = ""; continue; }
+    cell += character;
+  }
+  cells.push(cell.trim().replace(/\\\|/g, "|"));
+  return cells;
+}
+
+function isTableDivider(line: string) {
+  const cells = splitTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function isTableStart(lines: string[], index: number) {
+  return index + 1 < lines.length && lines[index].includes("|") && isTableDivider(lines[index + 1]);
+}
+
+function tableCell(value: string, header: boolean): JsonNode {
+  return { type: header ? "tableHeader" : "tableCell", content: [paragraph(value)] };
+}
+
+function parseTable(lines: string[], startIndex: number): [JsonNode, number] {
+  const headers = splitTableRow(lines[startIndex]);
+  const rows: JsonNode[] = [{ type: "tableRow", content: headers.map((cell) => tableCell(cell, true)) }];
+  let index = startIndex + 2;
+  while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+    const cells = splitTableRow(lines[index]);
+    while (cells.length < headers.length) cells.push("");
+    rows.push({ type: "tableRow", content: cells.slice(0, headers.length).map((cell) => tableCell(cell, false)) });
+    index += 1;
+  }
+  return [{ type: "table", content: rows }, index];
+}
+
 function isSpecialLine(line: string) {
-  return /^(#{1,6}\s+|```|~~~|>\s?|[-*+]\s+|\d+[.)]\s+|(?:---|___|\*\*\*)\s*$)/.test(line);
+  return /^(#{1,6}\s+|```|~~~|>\s?|\s*[-*+]\s+|\s*\d+[.)]\s+|(?:---|___|\*\*\*)\s*$)/.test(line);
 }
 
 export function looksLikeMarkdown(markdown: string): boolean {
   const value = markdown.replace(/\r\n?/g, "\n");
   if (!value.trim()) return false;
+  const lines = value.split("\n");
+  const hasTable = lines.some((_, index) => isTableStart(lines, index));
   return (
     /(^|\n)#{1,6}\s+\S/.test(value) ||
     /(^|\n)(?:```|~~~)[^\n]*\n/.test(value) ||
     /(^|\n)>\s?\S/.test(value) ||
-    /(^|\n)[-*+]\s+\S/.test(value) ||
-    /(^|\n)\d+[.)]\s+\S/.test(value) ||
+    /(^|\n)\s*[-*+]\s+\S/.test(value) ||
+    /(^|\n)\s*\d+[.)]\s+\S/.test(value) ||
     /(^|\n)(?:---|___|\*\*\*)\s*(?:\n|$)/.test(value) ||
+    hasTable ||
     /\*\*\*[^*\n]+\*\*\*/.test(value) ||
-    /___[^_\n]+___/.test(value) ||
+    /(?<!\w)___[^_\n]+___(?!\w)/.test(value) ||
     /\*\*[^*\n]+\*\*/.test(value) ||
-    /__[^_\n]+__/.test(value) ||
+    /(?<!\w)__[^_\n]+__(?!\w)/.test(value) ||
     /~~[^~\n]+~~/.test(value) ||
     /`[^`\n]+`/.test(value) ||
     /\[[^\]\n]+\]\([^)\n]+\)/.test(value)
@@ -103,6 +224,13 @@ export function markdownToSnapshot(markdown: string): Snapshot {
       continue;
     }
 
+    if (isTableStart(lines, index)) {
+      const [table, next] = parseTable(lines, index);
+      content.push(table);
+      index = next;
+      continue;
+    }
+
     if (/^>\s?/.test(line)) {
       const quote: string[] = [];
       while (index < lines.length && /^>\s?/.test(lines[index])) quote.push(lines[index++].replace(/^>\s?/, ""));
@@ -110,24 +238,25 @@ export function markdownToSnapshot(markdown: string): Snapshot {
       continue;
     }
 
-    if (/^[-*+]\s+/.test(line)) {
-      const items: JsonNode[] = [];
-      while (index < lines.length && /^[-*+]\s+/.test(lines[index])) items.push(listItem(lines[index++].replace(/^[-*+]\s+/, "")));
-      content.push({ type: "bulletList", content: items });
+    const task = taskLine(line);
+    if (task) {
+      const [list, next] = parseTaskList(lines, index, task.indent);
+      content.push(list);
+      index = next;
       continue;
     }
 
-    if (/^\d+[.)]\s+/.test(line)) {
-      const items: JsonNode[] = [];
-      const start = Number(line.match(/^(\d+)/)?.[1] ?? 1);
-      while (index < lines.length && /^\d+[.)]\s+/.test(lines[index])) items.push(listItem(lines[index++].replace(/^\d+[.)]\s+/, "")));
-      content.push({ type: "orderedList", attrs: { start }, content: items });
+    const listed = listLine(line);
+    if (listed) {
+      const [list, next] = parseList(lines, index, listed.indent);
+      content.push(list);
+      index = next;
       continue;
     }
 
     const paragraphLines = [line.trim()];
     index += 1;
-    while (index < lines.length && lines[index].trim() && !isSpecialLine(lines[index])) paragraphLines.push(lines[index++].trim());
+    while (index < lines.length && lines[index].trim() && !isSpecialLine(lines[index]) && !isTableStart(lines, index)) paragraphLines.push(lines[index++].trim());
     content.push(paragraph(paragraphLines.join(" ")));
   }
 
@@ -152,6 +281,24 @@ function inlineMarkdown(node: JsonNode): string {
   return value;
 }
 
+function tableMarkdown(node: JsonNode, assetSources: AssetSources): string {
+  const rows = node.content ?? [];
+  if (!rows.length) return "";
+  const cells = (row: JsonNode) => (row.content ?? []).map((cell) => (cell.content ?? []).map((child) => blockMarkdown(child, assetSources)).join(" ").replace(/\|/g, "\\|").replace(/\n/g, "<br>"));
+  const header = cells(rows[0]);
+  const width = Math.max(1, header.length);
+  const lines = [
+    `| ${header.join(" | ")} |`,
+    `| ${Array.from({ length: width }, () => "---").join(" | ")} |`,
+  ];
+  for (const row of rows.slice(1)) {
+    const values = cells(row);
+    while (values.length < width) values.push("");
+    lines.push(`| ${values.slice(0, width).join(" | ")} |`);
+  }
+  return lines.join("\n");
+}
+
 function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): string {
   const inline = () => (node.content ?? []).map(inlineMarkdown).join("");
   if (node.type === "paragraph") return inline();
@@ -159,19 +306,24 @@ function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): s
   if (node.type === "horizontalRule") return "---";
   if (node.type === "codeBlock") return `\`\`\`\n${inline()}\n\`\`\``;
   if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");
+  if (node.type === "table") return tableMarkdown(node, assetSources);
   if (node.type === "bulletList" || node.type === "orderedList") {
     const start = node.type === "orderedList" ? Number(node.attrs?.start) || 1 : 1;
     return (node.content ?? []).map((item, index) => {
-      const body = (item.content ?? []).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join(" ");
+      const children = item.content ?? [];
+      const body = children.length ? blockMarkdown(children[0], assetSources, depth + 1) : "";
+      const nested = children.slice(1).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join("\n");
       const marker = node.type === "orderedList" ? `${start + index}.` : "-";
-      return `${"  ".repeat(depth)}${marker} ${body}`;
+      return `${"  ".repeat(depth)}${marker} ${body}${nested ? `\n${nested}` : ""}`;
     }).join("\n");
   }
   if (node.type === "taskList") {
     return (node.content ?? []).map((item) => {
+      const children = item.content ?? [];
       const checked = item.attrs?.checked === true ? "x" : " ";
-      const body = (item.content ?? []).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join(" ");
-      return `${"  ".repeat(depth)}- [${checked}] ${body}`;
+      const body = children.length ? blockMarkdown(children[0], assetSources, depth + 1) : "";
+      const nested = children.slice(1).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join("\n");
+      return `${"  ".repeat(depth)}- [${checked}] ${body}${nested ? `\n${nested}` : ""}`;
     }).join("\n");
   }
   if (node.type === "image") {

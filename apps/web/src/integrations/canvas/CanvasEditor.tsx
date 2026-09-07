@@ -1,4 +1,4 @@
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -7,16 +7,23 @@ import type {
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { Network } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
+import DiagramPalette from "./DiagramPalette";
+import {
+  buildArchitectureTemplate,
+  buildDiagramNode,
+  buildFlowchartTemplate,
+  type DiagramCatalogItem,
+  type DiagramSkeleton,
+} from "./diagram";
 
 type FocusRequest = { id: string; request: number } | null;
 
-// Excalidraw uses object identity for parts of its internal configuration.
-// Keep this stable so parent Workspace renders do not reconfigure the editor.
 const canvasUIOptions = {
   canvasActions: {
     loadScene: true,
@@ -28,7 +35,6 @@ const canvasUIOptions = {
   tools: { image: true },
 };
 
-// Host fonts on the same instance; the editor must not depend on a public CDN.
 declare global {
   interface Window { EXCALIDRAW_ASSET_PATH: string; }
 }
@@ -47,11 +53,24 @@ function sceneSignature(data: Record<string, unknown>) {
   });
 }
 
+function nextDiagramOrigin(value: ExcalidrawImperativeAPI) {
+  const elements = value.getSceneElements().filter((element) => !element.isDeleted);
+  if (elements.length === 0) return { x: 80, y: 80 };
+  const right = Math.max(...elements.map((element) => element.x + element.width));
+  const top = Math.min(...elements.map((element) => element.y));
+  return { x: right + 100, y: top };
+}
+
+function diagramId(prefix: string) {
+  return `notespace-${prefix}-${crypto.randomUUID()}`;
+}
+
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
   const { showToast } = useToast();
   const initialFiles = useRef<BinaryFiles>(readCanvasFiles(initial.data));
   const pendingFileIds = useRef(new Set<string>());
   const persistedFileIds = useRef(new Set<string>());
+  const [diagramOpen, setDiagramOpen] = useState(false);
   const [initialData] = useState(() => {
     const data = { ...initial.data };
     delete data.files;
@@ -117,12 +136,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const selected = Object.entries(state.selectedElementIds).find(([, value]) => value)?.[0] ?? null;
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
     setHasElements(elements.length > 0);
-
-    // Selection, cursor, menus and collaborators are transient. Only resume-relevant state is stored.
     const data = {
       elements,
       appState: { scrollX: state.scrollX, scrollY: state.scrollY, zoom: state.zoom, viewBackgroundColor: state.viewBackgroundColor },
-      // Image binaries stay in the browser's IndexedDB asset vault; the API only receives scene metadata.
       files: {},
     };
     persistCanvasFiles(files);
@@ -139,19 +155,50 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     void restoreLocalFiles(value);
   }, [restoreLocalFiles]);
 
+  const insertDiagram = useCallback(async (skeletons: DiagramSkeleton[]) => {
+    const value = api.current;
+    if (!value) return;
+    await document.fonts.ready;
+    const converted = convertToExcalidrawElements(skeletons as Parameters<typeof convertToExcalidrawElements>[0], { regenerateIds: false });
+    value.updateScene({ elements: [...value.getSceneElements(), ...converted] });
+  }, []);
+
+  const insertItem = useCallback((item: DiagramCatalogItem) => {
+    const value = api.current;
+    if (!value) return;
+    const origin = nextDiagramOrigin(value);
+    void insertDiagram(buildDiagramNode(item, origin, diagramId(item.id)));
+  }, [insertDiagram]);
+
+  const insertArchitecture = useCallback(() => {
+    const value = api.current;
+    if (!value) return;
+    void insertDiagram(buildArchitectureTemplate(nextDiagramOrigin(value), diagramId("architecture")));
+    setDiagramOpen(false);
+  }, [insertDiagram]);
+
+  const insertFlowchart = useCallback(() => {
+    const value = api.current;
+    if (!value) return;
+    void insertDiagram(buildFlowchartTemplate(nextDiagramOrigin(value), diagramId("flowchart")));
+    setDiagramOpen(false);
+  }, [insertDiagram]);
+
   return (
-    <div
-      className="relative min-h-0 w-full flex-1 [&_.App-menu_bottom]:hidden [&_.App-menu_bottom]:border-transparent [&_.App-menu_bottom]:bg-transparent [&_.App-toolbar]:border-0 [&_.App-toolbar]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.App-toolbar]:shadow-none [&_.App-toolbar]:border-[color-mix(in_srgb,var(--line)_65%,transparent)] [&_.excalidraw_.Island]:border-0 [&_.excalidraw_.Island]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.excalidraw_.Island]:shadow-none [&_.excalidraw_.FixedSideContainer]:opacity-[.86]"
-      aria-label="Workspace canvas"
-    >
+    <div className="relative min-h-0 w-full flex-1 [&_.App-menu_bottom]:hidden [&_.App-menu_bottom]:border-transparent [&_.App-menu_bottom]:bg-transparent [&_.App-toolbar]:border-0 [&_.App-toolbar]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.App-toolbar]:shadow-none [&_.App-toolbar]:border-[color-mix(in_srgb,var(--line)_65%,transparent)] [&_.excalidraw_.Island]:border-0 [&_.excalidraw_.Island]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.excalidraw_.Island]:shadow-none [&_.excalidraw_.FixedSideContainer]:opacity-[.86]" aria-label="Workspace canvas">
+      {!diagramOpen && (
+        <button type="button" onClick={() => setDiagramOpen(true)} className="absolute right-3 top-3 z-[5] flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] px-2.5 text-xs font-medium text-[var(--ink)] backdrop-blur hover:border-[var(--accent)] hover:bg-[var(--tint)]" aria-label="Open diagram palette">
+          <Network size={14} /> Diagram
+        </button>
+      )}
+      {diagramOpen && <DiagramPalette onClose={() => setDiagramOpen(false)} onInsert={insertItem} onInsertArchitecture={insertArchitecture} onInsertFlowchart={insertFlowchart} />}
       {!hasElements && (
         <div className="pointer-events-none absolute top-1/2 left-1/2 z-[1] flex -translate-x-1/2 -translate-y-[40%] flex-col items-center gap-[7px] text-center text-muted">
           <span className="grid size-8 place-items-center rounded-[9px] border border-dashed border-accent text-xl text-accent">+</span>
           <strong className="text-sm font-medium text-ink">Start mapping</strong>
-          <span className="whitespace-nowrap text-[11px] max-[700px]:w-[180px] max-[700px]:whitespace-normal">Add a note, shape, image, or connection.</span>
+          <span className="whitespace-nowrap text-[11px] max-[700px]:w-[180px] max-[700px]:whitespace-normal">Add a note, shape, image, connection, or diagram.</span>
         </div>
       )}
-      {/* The pinned @dwelle build includes Excalidraw's native bucket-fill tool. */}
       <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={false} UIOptions={canvasUIOptions}>
         <MainMenu>
           <MainMenu.DefaultItems.ClearCanvas />

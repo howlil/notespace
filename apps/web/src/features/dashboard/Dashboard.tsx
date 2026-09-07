@@ -10,6 +10,7 @@ import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domai
 import { listAllWorkspaces, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
+import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
@@ -85,7 +86,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       <Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} />
       <main className="min-h-dvh min-w-0">
         <header className="flex min-h-12 items-center justify-end gap-3 border-b border-line bg-surface px-6 max-[560px]:px-5">
-          <div className="ml-auto flex items-center gap-2.5 [&>button]:size-[30px]"><ThemeToggle /></div>
+          <div className="ml-auto flex items-center gap-1.5 [&>button]:size-[30px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>
         <div className="mx-auto w-full max-w-[1200px] px-8 pt-[29px] pb-9 max-[800px]:px-[18px] max-[800px]:pt-[22px] max-[800px]:pb-[30px] max-[560px]:p-5 max-[560px]:pt-6">
           <div className="mb-[22px] flex items-center justify-between gap-5 max-[800px]:items-start max-[560px]:flex-col max-[560px]:items-stretch max-[560px]:gap-3">

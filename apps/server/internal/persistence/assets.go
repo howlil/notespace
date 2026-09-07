@@ -17,8 +17,13 @@ func (s *Store) PutAsset(ctx context.Context, value asset.Stored) (asset.Stored,
 	if value.CreatedAt == "" {
 		value.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO workspace_assets(workspace_id,id,mime_type,data,created_at) VALUES (?,?,?,?,?)
-ON CONFLICT(workspace_id,id) DO UPDATE SET mime_type=excluded.mime_type,data=excluded.data`, value.WorkspaceID, value.ID, value.MimeType, value.Data, value.CreatedAt)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO workspace_assets(workspace_id,id,mime_type,data,created_at,staged)
+VALUES (?,?,?,?,?,CASE WHEN EXISTS (SELECT 1 FROM workspace_asset_references WHERE workspace_id=? AND asset_id=?) THEN 0 ELSE 1 END)
+ON CONFLICT(workspace_id,id) DO UPDATE SET
+  mime_type=excluded.mime_type,
+  data=excluded.data,
+  staged=CASE WHEN EXISTS (SELECT 1 FROM workspace_asset_references WHERE workspace_id=excluded.workspace_id AND asset_id=excluded.id) THEN 0 ELSE workspace_assets.staged END`,
+		value.WorkspaceID, value.ID, value.MimeType, value.Data, value.CreatedAt, value.WorkspaceID, value.ID)
 	if err != nil {
 		return asset.Stored{}, err
 	}

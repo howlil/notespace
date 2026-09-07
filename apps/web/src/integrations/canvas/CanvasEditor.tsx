@@ -28,9 +28,11 @@ import {
   syncDiagramsFromElements,
   type DiagramCatalogItem,
   type DiagramKind,
+  type DiagramSelection,
   type StructuredDiagram,
 } from "../../features/diagram/diagram-model";
 import { useToast } from "../../providers/toast-provider";
+import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -89,7 +91,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [diagramKind, setDiagramKind] = useState<DiagramKind>("architecture");
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
-  const [diagramSelection, setDiagramSelection] = useState<{ diagramId: string | null; nodeIds: string[] }>({ diagramId: null, nodeIds: [] });
+  const [diagramSelection, setDiagramSelection] = useState<DiagramSelection>({ diagramId: null, nodeIds: [] });
+  const diagramSelectionRef = useRef(diagramSelection);
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
@@ -97,8 +100,15 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const lastExternalScene = useRef(sceneSignature(initial.data));
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
+    if (sameStructuredDiagrams(diagramsRef.current, next)) return;
     diagramsRef.current = next;
-    setDiagrams((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+    setDiagrams(next);
+  }, []);
+
+  const updateDiagramSelection = useCallback((next: DiagramSelection) => {
+    if (sameDiagramSelection(diagramSelectionRef.current, next)) return;
+    diagramSelectionRef.current = next;
+    setDiagramSelection(next);
   }, []);
 
   const emitSnapshot = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, nextDiagrams: readonly StructuredDiagram[]) => {
@@ -171,7 +181,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
     const nextDiagrams = syncDiagramsFromElements(diagramsRef.current, elements);
     updateDiagramState(nextDiagrams);
-    setDiagramSelection(selectionForElements(nextDiagrams, selectedIds, elements));
+    updateDiagramSelection(selectionForElements(nextDiagrams, selectedIds, elements));
 
     const data = {
       elements,
@@ -186,7 +196,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     last.current = serialized;
     lastExternalScene.current = sceneSignature(data);
     if (!first) onChange({ format: "excalidraw", version: 1, data });
-  }, [onChange, onElementSelect, persistCanvasFiles, updateDiagramState]);
+  }, [onChange, onElementSelect, persistCanvasFiles, updateDiagramSelection, updateDiagramState]);
 
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
@@ -213,10 +223,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       : [...diagramsRef.current, next];
     updateDiagramState(nextDiagrams);
     setLastDiagramId(next.id);
-    setDiagramSelection({ diagramId: next.id, nodeIds: [] });
+    updateDiagramSelection({ diagramId: next.id, nodeIds: [] });
     value.updateScene({ elements: nextElements });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
-  }, [dark, emitSnapshot, updateDiagramState]);
+  }, [dark, emitSnapshot, updateDiagramSelection, updateDiagramState]);
 
   const createStarter = useCallback((kind: DiagramKind) => {
     void applyDiagram(null, createStarterDiagram(kind, canvasOrigin()));
@@ -252,11 +262,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (!activeDiagram || !api.current) return;
     const nextDiagrams = diagramsRef.current.filter((diagram) => diagram.id !== activeDiagram.id);
     updateDiagramState(nextDiagrams);
-    setDiagramSelection({ diagramId: null, nodeIds: [] });
+    updateDiagramSelection({ diagramId: null, nodeIds: [] });
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     emitSnapshot(api.current.getSceneElements(), api.current.getAppState(), nextDiagrams);
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
-  }, [activeDiagram, emitSnapshot, showToast, updateDiagramState]);
+  }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
   return (
     <div

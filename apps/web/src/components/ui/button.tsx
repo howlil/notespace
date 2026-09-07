@@ -1,5 +1,4 @@
 import { Slot } from "@radix-ui/react-slot";
-import { motion } from "motion/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "./utils";
 
@@ -28,7 +27,7 @@ const sizes: Record<ButtonSize, string> = {
 
 function buttonClassName(variant: ButtonVariant, size: ButtonSize, className?: string) {
   return cn(
-    "inline-flex items-center justify-center gap-1.5 border font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-wait disabled:opacity-50",
+    "inline-flex items-center justify-center gap-1.5 border font-medium transition-[color,background-color,border-color,opacity,filter,transform] duration-100 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-wait disabled:opacity-50 disabled:active:scale-100",
     variants[variant],
     sizes[size],
     variant === "secondary" ? "border" : "border-transparent",
@@ -49,14 +48,9 @@ export function Button({
   }
 
   return (
-    <motion.button
-      className={buttonClassName(variant, size, className)}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.1, ease: "easeOut" }}
-      {...props}
-    >
+    <button className={buttonClassName(variant, size, className)} {...props}>
       {children}
-    </motion.button>
+    </button>
   );
 }
 

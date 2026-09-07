@@ -74,8 +74,10 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const iterations = 16
-	const documentBytes = 256 << 10
+	// A 1 MiB note is duplicated in the current aggregate's document/notes
+	// compatibility fields, deliberately exercising a >2 MiB authored row.
+	const iterations = 12
+	const documentBytes = 1 << 20
 	saves := make([]time.Duration, 0, iterations)
 	searches := make([]time.Duration, 0, iterations)
 	for i := 0; i < iterations; i++ {

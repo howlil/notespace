@@ -1,27 +1,12 @@
 import {
-  Archive,
   Boxes,
-  Braces,
-  Circle,
-  Cloud,
-  Code2,
-  Database,
-  Diamond,
-  GitBranch,
-  Globe2,
   Layers3,
   Link2,
-  List,
   Network,
   Search,
-  Server,
-  Square,
   Unlink,
-  User,
   Wand2,
   X,
-  Zap,
-  type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button, IconButton, Input } from "../../components/ui";
@@ -31,25 +16,7 @@ import {
   type DiagramCategory,
   type DiagramKind,
 } from "./diagram-model";
-
-const iconByKey: Record<string, LucideIcon> = {
-  archive: Archive,
-  boxes: Boxes,
-  braces: Braces,
-  circle: Circle,
-  cloud: Cloud,
-  code: Code2,
-  database: Database,
-  diamond: Diamond,
-  git: GitBranch,
-  globe: Globe2,
-  layers: Layers3,
-  list: List,
-  server: Server,
-  square: Square,
-  user: User,
-  zap: Zap,
-};
+import { eraserIconUrlForCatalogKey } from "./eraser-icons";
 
 const categories: readonly { id: DiagramCategory | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -73,6 +40,27 @@ interface Props {
   onAutoLayout: () => void;
   onDetach: () => void;
   onClose: () => void;
+}
+
+function EraserIconPreview({ item }: { item: DiagramCatalogItem }) {
+  const [failed, setFailed] = useState(false);
+  const url = eraserIconUrlForCatalogKey(item.key);
+
+  if (!url || failed) {
+    return <span className="grid size-6 place-items-center text-[10px] font-semibold text-ink">{item.glyph}</span>;
+  }
+
+  return (
+    <img
+      src={url}
+      alt=""
+      aria-hidden="true"
+      className="size-6 object-contain"
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export function DiagramPalette({
@@ -104,7 +92,7 @@ export function DiagramPalette({
       <header className="flex items-start justify-between gap-3 border-b border-line px-3 py-2.5">
         <div>
           <div className="flex items-center gap-1.5 text-[12px] font-semibold"><Network size={14} className="text-accent" /> Diagram</div>
-          <p className="mt-0.5 mb-0 text-[10px] leading-4 text-muted">Structured nodes, native Excalidraw output.</p>
+          <p className="mt-0.5 mb-0 text-[10px] leading-4 text-muted">Structured nodes with Eraser icon assets.</p>
         </div>
         <IconButton aria-label="Close diagram tools" title="Close" className="size-7" onClick={onClose}><X size={13} /></IconButton>
       </header>
@@ -135,7 +123,7 @@ export function DiagramPalette({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search icons and components"
+            placeholder="Search Eraser icons"
             aria-label="Search diagram components"
             className="pl-8"
           />
@@ -157,22 +145,19 @@ export function DiagramPalette({
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {items.length ? (
           <div className="grid grid-cols-4 gap-1.5">
-            {items.map((item) => {
-              const Icon = iconByKey[item.iconKey] ?? Square;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className="group flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface px-1 text-center transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent"
-                  title={`Insert ${item.label}`}
-                  aria-label={`Insert ${item.label}`}
-                  onClick={() => onInsertNode(item)}
-                >
-                  <Icon size={18} strokeWidth={1.6} className="text-ink" />
-                  <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8px] text-muted group-hover:text-ink">{item.label}</span>
-                </button>
-              );
-            })}
+            {items.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="group flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface px-1 text-center transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent"
+                title={`Insert ${item.label}`}
+                aria-label={`Insert ${item.label}`}
+                onClick={() => onInsertNode(item)}
+              >
+                <EraserIconPreview item={item} />
+                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8px] text-muted group-hover:text-ink">{item.label}</span>
+              </button>
+            ))}
           </div>
         ) : (
           <div className="grid min-h-24 place-items-center px-4 text-center text-[10px] leading-4 text-muted">No diagram component matches this search.</div>

@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 import "../styles/globals.css";
 import { Button } from "../components/ui";
@@ -28,14 +29,16 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootDocument,
   component: () => (
-    <NativePopupManager>
-      <ToastProvider>
-        <ThemeProvider>
-          <QuickOpen />
-          <Outlet />
-        </ThemeProvider>
-      </ToastProvider>
-    </NativePopupManager>
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: "easeOut" }}>
+      <NativePopupManager>
+        <ToastProvider>
+          <ThemeProvider>
+            <QuickOpen />
+            <Outlet />
+          </ThemeProvider>
+        </ToastProvider>
+      </NativePopupManager>
+    </MotionConfig>
   ),
   notFoundComponent: () => (
     <main className={routeMessageClass}>

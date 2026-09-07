@@ -22,6 +22,10 @@ type HighlightRequest = number | null;
 type OutlineItem = { id: string; level: number; text: string };
 type EditorJson = { type?: string; content?: JSONContent[] };
 
+function hasStructuredClipboardHtml(html: string) {
+  return /<(?:table|thead|tbody|tr|th|td|h[1-6]|blockquote|ul|ol)\b/i.test(html);
+}
+
 const editorClassName = cn(
   "h-full min-h-[350px] flex-1 overflow-x-hidden overflow-y-auto px-[30px] pt-[27px] pb-20 text-sm leading-[1.9] outline-none [overflow-wrap:anywhere] [scrollbar-width:none] [-ms-overflow-style:none]",
   "[&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0",
@@ -238,10 +242,14 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
         "aria-label": "Workspace document", role: "textbox", "aria-multiline": "true", spellcheck: "false", class: editorClassName,
       },
       handlePaste: (_view, event) => {
-        const files = Array.from(event.clipboardData?.items ?? []).filter((item) => item.kind === "file" && item.type.startsWith("image/")).map((item) => item.getAsFile()).filter((file): file is File => file !== null);
+        const clipboard = event.clipboardData;
+        const files = Array.from(clipboard?.items ?? []).filter((item) => item.kind === "file" && item.type.startsWith("image/")).map((item) => item.getAsFile()).filter((file): file is File => file !== null);
         if (files.length) { event.preventDefault(); void insertPastedImages(files); return true; }
 
-        const text = event.clipboardData?.getData("text/plain") ?? "";
+        const html = clipboard?.getData("text/html") ?? "";
+        if (hasStructuredClipboardHtml(html)) return false;
+
+        const text = clipboard?.getData("text/plain") ?? "";
         if (!looksLikeMarkdown(text)) return false;
         const root = markdownToSnapshot(text).data as EditorJson;
         if (!root.content?.length) return false;

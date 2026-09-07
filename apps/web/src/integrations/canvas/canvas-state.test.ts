@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StructuredDiagram } from "../../features/diagram/diagram-model";
-import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
+import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state.ts";
 
 test("diagram selection equality rejects only observable selection changes", () => {
   const empty = { diagramId: null, nodeIds: [] };

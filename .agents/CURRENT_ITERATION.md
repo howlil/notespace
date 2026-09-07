@@ -1,46 +1,49 @@
 # Current Iteration
 
-## Status
+## Milestone — Structured Technical Diagrams
 
-**Milestone: Editor Completeness — integration gate.**
+**Outcome:** Canvas can create technical diagrams without leaving Notespace or depending on Eraser as an external runtime.
 
-PR #25 implements the current user-facing editor milestone and is awaiting exact-head verification before merge.
+### Slice 1 — Diagram entrypoint and palette
 
-## Product outcome
+- Add a first-class `Diagram` control inside Canvas.
+- Open a compact searchable palette instead of adding more permanent canvas chrome.
+- Group reusable components into General, Tech, and Cloud categories.
+- Reuse Notespace design tokens and existing Lucide dependency.
 
-Notespace Note authoring now covers the highest-frequency document operations without requiring Markdown knowledge or paste-only workarounds:
+**Acceptance:** user can open/close the palette, search components, filter categories, and insert a component without leaving Canvas.
 
-- viewport-aware slash-command and selection-popup placement with flip + clamp behavior;
-- selection formatting for bold, italic, strike, inline code, highlight, and links;
-- proper link create/edit/remove/open/copy interactions;
-- local Find & Replace;
-- interactive checklist creation and toggling;
-- table insertion plus row/column/table editing controls;
-- syntax-highlighted code blocks with language, copy, and wrapping controls;
-- inline and block mathematics via Tiptap Mathematics + KaTeX;
-- image insertion plus alt-text and removal controls;
-- Motion React on meaningful contextual surfaces with user reduced-motion respected.
+### Slice 2 — Native diagram components
 
-## Regression fixed
+- Convert selected palette components into native Excalidraw elements.
+- Keep generated IDs under a Notespace-owned namespace.
+- Preserve normal Excalidraw editing after insertion: move, resize, restyle, delete, and connect.
+- Append new components next to existing authored content rather than replacing the scene.
 
-Slash-command popup positioning is no longer hard-coded below the caret. When the caret is near the bottom of the viewport, the popup flips above; horizontal and vertical placement is clamped to remain visible.
+**Acceptance:** inserted diagram components persist through the existing Excalidraw snapshot/autosave path and remain editable with native canvas tools.
 
-## Architecture / scope
+### Slice 3 — High-value diagram templates
 
-- Tiptap snapshot persistence remains canonical authored state.
-- Markdown remains an interoperability adapter, now preserving the newly authored editor structures where applicable.
-- No backend API, SQLite schema, workspace ownership, autosave, or deployment contract changes.
-- Motion is limited to contextual UI/state transitions; typing, caret movement, pane resizing, canvas interaction, and scrolling remain unanimated.
+- Add Architecture template: Frontend → API → PostgreSQL / Redis.
+- Add Flowchart template: Start → Process → Decision → Done.
+- Create bound native arrows so template relationships survive normal shape movement.
+- Use deterministic layout at insertion time; do not add a new layout/runtime dependency in this milestone.
 
-## Verification required
+**Acceptance:** one action inserts a coherent connected diagram that can immediately be edited as native canvas content.
 
-Before merge:
+### Slice 4 — Verification and product boundary
 
-1. exact-head PR `Verify` must complete successfully;
-2. frontend typecheck, lint, unit tests, and production build must pass;
-3. PR must remain mergeable at the verified head;
-4. merge must use that exact head SHA.
+- Unit-test catalog search/filter behavior.
+- Unit-test template node identity and arrow bindings.
+- Add the diagram tests to the repository test gate.
+- Keep backend API, SQLite schema, workspace ownership, deployment model, and Excalidraw snapshot contract unchanged.
 
-## Next meaningful action
+**Acceptance:** typecheck, lint, unit tests, production build, and repository Verify are green at the exact PR head.
 
-Merge PR #25 after the exact-head verification gate is green, then update this file on `master` only if material shipped-state evidence differs from the PR result.
+## Scope boundary
+
+This milestone intentionally ships an Eraser-like **native diagram insertion workflow**, not an Eraser service integration and not a second canvas engine. Excalidraw remains the rendering/editing adapter. Diagram-as-code, ERD, sequence diagrams, large vendor-logo libraries, and AI-generated diagrams are follow-up milestones after this interaction proves useful.
+
+## Current state
+
+Implementation complete on `feat/structured-diagrams`; awaiting repository verification and merge.

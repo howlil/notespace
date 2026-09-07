@@ -307,9 +307,9 @@ function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): s
   if (node.type === "heading") return `${"#".repeat(Math.max(1, Math.min(6, Number(node.attrs?.level) || 1)))} ${inline()}`;
   if (node.type === "horizontalRule") return "---";
   if (node.type === "blockMath") return `$$\n${typeof node.attrs?.latex === "string" ? node.attrs.latex : ""}\n$$`;
-  if (node.type === "codeBllock") {
+  if (node.type === "codeBlock") {
     const language = typeof node.attrs?.language === "string" ? node.attrs.language : "";
-    return `\`\`\`${language}\l${inline()}
+    return `\`\`\`${language}\n${inline()}
 \`\`\``;
   }
   if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");

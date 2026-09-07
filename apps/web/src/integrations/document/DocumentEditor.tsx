@@ -28,9 +28,10 @@ const editorClassName = cn(
   "[&>*+*]:mt-3 [&_p]:my-2",
   "[&_mark]:rounded-sm [&_mark]:bg-[color-mix(in_srgb,var(--accent)_32%,transparent)] [&_mark]:px-0.5 [&_mark]:text-inherit",
   "[&>p:only-child:has(>br.ProseMirror-trailingBreak:only-child)::before]:float-left [&>p:only-child:has(>br.ProseMirror-trailingBreak:only-child)::before]:h-0 [&>p:only-child:has(>br.ProseMirror-trailingBreak:only-child)::before]:pointer-events-none [&>p:only-child:has(>br.ProseMirror-trailingBreak:only-child)::before]:text-muted [&>p:only-child:has(>br.ProseMirror-trailingBreak:only-child)::before]:content-['Start_writing...']",
-  "[&_h1]:mt-7 [&_h1]:text-[27px] [&_h2]:mt-[25px] [&_h2]:text-[22px] [&_h2]:font-medium [&_h2]:leading-[1.4] [&_h2]:tracking-[-.5px] [&_h2]:text-ink [&_h3]:text-lg [&_h3]:font-medium [&_h3]:text-ink",
+  "[&_h1]:mt-7 [&_h1]:text-[27px] [&_h2]:mt-[25px] [&_h2]:text-[22px] [&_h2]:font-medium [&_h2]:leading-[1.4] [&_h2]:tracking-[-.5px] [&_h2]:text-ink [&_h3]:text-lg [&_h3]:font-medium [&_h3]:text-ink [&_h4]:font-medium [&_h4]:text-ink [&_h5]:font-medium [&_h5]:text-ink [&_h6]:font-medium [&_h6]:text-muted",
   "[&_ul]:list-disc [&_ul]:pl-[23px] [&_ol]:list-decimal [&_ol]:pl-[23px]",
-  "[&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-0 [&_ul[data-type=taskList]_li]:relative [&_ul[data-type=taskList]_li]:pl-6 [&_ul[data-type=taskList]_li::before]:absolute [&_ul[data-type=taskList]_li::before]:top-[.65em] [&_ul[data-type=taskList]_li::before]:left-0 [&_ul[data-type=taskList]_li::before]:size-[11px] [&_ul[data-type=taskList]_li::before]:rounded-[3px] [&_ul[data-type=taskList]_li::before]:border [&_ul[data-type=taskList]_li::before]:border-muted [&_ul[data-type=taskList]_li::before]:content-['']",
+  "[&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-0 [&_ul[data-type=taskList]_li]:relative [&_ul[data-type=taskList]_li]:pl-6 [&_ul[data-type=taskList]_li::before]:absolute [&_ul[data-type=taskList]_li::before]:top-[.65em] [&_ul[data-type=taskList]_li::before]:left-0 [&_ul[data-type=taskList]_li::before]:size-[11px] [&_ul[data-type=taskList]_li::before]:rounded-[3px] [&_ul[data-type=taskList]_li::before]:border [&_ul[data-type=taskList]_li::before]:border-muted [&_ul[data-type=taskList]_li::before]:content-[''] [&_ul[data-type=taskList]_li[data-checked=true]::before]:border-accent [&_ul[data-type=taskList]_li[data-checked=true]::before]:bg-accent [&_ul[data-type=taskList]_li[data-checked=true]::before]:text-surface [&_ul[data-type=taskList]_li[data-checked=true]::before]:text-center [&_ul[data-type=taskList]_li[data-checked=true]::before]:text-[9px] [&_ul[data-type=taskList]_li[data-checked=true]::before]:leading-[10px] [&_ul[data-type=taskList]_li[data-checked=true]::before]:content-['✓']",
+  "[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-line [&_th]:bg-tint [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium [&_td]:border [&_td]:border-line [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top [&_table_p]:my-0",
   "[&_pre]:overflow-auto [&_pre]:whitespace-pre [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-line [&_pre]:bg-background [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:leading-[1.7]",
   "[&_code]:rounded-[3px] [&_code]:bg-background [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[.88em] [&_pre_code]:p-0",
   "[&_a]:text-accent [&_a]:underline [&_blockquote]:border-0 [&_blockquote]:pl-0 [&_blockquote]:text-muted",
@@ -52,8 +53,47 @@ const TaskItem = TiptapNode.create({
   name: "taskItem",
   content: "paragraph block*",
   defining: true,
+  addAttributes() {
+    return {
+      checked: {
+        default: false,
+        parseHTML: (element) => element.getAttribute("data-checked") === "true",
+        renderHTML: (attributes) => ({ "data-checked": attributes.checked === true ? "true" : "false" }),
+      },
+    };
+  },
   parseHTML() { return [{ tag: 'li[data-type="taskItem"]' }]; },
   renderHTML({ HTMLAttributes }) { return ["li", mergeAttributes(HTMLAttributes, { "data-type": "taskItem" }), 0]; },
+});
+
+const Table = TiptapNode.create({
+  name: "table",
+  group: "block",
+  content: "tableRow+",
+  isolating: true,
+  parseHTML() { return [{ tag: "table" }]; },
+  renderHTML({ HTMLAttributes }) { return ["table", mergeAttributes(HTMLAttributes), 0]; },
+});
+
+const TableRow = TiptapNode.create({
+  name: "tableRow",
+  content: "(tableHeader | tableCell)+",
+  parseHTML() { return [{ tag: "tr" }]; },
+  renderHTML({ HTMLAttributes }) { return ["tr", mergeAttributes(HTMLAttributes), 0]; },
+});
+
+const TableCell = TiptapNode.create({
+  name: "tableCell",
+  content: "block+",
+  parseHTML() { return [{ tag: "td" }]; },
+  renderHTML({ HTMLAttributes }) { return ["td", mergeAttributes(HTMLAttributes), 0]; },
+});
+
+const TableHeader = TiptapNode.create({
+  name: "tableHeader",
+  content: "block+",
+  parseHTML() { return [{ tag: "th" }]; },
+  renderHTML({ HTMLAttributes }) { return ["th", mergeAttributes(HTMLAttributes), 0]; },
 });
 
 function findBlockPosition(editor: Editor, blockId: string) {
@@ -188,7 +228,7 @@ export default function DocumentEditor({ initial, onChange, onBlockSelect, focus
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false } }), createLocalImageExtension(workspaceId), TaskList, TaskItem, Highlight,
+      StarterKit.configure({ link: { openOnClick: false } }), createLocalImageExtension(workspaceId), TaskList, TaskItem, Table, TableRow, TableCell, TableHeader, Highlight,
       UniqueID.configure({ types: ["paragraph", "heading", "codeBlock", "listItem", "taskItem"], attributeName: "blockId" }),
     ],
     content: initial.data,

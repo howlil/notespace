@@ -19,6 +19,8 @@ test("markdown paste detection distinguishes authored markdown from ordinary pro
   assert.equal(looksLikeMarkdown("Use **connection pooling** in production."), true);
   assert.equal(looksLikeMarkdown("```go\nfunc main() {}\n```"), true);
   assert.equal(looksLikeMarkdown("> quoted answer"), true);
+  assert.equal(looksLikeMarkdown("Name | Role\n--- | ---\nAda | SWE"), true);
+  assert.equal(looksLikeMarkdown("| Name | Role |\n| --- | --- |\n| Ada | SWE |"), true);
 });
 
 test("markdown import keeps AI-response heading levels and inline emphasis", () => {
@@ -28,6 +30,28 @@ test("markdown import keeps AI-response heading levels and inline emphasis", () 
   assert.equal(root.content?.[0]?.attrs?.level, 4);
   assert.deepEqual(root.content?.[1]?.content?.[0]?.marks?.map((mark) => mark.type), ["bold", "italic"]);
   assert.equal(root.content?.[2]?.attrs?.start, 3);
+});
+
+test("markdown import preserves nested lists and task state", () => {
+  const snapshot = markdownToSnapshot("- parent\n  - child\n    1. ordered child\n- [x] shipped\n- [ ] pending");
+  const root = snapshot.data as { content?: Array<{ type?: string; content?: Array<{ attrs?: Record<string, unknown>; content?: Array<{ type?: string }> }> }> };
+
+  assert.equal(root.content?.[0]?.type, "bulletList");
+  assert.equal(root.content?.[0]?.content?.[0]?.content?.[1]?.type, "bulletList");
+  assert.equal(root.content?.[1]?.type, "taskList");
+  assert.equal(root.content?.[1]?.content?.[0]?.attrs?.checked, true);
+  assert.equal(root.content?.[1]?.content?.[1]?.attrs?.checked, false);
+});
+
+test("markdown import and export preserve GFM table structure", () => {
+  const source = "| Name | Role |\n| --- | --- |\n| Ada | **SWE** |\n| Lin | Platform |";
+  const snapshot = markdownToSnapshot(source);
+  const root = snapshot.data as { content?: Array<{ type?: string; content?: Array<{ content?: Array<{ type?: string }> }> }> };
+
+  assert.equal(root.content?.[0]?.type, "table");
+  assert.deepEqual(root.content?.[0]?.content?.[0]?.content?.map((cell) => cell.type), ["tableHeader", "tableHeader"]);
+  assert.match(snapshotToMarkdown(snapshot), /^\| Name \| Role \|/m);
+  assert.match(snapshotToMarkdown(snapshot), /^\| Ada \| \*\*SWE\*\* \|/m);
 });
 
 test("markdown export produces portable readable text", () => {

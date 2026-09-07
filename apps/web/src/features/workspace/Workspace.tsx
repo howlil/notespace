@@ -216,13 +216,13 @@ export function Workspace({ project, categoryTitle }: { project: Project; catego
   }
 
   function selectionContext(pane: Pane, content: ReactNode) {
-    const textSelection = pane.kind === "note" && selectedTextPaneId === pane.id;
-    if (!textSelection) return content;
+    if (pane.kind !== "note") return content;
+    const textSelection = selectedTextPaneId === pane.id;
     return <ContextMenu>
       <ContextMenuTrigger asChild><div className="pane-content-context flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden">{content}</div></ContextMenuTrigger>
-      <ContextMenuContent>
+      {textSelection && <ContextMenuContent>
         <ContextMenuItem onSelect={highlightSelectedText}><Highlighter size={13} /> Highlight text</ContextMenuItem>
-      </ContextMenuContent>
+      </ContextMenuContent>}
     </ContextMenu>;
   }
 

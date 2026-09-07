@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { captureTitle, markdownToSnapshot, snapshotAssetIds, snapshotToMarkdown } from "./markdown.ts";
+import { captureTitle, looksLikeMarkdown, markdownToSnapshot, snapshotAssetIds, snapshotToMarkdown } from "./markdown.ts";
 
 test("markdown import preserves core long-note structure", () => {
   const snapshot = markdownToSnapshot(`# Architecture\n\nIntro with **bold** text.\n\n## Storage\n\n- SQLite\n- WAL\n\n> durable by default\n\n\`\`\`\nSELECT 1;\n\`\`\``);
@@ -11,6 +11,23 @@ test("markdown import preserves core long-note structure", () => {
   assert.deepEqual(root.content?.map((node) => node.type), ["heading", "paragraph", "heading", "bulletList", "blockquote", "codeBlock"]);
   assert.equal(root.content?.[0]?.attrs?.level, 1);
   assert.equal(typeof root.content?.[0]?.attrs?.blockId, "string");
+});
+
+test("markdown paste detection distinguishes authored markdown from ordinary prose", () => {
+  assert.equal(looksLikeMarkdown("ordinary sentence without formatting"), false);
+  assert.equal(looksLikeMarkdown("# Heading\n\nBody"), true);
+  assert.equal(looksLikeMarkdown("Use **connection pooling** in production."), true);
+  assert.equal(looksLikeMarkdown("```go\nfunc main() {}\n```"), true);
+  assert.equal(looksLikeMarkdown("> quoted answer"), true);
+});
+
+test("markdown import keeps AI-response heading levels and inline emphasis", () => {
+  const snapshot = markdownToSnapshot("#### Details\n\n***Important*** and __stable__.\n\n3. third\n4. fourth");
+  const root = snapshot.data as { content?: Array<{ type?: string; attrs?: Record<string, unknown>; content?: Array<{ marks?: Array<{ type: string }> }> }> };
+
+  assert.equal(root.content?.[0]?.attrs?.level, 4);
+  assert.deepEqual(root.content?.[1]?.content?.[0]?.marks?.map((mark) => mark.type), ["bold", "italic"]);
+  assert.equal(root.content?.[2]?.attrs?.start, 3);
 });
 
 test("markdown export produces portable readable text", () => {

@@ -18,16 +18,17 @@ function newBlockId() {
 function inlineNodes(value: string): JsonNode[] {
   if (!value) return [];
   const nodes: JsonNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|~~[^~]+~~|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const pattern = /(\*\*\*[^*]+\*\*\*|___[^_]+___|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*]+\*|_[^_]+_|\[[^\]]+\]\([^)]+\))/g;
   let cursor = 0;
   for (const match of value.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > cursor) nodes.push({ type: "text", text: value.slice(cursor, index) });
     const token = match[0];
-    if (token.startsWith("**")) nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "bold" }] });
+    if (token.startsWith("***") || token.startsWith("___")) nodes.push({ type: "text", text: token.slice(3, -3), marks: [{ type: "bold" }, { type: "italic" }] });
+    else if (token.startsWith("**") || token.startsWith("__")) nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "bold" }] });
     else if (token.startsWith("~~")) nodes.push({ type: "text", text: token.slice(2, -2), marks: [{ type: "strike" }] });
     else if (token.startsWith("`")) nodes.push({ type: "text", text: token.slice(1, -1), marks: [{ type: "code" }] });
-    else if (token.startsWith("*")) nodes.push({ type: "text", text: token.slice(1, -1), marks: [{ type: "italic" }] });
+    else if (token.startsWith("*") || token.startsWith("_")) nodes.push({ type: "text", text: token.slice(1, -1), marks: [{ type: "italic" }] });
     else {
       const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (link) nodes.push({ type: "text", text: link[1], marks: [{ type: "link", attrs: { href: link[2] } }] });
@@ -47,7 +48,27 @@ function listItem(value: string): JsonNode {
 }
 
 function isSpecialLine(line: string) {
-  return /^(#{1,3}\s+|```|>\s?|[-*+]\s+|\d+[.)]\s+|(?:---|___|\*\*\*)\s*$)/.test(line);
+  return /^(#{1,6}\s+|```|~~~|>\s?|[-*+]\s+|\d+[.)]\s+|(?:---|___|\*\*\*)\s*$)/.test(line);
+}
+
+export function looksLikeMarkdown(markdown: string): boolean {
+  const value = markdown.replace(/\r\n?/g, "\n");
+  if (!value.trim()) return false;
+  return (
+    /(^|\n)#{1,6}\s+\S/.test(value) ||
+    /(^|\n)(?:```|~~~)[^\n]*\n/.test(value) ||
+    /(^|\n)>\s?\S/.test(value) ||
+    /(^|\n)[-*+]\s+\S/.test(value) ||
+    /(^|\n)\d+[.)]\s+\S/.test(value) ||
+    /(^|\n)(?:---|___|\*\*\*)\s*(?:\n|$)/.test(value) ||
+    /\*\*\*[^*\n]+\*\*\*/.test(value) ||
+    /___[^_\n]+___/.test(value) ||
+    /\*\*[^*\n]+\*\*/.test(value) ||
+    /__[^_\n]+__/.test(value) ||
+    /~~[^~\n]+~~/.test(value) ||
+    /`[^`\n]+`/.test(value) ||
+    /\[[^\]\n]+\]\([^)\n]+\)/.test(value)
+  );
 }
 
 export function markdownToSnapshot(markdown: string): Snapshot {
@@ -58,17 +79,18 @@ export function markdownToSnapshot(markdown: string): Snapshot {
     const line = lines[index];
     if (!line.trim()) { index += 1; continue; }
 
-    const fence = line.match(/^```/);
+    const fence = line.match(/^(```|~~~)/);
     if (fence) {
+      const marker = fence[1];
       const body: string[] = [];
       index += 1;
-      while (index < lines.length && !lines[index].startsWith("```")) body.push(lines[index++]);
+      while (index < lines.length && !lines[index].startsWith(marker)) body.push(lines[index++]);
       if (index < lines.length) index += 1;
       content.push({ type: "codeBlock", attrs: { blockId: newBlockId() }, content: body.length ? [{ type: "text", text: body.join("\n") }] : undefined });
       continue;
     }
 
-    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
     if (heading) {
       content.push({ type: "heading", attrs: { level: heading[1].length, blockId: newBlockId() }, content: inlineNodes(heading[2].trim()) });
       index += 1;
@@ -97,8 +119,9 @@ export function markdownToSnapshot(markdown: string): Snapshot {
 
     if (/^\d+[.)]\s+/.test(line)) {
       const items: JsonNode[] = [];
+      const start = Number(line.match(/^(\d+)/)?.[1] ?? 1);
       while (index < lines.length && /^\d+[.)]\s+/.test(lines[index])) items.push(listItem(lines[index++].replace(/^\d+[.)]\s+/, "")));
-      content.push({ type: "orderedList", attrs: { start: 1 }, content: items });
+      content.push({ type: "orderedList", attrs: { start }, content: items });
       continue;
     }
 
@@ -132,14 +155,15 @@ function inlineMarkdown(node: JsonNode): string {
 function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): string {
   const inline = () => (node.content ?? []).map(inlineMarkdown).join("");
   if (node.type === "paragraph") return inline();
-  if (node.type === "heading") return `${"#".repeat(Math.max(1, Math.min(3, Number(node.attrs?.level) || 1)))} ${inline()}`;
+  if (node.type === "heading") return `${"#".repeat(Math.max(1, Math.min(6, Number(node.attrs?.level) || 1)))} ${inline()}`;
   if (node.type === "horizontalRule") return "---";
   if (node.type === "codeBlock") return `\`\`\`\n${inline()}\n\`\`\``;
   if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");
   if (node.type === "bulletList" || node.type === "orderedList") {
+    const start = node.type === "orderedList" ? Number(node.attrs?.start) || 1 : 1;
     return (node.content ?? []).map((item, index) => {
       const body = (item.content ?? []).map((child) => blockMarkdown(child, assetSources, depth + 1)).filter(Boolean).join(" ");
-      const marker = node.type === "orderedList" ? `${index + 1}.` : "-";
+      const marker = node.type === "orderedList" ? `${start + index}.` : "-";
       return `${"  ".repeat(depth)}${marker} ${body}`;
     }).join("\n");
   }

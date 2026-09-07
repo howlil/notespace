@@ -88,7 +88,6 @@ test("quick capture derives a compact title from markdown", () => {
   assert.equal(captureTitle("- review WAL internals"), "review WAL internals");
 });
 
-
 test("markdown export preserves authored code language and mathematics", () => {
   const snapshot = {
     format: "tiptap" as const,
@@ -104,7 +103,7 @@ test("markdown export preserves authored code language and mathematics", () => {
   };
 
   const markdown = snapshotToMarkdown(snapshot);
-  assert.match(markdown, /```typescript\\nconst x = 1;/);
-  assert.match(markdown, /\\$A=\\\\pi r\\^2\\$/);
-  assert.match(markdown, /\\$\\$\\nE=mc\\^2\\n\\$\\$/);
+  assert.ok(markdown.includes("```typescript\nconst x = 1;\n```"));
+  assert.ok(markdown.includes("Area: $A=\\pi r^2$"));
+  assert.ok(markdown.includes("$$\nE=mc^2\n$$"));
 });

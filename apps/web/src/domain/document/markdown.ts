@@ -200,14 +200,15 @@ export function markdownToSnapshot(markdown: string): Snapshot {
     const line = lines[index];
     if (!line.trim()) { index += 1; continue; }
 
-    const fence = line.match(/^(```|~~~)/);
+    const fence = line.match(/^(```|~~~)([^\s`]*)\s*$/);
     if (fence) {
       const marker = fence[1];
+      const language = fence[2]?.trim() || undefined;
       const body: string[] = [];
       index += 1;
       while (index < lines.length && !lines[index].startsWith(marker)) body.push(lines[index++]);
       if (index < lines.length) index += 1;
-      content.push({ type: "codeBlock", attrs: { blockId: newBlockId() }, content: body.length ? [{ type: "text", text: body.join("\n") }] : undefined });
+      content.push({ type: "codeBlock", attrs: { blockId: newBlockId(), ...(language ? { language } : {}) }, content: body.length ? [{ type: "text", text: body.join("\n") }] : undefined });
       continue;
     }
 
@@ -269,6 +270,7 @@ export function markdownToSnapshot(markdown: string): Snapshot {
 
 function inlineMarkdown(node: JsonNode): string {
   if (node.type === "hardBreak") return "  \n";
+  if (node.type === "inlineMath") return `$${typeof node.attrs?.latex === "string" ? node.attrs.latex : ""}$`;
   if (node.type !== "text") return (node.content ?? []).map(inlineMarkdown).join("");
   let value = node.text ?? "";
   for (const mark of node.marks ?? []) {
@@ -304,7 +306,12 @@ function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): s
   if (node.type === "paragraph") return inline();
   if (node.type === "heading") return `${"#".repeat(Math.max(1, Math.min(6, Number(node.attrs?.level) || 1)))} ${inline()}`;
   if (node.type === "horizontalRule") return "---";
-  if (node.type === "codeBlock") return `\`\`\`\n${inline()}\n\`\`\``;
+  if (node.type === "blockMath") return `$$\n${typeof node.attrs?.latex === "string" ? node.attrs.latex : ""}\n$$`;
+  if (node.type === "codeBllock") {
+    const language = typeof node.attrs?.language === "string" ? node.attrs.language : "";
+    return `\`\`\`${language}\l${inline()}
+\`\`\``;
+  }
   if (node.type === "blockquote") return (node.content ?? []).map((child) => blockMarkdown(child, assetSources, depth)).join("\n").split("\n").map((line) => `> ${line}`).join("\n");
   if (node.type === "table") return tableMarkdown(node, assetSources);
   if (node.type === "bulletList" || node.type === "orderedList") {

@@ -41,8 +41,8 @@ func scaleDocument(iteration, size int) project.Snapshot {
 	body, _ := json.Marshal(map[string]any{
 		"type": "doc",
 		"content": []any{map[string]any{
-			"type": "paragraph",
-			"attrs": map[string]any{"blockId": "scale-block"},
+			"type":    "paragraph",
+			"attrs":   map[string]any{"blockId": "scale-block"},
 			"content": []any{map[string]any{"type": "text", "text": text}},
 		}},
 	})

@@ -1,3 +1,4 @@
+import { pruneLocalImageCache } from "../assets/local-image-assets";
 import type {
   CategorySummary,
   Project,
@@ -95,7 +96,7 @@ export const deleteTrashedWorkspace = (id: string) => request<void>(`/api/trash/
 export const exportLibraryBackup = () => "/api/backup";
 export const restoreLibraryBackup = (file: File) => request<void>("/api/backup/restore", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": file.name.toLowerCase().endsWith(".zip") ? "application/zip" : (file.type || "application/json") },
   body: file,
 });
 
@@ -110,12 +111,43 @@ export const getWorkspaceStudy = (workspaceId: string, date: string) => request<
 export const getStudyActivity = (from: string, to: string) => request<StudyActivity>(`/api/study/activity?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const getStudyDayDetail = (date: string) => request<StudyDayDetail>(`/api/study/activity/${encodeURIComponent(date)}`);
 
+function assetIDs(project: Project) {
+  const ids = new Set<string>();
+  const seen = new WeakSet<object>();
+  const visit = (value: unknown, key = "") => {
+    if (typeof value === "string") {
+      if ((key === "assetId" || key === "fileId") && value) ids.add(value);
+      if (key === "src" && value.startsWith("notespace-asset://")) ids.add(value.slice("notespace-asset://".length));
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child);
+      return;
+    }
+    for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) visit(child, childKey);
+  };
+  visit(project.document);
+  visit(project.notes);
+  visit(project.canvas);
+  visit(project.references);
+  return ids;
+}
+
+async function reconcileAssetCache(project: Project) {
+  await pruneLocalImageCache(project.id, assetIDs(project));
+}
+
 export async function saveProject(id: string, content: ProjectContent, version: number) {
   try {
-    return await request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
+    const saved = await request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
       method: "PATCH",
       ...json({ ...content, version }),
     });
+    await reconcileAssetCache(saved);
+    return saved;
   } catch (error) {
     if (error instanceof APIError && error.status === 409) {
       const current = await getProject(id);
@@ -127,7 +159,10 @@ export async function saveProject(id: string, content: ProjectContent, version: 
         && JSON.stringify(current.notes) === JSON.stringify(content.notes)
         && JSON.stringify(current.canvas) === JSON.stringify(content.canvas)
         && JSON.stringify(current.references) === JSON.stringify(content.references)
-      ) return current;
+      ) {
+        await reconcileAssetCache(current);
+        return current;
+      }
       throw new WorkspaceConflictError(current);
     }
     throw error;

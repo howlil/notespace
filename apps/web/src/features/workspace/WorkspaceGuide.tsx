@@ -126,7 +126,7 @@ export function WorkspaceGuide() {
             </div>
 
             <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-6 py-3 max-[640px]:px-4">
-              <button type="button" className="border-0 bg-transparent px-1 py-1.5 text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={dismiss}>Skip</button>
+              <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-1 py-1.5 text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={dismiss}>Skip</Button>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="secondary" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}><ArrowLeft size={13} /> Back</Button>
                 <Button size="sm" onClick={() => lastStep ? dismiss() : setStep((value) => Math.min(STEP_COUNT - 1, value + 1))}>

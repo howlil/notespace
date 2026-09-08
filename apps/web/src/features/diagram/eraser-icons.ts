@@ -1,4 +1,6 @@
-export const ERASER_ICON_BASE_URL = "https://storage.googleapis.com/eraser-public-assets/canvas-icons";
+import generatedIconMetadata from "./catalog/eraser-icons.generated.json" with { type: "json" };
+
+export const ERASER_ICON_BASE_URL = "/api/icons/eraser";
 
 const iconNameByCatalogKey: Readonly<Record<string, string>> = {
   process: "square",
@@ -41,12 +43,14 @@ const iconNameByCatalogKey: Readonly<Record<string, string>> = {
   "azure-cosmos": "azure-cosmos-db",
 };
 
+const generatedIconNames = new Set(generatedIconMetadata.map((item) => item.name));
+
 export function eraserIconName(catalogKey: string) {
-  return iconNameByCatalogKey[catalogKey] ?? null;
+  return iconNameByCatalogKey[catalogKey] ?? (generatedIconNames.has(catalogKey) ? catalogKey : null);
 }
 
 export function eraserIconUrl(iconName: string) {
-  return `${ERASER_ICON_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
+  return `${ERASER_ICON_BASE_URL}/${encodeURIComponent(iconName)}`;
 }
 
 export function eraserIconUrlForCatalogKey(catalogKey: string) {

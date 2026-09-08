@@ -3,20 +3,16 @@ import { useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "r
 import { Link } from "@tanstack/react-router";
 import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../ui/confirm-dialog";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, cn } from "../ui";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../ui";
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../domain/project/api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
+import { NotespaceLogo } from "../brand/NotespaceLogo";
 
 export function Brand() {
-  return (
-    <span className="flex items-center text-lg font-semibold tracking-[-.7px] text-ink">
-      <span className="mr-2 inline-block size-6 rounded-[7px] bg-ink text-center text-xl font-medium leading-[22px] tracking-[-3px] text-surface">n<span className="text-accent">·</span></span>
-      notespace<span className="text-accent">.</span>
-    </span>
-  );
+  return <NotespaceLogo />;
 }
 
 type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
@@ -205,10 +201,10 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
                       {editingCategory === category.id && !isSystemCategory ? (
                         <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") setEditingCategory(null); }} />
                       ) : (
-                        <button className={cn("flex min-w-0 flex-1 items-center gap-[7px] border-0 bg-transparent px-[3px] py-1.5 text-left text-[11px] text-ink hover:text-accent", isSystemCategory && "text-muted")} onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                        <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSystemCategory && "text-muted")} onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
                           <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                           <small className={cn("ml-auto text-[9px] text-muted", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </ContextMenuTrigger>
@@ -219,7 +215,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
                 </ContextMenu>
                 {isOpen && (
                   <div className="ml-[27px] grid gap-px border-l border-line pt-0.5 pb-1">
-                    {loading === category.id && <span className="mx-[5px] mt-0.5 ml-[9px] px-[3px] py-[5px] text-[9px] text-accent">Loading…</span>}
+                    {loading === category.id && <div className="mx-[5px] mt-1 ml-[9px] grid gap-2 px-[3px] py-[5px]" role="status" aria-label={`Loading ${category.title}`}><span className="sr-only">Loading {category.title}…</span><Skeleton className="h-2 w-[min(76%,130px)]" /><Skeleton className="h-2 w-[min(52%,90px)] opacity-70" /></div>}
                     <AnimatePresence initial={false}>
                       {creating?.kind === "workspace" && creating.categoryId === category.id && <motion.div key={`workspace-create-${category.id}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace", category.id)}</motion.div>}
                     </AnimatePresence>

@@ -1,6 +1,6 @@
 import { Pause, Play, Square, Timer } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { Button, cn } from "../../components/ui";
+import { Button, PopupSurface, cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { StudySessionState } from "./use-study-session";
 import { formatDuration } from "./study-timer";
@@ -15,8 +15,11 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
 
   return (
     <div ref={indicatorRef} className="relative flex items-center gap-1">
-      <button
-        className="inline-flex min-h-7 items-center gap-[5px] rounded-md border-0 bg-transparent px-1.5 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink focus-visible:bg-tint focus-visible:text-ink"
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="min-h-7 gap-[5px] px-1.5 py-1 text-[10px] text-muted hover:text-ink focus-visible:bg-tint focus-visible:text-ink"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Study activity, today ${formatDuration(study.todaySeconds)}`}
@@ -24,7 +27,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
       >
         <span className={cn("text-[9px] not-italic", study.status === "running" ? "text-success" : "text-muted")}>●</span>
         {formatDuration(study.todaySeconds)}
-      </button>
+      </Button>
 
       {study.status === "idle" ? (
         <Button
@@ -58,7 +61,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
       )}
 
       {open && (
-        <div className="absolute top-[calc(100%+8px)] right-0 z-25 w-[235px] rounded-lg border border-line bg-surface p-3 shadow-[0_12px_32px_#0002] max-[520px]:right-[-8px]" role="dialog" aria-label="Study activity">
+        <PopupSurface className="absolute top-[calc(100%+8px)] right-0 z-25 w-[235px] p-3 max-[520px]:right-[-8px]" role="dialog" aria-label="Study activity">
           <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-ink"><span>Study activity</span><Timer size={14} className="text-muted" /></div>
           <dl className="my-3.5 grid gap-[9px]">
             <div className="flex items-baseline justify-between gap-3"><dt className="text-[10px] text-muted">Current session</dt><dd className="m-0 text-[11px] text-ink">{formatDuration(study.currentSeconds)}</dd></div>
@@ -69,7 +72,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
             <i className={cn("text-[9px] not-italic", study.status === "running" ? "text-success" : "text-muted")}>●</i>
             {state}
           </div>
-        </div>
+        </PopupSurface>
       )}
     </div>
   );

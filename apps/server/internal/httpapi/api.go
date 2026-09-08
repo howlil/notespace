@@ -1,12 +1,9 @@
 package httpapi
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -27,10 +24,11 @@ type indexedSearcher interface {
 }
 
 type API struct {
-	service project.Service
-	study   study.Service
-	assets  asset.Store
-	health  func(context.Context) error
+	service     project.Service
+	study       study.Service
+	assets      asset.Store
+	health      func(context.Context) error
+	eraserIcons *eraserIconGateway
 }
 
 func New(store project.Store, health func(context.Context) error) http.Handler {
@@ -42,7 +40,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	if !ok {
 		panic("httpapi: store does not implement asset.Store")
 	}
-	a := API{service: project.Service{Store: store}, study: study.Service{Store: studyStore}, assets: assetStore, health: health}
+	a := API{service: project.Service{Store: store}, study: study.Service{Store: studyStore}, assets: assetStore, health: health, eraserIcons: newEraserIconGateway(http.DefaultClient, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -51,6 +49,7 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 		}
 		send(w, 200, map[string]string{"status": "ok"})
 	})
+	mux.HandleFunc("GET /api/icons/eraser/{slug}", a.eraserIcons.serve)
 	mux.HandleFunc("GET /api/projects", a.list)
 	mux.HandleFunc("GET /api/workspaces", a.listWorkspaces)
 	mux.HandleFunc("POST /api/projects", a.create)
@@ -63,7 +62,6 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/projects/{id}/category", a.move)
-	mux.HandleFunc("GET /api/projects/{id}/export", a.export)
 	mux.HandleFunc("GET /api/projects/{id}/history", a.history)
 	mux.HandleFunc("GET /api/projects/{id}/history/{historyId}", a.historySnapshot)
 	mux.HandleFunc("POST /api/projects/{id}/history/{historyId}/restore", a.restore)
@@ -396,85 +394,6 @@ func (a API) deleteAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (a API) export(w http.ResponseWriter, r *http.Request) {
-	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	assets, err := a.assets.ListAssets(r.Context(), p.ID)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	var buffer bytes.Buffer
-	archive := zip.NewWriter(&buffer)
-	writeJSON := func(name string, value any) error {
-		file, err := archive.Create(name)
-		if err != nil {
-			return err
-		}
-		return json.NewEncoder(file).Encode(value)
-	}
-	noteFiles := make([]map[string]any, 0, len(p.Notes))
-	for index, note := range p.Notes {
-		noteFiles = append(noteFiles, map[string]any{"id": note.ID, "title": note.Title, "file": fmt.Sprintf("notes/%04d.json", index+1)})
-	}
-	assetFiles := make([]map[string]any, 0, len(assets))
-	for _, value := range assets {
-		assetFiles = append(assetFiles, map[string]any{"id": value.ID, "mimeType": value.MimeType, "file": "assets/" + value.ID})
-	}
-	manifest := map[string]any{"format": "notespace-workspace", "version": 3, "workspace": map[string]any{"id": p.ID, "categoryId": p.CategoryID, "title": p.Title, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}, "notes": noteFiles, "canvas": "canvas/workspace.excalidraw.json", "assets": assetFiles}
-	if err := writeJSON("manifest.json", manifest); err != nil {
-		fail(w, err)
-		return
-	}
-	if err := writeJSON("notes/notes.json", p.Notes); err != nil {
-		fail(w, err)
-		return
-	}
-	for index, note := range p.Notes {
-		if err := writeJSON(fmt.Sprintf("notes/%04d.json", index+1), note); err != nil {
-			fail(w, err)
-			return
-		}
-	}
-	if err := writeJSON("canvas/workspace.excalidraw.json", p.Canvas); err != nil {
-		fail(w, err)
-		return
-	}
-	var canvasData map[string]json.RawMessage
-	if err := json.Unmarshal(p.Canvas.Data, &canvasData); err == nil {
-		files := json.RawMessage(`{}`)
-		if persisted, ok := canvasData["files"]; ok && len(persisted) > 0 {
-			files = persisted
-		}
-		if err := writeJSON("canvas/files.json", files); err != nil {
-			fail(w, err)
-			return
-		}
-	}
-	for _, value := range assets {
-		file, err := archive.Create("assets/" + value.ID)
-		if err != nil {
-			fail(w, err)
-			return
-		}
-		if _, err := file.Write(value.Data); err != nil {
-			fail(w, err)
-			return
-		}
-	}
-	if err := archive.Close(); err != nil {
-		fail(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="notespace-workspace.zip"`)
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buffer.Bytes())
 }
 
 func (a API) history(w http.ResponseWriter, r *http.Request) {

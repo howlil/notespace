@@ -1,4 +1,4 @@
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -7,27 +7,22 @@ import type {
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { Network } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
-import { Button } from "../../components/ui";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {
   DIAGRAM_DATA_KEY,
-  NODE_WIDTH,
   addCatalogNode,
   connectDiagramNodes,
   createDiagramWithNode,
-  createStarterDiagram,
   groupDiagramNodes,
   layoutDiagram,
   readStructuredDiagrams,
   selectionForElements,
   syncDiagramsFromElements,
   type DiagramCatalogItem,
-  type DiagramKind,
   type DiagramSelection,
   type StructuredDiagram,
 } from "../../features/diagram/diagram-model";
@@ -35,6 +30,7 @@ import { useToast } from "../../providers/toast-provider";
 import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
+import { CanvasDetailsPanel, CanvasToolbar, CanvasUtilityBar, type CanvasActionName } from "./CanvasToolbar";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -63,13 +59,13 @@ function sceneSignature(data: Record<string, unknown>) {
   const appState = data.appState && typeof data.appState === "object" ? data.appState as Record<string, unknown> : {};
   return JSON.stringify({
     elements: Array.isArray(data.elements) ? data.elements : [],
-    appState: { scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: appState.zoom, viewBackgroundColor: appState.viewBackgroundColor },
+    appState: { scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: appState.zoom, viewBackgroundColor: appState.viewBackgroundColor, gridModeEnabled: appState.gridModeEnabled, objectsSnapModeEnabled: appState.objectsSnapModeEnabled },
     diagrams: data[DIAGRAM_DATA_KEY] ?? [],
   });
 }
 
 function persistedAppState(state: AppState) {
-  return { scrollX: state.scrollX, scrollY: state.scrollY, zoom: state.zoom, viewBackgroundColor: state.viewBackgroundColor };
+  return { scrollX: state.scrollX, scrollY: state.scrollY, zoom: state.zoom, viewBackgroundColor: state.viewBackgroundColor, gridModeEnabled: state.gridModeEnabled, objectsSnapModeEnabled: state.objectsSnapModeEnabled };
 }
 
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
@@ -88,17 +84,35 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     } as ExcalidrawInitialDataState;
   });
   const [hasElements, setHasElements] = useState(() => Array.isArray(initial.data.elements) && initial.data.elements.length > 0);
+  const [backgroundColor, setBackgroundColor] = useState(() => {
+    const appState = initial.data.appState && typeof initial.data.appState === "object" ? initial.data.appState as Record<string, unknown> : {};
+    return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : (dark ? "#1d1e24" : "#f8f9fc");
+  });
   const [diagramOpen, setDiagramOpen] = useState(false);
-  const [diagramKind, setDiagramKind] = useState<DiagramKind>("architecture");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
   const [diagramSelection, setDiagramSelection] = useState<DiagramSelection>({ diagramId: null, nodeIds: [] });
   const diagramSelectionRef = useRef(diagramSelection);
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
+  const [activeTool, setActiveTool] = useState<AppState["activeTool"]["type"]>("selection");
+  const [selectedElementCount, setSelectedElementCount] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [gridModeEnabled, setGridModeEnabled] = useState(false);
+  const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
+  const [canvasApi, setCanvasApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const panelAnchorRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
+
+  const closeCanvasPopovers = useCallback(() => {
+    setDiagramOpen(false);
+    setDetailsOpen(false);
+    setMoreOpen(false);
+  }, []);
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
     if (sameStructuredDiagrams(diagramsRef.current, next)) return;
@@ -175,7 +189,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [focusRequest]);
 
   const changed = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, files: BinaryFiles) => {
+    setActiveTool(state.activeTool.type);
     const selectedIds = Object.entries(state.selectedElementIds).filter(([, value]) => value).map(([id]) => id);
+    setSelectedElementCount(selectedIds.length);
+    setZoom(state.zoom.value);
+    setGridModeEnabled(state.gridModeEnabled);
+    setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
+    setBackgroundColor(state.viewBackgroundColor);
     const selected = selectedIds[0] ?? null;
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
     setHasElements(elements.length > 0);
@@ -201,8 +221,44 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
+    setCanvasApi(value);
+    setZoom(value.getAppState().zoom.value);
+    setGridModeEnabled(value.getAppState().gridModeEnabled);
+    setObjectsSnapModeEnabled(value.getAppState().objectsSnapModeEnabled);
     void restoreLocalFiles(value);
   }, [restoreLocalFiles]);
+
+  const runCanvasAction = useCallback((name: CanvasActionName) => {
+    const value = api.current;
+    if (!value) return;
+    if (name === "imageExport") {
+      value.app.setOpenDialog({ name: "imageExport" });
+      return;
+    }
+    if (name === "commandPalette") {
+      value.updateScene({ appState: { openSidebar: null, openDialog: { name: "commandPalette" } }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+      return;
+    }
+    if (name === "searchMenu") {
+      const openSidebar = value.getAppState().openSidebar;
+      const isSearchOpen = openSidebar?.name === "default" && openSidebar.tab === "search";
+      value.toggleSidebar({ name: "default", tab: "search", force: !isSearchOpen });
+      return;
+    }
+    const action = value.app.actionManager.actions[name];
+    if (action) {
+      value.app.actionManager.executeAction(action, "ui");
+      return;
+    }
+    showToast({ kind: "error", message: `Canvas action “${name}” is not available in this Excalidraw build.` });
+  }, [showToast]);
+
+  const setCanvasBackground = useCallback((color: string) => {
+    const value = api.current;
+    if (!value) return;
+    setBackgroundColor(color);
+    value.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+  }, []);
 
   const activeDiagram = useMemo(() => {
     const id = diagramSelection.diagramId ?? lastDiagramId ?? diagrams.at(-1)?.id ?? null;
@@ -233,20 +289,16 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
-  const createStarter = useCallback((kind: DiagramKind) => {
-    void applyDiagram(null, createStarterDiagram(kind, canvasOrigin()));
-  }, [applyDiagram, canvasOrigin]);
-
   const insertNode = useCallback((item: DiagramCatalogItem) => {
     const current = activeDiagram;
     if (!current) {
-      void applyDiagram(null, createDiagramWithNode(diagramKind, item, canvasOrigin()));
+      void applyDiagram(null, createDiagramWithNode("architecture", item, canvasOrigin(), undefined, "icon"));
       return;
     }
     const tail = current.nodes.at(-1);
-    const origin = tail ? { x: tail.x + NODE_WIDTH + 72, y: tail.y } : canvasOrigin();
-    void applyDiagram(current, addCatalogNode(current, item, origin));
-  }, [activeDiagram, applyDiagram, canvasOrigin, diagramKind]);
+    const origin = tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin();
+    void applyDiagram(current, addCatalogNode(current, item, origin, undefined, "icon"));
+  }, [activeDiagram, applyDiagram, canvasOrigin]);
 
   const connectSelected = useCallback(() => {
     if (!activeDiagram || diagramSelection.nodeIds.length !== 2) return;
@@ -273,38 +325,66 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
+  const openDetailsForDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as Element | null;
+    if (target?.closest("button, input, [role=\"toolbar\"], [role=\"dialog\"]")) return;
+    const value = api.current;
+    if (!value) return;
+    const hasSelection = Object.values(value.getAppState().selectedElementIds).some(Boolean);
+    if (!hasSelection) return;
+    setDiagramOpen(false);
+    setMoreOpen(false);
+    setDetailsOpen(true);
+  }, []);
+
   return (
     <div
-      className="relative min-h-0 w-full flex-1 [&_.App-menu_bottom]:hidden [&_.App-menu_bottom]:border-transparent [&_.App-menu_bottom]:bg-transparent [&_.App-toolbar]:border-0 [&_.App-toolbar]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.App-toolbar]:shadow-none [&_.App-toolbar]:border-[color-mix(in_srgb,var(--line)_65%,transparent)] [&_.excalidraw_.Island]:border-0 [&_.excalidraw_.Island]:bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)] [&_.excalidraw_.Island]:shadow-none [&_.excalidraw_.FixedSideContainer]:opacity-[.86]"
+      className="notespace-canvas-surface relative min-h-0 w-full flex-1"
       aria-label="Workspace canvas"
+      onDoubleClick={openDetailsForDoubleClick}
     >
-      <div className="absolute top-2.5 right-3 z-[20]" onPointerDown={(event) => event.stopPropagation()}>
-        <Button
-          variant={diagramOpen ? "secondary" : "ghost"}
-          size="sm"
-          aria-label="Diagram tools"
-          aria-expanded={diagramOpen}
-          onClick={() => setDiagramOpen((open) => !open)}
-          className={diagramOpen ? "border-accent bg-tint text-ink" : "bg-[color-mix(in_srgb,var(--canvas)_88%,transparent)]"}
-        >
-          <Network size={13} /> Diagram
-        </Button>
+      <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
+        <CanvasToolbar
+          api={canvasApi}
+          panelAnchorRef={panelAnchorRef}
+          activeTool={activeTool}
+          selectedElementCount={selectedElementCount}
+          backgroundColor={backgroundColor}
+          onBackgroundChange={setCanvasBackground}
+          diagramOpen={diagramOpen}
+          detailsOpen={detailsOpen}
+          moreOpen={moreOpen}
+          onDiagramToggle={() => { setDetailsOpen(false); setMoreOpen(false); setDiagramOpen((open) => !open); }}
+          onDetailsToggle={() => { setDiagramOpen(false); setMoreOpen(false); setDetailsOpen((open) => !open); }}
+          onMoreToggle={() => { setDiagramOpen(false); setDetailsOpen(false); setMoreOpen((open) => !open); }}
+          onCoreToolSelect={closeCanvasPopovers}
+          onAction={runCanvasAction}
+          diagramPanel={(
+            <DiagramPalette
+              open={diagramOpen}
+              anchorRef={panelAnchorRef}
+              activeDiagram={Boolean(activeDiagram)}
+              selectedNodeCount={diagramSelection.nodeIds.length}
+              onInsertNode={insertNode}
+              onConnect={connectSelected}
+              onGroup={groupSelected}
+              onAutoLayout={autoLayout}
+              onDetach={detachDiagram}
+              onClose={() => setDiagramOpen(false)}
+            />
+          )}
+          detailsPanel={(
+            <CanvasDetailsPanel
+              open={detailsOpen}
+              anchorRef={panelAnchorRef}
+              api={canvasApi}
+              activeTool={activeTool}
+              onClose={() => setDetailsOpen(false)}
+            />
+          )}
+        />
       </div>
-
-      <DiagramPalette
-        open={diagramOpen}
-        kind={diagramKind}
-        activeDiagram={Boolean(activeDiagram)}
-        selectedNodeCount={diagramSelection.nodeIds.length}
-        onKindChange={setDiagramKind}
-        onCreateStarter={createStarter}
-        onInsertNode={insertNode}
-        onConnect={connectSelected}
-        onGroup={groupSelected}
-        onAutoLayout={autoLayout}
-        onDetach={detachDiagram}
-        onClose={() => setDiagramOpen(false)}
-      />
+      <CanvasUtilityBar api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
 
       {!hasElements && (
         <div className="pointer-events-none absolute top-1/2 left-1/2 z-[1] flex -translate-x-1/2 -translate-y-[40%] flex-col items-center gap-[7px] text-center text-muted">
@@ -313,20 +393,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           <span className="whitespace-nowrap text-[11px] max-[700px]:w-[180px] max-[700px]:whitespace-normal">Add a note, shape, image, connection, or structured diagram.</span>
         </div>
       )}
-      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={false} UIOptions={canvasUIOptions}>
-        <MainMenu>
-          <MainMenu.DefaultItems.ClearCanvas />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.LoadScene />
-          <MainMenu.DefaultItems.SaveAsImage />
-          <MainMenu.DefaultItems.Export />
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.CommandPalette />
-          <MainMenu.DefaultItems.SearchMenu />
-          <MainMenu.DefaultItems.Help />
-        </MainMenu>
-      </Excalidraw>
+      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={false} UIOptions={canvasUIOptions} />
     </div>
   );
 }

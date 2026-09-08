@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, FileText, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
-import { Button, Input } from "../../components/ui";
+import { Button, Input, PopupSurface } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
+import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
@@ -69,9 +70,9 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
                 onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(); if (event.key === "Escape") { setCategoryTitle(category.title); setEditingCategory(false); } }}
               />
             ) : (
-              <button className="group inline-flex items-center gap-2 border-0 bg-transparent p-0 text-2xl font-medium tracking-[-.6px] text-ink" onClick={() => setEditingCategory(true)}>
+              <Button variant="ghost" size="sm" className="group !min-h-0 !rounded-none border-0 bg-transparent p-0 text-2xl font-medium tracking-[-.6px] text-ink hover:bg-transparent" onClick={() => setEditingCategory(true)}>
                 {category.title}<Pencil size={14} className="text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
-              </button>
+              </Button>
             )}
             <p className="mt-1.5 mb-0 text-[11px] text-muted">{page.total} workspace{page.total === 1 ? "" : "s"}</p>
           </div>
@@ -96,7 +97,7 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
         </div>
 
         <div className="min-h-40 border-t border-line" aria-busy={loading}>
-          {loading && <div className="px-3 py-6 text-[11px] text-muted">Loading workspaces…</div>}
+          {loading && <WorkspaceListSkeleton rows={6} />}
           {!loading && !page.items.length ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-[35px] text-center">
               <span className="mb-[15px] grid size-[46px] place-items-center rounded-[7px] bg-tint text-accent"><FileText size={22} /></span>
@@ -109,7 +110,7 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
               {page.items.map((workspace) => (
                 <div className="grid min-h-[52px] grid-cols-[minmax(0,2fr)_minmax(110px,1fr)_100px_35px] items-center gap-3.5 border-t border-line px-3 text-[11px] hover:bg-surface max-[800px]:grid-cols-[minmax(0,1fr)_35px] max-[800px]:gap-2 max-[800px]:px-1 max-[800px]:py-2" key={workspace.id}>
                   {editingWorkspace === workspace.id ? (
-                    <input className="w-full min-w-0 border-0 bg-transparent p-px text-[11px] text-ink outline-0" autoFocus value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} onBlur={() => void saveWorkspace()} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(); if (event.key === "Escape") setEditingWorkspace(null); }} />
+                    <Input className="min-h-0 w-full rounded-none border-0 bg-transparent p-px text-[11px]" autoFocus value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} onBlur={() => void saveWorkspace()} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(); if (event.key === "Escape") setEditingWorkspace(null); }} />
                   ) : (
                     <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className="flex min-w-0 items-center gap-2"><FileText size={15} className="shrink-0 text-accent" /><strong className="overflow-hidden text-ellipsis whitespace-nowrap font-medium">{workspace.title}</strong></Link>
                   )}
@@ -117,10 +118,10 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
                   <time className="text-[10px] text-muted max-[800px]:hidden" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
                   <details className="relative shrink-0 [&>summary::-webkit-details-marker]:hidden">
                     <summary className="grid size-8 list-none place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent" aria-label={`Actions for ${workspace.title}`}><MoreHorizontal size={16} /></summary>
-                    <div className="absolute top-[calc(100%+4px)] right-2.5 z-20 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] gap-0.5 rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]">
+                    <PopupSurface className="absolute top-[calc(100%+4px)] right-2.5 z-20 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] gap-0.5 p-1.5">
                       <Button variant="ghost" size="sm" className="w-full justify-start px-[9px] text-ink hover:text-accent" onClick={() => beginWorkspaceRename(workspace)}><Pencil size={14} /> Rename</Button>
                       <Button variant="ghost" size="sm" className="w-full justify-start px-[9px] text-danger hover:text-danger" onClick={() => setDeletingWorkspace(workspace)}><Trash2 size={14} /> Delete</Button>
-                    </div>
+                    </PopupSurface>
                   </details>
                 </div>
               ))}

@@ -19,8 +19,8 @@ test("catalog keys resolve to the canonical Eraser icon names", () => {
 });
 
 test("Eraser asset URLs and generated Excalidraw ids are deterministic", () => {
-  assert.equal(eraserIconUrl("docker"), `${ERASER_ICON_BASE_URL}/docker.svg`);
-  assert.equal(eraserIconUrlForCatalogKey("docker"), `${ERASER_ICON_BASE_URL}/docker.svg`);
+  assert.equal(eraserIconUrl("docker"), `${ERASER_ICON_BASE_URL}/docker`);
+  assert.equal(eraserIconUrlForCatalogKey("docker"), `${ERASER_ICON_BASE_URL}/docker`);
   assert.equal(eraserIconFileId("docker"), "eraser-icon-docker");
   assert.equal(eraserNodeIconElementId("shape-1"), "shape-1-eraser-icon");
 });

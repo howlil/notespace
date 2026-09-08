@@ -9,7 +9,7 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
 
 <BaseLayout title="Notespace — Notes and canvas, one self-hosted workspace" description={description}>
   <div id="top" class="min-h-screen overflow-x-hidden">
-    <header class="sticky top-0 z-30 border-b border-line/90 bg-background/90 backdrop-blur-md">
+    <header class="sticky top-0 z-30 border-b border-line bg-background/95">
       <div class="mx-auto flex h-14 max-w-[1180px] items-center px-5 sm:px-7 lg:px-8">
         <Brand />
         <nav class="ml-auto hidden items-center gap-6 text-[12px] text-muted md:flex" aria-label="Primary navigation">
@@ -17,34 +17,39 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
           <a class="transition-colors hover:text-ink" href="#workflow">Workflow</a>
           <a class="transition-colors hover:text-ink" href="#self-host">Self-host</a>
         </nav>
-        <a class="ml-6 inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-[11px] font-medium transition-colors hover:bg-soft" href={repoUrl} target="_blank" rel="noreferrer">
-          GitHub <span aria-hidden="true">↗</span>
+        <a class="ml-6 inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-[11px] font-medium transition-colors hover:border-accent hover:bg-tint" href={repoUrl} target="_blank" rel="noreferrer">
+          View on GitHub <span aria-hidden="true">↗</span>
         </a>
       </div>
     </header>
 
     <main>
-      <section class="border-b border-line">
+      <section id="main-content" class="border-b border-line" aria-labelledby="hero-title">
         <div class="mx-auto grid max-w-[1180px] gap-12 px-5 py-16 sm:px-7 sm:py-20 lg:grid-cols-[0.78fr_1.22fr] lg:items-center lg:gap-14 lg:px-8 lg:py-24">
           <div class="max-w-[520px]">
             <div class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.13em] text-muted">
-              <span>Free</span><span class="text-line">/</span><span>Self-hosted</span><span class="text-line">/</span><span>SQLite</span>
+              <span class="inline-flex items-center gap-1.5 text-accent"><span class="size-1.5 rounded-full bg-accent" aria-hidden="true"></span>Open source workspace</span>
+              <span class="text-line">/</span><span>Self-hosted</span><span class="text-line">/</span><span>SQLite</span>
             </div>
-            <h1 class="max-w-[500px] text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-ink sm:text-[52px] lg:text-[58px]">
-              Write in structure.<br />Think in space.
+            <h1 id="hero-title" class="max-w-[500px] text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-ink sm:text-[52px] lg:text-[58px]">
+              One workspace<br />for deeper thinking.
             </h1>
             <p class="mt-6 max-w-[470px] text-[15px] leading-7 text-muted sm:text-[16px]">
-              Notespace keeps structured notes and a spatial canvas inside the same workspace—so ideas stay easy to capture, find, and continue without depending on a hosted knowledge platform.
+              Write structured notes, map ideas on a spatial canvas, and return to the exact context later. Notespace keeps the whole working thought in one self-hosted workspace.
             </p>
             <div class="mt-8 flex flex-wrap items-center gap-3">
               <a class="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-[12px] font-medium text-background transition-opacity hover:opacity-90" href={repoUrl} target="_blank" rel="noreferrer">
-                View source on GitHub <span aria-hidden="true">↗</span>
+                Get Notespace on GitHub <span aria-hidden="true">↗</span>
               </a>
               <a class="inline-flex h-10 items-center rounded-md border border-line bg-surface px-4 text-[12px] font-medium transition-colors hover:bg-soft" href="#self-host">
                 Self-host with Docker
               </a>
             </div>
-            <p class="mt-4 text-[10px] leading-4 text-muted">One Go process. One SQLite database. Your deployment, your data.</p>
+            <div class="mt-8 grid max-w-[430px] grid-cols-3 border-y border-line py-3">
+              <div class="border-r border-line pr-3"><p class="text-[11px] font-medium text-ink">Notes</p><p class="mt-1 text-[10px] leading-4 text-muted">structured writing</p></div>
+              <div class="border-r border-line px-3"><p class="text-[11px] font-medium text-ink">Canvas</p><p class="mt-1 text-[10px] leading-4 text-muted">spatial thinking</p></div>
+              <div class="pl-3"><p class="text-[11px] font-medium text-ink">Owned</p><p class="mt-1 text-[10px] leading-4 text-muted">your deployment</p></div>
+            </div>
           </div>
 
           <div class="lg:-mr-20">
@@ -53,12 +58,12 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
         </div>
       </section>
 
-      <section id="product" class="border-b border-line bg-surface">
+      <section id="product" class="border-b border-line bg-surface" aria-labelledby="product-title">
         <div class="mx-auto max-w-[1180px] px-5 py-16 sm:px-7 lg:px-8 lg:py-20">
           <div class="grid gap-10 lg:grid-cols-[0.68fr_1.32fr] lg:gap-20">
             <div>
               <p class="text-[10px] font-medium uppercase tracking-[0.14em] text-accent">The product model</p>
-              <h2 class="mt-3 max-w-[370px] text-[28px] font-semibold leading-[1.12] tracking-[-0.04em]">A knowledge workspace, not another dashboard.</h2>
+              <h2 id="product-title" class="mt-3 max-w-[370px] text-[28px] font-semibold leading-[1.12] tracking-[-0.04em]">A knowledge workspace, not another dashboard.</h2>
               <p class="mt-4 max-w-[390px] text-[13px] leading-6 text-muted">The library stays simple. Categories organize workspaces. Each workspace owns its notes and canvas. No separate graph, database, or file-explorer hierarchy to manage.</p>
             </div>
 
@@ -80,12 +85,12 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
         </div>
       </section>
 
-      <section id="workflow" class="border-b border-line">
+      <section id="workflow" class="border-b border-line" aria-labelledby="workflow-title">
         <div class="mx-auto max-w-[1180px] px-5 py-16 sm:px-7 lg:px-8 lg:py-20">
           <div class="mb-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="text-[10px] font-medium uppercase tracking-[0.14em] text-accent">Core workflow</p>
-              <h2 class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">Capture → work → find → resume.</h2>
+              <h2 id="workflow-title" class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">Capture → work → find → resume.</h2>
             </div>
             <p class="max-w-[420px] text-[12px] leading-5 text-muted">The landing page mirrors the real product loop instead of selling a pile of disconnected features.</p>
           </div>
@@ -109,7 +114,7 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
             <article class="min-h-[190px] p-5">
               <span class="font-mono text-[10px] text-muted">04 / RECOVER</span>
               <h3 class="mt-8 text-[14px] font-semibold">Own a path back.</h3>
-              <p class="mt-2 text-[11px] leading-5 text-muted">Workspace history, Markdown export, and portable ZIP export keep recovery and portability explicit.</p>
+              <p class="mt-2 text-[11px] leading-5 text-muted">Workspace history and full-library backup keep recovery explicit without duplicating your source of truth.</p>
             </article>
           </div>
         </div>

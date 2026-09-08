@@ -23,7 +23,7 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
-- Durable image assets, Workspace ZIP/Markdown export, checkpoint history and restore.
+- Durable image assets, checkpoint history and restore.
 - Recoverable Workspace Trash with explicit permanent deletion.
 - Versioned full-library backup/transactional restore covering Categories, active Workspaces, Trash, history, images, and study sessions.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.

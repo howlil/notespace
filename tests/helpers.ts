@@ -51,8 +51,7 @@ export async function openNoteSwitcher(page: Page): Promise<void> {
 
 /** Open the canvas in the current workspace. */
 export async function openCanvas(page: Page): Promise<void> {
-  await openPaneMenu(page);
-  await page.getByRole("button", { name: "Open Canvas", exact: true }).click();
+  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
 }
 

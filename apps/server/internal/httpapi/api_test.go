@@ -1,7 +1,6 @@
 package httpapi_test
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -481,8 +480,8 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	}
 }
 
-func TestHistoryStartsAtWorkspaceCreationAndExportIsPortable(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "history-export.db"))
+func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,23 +497,7 @@ func TestHistoryStartsAtWorkspaceCreationAndExportIsPortable(t *testing.T) {
 	if len(entries) != 1 || entries[0].Version != p.Version {
 		t.Fatalf("initial history = %+v", entries)
 	}
-	export := call(t, api, "GET", "/api/projects/"+p.ID+"/export", nil)
-	expect(t, export, 200)
-	archive, err := zip.NewReader(bytes.NewReader(export.Body.Bytes()), int64(export.Body.Len()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	wanted := map[string]bool{"manifest.json": false, "notes/notes.json": false, "notes/0001.json": false, "canvas/workspace.excalidraw.json": false, "canvas/files.json": false}
-	for _, file := range archive.File {
-		if _, ok := wanted[file.Name]; ok {
-			wanted[file.Name] = true
-		}
-	}
-	for name, found := range wanted {
-		if !found {
-			t.Fatalf("export missing %s", name)
-		}
-	}
+	expect(t, call(t, api, "GET", "/api/projects/"+p.ID+"/export", nil), http.StatusNotFound)
 }
 
 func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {

@@ -21,12 +21,39 @@
   --color-success: var(--success);
 
   --animate-loading-progress: loading-progress 1.6s ease-in-out infinite;
+  --animate-loading-mark: loading-mark 2.8s ease-in-out infinite;
+  --animate-loading-logo: loading-logo 2.6s cubic-bezier(.22, 1, .36, 1) infinite;
+  --animate-loading-ring: loading-ring 2.8s ease-out infinite;
+  --animate-loading-drift: loading-drift 3.2s ease-in-out infinite;
   --animate-soft-pulse: soft-pulse 1.4s ease-in-out infinite;
   --animate-toast-progress: toast-progress var(--toast-duration, 4200ms) linear forwards;
 
   @keyframes loading-progress {
     from { transform: translateX(-135%); }
     to { transform: translateX(330%); }
+  }
+
+  @keyframes loading-mark {
+    0%, 100% { transform: translateY(0) scale(.96); }
+    50% { transform: translateY(-3px) scale(1); }
+  }
+
+  @keyframes loading-logo {
+    0%, 100% { opacity: .86; transform: translateY(0) rotate(0deg) scale(.94); }
+    18% { opacity: 1; transform: translateY(-3px) rotate(-1.5deg) scale(.99); }
+    50% { opacity: 1; transform: translateY(-9px) rotate(1deg) scale(1.04); }
+    78% { opacity: .94; transform: translateY(-2px) rotate(0deg) scale(.98); }
+  }
+
+  @keyframes loading-ring {
+    0% { opacity: 0; transform: scale(.72); }
+    18% { opacity: .48; }
+    72%, 100% { opacity: 0; transform: scale(1.24); }
+  }
+
+  @keyframes loading-drift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
   }
 
   @keyframes soft-pulse {
@@ -41,6 +68,189 @@
 
 @utility pane-actions {
   margin-left: auto;
+}
+
+/* Excalidraw adapter: the engine owns canvas rendering, while Notespace owns
+   the visual language of every UI surface rendered inside the canvas. Keep
+   this scoped to the host so Excalidraw never changes other app surfaces. */
+.notespace-canvas-surface .excalidraw {
+  --ui-font: var(--font-sans);
+  --color-on-surface: var(--ink);
+  --text-primary-color: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-darker: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  --color-primary-darkest: color-mix(in srgb, var(--accent) 68%, var(--ink));
+  --color-primary-light: var(--tint);
+  --color-primary-light-darker: color-mix(in srgb, var(--tint) 82%, var(--accent));
+  --color-primary-hover: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  --color-selection: var(--accent);
+  --color-gray-10: color-mix(in srgb, var(--surface) 96%, var(--ink));
+  --color-gray-20: color-mix(in srgb, var(--surface) 90%, var(--ink));
+  --color-gray-30: color-mix(in srgb, var(--surface) 78%, var(--ink));
+  --color-gray-40: color-mix(in srgb, var(--surface) 64%, var(--ink));
+  --color-gray-50: color-mix(in srgb, var(--surface) 50%, var(--ink));
+  --color-gray-60: var(--muted);
+  --color-gray-70: color-mix(in srgb, var(--muted) 74%, var(--ink));
+  --color-gray-80: color-mix(in srgb, var(--muted) 52%, var(--ink));
+  --color-gray-85: color-mix(in srgb, var(--muted) 42%, var(--ink));
+  --color-gray-90: color-mix(in srgb, var(--ink) 86%, var(--surface));
+  --color-gray-100: var(--ink);
+  --color-disabled: color-mix(in srgb, var(--muted) 55%, var(--surface));
+  --color-danger: var(--danger);
+  --color-danger-dark: var(--danger);
+  --color-danger-darker: color-mix(in srgb, var(--danger) 82%, var(--ink));
+  --color-danger-darkest: color-mix(in srgb, var(--danger) 68%, var(--ink));
+  --color-danger-background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  --color-danger-icon-background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  --color-danger-text: var(--danger);
+  --color-danger-color: var(--danger);
+  --color-danger-icon-color: var(--danger);
+  --color-surface-high: var(--tint);
+  --color-surface-mid: color-mix(in srgb, var(--surface) 92%, var(--ink));
+  --color-surface-low: var(--sidebar);
+  --color-surface-lowest: var(--surface);
+  --color-surface-primary-container: var(--tint);
+  --color-on-primary-container: var(--accent);
+  --color-border-outline: var(--accent);
+  --color-border-outline-variant: var(--line);
+  --default-bg-color: var(--canvas);
+  --input-bg-color: var(--surface);
+  --input-border-color: var(--line);
+  --input-hover-bg-color: var(--tint);
+  --island-bg-color: var(--surface);
+  --island-bg-color-alt: var(--surface);
+  --popup-bg-color: var(--surface);
+  --popup-secondary-bg-color: var(--surface);
+  --popup-text-color: var(--ink);
+  --popup-text-inverted-color: var(--surface);
+  --default-border-color: var(--line);
+  --dialog-border-color: var(--line);
+  --sidebar-border-color: var(--line);
+  --sidebar-bg-color: var(--surface);
+  --focus-highlight-color: var(--accent);
+  --button-gray-1: var(--tint);
+  --button-gray-2: var(--line);
+  --button-gray-3: var(--line);
+  --button-hover-bg: var(--tint);
+  --button-active-bg: var(--tint);
+  --button-active-border: var(--accent);
+  --select-highlight-color: var(--accent);
+  --border-radius-md: .5rem;
+  --border-radius-lg: .625rem;
+  --editor-container-padding: .75rem;
+  --shadow-island: none;
+  --shadow-island-stronger: none;
+  --modal-shadow: none;
+  --sidebar-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .App-toolbar,
+.notespace-canvas-surface .excalidraw .App-toolbar-container,
+.notespace-canvas-surface .excalidraw .mobile-toolbar,
+.notespace-canvas-surface .excalidraw .App-menu_top,
+.notespace-canvas-surface .excalidraw .App-menu_bottom {
+  display: none !important;
+}
+
+.notespace-canvas-surface .excalidraw,
+.notespace-canvas-surface .excalidraw button,
+.notespace-canvas-surface .excalidraw input,
+.notespace-canvas-surface .excalidraw select,
+.notespace-canvas-surface .excalidraw textarea {
+  font-family: var(--font-sans);
+}
+
+.notespace-canvas-surface .excalidraw .Island,
+.notespace-canvas-surface .excalidraw .sidebar,
+.notespace-canvas-surface .excalidraw .dropdown-menu .dropdown-menu-container,
+.notespace-canvas-surface .excalidraw .context-menu,
+.notespace-canvas-surface .excalidraw .library-menu-dropdown-container,
+.notespace-canvas-surface .excalidraw .Modal__content,
+.notespace-canvas-surface .excalidraw .HelpDialog__island {
+  border: 1px solid var(--line);
+  border-radius: .625rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .Island {
+  box-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .ToolIcon__icon,
+.notespace-canvas-surface .excalidraw .sidebar-trigger,
+.notespace-canvas-surface .excalidraw .zoom-button,
+.notespace-canvas-surface .excalidraw .library-button,
+.notespace-canvas-surface .excalidraw .Modal__close,
+.notespace-canvas-surface .excalidraw .HelpDialog__btn {
+  border-radius: .5rem;
+}
+
+.notespace-canvas-surface .excalidraw .ToolIcon__icon:hover,
+.notespace-canvas-surface .excalidraw .ToolIcon__icon:active,
+.notespace-canvas-surface .excalidraw .ToolIcon--checked .ToolIcon__icon,
+.notespace-canvas-surface .excalidraw .sidebar-trigger:hover,
+.notespace-canvas-surface .excalidraw .sidebar-trigger.active,
+.notespace-canvas-surface .excalidraw .zoom-button:hover,
+.notespace-canvas-surface .excalidraw .library-button:hover {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.notespace-canvas-surface .excalidraw input,
+.notespace-canvas-surface .excalidraw select,
+.notespace-canvas-surface .excalidraw textarea {
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw input:focus,
+.notespace-canvas-surface .excalidraw select:focus,
+.notespace-canvas-surface .excalidraw textarea:focus,
+.notespace-canvas-surface .excalidraw .ToolIcon_type_toggle:focus-visible,
+.notespace-canvas-surface .excalidraw .sidebar-trigger:focus-visible,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item:focus-visible,
+.notespace-canvas-surface .excalidraw .context-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu,
+.notespace-canvas-surface .excalidraw .context-menu,
+.notespace-canvas-surface .excalidraw .popover {
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu-item,
+.notespace-canvas-surface .excalidraw .context-menu-item,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item-bare {
+  border-radius: .5rem;
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu-item:hover,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item--hovered,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item--selected,
+.notespace-canvas-surface .excalidraw .context-menu-item:hover,
+.notespace-canvas-surface .excalidraw .color-picker__context-menu-item:hover,
+.notespace-canvas-surface .excalidraw .color-picker__context-menu-item[data-highlighted] {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .Modal__background {
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+}
+
+.notespace-canvas-surface .excalidraw .Toast {
+  border: 1px solid var(--line);
+  border-radius: .625rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
 }
 
 :root {

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getProject, listCategories } from "../domain/project/api";
+import { getProject, listAllCategoryWorkspaces, listCategories } from "../domain/project/api";
 import { Workspace } from "../features/workspace/Workspace";
 import { RoutePending } from "../components/feedback/RoutePending";
 
@@ -10,8 +10,10 @@ export const Route = createFileRoute("/workspaces/$workspaceId")({
       getProject(params.workspaceId),
       listCategories(),
     ]);
+    const categoryWorkspaces = await listAllCategoryWorkspaces(project.categoryId);
     return {
       project,
+      categoryWorkspaces,
       categoryTitle:
         categories.find((category) => category.id === project.categoryId)
           ?.title ?? "Category",

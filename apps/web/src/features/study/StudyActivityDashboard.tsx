@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { cn } from "../../components/ui";
+import { Button, Skeleton, cn } from "../../components/ui";
 import { getStudyActivity, getStudyDayDetail } from "../../domain/project/api";
 import type { StudyActivity, StudyDayDetail } from "../../domain/project/api";
 import { useToast } from "../../providers/toast-provider";
@@ -22,7 +21,19 @@ function level(seconds: number) {
   return 0;
 }
 
-const heatmapCell = "size-[11px] rounded-[2px] border-0 p-0";
+function ActivitySkeleton() {
+  return (
+    <div className="grid gap-3" role="status" aria-label="Loading learning activity">
+      <span className="sr-only">Loading learning activity…</span>
+      <div className="grid w-max min-w-full grid-cols-[repeat(52,12px)] grid-rows-[repeat(7,12px)] gap-[3px] overflow-hidden" aria-hidden="true">
+        {Array.from({ length: 364 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
+      </div>
+      <div className="flex items-center justify-end gap-1" aria-hidden="true"><Skeleton className="h-2 w-7" /><Skeleton className="size-3 rounded-[2px]" /><Skeleton className="size-3 rounded-[2px] opacity-80" /><Skeleton className="size-3 rounded-[2px] opacity-60" /><Skeleton className="size-3 rounded-[2px] opacity-40" /></div>
+    </div>
+  );
+}
+
+const heatmapCell = "size-3 rounded-[2px] border-0 p-0";
 const heatmapLevels = [
   "bg-[color-mix(in_srgb,var(--line)_42%,var(--surface))]",
   "bg-[color-mix(in_srgb,var(--accent)_22%,var(--surface))]",
@@ -72,28 +83,29 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
   }
 
   return (
-    <section className={cn("mb-7 border-y border-line pt-4 pb-[18px]", compact && "mt-[25px] pb-4")} aria-labelledby="study-activity-title">
-      <div className="flex items-center justify-between gap-3">
+    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface", compact && "mt-6")} aria-labelledby="study-activity-title">
+      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
         <div>
-          <h2 id="study-activity-title" className="m-0 text-sm font-medium text-ink">Learning activity</h2>
-          {!compact && <p className="mt-[5px] mb-0 text-[10px] text-muted">Active study time over the last year</p>}
+          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Learning activity</h2>
+          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted">Your study rhythm over the last year</p>}
         </div>
+        {!compact && <span className="pt-0.5 text-[10px] text-muted">Last 365 days</span>}
       </div>
       {!compact && (
-        <div className="my-[18px] mb-[19px] grid grid-cols-3 gap-6 max-[520px]:gap-3">
-          <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">Today</span><strong className="text-lg font-medium tracking-[-.4px] text-ink max-[520px]:text-[15px]">{loading ? "—" : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">This week</span><strong className="text-lg font-medium tracking-[-.4px] text-ink max-[520px]:text-[15px]">{loading ? "—" : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">Streak</span><strong className="text-lg font-medium tracking-[-.4px] text-ink max-[520px]:text-[15px]">{loading ? "—" : `${activity?.currentStreak ?? 0} days`}</strong></div>
+        <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3">
+          <div className="flex flex-col gap-1 border-r border-line"><span className="text-[10px] text-muted">Today</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-14" /> : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
+          <div className="flex flex-col gap-1 border-r border-line pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
+          <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">Streak</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-20" /> : `${activity?.currentStreak ?? 0} days`}</strong></div>
         </div>
       )}
       {loading ? (
-        <div className="flex min-h-[54px] items-center gap-[7px] text-[10px] text-muted"><Loader2 size={16} className="animate-spin" /> Loading activity…</div>
+        <div className="px-4 py-4"><ActivitySkeleton /></div>
       ) : loadError ? (
-        <div className="flex min-h-[54px] items-center gap-[7px] text-[10px] text-danger">{loadError}</div>
+        <div className="flex min-h-[54px] items-center gap-[7px] px-4 py-4 text-[10px] text-danger">{loadError}</div>
       ) : (
-        <>
+        <div className="px-4 pt-4 pb-3">
           <div className="overflow-x-auto overflow-y-hidden pb-[3px]">
-            <div className="grid w-max min-w-full auto-cols-[11px] grid-rows-[repeat(7,11px)] gap-[3px]" aria-label="Learning activity heatmap">
+            <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Learning activity heatmap">
               {(activity?.days ?? []).map((day) => {
                 const spot = position(day.date);
                 return (
@@ -115,16 +127,16 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
             {[0, 1, 2, 3, 4, 5].map((value) => <i key={value} className={cn(heatmapCell, heatmapLevels[value])} aria-hidden="true" />)}
             <span className="mx-[3px]">More</span>
           </div>
-        </>
+        </div>
       )}
       {selectedDate && (
-        <div className="mt-4 border-t border-line pt-[13px]">
+        <div className="border-t border-line px-4 pt-[13px] pb-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? "Loading…" : formatDuration(detail?.activeSeconds ?? 0)} studied</strong></div>
-            <button className="border-0 bg-transparent p-[3px] text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => { setSelectedDate(null); setDetail(null); }}>Close</button>
+            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : `${formatDuration(detail?.activeSeconds ?? 0)} studied`}</strong></div>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-[3px] py-[3px] text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => { setSelectedDate(null); setDetail(null); }}>Close</Button>
           </div>
           {detailLoading ? (
-            <div className="flex min-h-[54px] items-center gap-[7px] text-[10px] text-muted">Loading day…</div>
+            <div className="grid gap-2" role="status" aria-label="Loading day details"><span className="sr-only">Loading day details…</span><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-[74%] opacity-70" /><Skeleton className="h-3 w-[58%] opacity-50" /></div>
           ) : detail?.workspaces.length ? (
             <div className="mt-[13px] grid gap-2">
               {detail.workspaces.map((workspace) => (

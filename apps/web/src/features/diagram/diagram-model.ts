@@ -1,6 +1,9 @@
+import generatedIconMetadata from "./catalog/eraser-icons.generated.json" with { type: "json" };
+
 export type DiagramKind = "architecture" | "flowchart";
-export type DiagramCategory = "general" | "tech" | "aws" | "gcp" | "azure";
+export type DiagramCategory = "general" | "tech" | "aws" | "gcp" | "azure" | "oracle" | "kubernetes" | "networking";
 export type DiagramNodeShape = "rectangle" | "diamond" | "ellipse";
+export type DiagramNodeRenderMode = "component" | "icon";
 
 export interface DiagramCatalogItem {
   key: string;
@@ -22,6 +25,7 @@ export interface DiagramNode {
   width: number;
   height: number;
   groupId?: string;
+  renderMode?: DiagramNodeRenderMode;
 }
 
 export interface DiagramEdge {
@@ -69,7 +73,7 @@ export const DIAGRAM_DATA_KEY = "notespaceDiagrams";
 export const NODE_WIDTH = 164;
 export const NODE_HEIGHT = 72;
 
-export const diagramCatalog: readonly DiagramCatalogItem[] = [
+const compatibilityCatalog: readonly DiagramCatalogItem[] = [
   { key: "process", label: "Process", category: "general", glyph: "□", iconKey: "square", shape: "rectangle", keywords: ["step", "task", "flow"] },
   { key: "decision", label: "Decision", category: "general", glyph: "◇", iconKey: "diamond", shape: "diamond", keywords: ["branch", "condition", "flow"] },
   { key: "start", label: "Start / End", category: "general", glyph: "○", iconKey: "circle", shape: "ellipse", keywords: ["terminator", "flow"] },
@@ -110,6 +114,26 @@ export const diagramCatalog: readonly DiagramCatalogItem[] = [
   { key: "azure-cosmos", label: "Cosmos DB", category: "azure", glyph: "CDB", iconKey: "database", keywords: ["nosql", "database"] },
 ] as const;
 
+const categoryValues = new Set<DiagramCategory>(["general", "tech", "aws", "gcp", "azure", "oracle", "kubernetes", "networking"]);
+
+function iconGlyph(label: string) {
+  return label.split(/\s+/).map((word) => word[0]).join("").slice(0, 3).toUpperCase() || "ICON";
+}
+
+export const eraserDiagramCatalog: readonly DiagramCatalogItem[] = generatedIconMetadata
+  .filter((item): item is { name: string; category: string; label: string } => typeof item.name === "string" && typeof item.category === "string" && typeof item.label === "string")
+  .filter((item) => categoryValues.has(item.category as DiagramCategory))
+  .map((item) => ({
+    key: item.name,
+    label: item.label,
+    category: item.category as DiagramCategory,
+    glyph: iconGlyph(item.label),
+    iconKey: item.name,
+    keywords: [item.name, item.category, ...item.label.toLowerCase().split(/\s+/)],
+  }));
+
+export const diagramCatalog: readonly DiagramCatalogItem[] = [...compatibilityCatalog, ...eraserDiagramCatalog];
+
 export type IdFactory = (prefix: string) => string;
 
 export function makeDiagramId(prefix: string) {
@@ -126,11 +150,20 @@ export function searchDiagramCatalog(query: string, category: DiagramCategory | 
   });
 }
 
+export function searchEraserCatalog(query: string, category: DiagramCategory | "all" = "all") {
+  const normalized = query.trim().toLowerCase();
+  return eraserDiagramCatalog.filter((item) => {
+    if (category !== "all" && item.category !== category) return false;
+    if (!normalized) return true;
+    return [item.label, item.key, item.category, ...item.keywords].some((value) => value.toLowerCase().includes(normalized));
+  });
+}
+
 export function getCatalogItem(key: string) {
   return diagramCatalog.find((item) => item.key === key) ?? diagramCatalog[0];
 }
 
-function createNode(specKey: string, label: string, x: number, y: number, idFactory: IdFactory): DiagramNode {
+function createNode(specKey: string, label: string, x: number, y: number, idFactory: IdFactory, renderMode: DiagramNodeRenderMode = "component"): DiagramNode {
   return {
     id: idFactory("node"),
     specKey,
@@ -140,6 +173,7 @@ function createNode(specKey: string, label: string, x: number, y: number, idFact
     y,
     width: NODE_WIDTH,
     height: NODE_HEIGHT,
+    renderMode,
   };
 }
 
@@ -147,12 +181,13 @@ function createEdge(from: string, to: string, label: string, idFactory: IdFactor
   return { id: idFactory("edge"), from, to, label, elementId: idFactory("arrow") };
 }
 
-export function createDiagramWithNode(kind: DiagramKind, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId): StructuredDiagram {
+export function createDiagramWithNode(kind: DiagramKind, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: DiagramNodeRenderMode = "component"): StructuredDiagram {
+  const node = createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode);
   return {
     id: idFactory("diagram"),
     kind,
     title: kind === "architecture" ? "Architecture diagram" : "Flowchart",
-    nodes: [createNode(item.key, item.label, origin.x, origin.y, idFactory)],
+    nodes: [renderMode === "icon" ? { ...node, width: 56, height: 56 } : node],
     edges: [],
     groups: [],
   };
@@ -178,8 +213,11 @@ export function createStarterDiagram(kind: DiagramKind, origin: { x: number; y: 
   }, origin);
 }
 
-export function addCatalogNode(diagram: StructuredDiagram, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId): StructuredDiagram {
-  return { ...diagram, nodes: [...diagram.nodes, createNode(item.key, item.label, origin.x, origin.y, idFactory)] };
+export function addCatalogNode(diagram: StructuredDiagram, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: DiagramNodeRenderMode = "component"): StructuredDiagram {
+  const node = renderMode === "icon"
+    ? { ...createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode), width: 56, height: 56 }
+    : createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode);
+  return { ...diagram, nodes: [...diagram.nodes, node] };
 }
 
 export function connectDiagramNodes(diagram: StructuredDiagram, from: string, to: string, idFactory: IdFactory = makeDiagramId) {
@@ -249,7 +287,8 @@ function isDiagramNode(value: unknown): value is DiagramNode {
   const node = value as Partial<DiagramNode>;
   return typeof node.id === "string" && typeof node.specKey === "string" && typeof node.label === "string"
     && typeof node.elementId === "string" && typeof node.x === "number" && typeof node.y === "number"
-    && typeof node.width === "number" && typeof node.height === "number";
+    && typeof node.width === "number" && typeof node.height === "number"
+    && (node.renderMode === undefined || node.renderMode === "component" || node.renderMode === "icon");
 }
 
 function isDiagramEdge(value: unknown): value is DiagramEdge {

@@ -72,6 +72,16 @@ export const listCategoryWorkspaces = (categoryId: string, params: { query?: str
   if (params.limit) search.set("limit", String(params.limit));
   return request<WorkspacePage>(`/api/categories/${encodeURIComponent(categoryId)}/workspaces?${search}`);
 };
+export async function listAllCategoryWorkspaces(categoryId: string) {
+  const items: ProjectSummary[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await listCategoryWorkspaces(categoryId, { sort: "name", offset, limit: 100 });
+    items.push(...page.items);
+    if (page.nextOffset === undefined || page.nextOffset <= offset) return items;
+    offset = page.nextOffset;
+  }
+}
 export const getProject = (id: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}`);
 export const createProject = (title: string, categoryId?: string) => request<Project>("/api/projects", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
 export const createCategory = (title: string) => request<CategorySummary>("/api/categories", { method: "POST", ...json({ title }) });
@@ -87,8 +97,6 @@ export type HistorySnapshot = HistoryEntry & { document: Project["document"]; no
 export const listHistory = (id: string) => request<HistoryEntry[]>(`/api/projects/${encodeURIComponent(id)}/history`);
 export const getHistorySnapshot = (id: string, historyId: string) => request<HistorySnapshot>(`/api/projects/${encodeURIComponent(id)}/history/${encodeURIComponent(historyId)}`);
 export const restoreHistory = (id: string, historyId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/history/${encodeURIComponent(historyId)}/restore`, { method: "POST" });
-export const exportWorkspace = (id: string) => `/api/projects/${encodeURIComponent(id)}/export`;
-
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
 export const listTrash = () => request<TrashWorkspace[]>("/api/trash");
 export const restoreTrashedWorkspace = (id: string) => request<Project>(`/api/trash/${encodeURIComponent(id)}`, { method: "POST" });

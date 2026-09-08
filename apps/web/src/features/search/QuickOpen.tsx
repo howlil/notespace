@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Folder, Search } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
-import { Dialog, DialogContent, DialogDescription, DialogTitle, cn } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../components/ui";
 import type { CategorySummary, Note, Project, ProjectSummary } from "../../domain/project/project";
 import { getProject, listCategories, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
@@ -121,9 +121,9 @@ export function QuickOpen() {
           <DialogDescription className="sr-only">Open recent work or search the complete Notespace library.</DialogDescription>
           <div className="flex min-h-12 items-center gap-2 border-b border-line px-4">
             <Search size={16} className="shrink-0 text-muted" aria-hidden="true" />
-            <input
+            <Input
               autoFocus
-              className="min-w-0 flex-1 border-0 bg-transparent py-3 text-sm text-ink outline-none placeholder:text-muted"
+              className="min-h-0 flex-1 rounded-none border-0 bg-transparent py-3 text-sm"
               placeholder="Open workspace, note, block, or category…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -141,26 +141,28 @@ export function QuickOpen() {
               <section className="mb-2 border-b border-line pb-2">
                 <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[.08em] text-muted">Recall from current workspace</div>
                 {currentWorkspace.notes.slice(0, 6).map((note) => (
-                  <button key={note.id} className="flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left hover:bg-tint focus-visible:bg-tint" onClick={() => beginRecall(note)}>
+                  <Button variant="ghost" size="sm" key={note.id} className="!min-h-0 w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left" onClick={() => beginRecall(note)}>
                     <FileText size={14} className="text-accent" />
                     <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-ink">Recall · {note.title}</span>
-                  </button>
+                  </Button>
                 ))}
               </section>
             ) : null}
 
             <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
             {destinations.length ? destinations.map((destination, index) => (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={destination.key}
-                className={cn("flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-2 text-left hover:bg-tint focus-visible:bg-tint", index === selected && "bg-tint")}
+                className={cn("!min-h-0 w-full justify-start gap-2.5 rounded-md border-0 px-2.5 py-2 text-left", index === selected && "bg-tint")}
                 onMouseEnter={() => setSelected(index)}
                 onClick={() => openDestination(destination)}
               >
                 {destination.kind === "category" ? <Folder size={15} className="shrink-0 text-accent" /> : <FileText size={15} className="shrink-0 text-accent" />}
                 <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{destination.context}</span></span>
                 <span className="text-[9px] text-muted">↵</span>
-              </button>
+              </Button>
             )) : <p className="m-0 px-2.5 py-5 text-[10px] text-muted">{query.trim().length >= 2 ? "No matching knowledge." : "No recent workspaces."}</p>}
           </div>
         </DialogContent>

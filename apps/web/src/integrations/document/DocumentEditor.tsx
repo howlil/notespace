@@ -25,7 +25,6 @@ import {
   ChevronUp,
   Code2,
   Copy,
-  Download,
   ExternalLink,
   Heading2,
   Highlighter,
@@ -49,7 +48,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { looksLikeMarkdown, markdownToSnapshot, snapshotAssetIds, snapshotToMarkdown } from "../../domain/document/markdown";
+import { looksLikeMarkdown, markdownToSnapshot } from "../../domain/document/markdown";
 import {
   Button,
   Dialog,
@@ -57,10 +56,12 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  IconButton,
+  Input,
   cn,
 } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
-import { blobToDataUrl, createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 
@@ -187,8 +188,8 @@ function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selec
           <span className="block rounded-lg border border-dashed border-line p-3 text-[11px] text-muted">Image could not be loaded.</span>
         )}
         <div className="absolute right-2 top-2 flex gap-1 rounded-md border border-line bg-surface/92 p-1 opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" onClick={() => setEditingAlt(true)}>Alt</button>
-          <button type="button" className="grid size-6 place-items-center rounded text-muted hover:bg-tint hover:text-danger" aria-label="Remove image" onClick={deleteNode}><Trash2 size={12} /></button>
+          <Button type="button" variant="ghost" size="sm" className="!min-h-6 px-2 py-1 text-[10px]" onClick={() => setEditingAlt(true)}>Alt</Button>
+          <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-danger" aria-label="Remove image" onClick={deleteNode}><Trash2 size={12} /></IconButton>
         </div>
       </motion.div>
       <AnimatePresence initial={false}>
@@ -200,7 +201,7 @@ function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selec
             className="mt-2 flex max-w-sm gap-1.5"
             onSubmit={(event) => { event.preventDefault(); commitAlt(); }}
           >
-            <input value={alt} onChange={(event) => setAlt(event.target.value)} className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] outline-none focus:border-accent" aria-label="Image alt text" autoFocus />
+            <Input value={alt} onChange={(event) => setAlt(event.target.value)} className="min-h-0 min-w-0 flex-1 px-2 py-1 text-[11px]" aria-label="Image alt text" autoFocus />
             <Button type="submit" size="sm">Save</Button>
           </motion.form>
         )}
@@ -247,15 +248,15 @@ function MenuButton({
   onMouseDown: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
-    <button
+    <IconButton
       type="button"
       aria-label={label}
       aria-pressed={active || undefined}
-      className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
+      className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
       onMouseDown={onMouseDown}
     >
       {children}
-    </button>
+    </IconButton>
   );
 }
 
@@ -339,10 +340,10 @@ export default function DocumentEditor({
     const from = selection.$from.pos - match[0].length + (match[0].startsWith(" ") ? 1 : 0);
     const coords = nextEditor.view.coordsAtPos(selection.from);
     const filteredCount = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes(match[1].toLowerCase())).length;
-    const popupHeight = Math.min(330, 36 + Math.max(1, filteredCount) * 43);
+    const popupHeight = Math.min(360, 36 + Math.max(1, filteredCount) * 48);
     const position = placeEditorPopup(
       { left: coords.left, top: coords.top, bottom: coords.bottom },
-      { width: 220, height: popupHeight },
+      { width: 300, height: popupHeight },
       { width: window.innerWidth, height: window.innerHeight },
       { prefer: "bottom" },
     );
@@ -591,30 +592,6 @@ export default function DocumentEditor({
     setOutlineOpen(false);
   }
 
-  async function exportMarkdown() {
-    if (!editor) return;
-    const snapshot: Snapshot = { format: "tiptap", version: 1, data: editor.getJSON() };
-    const assetSources: Record<string, string> = {};
-    let missingAssets = 0;
-    await Promise.all(snapshotAssetIds(snapshot).map(async (assetId) => {
-      try {
-        const asset = await loadImageAsset(workspaceId, assetId);
-        if (!asset) { missingAssets += 1; return; }
-        assetSources[assetId] = await blobToDataUrl(asset.blob);
-      } catch {
-        missingAssets += 1;
-      }
-    }));
-    const markdown = snapshotToMarkdown(snapshot, assetSources);
-    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "notespace-note.md";
-    link.click();
-    URL.revokeObjectURL(url);
-    if (missingAssets > 0) showToast({ kind: "error", message: `Exported note, but ${missingAssets} image${missingAssets === 1 ? "" : "s"} could not be embedded.` });
-  }
-
   function updateSearchTerm(value: string) {
     if (!editor) return;
     setFindTerm(value);
@@ -691,18 +668,12 @@ export default function DocumentEditor({
   const codeLanguages = lowlight.listLanguages().sort();
 
   const toolbarButtons = <>
-    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Find in note" aria-expanded={findOpen} onClick={() => { dismissSlashMenu(); setFindOpen((value) => !value); }}>
+    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Find in note" aria-expanded={findOpen} onClick={() => { dismissSlashMenu(); setFindOpen((value) => !value); }}>
       <Search size={14} aria-hidden="true" />
-    </button>
-    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Insert image" onClick={() => imageInputRef.current?.click()}>
-      <ImagePlus size={14} aria-hidden="true" />
-    </button>
-    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Export note as Markdown" onClick={() => void exportMarkdown()}>
-      <Download size={14} aria-hidden="true" />
-    </button>
-    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
+    </IconButton>
+    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
       <ListTree size={14} aria-hidden="true" />
-    </button>
+    </IconButton>
   </>;
 
   return (
@@ -744,38 +715,38 @@ export default function DocumentEditor({
           >
             <div className="flex items-center gap-1.5">
               <Search size={13} className="shrink-0 text-muted" />
-              <input
+              <Input
                 ref={findInputRef}
                 value={findTerm}
                 onChange={(event) => updateSearchTerm(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-[11px] text-ink outline-none placeholder:text-muted"
+                className="min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 text-[11px]"
                 placeholder="Find in this note"
                 aria-label="Find"
               />
               <span className="min-w-10 text-right text-[10px] tabular-nums text-muted" aria-live="polite">{findCurrent} / {findTotal}</span>
-              <button type="button" className="grid size-6 place-items-center rounded text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Previous result" disabled={!findTotal} onClick={() => editor.commands.goToPreviousResult()}><ChevronUp size={13} /></button>
-              <button type="button" className="grid size-6 place-items-center rounded text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Next result" disabled={!findTotal} onClick={() => editor.commands.goToNextResult()}><ChevronDown size={13} /></button>
-              <button type="button" className="grid size-6 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Close find and replace" onClick={closeFind}><X size={13} /></button>
+              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Previous result" disabled={!findTotal} onClick={() => editor.commands.goToPreviousResult()}><ChevronUp size={13} /></IconButton>
+              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Next result" disabled={!findTotal} onClick={() => editor.commands.goToNextResult()}><ChevronDown size={13} /></IconButton>
+              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink" aria-label="Close find and replace" onClick={closeFind}><X size={13} /></IconButton>
             </div>
             <div className="mt-1.5 flex items-center gap-1.5 border-t border-line pt-1.5">
-              <input
+              <Input
                 value={replaceTerm}
                 onChange={(event) => updateReplaceTerm(event.target.value)}
-                className="min-w-0 flex-1 rounded-md border border-line bg-background px-2 py-1 text-[10px] text-ink outline-none focus:border-accent"
+                className="min-h-0 min-w-0 flex-1 bg-background px-2 py-1 text-[10px]"
                 placeholder="Replace with"
                 aria-label="Replace with"
               />
-              <button
+              <IconButton
                 type="button"
                 aria-pressed={findStorage.caseSensitive}
-                className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
+                className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
                 aria-label="Match case"
                 onClick={() => editor.commands.setCaseSensitive(!findStorage.caseSensitive)}
               >
                 <CaseSensitive size={14} />
-              </button>
-              <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink disabled:opacity-40" disabled={!findTotal} onClick={() => editor.commands.replace()}>Replace</button>
-              <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink disabled:opacity-40" disabled={!findTotal} onClick={() => editor.commands.replaceAll()}>All</button>
+              </IconButton>
+              <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replace()}>Replace</Button>
+              <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replaceAll()}>All</Button>
             </div>
           </motion.section>
         )}
@@ -794,15 +765,17 @@ export default function DocumentEditor({
           >
             <div className="px-2 py-1.5 text-[10px] font-medium text-muted">Outline</div>
             {outline.length ? outline.map((item) => (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={item.id}
                 type="button"
-                className="block w-full truncate rounded px-2 py-1.5 text-left text-[11px] text-ink hover:bg-tint"
+                className="!min-h-0 block w-full truncate rounded px-2 py-1.5 text-left text-[11px] text-ink"
                 style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 10}px` }}
                 onClick={() => focusHeading(item.id)}
               >
                 {item.text}
-              </button>
+              </Button>
             )) : <p className="m-0 px-2 py-3 text-[10px] leading-4 text-muted">Add headings to navigate long notes.</p>}
           </motion.nav>
         )}
@@ -839,22 +812,22 @@ export default function DocumentEditor({
             ) : (
               <form className="flex min-w-[300px] items-center gap-1" onSubmit={(event) => { event.preventDefault(); applyLink(); }}>
                 <Link2 size={13} className="ml-1 shrink-0 text-muted" />
-                <input
+                <Input
                   value={linkUrl}
                   onChange={(event) => setLinkUrl(event.target.value)}
-                  className="min-w-0 flex-1 bg-transparent px-1 text-[11px] text-ink outline-none placeholder:text-muted"
+                  className="min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-[11px]"
                   placeholder="https://…"
                   aria-label="Link URL"
                   autoFocus
                 />
                 {linkUrl && (
                   <>
-                    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Open link" onMouseDown={(event) => event.preventDefault()} onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={13} /></button>
-                    <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Copy link" onMouseDown={(event) => event.preventDefault()} onClick={() => void copyText(linkUrl, "Link copied.")}><Copy size={13} /></button>
+                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Open link" onMouseDown={(event) => event.preventDefault()} onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={13} /></IconButton>
+                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Copy link" onMouseDown={(event) => event.preventDefault()} onClick={() => void copyText(linkUrl, "Link copied.")}><Copy size={13} /></IconButton>
                   </>
                 )}
-                {editor.isActive("link") && <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-danger" aria-label="Remove link" onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().unsetLink().run(); setLinkEditing(false); }}><Unlink size={13} /></button>}
-                <button type="submit" className="grid size-7 place-items-center rounded text-accent hover:bg-tint" aria-label="Apply link"><Check size={13} /></button>
+                {editor.isActive("link") && <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Remove link" onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().unsetLink().run(); setLinkEditing(false); }}><Unlink size={13} /></IconButton>}
+                <IconButton type="submit" className="!size-7 text-accent hover:bg-tint" aria-label="Apply link"><Check size={13} /></IconButton>
               </form>
             )}
           </motion.div>
@@ -869,7 +842,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.985 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="fixed z-30 max-h-[min(330px,calc(100vh_-_24px))] w-[220px] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002]"
+            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(300px,calc(100vw_-_24px))] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0"
             role="listbox"
             aria-label="Insert block"
             data-placement={slashMenu.placement}
@@ -877,18 +850,20 @@ export default function DocumentEditor({
           >
             <div className="px-[9px] pt-1.5 pb-[5px] text-[10px] font-medium text-muted">Insert block</div>
             {filteredCommands.map((command, index) => (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={command.label}
                 type="button"
                 role="option"
                 aria-selected={index === selectedCommand}
-                className="grid w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-[7px] rounded-[5px] border-0 bg-transparent px-[9px] py-2 text-left text-ink hover:bg-tint aria-selected:bg-tint"
+                className="!min-h-0 !flex w-full !items-center !justify-start !gap-3 rounded-md border-0 px-2.5 py-2.5 text-left text-ink aria-selected:bg-tint"
                 onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
                 onClick={() => runSlashCommand(command)}
               >
-                <span className="grid place-items-center text-accent"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
-                <span className="flex min-w-0 flex-col gap-0.5"><span className="text-[11px] font-medium">{command.label}</span><span className="text-[10px] text-muted">{command.description}</span></span>
-              </button>
+                <span className="grid size-5 shrink-0 place-items-center text-accent"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-4"><span className="text-[11px] font-medium">{command.label}</span><span className="text-[10px] text-muted">{command.description}</span></span>
+              </Button>
             ))}
           </motion.div>
         )}
@@ -907,12 +882,12 @@ export default function DocumentEditor({
           >
             {tableActive ? (
               <>
-                <button type="button" className="whitespace-nowrap rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} className="mr-1 inline" />Row</button>
-                <button type="button" className="whitespace-nowrap rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</button>
-                <button type="button" className="whitespace-nowrap rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} className="mr-1 inline" />Column</button>
-                <button type="button" className="whitespace-nowrap rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</button>
+                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>
+                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</Button>
+                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} />Column</Button>
+                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</Button>
                 <span className="h-4 w-px bg-line" />
-                <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></button>
+                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></IconButton>
               </>
             ) : (
               <>
@@ -925,8 +900,8 @@ export default function DocumentEditor({
                   <option value="">Auto detect</option>
                   {codeLanguages.map((language) => <option key={language} value={language}>{language}</option>)}
                 </select>
-                <button type="button" aria-pressed={codeWrap} className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Toggle code wrapping" onClick={() => setCodeWrap((value) => !value)}><WrapText size={13} /></button>
-                <button type="button" className="grid size-7 place-items-center rounded text-muted hover:bg-tint hover:text-ink" aria-label="Copy code block" onClick={() => void copyText(activeCodeText(editor), "Code copied.")}><Copy size={13} /></button>
+                <IconButton type="button" aria-pressed={codeWrap} className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Toggle code wrapping" onClick={() => setCodeWrap((value) => !value)}><WrapText size={13} /></IconButton>
+                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Copy code block" onClick={() => void copyText(activeCodeText(editor), "Code copied.")}><Copy size={13} /></IconButton>
               </>
             )}
           </motion.div>

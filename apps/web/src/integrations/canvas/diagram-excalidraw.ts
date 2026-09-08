@@ -62,6 +62,37 @@ export function renderStructuredDiagram(
     const hasEraserIcon = Boolean(iconName && availableEraserIcons.has(iconName));
     const renderGroupId = eraserNodeRenderGroupId(node.id);
 
+    if (node.renderMode === "icon") {
+      skeletons.push(hasEraserIcon && iconName
+        ? {
+            type: "image",
+            id: node.elementId,
+            fileId: eraserIconFileId(iconName) as BinaryFileData["id"],
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            groupIds: [renderGroupId],
+          }
+        : {
+            type: "rectangle",
+            id: node.elementId,
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            strokeColor,
+            backgroundColor,
+            fillStyle: "solid",
+            strokeWidth: 1,
+            roughness: 0,
+            roundness: { type: 3 },
+            groupIds: [renderGroupId],
+            label: { text: fallbackNodeText(node.specKey, node.label), fontSize: 12 },
+          });
+      continue;
+    }
+
     skeletons.push({
       type: item.shape ?? "rectangle",
       id: node.elementId,

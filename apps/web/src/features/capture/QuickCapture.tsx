@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../components/ui";
 import { contentOf } from "../../domain/project/project";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { getProject, listAllWorkspaces, listCategories, listRecentWorkspaces, saveProject } from "../../domain/project/api";
@@ -162,9 +162,9 @@ export function QuickCapture() {
               Workspace
               <span className="relative block">
                 <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
-                <input
+                <Input
                   type="search"
-                  className="h-9 w-full rounded-md border border-line bg-background pl-8 pr-2.5 text-xs text-ink outline-none placeholder:text-muted focus:border-accent"
+                  className="h-9 bg-background pl-8 pr-2.5 text-xs"
                   placeholder={`Search, or choose from ${recentWorkspaceLimit} recent workspaces`}
                   value={workspaceQuery}
                   onChange={(event) => setWorkspaceQuery(event.target.value)}

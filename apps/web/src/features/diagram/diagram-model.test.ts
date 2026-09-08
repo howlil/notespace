@@ -3,12 +3,14 @@ import test from "node:test";
 import {
   addCatalogNode,
   connectDiagramNodes,
+  createDiagramWithNode,
   createStarterDiagram,
   getCatalogItem,
   groupDiagramNodes,
   layoutDiagram,
   readStructuredDiagrams,
   searchDiagramCatalog,
+  searchEraserCatalog,
   selectionForElements,
   syncDiagramsFromElements,
   withStructuredDiagrams,
@@ -20,9 +22,23 @@ function ids() {
 }
 
 test("catalog search supports provider categories and keywords", () => {
-  assert.deepEqual(searchDiagramCatalog("postgres").map((item) => item.key), ["postgresql"]);
+  assert(searchEraserCatalog("postgres").some((item) => item.key === "postgres"));
   assert(searchDiagramCatalog("storage", "aws").some((item) => item.key === "aws-s3"));
   assert(searchDiagramCatalog("function", "azure").some((item) => item.key === "azure-functions"));
+});
+
+test("the generated catalog contains all documented Eraser entries", () => {
+  assert.equal(searchEraserCatalog("").length, 3947);
+  assert.equal(searchEraserCatalog("lambda")[0]?.key, "aws-lambda");
+  assert.equal(searchEraserCatalog("cloud run", "gcp")[0]?.key, "gcp-cloud-run");
+});
+
+test("icon-only insertion persists a native image-sized diagram node mode", () => {
+  const diagram = createDiagramWithNode("architecture", getCatalogItem("aws-lambda"), { x: 10, y: 20 }, ids(), "icon");
+  assert.equal(diagram.nodes[0].renderMode, "icon");
+  assert.equal(diagram.nodes[0].width, 56);
+  assert.equal(diagram.nodes[0].height, 56);
+  assert.equal(readStructuredDiagrams(withStructuredDiagrams({}, [diagram]))[0].nodes[0].renderMode, "icon");
 });
 
 test("architecture and flow starters receive deterministic auto-layout", () => {

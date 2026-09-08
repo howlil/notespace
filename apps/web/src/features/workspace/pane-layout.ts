@@ -17,6 +17,7 @@ export type PaneInteractionState = {
 };
 
 export type PaneFocusTarget = { kind: "pane" | "split"; id: string };
+export type WorkspaceViewMode = "canvas" | "note" | "split";
 
 function newId() {
   return crypto.randomUUID();
@@ -32,6 +33,51 @@ export function leaves(node: PaneNode): Pane[] {
 
 export function hasCanvasPane(node: PaneNode) {
   return leaves(node).some((pane) => pane.kind === "canvas");
+}
+
+export function workspaceViewMode(node: PaneNode): WorkspaceViewMode {
+  const panes = leaves(node);
+  const canvasOpen = panes.some((pane) => pane.kind === "canvas");
+  if (!canvasOpen) return "note";
+  return panes.some((pane) => pane.kind === "note") ? "split" : "canvas";
+}
+
+function stripCanvasPane(node: PaneNode): PaneNode | null {
+  if (node.kind === "leaf") return node.pane.kind === "canvas" ? null : node;
+  const first = stripCanvasPane(node.first);
+  const second = stripCanvasPane(node.second);
+  if (!first) return second;
+  if (!second) return first;
+  return { ...node, first, second };
+}
+
+function canvasLeaf(node: PaneNode): Extract<PaneNode, { kind: "leaf" }> | undefined {
+  if (node.kind === "leaf") return node.pane.kind === "canvas" ? node : undefined;
+  return canvasLeaf(node.first) ?? canvasLeaf(node.second);
+}
+
+/**
+ * Keeps Canvas as the trailing pane in the workspace layout.
+ * Note-only splits remain intact as a subtree on the left.
+ */
+export function normalizeCanvasPosition(node: PaneNode): PaneNode {
+  if (node.kind === "leaf") return node;
+
+  const first = normalizeCanvasPosition(node.first);
+  const second = normalizeCanvasPosition(node.second);
+  const normalized = { ...node, first, second };
+  const canvas = canvasLeaf(normalized);
+  if (!canvas) return normalized;
+
+  const notes = stripCanvasPane(normalized);
+  if (!notes) return canvas;
+
+  return {
+    ...normalized,
+    direction: "row",
+    first: notes,
+    second: canvas,
+  };
 }
 
 export function canAddPane(node: PaneNode) {
@@ -97,6 +143,35 @@ export function removeNode(node: PaneNode, id: string): PaneNode {
   return { ...node, first: removeNode(node.first, id), second: removeNode(node.second, id) };
 }
 
+function leaf(pane: Pane): PaneNode {
+  return { kind: "leaf", pane };
+}
+
+/**
+ * Selects the workspace's primary editing surface without changing authored
+ * note or Canvas content. Split mode keeps Canvas as the trailing pane.
+ */
+export function layoutForViewMode(node: PaneNode, mode: WorkspaceViewMode, preferredNoteId?: string): PaneNode {
+  const panes = leaves(node);
+  const canvas = panes.find((pane) => pane.kind === "canvas") ?? { id: newId(), kind: "canvas" as const };
+  const note = panes.find((pane) => pane.kind === "note" && pane.noteId === preferredNoteId)
+    ?? panes.find((pane) => pane.kind === "note")
+    ?? { id: newId(), kind: "note" as const, noteId: preferredNoteId ?? "" };
+
+  if (mode === "canvas") return leaf(canvas);
+  if (mode === "note") return leaf(note);
+  if (workspaceViewMode(node) === "split") return normalizeCanvasPosition(node);
+
+  return {
+    kind: "split",
+    id: newId(),
+    direction: "row",
+    ratio: .5,
+    first: leaf(note),
+    second: leaf(canvas),
+  };
+}
+
 export function defaultLayout(noteId: string): PaneNode {
   return {
     kind: "split",
@@ -130,7 +205,8 @@ export function restoreLayout(key: string, noteIds: Set<string>): PaneNode {
       return { ...node, ratio: Math.max(.2, Math.min(.8, node.ratio || .5)), first, second };
     };
     const result = stored ? clean(stored) : null;
-    if (result && leafCount(result) <= MAX_WORKSPACE_PANES) return result;
+    const normalized = result ? normalizeCanvasPosition(result) : null;
+    if (normalized && leafCount(normalized) <= MAX_WORKSPACE_PANES) return normalized;
   } catch {
     // Corrupt presentation state must never block authored content.
   }

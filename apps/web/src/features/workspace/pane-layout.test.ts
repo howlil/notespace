@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_WORKSPACE_PANES, canAddPane, defaultLayout, findPane, hasCanvasPane, leafCount, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, updateSplit } from "./pane-layout.ts";
+import { MAX_WORKSPACE_PANES, canAddPane, defaultLayout, findPane, hasCanvasPane, layoutForViewMode, leafCount, leaves, mapNode, normalizeCanvasPosition, paneFocusTarget, paneInteractionState, removeNode, updateSplit, workspaceViewMode } from "./pane-layout.ts";
 import type { PaneNode } from "./pane-layout.ts";
 
 test("default workspace layout owns one note pane and one canvas pane", () => {
@@ -9,6 +9,43 @@ test("default workspace layout owns one note pane and one canvas pane", () => {
   assert.equal(hasCanvasPane(layout), true);
   assert.equal(leaves(layout).filter((pane) => pane.kind === "note").length, 1);
   assert.equal(leaves(layout).find((pane) => pane.kind === "note")?.noteId, "note-1");
+});
+
+test("workspace view modes expose one focused surface or the Note → Canvas split", () => {
+  const layout = defaultLayout("note-1");
+  assert.equal(workspaceViewMode(layout), "split");
+
+  const canvas = layoutForViewMode(layout, "canvas");
+  assert.equal(workspaceViewMode(canvas), "canvas");
+  assert.equal(leaves(canvas)[0]?.kind, "canvas");
+
+  const note = layoutForViewMode(canvas, "note", "note-1");
+  assert.equal(workspaceViewMode(note), "note");
+  assert.equal(leaves(note)[0]?.noteId, "note-1");
+
+  const split = layoutForViewMode(note, "split", "note-1");
+  assert.equal(workspaceViewMode(split), "split");
+  assert.deepEqual(leaves(split).map((pane) => pane.kind), ["note", "canvas"]);
+  assert.equal(leaves(split)[0]?.noteId, "note-1");
+});
+
+test("Canvas stays on the right while note-only splits remain grouped", () => {
+  const layout: PaneNode = {
+    kind: "split", id: "root", direction: "column", ratio: .7,
+    first: { kind: "leaf", pane: { id: "canvas", kind: "canvas" } },
+    second: {
+      kind: "split", id: "notes", direction: "row", ratio: .5,
+      first: { kind: "leaf", pane: { id: "note-1", kind: "note", noteId: "note-1" } },
+      second: { kind: "leaf", pane: { id: "note-2", kind: "note", noteId: "note-2" } },
+    },
+  };
+
+  const normalized = normalizeCanvasPosition(layout);
+  assert.equal(normalized.kind, "split");
+  if (normalized.kind !== "split") assert.fail("normalized layout should be a split");
+  assert.equal(normalized.direction, "row");
+  assert.equal(leaves(normalized.second)[0]?.kind, "canvas");
+  assert.deepEqual(leaves(normalized.first).map((pane) => pane.noteId), ["note-1", "note-2"]);
 });
 
 test("pane split ratio is clamped to a usable range", () => {

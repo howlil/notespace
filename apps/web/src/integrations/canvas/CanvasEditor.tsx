@@ -31,6 +31,7 @@ import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasDetailsPanel, CanvasToolbar, CanvasUtilityBar, type CanvasActionName } from "./CanvasToolbar";
+import { CanvasSelectionActions } from "./CanvasSelectionActions";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -385,6 +386,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         />
       </div>
       <CanvasUtilityBar api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
+      <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
 
       {!hasElements && (
         <div className="pointer-events-none absolute top-1/2 left-1/2 z-[1] flex -translate-x-1/2 -translate-y-[40%] flex-col items-center gap-[7px] text-center text-muted">

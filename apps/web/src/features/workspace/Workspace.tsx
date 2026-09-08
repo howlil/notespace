@@ -16,7 +16,7 @@ import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
-import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
+import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
@@ -168,6 +168,19 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     if (duplicate) { setActivePaneId(duplicate.id); return; }
     setLayout((value) => mapNode(value, paneId, (node) => node.kind === "leaf" ? { ...node, pane: { ...node.pane, kind: "note", noteId } } : node));
     setActivePaneId(paneId);
+    setSelectedTextPaneId(null);
+    setHighlightRequest(null);
+  }
+  function closePane(paneId: string) {
+    if (leaves(layout).length <= 1) return;
+    const next = removeNode(layout, paneId);
+    const remaining = leaves(next);
+    setLayout(next);
+    setActivePaneId((currentActivePaneId) => remaining.some((pane) => pane.id === currentActivePaneId) ? currentActivePaneId : (remaining[0]?.id ?? ""));
+    if (maximizedPaneId === paneId) setMaximizedPaneId(null);
+    if (maximizedSplitId && !findSplit(next, maximizedSplitId)) setMaximizedSplitId(null);
+    setSelectedTextPaneId((selectedPaneId) => selectedPaneId === paneId ? null : selectedPaneId);
+    setHighlightRequest((request) => request?.paneId === paneId ? null : request);
   }
   function createNote(paneId: string) {
     const now = new Date().toISOString();
@@ -279,7 +292,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     );
     const toolbarTargetId = `note-pane-toolbar-${pane.id}`;
     const surface = pane.kind === "note" && note ? (
-      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={pane.id} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} /></Suspense></EditorBoundary>
     ) : (
       <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} dark={dark} /></Suspense></EditorBoundary>
     );
@@ -295,6 +308,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
               <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-9 right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_48px)]")}>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</Button>
+                <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canClosePane} onClick={() => closePane(pane.id)}>Close pane</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</Button>
               </div>
             </details>

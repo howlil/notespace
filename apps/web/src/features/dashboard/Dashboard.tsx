@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { FileText, Folder, Search } from "lucide-react";
-import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, Input, cn } from "../../components/ui";
+import { FileText, Folder, Menu, Search } from "lucide-react";
+import { Brand, Sidebar } from "../../components/layout/Sidebar";
+import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { useDismissablePopup } from "../../components/ui/dismissable";
@@ -24,6 +24,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const router = useRouter();
   const { showToast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
@@ -50,6 +51,13 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); searchInput.current?.focus(); } };
     window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  useEffect(() => {
+    if (!mobileLibraryOpen) return undefined;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileLibraryOpen(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [mobileLibraryOpen]);
 
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
@@ -80,23 +88,48 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   return (
     <div className={cn(
-      "dashboard-shell grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
+      "dashboard-shell grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)]",
       collapsed
         ? "grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]"
         : "grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]",
     )}>
-      <Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} />
+      <button
+        type="button"
+        className={cn("fixed inset-0 z-[70] hidden bg-black/20 backdrop-blur-[1px] max-[560px]:block", !mobileLibraryOpen && "max-[560px]:hidden")}
+        aria-label="Close library navigation"
+        onClick={() => setMobileLibraryOpen(false)}
+      />
+      <div className={cn(
+        "contents max-[560px]:fixed max-[560px]:inset-y-0 max-[560px]:left-0 max-[560px]:z-[80] max-[560px]:block max-[560px]:w-[min(320px,86vw)] max-[560px]:transition-transform max-[560px]:duration-200 [&>aside]:max-[560px]:!h-dvh [&>aside]:max-[560px]:!max-h-none [&>aside]:max-[560px]:!w-full [&>aside]:max-[560px]:!border-r [&>aside]:max-[560px]:!border-b-0 [&>aside]:max-[560px]:!px-3 [&>aside]:max-[560px]:!py-3.5",
+        mobileLibraryOpen ? "max-[560px]:translate-x-0" : "max-[560px]:-translate-x-full",
+      )}>
+        <Sidebar
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          collapsed={mobileLibraryOpen ? false : collapsed}
+          onToggle={() => { if (mobileLibraryOpen) setMobileLibraryOpen(false); else setCollapsed((value) => !value); }}
+          onSelectCategory={(id) => { void selectCategory(id); setMobileLibraryOpen(false); }}
+          onChanged={refreshLibrary}
+        />
+      </div>
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
-        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-line bg-surface px-6 max-[560px]:px-5">
+        <header className="hidden min-h-14 items-center justify-between gap-3 border-b border-line bg-surface px-4 max-[560px]:flex">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <IconButton type="button" className="!size-9 shrink-0" aria-label="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
+            <Brand />
+          </div>
+          <div className="flex shrink-0 items-center gap-1 [&>button]:size-[32px]"><WorkspaceGuide /><ThemeToggle /></div>
+        </header>
+        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-line bg-surface px-6 max-[560px]:hidden">
           <span className="text-[10px] font-medium uppercase tracking-[.12em] text-muted">Library</span>
           <div className="flex items-center gap-1.5 [&>button]:size-[30px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>
-        <div className="mx-auto w-full max-w-[1120px] px-8 pt-10 pb-12 max-[800px]:px-[18px] max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-5 max-[560px]:pt-6">
-          <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-5 max-[560px]:items-start max-[560px]:flex-col max-[560px]:gap-3">
-            <div><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-muted">{description}</p></div>
-            <span className="pb-1 text-[10px] text-muted max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
+        <div className="mx-auto w-full max-w-[1120px] px-8 pt-10 pb-12 max-[800px]:px-[18px] max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
+          <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
+            <div className="min-w-0"><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent max-[560px]:text-[9px]">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-muted max-[560px]:text-[11px]">{description}</p></div>
+            <span className="shrink-0 pb-1 text-[10px] text-muted max-[560px]:pt-5 max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
           </div>
-          <div ref={searchRef} className="relative mb-5 flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-muted shadow-[0_1px_2px_#0000000a] focus-within:border-accent focus-within:ring-2 focus-within:ring-tint">
+          <div ref={searchRef} className="relative mb-4 flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-muted shadow-[0_1px_2px_#0000000a] focus-within:border-accent focus-within:ring-2 focus-within:ring-tint">
             <Search size={15} aria-hidden="true" />
             <Input
               ref={searchInput}
@@ -118,8 +151,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               </div>
             )}
           </div>
-          <StudyActivityDashboard />
-          <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
+          <nav className="mb-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
             <Button variant="ghost" size="sm" className={cn(tabClass, view === "recent" && "border-b-accent text-ink")} onClick={() => setView("recent")}>Recent</Button>
             <Button variant="ghost" size="sm" className={cn(tabClass, view === "all" && "border-b-accent text-ink")} onClick={() => void openAll()}>All workspaces</Button>
             {selectedCategory && <Button variant="ghost" size="sm" className={cn(tabClass, view === "category" && "border-b-accent text-ink")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</Button>}
@@ -143,10 +175,11 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               <div className="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
                 <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
                 <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
-                <p className="mt-2 mb-0 text-xs leading-normal text-muted">Create a workspace from the sidebar.</p>
+                <p className="mt-2 mb-0 text-xs leading-normal text-muted">Create a workspace from the library menu.</p>
               </div>
             )}
           </section>
+          <StudyActivityDashboard />
         </div>
       </main>
     </div>

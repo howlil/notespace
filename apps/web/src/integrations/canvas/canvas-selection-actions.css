@@ -1,9 +1,0 @@
-.notespace-canvas-surface .excalidraw .mobile-shape-actions {
-  display: none !important;
-}
-
-@media (max-width: 520px) {
-  .notespace-selection-actions {
-    width: calc(100% - 16px);
-  }
-}

@@ -15,7 +15,7 @@ export function DialogContent({ className, children, ...props }: ComponentPropsW
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.16, ease: "easeOut" }}
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-[min(92vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl shadow-black/20 focus:outline-none",
+            "fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh_-_24px)] w-[min(92vw,420px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl shadow-black/20 focus:outline-none max-[480px]:w-[calc(100vw_-_24px)] max-[480px]:p-4",
             className,
           )}
         >
@@ -35,7 +35,7 @@ export function DialogDescription({ className, ...props }: ComponentPropsWithout
 }
 
 export function DialogFooter({ className, children, ...props }: { className?: string; children?: ReactNode } & ComponentPropsWithoutRef<"div">) {
-  return <div className={cn("mt-5 flex justify-end gap-2", className)} {...props}>{children}</div>;
+  return <div className={cn("mt-5 flex justify-end gap-2 max-[420px]:flex-col-reverse max-[420px]:[&>*]:w-full", className)} {...props}>{children}</div>;
 }
 
 export const DialogClose = DialogPrimitive.Close;

@@ -49,20 +49,20 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
   async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteProject(workspace.id); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." }); } }
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh min-w-0 overflow-x-hidden bg-background">
       <header className="flex min-h-12 items-center justify-between gap-3 border-b border-line bg-surface px-6 max-[560px]:px-5">
-        <div className="flex items-baseline gap-3.5">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-[11px] text-muted hover:text-accent"><ArrowLeft size={15} /> Home</Link>
-          <span className="text-[11px] text-muted">/</span><span className="text-[11px] text-muted">Category</span>
+        <div className="flex min-w-0 items-baseline gap-3.5">
+          <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-muted hover:text-accent"><ArrowLeft size={15} /> Home</Link>
+          <span className="text-[11px] text-muted">/</span><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted">Category</span>
         </div>
         <ThemeToggle />
       </header>
-      <main className="mx-auto w-full max-w-[1200px] p-8 max-[800px]:px-[18px] max-[800px]:py-[23px]">
-        <div className="mb-[25px] flex items-center justify-between gap-5 max-[800px]:flex-col max-[800px]:items-start">
-          <div>
+      <main className="mx-auto w-full max-w-[1200px] p-8 max-[800px]:px-[18px] max-[800px]:py-[23px] max-[520px]:px-4 max-[520px]:py-5">
+        <div className="mb-[25px] flex items-center justify-between gap-5 max-[800px]:flex-col max-[800px]:items-start max-[520px]:gap-4">
+          <div className="min-w-0 max-w-full">
             {editingCategory ? (
               <Input
-                className="min-h-0 w-auto rounded-none border-0 bg-transparent p-px text-2xl font-medium tracking-[-.6px] focus:border-transparent"
+                className="min-h-0 w-full max-w-[min(100%,560px)] rounded-none border-0 bg-transparent p-px text-2xl font-medium tracking-[-.6px] focus:border-transparent"
                 autoFocus
                 value={categoryTitle}
                 onChange={(event) => setCategoryTitle(event.target.value)}
@@ -70,26 +70,26 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
                 onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(); if (event.key === "Escape") { setCategoryTitle(category.title); setEditingCategory(false); } }}
               />
             ) : (
-              <Button variant="ghost" size="sm" className="group !min-h-0 !rounded-none border-0 bg-transparent p-0 text-2xl font-medium tracking-[-.6px] text-ink hover:bg-transparent" onClick={() => setEditingCategory(true)}>
-                {category.title}<Pencil size={14} className="text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+              <Button variant="ghost" size="sm" className="group !min-h-0 max-w-full min-w-0 !rounded-none justify-start border-0 bg-transparent p-0 text-2xl font-medium tracking-[-.6px] text-ink hover:bg-transparent" onClick={() => setEditingCategory(true)}>
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span><Pencil size={14} className="shrink-0 text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
               </Button>
             )}
             <p className="mt-1.5 mb-0 text-[11px] text-muted">{page.total} workspace{page.total === 1 ? "" : "s"}</p>
           </div>
-          <form className="inline-flex max-w-full items-center gap-1.5 max-[520px]:w-full" onSubmit={create}>
+          <form className="flex max-w-full items-center gap-1.5 max-[520px]:w-full" onSubmit={create}>
             {creating ? null : (
-              <Input className="min-h-8 w-[190px] rounded-none border-0 bg-transparent px-0.5 py-[5px] text-xs focus:border-transparent max-[520px]:w-[min(155px,45vw)]" aria-label="Workspace title" placeholder="New workspace" value={title} onChange={(event) => setTitle(event.target.value)} />
+              <Input className="min-h-8 w-[190px] min-w-0 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-xs focus:border-transparent max-[520px]:w-auto max-[520px]:flex-1" aria-label="Workspace title" placeholder="New workspace" value={title} onChange={(event) => setTitle(event.target.value)} />
             )}
-            {!creating && <Button className="min-h-[31px] px-2.5 py-1.5 text-[11px]" disabled={!title.trim()}><Plus size={15} /> Add workspace</Button>}
+            {!creating && <Button className="min-h-[31px] shrink-0 px-2.5 py-1.5 text-[11px]" disabled={!title.trim()}><Plus size={15} /> Add workspace</Button>}
           </form>
         </div>
 
         <div className="mb-[13px] flex items-center gap-2 max-[800px]:flex-wrap max-[800px]:items-stretch">
-          <label className="flex min-h-[35px] flex-1 items-center gap-2 border-b border-line px-2.5 text-muted max-[800px]:basis-full">
-            <Search size={15} aria-hidden="true" />
-            <Input className="min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] focus:border-transparent" aria-label="Search this category" placeholder="Search this category…" value={query} onChange={(event) => { setQuery(event.target.value); setOffset(0); }} />
+          <label className="flex min-h-[35px] min-w-0 flex-1 items-center gap-2 border-b border-line px-2.5 text-muted max-[800px]:basis-full">
+            <Search size={15} className="shrink-0" aria-hidden="true" />
+            <Input className="min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] focus:border-transparent" aria-label="Search this category" placeholder="Search this category…" value={query} onChange={(event) => { setQuery(event.target.value); setOffset(0); }} />
           </label>
-          <select className="min-h-8 rounded-md border border-line bg-surface px-2 py-[5px] text-[11px] text-ink" aria-label="Sort workspaces" value={sort} onChange={(event) => { setSort(event.target.value); setOffset(0); }}>
+          <select className="min-h-8 rounded-md border border-line bg-surface px-2 py-[5px] text-[11px] text-ink max-[520px]:min-w-0 max-[520px]:flex-1" aria-label="Sort workspaces" value={sort} onChange={(event) => { setSort(event.target.value); setOffset(0); }}>
             <option value="updated">Recently edited</option><option value="created">Recently created</option><option value="name">Alphabetical</option><option value="notes">Most notes</option>
           </select>
           <label className="inline-flex items-center gap-[5px] whitespace-nowrap text-[10px] text-muted"><input type="checkbox" checked={hasNotes} onChange={(event) => { setHasNotes(event.target.checked); setOffset(0); }} /> Has notes</label>
@@ -99,7 +99,7 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
         <div className="min-h-40 border-t border-line" aria-busy={loading}>
           {loading && <WorkspaceListSkeleton rows={6} />}
           {!loading && !page.items.length ? (
-            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-[35px] text-center">
+            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-[35px] text-center max-[520px]:px-5">
               <span className="mb-[15px] grid size-[46px] place-items-center rounded-[7px] bg-tint text-accent"><FileText size={22} /></span>
               <h2 className="m-0 text-lg font-medium">{query || hasNotes || hasCanvas ? "No matching workspaces" : "No workspaces yet"}</h2>
               <p className="mt-2 mb-[18px] text-[13px] leading-normal text-muted">{query || hasNotes || hasCanvas ? "Try another filter or search." : "Create the first workspace in this category."}</p>
@@ -130,7 +130,7 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
         </div>
 
         {page.total > page.limit && (
-          <nav className="mt-[17px] flex items-center justify-center gap-[15px] text-[10px] text-muted" aria-label="Workspace pages">
+          <nav className="mt-[17px] flex flex-wrap items-center justify-center gap-x-[15px] gap-y-2 text-[10px] text-muted" aria-label="Workspace pages">
             <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset} onClick={() => setOffset(Math.max(0, page.offset - page.limit))}>Previous</Button>
             <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
             <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined} onClick={() => setOffset(page.nextOffset ?? page.offset)}>Next</Button>

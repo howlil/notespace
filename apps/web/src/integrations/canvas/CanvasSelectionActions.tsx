@@ -43,7 +43,6 @@ import type {
 import { IconButton, cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { CanvasActionName } from "./CanvasToolbar";
-import "./canvas-selection-actions.css";
 
 type Panel = "stroke" | "fill" | "properties" | "arrow" | "text" | "more";
 type StrokeWidthKey = "thin" | "medium" | "bold";
@@ -577,7 +576,7 @@ export function CanvasSelectionActions({
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.16, ease: "easeOut" }}
-      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none"
+      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none max-[520px]:w-[calc(100%-16px)] [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar"
       aria-label="Selected shape actions"
       onPointerDown={(event) => event.stopPropagation()}

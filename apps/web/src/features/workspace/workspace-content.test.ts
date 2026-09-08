@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import type { ProjectContent } from "../../domain/project/project.ts";
 import { blankDocument, normalizeProjectContent } from "./workspace-content.ts";
@@ -35,4 +37,12 @@ test("normalization assigns missing block identity and removes legacy relationsh
   assert.equal(typeof root.content?.[0]?.attrs?.blockId, "string");
   const noteRoot = normalized.content.notes[0]?.document.data as { content?: Array<{ attrs?: { blockId?: unknown } }> };
   assert.equal(typeof noteRoot.content?.[0]?.attrs?.blockId, "string");
+});
+
+test("workspace note panes remount on note switch and expose non-destructive pane close", () => {
+  const workspace = readFileSync(join(process.cwd(), "apps/web/src/features/workspace/Workspace.tsx"), "utf8");
+  assert.match(workspace, /DocumentEditor key=\{`\$\{pane\.id\}:\$\{note\.id\}`\}/);
+  assert.match(workspace, /function closePane\(paneId: string\)/);
+  assert.match(workspace, /removeNode\(layout, paneId\)/);
+  assert.match(workspace, /onClick=\{\(\) => closePane\(pane\.id\)\}>Close pane<\/Button>/);
 });

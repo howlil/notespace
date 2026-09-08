@@ -21,7 +21,8 @@ const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
-const CANVAS_TOOLBAR = join(WEB_SRC, "integrations", "canvas", "CanvasToolbar.tsx");
+const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
+const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
 const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPanelPosition.ts");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "providers", "toast-provider.tsx");
@@ -75,80 +76,61 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(documentDefaults, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
-test("canvas contract: Excalidraw UI is scoped to Notespace tokens and one owned toolbar", () => {
-  const globals = source(GLOBALS); const canvas = source(CANVAS); const toolbar = source(CANVAS_TOOLBAR);
+test("canvas contract: tool, contextual, and viewport chrome have distinct ownership", () => {
+  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), selection = source(CANVAS_SELECTION_ACTIONS);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw\s*\{/);
   assert.match(globals, /--color-primary:\s*var\(--accent\)/);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-menu_top/);
   assert.match(canvas, /className="notespace-canvas-surface/);
   assert.match(canvas, /absolute top-1\/2 left-2 z-\[100\] isolate -translate-y-1\/2/);
-  assert.match(canvas, /<CanvasToolbar/);
-  assert.match(canvas, /panelAnchorRef/);
-  assert.match(canvas, /<CanvasUtilityBar/);
-  assert.match(canvas, /<CanvasDetailsPanel/);
-  assert.match(canvas, /onDoubleClick=\{openDetailsForDoubleClick\}/);
+  assert.match(canvas, /<CanvasToolRail/);
+  assert.match(canvas, /<CanvasViewControls/);
+  assert.match(canvas, /<CanvasSelectionActions/);
+  assert.doesNotMatch(canvas, /<CanvasToolbar|<CanvasUtilityBar|<CanvasDetailsPanel/);
+  assert.doesNotMatch(canvas, /openDetailsForDoubleClick|onDoubleClick=/);
   assert.match(canvas, /selectedElementIds/);
-  assert.equal((canvas.match(/anchorRef={panelAnchorRef}/g) ?? []).length, 2);
   assert.match(canvas, /CaptureUpdateAction\.IMMEDIATELY/);
-  assert.match(toolbar, /function CanvasToolbarButton/);
-  assert.match(toolbar, /<IconButton/);
-  assert.match(toolbar, /!bg-tint !text-accent/);
-  assert.match(toolbar, /aria-pressed={active}/);
-  assert.match(toolbar, /aria-keyshortcuts=/);
-  assert.match(toolbar, /createPortal/);
-  assert.doesNotMatch(toolbar, /role="tooltip"/);
-  assert.doesNotMatch(toolbar, /tooltipTimer|setTooltipOpen/);
-  assert.match(toolbar, /shadow-none/);
-  assert.match(toolbar, /Browse library/);
-  assert.match(toolbar, /toggleSidebar/);
-  assert.match(toolbar, /name: "default"/);
-  assert.match(toolbar, /tab: "library"/);
-  assert.doesNotMatch(toolbar, /name: "library"/);
-  assert.match(toolbar, /fixed z-\[1000\]/);
-  assert.match(toolbar, /anchorRef/);
-  assert.match(toolbar, /ref={panelAnchorRef}/);
-  assert.match(toolbar, /CanvasMorePanel anchorRef={panelAnchorRef}/);
-  assert.match(toolbar, /useCanvasPanelPosition/);
-  assert.match(toolbar, /AnimatePresence/);
-  assert.match(toolbar, /motion\.aside/);
-  assert.match(toolbar, /transition=\{canvasMotionTransition\}/);
-  assert.match(toolbar, /ZoomIn/);
-  assert.match(toolbar, /ZoomOut/);
-  assert.doesNotMatch(toolbar, /<span[^>]*>Browse library<\/span>/);
-  assert.doesNotMatch(toolbar, /<Link to="\/"/);
-  assert.match(toolbar, /Fit canvas/);
-  assert.match(toolbar, /z-10/);
-  assert.match(toolbar, /primaryToolTypes/);
-  assert.match(toolbar, /moreToolGroups/);
-  assert.match(toolbar, /isToolSupported/);
-  assert.match(toolbar, /More tools/);
-  assert.match(toolbar, /canvasBackgroundOptions/);
-  assert.match(toolbar, /aria-label="Canvas background colors"/);
-  assert.match(toolbar, /Choose custom canvas background color/);
-  assert.match(toolbar, /CanvasStylePanel/);
-  assert.match(toolbar, /useCanvasPanelDismiss/);
-  assert.match(toolbar, /onCoreToolSelect/);
-  assert.match(toolbar, /label && <h3/);
-  for (const styleState of ["currentItemStrokeColor", "currentItemBackgroundColor", "currentItemFillStyle", "currentItemStrokeWidthKey", "currentItemStrokeStyle", "currentItemRoughness", "currentItemRoundness", "currentItemOpacity", "currentItemStartArrowhead", "currentItemEndArrowhead", "currentItemFontFamily", "currentItemFontSize", "currentItemTextAlign"]) assert.match(toolbar, new RegExp(styleState));
-  for (const styleSection of ["Fill", "Stroke width", "Stroke style", "Sloppiness", "Edges", "Opacity", "Arrowheads", "Arrow type", "Pressure", "Font size", "Text align"]) assert.match(toolbar, new RegExp(styleSection));
-  assert.match(toolbar, /aria-label="Colors"/);
-  assert.doesNotMatch(toolbar, /Text formatting/);
-  for (const defaultAction of ["group", "ungroup", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "copyStyles", "pasteStyles", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.match(toolbar, new RegExp(`runAction\\(\\"${defaultAction}\\"\\)`));
-  for (const directAction of ["gridMode", "objectsSnapMode", "zoomToFit"]) assert.match(toolbar, new RegExp(`onAction\\(\\"${directAction}\\"\\)`));
-  for (const fileAction of ["copyAsPng", "copyAsSvg"]) assert.match(toolbar, new RegExp(`runAction\\(\\"${fileAction}\\"\\)`));
-  assert.doesNotMatch(toolbar, /canvasDetailsSections|role="tablist"|role="tabpanel"/);
-  assert.match(toolbar, /data-canvas-menu-trigger/);
-  assert.match(toolbar, /onPointerEnter={openDiagram}/);
-  assert.match(toolbar, /onPointerEnter={openDetails}/);
-  assert.match(toolbar, /onPointerEnter={openMore}/);
-  for (const action of ["Reset canvas", "Open", "Export image", "Copy as PNG", "Copy as SVG", "Save to file", "Command palette", "Find on canvas", "Help"]) assert.match(toolbar, new RegExp(`label=\\"${action.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\"`));
   assert.match(canvas, /name === "imageExport"/);
   assert.match(canvas, /openDialog: \{ name: "commandPalette" \}/);
   assert.match(canvas, /toggleSidebar\(\{ name: "default", tab: "search", force: !isSearchOpen \}\)/);
   assert.match(canvas, /actionManager\.actions\[name\]/);
   assert.match(canvas, /onBackgroundChange={setCanvasBackground}/);
   assert.doesNotMatch(canvas, /<MainMenu/);
+
+  assert.match(chrome, /aria-label="Canvas tools"/);
+  assert.match(chrome, /aria-label="Canvas view controls"/);
+  assert.match(chrome, /primaryTools/);
+  assert.match(chrome, /secondaryTools/);
+  assert.match(chrome, /isToolSupported/);
+  assert.match(chrome, /More tools/);
+  assert.match(chrome, /canvasBackgroundOptions/);
+  assert.match(chrome, /Browse library/);
+  assert.match(chrome, /toggleSidebar/);
+  assert.match(chrome, /tab === "library"/);
+  assert.match(chrome, /useCanvasPanelPosition/);
+  assert.match(chrome, /useCanvasPanelDismiss/);
+  assert.match(chrome, /createPortal/);
+  assert.match(chrome, /motion\.aside/);
+  assert.match(chrome, /ZoomIn/); assert.match(chrome, /ZoomOut/); assert.match(chrome, /Fit canvas/);
+  assert.match(chrome, /onAction\("gridMode"\)/); assert.match(chrome, /onAction\("objectsSnapMode"\)/); assert.match(chrome, /onAction\("zoomToFit"\)/);
+  assert.doesNotMatch(chrome, /onAction\("undo"\)|onAction\("redo"\)/);
+  for (const action of ["Reset canvas", "Open", "Export image", "Copy as PNG", "Copy as SVG", "Save to file", "Command palette", "Find on canvas", "Help"]) assert.match(chrome, new RegExp(`label=\\"${action.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\"`));
+  for (const redundant of ["duplicateSelection", "deleteSelectedElements", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.doesNotMatch(chrome, new RegExp(redundant));
+
+  assert.match(selection, /aria-label="Selected shape actions"/);
+  assert.match(selection, /function AdjustmentsIcon/); assert.match(selection, /function DotsHorizontalIcon/); assert.match(selection, /function TextSizeIcon/);
+  assert.match(selection, /function SharpArrowIcon/); assert.match(selection, /function RoundArrowIcon/); assert.match(selection, /function ElbowArrowIcon/);
+  assert.match(selection, /minimumWidth = 9 \* 32 \+ 8 \* 6/);
+  assert.match(selection, /showDeleteOutside = hasSelection && barWidth >= minimumWidth \+ 38/);
+  assert.match(selection, /showDuplicateOutside = hasSelection && barWidth >= minimumWidth \+ 76/);
+  assert.match(selection, /ResizeObserver/);
+  assert.match(selection, /toggleLinearEditor/);
+  assert.match(selection, /Font family/); assert.match(selection, /Text properties/);
+  assert.match(selection, /Undo/); assert.match(selection, /Redo/);
+  for (const styleState of ["currentItemStrokeColor", "currentItemBackgroundColor", "currentItemFillStyle", "currentItemStrokeWidthKey", "currentItemStrokeStyle", "currentItemRoughness", "currentItemRoundness", "currentItemOpacity", "currentItemStartArrowhead", "currentItemEndArrowhead", "currentItemFontFamily", "currentItemFontSize", "currentItemTextAlign"]) assert.match(selection, new RegExp(styleState));
+  for (const action of ["group", "ungroup", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.match(selection, new RegExp(action));
+
   const diagram = source(DIAGRAM_PALETTE);
   assert.match(diagram, /useCanvasPanelPosition/);
   assert.match(diagram, /useCanvasPanelDismiss/);
@@ -183,7 +165,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -237,7 +219,7 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(WORKSPACE),/useDismissablePopup\(historyDrawerRef/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(WORKSPACE),/useDismissablePopup\(historyDrawerRef/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#4f7396/); });

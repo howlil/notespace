@@ -7,7 +7,7 @@ import type {
   ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
@@ -30,8 +30,8 @@ import { useToast } from "../../providers/toast-provider";
 import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
-import { CanvasDetailsPanel, CanvasToolbar, CanvasUtilityBar, type CanvasActionName } from "./CanvasToolbar";
-import { CanvasSelectionActions } from "./CanvasSelectionActions";
+import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
+import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -90,7 +90,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : (dark ? "#1d1e24" : "#f8f9fc");
   });
   const [diagramOpen, setDiagramOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
@@ -111,7 +110,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const closeCanvasPopovers = useCallback(() => {
     setDiagramOpen(false);
-    setDetailsOpen(false);
     setMoreOpen(false);
   }, []);
 
@@ -229,7 +227,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     void restoreLocalFiles(value);
   }, [restoreLocalFiles]);
 
-  const runCanvasAction = useCallback((name: CanvasActionName) => {
+  const runCanvasAction = useCallback((name: CanvasRuntimeActionName) => {
     const value = api.current;
     if (!value) return;
     if (name === "imageExport") {
@@ -326,39 +324,20 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
-  const openDetailsForDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target as Element | null;
-    if (target?.closest("button, input, [role=\"toolbar\"], [role=\"dialog\"]")) return;
-    const value = api.current;
-    if (!value) return;
-    const hasSelection = Object.values(value.getAppState().selectedElementIds).some(Boolean);
-    if (!hasSelection) return;
-    setDiagramOpen(false);
-    setMoreOpen(false);
-    setDetailsOpen(true);
-  }, []);
-
   return (
-    <div
-      className="notespace-canvas-surface relative min-h-0 w-full flex-1"
-      aria-label="Workspace canvas"
-      onDoubleClick={openDetailsForDoubleClick}
-    >
+    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas">
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
-        <CanvasToolbar
+        <CanvasToolRail
           api={canvasApi}
           panelAnchorRef={panelAnchorRef}
           activeTool={activeTool}
-          selectedElementCount={selectedElementCount}
           backgroundColor={backgroundColor}
-          onBackgroundChange={setCanvasBackground}
           diagramOpen={diagramOpen}
-          detailsOpen={detailsOpen}
           moreOpen={moreOpen}
-          onDiagramToggle={() => { setDetailsOpen(false); setMoreOpen(false); setDiagramOpen((open) => !open); }}
-          onDetailsToggle={() => { setDiagramOpen(false); setMoreOpen(false); setDetailsOpen((open) => !open); }}
-          onMoreToggle={() => { setDiagramOpen(false); setDetailsOpen(false); setMoreOpen((open) => !open); }}
+          onDiagramToggle={() => { setMoreOpen(false); setDiagramOpen((open) => !open); }}
+          onMoreToggle={() => { setDiagramOpen(false); setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
+          onBackgroundChange={setCanvasBackground}
           onAction={runCanvasAction}
           diagramPanel={(
             <DiagramPalette
@@ -374,18 +353,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
               onClose={() => setDiagramOpen(false)}
             />
           )}
-          detailsPanel={(
-            <CanvasDetailsPanel
-              open={detailsOpen}
-              anchorRef={panelAnchorRef}
-              api={canvasApi}
-              activeTool={activeTool}
-              onClose={() => setDetailsOpen(false)}
-            />
-          )}
         />
       </div>
-      <CanvasUtilityBar api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
+      <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
       <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
 
       {!hasElements && (

@@ -16,7 +16,7 @@ import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
-import { findPane, findSplit, hasCanvasPane, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
+import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
@@ -29,6 +29,18 @@ const iconActionClass = "grid size-8 shrink-0 place-items-center rounded-md bord
 const popupClass = "absolute z-30 grid min-w-[165px] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]";
 
 function newId() { return crypto.randomUUID(); }
+
+function useCompactPaneLayout() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const sync = () => setCompact(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return compact;
+}
 
 function EditorLoading({ label }: { label: string }) {
   return (
@@ -54,6 +66,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const { dark } = useTheme();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const compactPanes = useCompactPaneLayout();
   const [normalized] = useState(() => normalizeProjectContent(contentOf(project)));
   const initial = normalized.content;
   const current = useRef<ProjectContent>(initial);
@@ -240,7 +253,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
           <details className="pane-note-switcher relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
             <ContextMenu>
               <ContextMenuTrigger asChild>
-                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1.5 text-[10px] text-ink" onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}><FileText size={14} /><span className="max-w-[25vw] overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[45vw]">{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary>
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1.5 text-[10px] text-ink" onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}><FileText size={14} /><span className="max-w-[25vw] overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[62vw]">{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary>
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <ContextMenuItem onSelect={() => beginRenameNote(pane)}><Pencil size={13} /> Rename note</ContextMenuItem>
@@ -295,17 +308,17 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   function renderNode(node: PaneNode): ReactNode {
     if (node.kind === "leaf") return renderPane(node.pane);
     const ratio = node.ratio;
-    const keepsCanvasOnRight = hasCanvasPane(node);
+    const direction = node.direction === "row" && compactPanes ? "column" : node.direction;
     return (
-      <div className={cn("grid h-full min-h-0 min-w-0 w-full gap-0 [&>div]:grid [&>div]:min-h-0 [&>div]:min-w-0", node.direction === "column" && "grid-cols-1", node.direction === "row" && !keepsCanvasOnRight && "max-[760px]:!grid-cols-1 max-[760px]:!grid-rows-[minmax(0,1fr)_7px_minmax(0,1fr)]")} key={node.id} style={node.direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}>
+      <div className={cn("grid h-full min-h-0 min-w-0 w-full gap-0 [&>div]:grid [&>div]:min-h-0 [&>div]:min-w-0", direction === "column" && "grid-cols-1", node.direction === "row" && "max-[760px]:!grid-cols-1 max-[760px]:!grid-rows-[minmax(0,1fr)_7px_minmax(0,1fr)]")} key={node.id} style={direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}>
         {renderNode(node.first)}
-        <div className={cn("relative z-5 grid place-items-center bg-transparent after:absolute after:top-1/2 after:left-1/2 after:h-[14px] after:w-[3px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-[color-mix(in_srgb,var(--line)_72%,transparent)] after:opacity-80 after:content-[''] hover:after:h-[18px] hover:after:w-1 hover:after:bg-accent focus-visible:after:h-[18px] focus-visible:after:w-1 focus-visible:after:bg-accent", node.direction === "row" ? cn("cursor-col-resize", !keepsCanvasOnRight && "max-[760px]:cursor-row-resize") : "cursor-row-resize after:h-[3px] after:w-[14px] hover:after:h-[3px] hover:after:w-[18px] focus-visible:after:h-[3px] focus-visible:after:w-[18px]")} role="separator" tabIndex={0} aria-label={`Resize ${node.direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }} onPointerDown={(event) => {
+        <div className={cn("relative z-5 grid place-items-center bg-transparent after:absolute after:top-1/2 after:left-1/2 after:h-[14px] after:w-[3px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-[color-mix(in_srgb,var(--line)_72%,transparent)] after:opacity-80 after:content-[''] hover:after:h-[18px] hover:after:w-1 hover:after:bg-accent focus-visible:after:h-[18px] focus-visible:after:w-1 focus-visible:after:bg-accent", direction === "row" ? "cursor-col-resize" : "cursor-row-resize after:h-[3px] after:w-[14px] hover:after:h-[3px] hover:after:w-[18px] focus-visible:after:h-[3px] focus-visible:after:w-[18px]")} role="separator" tabIndex={0} aria-label={`Resize ${direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }} onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
-          const start = node.direction === "row" ? event.clientX : event.clientY;
+          const start = direction === "row" ? event.clientX : event.clientY;
           const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
           if (!bounds) return;
-          const size = node.direction === "row" ? bounds.width : bounds.height;
-          const move = (moveEvent: PointerEvent) => { const position = node.direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); };
+          const size = direction === "row" ? bounds.width : bounds.height;
+          const move = (moveEvent: PointerEvent) => { const position = direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); };
           const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); };
           window.addEventListener("pointermove", move);
           window.addEventListener("pointerup", stop);
@@ -321,8 +334,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const saveLabel = status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "conflict" ? "Conflict" : status.state === "error" ? "Not saved" : "Unsaved";
 
   return (
-    <div className="h-dvh min-w-0">
-      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:min-h-dvh max-[560px]:[--workspace-header-height:44px]", focusMode && "is-focus-mode")}>
+    <div className="h-dvh min-w-0 overflow-hidden">
+      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:62px] max-[560px]:[--workspace-header-height:76px]", focusMode && "is-focus-mode")}>
         <header className={cn("workspace-header relative flex min-h-[62px] shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-[18px] max-[800px]:px-[9px] max-[560px]:grid max-[560px]:min-h-11 max-[560px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] max-[560px]:grid-rows-[32px_auto] max-[560px]:items-center max-[560px]:gap-[5px] max-[560px]:px-4 max-[560px]:py-[7px]", focusMode && "hidden")}>
           <div className="flex min-w-0 flex-1 items-center gap-[9px] max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-auto max-[560px]:gap-[3px]">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={18} /></Link>
@@ -339,7 +352,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             {(["canvas", "note", "split"] as const).map((mode) => {
               const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
               const selected = activeViewMode === mode;
-              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!min-h-7 rounded-md px-2.5 text-[10px] font-medium", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{label}</Button>;
+              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!min-h-7 rounded-md px-2.5 text-[10px] font-medium max-[400px]:px-2", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{label}</Button>;
             })}
           </div>
           <div className="flex items-center gap-2 max-[760px]:gap-1 max-[560px]:order-none max-[560px]:col-span-3 max-[560px]:row-start-2 max-[560px]:w-full max-[560px]:min-w-0 max-[560px]:overflow-x-auto max-[560px]:overscroll-x-contain max-[560px]:pb-px max-[560px]:[scrollbar-width:none] max-[560px]:[&::-webkit-scrollbar]:hidden max-[560px]:[&>*]:shrink-0">
@@ -355,12 +368,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             </details>
           </div>
         </header>
-        <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:h-[calc(100dvh_-_58px)] max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
+        <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
       </main>
       <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
         <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose><Button variant="danger" onClick={removeNote}>Delete note</Button></DialogFooter></DialogContent>
       </Dialog>
-      {historyOpen && <PopupSurface ref={historyDrawerRef} className="fixed top-[60px] right-[15px] z-45 max-h-[calc(100dvh_-_80px)] w-[min(235px,calc(100vw_-_30px))] overflow-auto p-2.5 shadow-[0_14px_32px_#0003]">
+      {historyOpen && <PopupSurface ref={historyDrawerRef} className="fixed top-[60px] right-[15px] z-45 max-h-[calc(100dvh_-_80px)] w-[min(235px,calc(100vw_-_30px))] overflow-auto p-2.5 shadow-[0_14px_32px_#0003] max-[560px]:top-[88px] max-[560px]:right-3 max-[560px]:max-h-[calc(100dvh_-_104px)]">
         <div className="mb-[7px] flex items-center justify-between gap-2 text-[11px]"><strong>History</strong><IconButton type="button" className={iconActionClass} onClick={() => setHistoryOpen(false)} aria-label="Close history">×</IconButton></div>
         {historyEntries.length ? historyEntries.map((entry) => <Button key={entry.id} variant="ghost" size="sm" className={cn("!grid !min-h-0 w-full gap-[3px] rounded-[5px] p-2 text-left text-[10px] text-ink", historyPreview?.id === entry.id && "bg-tint")} onClick={() => void previewHistory(entry)}><span className="text-[9px] text-muted">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></Button>) : <p className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">No checkpoints yet.</p>}
         {historyPreview && <div className="mt-1.5 grid gap-[5px] border-t border-line px-2 pt-[9px] pb-[3px] text-[10px]"><strong className="text-[10px] font-[550] text-ink">Preview v{historyPreview.version}</strong><span className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{historyPreview.notes.length} notes · {canvasObjectCount(historyPreview.canvas)} Canvas objects</span><p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p><Button type="button" variant="ghost" size="sm" className="!min-h-0 justify-start px-0 py-[3px] text-left text-[10px] text-muted hover:text-ink" onClick={() => void restoreSelectedHistory()}>Restore</Button></div>}

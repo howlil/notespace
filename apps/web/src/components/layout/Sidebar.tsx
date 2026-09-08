@@ -162,15 +162,15 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
 
   return <>
     <aside className={cn(
-      "sticky top-0 flex h-dvh min-w-0 flex-col gap-1.5 overflow-hidden border-r border-line bg-sidebar px-3 py-3.5 max-[480px]:relative max-[480px]:h-auto max-[480px]:max-h-[190px] max-[480px]:w-full max-[480px]:border-r-0 max-[480px]:border-b max-[480px]:px-4 max-[480px]:pt-3 max-[480px]:pb-2.5",
-      collapsed && "items-center px-2 max-[480px]:px-4",
+      "sticky top-0 flex h-dvh min-w-0 flex-col gap-1.5 overflow-hidden border-r border-line bg-sidebar px-3 py-3.5 max-[560px]:relative max-[560px]:h-auto max-[560px]:max-h-[190px] max-[560px]:w-full max-[560px]:border-r-0 max-[560px]:border-b max-[560px]:px-4 max-[560px]:pt-3 max-[560px]:pb-2.5",
+      collapsed && "items-center px-2 max-[560px]:px-4",
     )}>
-      <div className={cn("flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[480px]:shrink-0", collapsed && "w-full justify-center px-0")}>
+      <div className={cn("flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0", collapsed && "w-full justify-center px-0")}>
         {!collapsed && <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>}
         <IconButton className="m-0 shrink-0" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</IconButton>
       </div>
       {!collapsed && <>
-        <div className="flex items-center gap-[3px] border-b border-line py-2 max-[480px]:mb-[3px]" aria-label="Library actions">
+        <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">
           <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
           <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
           <QuickCapture />
@@ -179,7 +179,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
         <AnimatePresence initial={false}>
           {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
         </AnimatePresence>
-        <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto pt-0.5 max-[480px]:min-h-0">
+        <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto pt-0.5 max-[560px]:min-h-0">
           {categories.map((category) => {
             const isOpen = expanded.has(category.id);
             const items = children[category.id] ?? [];

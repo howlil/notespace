@@ -80,13 +80,13 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   return (
     <div className={cn(
-      "grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
+      "dashboard-shell grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)] max-[560px]:grid-rows-[auto_minmax(0,1fr)]",
       collapsed
         ? "grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]"
         : "grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]",
     )}>
       <Sidebar categories={categories} selectedCategoryId={selectedCategoryId} collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} onSelectCategory={(id) => void selectCategory(id)} onChanged={refreshLibrary} />
-      <main className="min-h-dvh min-w-0">
+      <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
         <header className="flex min-h-12 items-center justify-between gap-3 border-b border-line bg-surface px-6 max-[560px]:px-5">
           <span className="text-[10px] font-medium uppercase tracking-[.12em] text-muted">Library</span>
           <div className="flex items-center gap-1.5 [&>button]:size-[30px]"><WorkspaceGuide /><ThemeToggle /></div>
@@ -119,7 +119,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             )}
           </div>
           <StudyActivityDashboard />
-          <nav className="mb-5 flex items-center gap-1 border-b border-line" aria-label="Library views">
+          <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
             <Button variant="ghost" size="sm" className={cn(tabClass, view === "recent" && "border-b-accent text-ink")} onClick={() => setView("recent")}>Recent</Button>
             <Button variant="ghost" size="sm" className={cn(tabClass, view === "all" && "border-b-accent text-ink")} onClick={() => void openAll()}>All workspaces</Button>
             {selectedCategory && <Button variant="ghost" size="sm" className={cn(tabClass, view === "category" && "border-b-accent text-ink")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</Button>}
@@ -135,7 +135,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
                   <Link key={workspace.id} to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className="group grid min-h-20 grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 text-ink transition-colors last:border-b-0 hover:bg-tint focus-visible:bg-tint max-[560px]:min-h-[72px] max-[560px]:grid-cols-[32px_minmax(0,1fr)] max-[560px]:gap-2.5">
                     <span className="grid size-9 place-items-center rounded-md bg-tint text-accent transition-colors group-hover:bg-surface max-[560px]:size-8"><FileText size={17} /></span>
                     <span className="grid min-w-0 gap-1"><strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium">{workspace.title}</strong><span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{view === "all" ? `${categories.find((category) => category.id === workspace.categoryId)?.title ?? "Category"} · ` : ""}{workspace.noteCount ?? 0} note{workspace.noteCount === 1 ? "" : "s"}{workspace.hasCanvas ? " · Canvas" : ""}</span></span>
-                    <time className="text-[10px] text-muted max-[560px]:col-start-2 max-[560px]:row-start-1 max-[560px]:justify-self-end max-[560px]:pr-0 max-[560px]:text-[9px]" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+                    <time className="text-[10px] text-muted max-[560px]:hidden" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
                   </Link>
                 ))}
               </div>

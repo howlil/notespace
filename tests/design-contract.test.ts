@@ -202,7 +202,8 @@ test("workspace contract: bounded panes use one interaction policy and Send/Link
   assert.match(layout,/function paneInteractionState/); assert.match(layout,/function paneFocusTarget/);
   assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/); assert.match(layout,/layoutForViewMode/); assert.match(layout,/workspaceViewMode/);
   assert.match(workspace,/data-testid="workspace-view-switcher"/); for (const mode of ["Canvas", "Note", "Split"]) assert.match(workspace, new RegExp(`"${mode}"`));
-  assert.doesNotMatch(workspace,/Open Canvas|Open note|Close pane/);
+  assert.doesNotMatch(workspace,/Open Canvas|Open note/);
+  assert.match(workspace,/>Close pane<\/Button>/); assert.match(workspace,/removeNode\(layout, paneId\)/);
   assert.match(workspace,/paneInteractionState\(layout/); assert.match(workspace,/paneFocusTarget\(layout/);
   assert.match(workspace,/pane\.kind === "note" \? "grid-rows-\[34px_minmax\(0,1fr\)\]"/);
   assert.match(workspace,/pane\.kind === "note" && <header/);

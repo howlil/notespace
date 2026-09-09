@@ -51,6 +51,7 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const from = useMemo(() => dateWithOffset(-364), []);
   const to = useMemo(() => dateWithOffset(0), []);
 
@@ -82,28 +83,36 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
     return { column: Math.floor(difference / 7) + 1, row: (difference % 7) + 1 };
   }
 
+  const mobileHeatmapVisibility = mobileExpanded ? "max-[560px]:block" : "max-[560px]:hidden";
+
   return (
-    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface", compact && "mt-6")} aria-labelledby="study-activity-title">
-      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mt-6")} aria-labelledby="study-activity-title">
+      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:border-b-0 max-[560px]:pb-1">
         <div>
           <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Learning activity</h2>
-          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted">Your study rhythm over the last year</p>}
+          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your study rhythm over the last year</p>}
         </div>
-        {!compact && <span className="pt-0.5 text-[10px] text-muted">Last 365 days</span>}
+        {!compact && <span className="pt-0.5 text-[10px] text-muted max-[560px]:hidden">Last 365 days</span>}
       </div>
       {!compact && (
-        <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3">
+        <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
           <div className="flex flex-col gap-1 border-r border-line"><span className="text-[10px] text-muted">Today</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-14" /> : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
           <div className="flex flex-col gap-1 border-r border-line pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
           <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">Streak</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-20" /> : `${activity?.currentStreak ?? 0} days`}</strong></div>
         </div>
       )}
+      {!compact && (
+        <div className="hidden items-center justify-between px-4 py-2 max-[560px]:flex">
+          <span className="text-[10px] text-muted">Last 365 days</span>
+          <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-1.5 py-1 text-[10px] text-accent" aria-expanded={mobileExpanded} onClick={() => setMobileExpanded((value) => !value)}>{mobileExpanded ? "Hide heatmap" : "View heatmap"}</Button>
+        </div>
+      )}
       {loading ? (
-        <div className="px-4 py-4"><ActivitySkeleton /></div>
+        <div className={cn("px-4 py-4", mobileHeatmapVisibility)}><ActivitySkeleton /></div>
       ) : loadError ? (
-        <div className="flex min-h-[54px] items-center gap-[7px] px-4 py-4 text-[10px] text-danger">{loadError}</div>
+        <div className={cn("flex min-h-[54px] items-center gap-[7px] px-4 py-4 text-[10px] text-danger", mobileHeatmapVisibility)}>{loadError}</div>
       ) : (
-        <div className="px-4 pt-4 pb-3">
+        <div className={cn("px-4 pt-4 pb-3", mobileHeatmapVisibility)}>
           <div className="overflow-x-auto overflow-y-hidden pb-[3px]">
             <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Learning activity heatmap">
               {(activity?.days ?? []).map((day) => {

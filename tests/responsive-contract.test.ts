@@ -8,8 +8,10 @@ const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
 const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
+const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
 const CATEGORY = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const DIALOG = join(WEB_SRC, "components", "ui", "dialog.tsx");
+const GLOBALS = join(WEB_SRC, "styles", "globals.css");
 
 function source(path: string) { return readFileSync(path, "utf8"); }
 
@@ -22,15 +24,37 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
 
-test("responsive contract: library shell and sidebar switch together", () => {
+test("responsive contract: mobile library uses an app bar and off-canvas navigation", () => {
   const dashboard = source(DASHBOARD);
   const sidebar = source(SIDEBAR);
-  assert.match(dashboard, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
-  assert.match(dashboard, /max-\[560px\]:min-h-0/);
+  assert.match(dashboard, /mobileLibraryOpen/);
+  assert.match(dashboard, /aria-label="Open library navigation"/);
+  assert.match(dashboard, /max-\[560px\]:fixed/);
+  assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
+  assert.match(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
-  assert.doesNotMatch(sidebar, /max-\[480px\]:relative/);
+  assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0 overflow-hidden rounded-lg border border-line bg-surface\""));
+});
+
+test("responsive contract: mobile learning activity is summary-first", () => {
+  const study = source(STUDY);
+  assert.match(study, /mobileExpanded/);
+  assert.match(study, /View heatmap/);
+  assert.match(study, /Hide heatmap/);
+  assert.match(study, /max-\[560px\]:hidden/);
+});
+
+test("responsive contract: canvas mobile chrome frees the left edge", () => {
+  const globals = source(GLOBALS);
+  assert.match(globals, /@media \(max-width: 560px\)/);
+  assert.match(globals, /\.main-menu-trigger/);
+  assert.match(globals, /\[data-testid="main-menu-trigger"\]/);
+  assert.match(globals, /:has\(> \[aria-label="Canvas tools"\]\)/);
+  assert.match(globals, /bottom: 8px !important/);
+  assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: 60px !important/);
+  assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 40px !important/);
 });
 
 test("responsive contract: narrow category controls can shrink and reflow", () => {

@@ -152,6 +152,72 @@
   display: none !important;
 }
 
+@media (max-width: 560px) {
+  .notespace-canvas-surface .excalidraw .main-menu-trigger,
+  .notespace-canvas-surface .excalidraw [data-testid="main-menu-trigger"] {
+    display: none !important;
+  }
+
+  .notespace-canvas-surface > div:has(> [aria-label="Canvas tools"]) {
+    top: auto !important;
+    right: auto !important;
+    bottom: 8px !important;
+    left: 50% !important;
+    width: calc(100% - 16px);
+    max-width: 520px;
+    transform: translateX(-50%) !important;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] {
+    width: 100%;
+    max-height: 48px;
+    flex-direction: row;
+    gap: 2px;
+    overflow: hidden;
+    padding: 3px;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] > div:first-child {
+    min-width: 0;
+    max-height: none;
+    flex: 1;
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] > div:first-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] > span {
+    width: 1px;
+    height: 20px;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] button {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas tools"] kbd {
+    display: none;
+  }
+
+  .notespace-canvas-surface .notespace-selection-actions {
+    bottom: 60px !important;
+    width: max-content !important;
+    max-width: calc(100% - 16px) !important;
+  }
+
+  .notespace-canvas-surface [aria-label="Canvas view controls"] {
+    right: 8px;
+    max-width: calc(100% - 16px);
+  }
+}
+
 .notespace-canvas-surface .excalidraw,
 .notespace-canvas-surface .excalidraw button,
 .notespace-canvas-surface .excalidraw input,

@@ -21,6 +21,8 @@ import {
   NativeDotsHorizontalIcon,
   NativeEdgeIcon,
   NativeFillIcon,
+  NativeFrameIcon,
+  NativeLibraryIcon,
   NativePencilIcon,
   NativePressureIcon,
   NativeSloppinessIcon,
@@ -36,6 +38,7 @@ export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor";
 type Panel = "color" | "properties" | "arrow" | "font" | "text" | "more";
 type StrokeWidthKey = "thin" | "medium" | "bold";
 type ArrowType = "sharp" | "round" | "elbow";
+type GridColumns = 2 | 3 | 4 | 5;
 
 type StylePatch = {
   strokeColor?: string;
@@ -57,6 +60,20 @@ type StylePatch = {
 
 const styleableElementTypes = new Set<ExcalidrawElement["type"]>(["rectangle", "diamond", "ellipse", "arrow", "line", "freedraw"]);
 const inactiveTools = new Set<AppState["activeTool"]["type"]>(["selection", "eraser", "hand", "laser", "lasso"]);
+const panelWidthClass: Record<Panel, string> = {
+  color: "w-[min(212px,calc(100vw-24px))]",
+  properties: "w-[min(176px,calc(100vw-24px))]",
+  arrow: "w-[min(208px,calc(100vw-24px))]",
+  font: "w-[min(216px,calc(100vw-24px))]",
+  text: "w-[min(176px,calc(100vw-24px))]",
+  more: "w-[min(176px,calc(100vw-24px))]",
+};
+const optionGridClass: Record<GridColumns, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+};
 
 const strokeWidthOptions: readonly { value: StrokeWidthKey; label: string }[] = [
   { value: "thin", label: "Thin" },
@@ -106,8 +123,6 @@ const textAlignOptions: readonly { value: TextAlign; label: string }[] = [
   { value: "right" as TextAlign, label: "Right" },
 ];
 
-// Excalidraw's current quick-pick colors. Keep the same semantic defaults even
-// though its internal ColorPicker component is not part of the package API.
 const strokeColorOptions = ["#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00"] as const;
 const fillColorOptions = ["transparent", "#ffc9c9", "#b2f2bb", "#a5d8ff", "#ffec99"] as const;
 const bucketFillColorOptions = ["#ffffff", "#ffc9c9", "#b2f2bb", "#a5d8ff", "#ffec99"] as const;
@@ -132,15 +147,15 @@ function Choice({ label, active, children, onClick }: { label: string; active: b
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="grid gap-1" aria-label={label}>
-      <h3 className="m-0 px-0.5 text-[9px] font-medium text-muted">{label}</h3>
+    <section className="grid gap-2" aria-label={label}>
+      <h3 className="m-0 text-[9px] font-medium text-muted">{label}</h3>
       {children}
     </section>
   );
 }
 
-function ChoiceRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-1">{children}</div>;
+function OptionGrid({ columns, children }: { columns: GridColumns; children: ReactNode }) {
+  return <div className={cn("grid w-fit gap-1", optionGridClass[columns])}>{children}</div>;
 }
 
 function CompactButton({ label, open, children, onClick }: { label: string; open?: boolean; children: ReactNode; onClick: () => void }) {
@@ -188,17 +203,8 @@ function ColorTrigger({ strokeColor, fillColor, showStroke, showFill, open, onCl
   return (
     <CompactButton label="Colors" open={open} onClick={onClick}>
       <span className="relative block size-5" aria-hidden="true">
-        {showStroke && (
-          <span
-            className="absolute top-0 left-0 size-[14px] rounded-[4px] border-2 bg-surface"
-            style={{ borderColor: strokeColor }}
-          />
-        )}
-        {showFill && (
-          <span className="absolute right-0 bottom-0">
-            <ColorChip color={fillColor} sizeClass="size-[14px]" />
-          </span>
-        )}
+        {showStroke && <span className="absolute top-0 left-0 size-[14px] rounded-[4px] border-2 bg-surface" style={{ borderColor: strokeColor }} />}
+        {showFill && <span className="absolute right-0 bottom-0"><ColorChip color={fillColor} sizeClass="size-[14px]" /></span>}
       </span>
     </CompactButton>
   );
@@ -211,7 +217,7 @@ function ColorSwatches({ colors, current, label, onChange }: {
   onChange: (color: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1" role="group" aria-label={label}>
+    <div className="grid w-fit grid-cols-6 gap-1" role="group" aria-label={label}>
       {colors.map((color) => (
         <button
           key={color}
@@ -242,8 +248,10 @@ function ColorSwatches({ colors, current, label, onChange }: {
   );
 }
 
-function fallbackInitials(label: string) {
-  return label.split(/\s+/).slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("");
+function fallbackActionIcon(name: CanvasRuntimeActionName) {
+  if (name === "wrapSelectionInFrame") return <NativeFrameIcon className="size-4" />;
+  if (name === "addToLibrary") return <NativeLibraryIcon className="size-4" />;
+  return <NativeDotsHorizontalIcon className="size-4" />;
 }
 
 function ActionButton({ api, name, label, disabled, danger, onClick }: {
@@ -267,7 +275,7 @@ function ActionButton({ api, name, label, disabled, danger, onClick }: {
       disabled={disabled}
       onClick={onClick}
     >
-      {icon ? <span className="grid place-items-center [&_svg]:size-4">{icon}</span> : <span className="text-[8px] font-semibold text-muted">{fallbackInitials(label)}</span>}
+      {icon ? <span className="grid place-items-center [&_svg]:size-4">{icon}</span> : fallbackActionIcon(name)}
     </button>
   );
 }
@@ -408,7 +416,6 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
   const renderPanel = () => {
     if (!openPanel) return null;
-    const panelWidth = openPanel === "more" ? "w-[min(196px,calc(100vw-24px))]" : "w-[min(224px,calc(100vw-24px))]";
     return (
       <motion.div
         key={openPanel}
@@ -417,55 +424,55 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         exit={{ opacity: 0, y: 3, scale: 0.985 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
         className={cn(
-          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-1.5 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+6px)] min-[561px]:translate-x-0",
-          panelWidth,
+          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-3 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+6px)] min-[561px]:translate-x-0",
+          panelWidthClass[openPanel],
         )}
         role="dialog"
         aria-label={`${openPanel} properties`}
         onPointerDown={(event) => event.stopPropagation()}
       >
         {openPanel === "color" && (
-          <div className="grid gap-2">
+          <div className="grid gap-4">
             {showStroke && <Section label="Stroke color"><ColorSwatches colors={strokeColorOptions} current={strokeColor} label="Stroke color" onChange={(color) => updateStyle({ strokeColor: color })} /></Section>}
             {showFill && <Section label="Fill color"><ColorSwatches colors={bucketFillEditing ? bucketFillColorOptions : fillColorOptions} current={backgroundColor} label="Fill color" onChange={(color) => updateStyle({ backgroundColor: color })} /></Section>}
           </div>
         )}
 
         {openPanel === "properties" && (
-          <div className="grid gap-2">
-            {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><ChoiceRow>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</ChoiceRow></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing || freeDrawEditing || selectedEditable.some((element) => styleableElementTypes.has(element.type))) && <Section label="Stroke width"><ChoiceRow>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</ChoiceRow></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Stroke pattern"><ChoiceRow>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</ChoiceRow></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Line feel"><ChoiceRow>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</ChoiceRow></Section>}
-            {!bucketFillEditing && shapeEditing && <Section label="Corners"><ChoiceRow><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></ChoiceRow></Section>}
-            {!bucketFillEditing && freeDrawEditing && <Section label="Pressure"><ChoiceRow><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></ChoiceRow></Section>}
-            <Section label="Opacity"><div className="flex items-center gap-2 px-0.5"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
+          <div className="grid gap-4">
+            {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing || freeDrawEditing || selectedEditable.some((element) => styleableElementTypes.has(element.type))) && <Section label="Stroke width"><OptionGrid columns={3}>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Stroke pattern"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Line feel"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && shapeEditing && <Section label="Corners"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
+            {!bucketFillEditing && freeDrawEditing && <Section label="Pressure"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
+            <Section label="Opacity"><div className="flex items-center gap-2"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
           </div>
         )}
 
         {openPanel === "arrow" && selectedArrow && (
-          <div className="grid gap-2">
-            <Section label="Arrow type"><ChoiceRow>{(["sharp", "round", "elbow"] as const).map((value) => <Choice key={value} label={value === "sharp" ? "Sharp arrow" : value === "round" ? "Curved arrow" : "Elbow arrow"} active={arrowType === value} onClick={() => updateArrowType(value)}><NativeArrowTypeIcon type={value} /></Choice>)}</ChoiceRow></Section>
-            <Section label="Start arrowhead"><ChoiceRow>{arrowheadOptions.map(({ value, label }) => <Choice key={`start-${label}`} label={`Start ${label}`} active={startArrowhead === value} onClick={() => updateArrowhead("start", value)}><NativeArrowheadIcon value={value} flip /></Choice>)}</ChoiceRow></Section>
-            <Section label="End arrowhead"><ChoiceRow>{arrowheadOptions.map(({ value, label }) => <Choice key={`end-${label}`} label={`End ${label}`} active={endArrowhead === value} onClick={() => updateArrowhead("end", value)}><NativeArrowheadIcon value={value} /></Choice>)}</ChoiceRow></Section>
+          <div className="grid gap-4">
+            <Section label="Arrow type"><OptionGrid columns={3}>{(["sharp", "round", "elbow"] as const).map((value) => <Choice key={value} label={value === "sharp" ? "Sharp arrow" : value === "round" ? "Curved arrow" : "Elbow arrow"} active={arrowType === value} onClick={() => updateArrowType(value)}><NativeArrowTypeIcon type={value} /></Choice>)}</OptionGrid></Section>
+            <Section label="Start arrowhead"><OptionGrid columns={5}>{arrowheadOptions.map(({ value, label }) => <Choice key={`start-${label}`} label={`Start ${label}`} active={startArrowhead === value} onClick={() => updateArrowhead("start", value)}><NativeArrowheadIcon value={value} flip /></Choice>)}</OptionGrid></Section>
+            <Section label="End arrowhead"><OptionGrid columns={5}>{arrowheadOptions.map(({ value, label }) => <Choice key={`end-${label}`} label={`End ${label}`} active={endArrowhead === value} onClick={() => updateArrowhead("end", value)}><NativeArrowheadIcon value={value} /></Choice>)}</OptionGrid></Section>
           </div>
         )}
 
-        {openPanel === "font" && <Section label="Font family"><div className="grid gap-0.5">{fontFamilyOptions.map(({ value, label }) => <button key={label} type="button" className={cn("flex min-h-7 items-center gap-1.5 rounded-md px-1.5 text-left text-[10px] hover:bg-tint hover:text-accent", fontFamily === value && "bg-tint text-accent")} aria-pressed={fontFamily === value} onClick={() => updateStyle({ fontFamily: value })}><span className="w-5 text-center text-[12px]">Aa</span><span>{label}</span></button>)}</div></Section>}
+        {openPanel === "font" && <Section label="Font family"><div className="grid gap-1">{fontFamilyOptions.map(({ value, label }) => <button key={label} type="button" className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent", fontFamily === value && "bg-tint text-accent")} aria-pressed={fontFamily === value} onClick={() => updateStyle({ fontFamily: value })}><span className="w-5 text-center text-[12px]">Aa</span><span>{label}</span></button>)}</div></Section>}
 
         {openPanel === "text" && (
-          <div className="grid gap-2">
-            <Section label="Font size"><ChoiceRow>{fontSizeOptions.map((value) => <Choice key={value} label={`Font size ${value}`} active={fontSize === value} onClick={() => updateStyle({ fontSize: value })}><span className="text-[9px] font-medium tabular-nums">{value}</span></Choice>)}</ChoiceRow></Section>
-            <Section label="Text align"><ChoiceRow>{textAlignOptions.map(({ value, label }) => <Choice key={value} label={label} active={textAlign === value} onClick={() => updateStyle({ textAlign: value })}><NativeTextAlignIcon value={value} /></Choice>)}</ChoiceRow></Section>
+          <div className="grid gap-4">
+            <Section label="Font size"><OptionGrid columns={4}>{fontSizeOptions.map((value) => <Choice key={value} label={`Font size ${value}`} active={fontSize === value} onClick={() => updateStyle({ fontSize: value })}><span className="text-[9px] font-medium tabular-nums">{value}</span></Choice>)}</OptionGrid></Section>
+            <Section label="Text align"><OptionGrid columns={3}>{textAlignOptions.map(({ value, label }) => <Choice key={value} label={label} active={textAlign === value} onClick={() => updateStyle({ textAlign: value })}><NativeTextAlignIcon value={value} /></Choice>)}</OptionGrid></Section>
           </div>
         )}
 
         {openPanel === "more" && (
-          <div className="grid gap-2">
-            <Section label="Layer"><ChoiceRow><ActionButton api={api} name="sendToBack" label="Send to back" onClick={() => runAndClose("sendToBack")} /><ActionButton api={api} name="sendBackward" label="Send backward" onClick={() => runAndClose("sendBackward")} /><ActionButton api={api} name="bringForward" label="Bring forward" onClick={() => runAndClose("bringForward")} /><ActionButton api={api} name="bringToFront" label="Bring to front" onClick={() => runAndClose("bringToFront")} /></ChoiceRow></Section>
-            {selectedElementCount >= 2 && <Section label="Align & distribute"><ChoiceRow><ActionButton api={api} name="alignLeft" label="Align left" onClick={() => runAndClose("alignLeft")} /><ActionButton api={api} name="alignHorizontallyCentered" label="Align center" onClick={() => runAndClose("alignHorizontallyCentered")} /><ActionButton api={api} name="alignRight" label="Align right" onClick={() => runAndClose("alignRight")} /><ActionButton api={api} name="distributeHorizontally" label="Distribute horizontally" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeHorizontally")} /><ActionButton api={api} name="alignTop" label="Align top" onClick={() => runAndClose("alignTop")} /><ActionButton api={api} name="alignVerticallyCentered" label="Align middle" onClick={() => runAndClose("alignVerticallyCentered")} /><ActionButton api={api} name="alignBottom" label="Align bottom" onClick={() => runAndClose("alignBottom")} /><ActionButton api={api} name="distributeVertically" label="Distribute vertically" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeVertically")} /></ChoiceRow></Section>}
-            <Section label="Group & edit"><ChoiceRow><ActionButton api={api} name="group" label="Group" disabled={selectedElementCount < 2} onClick={() => runAndClose("group")} /><ActionButton api={api} name="ungroup" label="Ungroup" disabled={!hasSelection} onClick={() => runAndClose("ungroup")} /><ActionButton api={api} name="duplicateSelection" label="Duplicate" disabled={!hasSelection} onClick={() => runAndClose("duplicateSelection")} /><ActionButton api={api} name="deleteSelectedElements" label="Delete" danger disabled={!hasSelection} onClick={() => runAndClose("deleteSelectedElements")} /></ChoiceRow></Section>
-            <Section label="Transform & reuse"><ChoiceRow><ActionButton api={api} name="flipHorizontal" label="Flip horizontally" disabled={!hasSelection} onClick={() => runAndClose("flipHorizontal")} /><ActionButton api={api} name="flipVertical" label="Flip vertically" disabled={!hasSelection} onClick={() => runAndClose("flipVertical")} /><ActionButton api={api} name="toggleElementLock" label="Lock or unlock" disabled={!hasSelection} onClick={() => runAndClose("toggleElementLock")} /><ActionButton api={api} name="wrapSelectionInFrame" label="Wrap in frame" disabled={!hasSelection} onClick={() => runAndClose("wrapSelectionInFrame")} /><ActionButton api={api} name="addToLibrary" label="Add to library" disabled={!hasSelection} onClick={() => runAndClose("addToLibrary")} /></ChoiceRow></Section>
+          <div className="grid gap-4">
+            <Section label="Layer"><OptionGrid columns={4}><ActionButton api={api} name="sendToBack" label="Send to back" onClick={() => runAndClose("sendToBack")} /><ActionButton api={api} name="sendBackward" label="Send backward" onClick={() => runAndClose("sendBackward")} /><ActionButton api={api} name="bringForward" label="Bring forward" onClick={() => runAndClose("bringForward")} /><ActionButton api={api} name="bringToFront" label="Bring to front" onClick={() => runAndClose("bringToFront")} /></OptionGrid></Section>
+            {selectedElementCount >= 2 && <Section label="Align & distribute"><OptionGrid columns={4}><ActionButton api={api} name="alignLeft" label="Align left" onClick={() => runAndClose("alignLeft")} /><ActionButton api={api} name="alignHorizontallyCentered" label="Align center" onClick={() => runAndClose("alignHorizontallyCentered")} /><ActionButton api={api} name="alignRight" label="Align right" onClick={() => runAndClose("alignRight")} /><ActionButton api={api} name="distributeHorizontally" label="Distribute horizontally" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeHorizontally")} /><ActionButton api={api} name="alignTop" label="Align top" onClick={() => runAndClose("alignTop")} /><ActionButton api={api} name="alignVerticallyCentered" label="Align middle" onClick={() => runAndClose("alignVerticallyCentered")} /><ActionButton api={api} name="alignBottom" label="Align bottom" onClick={() => runAndClose("alignBottom")} /><ActionButton api={api} name="distributeVertically" label="Distribute vertically" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeVertically")} /></OptionGrid></Section>}
+            <Section label="Group & edit"><OptionGrid columns={4}><ActionButton api={api} name="group" label="Group" disabled={selectedElementCount < 2} onClick={() => runAndClose("group")} /><ActionButton api={api} name="ungroup" label="Ungroup" disabled={!hasSelection} onClick={() => runAndClose("ungroup")} /><ActionButton api={api} name="duplicateSelection" label="Duplicate" disabled={!hasSelection} onClick={() => runAndClose("duplicateSelection")} /><ActionButton api={api} name="deleteSelectedElements" label="Delete" danger disabled={!hasSelection} onClick={() => runAndClose("deleteSelectedElements")} /></OptionGrid></Section>
+            <Section label="Transform & reuse"><OptionGrid columns={4}><ActionButton api={api} name="flipHorizontal" label="Flip horizontally" disabled={!hasSelection} onClick={() => runAndClose("flipHorizontal")} /><ActionButton api={api} name="flipVertical" label="Flip vertically" disabled={!hasSelection} onClick={() => runAndClose("flipVertical")} /><ActionButton api={api} name="toggleElementLock" label="Lock or unlock" disabled={!hasSelection} onClick={() => runAndClose("toggleElementLock")} /><ActionButton api={api} name="wrapSelectionInFrame" label="Wrap in frame" disabled={!hasSelection} onClick={() => runAndClose("wrapSelectionInFrame")} /><ActionButton api={api} name="addToLibrary" label="Add to library" disabled={!hasSelection} onClick={() => runAndClose("addToLibrary")} /></OptionGrid></Section>
           </div>
         )}
       </motion.div>
@@ -489,7 +496,6 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
       <AnimatePresence initial={false}>{renderPanel()}</AnimatePresence>
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[561px]:w-full min-[561px]:flex-none min-[561px]:flex-col min-[561px]:overflow-x-hidden min-[561px]:overflow-y-auto">
         {showColors && <ColorTrigger strokeColor={strokeColor} fillColor={backgroundColor} showStroke={showStroke} showFill={showFill} open={openPanel === "color"} onClick={() => setOpenPanel((panel) => panel === "color" ? null : "color")} />}
-        {freeDrawEditing && <CompactButton label="Freedraw pressure" onClick={() => updateStyle({ pressure: pressure === "variable" ? "constant" : "variable" })}><NativePressureIcon value={pressure} /></CompactButton>}
         {shapeProperties && <CompactButton label="Drawing properties" open={openPanel === "properties"} onClick={() => setOpenPanel((panel) => panel === "properties" ? null : "properties")}><NativeAdjustmentsIcon /></CompactButton>}
         {showArrow && <CompactButton label="Arrow properties" open={openPanel === "arrow"} onClick={() => setOpenPanel((panel) => panel === "arrow" ? null : "arrow")}><NativeArrowTypeIcon type={arrowType} /></CompactButton>}
         {showLinearEditor && <CompactButton label="Edit line" onClick={() => onAction("toggleLinearEditor")}>{linearEditorIcon ? <span className="grid place-items-center [&_svg]:size-4">{linearEditorIcon}</span> : <NativePencilIcon />}</CompactButton>}

@@ -12,6 +12,7 @@ const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
 const CATEGORY = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const DIALOG = join(WEB_SRC, "components", "ui", "dialog.tsx");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
+const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
 
 function source(path: string) { return readFileSync(path, "utf8"); }
 
@@ -33,6 +34,7 @@ test("responsive contract: mobile library uses an app bar and off-canvas navigat
   assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
   assert.match(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
+  assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
   assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0 overflow-hidden rounded-lg border border-line bg-surface\""));
@@ -46,15 +48,25 @@ test("responsive contract: mobile learning activity is summary-first", () => {
   assert.match(study, /max-\[560px\]:hidden/);
 });
 
-test("responsive contract: canvas mobile chrome frees the left edge", () => {
+test("responsive contract: canvas chrome is compact, distinct, and touch-safe", () => {
   const globals = source(GLOBALS);
+  const chrome = source(CANVAS_CHROME);
   assert.match(globals, /@media \(max-width: 560px\)/);
   assert.match(globals, /\.main-menu-trigger/);
   assert.match(globals, /\[data-testid="main-menu-trigger"\]/);
+  assert.match(globals, /\.undo-redo-buttons/);
+  assert.match(globals, /\.notespace-selection-actions button\[aria-label="Undo"\]/);
+  assert.match(globals, /\.notespace-selection-actions button\[aria-label="Redo"\]/);
   assert.match(globals, /:has\(> \[aria-label="Canvas tools"\]\)/);
   assert.match(globals, /bottom: 8px !important/);
   assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: 60px !important/);
   assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 40px !important/);
+  assert.match(chrome, /function NativeToolIcon/);
+  assert.match(chrome, /case "arrow"/);
+  assert.match(chrome, /case "line"/);
+  assert.match(chrome, /event\.pointerType === "mouse"/);
+  assert.match(chrome, /aria-label="More canvas view controls"/);
+  assert.match(chrome, /keepSelection: false/);
 });
 
 test("responsive contract: narrow category controls can shrink and reflow", () => {
@@ -65,10 +77,12 @@ test("responsive contract: narrow category controls can shrink and reflow", () =
   assert.match(category, /overflow-x-hidden/);
 });
 
-test("responsive contract: shared dialogs stay inside dynamic viewport", () => {
+test("responsive contract: shared dialogs stay inside viewport and above mobile navigation", () => {
   const dialog = source(DIALOG);
   assert.match(dialog, /max-h-\[calc\(100dvh_-_24px\)\]/);
   assert.match(dialog, /overflow-y-auto overscroll-contain/);
   assert.match(dialog, /max-\[480px\]:w-\[calc\(100vw_-_24px\)\]/);
   assert.match(dialog, /max-\[420px\]:flex-col-reverse/);
+  assert.match(dialog, /z-\[110\]/);
+  assert.match(dialog, /z-\[120\]/);
 });

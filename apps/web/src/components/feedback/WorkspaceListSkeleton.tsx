@@ -3,17 +3,16 @@ import { Skeleton } from "../ui";
 export function WorkspaceListSkeleton({ rows = 5, variant = "list" }: { rows?: number; variant?: "list" | "cards" }) {
   if (variant === "cards") {
     return (
-      <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1" role="status" aria-label="Loading workspaces">
+      <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1 min-[1041px]:grid-cols-4" role="status" aria-label="Loading workspaces">
         <span className="sr-only">Loading workspaces…</span>
-        {Array.from({ length: Math.min(rows, 6) }, (_, index) => (
-          <div className="flex min-h-[126px] flex-col justify-between rounded-[14px] border border-line bg-surface p-3.5" key={index}>
-            <div className="flex items-start justify-between gap-3">
-              <Skeleton className="size-9 rounded-[10px]" />
-              <Skeleton className="mt-1 h-2 w-10 opacity-70" />
-            </div>
-            <div className="mt-5 grid gap-2">
+        {Array.from({ length: Math.min(rows, 8) }, (_, index) => (
+          <div className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-surface" key={index}>
+            <Skeleton className="absolute inset-x-0 top-0 h-[47%] rounded-none" />
+            <Skeleton className="absolute left-[24%] top-[13%] h-[47%] w-[48%] -rotate-[9deg] rounded-[10px] border border-line bg-surface" />
+            <Skeleton className="absolute inset-x-0 bottom-0 h-[61%] rounded-t-[18px] rounded-b-none border-t border-line" />
+            <div className="absolute inset-x-4 bottom-4 z-10 grid gap-1.5">
               <Skeleton className="h-3.5 w-[58%]" />
-              <Skeleton className="h-2.5 w-[76%] opacity-70" />
+              <Skeleton className="h-2 w-[76%] opacity-70" />
             </div>
           </div>
         ))}

@@ -35,10 +35,13 @@ test("responsive contract: mobile library uses an app bar and off-canvas navigat
   assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
   assert.match(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
+  assert.match(dashboard, /function WorkspaceFolderCard/);
+  assert.match(dashboard, /grid grid-cols-3 gap-4 max-\[900px\]:grid-cols-2 max-\[560px\]:grid-cols-1/);
+  assert.match(dashboard, /<WorkspaceListSkeleton variant="cards" \/>/);
   assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
-  assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0 overflow-hidden rounded-lg border border-line bg-surface\""));
+  assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
 });
 
 test("responsive contract: mobile learning activity is summary-first", () => {

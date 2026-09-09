@@ -176,7 +176,7 @@
 
   .notespace-canvas-surface [aria-label="Canvas tools"] {
     width: 100%;
-    max-height: 48px;
+    max-height: 40px;
     flex-direction: row;
     gap: 2px;
     overflow: hidden;
@@ -200,12 +200,12 @@
 
   .notespace-canvas-surface [aria-label="Canvas tools"] > span {
     width: 1px;
-    height: 20px;
+    height: 18px;
   }
 
   .notespace-canvas-surface [aria-label="Canvas tools"] button {
-    width: 40px !important;
-    height: 40px !important;
+    width: 32px !important;
+    height: 32px !important;
   }
 
   .notespace-canvas-surface [aria-label="Canvas tools"] kbd {
@@ -213,7 +213,7 @@
   }
 
   .notespace-canvas-surface .notespace-selection-actions {
-    bottom: 60px !important;
+    bottom: 50px !important;
     width: max-content !important;
     max-width: calc(100% - 16px) !important;
   }

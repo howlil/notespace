@@ -25,6 +25,10 @@ export function NativeLassoIcon(props: IconProps) {
   return <Icon viewBox="0 0 22 22" strokeWidth={1.25} {...props}><path d="M4.028 13.252C3.371 12.28 3 11.174 3 10c0-3.866 4.03-7 9-7s9 3.134 9 7-4.03 7-9 7c-1.913 0-3.686-.464-5.144-1.255" /><path d="M5 15m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M5 17c0 1.42.316 2.805 1 4" /></Icon>;
 }
 
+export function NativeHandIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M8 13v-7.5a1.5 1.5 0 0 1 3 0v6.5" /><path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5" /><path d="M14 5.5a1.5 1.5 0 0 1 3 0v6.5" /><path d="M17 7.5a1.5 1.5 0 0 1 3 0v8.5a6 6 0 0 1-6 6h-2h.208a6 6 0 0 1-5.012-2.7l-.196-.3c-.312-.479-1.407-2.388-3.286-5.728a1.5 1.5 0 0 1 .536-2.022a1.867 1.867 0 0 1 2.28.28L8 13" /></Icon>;
+}
+
 export function NativeRectangleIcon(props: IconProps) {
   return <Icon strokeWidth={1.5} {...props}><rect x="4" y="4" width="16" height="16" rx="2" /></Icon>;
 }
@@ -61,24 +65,32 @@ export function NativeEraserIcon(props: IconProps) {
   return <Icon strokeWidth={1.5} {...props}><path d="M19 20H8.5l-4.21-4.3a1 1 0 0 1 0-1.41l10-10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41L11.5 20" /><path d="M18 13.3 11.7 7" /></Icon>;
 }
 
-export function NativeBucketFillIcon(props: IconProps) {
-  return <Icon strokeWidth={1.25} {...props}><path d="M5 16 6.465 17.638a2 2 0 1 1-3.015.099L5 16Z" /><path d="M13.737 9.737c2.299-2.3 3.23-5.095 2.081-6.245-1.15-1.15-3.945-.217-6.244 2.082-2.3 2.299-3.231 5.095-2.082 6.244 1.15 1.15 3.946.218 6.245-2.081Z" /><path d="M7.492 11.818c.362.362.768.676 1.208.934l6.895 4.047c1.078.557 2.255-.075 3.692-1.512 1.437-1.437 2.07-2.614 1.512-3.692-.372-.718-1.72-3.017-4.047-6.895a6.015 6.015 0 0 0-.934-1.208" /></Icon>;
+export function NativeFrameIcon(props: IconProps) {
+  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7h16M4 17h16M7 4v16M17 4v16" /></Icon>;
 }
 
-export function NativeAutoShapeIcon(props: IconProps) {
-  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 9.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0" /><path d="M10 12a2 2 0 0 1 2 -2h7a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2l0 -7" /></Icon>;
+export function NativeEmbedIcon(props: IconProps) {
+  return <Icon viewBox="0 0 20 20" strokeWidth={1.5} {...props}><polyline points="12 16 18 10 12 4" /><polyline points="8 4 2 10 8 16" /></Icon>;
 }
 
-export function NativeLaserPointerIcon(props: IconProps) {
+export function NativeAutoshapeIcon(props: IconProps) {
+  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 9.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0" /><path d="M10 12a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7" /></Icon>;
+}
+
+export function NativeMagicIcon(props: IconProps) {
+  return <Icon strokeWidth={2} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="m6 21 15-15-3-3-15 15 3 3M15 6l3 3" /><path d="M9 3a2 2 0 0 0 2 2 2 2 0 0 0-2 2 2 2 0 0 0-2-2 2 2 0 0 0 2-2M19 13a2 2 0 0 0 2 2 2 2 0 0 0-2 2 2 2 0 0 0-2-2 2 2 0 0 0 2-2" /></Icon>;
+}
+
+export function NativeLaserIcon(props: IconProps) {
   return <Icon viewBox="0 0 20 20" strokeWidth={1.25} {...props}><g transform="rotate(90 10 10)"><path clipRule="evenodd" d="m9.644 13.69 7.774-7.773a2.357 2.357 0 0 0-3.334-3.334l-7.773 7.774L8 12l1.643 1.69Z" /><path d="m13.25 3.417 3.333 3.333M10 10l2-2M5 15l3-3M2.156 17.894l1-1M5.453 19.029l-.144-1.407M2.377 11.887l.866 1.118M8.354 17.273l-1.194-.758M.953 14.652l1.408.13" /></g></Icon>;
 }
 
-export function NativeMagicFrameIcon(props: IconProps) {
-  return <Icon strokeWidth={2} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 21l15 -15l-3 -3l-15 15l3 3" /><path d="M15 6l3 3" /><path d="M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /><path d="M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /></Icon>;
+export function NativeLibraryIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0 9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0 9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13" /></Icon>;
 }
 
-export function NativeLibraryIcon(props: IconProps) {
-  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><line x1="3" y1="6" x2="3" y2="19" /><line x1="12" y1="6" x2="12" y2="19" /><line x1="21" y1="6" x2="21" y2="19" /></Icon>;
+export function NativeBucketFillIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path d="M5 16 6.465 17.638a2 2 0 1 1-3.015.099L5 16Z" /><path d="M13.737 9.737c2.299-2.3 3.23-5.095 2.081-6.245-1.15-1.15-3.945-.217-6.244 2.082-2.3 2.299-3.231 5.095-2.082 6.244 1.15 1.15 3.946.218 6.245-2.081Z" /><path d="M7.492 11.818c.362.362.768.676 1.208.934l6.895 4.047c1.078.557 2.255-.075 3.692-1.512 1.437-1.437 2.07-2.614 1.512-3.692-.372-.718-1.72-3.017-4.047-6.895a6.015 6.015 0 0 0-.934-1.208" /></Icon>;
 }
 
 export type NativeArrowType = "sharp" | "round" | "elbow";

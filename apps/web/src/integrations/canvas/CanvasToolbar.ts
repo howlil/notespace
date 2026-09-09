@@ -1,3 +1,9 @@
+// Shared action names for Notespace-owned canvas chrome.
+//
+// This file intentionally contains no toolbar renderer. The active canvas UI is
+// owned by CanvasChrome + CanvasSelectionActions; keeping the action contract
+// separate prevents the retired toolbar implementation from becoming a second
+// icon/layout authority again.
 export type CanvasActionName =
   | "undo"
   | "redo"

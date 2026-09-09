@@ -148,7 +148,13 @@
 .notespace-canvas-surface .excalidraw .App-toolbar-container,
 .notespace-canvas-surface .excalidraw .mobile-toolbar,
 .notespace-canvas-surface .excalidraw .App-menu_top,
-.notespace-canvas-surface .excalidraw .App-menu_bottom {
+.notespace-canvas-surface .excalidraw .App-menu_bottom,
+.notespace-canvas-surface .excalidraw .undo-redo-buttons {
+  display: none !important;
+}
+
+.notespace-canvas-surface .notespace-selection-actions button[aria-label="Undo"],
+.notespace-canvas-surface .notespace-selection-actions button[aria-label="Redo"] {
   display: none !important;
 }
 

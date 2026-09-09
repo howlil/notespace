@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { FileText, Folder, Menu, Search } from "lucide-react";
-import { Brand, Sidebar } from "../../components/layout/Sidebar";
+import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
@@ -116,7 +116,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         <header className="hidden min-h-14 items-center justify-between gap-3 border-b border-line bg-surface px-4 max-[560px]:flex">
           <div className="flex min-w-0 items-center gap-2.5">
             <IconButton type="button" className="!size-9 shrink-0" aria-label="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
-            <Brand />
+            <span className="truncate text-sm font-medium text-ink">Library</span>
           </div>
           <div className="flex shrink-0 items-center gap-1 [&>button]:size-[32px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>

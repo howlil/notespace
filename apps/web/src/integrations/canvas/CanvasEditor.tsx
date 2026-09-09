@@ -227,13 +227,15 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         remoteElements as Parameters<typeof reconcileElements>[1],
         value.getAppState(),
       );
-      const remoteAppState = objectValue(message.snapshot.data.appState);
-      const mergedAppState = { ...persistedAppState(value.getAppState()), ...remoteAppState };
+      // Peer tabs share authored elements, not each other's viewport/UI state.
+      // This keeps pan, zoom, grid and background controls local while the scene
+      // itself converges immediately.
+      const localAppState = persistedAppState(value.getAppState());
       const seedDiagrams = mergeDiagramSets(diagramsRef.current, readStructuredDiagrams(message.snapshot.data));
       const nextDiagrams = syncDiagramsFromElements(seedDiagrams, mergedElements);
       const data = {
         elements: mergedElements,
-        appState: mergedAppState,
+        appState: localAppState,
         files: {},
         [DIAGRAM_DATA_KEY]: nextDiagrams,
       };
@@ -245,13 +247,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       updateDiagramState(nextDiagrams);
       setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
       setHasElements(mergedElements.some((element) => !element.isDeleted));
-      if (typeof mergedAppState.viewBackgroundColor === "string") setBackgroundColor(mergedAppState.viewBackgroundColor);
-      if (typeof mergedAppState.gridModeEnabled === "boolean") setGridModeEnabled(mergedAppState.gridModeEnabled);
-      if (typeof mergedAppState.objectsSnapModeEnabled === "boolean") setObjectsSnapModeEnabled(mergedAppState.objectsSnapModeEnabled);
 
       value.updateScene({
         elements: mergedElements,
-        appState: mergedAppState as Partial<AppState>,
         captureUpdate: CaptureUpdateAction.NEVER,
       });
       onChange({ format: "excalidraw", version: 1, data });
@@ -393,14 +391,14 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
   const insertNode = useCallback((item: DiagramCatalogItem) => {
-    const current = activeDiagram;
-    if (!current) {
+    const currentDiagram = activeDiagram;
+    if (!currentDiagram) {
       void applyDiagram(null, createDiagramWithNode("architecture", item, canvasOrigin(), undefined, "icon"));
       return;
     }
-    const tail = current.nodes.at(-1);
+    const tail = currentDiagram.nodes.at(-1);
     const origin = tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin();
-    void applyDiagram(current, addCatalogNode(current, item, origin, undefined, "icon"));
+    void applyDiagram(currentDiagram, addCatalogNode(currentDiagram, item, origin, undefined, "icon"));
   }, [activeDiagram, applyDiagram, canvasOrigin]);
 
   const connectSelected = useCallback(() => {

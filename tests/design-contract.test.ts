@@ -101,7 +101,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(chrome, /aria-label="Canvas tools"/);
   assert.match(chrome, /aria-label="Canvas view controls"/);
   assert.match(chrome, /primaryTools/);
-  assert.match(chrome, /secondaryTools/);
+  assert.match(chrome, /secondaryToolGroups/);
   assert.match(chrome, /isToolSupported/);
   assert.match(chrome, /More tools/);
   assert.match(chrome, /canvasBackgroundOptions/);
@@ -112,22 +112,26 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(chrome, /useCanvasPanelDismiss/);
   assert.match(chrome, /createPortal/);
   assert.match(chrome, /motion\.aside/);
+  assert.match(chrome, /function nativeActionIcon/);
+  assert.doesNotMatch(chrome, /function NativeSvg|function NativeToolIcon/);
   assert.match(chrome, /ZoomIn/); assert.match(chrome, /ZoomOut/); assert.match(chrome, /Fit canvas/);
   assert.match(chrome, /onAction\("gridMode"\)/); assert.match(chrome, /onAction\("objectsSnapMode"\)/); assert.match(chrome, /onAction\("zoomToFit"\)/);
-  assert.doesNotMatch(chrome, /onAction\("undo"\)|onAction\("redo"\)/);
+  assert.match(chrome, /name="undo" label="Undo"/); assert.match(chrome, /name="redo" label="Redo"/);
+  assert.match(chrome, /max-\[560px\]:hidden/);
+  for (const group of ["Select", "Insert", "Present", "Paint", "Canvas", "File & export", "Navigate & help"]) assert.match(chrome, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   for (const action of ["Reset canvas", "Open", "Export image", "Copy as PNG", "Copy as SVG", "Save to file", "Command palette", "Find on canvas", "Help"]) assert.match(chrome, new RegExp(`label=\\"${action.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\"`));
   for (const redundant of ["duplicateSelection", "deleteSelectedElements", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.doesNotMatch(chrome, new RegExp(redundant));
 
   assert.match(selection, /aria-label="Selected shape actions"/);
-  assert.match(selection, /function AdjustmentsIcon/); assert.match(selection, /function DotsHorizontalIcon/); assert.match(selection, /function TextSizeIcon/);
-  assert.match(selection, /function SharpArrowIcon/); assert.match(selection, /function RoundArrowIcon/); assert.match(selection, /function ElbowArrowIcon/);
-  assert.match(selection, /minimumWidth = 9 \* 32 \+ 8 \* 6/);
-  assert.match(selection, /showDeleteOutside = hasSelection && barWidth >= minimumWidth \+ 38/);
-  assert.match(selection, /showDuplicateOutside = hasSelection && barWidth >= minimumWidth \+ 76/);
-  assert.match(selection, /ResizeObserver/);
+  assert.match(selection, /function nativeActionIcon/);
+  assert.doesNotMatch(selection, /function NativeIconFrame|function AdjustmentsIcon|function UndoIcon|function RedoIcon|function DuplicateIcon|function DeleteIcon/);
+  assert.match(selection, /min-\[561px\]:left-14/);
+  assert.match(selection, /min-\[561px\]:flex-col/);
+  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+8px\)\]/);
   assert.match(selection, /toggleLinearEditor/);
   assert.match(selection, /Font family/); assert.match(selection, /Text properties/);
-  assert.match(selection, /Undo/); assert.match(selection, /Redo/);
+  assert.doesNotMatch(selection, /label="Undo"|label="Redo"/);
+  for (const group of ["Layer", "Align & distribute", "Group & edit", "Transform & reuse"]) assert.match(selection, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   for (const styleState of ["currentItemStrokeColor", "currentItemBackgroundColor", "currentItemFillStyle", "currentItemStrokeWidthKey", "currentItemStrokeStyle", "currentItemRoughness", "currentItemRoundness", "currentItemOpacity", "currentItemStartArrowhead", "currentItemEndArrowhead", "currentItemFontFamily", "currentItemFontSize", "currentItemTextAlign"]) assert.match(selection, new RegExp(styleState));
   for (const action of ["group", "ungroup", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.match(selection, new RegExp(action));
 

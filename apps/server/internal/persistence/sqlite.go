@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -142,6 +143,14 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 		p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version,
 	)
 	if err != nil {
+		return err
+	}
+	// Retain one creation baseline only for legacy backup/restore compatibility.
+	// Normal autosave no longer produces periodic history checkpoints.
+	if err := createHistory(ctx, tx, project.HistorySnapshot{
+		HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: p.CreatedAt},
+		Document:     p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio,
+	}); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -594,8 +603,7 @@ func createHistory(ctx context.Context, db execContext, snapshot project.History
 	if err != nil {
 		return err
 	}
-	// Kept only as a legacy backup-import path. Normal workspace creation and
-	// autosave no longer create user-facing history checkpoints.
+	// Kept only as a legacy backup-import and creation-baseline path.
 	_, err = db.ExecContext(ctx, `INSERT INTO workspace_history(id,workspace_id,version,title,document_state,notes_state,canvas_state,references_state,split_ratio,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, snapshot.ID, snapshot.WorkspaceID, snapshot.Version, snapshot.Title, `{}`, `{}`, `{}`, `{}`, snapshot.SplitRatio, snapshot.CreatedAt)
 	if err != nil {
 		return err
@@ -769,11 +777,9 @@ WHERE study_sessions.workspace_id=excluded.workspace_id`, session.ID, session.Wo
 }
 
 func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (study.WorkspaceStats, error) {
-	var stats project.WorkspaceStats
-	_ = stats
-	var studyStats study.WorkspaceStats
-	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0), COALESCE(SUM(active_seconds),0) FROM study_sessions WHERE workspace_id=?`, activityDate, workspaceID).Scan(&studyStats.TodaySeconds, &studyStats.TotalSeconds)
-	return studyStats, err
+	var stats study.WorkspaceStats
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0), COALESCE(SUM(active_seconds),0) FROM study_sessions WHERE workspace_id=?`, activityDate, workspaceID).Scan(&stats.TodaySeconds, &stats.TotalSeconds)
+	return stats, err
 }
 
 func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, error) {

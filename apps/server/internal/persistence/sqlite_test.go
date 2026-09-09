@@ -57,7 +57,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 	}
 }
 
-func TestHistorySkipsRapidAuthoredAndLayoutOnlyUpdates(t *testing.T) {
+func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "history-policy.db"))
 	if err != nil {
@@ -89,20 +89,23 @@ func TestHistorySkipsRapidAuthoredAndLayoutOnlyUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 1 {
-		t.Fatalf("history entries = %d, want 1", len(entries))
+		t.Fatalf("creation baseline entries = %d, want 1", len(entries))
 	}
 	var payloadRows int
 	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_history_payload WHERE history_id=?`, entries[0].ID).Scan(&payloadRows); err != nil {
 		t.Fatal(err)
 	}
 	if payloadRows != 1 {
-		t.Fatalf("compressed payload rows = %d, want 1", payloadRows)
+		t.Fatalf("creation baseline payload rows = %d, want 1", payloadRows)
 	}
+
+	// Even if the retained baseline is old, autosave must not create a new
+	// checkpoint. History is no longer part of the normal editing write path.
 	if _, err := store.db.ExecContext(ctx, `UPDATE workspace_history SET created_at=? WHERE id=?`, "2020-01-01T00:00:00Z", entries[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	checkpointDocument := updatedDocument
-	checkpointDocument.Data = []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"checkpointed"}]}]}`)
+	checkpointDocument.Data = []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"not checkpointed"}]}]}`)
 	if _, err := store.Update(ctx, p.ID, project.Update{
 		Title: p.Title, Document: checkpointDocument, Notes: p.Notes, Canvas: p.Canvas,
 		References: p.References, SplitRatio: .7, Version: p.Version + 2,
@@ -113,15 +116,15 @@ func TestHistorySkipsRapidAuthoredAndLayoutOnlyUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 2 {
-		t.Fatalf("history entries after interval = %d, want 2", len(entries))
+	if len(entries) != 1 {
+		t.Fatalf("autosave created history rows = %d, want creation baseline only", len(entries))
 	}
 	snapshot, err := store.GetHistory(ctx, p.ID, entries[0].ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(snapshot.Document.Data) != string(checkpointDocument.Data) {
-		t.Fatalf("checkpoint document = %s, want %s", snapshot.Document.Data, checkpointDocument.Data)
+	if string(snapshot.Document.Data) != string(p.Document.Data) {
+		t.Fatalf("creation baseline changed = %s, want %s", snapshot.Document.Data, p.Document.Data)
 	}
 }
 
@@ -180,7 +183,7 @@ func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) == 0 {
-		t.Fatal("delete transaction should roll back checkpoint removal")
+		t.Fatal("delete transaction should roll back creation-baseline removal")
 	}
 }
 

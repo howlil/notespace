@@ -32,35 +32,17 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
     <Link
       to="/workspaces/$workspaceId"
       params={{ workspaceId: workspace.id }}
-      className="group block min-h-20 rounded-[22px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group block min-h-20 rounded-[14px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       aria-label={`Open ${workspace.title}`}
     >
-      <article className="relative aspect-square overflow-hidden rounded-[22px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
-        <span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%] rotate-[7deg] rounded-[10px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1">
-          <span className="block h-1.5 w-[82%] rounded-full bg-line" />
-          <span className="mt-2 block h-1.5 w-[58%] rounded-full bg-line" />
-          <span className="mt-5 block h-1.5 w-[70%] rounded-full bg-line" />
-        </span>
-        <span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%] rotate-[2deg] rounded-[11px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-1.5">
-          <span className="block h-1.5 w-[84%] rounded-full bg-line" />
-          <span className="mt-2 block h-1.5 w-[62%] rounded-full bg-line" />
-          <span className="mt-5 block h-1.5 w-[74%] rounded-full bg-line" />
-        </span>
-        <span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%] -rotate-[9deg] rounded-[12px] border border-line bg-surface p-3 transition-transform duration-200 group-hover:-translate-y-2">
-          <span className="block h-1.5 w-[86%] rounded-full bg-line" />
-          <span className="mt-2 block h-1.5 w-[64%] rounded-full bg-line" />
-          <span className="mt-6 block h-1.5 w-[76%] rounded-full bg-line" />
-          <span className="mt-2 block h-1.5 w-[52%] rounded-full bg-line" />
-        </span>
-
-        <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[22px] border-t border-line bg-tint/95 backdrop-blur-sm">
-          <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-4 max-[560px]:inset-x-4 max-[560px]:bottom-4">
-            <div className="min-w-0">
-              <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[20px] font-semibold leading-tight tracking-[-.35px] text-ink max-[560px]:text-[18px]">{workspace.title}</strong>
-              <span className="mt-1.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{metadata}</span>
-            </div>
-            <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[9px] tabular-nums text-muted" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
-          </div>
+      <article className="flex min-h-[126px] flex-col justify-between rounded-[14px] border border-line bg-surface p-3.5 transition-[transform,border-color,background-color] duration-150 group-hover:-translate-y-0.5 group-hover:border-accent group-hover:bg-tint/30">
+        <div className="flex items-start justify-between gap-3">
+          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-tint text-accent"><Folder size={18} /></span>
+          <time className="shrink-0 pt-1 text-[9px] tabular-nums text-muted" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+        </div>
+        <div className="mt-5 min-w-0">
+          <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.2px] text-ink">{workspace.title}</strong>
+          <span className="mt-1.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{metadata}</span>
         </div>
       </article>
     </Link>
@@ -203,26 +185,30 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             <Button variant="ghost" size="sm" className={cn(tabClass, view === "all" && "border-b-accent text-ink")} onClick={() => void openAll()}>All workspaces</Button>
             {selectedCategory && <Button variant="ghost" size="sm" className={cn(tabClass, view === "category" && "border-b-accent text-ink")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</Button>}
           </nav>
-          <section className="min-w-0" aria-labelledby="library-list-title">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="m-0 text-[11px] font-medium text-ink">Workspaces</h2>
-              <span className="text-[10px] text-muted">Updated recently</span>
-            </div>
-            {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
-              <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1">
-                {items.map((workspace) => (
-                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categories.find((category) => category.id === workspace.categoryId)?.title} />
-                ))}
+          <div className="grid grid-cols-[minmax(0,1fr)_248px] items-start gap-5 max-[1040px]:grid-cols-1">
+            <section className="min-w-0" aria-labelledby="library-list-title">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="m-0 text-[11px] font-medium text-ink">Workspaces</h2>
+                <span className="text-[10px] text-muted">Updated recently</span>
               </div>
-            ) : (
-              <div className="flex min-h-[200px] flex-col items-center justify-center rounded-[22px] border border-line bg-surface p-8 text-center">
-                <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
-                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
-                <p className="mt-2 mb-0 text-xs leading-normal text-muted">Create a workspace from the library menu.</p>
-              </div>
-            )}
-          </section>
-          <StudyActivityDashboard />
+              {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
+                <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1">
+                  {items.map((workspace) => (
+                    <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categories.find((category) => category.id === workspace.categoryId)?.title} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-[200px] flex-col items-center justify-center rounded-[14px] border border-line bg-surface p-8 text-center">
+                  <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
+                  <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                  <p className="mt-2 mb-0 text-xs leading-normal text-muted">Create a workspace from the library menu.</p>
+                </div>
+              )}
+            </section>
+            <aside className="min-w-0 max-[1040px]:order-last" aria-label="Learning activity summary">
+              <StudyActivityDashboard />
+            </aside>
+          </div>
         </div>
       </main>
     </div>

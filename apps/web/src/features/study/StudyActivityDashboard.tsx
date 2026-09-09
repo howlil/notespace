@@ -43,7 +43,7 @@ const heatmapLevels = [
   "bg-accent",
 ] as const;
 
-export function StudyActivityDashboard({ compact = false }: { compact?: boolean }) {
+export function StudyActivityDashboard({ compact = true }: { compact?: boolean }) {
   const { showToast } = useToast();
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -83,16 +83,19 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
     return { column: Math.floor(difference / 7) + 1, row: (difference % 7) + 1 };
   }
 
-  const mobileHeatmapVisibility = mobileExpanded ? "max-[560px]:block" : "max-[560px]:hidden";
+  const mobileHeatmapVisibility = compact ? "" : mobileExpanded ? "max-[560px]:block" : "max-[560px]:hidden";
+  const recentDays = compact ? (activity?.days ?? []).slice(-84) : [];
 
   return (
-    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mt-6")} aria-labelledby="study-activity-title">
-      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:border-b-0 max-[560px]:pb-1">
+    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mb-0")} aria-labelledby="study-activity-title">
+      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:pb-2">
         <div>
           <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Learning activity</h2>
           {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your study rhythm over the last year</p>}
         </div>
-        {!compact && <span className="pt-0.5 text-[10px] text-muted max-[560px]:hidden">Last 365 days</span>}
+        {compact ? (
+          <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today · ${activity?.currentStreak ?? 0}d streak`}</span>
+        ) : <span className="pt-0.5 text-[10px] text-muted max-[560px]:hidden">Last 365 days</span>}
       </div>
       {!compact && (
         <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
@@ -107,7 +110,36 @@ export function StudyActivityDashboard({ compact = false }: { compact?: boolean 
           <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-1.5 py-1 text-[10px] text-accent" aria-expanded={mobileExpanded} onClick={() => setMobileExpanded((value) => !value)}>{mobileExpanded ? "Hide heatmap" : "View heatmap"}</Button>
         </div>
       )}
-      {loading ? (
+      {compact ? (
+        loading ? (
+          <div className="px-4 py-4" role="status" aria-label="Loading learning activity">
+            <span className="sr-only">Loading learning activity…</span>
+            <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-hidden="true">
+              {Array.from({ length: 84 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
+            </div>
+          </div>
+        ) : loadError ? (
+          <div className="flex min-h-[54px] items-center px-4 py-4 text-[10px] text-danger">{loadError}</div>
+        ) : (
+          <div className="px-4 pt-4 pb-3">
+            <div className="overflow-x-auto overflow-y-hidden pb-1">
+              <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-label="Recent learning activity">
+                {recentDays.map((day) => (
+                  <button
+                    key={day.date}
+                    className={cn(heatmapCell, "hover:outline-2 hover:outline-offset-1 hover:outline-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:outline-2 aria-pressed:outline-offset-1 aria-pressed:outline-accent", heatmapLevels[level(day.activeSeconds)])}
+                    title={`${formatDay(day.date)} · ${formatDuration(day.activeSeconds)}`}
+                    aria-label={`${formatDay(day.date)}: ${formatDuration(day.activeSeconds)}`}
+                    onClick={() => selectDay(day.date)}
+                    aria-pressed={selectedDate === day.date}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 text-[9px] text-muted"><span>Recent 12 weeks</span><span>{formatDuration(activity?.weekSeconds ?? 0)} this week</span></div>
+          </div>
+        )
+      ) : loading ? (
         <div className={cn("px-4 py-4", mobileHeatmapVisibility)}><ActivitySkeleton /></div>
       ) : loadError ? (
         <div className={cn("flex min-h-[54px] items-center gap-[7px] px-4 py-4 text-[10px] text-danger", mobileHeatmapVisibility)}>{loadError}</div>

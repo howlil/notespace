@@ -1,21 +1,20 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, Circle, FileText, Highlighter, History as HistoryIcon, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, PopupSurface, Skeleton, cn } from "../../components/ui";
-import { useDismissablePopup, useExclusivePopup } from "../../components/ui/dismissable";
+import { ArrowLeft, Check, ChevronDown, Circle, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../components/ui";
+import { useExclusivePopup } from "../../components/ui/dismissable";
 import { useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectContent, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { getHistorySnapshot, listHistory, restoreHistory, saveProject } from "../../domain/project/api";
-import type { HistoryEntry, HistorySnapshot } from "../../domain/project/api";
+import { saveProject } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
-import { blankDocument, canvasObjectCount, documentText, normalizeProjectContent } from "./workspace-content";
+import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
 
@@ -78,12 +77,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [selectedTextPaneId, setSelectedTextPaneId] = useState<string | null>(null);
   const [highlightRequest, setHighlightRequest] = useState<{ paneId: string; request: number } | null>(null);
   const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
-  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
-  const [historyPreview, setHistoryPreview] = useState<HistorySnapshot | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const historyDrawerRef = useRef<HTMLDivElement>(null);
-  const dismissHistory = useCallback(() => setHistoryOpen(false), []);
-  useDismissablePopup(historyDrawerRef, historyOpen, dismissHistory);
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
@@ -215,9 +208,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     if (target) switchPaneNote(target.id, replacement.id);
     setDeletingNote(null);
   }
-  async function openHistory() { setHistoryOpen((value) => !value); if (!historyEntries.length) { try { setHistoryEntries(await listHistory(project.id)); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load history." }); } } }
-  async function previewHistory(entry: HistoryEntry) { try { setHistoryPreview(await getHistorySnapshot(project.id, entry.id)); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load checkpoint." }); } }
-  async function restoreSelectedHistory() { if (!historyPreview) return; try { await saver.flush(); await restoreHistory(project.id, historyPreview.id); window.location.reload(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not restore checkpoint." }); } }
   const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
   const activeFocusTarget = activePane ? paneFocusTarget(layout, activePane.id) : undefined;
@@ -374,12 +364,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             <span className={cn("flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px] max-[560px]:text-[9px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={14} /> : status.state === "saving" ? <Loader2 size={14} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
             <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={17} /></IconButton>
             <WorkspaceGuide />
-            <details className="relative shrink-0 [&>summary::-webkit-details-marker]:hidden">
-              <summary className={cn(iconActionClass, "cursor-pointer list-none")} aria-label="Workspace actions"><MoreHorizontal size={18} /></summary>
-              <PopupSurface className="absolute top-[calc(100%+6px)] right-0 z-20 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] gap-0.5 p-1.5">
-                <Button variant="ghost" size="sm" className="!min-h-[31px] w-max max-w-[calc(100vw_-_42px)] justify-start gap-2 px-[9px] py-1.5 text-left text-[11px] text-ink hover:text-accent" onClick={() => void openHistory()}><HistoryIcon size={14} /> History</Button>
-              </PopupSurface>
-            </details>
           </div>
         </header>
         <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
@@ -387,11 +371,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
         <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose><Button variant="danger" onClick={removeNote}>Delete note</Button></DialogFooter></DialogContent>
       </Dialog>
-      {historyOpen && <PopupSurface ref={historyDrawerRef} className="fixed top-[60px] right-[15px] z-45 max-h-[calc(100dvh_-_80px)] w-[min(235px,calc(100vw_-_30px))] overflow-auto p-2.5 shadow-[0_14px_32px_#0003] max-[560px]:top-[88px] max-[560px]:right-3 max-[560px]:max-h-[calc(100dvh_-_104px)]">
-        <div className="mb-[7px] flex items-center justify-between gap-2 text-[11px]"><strong>History</strong><IconButton type="button" className={iconActionClass} onClick={() => setHistoryOpen(false)} aria-label="Close history">×</IconButton></div>
-        {historyEntries.length ? historyEntries.map((entry) => <Button key={entry.id} variant="ghost" size="sm" className={cn("!grid !min-h-0 w-full gap-[3px] rounded-[5px] p-2 text-left text-[10px] text-ink", historyPreview?.id === entry.id && "bg-tint")} onClick={() => void previewHistory(entry)}><span className="text-[9px] text-muted">{new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · v{entry.version}</span><span>{entry.title}</span></Button>) : <p className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">No checkpoints yet.</p>}
-        {historyPreview && <div className="mt-1.5 grid gap-[5px] border-t border-line px-2 pt-[9px] pb-[3px] text-[10px]"><strong className="text-[10px] font-[550] text-ink">Preview v{historyPreview.version}</strong><span className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{historyPreview.notes.length} notes · {canvasObjectCount(historyPreview.canvas)} Canvas objects</span><p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{documentText(historyPreview.document).slice(0, 180) || "Empty document"}</p><Button type="button" variant="ghost" size="sm" className="!min-h-0 justify-start px-0 py-[3px] text-left text-[10px] text-muted hover:text-ink" onClick={() => void restoreSelectedHistory()}>Restore</Button></div>}
-      </PopupSurface>}
     </div>
   );
 }

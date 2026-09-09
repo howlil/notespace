@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, reconcileElements } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -34,6 +34,7 @@ import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 
 type FocusRequest = { id: string; request: number } | null;
+type CanvasPeerMessage = { source: string; snapshot: Snapshot };
 
 const canvasUIOptions = {
   canvasActions: {
@@ -56,17 +57,39 @@ function readCanvasFiles(data: Record<string, unknown>) {
   return files && typeof files === "object" ? files as BinaryFiles : {};
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 function sceneSignature(data: Record<string, unknown>) {
-  const appState = data.appState && typeof data.appState === "object" ? data.appState as Record<string, unknown> : {};
+  const appState = objectValue(data.appState);
   return JSON.stringify({
     elements: Array.isArray(data.elements) ? data.elements : [],
-    appState: { scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: appState.zoom, viewBackgroundColor: appState.viewBackgroundColor, gridModeEnabled: appState.gridModeEnabled, objectsSnapModeEnabled: appState.objectsSnapModeEnabled },
+    appState: {
+      viewBackgroundColor: appState.viewBackgroundColor,
+      gridModeEnabled: appState.gridModeEnabled,
+      objectsSnapModeEnabled: appState.objectsSnapModeEnabled,
+    },
     diagrams: data[DIAGRAM_DATA_KEY] ?? [],
   });
 }
 
+// Viewport state (pan/zoom) is intentionally local to each tab. Persisting it
+// made ordinary navigation generate server writes and caused false conflicts.
 function persistedAppState(state: AppState) {
-  return { scrollX: state.scrollX, scrollY: state.scrollY, zoom: state.zoom, viewBackgroundColor: state.viewBackgroundColor, gridModeEnabled: state.gridModeEnabled, objectsSnapModeEnabled: state.objectsSnapModeEnabled };
+  return {
+    viewBackgroundColor: state.viewBackgroundColor,
+    gridModeEnabled: state.gridModeEnabled,
+    objectsSnapModeEnabled: state.objectsSnapModeEnabled,
+  };
+}
+
+function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly StructuredDiagram[]) {
+  const merged = new Map(local.map((diagram) => [diagram.id, diagram]));
+  for (const diagram of remote) merged.set(diagram.id, diagram);
+  return [...merged.values()];
 }
 
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
@@ -86,7 +109,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   });
   const [hasElements, setHasElements] = useState(() => Array.isArray(initial.data.elements) && initial.data.elements.length > 0);
   const [backgroundColor, setBackgroundColor] = useState(() => {
-    const appState = initial.data.appState && typeof initial.data.appState === "object" ? initial.data.appState as Record<string, unknown> : {};
+    const appState = objectValue(initial.data.appState);
     return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : (dark ? "#1d1e24" : "#f8f9fc");
   });
   const [diagramOpen, setDiagramOpen] = useState(false);
@@ -107,10 +130,27 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
+  const peerId = useRef(crypto.randomUUID());
+  const peerChannel = useRef<BroadcastChannel | null>(null);
+  const peerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queuedPeerSnapshot = useRef<Snapshot | null>(null);
 
   const closeCanvasPopovers = useCallback(() => {
     setDiagramOpen(false);
     setMoreOpen(false);
+  }, []);
+
+  const publishPeerSnapshot = useCallback((snapshot: Snapshot) => {
+    if (typeof BroadcastChannel === "undefined") return;
+    queuedPeerSnapshot.current = snapshot;
+    if (peerTimer.current) clearTimeout(peerTimer.current);
+    peerTimer.current = setTimeout(() => {
+      const channel = peerChannel.current;
+      const queued = queuedPeerSnapshot.current;
+      queuedPeerSnapshot.current = null;
+      peerTimer.current = null;
+      if (channel && queued) channel.postMessage({ source: peerId.current, snapshot: queued } satisfies CanvasPeerMessage);
+    }, 80);
   }, []);
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
@@ -132,11 +172,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       files: {},
       [DIAGRAM_DATA_KEY]: nextDiagrams,
     };
+    const snapshot: Snapshot = { format: "excalidraw", version: 1, data };
     const serialized = JSON.stringify(data);
     last.current = serialized;
     lastExternalScene.current = sceneSignature(data);
-    onChange({ format: "excalidraw", version: 1, data });
-  }, [onChange]);
+    onChange(snapshot);
+    publishPeerSnapshot(snapshot);
+  }, [onChange, publishPeerSnapshot]);
 
   const restoreLocalFiles = useCallback(async (value: ExcalidrawImperativeAPI) => {
     const fileIds = new Set(value.getSceneElements().map((element) => "fileId" in element && typeof element.fileId === "string" ? String(element.fileId) : null).filter((fileId): fileId is string => fileId !== null));
@@ -167,6 +209,62 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [showToast, workspaceId]);
 
   useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return undefined;
+    const channel = new BroadcastChannel(`notespace.canvas:${workspaceId}`);
+    peerChannel.current = channel;
+    channel.onmessage = (event: MessageEvent<CanvasPeerMessage>) => {
+      const message = event.data;
+      if (!message || message.source === peerId.current || message.snapshot?.format !== "excalidraw") return;
+      const value = api.current;
+      if (!value) return;
+
+      const remoteElements = Array.isArray(message.snapshot.data.elements)
+        ? message.snapshot.data.elements as OrderedExcalidrawElement[]
+        : [];
+      const localElements = value.getSceneElementsIncludingDeleted();
+      const mergedElements = reconcileElements(
+        localElements,
+        remoteElements as Parameters<typeof reconcileElements>[1],
+        value.getAppState(),
+      );
+      // Peer tabs share authored elements, not each other's viewport/UI state.
+      // This keeps pan, zoom, grid and background controls local while the scene
+      // itself converges immediately.
+      const localAppState = persistedAppState(value.getAppState());
+      const seedDiagrams = mergeDiagramSets(diagramsRef.current, readStructuredDiagrams(message.snapshot.data));
+      const nextDiagrams = syncDiagramsFromElements(seedDiagrams, mergedElements);
+      const data = {
+        elements: mergedElements,
+        appState: localAppState,
+        files: {},
+        [DIAGRAM_DATA_KEY]: nextDiagrams,
+      };
+      const serialized = JSON.stringify(data);
+      if (serialized === last.current) return;
+
+      last.current = serialized;
+      lastExternalScene.current = sceneSignature(data);
+      updateDiagramState(nextDiagrams);
+      setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
+      setHasElements(mergedElements.some((element) => !element.isDeleted));
+
+      value.updateScene({
+        elements: mergedElements,
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      onChange({ format: "excalidraw", version: 1, data });
+    };
+
+    return () => {
+      if (peerTimer.current) clearTimeout(peerTimer.current);
+      peerTimer.current = null;
+      queuedPeerSnapshot.current = null;
+      peerChannel.current = null;
+      channel.close();
+    };
+  }, [onChange, updateDiagramState, workspaceId]);
+
+  useEffect(() => {
     if (!api.current) return;
     const signature = sceneSignature(initial.data);
     if (signature === lastExternalScene.current) return;
@@ -175,7 +273,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     setHasElements(elements.length > 0);
-    api.current.updateScene({ elements });
+    api.current.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
     lastExternalScene.current = signature;
   }, [initial, updateDiagramState]);
 
@@ -197,7 +295,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setBackgroundColor(state.viewBackgroundColor);
     const selected = selectedIds[0] ?? null;
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
-    setHasElements(elements.length > 0);
+    setHasElements(elements.some((element) => !element.isDeleted));
 
     const nextDiagrams = syncDiagramsFromElements(diagramsRef.current, elements);
     updateDiagramState(nextDiagrams);
@@ -215,8 +313,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const first = last.current === "";
     last.current = serialized;
     lastExternalScene.current = sceneSignature(data);
-    if (!first) onChange({ format: "excalidraw", version: 1, data });
-  }, [onChange, onElementSelect, persistCanvasFiles, updateDiagramSelection, updateDiagramState]);
+    if (!first) {
+      const snapshot: Snapshot = { format: "excalidraw", version: 1, data };
+      onChange(snapshot);
+      publishPeerSnapshot(snapshot);
+    }
+  }, [onChange, onElementSelect, persistCanvasFiles, publishPeerSnapshot, updateDiagramSelection, updateDiagramState]);
 
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
@@ -289,14 +391,14 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
   const insertNode = useCallback((item: DiagramCatalogItem) => {
-    const current = activeDiagram;
-    if (!current) {
+    const currentDiagram = activeDiagram;
+    if (!currentDiagram) {
       void applyDiagram(null, createDiagramWithNode("architecture", item, canvasOrigin(), undefined, "icon"));
       return;
     }
-    const tail = current.nodes.at(-1);
+    const tail = currentDiagram.nodes.at(-1);
     const origin = tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin();
-    void applyDiagram(current, addCatalogNode(current, item, origin, undefined, "icon"));
+    void applyDiagram(currentDiagram, addCatalogNode(currentDiagram, item, origin, undefined, "icon"));
   }, [activeDiagram, applyDiagram, canvasOrigin]);
 
   const connectSelected = useCallback(() => {

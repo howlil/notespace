@@ -96,8 +96,12 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /openDialog: \{ name: "commandPalette" \}/);
   assert.match(canvas, /toggleSidebar\(\{ name: "default", tab: "search", force: !isSearchOpen \}\)/);
   assert.match(canvas, /actionManager\.actions\[name\]/);
-  assert.match(canvas, /onBackgroundChange={setCanvasBackground}/);
+  assert.match(canvas, /setCanvasBackground/);
   assert.doesNotMatch(canvas, /<MainMenu/);
+  assert.match(canvas, /new BroadcastChannel\(`notespace\.canvas:\$\{workspaceId\}`\)/);
+  assert.match(canvas, /reconcileElements\(/);
+  assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
+  assert.match(canvas, /persistedAppState/);
 
   assert.match(nativeActions, /export function nativeActionIcon/);
   assert.match(nativeActions, /export function executeNativeAction/);
@@ -225,6 +229,7 @@ test("workspace contract: bounded panes use one interaction policy and Send/Link
   assert.doesNotMatch(workspace,/Minimize2/);
   assert.doesNotMatch(workspace,/<Layers[^>]*\/> Canvas/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
+  assert.doesNotMatch(workspace,/historyDrawerRef|openHistory|restoreSelectedHistory|>History</);
   assert.match(content,/references:\s*\[\]/);
 });
 
@@ -235,7 +240,7 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(WORKSPACE),/useDismissablePopup\(historyDrawerRef/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DASHBOARD),/useDismissablePopup\(searchRef/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#4f7396/); });

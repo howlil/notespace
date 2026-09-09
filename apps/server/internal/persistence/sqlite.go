@@ -145,6 +145,8 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 	if err != nil {
 		return err
 	}
+	// Retain one creation baseline only for legacy backup/restore compatibility.
+	// Normal autosave no longer produces periodic history checkpoints.
 	if err := createHistory(ctx, tx, project.HistorySnapshot{
 		HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: p.CreatedAt},
 		Document:     p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio,
@@ -318,47 +320,23 @@ func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 }
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return project.Project{}, err
-	}
-	defer tx.Rollback()
-	_, err = readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
-	if err != nil {
-		return project.Project{}, err
-	}
 	doc, _ := json.Marshal(u.Document)
 	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
-	// Compare-and-swap prevents stale tabs or delayed requests from overwriting newer content.
-	p, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
+
+	// One atomic compare-and-swap is the complete successful autosave path.
+	// The old history checkpoint path needed a pre-read + transaction; without
+	// periodic checkpoints that work only added latency and SQLite traffic.
+	p, err := readProject(s.db.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
 		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
 	if errors.Is(err, project.ErrNotFound) {
-		_ = tx.Rollback()
 		if _, getErr := s.Get(ctx, id); getErr != nil {
 			return p, getErr
 		}
 		return p, project.ErrConflict
 	}
-	if err != nil {
-		return p, err
-	}
-	now := time.Now().UTC()
-	currentSnapshot := project.HistorySnapshot{HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: now.Format(time.RFC3339Nano)}, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}
-	checkpoint, err := shouldCreateHistory(ctx, tx, currentSnapshot, now)
-	if err != nil {
-		return project.Project{}, err
-	}
-	if checkpoint {
-		if err := createHistory(ctx, tx, currentSnapshot); err != nil {
-			return project.Project{}, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return project.Project{}, err
-	}
-	return p, nil
+	return p, err
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {
@@ -611,8 +589,7 @@ func createHistory(ctx context.Context, db execContext, snapshot project.History
 	if err != nil {
 		return err
 	}
-	// 0006 columns are retained as a legacy read path. New rows use compact
-	// placeholders there and put the complete snapshot in the compressed side table.
+	// Kept only as a legacy backup-import and creation-baseline path.
 	_, err = db.ExecContext(ctx, `INSERT INTO workspace_history(id,workspace_id,version,title,document_state,notes_state,canvas_state,references_state,split_ratio,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, snapshot.ID, snapshot.WorkspaceID, snapshot.Version, snapshot.Title, `{}`, `{}`, `{}`, `{}`, snapshot.SplitRatio, snapshot.CreatedAt)
 	if err != nil {
 		return err

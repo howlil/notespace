@@ -1,4 +1,4 @@
-import { Network, Zap } from "lucide-react";
+import { Network } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
@@ -21,6 +21,7 @@ import {
   NativeHandIcon,
   NativeImageIcon,
   NativeLassoIcon,
+  NativeLaserIcon,
   NativeLibraryIcon,
   NativeLineIcon,
   NativeMagicIcon,
@@ -44,12 +45,12 @@ type ToolDefinition = {
 const motionTransition = { duration: 0.16, ease: "easeOut" } as const;
 const controlGlyphClass = "size-4";
 
-// Excalidraw tool semantics come from its current Tools.tsx mapping. Stable
-// runtime action icons win when the installed build exposes one; this glyph
-// adapter is the explicit fallback for internal icons that are not public API.
+// Tool behavior stays on Excalidraw's public setActiveTool API. The glyphs
+// mirror Excalidraw's current Tools.tsx mapping through CanvasNativeIcons;
+// action-registry icons are used only where there is no public icon export.
 const primaryTools: readonly ToolDefinition[] = [
   { type: "selection", label: "Select", shortcut: "V", glyph: NativeSelectionIcon },
-  { type: "hand", label: "Hand", shortcut: "H", glyph: NativeHandIcon, nativeAction: "toggleHandTool" },
+  { type: "hand", label: "Hand", shortcut: "H", glyph: NativeHandIcon },
   { type: "rectangle", label: "Rectangle", shortcut: "R", glyph: NativeRectangleIcon },
   { type: "diamond", label: "Diamond", shortcut: "D", glyph: NativeDiamondIcon },
   { type: "ellipse", label: "Ellipse", shortcut: "O", glyph: NativeEllipseIcon },
@@ -58,28 +59,26 @@ const primaryTools: readonly ToolDefinition[] = [
   { type: "freedraw", label: "Draw", shortcut: "P", glyph: NativeFreedrawIcon },
   { type: "text", label: "Text", shortcut: "T", glyph: NativeTextIcon },
   { type: "image", label: "Image", shortcut: "I", glyph: NativeImageIcon },
-  { type: "eraser", label: "Eraser", shortcut: "E", glyph: NativeEraserIcon, nativeAction: "toggleEraserTool" },
+  { type: "eraser", label: "Eraser", shortcut: "E", glyph: NativeEraserIcon },
 ];
 
 const secondaryToolGroups: readonly { label: string; tools: readonly ToolDefinition[] }[] = [
   {
     label: "Select",
-    tools: [{ type: "lasso", label: "Lasso select", glyph: NativeLassoIcon, nativeAction: "toggleLassoTool" }],
+    tools: [{ type: "lasso", label: "Lasso select", glyph: NativeLassoIcon }],
   },
   {
     label: "Insert",
     tools: [
-      { type: "frame", label: "Frame", shortcut: "F", glyph: NativeFrameIcon, nativeAction: "setFrameAsActiveTool" },
-      { type: "embeddable", label: "Embed", glyph: NativeEmbedIcon, nativeAction: "setEmbeddableAsActiveTool" },
+      { type: "frame", label: "Frame", shortcut: "F", glyph: NativeFrameIcon },
+      { type: "embeddable", label: "Embed", glyph: NativeEmbedIcon },
       { type: "autoshape", label: "Auto shape", glyph: NativeAutoshapeIcon },
       { type: "magicframe", label: "Magic frame", glyph: NativeMagicIcon },
     ],
   },
   {
     label: "Present",
-    // Laser is not exposed through Excalidraw's action icon registry in this
-    // build. Keep it secondary until its internal icon has a stable adapter.
-    tools: [{ type: "laser", label: "Laser pointer", glyph: Zap }],
+    tools: [{ type: "laser", label: "Laser pointer", glyph: NativeLaserIcon }],
   },
   {
     label: "Paint",

@@ -320,37 +320,23 @@ func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 }
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return project.Project{}, err
-	}
-	defer tx.Rollback()
-	_, err = readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
-	if err != nil {
-		return project.Project{}, err
-	}
 	doc, _ := json.Marshal(u.Document)
 	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
-	// Compare-and-swap prevents stale requests from silently overwriting newer content.
-	// Canvas-only races are reconciled by the client and retried against the new version.
-	p, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
+
+	// One atomic compare-and-swap is the complete successful autosave path.
+	// The old history checkpoint path needed a pre-read + transaction; without
+	// periodic checkpoints that work only added latency and SQLite traffic.
+	p, err := readProject(s.db.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
 		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
 	if errors.Is(err, project.ErrNotFound) {
-		_ = tx.Rollback()
 		if _, getErr := s.Get(ctx, id); getErr != nil {
 			return p, getErr
 		}
 		return p, project.ErrConflict
 	}
-	if err != nil {
-		return p, err
-	}
-	if err := tx.Commit(); err != nil {
-		return project.Project{}, err
-	}
-	return p, nil
+	return p, err
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {

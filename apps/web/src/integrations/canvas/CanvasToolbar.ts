@@ -1,0 +1,48 @@
+// Shared action names for Notespace-owned canvas chrome.
+//
+// This file intentionally contains no toolbar renderer. The active canvas UI is
+// owned by CanvasChrome + CanvasSelectionActions; keeping the action contract
+// separate prevents the retired toolbar implementation from becoming a second
+// icon/layout authority again.
+export type CanvasActionName =
+  | "undo"
+  | "redo"
+  | "zoomIn"
+  | "zoomOut"
+  | "resetZoom"
+  | "zoomToFit"
+  | "duplicateSelection"
+  | "deleteSelectedElements"
+  | "clearCanvas"
+  | "loadScene"
+  | "saveFileToDisk"
+  | "searchMenu"
+  | "toggleShortcuts"
+  | "imageExport"
+  | "changeViewBackgroundColor"
+  | "commandPalette"
+  | "gridMode"
+  | "objectsSnapMode"
+  | "copyAsPng"
+  | "copyAsSvg"
+  | "group"
+  | "ungroup"
+  | "bringForward"
+  | "sendBackward"
+  | "bringToFront"
+  | "sendToBack"
+  | "alignLeft"
+  | "alignHorizontallyCentered"
+  | "alignRight"
+  | "alignTop"
+  | "alignVerticallyCentered"
+  | "alignBottom"
+  | "distributeHorizontally"
+  | "distributeVertically"
+  | "flipHorizontal"
+  | "flipVertical"
+  | "copyStyles"
+  | "pasteStyles"
+  | "toggleElementLock"
+  | "wrapSelectionInFrame"
+  | "addToLibrary";

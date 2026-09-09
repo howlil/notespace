@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -143,12 +142,6 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 		p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version,
 	)
 	if err != nil {
-		return err
-	}
-	if err := createHistory(ctx, tx, project.HistorySnapshot{
-		HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: p.CreatedAt},
-		Document:     p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio,
-	}); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -331,7 +324,8 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
-	// Compare-and-swap prevents stale tabs or delayed requests from overwriting newer content.
+	// Compare-and-swap prevents stale requests from silently overwriting newer content.
+	// Canvas-only races are reconciled by the client and retried against the new version.
 	p, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
 		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
 	if errors.Is(err, project.ErrNotFound) {
@@ -343,17 +337,6 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 	}
 	if err != nil {
 		return p, err
-	}
-	now := time.Now().UTC()
-	currentSnapshot := project.HistorySnapshot{HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: now.Format(time.RFC3339Nano)}, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}
-	checkpoint, err := shouldCreateHistory(ctx, tx, currentSnapshot, now)
-	if err != nil {
-		return project.Project{}, err
-	}
-	if checkpoint {
-		if err := createHistory(ctx, tx, currentSnapshot); err != nil {
-			return project.Project{}, err
-		}
 	}
 	if err := tx.Commit(); err != nil {
 		return project.Project{}, err
@@ -611,8 +594,8 @@ func createHistory(ctx context.Context, db execContext, snapshot project.History
 	if err != nil {
 		return err
 	}
-	// 0006 columns are retained as a legacy read path. New rows use compact
-	// placeholders there and put the complete snapshot in the compressed side table.
+	// Kept only as a legacy backup-import path. Normal workspace creation and
+	// autosave no longer create user-facing history checkpoints.
 	_, err = db.ExecContext(ctx, `INSERT INTO workspace_history(id,workspace_id,version,title,document_state,notes_state,canvas_state,references_state,split_ratio,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, snapshot.ID, snapshot.WorkspaceID, snapshot.Version, snapshot.Title, `{}`, `{}`, `{}`, `{}`, snapshot.SplitRatio, snapshot.CreatedAt)
 	if err != nil {
 		return err
@@ -786,9 +769,11 @@ WHERE study_sessions.workspace_id=excluded.workspace_id`, session.ID, session.Wo
 }
 
 func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (study.WorkspaceStats, error) {
-	var stats study.WorkspaceStats
-	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0), COALESCE(SUM(active_seconds),0) FROM study_sessions WHERE workspace_id=?`, activityDate, workspaceID).Scan(&stats.TodaySeconds, &stats.TotalSeconds)
-	return stats, err
+	var stats project.WorkspaceStats
+	_ = stats
+	var studyStats study.WorkspaceStats
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0), COALESCE(SUM(active_seconds),0) FROM study_sessions WHERE workspace_id=?`, activityDate, workspaceID).Scan(&studyStats.TodaySeconds, &studyStats.TotalSeconds)
+	return studyStats, err
 }
 
 func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, error) {

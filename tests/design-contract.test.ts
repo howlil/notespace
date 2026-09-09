@@ -22,6 +22,7 @@ const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-cont
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
 const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
+const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNativeActions.ts");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
 const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPanelPosition.ts");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
@@ -77,7 +78,7 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
 });
 
 test("canvas contract: tool, contextual, and viewport chrome have distinct ownership", () => {
-  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), selection = source(CANVAS_SELECTION_ACTIONS);
+  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw\s*\{/);
   assert.match(globals, /--color-primary:\s*var\(--accent\)/);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
@@ -98,6 +99,11 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /onBackgroundChange={setCanvasBackground}/);
   assert.doesNotMatch(canvas, /<MainMenu/);
 
+  assert.match(nativeActions, /export function nativeActionIcon/);
+  assert.match(nativeActions, /export function executeNativeAction/);
+  assert.match(nativeActions, /function actionManager/);
+  assert.doesNotMatch(nativeActions, /lucide-react/);
+
   assert.match(chrome, /aria-label="Canvas tools"/);
   assert.match(chrome, /aria-label="Canvas view controls"/);
   assert.match(chrome, /primaryTools/);
@@ -112,24 +118,29 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(chrome, /useCanvasPanelDismiss/);
   assert.match(chrome, /createPortal/);
   assert.match(chrome, /motion\.aside/);
-  assert.match(chrome, /function nativeActionIcon/);
-  assert.doesNotMatch(chrome, /function NativeSvg|function NativeToolIcon/);
-  assert.match(chrome, /ZoomIn/); assert.match(chrome, /ZoomOut/); assert.match(chrome, /Fit canvas/);
+  assert.match(chrome, /import \{ nativeActionIcon \} from "\.\/CanvasNativeActions"/);
+  assert.doesNotMatch(chrome, /function nativeActionIcon|function NativeSvg|function NativeToolIcon/);
+  assert.match(chrome, /name="zoomIn"/); assert.match(chrome, /name="zoomOut"/); assert.match(chrome, /Fit canvas/);
   assert.match(chrome, /onAction\("gridMode"\)/); assert.match(chrome, /onAction\("objectsSnapMode"\)/); assert.match(chrome, /onAction\("zoomToFit"\)/);
   assert.match(chrome, /name="undo" label="Undo"/); assert.match(chrome, /name="redo" label="Redo"/);
   assert.match(chrome, /max-\[560px\]:hidden/);
+  assert.doesNotMatch(chrome, /min-\[561px\]:!size-10/);
   for (const group of ["Select", "Insert", "Present", "Paint", "Canvas", "File & export", "Navigate & help"]) assert.match(chrome, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   for (const action of ["Reset canvas", "Open", "Export image", "Copy as PNG", "Copy as SVG", "Save to file", "Command palette", "Find on canvas", "Help"]) assert.match(chrome, new RegExp(`label=\\"${action.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\"`));
   for (const redundant of ["duplicateSelection", "deleteSelectedElements", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.doesNotMatch(chrome, new RegExp(redundant));
 
   assert.match(selection, /aria-label="Selected shape actions"/);
-  assert.match(selection, /function nativeActionIcon/);
-  assert.doesNotMatch(selection, /function NativeIconFrame|function AdjustmentsIcon|function UndoIcon|function RedoIcon|function DuplicateIcon|function DeleteIcon/);
-  assert.match(selection, /min-\[561px\]:left-14/);
+  assert.match(selection, /import \{ executeNativeAction, nativeActionIcon \} from "\.\/CanvasNativeActions"/);
+  assert.doesNotMatch(selection, /function nativeActionIcon|function NativeIconFrame|function AdjustmentsIcon|function UndoIcon|function RedoIcon|function DuplicateIcon|function DeleteIcon/);
+  assert.match(selection, /min-\[561px\]:left-\[48px\]/);
   assert.match(selection, /min-\[561px\]:flex-col/);
-  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+8px\)\]/);
+  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.match(selection, /toggleLinearEditor/);
   assert.match(selection, /Font family/); assert.match(selection, /Text properties/);
+  assert.match(selection, /type Panel = "color" \| "properties"/);
+  assert.match(selection, /strokeColorOptions/); assert.match(selection, /fillColorOptions/);
+  assert.match(selection, /Line feel/); assert.match(selection, /Clean/); assert.match(selection, /Hand-drawn/); assert.match(selection, /Rough/);
+  assert.doesNotMatch(selection, /type Panel = "stroke"|type Panel = "fill"|min-\[561px\]:size-10/);
   assert.doesNotMatch(selection, /label="Undo"|label="Redo"/);
   for (const group of ["Layer", "Align & distribute", "Group & edit", "Transform & reuse"]) assert.match(selection, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   for (const styleState of ["currentItemStrokeColor", "currentItemBackgroundColor", "currentItemFillStyle", "currentItemStrokeWidthKey", "currentItemStrokeStyle", "currentItemRoughness", "currentItemRoundness", "currentItemOpacity", "currentItemStartArrowhead", "currentItemEndArrowhead", "currentItemFontFamily", "currentItemFontSize", "currentItemTextAlign"]) assert.match(selection, new RegExp(styleState));

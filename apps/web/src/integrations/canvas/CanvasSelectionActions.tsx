@@ -48,7 +48,7 @@ import {
   NativeTextAlignIcon,
   NativeTextSizeIcon,
 } from "./CanvasNativeIcons";
-import type { CanvasActionName } from "./CanvasToolbar";
+import type { CanvasActionName } from "./canvas-actions";
 
 export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor";
 
@@ -130,6 +130,15 @@ const textAlignOptions: readonly { value: TextAlign; label: string }[] = [
   { value: "center" as TextAlign, label: "Center" },
   { value: "right" as TextAlign, label: "Right" },
 ];
+const panelWidthClass: Record<Panel, string> = {
+  stroke: "w-[min(176px,calc(100vw-24px))]",
+  fill: "w-[min(176px,calc(100vw-24px))]",
+  properties: "w-[min(196px,calc(100vw-24px))]",
+  arrow: "w-[min(232px,calc(100vw-24px))]",
+  font: "w-[min(196px,calc(100vw-24px))]",
+  text: "w-[min(184px,calc(100vw-24px))]",
+  more: "w-[min(216px,calc(100vw-24px))]",
+};
 
 function actionManager(api: ExcalidrawImperativeAPI): ActionManagerAdapter {
   return api.app.actionManager as unknown as ActionManagerAdapter;
@@ -151,7 +160,7 @@ function executeNativeAction(api: ExcalidrawImperativeAPI, name: string, value?:
 }
 
 function Choice({ label, active, children, onClick }: { label: string; active: boolean; children: ReactNode; onClick: () => void }) {
-  return <button type="button" className={cn("grid size-8 shrink-0 place-items-center rounded-md border border-transparent bg-canvas text-ink transition-[color,background-color,border-color,transform] duration-150 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97] min-[561px]:size-10 [&_svg]:size-4 min-[561px]:[&_svg]:size-5", active && "border-accent bg-tint text-accent ring-1 ring-accent/15")} aria-label={label} aria-pressed={active} title={label} onClick={onClick}>{children}</button>;
+  return <button type="button" className={cn("grid size-8 shrink-0 place-items-center rounded-md border border-transparent bg-canvas text-ink transition-[color,background-color,border-color,transform] duration-100 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] min-[561px]:size-10 [&_svg]:size-4 min-[561px]:[&_svg]:size-5", active && "border-accent bg-tint text-accent ring-1 ring-accent/15")} aria-label={label} aria-pressed={active} title={label} onClick={onClick}>{children}</button>;
 }
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return <section className="grid gap-1.5" aria-label={label}><h3 className="m-0 px-1 text-[9px] font-medium text-muted">{label}</h3>{children}</section>;
@@ -160,7 +169,7 @@ function ChoiceRow({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap gap-1">{children}</div>;
 }
 function CompactButton({ label, open, children, onClick, danger = false }: { label: string; open?: boolean; children: ReactNode; onClick: () => void; danger?: boolean }) {
-  return <button type="button" className={cn("grid size-8 shrink-0 place-items-center rounded-md text-muted transition-[color,background-color,transform] duration-150 hover:bg-tint hover:text-ink focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.96] min-[561px]:size-10 [&_svg]:size-4 min-[561px]:[&_svg]:size-5", open && "bg-tint text-accent ring-1 ring-accent/15", danger && "hover:text-danger")} aria-label={label} aria-expanded={open} title={label} onClick={onClick}>{children}</button>;
+  return <button type="button" className={cn("grid size-8 shrink-0 place-items-center rounded-md text-muted transition-[color,background-color,transform] duration-100 hover:bg-tint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] min-[561px]:size-10 [&_svg]:size-4 min-[561px]:[&_svg]:size-5", open && "bg-tint text-accent ring-1 ring-accent/15", danger && "hover:text-danger")} aria-label={label} aria-expanded={open} title={label} onClick={onClick}>{children}</button>;
 }
 function SwatchButton({ label, color, open, onClick }: { label: string; color: string; open: boolean; onClick: () => void }) {
   const displayColor = color === "transparent" ? "var(--surface)" : color;
@@ -170,7 +179,7 @@ function SwatchButton({ label, color, open, onClick }: { label: string; color: s
 function ActionButton({ api, name, label, fallback: Fallback, disabled, onClick }: { api: ExcalidrawImperativeAPI; name: CanvasRuntimeActionName; label: string; fallback: LucideIcon; disabled?: boolean; onClick: () => void }) {
   const icon = nativeActionIcon(api, name);
   return (
-    <button type="button" className="grid size-10 place-items-center rounded-md bg-canvas text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40 [&_svg]:size-5" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
+    <button type="button" className="grid size-10 place-items-center rounded-md bg-canvas text-ink transition-[color,background-color,transform] duration-100 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-default disabled:opacity-40 disabled:active:scale-100 [&_svg]:size-5" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
       {icon ?? <Fallback size={20} strokeWidth={1.5} />}
     </button>
   );
@@ -179,7 +188,7 @@ function ActionButton({ api, name, label, fallback: Fallback, disabled, onClick 
 function ActionRow({ api, name, label, fallback: Fallback, disabled, danger, onClick }: { api: ExcalidrawImperativeAPI; name: CanvasRuntimeActionName; label: string; fallback: LucideIcon; disabled?: boolean; danger?: boolean; onClick: () => void }) {
   const icon = nativeActionIcon(api, name);
   return (
-    <button type="button" className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-45", danger && "hover:text-danger")} disabled={disabled} onClick={onClick}>
+    <button type="button" className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink transition-[color,background-color,transform] duration-100 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.985] disabled:cursor-default disabled:opacity-45 disabled:active:scale-100", danger && "hover:text-danger")} disabled={disabled} onClick={onClick}>
       <span className="grid size-4 shrink-0 place-items-center [&_svg]:size-4">{icon ?? <Fallback size={16} strokeWidth={1.5} />}</span><span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );
@@ -304,11 +313,11 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
   const renderPanel = () => {
     if (!openPanel) return null;
-    const panelWidth = openPanel === "more" ? "w-[min(224px,calc(100vw-24px))]" : "w-[min(264px,calc(100vw-24px))]";
+    const panelWidth = panelWidthClass[openPanel];
     return (
       <motion.div key={openPanel} initial={{ opacity: 0, y: 4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }} transition={{ duration: 0.16, ease: "easeOut" }} className={cn("absolute bottom-[calc(100%+8px)] left-1/2 z-[110] max-h-[min(58dvh,440px)] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-2 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+8px)] min-[561px]:translate-x-0", panelWidth)} role="dialog" aria-label={`${openPanel} properties`} onPointerDown={(event) => event.stopPropagation()}>
         {openPanel === "stroke" && <Section label="Stroke color"><label className="flex min-h-9 items-center gap-2 rounded-md bg-canvas px-2 text-[10px] text-muted"><span className="min-w-0 flex-1">Color</span><input type="color" value={/^#[0-9a-f]{6}$/i.test(strokeColor) ? strokeColor : "#1d1e24"} aria-label="Stroke color" className="size-7 cursor-pointer rounded-md border border-line bg-transparent p-0.5" onChange={(event) => updateStyle({ strokeColor: event.target.value })} /></label></Section>}
-        {openPanel === "fill" && <Section label="Fill color"><div className="grid gap-1"><label className="flex min-h-9 items-center gap-2 rounded-md bg-canvas px-2 text-[10px] text-muted"><span className="min-w-0 flex-1">Color</span><input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Fill color" className="size-7 cursor-pointer rounded-md border border-line bg-transparent p-0.5" onChange={(event) => updateStyle({ backgroundColor: event.target.value })} /></label>{!bucketFillEditing && <button type="button" className="min-h-8 rounded-md px-2 text-left text-[10px] text-muted hover:bg-tint hover:text-accent" onClick={() => updateStyle({ backgroundColor: "transparent" })}>Transparent</button>}</div></Section>}
+        {openPanel === "fill" && <Section label="Fill color"><div className="grid gap-1"><label className="flex min-h-9 items-center gap-2 rounded-md bg-canvas px-2 text-[10px] text-muted"><span className="min-w-0 flex-1">Color</span><input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Fill color" className="size-7 cursor-pointer rounded-md border border-line bg-transparent p-0.5" onChange={(event) => updateStyle({ backgroundColor: event.target.value })} /></label>{!bucketFillEditing && <button type="button" className="min-h-8 rounded-md px-2 text-left text-[10px] text-muted transition-colors duration-100 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" onClick={() => updateStyle({ backgroundColor: "transparent" })}>Transparent</button>}</div></Section>}
         {openPanel === "properties" && <div className="grid gap-2.5">
           {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><ChoiceRow>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</ChoiceRow></Section>}
           {!bucketFillEditing && (shapeEditing || lineEditing || freeDrawEditing || selectedEditable.some((element) => styleableElementTypes.has(element.type))) && <Section label="Stroke width"><ChoiceRow>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</ChoiceRow></Section>}
@@ -319,7 +328,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
           <Section label="Opacity"><div className="flex items-center gap-2 px-1"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
         </div>}
         {openPanel === "arrow" && selectedArrow && <div className="grid gap-2.5"><Section label="Arrow type"><ChoiceRow>{(["sharp", "round", "elbow"] as const).map((value) => <Choice key={value} label={value === "sharp" ? "Sharp arrow" : value === "round" ? "Curved arrow" : "Elbow arrow"} active={arrowType === value} onClick={() => updateArrowType(value)}><NativeArrowTypeIcon type={value} /></Choice>)}</ChoiceRow></Section><Section label="Start arrowhead"><ChoiceRow>{arrowheadOptions.map(({ value, label }) => <Choice key={`start-${label}`} label={`Start ${label}`} active={startArrowhead === value} onClick={() => updateArrowhead("start", value)}><NativeArrowheadIcon value={value} flip /></Choice>)}</ChoiceRow></Section><Section label="End arrowhead"><ChoiceRow>{arrowheadOptions.map(({ value, label }) => <Choice key={`end-${label}`} label={`End ${label}`} active={endArrowhead === value} onClick={() => updateArrowhead("end", value)}><NativeArrowheadIcon value={value} /></Choice>)}</ChoiceRow></Section></div>}
-        {openPanel === "font" && <Section label="Font family"><div className="grid gap-1">{fontFamilyOptions.map(({ value, label }) => <button key={label} type="button" className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent", fontFamily === value && "bg-tint text-accent")} aria-pressed={fontFamily === value} onClick={() => updateStyle({ fontFamily: value })}><span className="w-6 text-center text-[13px]">Aa</span><span>{label}</span></button>)}</div></Section>}
+        {openPanel === "font" && <Section label="Font family"><div className="grid gap-1">{fontFamilyOptions.map(({ value, label }) => <button key={label} type="button" className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] transition-[color,background-color] duration-100 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", fontFamily === value && "bg-tint text-accent")} aria-pressed={fontFamily === value} onClick={() => updateStyle({ fontFamily: value })}><span className="w-6 text-center text-[13px]">Aa</span><span>{label}</span></button>)}</div></Section>}
         {openPanel === "text" && <div className="grid gap-2.5"><Section label="Font size"><ChoiceRow>{fontSizeOptions.map((value) => <Choice key={value} label={`Font size ${value}`} active={fontSize === value} onClick={() => updateStyle({ fontSize: value })}><span className="text-[10px] font-medium tabular-nums">{value}</span></Choice>)}</ChoiceRow></Section><Section label="Text align"><ChoiceRow>{textAlignOptions.map(({ value, label }) => <Choice key={value} label={label} active={textAlign === value} onClick={() => updateStyle({ textAlign: value })}><NativeTextAlignIcon value={value} /></Choice>)}</ChoiceRow></Section></div>}
         {openPanel === "more" && <div className="grid gap-2.5">
           <Section label="Layer"><ChoiceRow><ActionButton api={api} name="sendToBack" label="Send to back" fallback={Layers} onClick={() => runAndClose("sendToBack")} /><ActionButton api={api} name="sendBackward" label="Send backward" fallback={Layers} onClick={() => runAndClose("sendBackward")} /><ActionButton api={api} name="bringForward" label="Bring forward" fallback={Layers} onClick={() => runAndClose("bringForward")} /><ActionButton api={api} name="bringToFront" label="Bring to front" fallback={Layers} onClick={() => runAndClose("bringToFront")} /></ChoiceRow></Section>
@@ -334,7 +343,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   const linearEditorIcon = showLinearEditor ? nativeActionIcon(api, "toggleLinearEditor") : null;
 
   return (
-    <motion.div ref={rootRef} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-11 w-[min(520px,calc(100%-16px))] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none min-[561px]:top-1/2 min-[561px]:bottom-auto min-[561px]:left-[56px] min-[561px]:h-auto min-[561px]:max-h-[calc(100dvh-16px)] min-[561px]:w-12 min-[561px]:translate-x-0 min-[561px]:-translate-y-1/2 min-[561px]:flex-col [&~_.excalidraw_.mobile-shape-actions]:!hidden" role="toolbar" aria-label="Selected shape actions" onPointerDown={(event) => event.stopPropagation()}>
+    <motion.div ref={rootRef} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-11 w-[min(520px,calc(100%-16px))] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none min-[561px]:top-1/2 min-[561px]:bottom-auto min-[561px]:left-14 min-[561px]:h-auto min-[561px]:max-h-[calc(100dvh-16px)] min-[561px]:w-12 min-[561px]:translate-x-0 min-[561px]:-translate-y-1/2 min-[561px]:flex-col [&~_.excalidraw_.mobile-shape-actions]:!hidden" role="toolbar" aria-label="Selected shape actions" onPointerDown={(event) => event.stopPropagation()}>
       <AnimatePresence initial={false}>{renderPanel()}</AnimatePresence>
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[561px]:w-full min-[561px]:flex-none min-[561px]:flex-col min-[561px]:overflow-x-hidden min-[561px]:overflow-y-auto">
         {showStroke && <SwatchButton label="Stroke color" color={strokeColor} open={openPanel === "stroke"} onClick={() => setOpenPanel((panel) => panel === "stroke" ? null : "stroke")} />}

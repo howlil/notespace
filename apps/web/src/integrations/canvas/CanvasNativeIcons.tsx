@@ -65,6 +65,22 @@ export function NativeBucketFillIcon(props: IconProps) {
   return <Icon strokeWidth={1.25} {...props}><path d="M5 16 6.465 17.638a2 2 0 1 1-3.015.099L5 16Z" /><path d="M13.737 9.737c2.299-2.3 3.23-5.095 2.081-6.245-1.15-1.15-3.945-.217-6.244 2.082-2.3 2.299-3.231 5.095-2.082 6.244 1.15 1.15 3.946.218 6.245-2.081Z" /><path d="M7.492 11.818c.362.362.768.676 1.208.934l6.895 4.047c1.078.557 2.255-.075 3.692-1.512 1.437-1.437 2.07-2.614 1.512-3.692-.372-.718-1.72-3.017-4.047-6.895a6.015 6.015 0 0 0-.934-1.208" /></Icon>;
 }
 
+export function NativeAutoShapeIcon(props: IconProps) {
+  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 9.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0" /><path d="M10 12a2 2 0 0 1 2 -2h7a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2l0 -7" /></Icon>;
+}
+
+export function NativeLaserPointerIcon(props: IconProps) {
+  return <Icon viewBox="0 0 20 20" strokeWidth={1.25} {...props}><g transform="rotate(90 10 10)"><path clipRule="evenodd" d="m9.644 13.69 7.774-7.773a2.357 2.357 0 0 0-3.334-3.334l-7.773 7.774L8 12l1.643 1.69Z" /><path d="m13.25 3.417 3.333 3.333M10 10l2-2M5 15l3-3M2.156 17.894l1-1M5.453 19.029l-.144-1.407M2.377 11.887l.866 1.118M8.354 17.273l-1.194-.758M.953 14.652l1.408.13" /></g></Icon>;
+}
+
+export function NativeMagicFrameIcon(props: IconProps) {
+  return <Icon strokeWidth={2} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 21l15 -15l-3 -3l-15 15l3 3" /><path d="M15 6l3 3" /><path d="M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /><path d="M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /></Icon>;
+}
+
+export function NativeLibraryIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><line x1="3" y1="6" x2="3" y2="19" /><line x1="12" y1="6" x2="12" y2="19" /><line x1="21" y1="6" x2="21" y2="19" /></Icon>;
+}
+
 export type NativeArrowType = "sharp" | "round" | "elbow";
 export function NativeArrowTypeIcon({ type, ...props }: IconProps & { type: NativeArrowType }) {
   if (type === "round") return <Icon strokeWidth={2} {...props}><path d="M16 12 20 9l-4-3" /><path d="M6 20c0-6.075 4.925-11 11-11h3" /></Icon>;

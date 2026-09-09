@@ -57,8 +57,8 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
         </div>
         <ThemeToggle />
       </header>
-      <main className="mx-auto w-full max-w-[1200px] p-8 max-[800px]:px-[18px] max-[800px]:py-[23px] max-[520px]:px-4 max-[520px]:py-5">
-        <div className="mb-[25px] flex items-center justify-between gap-5 max-[800px]:flex-col max-[800px]:items-start max-[520px]:gap-4">
+      <main className="mx-auto w-full max-w-[1200px] p-8 max-[800px]:px-5 max-[800px]:py-6 max-[520px]:px-4 max-[520px]:py-5">
+        <div className="mb-6 flex items-center justify-between gap-5 max-[800px]:flex-col max-[800px]:items-start max-[520px]:gap-4">
           <div className="min-w-0 max-w-full">
             {editingCategory ? (
               <Input
@@ -78,37 +78,37 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
           </div>
           <form className="flex max-w-full items-center gap-1.5 max-[520px]:w-full" onSubmit={create}>
             {creating ? null : (
-              <Input className="min-h-8 w-[190px] min-w-0 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-xs focus:border-transparent max-[520px]:w-auto max-[520px]:flex-1" aria-label="Workspace title" placeholder="New workspace" value={title} onChange={(event) => setTitle(event.target.value)} />
+              <Input className="min-h-8 w-[190px] min-w-0 rounded-none border-0 bg-transparent px-0.5 py-1.5 text-xs focus:border-transparent max-[520px]:w-auto max-[520px]:flex-1" aria-label="Workspace title" placeholder="New workspace" value={title} onChange={(event) => setTitle(event.target.value)} />
             )}
-            {!creating && <Button className="min-h-[31px] shrink-0 px-2.5 py-1.5 text-[11px]" disabled={!title.trim()}><Plus size={15} /> Add workspace</Button>}
+            {!creating && <Button className="min-h-8 shrink-0 px-2.5 py-1.5 text-[11px]" disabled={!title.trim()}><Plus size={15} /> Add workspace</Button>}
           </form>
         </div>
 
-        <div className="mb-[13px] flex items-center gap-2 max-[800px]:flex-wrap max-[800px]:items-stretch">
-          <label className="flex min-h-[35px] min-w-0 flex-1 items-center gap-2 border-b border-line px-2.5 text-muted max-[800px]:basis-full">
+        <div className="mb-3 flex items-center gap-2 max-[800px]:flex-wrap max-[800px]:items-stretch">
+          <label className="flex min-h-9 min-w-0 flex-1 items-center gap-2 border-b border-line px-2.5 text-muted max-[800px]:basis-full">
             <Search size={15} className="shrink-0" aria-hidden="true" />
             <Input className="min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] focus:border-transparent" aria-label="Search this category" placeholder="Search this category…" value={query} onChange={(event) => { setQuery(event.target.value); setOffset(0); }} />
           </label>
-          <select className="min-h-8 rounded-md border border-line bg-surface px-2 py-[5px] text-[11px] text-ink max-[520px]:min-w-0 max-[520px]:flex-1" aria-label="Sort workspaces" value={sort} onChange={(event) => { setSort(event.target.value); setOffset(0); }}>
+          <select className="min-h-8 rounded-md border border-line bg-surface px-2 py-1.5 text-[11px] text-ink max-[520px]:min-w-0 max-[520px]:flex-1" aria-label="Sort workspaces" value={sort} onChange={(event) => { setSort(event.target.value); setOffset(0); }}>
             <option value="updated">Recently edited</option><option value="created">Recently created</option><option value="name">Alphabetical</option><option value="notes">Most notes</option>
           </select>
-          <label className="inline-flex items-center gap-[5px] whitespace-nowrap text-[10px] text-muted"><input type="checkbox" checked={hasNotes} onChange={(event) => { setHasNotes(event.target.checked); setOffset(0); }} /> Has notes</label>
-          <label className="inline-flex items-center gap-[5px] whitespace-nowrap text-[10px] text-muted"><input type="checkbox" checked={hasCanvas} onChange={(event) => { setHasCanvas(event.target.checked); setOffset(0); }} /> Has canvas</label>
+          <label className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted"><input type="checkbox" checked={hasNotes} onChange={(event) => { setHasNotes(event.target.checked); setOffset(0); }} /> Has notes</label>
+          <label className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted"><input type="checkbox" checked={hasCanvas} onChange={(event) => { setHasCanvas(event.target.checked); setOffset(0); }} /> Has canvas</label>
         </div>
 
         <div className="min-h-40 border-t border-line" aria-busy={loading}>
           {loading && <WorkspaceListSkeleton rows={6} />}
           {!loading && !page.items.length ? (
-            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-[35px] text-center max-[520px]:px-5">
-              <span className="mb-[15px] grid size-[46px] place-items-center rounded-[7px] bg-tint text-accent"><FileText size={22} /></span>
+            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-line bg-surface p-8 text-center max-[520px]:px-5">
+              <span className="mb-4 grid size-12 place-items-center rounded-md bg-tint text-accent"><FileText size={22} /></span>
               <h2 className="m-0 text-lg font-medium">{query || hasNotes || hasCanvas ? "No matching workspaces" : "No workspaces yet"}</h2>
-              <p className="mt-2 mb-[18px] text-[13px] leading-normal text-muted">{query || hasNotes || hasCanvas ? "Try another filter or search." : "Create the first workspace in this category."}</p>
+              <p className="mt-2 mb-5 text-[13px] leading-normal text-muted">{query || hasNotes || hasCanvas ? "Try another filter or search." : "Create the first workspace in this category."}</p>
             </div>
           ) : !loading && (
             <>
-              <div className="grid min-h-[35px] grid-cols-[minmax(0,2fr)_minmax(110px,1fr)_100px_35px] items-center gap-3.5 px-3 text-[9px] tracking-[1px] text-muted uppercase max-[800px]:hidden"><span>Workspace</span><span>Content</span><span>Updated</span><span aria-hidden="true" /></div>
+              <div className="grid min-h-9 grid-cols-[minmax(0,2fr)_minmax(110px,1fr)_100px_36px] items-center gap-3.5 px-3 text-[9px] tracking-[1px] text-muted uppercase max-[800px]:hidden"><span>Workspace</span><span>Content</span><span>Updated</span><span aria-hidden="true" /></div>
               {page.items.map((workspace) => (
-                <div className="grid min-h-[52px] grid-cols-[minmax(0,2fr)_minmax(110px,1fr)_100px_35px] items-center gap-3.5 border-t border-line px-3 text-[11px] hover:bg-surface max-[800px]:grid-cols-[minmax(0,1fr)_35px] max-[800px]:gap-2 max-[800px]:px-1 max-[800px]:py-2" key={workspace.id}>
+                <div className="grid min-h-[52px] grid-cols-[minmax(0,2fr)_minmax(110px,1fr)_100px_36px] items-center gap-3.5 border-t border-line px-3 text-[11px] hover:bg-surface max-[800px]:grid-cols-[minmax(0,1fr)_36px] max-[800px]:gap-2 max-[800px]:px-1 max-[800px]:py-2" key={workspace.id}>
                   {editingWorkspace === workspace.id ? (
                     <Input className="min-h-0 w-full rounded-none border-0 bg-transparent p-px text-[11px]" autoFocus value={workspaceTitle} onChange={(event) => setWorkspaceTitle(event.target.value)} onBlur={() => void saveWorkspace()} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(); if (event.key === "Escape") setEditingWorkspace(null); }} />
                   ) : (
@@ -118,9 +118,9 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
                   <time className="text-[10px] text-muted max-[800px]:hidden" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
                   <details className="relative shrink-0 [&>summary::-webkit-details-marker]:hidden">
                     <summary className="grid size-8 list-none place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent" aria-label={`Actions for ${workspace.title}`}><MoreHorizontal size={16} /></summary>
-                    <PopupSurface className="absolute top-[calc(100%+4px)] right-2.5 z-20 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] gap-0.5 p-1.5">
-                      <Button variant="ghost" size="sm" className="w-full justify-start px-[9px] text-ink hover:text-accent" onClick={() => beginWorkspaceRename(workspace)}><Pencil size={14} /> Rename</Button>
-                      <Button variant="ghost" size="sm" className="w-full justify-start px-[9px] text-danger hover:text-danger" onClick={() => setDeletingWorkspace(workspace)}><Trash2 size={14} /> Delete</Button>
+                    <PopupSurface className="absolute top-[calc(100%+4px)] right-2.5 z-20 grid w-max min-w-32 max-w-[calc(100vw_-_24px)] gap-0.5 p-1.5">
+                      <Button variant="ghost" size="sm" className="w-full justify-start px-2.5 text-ink hover:text-accent" onClick={() => beginWorkspaceRename(workspace)}><Pencil size={14} /> Rename</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start px-2.5 text-danger hover:text-danger" onClick={() => setDeletingWorkspace(workspace)}><Trash2 size={14} /> Delete</Button>
                     </PopupSurface>
                   </details>
                 </div>
@@ -130,10 +130,10 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
         </div>
 
         {page.total > page.limit && (
-          <nav className="mt-[17px] flex flex-wrap items-center justify-center gap-x-[15px] gap-y-2 text-[10px] text-muted" aria-label="Workspace pages">
-            <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset} onClick={() => setOffset(Math.max(0, page.offset - page.limit))}>Previous</Button>
+          <nav className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[10px] text-muted" aria-label="Workspace pages">
+            <Button variant="secondary" size="sm" className="min-h-8 px-2.5 py-1.5 text-[10px]" disabled={!page.offset} onClick={() => setOffset(Math.max(0, page.offset - page.limit))}>Previous</Button>
             <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-            <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined} onClick={() => setOffset(page.nextOffset ?? page.offset)}>Next</Button>
+            <Button variant="secondary" size="sm" className="min-h-8 px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined} onClick={() => setOffset(page.nextOffset ?? page.offset)}>Next</Button>
           </nav>
         )}
       </main>

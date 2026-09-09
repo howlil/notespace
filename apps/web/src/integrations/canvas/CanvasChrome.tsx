@@ -45,9 +45,6 @@ type ToolDefinition = {
 const motionTransition = { duration: 0.16, ease: "easeOut" } as const;
 const controlGlyphClass = "size-4";
 
-// Tool behavior stays on Excalidraw's public setActiveTool API. The glyphs
-// mirror Excalidraw's current Tools.tsx mapping through CanvasNativeIcons;
-// action-registry icons are used only where there is no public icon export.
 const primaryTools: readonly ToolDefinition[] = [
   { type: "selection", label: "Select", shortcut: "V", glyph: NativeSelectionIcon },
   { type: "hand", label: "Hand", shortcut: "H", glyph: NativeHandIcon },
@@ -149,7 +146,7 @@ function CompactMenuTool({ api, tool, active, onClick }: { api: ExcalidrawImpera
 function MenuAction({ api, nativeAction, label, shortcut, onClick }: { api: ExcalidrawImperativeAPI | null; nativeAction?: string; label: string; shortcut?: string; onClick: () => void }) {
   const icon = nativeActionIcon(api, nativeAction);
   return (
-    <button type="button" className="group flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" onClick={onClick}>
+    <button type="button" className="group flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" onClick={onClick}>
       {icon && <span className="grid size-4 shrink-0 place-items-center [&_svg]:size-4">{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {shortcut && <kbd className="rounded border border-line px-1 py-0.5 text-[8px] text-muted group-hover:border-accent group-hover:text-accent">{shortcut}</kbd>}
@@ -159,55 +156,27 @@ function MenuAction({ api, nativeAction, label, shortcut, onClick }: { api: Exca
 
 function MenuSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="grid gap-1 border-t border-line pt-1 first:border-t-0 first:pt-0" aria-label={label}>
-      <h3 className="m-0 px-1.5 pt-1 text-[9px] font-medium text-muted">{label}</h3>
+    <section className="grid gap-1 border-t border-line pt-2 first:border-t-0 first:pt-0" aria-label={label}>
+      <h3 className="m-0 px-2 text-[9px] font-medium text-muted">{label}</h3>
       {children}
     </section>
   );
 }
 
-function CanvasBackgroundControl({ backgroundColor, onBackgroundChange }: { backgroundColor: string; onBackgroundChange: (color: string) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div>
-      <button type="button" className="group flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[10px] text-ink hover:bg-tint hover:text-accent" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        <span className="size-4 shrink-0 rounded border border-line" style={{ backgroundColor }} />
-        <span className="min-w-0 flex-1 truncate">Canvas background</span>
-      </button>
-      {open && (
-        <div className="mx-1 rounded-md border border-line bg-canvas/60 p-1.5">
-          <div className="grid grid-cols-5 gap-1">
-            {canvasBackgroundOptions.map(({ label, color }) => (
-              <button key={color} type="button" className={cn("size-7 rounded border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} onClick={() => onBackgroundChange(color)} />
-            ))}
-          </div>
-          <label className="mt-1.5 flex items-center gap-2 border-t border-line pt-1.5 text-[9px] text-muted">
-            <span className="min-w-0 flex-1">Custom color</span>
-            <input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Custom canvas background" className="size-6 cursor-pointer rounded border border-line bg-transparent p-0.5" onChange={(event) => onBackgroundChange(event.target.value)} />
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MoreToolsPanel({ open, anchorRef, api, activeTool, backgroundColor, onBackgroundChange, onAction, onSelectTool, onClose }: {
+function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClose }: {
   open: boolean;
   anchorRef: { current: HTMLDivElement | null };
   api: ExcalidrawImperativeAPI | null;
   activeTool: AppState["activeTool"]["type"];
-  backgroundColor: string;
-  onBackgroundChange: (color: string) => void;
-  onAction: (name: CanvasActionName) => void;
   onSelectTool: (type: ToolbarTool) => void;
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 208, 420);
+  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 176, 144);
   useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   if (typeof document === "undefined") return null;
   const availableTools = supportedTools(api);
-  const run = (name: CanvasActionName) => { onAction(name); onClose(); };
+  const tools = secondaryTools.filter(({ type }) => availableTools.has(type));
 
   return createPortal((
     <AnimatePresence initial={false}>
@@ -218,40 +187,16 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, backgroundColor, onB
           animate={{ opacity: 1, scale: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.98, x: -4 }}
           transition={motionTransition}
-          className="fixed z-[1000] flex max-h-[calc(100dvh-16px)] w-52 flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
+          className="fixed z-[1000] w-44 overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
           style={{ top: position?.top ?? -10000, left: position?.left ?? -10000, visibility: position ? "visible" : "hidden" }}
           aria-label="More canvas tools"
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <header className="border-b border-line px-2.5 py-1.5"><span className="text-[10px] font-medium">More tools</span></header>
-          <div className="grid min-h-0 gap-1 overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {secondaryToolGroups.map((group) => {
-              const tools = group.tools.filter(({ type }) => availableTools.has(type));
-              if (!tools.length) return null;
-              return (
-                <MenuSection key={group.label} label={group.label}>
-                  <div className="flex flex-wrap gap-1 px-1 pb-1">
-                    {tools.map((tool) => <CompactMenuTool key={tool.type} api={api} tool={tool} active={activeTool === tool.type} onClick={() => { onSelectTool(tool.type); onClose(); }} />)}
-                  </div>
-                </MenuSection>
-              );
-            })}
-            <MenuSection label="Canvas">
-              <CanvasBackgroundControl backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} />
-              <MenuAction api={api} nativeAction="clearCanvas" label="Reset canvas" shortcut="⌘⌫" onClick={() => run("clearCanvas")} />
-            </MenuSection>
-            <MenuSection label="File & export">
-              <MenuAction api={api} nativeAction="loadScene" label="Open" shortcut="⌘O" onClick={() => run("loadScene")} />
-              <MenuAction api={api} nativeAction="imageExport" label="Export image" shortcut="⇧⌘E" onClick={() => run("imageExport")} />
-              <MenuAction api={api} nativeAction="copyAsPng" label="Copy as PNG" onClick={() => run("copyAsPng")} />
-              <MenuAction api={api} nativeAction="copyAsSvg" label="Copy as SVG" onClick={() => run("copyAsSvg")} />
-              <MenuAction api={api} nativeAction="saveFileToDisk" label="Save to file" shortcut="⌘S" onClick={() => run("saveFileToDisk")} />
-            </MenuSection>
-            <MenuSection label="Navigate & help">
-              <MenuAction api={api} nativeAction="commandPalette" label="Command palette" shortcut="⌘/" onClick={() => run("commandPalette")} />
-              <MenuAction api={api} nativeAction="searchMenu" label="Find on canvas" shortcut="⌘F" onClick={() => run("searchMenu")} />
-              <MenuAction api={api} nativeAction="toggleShortcuts" label="Help" shortcut="?" onClick={() => run("toggleShortcuts")} />
-            </MenuSection>
+          <header className="px-3 pt-3 pb-2"><span className="text-[10px] font-medium">More tools</span></header>
+          <div className="grid grid-cols-4 gap-1 px-3 pb-3">
+            {tools.map((tool) => (
+              <CompactMenuTool key={tool.type} api={api} tool={tool} active={activeTool === tool.type} onClick={() => { onSelectTool(tool.type); onClose(); }} />
+            ))}
           </div>
         </motion.aside>
       )}
@@ -259,7 +204,100 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, backgroundColor, onB
   ), document.body);
 }
 
-export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, moreOpen, backgroundColor, onDiagramToggle, onMoreToggle, onCoreToolSelect, onBackgroundChange, onAction, diagramPanel }: {
+function BackgroundPalette({ backgroundColor, onBackgroundChange }: { backgroundColor: string; onBackgroundChange: (color: string) => void }) {
+  return (
+    <div className="grid gap-2 p-2">
+      <div className="grid grid-cols-5 gap-1">
+        {canvasBackgroundOptions.map(({ label, color }) => (
+          <button key={color} type="button" className={cn("size-7 rounded border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} onClick={() => onBackgroundChange(color)} />
+        ))}
+      </div>
+      <label className="flex items-center gap-2 border-t border-line pt-2 text-[9px] text-muted">
+        <span className="min-w-0 flex-1">Custom color</span>
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Custom canvas background" className="size-6 cursor-pointer rounded border border-line bg-transparent p-0.5" onChange={(event) => onBackgroundChange(event.target.value)} />
+      </label>
+    </div>
+  );
+}
+
+function SubmenuTrigger({ label, open, leading, onClick }: { label: string; open: boolean; leading?: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", open && "bg-tint text-accent")} aria-expanded={open} onClick={onClick}>
+      {leading && <span className="grid size-4 shrink-0 place-items-center">{leading}</span>}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span aria-hidden="true" className="text-muted">›</span>
+    </button>
+  );
+}
+
+function MobileViewAction({ api, name, label, active, onClick }: { api: ExcalidrawImperativeAPI | null; name: string; label: string; active?: boolean; onClick: () => void }) {
+  const icon = nativeActionIcon(api, name);
+  return <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", active && "bg-tint text-accent")} aria-pressed={active} onClick={onClick}>{icon && <span className="grid size-4 place-items-center [&_svg]:size-4">{icon}</span>}<span>{label}</span></button>;
+}
+
+function CanvasCommandMenu({ api, open, backgroundColor, gridModeEnabled, objectsSnapModeEnabled, libraryOpen, onBackgroundChange, onToggleLibrary, onAction, onClose }: {
+  api: ExcalidrawImperativeAPI | null;
+  open: boolean;
+  backgroundColor: string;
+  gridModeEnabled: boolean;
+  objectsSnapModeEnabled: boolean;
+  libraryOpen: boolean;
+  onBackgroundChange: (color: string) => void;
+  onToggleLibrary: () => void;
+  onAction: (name: CanvasActionName) => void;
+  onClose: () => void;
+}) {
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  if (!open) return null;
+  const run = (name: CanvasActionName) => { onAction(name); onClose(); };
+
+  return (
+    <div className="absolute top-[calc(100%+6px)] right-0 z-[120] grid w-52 gap-2 rounded-lg border border-line bg-surface p-2 shadow-none" role="menu" aria-label="More canvas view controls">
+      <div className="hidden max-[560px]:block">
+        <MenuSection label="View">
+          <MobileViewAction api={api} name="zoomOut" label="Zoom out" onClick={() => run("zoomOut")} />
+          <MobileViewAction api={api} name="zoomIn" label="Zoom in" onClick={() => run("zoomIn")} />
+          <MobileViewAction api={api} name="gridMode" label="Grid" active={gridModeEnabled} onClick={() => onAction("gridMode")} />
+          <MobileViewAction api={api} name="objectsSnapMode" label="Object snapping" active={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")} />
+          <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", libraryOpen && "bg-tint text-accent")} aria-pressed={libraryOpen} onClick={onToggleLibrary}><NativeLibraryIcon className="size-4" /><span>Library</span></button>
+        </MenuSection>
+      </div>
+      <MenuSection label="Canvas">
+        <div className="relative">
+          <SubmenuTrigger label="Canvas background" open={backgroundOpen} leading={<span className="size-4 rounded border border-line" style={{ backgroundColor }} />} onClick={() => { setExportOpen(false); setBackgroundOpen((value) => !value); }} />
+          {backgroundOpen && (
+            <div className="absolute top-0 right-[calc(100%+6px)] z-10 w-44 rounded-lg border border-line bg-surface shadow-none max-[560px]:top-[calc(100%+4px)] max-[560px]:right-0">
+              <BackgroundPalette backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} />
+            </div>
+          )}
+        </div>
+        <MenuAction api={api} nativeAction="clearCanvas" label="Reset canvas" shortcut="⌘⌫" onClick={() => run("clearCanvas")} />
+      </MenuSection>
+      <MenuSection label="File & export">
+        <MenuAction api={api} nativeAction="loadScene" label="Open" shortcut="⌘O" onClick={() => run("loadScene")} />
+        <MenuAction api={api} nativeAction="saveFileToDisk" label="Save to file" shortcut="⌘S" onClick={() => run("saveFileToDisk")} />
+        <div className="relative">
+          <SubmenuTrigger label="Export" open={exportOpen} onClick={() => { setBackgroundOpen(false); setExportOpen((value) => !value); }} />
+          {exportOpen && (
+            <div className="absolute top-0 right-[calc(100%+6px)] z-10 grid w-44 gap-1 rounded-lg border border-line bg-surface p-2 shadow-none max-[560px]:top-[calc(100%+4px)] max-[560px]:right-0">
+              <MenuAction api={api} nativeAction="imageExport" label="Export image" shortcut="⇧⌘E" onClick={() => run("imageExport")} />
+              <MenuAction api={api} nativeAction="copyAsPng" label="Copy as PNG" onClick={() => run("copyAsPng")} />
+              <MenuAction api={api} nativeAction="copyAsSvg" label="Copy as SVG" onClick={() => run("copyAsSvg")} />
+            </div>
+          )}
+        </div>
+      </MenuSection>
+      <MenuSection label="Navigate & help">
+        <MenuAction api={api} nativeAction="searchMenu" label="Find on canvas" shortcut="⌘F" onClick={() => run("searchMenu")} />
+        <MenuAction api={api} nativeAction="commandPalette" label="Command palette" shortcut="⌘/" onClick={() => run("commandPalette")} />
+        <MenuAction api={api} nativeAction="toggleShortcuts" label="Help" shortcut="?" onClick={() => run("toggleShortcuts")} />
+      </MenuSection>
+    </div>
+  );
+}
+
+export function CanvasToolRail(props: {
   api: ExcalidrawImperativeAPI | null;
   activeTool: AppState["activeTool"]["type"];
   panelAnchorRef: { current: HTMLDivElement | null };
@@ -273,6 +311,7 @@ export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, m
   onAction: (name: CanvasActionName) => void;
   diagramPanel: ReactNode;
 }) {
+  const { api, activeTool, panelAnchorRef, diagramOpen, moreOpen, onDiagramToggle, onMoreToggle, onCoreToolSelect, diagramPanel } = props;
   const availableTools = supportedTools(api);
   const selectTool = (type: ToolbarTool) => {
     if (!api || !availableTools.has(type)) return;
@@ -292,7 +331,7 @@ export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, m
       </div>
       <div ref={panelAnchorRef} data-canvas-menu-trigger="true" className="group relative flex shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse" && !moreOpen) onMoreToggle(); }}>
         <ToolButton icon={<NativeDotsHorizontalIcon className={controlGlyphClass} />} label="More tools" active={moreOpen} onClick={onMoreToggle} />
-        <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} activeTool={activeTool} backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} onAction={onAction} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
+        <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} activeTool={activeTool} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
       </div>
     </motion.div>
   );
@@ -308,11 +347,6 @@ function NativeViewAction({ api, name, label, active, mobile = false, onClick }:
   );
 }
 
-function MobileViewAction({ api, name, label, active, onClick }: { api: ExcalidrawImperativeAPI | null; name: string; label: string; active?: boolean; onClick: () => void }) {
-  const icon = nativeActionIcon(api, name);
-  return <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", active && "bg-tint text-accent")} aria-pressed={active} onClick={onClick}>{icon && <span className="grid size-4 place-items-center [&_svg]:size-4">{icon}</span>}<span>{label}</span></button>;
-}
-
 export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapModeEnabled, onAction }: {
   api: ExcalidrawImperativeAPI | null;
   zoom: number;
@@ -322,31 +356,39 @@ export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapMode
 }) {
   const zoomLabel = `${Math.round(zoom * 100)}%`;
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
-  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const commandMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!api) { setLibraryOpen(false); return undefined; }
     const sync = (openSidebar: AppState["openSidebar"]) => setLibraryOpen(openSidebar?.name === "default" && openSidebar.tab === "library");
     sync(api.getAppState().openSidebar);
+    setBackgroundColor(api.getAppState().viewBackgroundColor);
     return api.onStateChange("openSidebar", sync);
   }, [api]);
 
   useEffect(() => {
-    if (!mobileMoreOpen) return undefined;
+    if (!commandMenuOpen) return undefined;
     const dismiss = (event: PointerEvent) => {
-      if (mobileMenuRef.current?.contains(event.target as Node)) return;
-      setMobileMoreOpen(false);
+      if (commandMenuRef.current?.contains(event.target as Node)) return;
+      setCommandMenuOpen(false);
     };
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
-  }, [mobileMoreOpen]);
+  }, [commandMenuOpen]);
 
   const toggleLibrary = () => {
     if (!api) return;
     const openSidebar = api.getAppState().openSidebar;
     const isOpen = openSidebar?.name === "default" && openSidebar.tab === "library";
     api.toggleSidebar({ name: "default", tab: "library", force: !isOpen });
+  };
+
+  const changeBackground = (color: string) => {
+    if (!api) return;
+    setBackgroundColor(color);
+    api.updateScene({ appState: { viewBackgroundColor: color } });
   };
 
   return (
@@ -364,18 +406,9 @@ export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapMode
       <NativeViewAction api={api} name="gridMode" label="Toggle grid" active={gridModeEnabled} onClick={() => onAction("gridMode")} />
       <NativeViewAction api={api} name="objectsSnapMode" label="Toggle object snapping" active={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")} />
       <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 text-muted hover:text-accent max-[560px]:hidden", libraryOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="Browse library" aria-pressed={libraryOpen} onClick={toggleLibrary}><NativeLibraryIcon className="size-4" /></IconButton>
-      <div ref={mobileMenuRef} className="relative hidden max-[560px]:block">
-        <IconButton type="button" variant="ghost" className={cn("!size-8 text-muted hover:text-ink", mobileMoreOpen && "!bg-tint !text-accent")} aria-label="More canvas view controls" aria-expanded={mobileMoreOpen} onClick={() => setMobileMoreOpen((open) => !open)}><NativeDotsHorizontalIcon className="size-4" /></IconButton>
-        {mobileMoreOpen && (
-          <div className="absolute top-[calc(100%+6px)] right-0 z-[120] w-40 rounded-lg border border-line bg-surface p-1 shadow-none" role="menu" aria-label="More canvas view controls">
-            <MobileViewAction api={api} name="zoomOut" label="Zoom out" onClick={() => { onAction("zoomOut"); setMobileMoreOpen(false); }} />
-            <MobileViewAction api={api} name="zoomIn" label="Zoom in" onClick={() => { onAction("zoomIn"); setMobileMoreOpen(false); }} />
-            <div className="my-1 h-px bg-line" />
-            <MobileViewAction api={api} name="gridMode" label="Grid" active={gridModeEnabled} onClick={() => onAction("gridMode")} />
-            <MobileViewAction api={api} name="objectsSnapMode" label="Object snapping" active={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")} />
-            <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", libraryOpen && "bg-tint text-accent")} aria-pressed={libraryOpen} onClick={() => { toggleLibrary(); setMobileMoreOpen(false); }}><NativeLibraryIcon className="size-4" /><span>Library</span></button>
-          </div>
-        )}
+      <div ref={commandMenuRef} className="relative">
+        <IconButton type="button" variant="ghost" className={cn("!size-8 text-muted hover:text-ink", commandMenuOpen && "!bg-tint !text-accent")} aria-label="More canvas view controls" aria-expanded={commandMenuOpen} onClick={() => setCommandMenuOpen((open) => !open)}><NativeDotsHorizontalIcon className="size-4" /></IconButton>
+        <CanvasCommandMenu api={api} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={() => setCommandMenuOpen(false)} />
       </div>
     </motion.aside>
   );

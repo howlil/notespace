@@ -2,7 +2,7 @@
 
 ## Objective
 
-Keep Notespace a simple self-hosted modular monolith whose implementation preserves a Category → Workspace hierarchy while each workspace owns its Notes, Canvas, durable assets, history, and study context.
+Keep Notespace a simple self-hosted modular monolith whose implementation preserves a Category → Workspace hierarchy while each workspace owns its Notes, Canvas, durable assets, and study context.
 
 ```text
 Browser / Category library or Workspace editor
@@ -10,6 +10,7 @@ Browser / Category library or Workspace editor
 Notespace application boundary
         ├── document integration → Tiptap
         ├── canvas integration   → Excalidraw
+        │       └── same-browser peer sync → BroadcastChannel
         └── Category + Workspace API
                 ↓
         Project service/domain
@@ -18,7 +19,7 @@ Notespace application boundary
           ├── authored snapshots
           ├── durable image assets
           ├── FTS search projection
-          ├── history
+          ├── legacy history compatibility
           └── study activity
 ```
 
@@ -47,13 +48,13 @@ Category
 
 A category owns grouping only; a workspace owns authored Note/Canvas state. Notespace no longer exposes cross-surface Send/Link relationships. The legacy references field remains wire/storage compatibility only and new authored state normalizes it to empty.
 
-Optimistic Project versioning is the concurrent-write policy. Do not silently replace it with merge/CRDT semantics.
+Optimistic Project versioning remains the durable concurrent-write guard. Canvas-only races may be deterministically reconciled and retried; this must not become a generic whole-workspace last-write-wins policy.
 
 ## HTTP boundary
 
 `apps/server/internal/httpapi` owns request/response mapping, validation/error translation, asset transfer, export composition, and API composition. Browser/editor-specific structures must not become routing concerns.
 
-True workspace version conflicts return HTTP 409 with `workspace_conflict`; the client distinguishes this from retryable transport/server failures.
+Workspace version conflicts return HTTP 409 with `workspace_conflict`. The browser may recover automatically only when the conflicting authored difference is Canvas-only; other aggregate conflicts remain explicit.
 
 ## Persistence boundary
 
@@ -68,7 +69,8 @@ Current constraints:
 - persisted snapshots remain versioned;
 - `/data` maps to a stable named volume configured by `NOTESPACE_DATA_VOLUME`;
 - category deletion refuses non-empty categories;
-- history stores bounded compressed pre-update snapshots and restores through normal optimistic update;
+- normal autosave updates authored snapshots directly and does not create periodic history checkpoints;
+- legacy history tables/read-restore paths and one creation baseline remain only for backup-format compatibility;
 - image binaries live in `workspace_assets` as workspace-scoped SQLite BLOBs, so the same durable database/volume backup includes authored images;
 - browser IndexedDB is a cache and legacy migration source only;
 - global retrieval uses `workspace_search` FTS5 plus `workspace_search_meta` as a derived projection. Authored snapshots remain authoritative; stale projection rows are rebuilt lazily by workspace version/category/title;
@@ -98,10 +100,11 @@ Responsibility boundaries:
 - routes/loaders: navigation and data entry points;
 - Project/workspace domain modules: authored state and API orchestration;
 - `features/workspace/pane-layout.ts`: pane-tree invariants (max four panes, max one Canvas), layout repair, split/resize tree operations;
-- `features/workspace/workspace-content.ts`: note snapshot normalization, stable block identity, legacy relationship cleanup, history-preview helpers;
+- `features/workspace/workspace-content.ts`: note snapshot normalization, stable block identity, and legacy relationship cleanup;
 - `features/study/use-study-session.ts`: manual study-session state machine and local continuity across reload/navigation;
 - `features/study/study-timer.ts`: pure elapsed-time, pause/resume, rollover, and aggregation logic;
-- editor adapters: Tiptap/Excalidraw integration details;
+- `integrations/canvas/CanvasEditor.tsx`: Excalidraw adapter plus same-browser peer synchronization;
+- `domain/project/canvas-merge.ts`: pure fallback merge for Canvas-only durable-version races;
 - `domain/assets/local-image-assets.ts`: server-backed durable asset transfer plus browser cache/read-through migration;
 - generic UI primitives: presentation only.
 
@@ -115,27 +118,36 @@ Tiptap is the structured document editor. Notespace owns serialized snapshots an
 
 Excalidraw is the spatial editor. Scene metadata may be persisted in the workspace snapshot; binary image data is stored through the durable asset boundary rather than embedded into every authored snapshot.
 
+For the same Workspace in sibling tabs of one browser, Canvas element snapshots use `BroadcastChannel` as a local transport and Excalidraw's `reconcileElements()` semantics for convergence. This path does not involve the server and is coalesced independently from durable autosave. It is intentionally not a cross-device collaboration protocol.
+
+Pan and zoom stay local to each Excalidraw instance. They are presentation state, not authored content, and must not cause durable writes.
+
 ## Edit and autosave
 
 ```text
-editor change
-  → local Workspace draft
-  → serialized debounce/coalescing
-  → complete Workspace update with optimistic version
-  → durable SQLite write
-  → acknowledged version replaces local version
+Canvas authored change
+  ├─ ~80 ms coalesced BroadcastChannel → sibling browser tabs
+  │       → Excalidraw element reconciliation
+  │
+  └─ local Workspace draft
+          → 650 ms serialized debounce/coalescing
+          → complete Workspace update with optimistic version
+          → durable SQLite write
+          → acknowledged version replaces local version
 ```
 
 Network/server failure → keep pending snapshot → retry is allowed.
 
-Version conflict → keep pending snapshot → enter `conflict` state → stop automatic retries → explicit reload/recovery required.
+Canvas-only version conflict → fetch latest Workspace → merge Canvas elements → retry with latest version.
+
+Notes/title/other authored-field conflict → keep pending snapshot → enter `conflict` state → explicit reload/recovery required. Do not blindly merge those fields.
 
 ## State taxonomy
 
 - **Domain state:** workspace identity, authored Notes/Canvas content, durable assets.
 - **Derived state:** FTS search projection, study summaries.
-- **Presentation state:** pane tree, selection, viewport/focus state where not explicitly persisted.
-- **Runtime state:** server health, storage/configuration.
+- **Presentation state:** pane tree, selection, Canvas pan/zoom/focus state where not explicitly persisted.
+- **Runtime state:** server health, storage/configuration, same-browser peer channel.
 
 Do not collapse these into one unbounded store.
 
@@ -147,4 +159,4 @@ Treat content, imported payloads, images, URLs, and future embeds as untrusted i
 
 ## Material changes requiring approval
 
-Stop before changing workspace ownership semantics; adding independently deployed services; replacing Tiptap/Excalidraw; replacing SQLite; introducing collaboration/CRDT/event sourcing; adding authentication/authorization or hosted infrastructure; changing public API/data contracts incompatibly; destructive migrations; or broad plugin architecture.
+Stop before changing workspace ownership semantics; adding independently deployed services; replacing Tiptap/Excalidraw; replacing SQLite; introducing cross-device collaboration/CRDT/event sourcing; adding authentication/authorization or hosted infrastructure; changing public API/data contracts incompatibly; destructive migrations; or broad plugin architecture.

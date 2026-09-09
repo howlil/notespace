@@ -1,25 +1,27 @@
 import {
+  ArrowRight,
   BookOpen,
-  CircleHelp,
-  Copy,
-  Download,
+  Circle,
+  Diamond,
+  Eraser,
   Frame,
-  FolderOpen,
   Grid3X3,
+  Hand,
   Image,
   Lasso,
+  LineChart,
   Magnet,
   MoreHorizontal,
+  MousePointer2,
   Network,
   PaintBucket,
-  Paintbrush,
+  Pencil,
   RectangleHorizontal,
-  RotateCcw,
   Scan,
-  Search,
   Shapes,
+  SquareDashed,
+  Type,
   Wand2,
-  X,
   Zap,
   ZoomIn,
   ZoomOut,
@@ -34,32 +36,60 @@ import { useCanvasPanelDismiss, useCanvasPanelPosition } from "./CanvasPanelPosi
 import type { CanvasActionName } from "./CanvasToolbar";
 
 type ToolbarTool = ToolType;
+type SceneElements = ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>;
+type ActionWithIcon = {
+  icon?: ReactNode | ((appState: AppState, elements: SceneElements) => ReactNode);
+};
+
+type ToolDefinition = {
+  type: ToolbarTool;
+  label: string;
+  shortcut?: string;
+  icon: LucideIcon;
+  nativeAction?: string;
+};
 
 const motionTransition = { duration: 0.16, ease: "easeOut" } as const;
 
-const primaryTools: readonly { type: ToolbarTool; label: string; shortcut?: string }[] = [
-  { type: "selection", label: "Select", shortcut: "V" },
-  { type: "hand", label: "Hand", shortcut: "H" },
-  { type: "rectangle", label: "Rectangle", shortcut: "R" },
-  { type: "diamond", label: "Diamond", shortcut: "D" },
-  { type: "ellipse", label: "Ellipse", shortcut: "O" },
-  { type: "arrow", label: "Arrow", shortcut: "A" },
-  { type: "line", label: "Line", shortcut: "L" },
-  { type: "freedraw", label: "Draw", shortcut: "P" },
-  { type: "text", label: "Text", shortcut: "T" },
-  { type: "image", label: "Image", shortcut: "I" },
-  { type: "eraser", label: "Eraser", shortcut: "E" },
+const primaryTools: readonly ToolDefinition[] = [
+  { type: "selection", label: "Select", shortcut: "V", icon: MousePointer2 },
+  { type: "hand", label: "Hand", shortcut: "H", icon: Hand, nativeAction: "toggleHandTool" },
+  { type: "rectangle", label: "Rectangle", shortcut: "R", icon: SquareDashed },
+  { type: "diamond", label: "Diamond", shortcut: "D", icon: Diamond },
+  { type: "ellipse", label: "Ellipse", shortcut: "O", icon: Circle },
+  { type: "arrow", label: "Arrow", shortcut: "A", icon: ArrowRight },
+  { type: "line", label: "Line", shortcut: "L", icon: LineChart },
+  { type: "freedraw", label: "Draw", shortcut: "P", icon: Pencil },
+  { type: "text", label: "Text", shortcut: "T", icon: Type },
+  { type: "image", label: "Image", shortcut: "I", icon: Image },
+  { type: "eraser", label: "Eraser", shortcut: "E", icon: Eraser, nativeAction: "toggleEraserTool" },
 ];
 
-const secondaryTools: readonly { type: ToolbarTool; label: string; shortcut?: string; icon: LucideIcon }[] = [
-  { type: "lasso", label: "Lasso select", icon: Lasso },
-  { type: "frame", label: "Frame", shortcut: "F", icon: Frame },
-  { type: "embeddable", label: "Embed", icon: RectangleHorizontal },
-  { type: "autoshape", label: "Auto shape", icon: Shapes },
-  { type: "magicframe", label: "Magic frame", icon: Wand2 },
-  { type: "laser", label: "Laser pointer", icon: Zap },
-  { type: "bucketfill", label: "Bucket fill", icon: PaintBucket },
+const secondaryToolGroups: readonly { label: string; tools: readonly ToolDefinition[] }[] = [
+  {
+    label: "Select",
+    tools: [{ type: "lasso", label: "Lasso select", icon: Lasso, nativeAction: "toggleLassoTool" }],
+  },
+  {
+    label: "Insert",
+    tools: [
+      { type: "frame", label: "Frame", shortcut: "F", icon: Frame, nativeAction: "setFrameAsActiveTool" },
+      { type: "embeddable", label: "Embed", icon: RectangleHorizontal, nativeAction: "setEmbeddableAsActiveTool" },
+      { type: "autoshape", label: "Auto shape", icon: Shapes },
+      { type: "magicframe", label: "Magic frame", icon: Wand2 },
+    ],
+  },
+  {
+    label: "Present",
+    tools: [{ type: "laser", label: "Laser pointer", icon: Zap }],
+  },
+  {
+    label: "Paint",
+    tools: [{ type: "bucketfill", label: "Bucket fill", icon: PaintBucket }],
+  },
 ];
+
+const secondaryTools = secondaryToolGroups.flatMap(({ tools }) => tools);
 
 const canvasBackgroundOptions = [
   { label: "Snow", color: "#ffffff" },
@@ -75,41 +105,23 @@ const canvasBackgroundOptions = [
 ] as const;
 
 function supportedTools(api: ExcalidrawImperativeAPI | null) {
-  return new Set((api ? [...primaryTools, ...secondaryTools].filter(({ type }) => api.app.isToolSupported(type)) : [...primaryTools, ...secondaryTools]).map(({ type }) => type));
+  const tools = [...primaryTools, ...secondaryTools];
+  return new Set((api ? tools.filter(({ type }) => api.app.isToolSupported(type)) : tools).map(({ type }) => type));
 }
 
-function NativeSvg({ children, viewBox = "0 0 24 24", strokeWidth = 1.5 }: { children: ReactNode; viewBox?: string; strokeWidth?: number }) {
-  return <svg width="18" height="18" viewBox={viewBox} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>;
+function nativeActionIcon(api: ExcalidrawImperativeAPI | null, name?: string): ReactNode {
+  if (!api || !name) return null;
+  const action = (api.app.actionManager.actions as unknown as Record<string, ActionWithIcon>)[name];
+  const icon = action?.icon;
+  if (!icon) return null;
+  return typeof icon === "function" ? icon(api.getAppState(), api.getSceneElements()) : icon;
 }
 
-// Paths mirror Excalidraw's own tool glyphs. Notespace only owns the button/card styling.
-function NativeToolIcon({ type }: { type: ToolbarTool }) {
-  switch (type) {
-    case "selection":
-      return <NativeSvg viewBox="0 0 22 22" strokeWidth={1.25}><path d="M5.5 5.5 9.306 16.31a.335.335 0 0 0 .303.19.336.336 0 0 0 .304-.19l2.002-4.394 4.388-1.828a.326.326 0 0 0 .197-.296.326.326 0 0 0-.197-.296L5.5 5.5Z" /><path d="m12.375 12.375 4.125 4.125" /></NativeSvg>;
-    case "hand":
-      return <NativeSvg strokeWidth={1.25}><path d="M8 13V7.5a1.5 1.5 0 0 1 3 0V12" /><path d="M11 7.5V6.5a1.5 1.5 0 0 1 3 0V12" /><path d="M14 8.5a1.5 1.5 0 0 1 3 0V12" /><path d="M17 10.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-2c-3 0-5-1-6.7-3.3l-2.4-3.2a1.5 1.5 0 0 1 2.4-1.8L8 14" /></NativeSvg>;
-    case "rectangle":
-      return <NativeSvg><rect x="4" y="4" width="16" height="16" rx="2" /></NativeSvg>;
-    case "diamond":
-      return <NativeSvg><path d="M10.5 20.4 3.6 13.5c-.781-.781-.781-2.219 0-3l6.9-6.9c.781-.781 2.219-.781 3 0l6.9 6.9c.781.781.781 2.219 0 3l-6.9 6.9c-.781.781-2.219.781-3 0Z" /></NativeSvg>;
-    case "ellipse":
-      return <NativeSvg><circle cx="12" cy="12" r="9" /></NativeSvg>;
-    case "arrow":
-      return <NativeSvg><line x1="5" y1="12" x2="19" y2="12" /><line x1="15" y1="16" x2="19" y2="12" /><line x1="15" y1="8" x2="19" y2="12" /></NativeSvg>;
-    case "line":
-      return <NativeSvg viewBox="0 0 20 20"><path d="M4.167 10h11.666" /></NativeSvg>;
-    case "freedraw":
-      return <NativeSvg viewBox="0 0 20 20" strokeWidth={1.25}><path d="m7.643 15.69 7.774-7.773a2.357 2.357 0 1 0-3.334-3.334L4.31 12.357a3.333 3.333 0 0 0-.977 2.357v1.953h1.953c.884 0 1.732-.352 2.357-.977Z" /><path d="m11.25 5.417 3.333 3.333" /></NativeSvg>;
-    case "text":
-      return <NativeSvg><line x1="4" y1="20" x2="7" y2="20" /><line x1="14" y1="20" x2="21" y2="20" /><line x1="6.9" y1="15" x2="13.8" y2="15" /><line x1="10.2" y1="6.3" x2="16" y2="20" /><polyline points="5 20 11 4 13 4 20 20" /></NativeSvg>;
-    case "image":
-      return <NativeSvg viewBox="0 0 20 20" strokeWidth={1.25}><path d="M12.5 6.667h.01" /><path d="M4.91 2.625h10.18a2.284 2.284 0 0 1 2.285 2.284v10.182a2.284 2.284 0 0 1-2.284 2.284H4.909a2.284 2.284 0 0 1-2.284-2.284V4.909a2.284 2.284 0 0 1 2.284-2.284Z" /><path d="m3.333 12.5 3.334-3.333c.773-.745 1.726-.745 2.5 0l4.166 4.166" /><path d="m11.667 11.667.833-.834c.774-.744 1.726-.744 2.5 0l1.667 1.667" /></NativeSvg>;
-    case "eraser":
-      return <NativeSvg><path d="M19 20H8.5l-4.21-4.3a1 1 0 0 1 0-1.41l10-10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41L11.5 20" /><path d="M18 13.3 11.7 7" /></NativeSvg>;
-    default:
-      return <span className="text-[10px] font-medium">?</span>;
-  }
+function ToolGlyph({ api, tool }: { api: ExcalidrawImperativeAPI | null; tool: ToolDefinition }) {
+  const native = nativeActionIcon(api, tool.nativeAction);
+  if (native) return <>{native}</>;
+  const Icon = tool.icon;
+  return <Icon size={18} strokeWidth={1.65} aria-hidden="true" />;
 }
 
 function ToolButton({ icon, label, shortcut, active, onClick }: { icon: ReactNode; label: string; shortcut?: string; active?: boolean; onClick: () => void }) {
@@ -130,30 +142,54 @@ function ToolButton({ icon, label, shortcut, active, onClick }: { icon: ReactNod
   );
 }
 
-function MenuAction({ icon: Icon, label, shortcut, onClick }: { icon: LucideIcon; label: string; shortcut?: string; onClick: () => void }) {
+function CompactMenuTool({ api, tool, active, onClick }: { api: ExcalidrawImperativeAPI | null; tool: ToolDefinition; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={cn("grid aspect-square w-full place-items-center rounded-md border border-transparent text-muted transition-colors hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", active && "border-accent/20 bg-tint text-accent")}
+      aria-label={tool.label}
+      aria-pressed={active}
+      title={tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label}
+      onClick={onClick}
+    >
+      <ToolGlyph api={api} tool={tool} />
+    </button>
+  );
+}
+
+function MenuAction({ api, nativeAction, label, shortcut, onClick }: { api: ExcalidrawImperativeAPI | null; nativeAction?: string; label: string; shortcut?: string; onClick: () => void }) {
+  const icon = nativeActionIcon(api, nativeAction);
   return (
     <button type="button" className="group flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" onClick={onClick}>
-      <Icon size={14} strokeWidth={1.8} />
+      {icon && <span className="grid size-4 shrink-0 place-items-center [&_svg]:size-4">{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {shortcut && <kbd className="rounded border border-line px-1 py-0.5 text-[8px] text-muted group-hover:border-accent group-hover:text-accent">{shortcut}</kbd>}
     </button>
   );
 }
 
+function MenuSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-1 border-t border-line pt-1 first:border-t-0 first:pt-0" aria-label={label}>
+      <h3 className="m-0 px-2 pt-1 text-[9px] font-medium text-muted">{label}</h3>
+      {children}
+    </section>
+  );
+}
+
 function CanvasBackgroundControl({ backgroundColor, onBackgroundChange }: { backgroundColor: string; onBackgroundChange: (color: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-line pb-1">
+    <div>
       <button type="button" className="group flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        <Paintbrush size={14} strokeWidth={1.8} />
+        <span className="size-4 shrink-0 rounded border border-line" style={{ backgroundColor }} />
         <span className="min-w-0 flex-1 truncate">Canvas background</span>
-        <span className="size-3.5 shrink-0 rounded border border-line" style={{ backgroundColor }} />
       </button>
       {open && (
-        <div className="rounded-md border border-line bg-canvas/60 p-2">
+        <div className="mx-1 rounded-md border border-line bg-canvas/60 p-2">
           <div className="grid grid-cols-5 gap-1.5">
             {canvasBackgroundOptions.map(({ label, color }) => (
-              <button key={color} type="button" className={cn("size-6 rounded border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} onClick={() => onBackgroundChange(color)} />
+              <button key={color} type="button" className={cn("aspect-square w-full rounded border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} onClick={() => onBackgroundChange(color)} />
             ))}
           </div>
           <label className="mt-2 flex items-center gap-2 border-t border-line pt-2 text-[9px] text-muted">
@@ -166,10 +202,11 @@ function CanvasBackgroundControl({ backgroundColor, onBackgroundChange }: { back
   );
 }
 
-function MoreToolsPanel({ open, anchorRef, api, backgroundColor, onBackgroundChange, onAction, onSelectTool, onClose }: {
+function MoreToolsPanel({ open, anchorRef, api, activeTool, backgroundColor, onBackgroundChange, onAction, onSelectTool, onClose }: {
   open: boolean;
   anchorRef: { current: HTMLDivElement | null };
   api: ExcalidrawImperativeAPI | null;
+  activeTool: AppState["activeTool"]["type"];
   backgroundColor: string;
   onBackgroundChange: (color: string) => void;
   onAction: (name: CanvasActionName) => void;
@@ -177,11 +214,12 @@ function MoreToolsPanel({ open, anchorRef, api, backgroundColor, onBackgroundCha
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 208, 440);
+  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 224, 440);
   useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   if (typeof document === "undefined") return null;
   const availableTools = supportedTools(api);
   const run = (name: CanvasActionName) => { onAction(name); onClose(); };
+
   return createPortal((
     <AnimatePresence initial={false}>
       {open && (
@@ -191,37 +229,44 @@ function MoreToolsPanel({ open, anchorRef, api, backgroundColor, onBackgroundCha
           animate={{ opacity: 1, scale: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.97, x: -6 }}
           transition={motionTransition}
-          className="fixed z-[1000] flex max-h-[calc(100dvh-16px)] w-[208px] flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
+          className="fixed z-[1000] flex max-h-[calc(100dvh-16px)] w-56 flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
           style={{ top: position?.top ?? -10000, left: position?.left ?? -10000, visibility: position ? "visible" : "hidden" }}
           aria-label="More canvas tools"
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <header className="flex items-center justify-between border-b border-line px-2.5 py-2">
+          <header className="border-b border-line px-3 py-2">
             <span className="text-[11px] font-medium">More tools</span>
-            <IconButton type="button" className="!size-6" aria-label="Close more tools" onClick={onClose}><X size={13} /></IconButton>
           </header>
-          <div className="min-h-0 overflow-y-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <section className="grid gap-0.5" aria-label="Additional drawing tools">
-              {secondaryTools.filter(({ type }) => availableTools.has(type)).map(({ type, label, shortcut, icon }) => (
-                <MenuAction key={type} icon={icon} label={label} shortcut={shortcut} onClick={() => { onSelectTool(type); onClose(); }} />
-              ))}
-            </section>
-            <section className="mt-1 border-t border-line pt-1" aria-label="Canvas settings">
+          <div className="grid min-h-0 gap-1 overflow-y-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {secondaryToolGroups.map((group) => {
+              const tools = group.tools.filter(({ type }) => availableTools.has(type));
+              if (!tools.length) return null;
+              return (
+                <MenuSection key={group.label} label={group.label}>
+                  <div className="grid grid-cols-4 gap-1 px-1 pb-1">
+                    {tools.map((tool) => (
+                      <CompactMenuTool key={tool.type} api={api} tool={tool} active={activeTool === tool.type} onClick={() => { onSelectTool(tool.type); onClose(); }} />
+                    ))}
+                  </div>
+                </MenuSection>
+              );
+            })}
+            <MenuSection label="Canvas">
               <CanvasBackgroundControl backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} />
-              <MenuAction icon={RotateCcw} label="Reset canvas" shortcut="⌘⌫" onClick={() => run("clearCanvas")} />
-            </section>
-            <section className="mt-1 border-t border-line pt-1" aria-label="File actions">
-              <MenuAction icon={FolderOpen} label="Open" shortcut="⌘O" onClick={() => run("loadScene")} />
-              <MenuAction icon={Image} label="Export image" shortcut="⇧⌘E" onClick={() => run("imageExport")} />
-              <MenuAction icon={Copy} label="Copy as PNG" onClick={() => run("copyAsPng")} />
-              <MenuAction icon={Copy} label="Copy as SVG" onClick={() => run("copyAsSvg")} />
-              <MenuAction icon={Download} label="Save to file" shortcut="⌘S" onClick={() => run("saveFileToDisk")} />
-            </section>
-            <section className="mt-1 border-t border-line pt-1" aria-label="Navigation actions">
-              <MenuAction icon={Zap} label="Command palette" shortcut="⌘/" onClick={() => run("commandPalette")} />
-              <MenuAction icon={Search} label="Find on canvas" shortcut="⌘F" onClick={() => run("searchMenu")} />
-              <MenuAction icon={CircleHelp} label="Help" shortcut="?" onClick={() => run("toggleShortcuts")} />
-            </section>
+              <MenuAction api={api} nativeAction="clearCanvas" label="Reset canvas" shortcut="⌘⌫" onClick={() => run("clearCanvas")} />
+            </MenuSection>
+            <MenuSection label="File & export">
+              <MenuAction api={api} nativeAction="loadScene" label="Open" shortcut="⌘O" onClick={() => run("loadScene")} />
+              <MenuAction api={api} nativeAction="imageExport" label="Export image" shortcut="⇧⌘E" onClick={() => run("imageExport")} />
+              <MenuAction api={api} nativeAction="copyAsPng" label="Copy as PNG" onClick={() => run("copyAsPng")} />
+              <MenuAction api={api} nativeAction="copyAsSvg" label="Copy as SVG" onClick={() => run("copyAsSvg")} />
+              <MenuAction api={api} nativeAction="saveFileToDisk" label="Save to file" shortcut="⌘S" onClick={() => run("saveFileToDisk")} />
+            </MenuSection>
+            <MenuSection label="Navigate & help">
+              <MenuAction api={api} nativeAction="commandPalette" label="Command palette" shortcut="⌘/" onClick={() => run("commandPalette")} />
+              <MenuAction api={api} nativeAction="searchMenu" label="Find on canvas" shortcut="⌘F" onClick={() => run("searchMenu")} />
+              <MenuAction api={api} nativeAction="toggleShortcuts" label="Help" shortcut="?" onClick={() => run("toggleShortcuts")} />
+            </MenuSection>
           </div>
         </motion.aside>
       )}
@@ -249,21 +294,22 @@ export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, m
     api.setActiveTool({ type }, { keepSelection: false });
     onCoreToolSelect();
   };
+
   return (
     <motion.div initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={motionTransition} className="pointer-events-auto relative flex max-h-[calc(100dvh-16px)] flex-col items-center gap-1 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex min-h-0 max-h-[calc(100dvh-116px)] flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {primaryTools.filter(({ type }) => availableTools.has(type)).map(({ type, label, shortcut }) => (
-          <ToolButton key={type} icon={<NativeToolIcon type={type} />} label={label} shortcut={shortcut} active={activeTool === type} onClick={() => selectTool(type)} />
+        {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => (
+          <ToolButton key={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />
         ))}
       </div>
       <span className="h-px w-5 shrink-0 bg-line" aria-hidden="true" />
       <div data-canvas-menu-trigger="true" className="group relative flex shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse" && !diagramOpen) onDiagramToggle(); }}>
-        <ToolButton icon={<Network size={16} strokeWidth={1.7} />} label="Diagram" active={diagramOpen} onClick={onDiagramToggle} />
+        <ToolButton icon={<Network size={17} strokeWidth={1.7} />} label="Diagram" active={diagramOpen} onClick={onDiagramToggle} />
         {diagramPanel}
       </div>
       <div ref={panelAnchorRef} data-canvas-menu-trigger="true" className="group relative flex shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse" && !moreOpen) onMoreToggle(); }}>
         <ToolButton icon={<MoreHorizontal size={17} strokeWidth={1.7} />} label="More tools" active={moreOpen} onClick={onMoreToggle} />
-        <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} onAction={onAction} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
+        <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} activeTool={activeTool} backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} onAction={onAction} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
       </div>
     </motion.div>
   );
@@ -271,6 +317,16 @@ export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, m
 
 function ViewMenuAction({ icon: Icon, label, active, onClick }: { icon: LucideIcon; label: string; active?: boolean; onClick: () => void }) {
   return <button type="button" className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", active && "bg-tint text-accent")} aria-pressed={active} onClick={onClick}><Icon size={14} strokeWidth={1.8} /><span>{label}</span></button>;
+}
+
+function NativeViewAction({ api, name, label, onClick }: { api: ExcalidrawImperativeAPI | null; name: string; label: string; onClick: () => void }) {
+  const icon = nativeActionIcon(api, name);
+  if (!icon) return null;
+  return (
+    <IconButton type="button" variant="ghost" className="!size-8 shrink-0 text-muted hover:text-ink max-[560px]:hidden [&_svg]:size-[15px]" aria-label={label} title={label} onClick={onClick}>
+      {icon}
+    </IconButton>
+  );
 }
 
 export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapModeEnabled, onAction }: {
@@ -317,6 +373,9 @@ export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapMode
         <IconButton type="button" variant="ghost" className="!size-8 shrink-0 text-muted hover:text-ink max-[560px]:hidden" aria-label="Zoom in" title="Zoom in (+)" onClick={() => onAction("zoomIn")}><ZoomIn size={15} strokeWidth={1.8} /></IconButton>
       </div>
       <IconButton type="button" variant="ghost" className="!size-8 shrink-0 text-muted hover:text-ink" aria-label="Fit canvas" title="Fit canvas" onClick={() => onAction("zoomToFit")}><Scan size={15} strokeWidth={1.8} /></IconButton>
+      <span className="mx-0.5 h-5 w-px shrink-0 bg-line max-[560px]:hidden" aria-hidden="true" />
+      <NativeViewAction api={api} name="undo" label="Undo" onClick={() => onAction("undo")} />
+      <NativeViewAction api={api} name="redo" label="Redo" onClick={() => onAction("redo")} />
       <span className="mx-0.5 h-5 w-px shrink-0 bg-line max-[560px]:hidden" aria-hidden="true" />
       <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 max-[560px]:hidden", gridModeEnabled ? "!bg-tint !text-accent ring-1 ring-accent/15" : "text-muted hover:text-accent")} aria-label="Toggle grid" aria-pressed={gridModeEnabled} onClick={() => onAction("gridMode")}><Grid3X3 size={15} strokeWidth={1.8} /></IconButton>
       <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 max-[560px]:hidden", objectsSnapModeEnabled ? "!bg-tint !text-accent ring-1 ring-accent/15" : "text-muted hover:text-accent")} aria-label="Toggle object snapping" aria-pressed={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")}><Magnet size={15} strokeWidth={1.8} /></IconButton>

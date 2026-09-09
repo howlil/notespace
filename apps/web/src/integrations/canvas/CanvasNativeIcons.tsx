@@ -25,6 +25,10 @@ export function NativeLassoIcon(props: IconProps) {
   return <Icon viewBox="0 0 22 22" strokeWidth={1.25} {...props}><path d="M4.028 13.252C3.371 12.28 3 11.174 3 10c0-3.866 4.03-7 9-7s9 3.134 9 7-4.03 7-9 7c-1.913 0-3.686-.464-5.144-1.255" /><path d="M5 15m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0" /><path d="M5 17c0 1.42.316 2.805 1 4" /></Icon>;
 }
 
+export function NativeHandIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M8 13v-7.5a1.5 1.5 0 0 1 3 0v6.5" /><path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5" /><path d="M14 5.5a1.5 1.5 0 0 1 3 0v6.5" /><path d="M17 7.5a1.5 1.5 0 0 1 3 0v8.5a6 6 0 0 1-6 6h-2h.208a6 6 0 0 1-5.012-2.7l-.196-.3c-.312-.479-1.407-2.388-3.286-5.728a1.5 1.5 0 0 1 .536-2.022a1.867 1.867 0 0 1 2.28.28L8 13" /></Icon>;
+}
+
 export function NativeRectangleIcon(props: IconProps) {
   return <Icon strokeWidth={1.5} {...props}><rect x="4" y="4" width="16" height="16" rx="2" /></Icon>;
 }
@@ -59,6 +63,26 @@ export function NativeImageIcon(props: IconProps) {
 
 export function NativeEraserIcon(props: IconProps) {
   return <Icon strokeWidth={1.5} {...props}><path d="M19 20H8.5l-4.21-4.3a1 1 0 0 1 0-1.41l10-10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41L11.5 20" /><path d="M18 13.3 11.7 7" /></Icon>;
+}
+
+export function NativeFrameIcon(props: IconProps) {
+  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7h16M4 17h16M7 4v16M17 4v16" /></Icon>;
+}
+
+export function NativeEmbedIcon(props: IconProps) {
+  return <Icon viewBox="0 0 20 20" strokeWidth={1.5} {...props}><polyline points="12 16 18 10 12 4" /><polyline points="8 4 2 10 8 16" /></Icon>;
+}
+
+export function NativeAutoshapeIcon(props: IconProps) {
+  return <Icon strokeWidth={1.5} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 9.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0" /><path d="M10 12a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7" /></Icon>;
+}
+
+export function NativeMagicIcon(props: IconProps) {
+  return <Icon strokeWidth={2} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="m6 21 15-15-3-3-15 15 3 3M15 6l3 3" /><path d="M9 3a2 2 0 0 0 2 2 2 2 0 0 0-2 2 2 2 0 0 0-2-2 2 2 0 0 0 2-2M19 13a2 2 0 0 0 2 2 2 2 0 0 0-2 2 2 2 0 0 0-2-2 2 2 0 0 0 2-2" /></Icon>;
+}
+
+export function NativeLibraryIcon(props: IconProps) {
+  return <Icon strokeWidth={1.25} {...props}><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0 9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0 9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13" /></Icon>;
 }
 
 export function NativeBucketFillIcon(props: IconProps) {

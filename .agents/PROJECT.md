@@ -13,7 +13,6 @@ Notespace
         ├── metadata
         ├── Notes[]
         ├── Canvas
-        ├── authored history/checkpoints
         ├── durable image assets
         └── study activity
 ```
@@ -55,12 +54,14 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 - Markdown is an interoperability format, not canonical persistence. Authored state remains the existing Tiptap/Workspace snapshot contract.
 - Notespace does **not** provide cross-surface Send/Link semantics. Note and Canvas content remain independently authored surfaces inside the same workspace.
 - Stable note block identity remains product-owned for exact-context search/deep links and heading navigation; it is not a relationship feature.
-- Workspace authored state uses optimistic version conflict detection; stale writes fail rather than silently merging.
-- A real version conflict stops autosave and requires explicit reload/recovery rather than blind retry.
+- Workspace durable writes use optimistic version conflict detection so stale requests cannot overwrite newer stored content.
+- Same-browser Canvas tabs may reconcile Excalidraw elements before durable save. Canvas-only durable races may fetch the latest snapshot, merge, and retry; Notes/title/other authored-field conflicts must not be silently merged.
+- Canvas pan and zoom are per-tab presentation state and are not persisted as authored changes.
+- Normal autosave does not create periodic user-facing history checkpoints. Legacy history rows and one creation baseline may remain for backup-format compatibility but are not part of the autosave hot path or workspace UI.
 - Image binaries are durable server-owned workspace assets. Browser IndexedDB may cache or migrate legacy assets but is not the source of truth.
 - Deleting an active Workspace moves a complete recoverable snapshot into Trash; permanent deletion is a separate explicit action.
-- Trash preserves Workspace identity, authored state, checkpoint history, and durable image assets. Study telemetry remains independently durable.
-- A full-library Notespace backup is a versioned interoperability/recovery artifact. Categories, active Workspaces, Trash, history, assets, and study sessions are canonical backup data; FTS/search projection rows are derived and excluded.
+- Trash preserves Workspace identity, authored state, and durable image assets. Study telemetry remains independently durable.
+- A full-library Notespace backup is a versioned interoperability/recovery artifact. Categories, active Workspaces, Trash, assets, study sessions, and legacy history compatibility data are backed up; FTS/search projection rows are derived and excluded.
 - Backup restore is transactional and replaces the library only after format validation and successful persistence.
 - Study telemetry is separate from authored workspace snapshots.
 - Study tracking is user-controlled: Start, Pause/Resume, and End are explicit actions. Workspace open/close, tab visibility, and idle detection must not create, pause, or end a logical study session.
@@ -79,17 +80,18 @@ User-facing terminology is **Category → Workspace → Notes / Canvas**. Existi
 - Multiple durable notes per workspace with inline rename/delete and last-note protection.
 - Tiptap structured writing with slash-command insertion, heading-derived Outline navigation, and per-note human-readable Markdown export.
 - Excalidraw canvas with reduced chrome.
+- Same-browser multi-tab Canvas synchronization through `BroadcastChannel`, using Excalidraw element reconciliation before the normal durable autosave path.
+- Canvas-only optimistic-version races self-reconcile and retry; non-Canvas aggregate conflicts remain explicit.
 - Split workspace authoring with bounded pane tree: maximum four panes and one Canvas pane.
 - Universal `Ctrl/Cmd + K` Quick Open from Home, Category, and Workspace, reusing the existing FTS retrieval path and exact note/block deep links.
 - Workspace/global search backed by a lazily synchronized SQLite FTS projection and exact note/block context.
 - Server-owned image assets persisted in SQLite, read-through migration for legacy browser-only images, and asset-complete workspace ZIP export.
-- Versioned full-library JSON backup and transactional restore covering Categories, active Workspaces, Trash, checkpoint history, image assets, and study sessions.
+- Versioned full-library JSON backup and transactional restore covering Categories, active Workspaces, Trash, image assets, study sessions, and legacy history data when present.
 - Bulk Markdown folder/vault import into a chosen Category, including selected relative image assets referenced by standalone Markdown image syntax.
-- Portable workspace ZIP export and bounded workspace checkpoint history/restore.
 - Optional single-owner remote protection through `NOTESPACE_PASSWORD` with fixed username `notespace`; health probing remains unauthenticated. Remote Basic authentication requires HTTPS termination at the deployment edge.
-- Manual workspace study sessions with explicit Start, Pause/Resume, and End; multiple sessions per day, local-date activity, streak derivation, and history retained after workspace deletion.
+- Manual workspace study sessions with explicit Start, Pause/Resume, and End; multiple sessions per day, local-date activity, streak derivation, and study activity retained after workspace deletion.
 - Ephemeral deliberate-recall flow: write from memory with source hidden, then reveal the selected Note for self-comparison.
-- Explicit optimistic-conflict UX: network failures are retryable; true 409 conflicts stop autosave and require reload.
+- Serialized/coalesced autosave: network failures are retryable, Canvas-only version races reconcile automatically, and true non-Canvas 409 conflicts stop autosave for explicit recovery.
 - Go + SQLite persistence and one-container self-hosted deployment.
 - Stable Compose data volume via `NOTESPACE_DATA_VOLUME`; normal operations must not use `docker compose down -v`.
 
@@ -110,7 +112,7 @@ Workspace is full-screen work context and does not retain the library sidebar. N
 Notes are structured linear thinking surfaces owned by the workspace. Persisted Tiptap/editor-native state remains behind Notespace-owned note identity and snapshot contracts. Long-note navigation is derived from current heading nodes and stable block IDs; Markdown import/export is an adapter around this state rather than an alternate source of truth.
 
 ### Canvas
-Canvas is the spatial thinking surface owned by the workspace. Excalidraw remains an adapter; renderer internals are not product identity.
+Canvas is the spatial thinking surface owned by the workspace. Excalidraw remains an adapter; renderer internals are not product identity. Sibling tabs in the same browser may synchronize Canvas element changes locally, but this is not a promise of cross-device multiplayer collaboration.
 
 ### Library tools
 Library tools owns whole-library recovery/portability operations: Trash, full backup/restore, and bulk Markdown migration. It must remain compact and operational rather than becoming a settings/dashboard product.
@@ -119,6 +121,8 @@ Library tools owns whole-library recovery/portability operations: Trash, full ba
 
 Backend code and routes still use `project` naming and retain the legacy `references` field in snapshots for compatibility. New product behavior keeps that field empty. Treat it as migration debt, not authorization to restore linking UI.
 
+Legacy history schema/read-restore primitives may remain so existing backups continue to import, but History is no longer a user-facing editing feature and normal autosave must not generate periodic checkpoints.
+
 Material changes to workspace ownership, optimistic concurrency, persistence format compatibility, public API/data contracts, or durable asset ownership require explicit user approval.
 
 ## Self-hosting contract
@@ -126,7 +130,7 @@ Material changes to workspace ownership, optimistic concurrency, persistence for
 - Prefer one deployable application/container.
 - Keep durable data ownership and restart behavior explicit.
 - Core editing must not require a hosted service.
-- SQLite owns authored state, search projection metadata, study telemetry, history, durable image assets, and recoverable Trash snapshots.
+- SQLite owns authored state, search projection metadata, study telemetry, durable image assets, recoverable Trash snapshots, and legacy history compatibility data.
 - `NOTESPACE_PASSWORD` is an optional single-owner deployment gate, not an account/identity system.
 - Secrets/configuration belong to deployment config, never authored content or backup payloads.
 - Destructive/irreversible data changes require explicit approval and recovery planning.
@@ -141,7 +145,7 @@ Root `DESIGN.md` is authoritative. Keep the product clean, compact, content-forw
 - generic Notion-style database/wiki expansion;
 - independent top-level Note or Canvas libraries;
 - cross-surface Send/Link/semantic-card relationships;
-- multiplayer/CRDT collaboration;
+- cross-device multiplayer/CRDT collaboration;
 - teams/organizations/public sharing, registration, RBAC, OAuth, or SSO;
 - AI assistant/generation as default product scope;
 - microservices/event sourcing/distributed caches/external search services;

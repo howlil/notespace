@@ -14,6 +14,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
@@ -319,7 +320,7 @@ export function CanvasToolRail({ api, activeTool, panelAnchorRef, diagramOpen, m
   );
 }
 
-function ViewMenuAction({ icon: Icon, label, active, onClick }: { icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; active?: boolean; onClick: () => void }) {
+function ViewMenuAction({ icon: Icon, label, active, onClick }: { icon: LucideIcon; label: string; active?: boolean; onClick: () => void }) {
   return <button type="button" className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent", active && "bg-tint text-accent")} aria-pressed={active} onClick={onClick}><Icon size={16} strokeWidth={1.5} /><span>{label}</span></button>;
 }
 

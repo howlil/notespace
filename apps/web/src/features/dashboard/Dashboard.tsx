@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { FileText, Folder, Menu, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, IconButton, Input, cn } from "../../components/ui";
+import { Button, IconButton, Input, PopupSurface, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { useDismissablePopup } from "../../components/ui/dismissable";
@@ -124,7 +124,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
           <span className="text-[10px] font-medium uppercase tracking-[.12em] text-muted">Library</span>
           <div className="flex items-center gap-1.5 [&>button]:size-[30px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>
-        <div className="mx-auto w-full max-w-[1120px] px-8 pt-10 pb-12 max-[800px]:px-[18px] max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
+        <div className="mx-auto w-full max-w-[1120px] px-8 pt-10 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
           <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
             <div className="min-w-0"><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent max-[560px]:text-[9px]">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-muted max-[560px]:text-[11px]">{description}</p></div>
             <span className="shrink-0 pb-1 text-[10px] text-muted max-[560px]:pt-5 max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
@@ -141,14 +141,14 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }}
             />
             {query.trim().length >= 2 && searchOpen && (
-              <div className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid gap-0.5 rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]" role="listbox" aria-label="Search results">
+              <PopupSurface className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results">
                 {searchResults.length ? searchResults.map((result) => (
-                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="grid gap-0.5 rounded-[5px] px-[9px] py-2 hover:bg-tint focus-visible:bg-tint">
+                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="grid gap-0.5 rounded-md px-2.5 py-2 hover:bg-tint focus-visible:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
                     <strong className="text-[11px] font-medium text-ink">{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong>
                     <span className="text-[10px] text-muted">{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span>
                   </a>
-                )) : <span className="px-[9px] py-2 text-[10px] text-muted">No matching knowledge</span>}
-              </div>
+                )) : <span className="px-2.5 py-2 text-[10px] text-muted">No matching knowledge</span>}
+              </PopupSurface>
             )}
           </div>
           <nav className="mb-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">

@@ -58,14 +58,14 @@ export function WorkspaceGuide() {
   return (
     <div ref={rootRef} className="relative shrink-0 [.workspace-header_&]:hidden">
       <IconButton
-        className="size-[30px]"
+        className="!size-8"
         aria-label="How to use Notespace"
         title="How to use Notespace"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => open ? dismiss() : openGuide()}
       >
-        <CircleHelp size={17} />
+        <CircleHelp size={16} />
       </IconButton>
 
       {open && (
@@ -86,7 +86,7 @@ export function WorkspaceGuide() {
             initial={{ opacity: 0, y: 6, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.17, ease: "easeOut" }}
-            className="fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] w-[min(960px,calc(100vw_-_32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-[0_24px_70px_#0004] max-[640px]:inset-2 max-[640px]:max-h-none max-[640px]:w-auto max-[640px]:translate-x-0 max-[640px]:translate-y-0"
+            className="fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] w-[min(960px,calc(100vw_-_32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-2xl shadow-black/20 max-[640px]:inset-2 max-[640px]:max-h-none max-[640px]:w-auto max-[640px]:translate-x-0 max-[640px]:translate-y-0"
           >
             <header className="flex shrink-0 items-start justify-between gap-5 border-b border-line px-6 py-4 max-[640px]:px-4">
               <div className="min-w-0">
@@ -100,7 +100,7 @@ export function WorkspaceGuide() {
                     {steps.map((_, index) => <span key={index} className={`size-1.5 rounded-full ${index === step ? "bg-accent" : "bg-line"}`} />)}
                   </div>
                 </div>
-                <IconButton className="size-7" aria-label="Close Notespace guide" onClick={dismiss}><X size={14} /></IconButton>
+                <IconButton className="!size-8" aria-label="Close Notespace guide" onClick={dismiss}><X size={16} /></IconButton>
               </div>
             </header>
 

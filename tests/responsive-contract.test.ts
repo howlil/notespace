@@ -59,19 +59,20 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(globals, /\.undo-redo-buttons/);
   assert.match(globals, /:has\(> \[aria-label="Canvas tools"\]\)/);
   assert.match(globals, /bottom: 8px !important/);
-  assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: 60px !important/);
-  assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 40px !important/);
-  assert.match(chrome, /function nativeActionIcon/);
+  assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: 50px !important/);
+  assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
+  assert.match(chrome, /nativeActionIcon/);
   assert.match(chrome, /secondaryToolGroups/);
   assert.match(chrome, /event\.pointerType === "mouse"/);
   assert.match(chrome, /aria-label="More canvas view controls"/);
   assert.match(chrome, /keepSelection: false/);
   assert.match(chrome, /name="undo" label="Undo"/);
   assert.match(chrome, /name="redo" label="Redo"/);
-  assert.match(chrome, /max-\[560px\]:hidden/);
-  assert.match(selection, /min-\[561px\]:left-14/);
+  assert.doesNotMatch(chrome, /min-\[561px\]:!size-10/);
+  assert.match(selection, /min-\[561px\]:left-\[48px\]/);
   assert.match(selection, /min-\[561px\]:flex-col/);
-  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+8px\)\]/);
+  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
+  assert.doesNotMatch(selection, /min-\[561px\]:size-10/);
 });
 
 test("responsive contract: narrow category controls can shrink and reflow", () => {

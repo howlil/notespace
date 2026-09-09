@@ -40,6 +40,7 @@ const cloudCategories: readonly DiagramCategory[] = ["aws", "gcp", "azure", "ora
 const gridColumns = 4;
 const gridRowHeight = 72;
 const gridViewportHeight = 356;
+const panelIconSize = 16;
 
 interface Props {
   open: boolean;
@@ -85,12 +86,12 @@ function CategoryRow({ icon, label, detail, onClick, disabled = false }: { icon:
       className="!min-h-0 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-[color,background-color,border-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.985] disabled:cursor-default disabled:opacity-55 disabled:active:scale-100"
       onClick={onClick}
     >
-      <span className="grid size-7 shrink-0 place-items-center rounded-md border border-line bg-canvas text-muted">{icon}</span>
+      <span className="grid size-8 shrink-0 place-items-center rounded-md border border-line bg-canvas text-muted [&_svg]:size-4">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-medium text-ink">{label}</span>
         <span className="block truncate text-[9px] text-muted">{detail}</span>
       </span>
-      {onClick && <ChevronRight size={13} className="shrink-0 text-muted" />}
+      {onClick && <ChevronRight size={panelIconSize} strokeWidth={1.5} className="shrink-0 text-muted" />}
     </Button>
   );
 }
@@ -159,15 +160,13 @@ export function DiagramPalette({
           onPointerDown={(event) => event.stopPropagation()}
         >
           <header className="flex items-start justify-between gap-3 border-b border-line px-3 py-2.5">
-            <div>
-              <div className="flex items-center gap-1.5 text-[12px] font-semibold"><Network size={14} className="text-accent" /> Diagram</div>
-            </div>
-            <IconButton aria-label="Close diagram tools" title="Close" className="!size-7" onClick={onClose}><X size={13} /></IconButton>
+            <div className="flex items-center gap-2 text-[12px] font-semibold"><Network size={18} strokeWidth={1.5} className="text-accent" /> Diagram</div>
+            <IconButton aria-label="Close diagram tools" title="Close" className="!size-8" onClick={onClose}><X size={panelIconSize} strokeWidth={1.5} /></IconButton>
           </header>
 
           <div className="border-b border-line p-2">
             <div className="relative">
-              <Search size={13} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
+              <Search size={panelIconSize} strokeWidth={1.5} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 3,947 icons..." aria-label="Search all Eraser icons" className="pl-8" />
             </div>
             {!hasSearch && (
@@ -175,20 +174,20 @@ export function DiagramPalette({
                 <AnimatePresence initial={false} mode="wait">
                   {cloudOpen ? (
                     <motion.div key="cloud" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.14, ease: "easeOut" }}>
-                      <Button variant="ghost" size="sm" type="button" className="!min-h-0 mb-1 justify-start gap-1 rounded-none px-2 text-[10px] font-medium text-muted hover:bg-transparent hover:text-ink" onClick={() => setCloudOpen(false)}><ChevronLeft size={12} /> Cloud &amp; Infrastructure</Button>
+                      <Button variant="ghost" size="sm" type="button" className="!min-h-0 mb-1 justify-start gap-1 rounded-none px-2 text-[10px] font-medium text-muted hover:bg-transparent hover:text-ink" onClick={() => setCloudOpen(false)}><ChevronLeft size={panelIconSize} strokeWidth={1.5} /> Cloud &amp; Infrastructure</Button>
                       <div className="grid grid-cols-2 gap-0.5">
                         {cloudCategories.map((item) => <Button variant="ghost" size="sm" key={item} type="button" className={`!min-h-0 justify-start rounded-md px-2 py-1.5 text-left text-[10px] transition-colors ${category === item ? "bg-tint font-medium text-ink" : "text-muted"}`} onClick={() => chooseCategory(item)}>{categoryLabels[item]} <span className="text-[9px] opacity-70">{searchEraserCatalog("", item).length.toLocaleString()}</span></Button>)}
                       </div>
                     </motion.div>
                   ) : category === "all" ? (
                     <motion.div key="all" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 6 }} transition={{ duration: 0.14, ease: "easeOut" }} className="space-y-0.5">
-                      <CategoryRow icon={<Shapes size={14} />} label="General Icons" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} icons`} onClick={() => chooseCategory("general")} />
-                      <CategoryRow icon={<Network size={14} />} label="Tech Logos" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} icons`} onClick={() => chooseCategory("tech")} />
-                      <CategoryRow icon={<Cloud size={14} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} icons across 6 groups`} onClick={() => setCloudOpen(true)} />
+                      <CategoryRow icon={<Shapes strokeWidth={1.5} />} label="General Icons" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} icons`} onClick={() => chooseCategory("general")} />
+                      <CategoryRow icon={<Network strokeWidth={1.5} />} label="Tech Logos" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} icons`} onClick={() => chooseCategory("tech")} />
+                      <CategoryRow icon={<Cloud strokeWidth={1.5} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} icons across 6 groups`} onClick={() => setCloudOpen(true)} />
                     </motion.div>
                   ) : (
                     <motion.div key={`category-${category}`} initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.14, ease: "easeOut" }}>
-                      <Button variant="ghost" size="sm" type="button" className="!min-h-0 justify-start gap-1 rounded-none px-2 text-[10px] font-medium text-muted hover:bg-transparent hover:text-ink" onClick={() => chooseCategory("all")}><ChevronLeft size={12} /> All Categories <span className="text-ink">/ {categoryLabels[category]}</span></Button>
+                      <Button variant="ghost" size="sm" type="button" className="!min-h-0 justify-start gap-1 rounded-none px-2 text-[10px] font-medium text-muted hover:bg-transparent hover:text-ink" onClick={() => chooseCategory("all")}><ChevronLeft size={panelIconSize} strokeWidth={1.5} /> All Categories <span className="text-ink">/ {categoryLabels[category]}</span></Button>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -221,11 +220,11 @@ export function DiagramPalette({
               {activeDiagram && (
                 <motion.footer initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="overflow-hidden border-t border-line p-2">
                   <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-[.08em] text-muted">Selected diagram</div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <Button variant="secondary" size="sm" disabled={selectedNodeCount !== 2} title="Select exactly two diagram nodes" onClick={onConnect}><Link2 size={11} /> Connect</Button>
-                    <Button variant="secondary" size="sm" disabled={selectedNodeCount < 2} title="Select two or more diagram nodes" onClick={onGroup}><Boxes size={11} /> Group</Button>
-                    <Button variant="secondary" size="sm" onClick={onAutoLayout}><Layers3 size={11} /> Auto layout</Button>
-                    <Button variant="ghost" size="sm" title="Keep native shapes but stop structured diagram management" onClick={onDetach}><Unlink size={11} /> Detach</Button>
+                  <div className="grid grid-cols-2 gap-1.5 [&_svg]:size-4">
+                    <Button variant="secondary" size="sm" disabled={selectedNodeCount !== 2} title="Select exactly two diagram nodes" onClick={onConnect}><Link2 strokeWidth={1.5} /> Connect</Button>
+                    <Button variant="secondary" size="sm" disabled={selectedNodeCount < 2} title="Select two or more diagram nodes" onClick={onGroup}><Boxes strokeWidth={1.5} /> Group</Button>
+                    <Button variant="secondary" size="sm" onClick={onAutoLayout}><Layers3 strokeWidth={1.5} /> Auto layout</Button>
+                    <Button variant="ghost" size="sm" title="Keep native shapes but stop structured diagram management" onClick={onDetach}><Unlink strokeWidth={1.5} /> Detach</Button>
                   </div>
                 </motion.footer>
               )}

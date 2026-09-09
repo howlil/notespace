@@ -9,7 +9,6 @@ Category
 └── Workspace
     ├── Notes[]
     ├── Canvas
-    ├── checkpoint history
     ├── durable image assets
     └── study activity
 ```
@@ -23,9 +22,9 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
-- Durable image assets, checkpoint history and restore.
+- Durable image assets.
 - Recoverable Workspace Trash with explicit permanent deletion.
-- Versioned full-library backup/transactional restore covering Categories, active Workspaces, Trash, history, images, and study sessions.
+- Versioned full-library backup/transactional restore covering Categories, active Workspaces, Trash, images, study sessions, and legacy history data when present.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
 - Explicit Start / Pause / Resume / End study sessions.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
@@ -65,7 +64,7 @@ The Library tools surface exposes:
 - **Trash** — restores accidentally deleted Workspaces or deletes them permanently;
 - **Import Markdown vault** — selects a Markdown directory/vault and imports files into a chosen Category.
 
-The full-library backup includes Categories, active and trashed Workspaces, authored snapshots, checkpoint history, durable image assets, and study sessions. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
+The full-library backup includes Categories, active and trashed Workspaces, authored snapshots, durable image assets, study sessions, and legacy history rows when present. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
 
 For infrastructure-level backup, stopping the container and copying the complete SQLite volume remains valid. Include SQLite WAL files when copying a live data directory.
 
@@ -113,11 +112,17 @@ Compose additionally supports `NOTESPACE_BIND_IP`, `NOTESPACE_PORT`, and `NOTESP
 
 ## Save and consistency behavior
 
-Edits update immediately and autosave after 650 ms of inactivity. Saves are serialized per Workspace; **All changes saved** appears only after SQLite acknowledges the write.
+Edits update immediately and durable autosave runs after 650 ms of inactivity. Saves are serialized per Workspace; **Saved** appears only after SQLite acknowledges the write. Normal autosave no longer writes periodic history checkpoints.
 
-Each save carries a Workspace version. Concurrent stale tabs receive `409`, retain local edits, and cannot silently overwrite newer stored content. This is conflict detection, not collaborative editing or offline synchronization.
+For the same Workspace opened in multiple tabs in one browser, Canvas element changes are exchanged directly through `BroadcastChannel` and reconciled with Excalidraw element version semantics. This local path is coalesced separately from server autosave, so sibling tabs can converge quickly without sending an HTTP request for every pointer movement.
 
-Moving a Workspace to Trash captures its authored state, checkpoint history, and image assets inside one SQLite transaction before removing it from the active library. Full-library backup uses a consistent SQLite read transaction; restore is all-or-nothing.
+Each durable save still carries a Workspace version. If two durable Canvas writes race, the stale client fetches the newest Workspace, merges the Canvas snapshots, and retries against the newest version. A conflict involving Notes, title, or other non-Canvas authored fields is not blindly merged and still stops autosave for explicit recovery.
+
+Pan and zoom are per-tab view state and are not persisted as authored Canvas changes. This prevents ordinary navigation from generating unnecessary saves or false conflicts.
+
+This is same-browser multi-tab synchronization, not cross-device multiplayer collaboration or offline CRDT synchronization.
+
+Moving a Workspace to Trash captures its authored state and image assets inside one SQLite transaction before removing it from the active library. Full-library backup uses a consistent SQLite read transaction; restore is all-or-nothing.
 
 ## Verification
 
@@ -135,9 +140,10 @@ Manual browser/black-box testing and screenshot review are not required merge ga
 
 - TanStack Start SPA, React, TypeScript, Vite, Tailwind utilities/tokens, Radix primitives.
 - Tiptap and Excalidraw are adapters behind Notespace-owned Workspace/Note snapshots.
+- Same-browser Canvas tab synchronization uses `BroadcastChannel`; durable persistence remains server-owned.
 - Go `net/http`, `database/sql`, pure-Go `modernc.org/sqlite`, explicit SQL and embedded transactional migrations.
 - SQLite uses WAL + FULL synchronous with one pooled connection.
-- Search, study telemetry, checkpoint history, durable assets, Trash, and authored state remain in the same self-hosted SQLite ownership boundary.
+- Search, study telemetry, durable assets, Trash, authored state, and legacy history compatibility data remain in the same self-hosted SQLite ownership boundary.
 - No hosted service is required for core editing.
 
 For authoritative product/engineering guidance start at [`AGENTS.md`](AGENTS.md). Active milestone state lives in [`.agents/CURRENT_ITERATION.md`](.agents/CURRENT_ITERATION.md).

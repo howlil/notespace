@@ -1,41 +1,14 @@
 import type {
   CategorySummary,
   Project,
-  ProjectContent,
   ProjectSummary,
   WorkspacePage,
 } from "./project";
+import { APIError, getProject, json, request, updateProjectSnapshot } from "./http";
 
-export class APIError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  constructor(status: number, message: string, code?: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
+export { APIError, getProject, updateProjectSnapshot } from "./http";
+export { saveProject } from "./save-project";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new APIError(
-      response.status,
-      body?.error || "Unable to reach Notespace. Please retry.",
-      body?.code,
-    );
-  }
-  return response.status === 204 ? (undefined as T) : response.json();
-}
-
-const json = (body: unknown) => ({
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
-});
 export const listProjects = () => request<ProjectSummary[]>("/api/projects");
 export const listRecentWorkspaces = (limit = 12) => request<ProjectSummary[]>(`/api/projects?limit=${limit}`);
 export const listAllWorkspaces = (params: { query?: string; offset?: number; limit?: number } = {}) => {
@@ -72,7 +45,6 @@ export async function listAllCategoryWorkspaces(categoryId: string) {
     offset = page.nextOffset;
   }
 }
-export const getProject = (id: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}`);
 export const createProject = (title: string, categoryId?: string) => request<Project>("/api/projects", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
 export const createCategory = (title: string) => request<CategorySummary>("/api/categories", { method: "POST", ...json({ title }) });
 export const updateCategory = (id: string, title: string) => request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, { method: "PATCH", ...json({ title }) });
@@ -80,10 +52,6 @@ export const deleteCategory = (id: string) => request<void>(`/api/categories/${e
 export const renameProject = (id: string, title: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
 export const deleteProject = (id: string) => request<void>(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
-export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
-  method: "PATCH",
-  ...json({ ...content, version }),
-});
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };

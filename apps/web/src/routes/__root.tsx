@@ -8,6 +8,7 @@ import {
 import { MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 import "../styles/globals.css";
+import "../styles/controls.css";
 import { Button } from "../components/ui";
 import { ThemeProvider } from "../providers/theme-provider";
 import { ToastProvider } from "../providers/toast-provider";

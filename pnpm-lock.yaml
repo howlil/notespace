@@ -106,6 +106,9 @@ importers:
       tinycolor2:
         specifier: ^1.6.0
         version: 1.6.0
+      zustand:
+        specifier: ^4.5.7
+        version: 4.5.7(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.3

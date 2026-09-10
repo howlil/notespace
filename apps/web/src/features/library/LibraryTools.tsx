@@ -18,6 +18,7 @@ import type { TrashWorkspace } from "../../domain/project/api";
 import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import";
+import { notifyLibraryChanged } from "./library-sync-store";
 
 function filePath(file: File) {
   return normalizeVaultPath(file.webkitRelativePath || file.name);
@@ -83,6 +84,7 @@ export function LibraryTools() {
     try {
       await restoreTrashedWorkspace(item.id);
       setTrash((current) => current.filter((candidate) => candidate.id !== item.id));
+      notifyLibraryChanged();
       showToast({ kind: "success", message: `Restored ${item.title}.` });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not restore workspace." });
@@ -162,7 +164,10 @@ export function LibraryTools() {
       kind: failed ? "error" : "success",
       message: failed ? `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}; ${failed} failed.` : `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}.`,
     });
-    if (imported) window.location.assign("/");
+    if (imported) {
+      notifyLibraryChanged();
+      window.location.assign("/");
+    }
   }
 
   return (

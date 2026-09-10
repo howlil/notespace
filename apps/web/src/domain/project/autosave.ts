@@ -3,6 +3,10 @@ export type SaveStatus = {
   message?: string;
 };
 
+// Domain-specific save errors can opt into blocking automatic retries without
+// making the generic autosave queue know about a particular workspace error.
+export class BlockingAutosaveError extends Error {}
+
 /** One in-flight write per workspace; edits during a write are coalesced into the next snapshot. */
 export class Autosave<T> {
   private pending: T | undefined;
@@ -72,7 +76,7 @@ export class Autosave<T> {
       } catch (error) {
         if (this.pending === undefined) this.pending = snapshot;
         const normalized = error instanceof Error ? error : new Error("Save failed. Please retry.");
-        if (normalized.name === "WorkspaceConflictError") {
+        if (normalized instanceof BlockingAutosaveError) {
           this.blockedByConflict = true;
           this.conflictError = normalized;
           this.emit({ state: "conflict", message: normalized.message });

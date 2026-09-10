@@ -1,5 +1,3 @@
-import { pruneLocalImageCache } from "../assets/local-image-assets";
-import { mergeCanvasSnapshots, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
 import type {
   CategorySummary,
   Project,
@@ -15,15 +13,6 @@ export class APIError extends Error {
     super(message);
     this.status = status;
     this.code = code;
-  }
-}
-
-export class WorkspaceConflictError extends Error {
-  readonly latest: Project;
-  constructor(latest: Project) {
-    super("This workspace changed elsewhere while you were editing. Notespace kept both canvas scenes where it could, but another workspace field still conflicts.");
-    this.name = "WorkspaceConflictError";
-    this.latest = latest;
   }
 }
 
@@ -91,6 +80,10 @@ export const deleteCategory = (id: string) => request<void>(`/api/categories/${e
 export const renameProject = (id: string, title: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
 export const deleteProject = (id: string) => request<void>(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
+export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
+  method: "PATCH",
+  ...json({ ...content, version }),
+});
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
@@ -114,74 +107,3 @@ export const recordStudyHeartbeat = (workspaceId: string, sessionId: string, bod
 export const getWorkspaceStudy = (workspaceId: string, date: string) => request<StudyStats>(`/api/workspaces/${encodeURIComponent(workspaceId)}/study?date=${encodeURIComponent(date)}`);
 export const getStudyActivity = (from: string, to: string) => request<StudyActivity>(`/api/study/activity?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const getStudyDayDetail = (date: string) => request<StudyDayDetail>(`/api/study/activity/${encodeURIComponent(date)}`);
-
-function assetIDs(project: Project) {
-  const ids = new Set<string>();
-  const seen = new WeakSet<object>();
-  const visit = (value: unknown, key = "") => {
-    if (typeof value === "string") {
-      if ((key === "assetId" || key === "fileId") && value) ids.add(value);
-      if (key === "src" && value.startsWith("notespace-asset://")) ids.add(value.slice("notespace-asset://".length));
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    if (seen.has(value)) return;
-    seen.add(value);
-    if (Array.isArray(value)) {
-      for (const child of value) visit(child);
-      return;
-    }
-    for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) visit(child, childKey);
-  };
-  visit(project.document);
-  visit(project.notes);
-  visit(project.canvas);
-  visit(project.references);
-  return ids;
-}
-
-async function reconcileAssetCache(project: Project) {
-  await pruneLocalImageCache(project.id, assetIDs(project));
-}
-
-/**
- * Persist the latest coalesced workspace snapshot. A stale write caused only by
- * concurrent Canvas edits is reconciled and retried against the newest server
- * version instead of blocking the editor. Conflicts in notes/title/layout are
- * still surfaced because blindly merging those would risk silent data loss.
- */
-export async function saveProject(id: string, content: ProjectContent, version: number) {
-  let candidate = content;
-  let candidateVersion = version;
-  let latest: Project | undefined;
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const saved = await request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        ...json({ ...candidate, version: candidateVersion }),
-      });
-      await reconcileAssetCache(saved);
-      return saved;
-    } catch (error) {
-      if (!(error instanceof APIError) || error.status !== 409) throw error;
-
-      latest = await getProject(id);
-      if (sameProjectContent(candidate, latest)) {
-        await reconcileAssetCache(latest);
-        return latest;
-      }
-      if (!sameNonCanvasContent(candidate, latest)) {
-        throw new WorkspaceConflictError(latest);
-      }
-
-      candidate = {
-        ...candidate,
-        canvas: mergeCanvasSnapshots(candidate.canvas, latest.canvas),
-      };
-      candidateVersion = latest.version;
-    }
-  }
-
-  throw new WorkspaceConflictError(latest ?? await getProject(id));
-}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Folder, Menu, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, PopupSurface, cn } from "../../components/ui";
@@ -7,7 +7,7 @@ import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { listAllWorkspaces, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
+import { listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
 import { useLibrarySyncStore } from "../library/library-sync-store";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
@@ -70,7 +70,7 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
 }
 
 export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
@@ -78,6 +78,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
+  const [categoryItems, setCategoryItems] = useState(categories);
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
   const [pageLoading, setPageLoading] = useState(false);
@@ -88,7 +89,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const searchRef = useRef<HTMLDivElement>(null);
   const dismissSearch = useCallback(() => setSearchOpen(false), []);
   useDismissablePopup(searchRef, searchOpen, dismissSearch);
-  const selectedCategory = useMemo(() => categories.find((category) => category.id === selectedCategoryId), [categories, selectedCategoryId]);
+  const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -132,7 +133,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   }
 
   const refreshLibrary = useCallback(() => {
-    void router.invalidate();
     void listRecentWorkspaces(20)
       .then(setRecentItems)
       .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
@@ -143,17 +143,31 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         .then(setPage)
         .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }))
         .finally(() => setPageLoading(false));
-      return;
     }
 
-    if (view === "category" && selectedCategoryId) {
-      setPageLoading(true);
-      void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
-        .then(setPage)
-        .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." }))
-        .finally(() => setPageLoading(false));
-    }
-  }, [router, selectedCategoryId, showToast, view]);
+    if (view === "category" && selectedCategoryId) setPageLoading(true);
+    void listCategories()
+      .then((nextCategories) => {
+        setCategoryItems(nextCategories);
+        if (view !== "category" || !selectedCategoryId) return;
+        if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
+          setSelectedCategoryId("");
+          setView("recent");
+          setPage(null);
+          setPageLoading(false);
+          void navigate({ to: "/" });
+          return;
+        }
+        void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
+          .then(setPage)
+          .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." }))
+          .finally(() => setPageLoading(false));
+      })
+      .catch((err) => {
+        if (view === "category") setPageLoading(false);
+        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
+      });
+  }, [navigate, selectedCategoryId, showToast, view]);
 
   useEffect(() => {
     if (handledLibraryRevision.current === libraryRevision) return;
@@ -184,7 +198,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         mobileLibraryOpen ? "max-[560px]:translate-x-0" : "max-[560px]:-translate-x-full",
       )}>
         <Sidebar
-          categories={categories}
+          categories={categoryItems}
           selectedCategoryId={selectedCategoryId}
           collapsed={mobileLibraryOpen ? false : collapsed}
           onToggle={() => { if (mobileLibraryOpen) setMobileLibraryOpen(false); else setCollapsed((value) => !value); }}
@@ -243,7 +257,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
               <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1 min-[1041px]:grid-cols-4">
                 {items.map((workspace) => (
-                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categories.find((category) => category.id === workspace.categoryId)?.title} />
+                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} />
                 ))}
               </div>
             ) : (

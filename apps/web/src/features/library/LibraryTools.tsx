@@ -12,9 +12,9 @@ import {
   listTrash,
   restoreLibraryBackup,
   restoreTrashedWorkspace,
-  saveProject,
 } from "../../domain/project/api";
 import type { TrashWorkspace } from "../../domain/project/api";
+import { saveProject } from "../../domain/project/save-project";
 import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import";

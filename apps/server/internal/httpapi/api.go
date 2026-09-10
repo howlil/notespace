@@ -179,8 +179,29 @@ func parseIntQuery(r *http.Request, key string, fallback int) int {
 	return value
 }
 
+func parseBoolQuery(r *http.Request, key string) bool {
+	switch r.URL.Query().Get(key) {
+	case "true", "1":
+		return true
+	default:
+		return false
+	}
+}
+
+func workspaceQuery(r *http.Request, categoryID string) project.WorkspaceQuery {
+	return project.WorkspaceQuery{
+		CategoryID: categoryID,
+		Query:      r.URL.Query().Get("q"),
+		Sort:       r.URL.Query().Get("sort"),
+		HasCanvas:  parseBoolQuery(r, "hasCanvas"),
+		HasNotes:   parseBoolQuery(r, "hasNotes"),
+		Offset:     parseIntQuery(r, "offset", 0),
+		Limit:      parseIntQuery(r, "limit", 50),
+	}
+}
+
 func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
-	page, err := a.service.Store.ListCategoryWorkspaces(r.Context(), "", r.URL.Query().Get("q"), r.URL.Query().Get("sort"), r.URL.Query().Get("hasCanvas"), r.URL.Query().Get("hasNotes"), parseIntQuery(r, "offset", 0), parseIntQuery(r, "limit", 50))
+	page, err := a.service.Store.ListWorkspaces(r.Context(), workspaceQuery(r, ""))
 	if err != nil {
 		fail(w, err)
 		return
@@ -196,7 +217,8 @@ func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, data)
 }
 func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
-	exists, err := a.service.Store.CategoryExists(r.Context(), r.PathValue("id"))
+	categoryID := r.PathValue("id")
+	exists, err := a.service.Store.CategoryExists(r.Context(), categoryID)
 	if err != nil {
 		fail(w, err)
 		return
@@ -205,7 +227,7 @@ func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, project.ErrNotFound)
 		return
 	}
-	page, err := a.service.Store.ListCategoryWorkspaces(r.Context(), r.PathValue("id"), r.URL.Query().Get("q"), r.URL.Query().Get("sort"), r.URL.Query().Get("hasCanvas"), r.URL.Query().Get("hasNotes"), parseIntQuery(r, "offset", 0), parseIntQuery(r, "limit", 50))
+	page, err := a.service.Store.ListWorkspaces(r.Context(), workspaceQuery(r, categoryID))
 	if err != nil {
 		fail(w, err)
 		return
@@ -242,11 +264,7 @@ func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, category)
 }
 func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
-	if strings.TrimSpace(r.PathValue("id")) == "" || r.PathValue("id") == "legacy" {
-		fail(w, project.ErrInvalid)
-		return
-	}
-	if err := a.service.Store.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
+	if err := a.service.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
 		return
 	}
@@ -436,11 +454,7 @@ func (a API) restore(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, restored)
 }
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
-	if strings.TrimSpace(r.PathValue("id")) == "" {
-		fail(w, project.ErrInvalid)
-		return
-	}
-	if err := a.service.Store.Delete(r.Context(), r.PathValue("id")); err != nil {
+	if err := a.service.Delete(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
 		return
 	}

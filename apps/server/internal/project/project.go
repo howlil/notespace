@@ -47,6 +47,18 @@ type WorkspacePage struct {
 	NextOffset *int      `json:"nextOffset,omitempty"`
 }
 
+// WorkspaceQuery is the storage-facing library query. HTTP-specific string
+// representations are parsed before they reach the domain/store boundary.
+type WorkspaceQuery struct {
+	CategoryID string
+	Query      string
+	Sort       string
+	HasCanvas  bool
+	HasNotes   bool
+	Offset     int
+	Limit      int
+}
+
 // Category is the library-level grouping for workspaces. A workspace owns its
 // notes and canvas as one editable aggregate.
 type CategorySummary struct {
@@ -133,7 +145,7 @@ type Store interface {
 	Create(context.Context, Project) error
 	List(context.Context) ([]Summary, error)
 	ListRecent(context.Context, int) ([]Summary, error)
-	ListCategoryWorkspaces(context.Context, string, string, string, string, string, int, int) (WorkspacePage, error)
+	ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error)
 	Move(context.Context, string, string) (Project, error)
 	Get(context.Context, string) (Project, error)
 	Update(context.Context, string, Update) (Project, error)
@@ -176,6 +188,14 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 	return s.Store.UpdateCategory(ctx, id, title)
 }
 
+func (s Service) DeleteCategory(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" || id == UncategorizedCategoryID {
+		return ErrInvalid
+	}
+	return s.Store.DeleteCategory(ctx, id)
+}
+
 func (s Service) Rename(ctx context.Context, id, title string) (Project, error) {
 	title = strings.TrimSpace(title)
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
@@ -208,6 +228,14 @@ func (s Service) Move(ctx context.Context, id, categoryID string) (Project, erro
 		return Project{}, ErrNotFound
 	}
 	return s.Store.Move(ctx, id, categoryID)
+}
+
+func (s Service) Delete(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrInvalid
+	}
+	return s.Store.Delete(ctx, id)
 }
 
 func (s Service) Create(
@@ -251,19 +279,17 @@ func (s Service) Create(
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Project, error) {
 	u.Title = strings.TrimSpace(u.Title)
-	if u.References == nil {
+	if u.References == nil || u.Notes == nil {
 		current, err := s.Store.Get(ctx, id)
 		if err != nil {
 			return Project{}, err
 		}
-		u.References = current.References
-	}
-	if u.Notes == nil {
-		current, err := s.Store.Get(ctx, id)
-		if err != nil {
-			return Project{}, err
+		if u.References == nil {
+			u.References = current.References
 		}
-		u.Notes = current.Notes
+		if u.Notes == nil {
+			u.Notes = current.Notes
+		}
 	}
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Project{}, ErrInvalid

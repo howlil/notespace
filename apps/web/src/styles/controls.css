@@ -1,5 +1,34 @@
 /* Small interaction controls that need browser-native pseudo-element styling. */
 
+/* Workspace header: keep controls compact, but make the glyphs visually legible. */
+.workspace-header > div:first-child > a svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2;
+}
+
+.workspace-header > div:first-child > label svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke-width: 2;
+}
+
+.workspace-header > div:last-child > button > svg,
+.workspace-header [aria-label="Start study session"] svg,
+.workspace-header [aria-label="Pause study session"] svg,
+.workspace-header [aria-label="Resume study session"] svg,
+.workspace-header [aria-label="End study session"] svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2;
+}
+
+.workspace-header > div:last-child > [role="status"] svg {
+  width: 15px !important;
+  height: 15px !important;
+  stroke-width: 2;
+}
+
 /* Workspace view switcher: keep the compact island, but make the glyphs readable. */
 [data-testid="workspace-view-switcher"] {
   display: flex;
@@ -15,8 +44,8 @@
 }
 
 [data-testid="workspace-view-switcher"] button svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 20px !important;
+  height: 20px !important;
   stroke-width: 2;
 }
 

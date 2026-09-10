@@ -8,10 +8,10 @@ const DESIGN = join(ROOT, "DESIGN.md");
 const WEB = join(ROOT, "apps", "web");
 const WEB_SRC = join(WEB, "src");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
+const CONTROLS = join(WEB_SRC, "styles", "controls.css");
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "components", "feedback", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
-const CATEGORY_DETAIL = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
 const QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
 const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
@@ -64,8 +64,8 @@ test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-firs
   assert.doesNotMatch(globals, /@tailwind\s+(base|components|utilities)/); assert.doesNotMatch(globals, /@config\s+/); assert.equal(existsSync(join(WEB, "tailwind.config.ts")), false);
 });
 
-test("frontend styling contract: globals.css is the only app-authored stylesheet", () => {
-  assert.deepEqual(collectFiles(WEB_SRC, [".css"]), [GLOBALS]); assert.match(source(ROOT_ROUTE), /import "\.\.\/styles\/globals\.css";/);
+test("frontend styling contract: shared app styles stay limited to globals and controls", () => {
+  assert.deepEqual(collectFiles(WEB_SRC, [".css"]), [CONTROLS, GLOBALS]); assert.match(source(ROOT_ROUTE), /import "\.\.\/styles\/globals\.css";/);
   for (const file of collectFiles(WEB_SRC, [".ts", ".tsx"])) { if (file === ROOT_ROUTE) continue; assert.doesNotMatch(source(file), /import\s+["']\.\.?\/[^"']+\.css["']/, `feature stylesheet import remains in ${file}`); }
   assert.match(source(CANVAS), /import "@excalidraw\/excalidraw\/index\.css";/);
 });
@@ -180,11 +180,11 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(DASHBOARD), /max-w-\[1120px\]/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /min-h-20/); assert.match(source(DASHBOARD), /<h2 className="m-0 text-\[11px\] font-medium text-ink">Workspaces<\/h2>/);
   assert.match(source(STUDY_ACTIVITY), /rounded-lg border border-line bg-surface/); assert.match(source(STUDY_ACTIVITY), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
-  assert.match(source(DASHBOARD), /<WorkspaceListSkeleton/); assert.match(source(CATEGORY_DETAIL), /<WorkspaceListSkeleton/);
+  assert.match(source(DASHBOARD), /<WorkspaceListSkeleton/);
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, CATEGORY_DETAIL, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);

@@ -4,7 +4,7 @@ import type {
   ProjectSummary,
   WorkspacePage,
 } from "./project";
-import { APIError, getProject, json, request, updateProjectSnapshot } from "./http";
+import { APIError, json, request } from "./http";
 
 export { APIError, getProject, updateProjectSnapshot } from "./http";
 export { saveProject } from "./save-project";

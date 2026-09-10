@@ -6,6 +6,7 @@ import type { CategorySummary, ProjectSummary } from "../../domain/project/proje
 import { getProject, listAllWorkspaces, listCategories, listRecentWorkspaces, saveProject } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../providers/toast-provider";
+import { notifyLibraryChanged } from "../library/library-sync-store";
 import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 
@@ -122,6 +123,7 @@ export function QuickCapture() {
       setWorkspaceId(workspace.id);
       setBody("");
       setOpen(false);
+      notifyLibraryChanged();
       showToast({ kind: "success", message: `Captured to ${workspace.title}.` });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not save this capture." });

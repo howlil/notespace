@@ -8,11 +8,13 @@ import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
+import { notifyLibraryChanged, useLibrarySyncStore } from "../library/library-sync-store";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
 export function CategoryDetail({ category, initialPage }: { category: CategorySummary; initialPage: WorkspacePage }) {
   const { showToast } = useToast();
+  const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const [page, setPage] = useState(initialPage);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("updated");
@@ -34,19 +36,50 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
     setLoading(true);
     void listCategoryWorkspaces(category.id, { query, sort, hasCanvas, hasNotes, offset, limit: 50 }).then((result) => { if (!cancelled) setPage(result); }).catch((err) => { if (!cancelled) showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." }); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [category.id, query, sort, hasCanvas, hasNotes, offset, showToast]);
+  }, [category.id, query, sort, hasCanvas, hasNotes, offset, libraryRevision, showToast]);
 
   async function create(event: React.FormEvent) {
     event.preventDefault(); if (!title.trim() || creating) return;
     setCreating(true);
-    try { const workspace = await createProject(title.trim(), category.id); setTitle(""); await router.invalidate(); await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } }); }
+    try {
+      const workspace = await createProject(title.trim(), category.id);
+      setTitle("");
+      notifyLibraryChanged();
+      await router.invalidate();
+      await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } });
+    }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." }); }
     finally { setCreating(false); }
   }
-  async function saveCategory() { if (!categoryTitle.trim() || categoryTitle === category.title) { setEditingCategory(false); return; } try { await updateCategory(category.id, categoryTitle.trim()); setEditingCategory(false); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." }); } }
+  async function saveCategory() {
+    if (!categoryTitle.trim() || categoryTitle === category.title) { setEditingCategory(false); return; }
+    try {
+      await updateCategory(category.id, categoryTitle.trim());
+      setEditingCategory(false);
+      notifyLibraryChanged();
+      await router.invalidate();
+    } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." }); }
+  }
   function beginWorkspaceRename(workspace: ProjectSummary) { setEditingWorkspace(workspace.id); setWorkspaceTitle(workspace.title); }
-  async function saveWorkspace() { if (!editingWorkspace || !workspaceTitle.trim()) return; try { await renameProject(editingWorkspace, workspaceTitle.trim()); setEditingWorkspace(null); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." }); } }
-  async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteProject(workspace.id); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." }); } }
+  async function saveWorkspace() {
+    if (!editingWorkspace || !workspaceTitle.trim()) return;
+    try {
+      await renameProject(editingWorkspace, workspaceTitle.trim());
+      setEditingWorkspace(null);
+      notifyLibraryChanged();
+      await router.invalidate();
+    } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." }); }
+  }
+  async function removeWorkspace() {
+    if (!deletingWorkspace) return;
+    const workspace = deletingWorkspace;
+    setDeletingWorkspace(null);
+    try {
+      await deleteProject(workspace.id);
+      notifyLibraryChanged();
+      await router.invalidate();
+    } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." }); }
+  }
 
   return (
     <div className="min-h-dvh min-w-0 overflow-x-hidden bg-background">

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -9,19 +9,22 @@ import type { CategorySummary, ProjectSummary } from "../../domain/project/proje
 import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../domain/project/api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
+import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
 import { NotespaceLogo } from "../brand/NotespaceLogo";
 
 export function Brand() {
   return <NotespaceLogo />;
 }
 
-type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
+type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void };
 type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[10px] focus:border-transparent";
 
-export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory, onChanged }: Props) {
+export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory }: Props) {
   const { showToast } = useToast();
+  const libraryRevision = useLibrarySyncStore((state) => state.revision);
+  const handledLibraryRevision = useRef(libraryRevision);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [children, setChildren] = useState<Record<string, ProjectSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
@@ -31,6 +34,22 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
   const uncategorized = categories.find((category) => category.id === "legacy") ?? categories.find((category) => category.title.toLowerCase() === "uncategorized");
+
+  useEffect(() => {
+    if (handledLibraryRevision.current === libraryRevision) return;
+    handledLibraryRevision.current = libraryRevision;
+    if (!expanded.size) return;
+
+    let active = true;
+    for (const categoryId of expanded) {
+      void listCategoryWorkspaces(categoryId, { limit: 5 })
+        .then((page) => {
+          if (active) setChildren((current) => ({ ...current, [categoryId]: page.items }));
+        })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [expanded, libraryRevision]);
 
   async function toggleCategory(category: CategorySummary) {
     const next = new Set(expanded);
@@ -70,12 +89,10 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       else await createProject(next, target.categoryId);
       setTitle("");
       setCreating(null);
-      onChanged?.();
       if (target.kind === "workspace" && target.categoryId) {
-        const page = await listCategoryWorkspaces(target.categoryId, { limit: 5 });
-        setChildren((current) => ({ ...current, [target.categoryId!]: page.items }));
         setExpanded((current) => new Set(current).add(target.categoryId!));
       }
+      notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create this item." });
     }
@@ -89,7 +106,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await updateCategory(category.id, value.trim());
       setEditingCategory(null);
-      onChanged?.();
+      notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." });
     }
@@ -103,7 +120,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await renameProject(workspace.id, value.trim());
       setEditingWorkspace(null);
-      onChanged?.();
+      notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
     }
@@ -121,6 +138,11 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
           delete next[target.item.id];
           return next;
         });
+        setExpanded((current) => {
+          const next = new Set(current);
+          next.delete(target.item.id);
+          return next;
+        });
       } else {
         await deleteProject(target.item.id);
         setChildren((current) => Object.fromEntries(
@@ -130,7 +152,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
           ]),
         ));
       }
-      onChanged?.();
+      notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : target.kind === "category" ? "Delete the workspaces in this category first." : "Could not delete workspace." });
     }
@@ -143,7 +165,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await moveProject(workspaceId, categoryId);
       setChildren({});
-      onChanged?.();
+      notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not move workspace." });
     }

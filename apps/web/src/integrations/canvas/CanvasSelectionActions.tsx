@@ -62,11 +62,11 @@ const styleableElementTypes = new Set<ExcalidrawElement["type"]>(["rectangle", "
 const inactiveTools = new Set<AppState["activeTool"]["type"]>(["selection", "eraser", "hand", "laser", "lasso"]);
 const panelWidthClass: Record<Panel, string> = {
   color: "w-[min(212px,calc(100vw-24px))]",
-  properties: "w-[min(176px,calc(100vw-24px))]",
-  arrow: "w-[min(208px,calc(100vw-24px))]",
+  properties: "w-[min(128px,calc(100vw-24px))]",
+  arrow: "w-[min(200px,calc(100vw-24px))]",
   font: "w-[min(216px,calc(100vw-24px))]",
-  text: "w-[min(176px,calc(100vw-24px))]",
-  more: "w-[min(176px,calc(100vw-24px))]",
+  text: "w-[min(164px,calc(100vw-24px))]",
+  more: "w-[min(164px,calc(100vw-24px))]",
 };
 const optionGridClass: Record<GridColumns, string> = {
   2: "grid-cols-2",
@@ -424,7 +424,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         exit={{ opacity: 0, y: 3, scale: 0.985 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
         className={cn(
-          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-3 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+6px)] min-[561px]:translate-x-0",
+          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+6px)] min-[561px]:translate-x-0",
           panelWidthClass[openPanel],
         )}
         role="dialog"

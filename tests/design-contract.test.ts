@@ -8,6 +8,7 @@ const DESIGN = join(ROOT, "DESIGN.md");
 const WEB = join(ROOT, "apps", "web");
 const WEB_SRC = join(WEB, "src");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
+const CONTROLS = join(WEB_SRC, "styles", "controls.css");
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "components", "feedback", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
@@ -63,8 +64,8 @@ test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-firs
   assert.doesNotMatch(globals, /@tailwind\s+(base|components|utilities)/); assert.doesNotMatch(globals, /@config\s+/); assert.equal(existsSync(join(WEB, "tailwind.config.ts")), false);
 });
 
-test("frontend styling contract: globals.css is the only app-authored stylesheet", () => {
-  assert.deepEqual(collectFiles(WEB_SRC, [".css"]), [GLOBALS]); assert.match(source(ROOT_ROUTE), /import "\.\.\/styles\/globals\.css";/);
+test("frontend styling contract: shared app styles stay limited to globals and controls", () => {
+  assert.deepEqual(collectFiles(WEB_SRC, [".css"]), [CONTROLS, GLOBALS]); assert.match(source(ROOT_ROUTE), /import "\.\.\/styles\/globals\.css";/);
   for (const file of collectFiles(WEB_SRC, [".ts", ".tsx"])) { if (file === ROOT_ROUTE) continue; assert.doesNotMatch(source(file), /import\s+["']\.\.?\/[^"']+\.css["']/, `feature stylesheet import remains in ${file}`); }
   assert.match(source(CANVAS), /import "@excalidraw\/excalidraw\/index\.css";/);
 });

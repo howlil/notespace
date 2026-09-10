@@ -1,7 +1,7 @@
 import { pruneLocalImageCache } from "../assets/local-image-assets";
 import { BlockingAutosaveError } from "./autosave";
 import { mergeCanvasSnapshots, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
-import { APIError, getProject, updateProjectSnapshot } from "./api";
+import { APIError, getProject, updateProjectSnapshot } from "./http";
 import type { Project, ProjectContent } from "./project";
 
 export class WorkspaceConflictError extends BlockingAutosaveError {

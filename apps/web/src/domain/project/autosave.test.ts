@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Autosave } from "./autosave.ts";
+import { Autosave, BlockingAutosaveError } from "./autosave.ts";
 
 test("serializes writes and saves latest edits made during a slow request", async () => {
   const calls: Array<[string, number]> = [];
@@ -55,6 +55,29 @@ test("failed writes retain newest edits and retry using the unacknowledged versi
     ["newest edit", 4],
   ]);
   assert.equal(statuses.at(-1), "saved");
+});
+
+test("blocking save errors enter conflict state and prevent automatic retry", async () => {
+  const statuses: string[] = [];
+  let calls = 0;
+  const saver = new Autosave(
+    1,
+    async (_value: string): Promise<{ version: number }> => {
+      calls += 1;
+      throw new BlockingAutosaveError("Workspace conflict");
+    },
+    60_000,
+  );
+  saver.subscribe((status) => statuses.push(status.state));
+  saver.schedule("draft");
+  await assert.rejects(saver.flush(), /Workspace conflict/);
+  assert.equal(statuses.at(-1), "conflict");
+  assert.equal(saver.dirty, true);
+
+  saver.schedule("newer draft");
+  await assert.rejects(saver.flush(), /Workspace conflict/);
+  assert.equal(calls, 1);
+  assert.equal(statuses.at(-1), "conflict");
 });
 
 test("independent project queues cannot write each other’s content", async () => {

@@ -5,6 +5,8 @@ import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { StudySessionState } from "./use-study-session";
 import { formatDuration } from "./study-timer";
 
+const timerActionClass = "!size-7 !min-h-7 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
+
 export function StudyIndicator({ study }: { study: StudySessionState }) {
   const [open, setOpen] = useState(false);
   const indicatorRef = useRef<HTMLDivElement>(null);
@@ -33,29 +35,35 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
         <Button
           variant="secondary"
           size="sm"
-          className="min-h-7 px-2 py-[5px] text-[10px] whitespace-nowrap"
+          className={timerActionClass}
           disabled={!study.ready}
+          aria-label="Start study session"
+          title="Start"
           onClick={study.start}
         >
-          <Play size={12} /> Start
+          <Play size={15} />
         </Button>
       ) : (
         <>
           <Button
             variant="secondary"
             size="sm"
-            className="min-h-7 px-2 py-[5px] text-[10px] whitespace-nowrap"
+            className={timerActionClass}
+            aria-label={study.status === "running" ? "Pause study session" : "Resume study session"}
+            title={study.status === "running" ? "Pause" : "Resume"}
             onClick={study.status === "running" ? study.pause : study.resume}
           >
-            {study.status === "running" ? <><Pause size={12} /> Pause</> : <><Play size={12} /> Resume</>}
+            {study.status === "running" ? <Pause size={15} /> : <Play size={15} />}
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="min-h-7 px-2 py-[5px] text-[10px] whitespace-nowrap"
+            className={timerActionClass}
+            aria-label="End study session"
+            title="End"
             onClick={study.end}
           >
-            <Square size={11} /> End
+            <Square size={14} />
           </Button>
         </>
       )}

@@ -9,6 +9,7 @@ import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { listAllWorkspaces, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
+import { useLibrarySyncStore } from "../library/library-sync-store";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
@@ -71,6 +72,8 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
 export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
+  const libraryRevision = useLibrarySyncStore((state) => state.revision);
+  const handledLibraryRevision = useRef(libraryRevision);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
@@ -128,7 +131,36 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     return `/workspaces/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}${result.blockId ? `&block=${encodeURIComponent(result.blockId)}` : ""}`;
   }
 
-  function refreshLibrary() { void router.invalidate(); void listRecentWorkspaces(20).then(setRecentItems).catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." })); if (selectedCategoryId) void selectCategory(selectedCategoryId, true); }
+  const refreshLibrary = useCallback(() => {
+    void router.invalidate();
+    void listRecentWorkspaces(20)
+      .then(setRecentItems)
+      .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
+
+    if (view === "all") {
+      setPageLoading(true);
+      void listAllWorkspaces({ limit: 50 })
+        .then(setPage)
+        .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }))
+        .finally(() => setPageLoading(false));
+      return;
+    }
+
+    if (view === "category" && selectedCategoryId) {
+      setPageLoading(true);
+      void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
+        .then(setPage)
+        .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." }))
+        .finally(() => setPageLoading(false));
+    }
+  }, [router, selectedCategoryId, showToast, view]);
+
+  useEffect(() => {
+    if (handledLibraryRevision.current === libraryRevision) return;
+    handledLibraryRevision.current = libraryRevision;
+    refreshLibrary();
+  }, [libraryRevision, refreshLibrary]);
+
   const items = view === "recent" ? recentItems : (page?.items ?? []);
   const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
   const description = view === "recent" ? "Pick up where you left off." : view === "all" ? "Browse the complete workspace library in bounded pages." : `${page?.total ?? selectedCategory?.workspaceCount ?? 0} workspace${(page?.total ?? selectedCategory?.workspaceCount ?? 0) === 1 ? "" : "s"}`;
@@ -157,7 +189,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
           collapsed={mobileLibraryOpen ? false : collapsed}
           onToggle={() => { if (mobileLibraryOpen) setMobileLibraryOpen(false); else setCollapsed((value) => !value); }}
           onSelectCategory={(id) => { void selectCategory(id); setMobileLibraryOpen(false); }}
-          onChanged={refreshLibrary}
         />
       </div>
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">

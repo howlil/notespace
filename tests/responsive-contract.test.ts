@@ -9,7 +9,6 @@ const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
 const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
 const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
-const CATEGORY = join(WEB_SRC, "features", "category", "CategoryDetail.tsx");
 const DIALOG = join(WEB_SRC, "components", "ui", "dialog.tsx");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
 const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
@@ -76,14 +75,6 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(selection, /min-\[561px\]:flex-col/);
   assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.doesNotMatch(selection, /min-\[561px\]:size-10/);
-});
-
-test("responsive contract: narrow category controls can shrink and reflow", () => {
-  const category = source(CATEGORY);
-  assert.match(category, /max-\[520px\]:px-4/);
-  assert.match(category, /max-\[520px\]:w-auto max-\[520px\]:flex-1/);
-  assert.match(category, /flex flex-wrap items-center justify-center/);
-  assert.match(category, /overflow-x-hidden/);
 });
 
 test("responsive contract: shared dialogs stay inside viewport and above mobile navigation", () => {

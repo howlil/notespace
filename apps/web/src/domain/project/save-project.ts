@@ -1,9 +1,10 @@
 import { pruneLocalImageCache } from "../assets/local-image-assets";
+import { BlockingAutosaveError } from "./autosave";
 import { mergeCanvasSnapshots, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
 import { APIError, getProject, updateProjectSnapshot } from "./api";
 import type { Project, ProjectContent } from "./project";
 
-export class WorkspaceConflictError extends Error {
+export class WorkspaceConflictError extends BlockingAutosaveError {
   readonly latest: Project;
 
   constructor(latest: Project) {
@@ -11,10 +12,6 @@ export class WorkspaceConflictError extends Error {
     this.name = "WorkspaceConflictError";
     this.latest = latest;
   }
-}
-
-export function isWorkspaceConflict(error: Error) {
-  return error instanceof WorkspaceConflictError;
 }
 
 function assetIDs(project: Project) {

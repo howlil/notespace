@@ -62,7 +62,7 @@ test("blocking save errors enter conflict state and prevent automatic retry", as
   let calls = 0;
   const saver = new Autosave(
     1,
-    async (_value: string): Promise<{ version: number }> => {
+    async (): Promise<{ version: number }> => {
       calls += 1;
       throw new BlockingAutosaveError("Workspace conflict");
     },

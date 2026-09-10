@@ -1,0 +1,99 @@
+/* Small interaction controls that need browser-native pseudo-element styling. */
+
+/* Workspace view switcher: keep the compact island, but make the glyphs readable. */
+[data-testid="workspace-view-switcher"] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+}
+
+[data-testid="workspace-view-switcher"] button {
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+}
+
+[data-testid="workspace-view-switcher"] button svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2;
+}
+
+/* Canvas opacity: replace the browser's heavy default range treatment with
+   a thin track and a clear, theme-aware thumb. */
+.notespace-selection-actions input[type="range"][aria-label="Opacity"] {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible {
+  outline: none;
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--tint), 0 0 0 4px var(--accent);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--tint), 0 0 0 4px var(--accent);
+}
+
+.notespace-selection-actions section[aria-label="Opacity"] output {
+  width: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--canvas);
+  padding: 2px 3px;
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

@@ -55,6 +55,9 @@ export class Autosave<T> {
       void this.flush().catch(() => {});
     }, this.delay);
   }
+  replacePending(value: T) {
+    if (this.pending !== undefined) this.pending = value;
+  }
   flush(): Promise<void> {
     clearTimeout(this.timer);
     if (this.blockedByConflict) return Promise.reject(this.conflictError ?? new Error("Workspace conflict"));

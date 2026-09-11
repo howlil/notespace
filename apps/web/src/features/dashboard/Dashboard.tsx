@@ -217,7 +217,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
         <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
           <IconButton type="button" className="!size-9 hidden shrink-0 text-ink max-[560px]:grid" aria-label="Open library navigation" title="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
-          <div ref={searchRef} className="relative flex min-h-9 w-full max-w-[680px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-ink focus-within:border-accent focus-within:ring-2 focus-within:ring-tint max-[560px]:min-h-8 max-[560px]:min-w-0">
+          <div ref={searchRef} className="relative flex min-h-9 w-full max-w-[1120px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-ink focus-within:border-accent focus-within:ring-2 focus-within:ring-tint max-[560px]:min-h-8 max-[560px]:min-w-0">
             <Search size={15} className="shrink-0 text-ink/70" aria-hidden="true" />
             <Input
               ref={searchInput}

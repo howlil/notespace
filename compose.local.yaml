@@ -1,0 +1,4 @@
+services:
+  notespace:
+    ports:
+      - "127.0.0.1:${NOTESPACE_PORT:-8080}:8080"

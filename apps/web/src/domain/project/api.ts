@@ -19,7 +19,7 @@ export async function listProjects() {
     offset = page.nextOffset;
   }
 }
-export const listRecentWorkspaces = (limit = 12) => request<ProjectSummary[]>(`/api/projects?limit=${limit}`);
+export const listRecentWorkspaces = async (limit = 12) => (await listAllWorkspaces({ limit })).items;
 export const listAllWorkspaces = (params: { query?: string; offset?: number; limit?: number } = {}) => {
   const search = new URLSearchParams();
   if (params.query) search.set("q", params.query);

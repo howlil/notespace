@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getWorkspaceStudy, recordStudyHeartbeat } from "../../domain/project/api";
+import { deleteStudySession, getWorkspaceStudy, recordStudyHeartbeat } from "../../domain/project/api";
 import {
   advanceStudySession,
   combineStudyStats,
@@ -12,6 +12,7 @@ import {
 import type { ManualStudySession } from "./study-timer";
 
 export type StudySessionState = {
+  workspaceId: string;
   currentSeconds: number;
   todaySeconds: number;
   totalSeconds: number;
@@ -21,6 +22,7 @@ export type StudySessionState = {
   pause: () => void;
   resume: () => void;
   end: () => void;
+  deleteSession: (sessionId: string) => Promise<void>;
 };
 
 function storageKey(workspaceId: string) {
@@ -208,6 +210,17 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     commitSession(null);
   }
 
+  async function deleteSession(sessionId: string) {
+    if (sessionRef.current) throw new Error("End the current study session before deleting session history.");
+    await deleteStudySession(workspaceId, sessionId);
+    const now = Date.now();
+    const date = localDate(new Date(now));
+    const stats = await getWorkspaceStudy(workspaceId, date);
+    setBaseline(stats);
+    setBaselineDate(date);
+    setClock(now);
+  }
+
   const date = localDate(new Date(clock));
   const currentSeconds = session ? currentSessionSeconds(session, clock) : 0;
   const todayCurrentSeconds = session && session.activityDate === date ? currentSegmentSeconds(session, clock) : 0;
@@ -217,6 +230,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   const totals = combineStudyStats(displayBaseline, session ? todayCurrentSeconds : 0, currentSeconds);
 
   return {
+    workspaceId,
     currentSeconds,
     todaySeconds: totals.todaySeconds,
     totalSeconds: totals.totalSeconds,
@@ -226,5 +240,6 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     pause,
     resume,
     end,
+    deleteSession,
   };
 }

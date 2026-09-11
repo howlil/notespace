@@ -72,6 +72,7 @@ export const restoreLibraryBackup = (file: File) => request<void>("/api/backup/r
   method: "POST",
   headers: { "Content-Type": file.name.toLowerCase().endsWith(".zip") ? "application/zip" : (file.type || "application/json") },
   body: file,
+  signal: AbortSignal.timeout(120_000),
 });
 
 export type StudyStats = { todaySeconds: number; totalSeconds: number };

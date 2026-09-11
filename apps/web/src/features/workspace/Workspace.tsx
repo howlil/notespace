@@ -141,7 +141,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     }
     if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current });
   }, [layout, project.id]);
-  useBlocker({ shouldBlockFn: async () => { try { await saver.flush(); return false; } catch { return true; } }, enableBeforeUnload: () => saver.dirty });
+  useBlocker({
+    shouldBlockFn: () => {
+      if (status.state === "error" || status.state === "conflict") return true;
+      void saver.flush().catch((error) => {
+        showToast({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Save failed. Please retry.",
+          action: { label: "Retry save", onClick: () => void saver.flush().catch(() => {}) },
+        });
+      });
+      return false;
+    },
+    enableBeforeUnload: () => saver.dirty,
+  });
   useEffect(() => {
     const flush = () => { if (document.visibilityState === "hidden") void saver.flush().catch(() => {}); };
     document.addEventListener("visibilitychange", flush);

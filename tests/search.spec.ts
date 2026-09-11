@@ -6,15 +6,14 @@ test("global search finds note content and navigates to exact context", async ({
 }) => {
   const uniqueToken = `Token${Date.now()}`;
   const title = `Search Test ${uniqueToken}`;
-  const res = await request.post("/api/projects", {
+  const res = await request.post("/api/workspaces", {
     data: { title },
   });
   expect(res.status()).toBe(201);
   const workspace = await res.json();
 
   try {
-    // Add unique note content via API
-    await request.patch(`/api/projects/${workspace.id}`, {
+    const update = await request.patch(`/api/workspaces/${workspace.id}`, {
       data: {
         title,
         version: workspace.version,
@@ -55,24 +54,24 @@ test("global search finds note content and navigates to exact context", async ({
             updatedAt: new Date().toISOString(),
           },
         ],
+        references: [],
         splitRatio: 0.5,
       },
     });
+    expect(update.status()).toBe(200);
 
-    // Go Home and search
     await page.goto("/");
     const search = page.getByRole("textbox", { name: "Search Notespace" });
     await search.fill(uniqueToken);
 
-    // Wait for results
     const result = page.locator(".search-result").first();
     await expect(result).toBeVisible();
     await result.click();
 
-    // Verify exact context rendered
     await expect(page).toHaveURL(new RegExp(workspace.id));
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
   } finally {
-    await request.delete(`/api/projects/${workspace.id}`);
+    await request.delete(`/api/workspaces/${workspace.id}`);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

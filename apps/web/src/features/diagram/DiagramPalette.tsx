@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, IconButton, Input } from "../../components/ui";
-import { useCanvasPanelDismiss, useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
+import { useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
 import {
   searchEraserCatalog,
   type DiagramCatalogItem,
@@ -47,7 +47,7 @@ interface Props {
   anchorRef: { current: HTMLDivElement | null };
   activeDiagram: boolean;
   selectedNodeCount: number;
-  onInsertNode: (item: DiagramCatalogItem) => void;
+  onInsertNode: (item: DiagramCatalogItem, drop?: { clientX: number; clientY: number }) => void;
   onConnect: () => void;
   onGroup: () => void;
   onAutoLayout: () => void;
@@ -68,6 +68,7 @@ function EraserIconPreview({ item }: { item: DiagramCatalogItem }) {
       src={url}
       alt=""
       aria-hidden="true"
+      draggable={false}
       className="size-7 object-contain"
       loading="lazy"
       decoding="async"
@@ -83,10 +84,10 @@ function CategoryRow({ icon, label, detail, onClick, disabled = false }: { icon:
       size="sm"
       type="button"
       disabled={disabled}
-      className="!min-h-0 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-[color,background-color,border-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.985] disabled:cursor-default disabled:opacity-55 disabled:active:scale-100"
+      className="!min-h-0 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-[color,background-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.985] disabled:cursor-default disabled:opacity-55 disabled:active:scale-100"
       onClick={onClick}
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-md border border-line bg-canvas text-muted [&_svg]:size-4">{icon}</span>
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-canvas text-muted [&_svg]:size-4">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-medium text-ink">{label}</span>
         <span className="block truncate text-[9px] text-muted">{detail}</span>
@@ -110,8 +111,8 @@ export function DiagramPalette({
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const draggingItemRef = useRef<string | null>(null);
   const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 560);
-  useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BrowseCategory>("all");
   const [cloudOpen, setCloudOpen] = useState(false);
@@ -208,7 +209,7 @@ export function DiagramPalette({
           {showResults && <>
             <div className="flex items-center justify-between border-b border-line px-2 py-1.5">
               <div className="flex items-center gap-1 text-[9px] text-muted"><span className="font-medium text-ink">{items.length.toLocaleString()}</span> icons{hasSearch ? " found" : ""}</div>
-              <span className="rounded-md border border-accent bg-tint px-2 py-1 text-[9px] font-medium text-ink">Icon only</span>
+              <span className="rounded-md bg-tint px-2 py-1 text-[9px] font-medium text-ink">Icon only</span>
             </div>
 
             <div ref={gridRef} className="min-h-0 flex-1 overflow-y-auto p-2" style={{ maxHeight: gridViewportHeight }} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
@@ -216,7 +217,36 @@ export function DiagramPalette({
                 <div className="relative" style={{ height: totalRows * gridRowHeight }}>
                   <motion.div key={`${category}:${query.trim()}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.16 }} className="absolute inset-x-0 grid grid-cols-4 gap-1.5" style={{ top: topOffset }}>
                     {visibleItems.map((item) => (
-                      <Button variant="ghost" size="sm" key={item.key} type="button" className="group !min-h-0 h-[66px] min-w-0 flex-col gap-1 rounded-md border border-line bg-surface px-1 text-center transition-[color,background-color,border-color,transform] duration-150 hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97]" title={`Insert ${item.label}`} aria-label={`Insert ${item.label}`} onClick={() => onInsertNode(item)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        key={item.key}
+                        type="button"
+                        draggable
+                        className="group !min-h-0 h-[66px] min-w-0 cursor-grab select-none flex-col gap-1 rounded-md bg-surface px-1 text-center transition-[color,background-color,transform] duration-150 hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing active:scale-[0.97]"
+                        title={`Insert ${item.label}`}
+                        aria-label={`Insert ${item.label}`}
+                        onDragStart={(event) => {
+                          draggingItemRef.current = item.key;
+                          event.dataTransfer.effectAllowed = "copy";
+                          event.dataTransfer.setData("application/x-notespace-diagram-node", item.key);
+                          event.dataTransfer.setData("text/plain", item.label);
+                          event.dataTransfer.setDragImage(event.currentTarget, 33, 33);
+                        }}
+                        onDragEnd={(event) => {
+                          const target = document.elementFromPoint(event.clientX, event.clientY);
+                          if (target instanceof Element && target.closest(".notespace-canvas-surface")) {
+                            onInsertNode(item, { clientX: event.clientX, clientY: event.clientY });
+                          }
+                          window.requestAnimationFrame(() => {
+                            if (draggingItemRef.current === item.key) draggingItemRef.current = null;
+                          });
+                        }}
+                        onClick={() => {
+                          if (draggingItemRef.current === item.key) return;
+                          onInsertNode(item);
+                        }}
+                      >
                         <EraserIconPreview item={item} />
                         <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8px] text-muted group-hover:text-ink">{item.label}</span>
                       </Button>

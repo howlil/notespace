@@ -1,10 +1,11 @@
-import { CaptureUpdateAction, Excalidraw, reconcileElements } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
   BinaryFiles,
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
+  LibraryItems,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -47,10 +48,24 @@ const canvasUIOptions = {
   tools: { image: true },
 };
 
+const EXCALIDRAW_LIBRARY_STORAGE_KEY = "notespace.excalidraw.library.v1";
+
 declare global {
   interface Window { EXCALIDRAW_ASSET_PATH: string; }
 }
 window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
+
+function readStoredLibraryItems(): LibraryItems {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(EXCALIDRAW_LIBRARY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed as LibraryItems : [];
+  } catch {
+    return [];
+  }
+}
 
 function readCanvasFiles(data: Record<string, unknown>) {
   const files = data.files;
@@ -125,6 +140,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [gridModeEnabled, setGridModeEnabled] = useState(false);
   const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
   const [canvasApi, setCanvasApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  useHandleLibrary({ excalidrawAPI: canvasApi, getInitialLibraryItems: readStoredLibraryItems });
   const panelAnchorRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
@@ -206,6 +222,14 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         .finally(() => pendingFileIds.current.delete(fileId));
     }
   }, [showToast, workspaceId]);
+
+  const persistLibraryItems = useCallback((items: LibraryItems) => {
+    try {
+      window.localStorage.setItem(EXCALIDRAW_LIBRARY_STORAGE_KEY, JSON.stringify(items));
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not persist the Excalidraw library in this browser." });
+    }
+  }, [showToast]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return undefined;
@@ -400,7 +424,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     setLastDiagramId(next.id);
     updateDiagramSelection({ diagramId: next.id, nodeIds: [] });
-    value.updateScene({ elements: nextElements });
+    value.updateScene({ elements: nextElements, appState: { selectedElementIds: {} } });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
@@ -482,7 +506,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           <span className="whitespace-nowrap text-[11px] max-[700px]:w-[180px] max-[700px]:whitespace-normal">Add a note, shape, image, connection, or structured diagram.</span>
         </div>
       )}
-      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={false} UIOptions={canvasUIOptions} />
+      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} onLibraryChange={persistLibraryItems} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={false} UIOptions={canvasUIOptions} />
     </div>
   );
 }

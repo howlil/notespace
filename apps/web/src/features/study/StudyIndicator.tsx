@@ -32,7 +32,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
     let active = true;
     setSessionsLoading(true);
     setSessionsError(null);
-    void listStudySessions(study.workspaceId, 6)
+    void listStudySessions(study.workspaceId, 20)
       .then((items) => { if (active) setSessions(items); })
       .catch((error) => {
         if (!active) return;
@@ -41,7 +41,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
       })
       .finally(() => { if (active) setSessionsLoading(false); });
     return () => { active = false; };
-  }, [open, study.workspaceId]);
+  }, [open, study.status, study.workspaceId]);
 
   async function removeSession(session: StudySession) {
     if (study.status !== "idle" || deletingSessionId) return;
@@ -131,9 +131,9 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
             ) : sessionsError ? (
               <p className="m-0 text-[10px] text-danger">{sessionsError}</p>
             ) : sessions.length ? (
-              <div className="grid max-h-[190px] gap-1 overflow-y-auto pr-0.5">
+              <div className="grid max-h-[190px] gap-1 overflow-y-auto pr-0.5" role="list" aria-label="Recent study sessions">
                 {sessions.map((session) => (
-                  <div key={session.id} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-tint">
+                  <div key={session.id} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-tint" role="listitem">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[10px] text-ink">{formatDay(session.activityDate)}{sessionTime(session.startedAt) ? ` · ${sessionTime(session.startedAt)}` : ""}</div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted"><span>{formatDuration(session.activeSeconds)}</span>{!session.endedAt && <span>not ended</span>}</div>

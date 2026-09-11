@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn } from "../../components/ui";
 import { getStudyActivity, getStudyDayDetail } from "../../domain/project/api";
 import type { StudyActivity, StudyDayDetail } from "../../domain/project/api";
@@ -51,6 +51,8 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailRequest = useRef(0);
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const from = useMemo(() => dateWithOffset(-364), []);
   const to = useMemo(() => dateWithOffset(0), []);
@@ -64,10 +66,21 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
   }, [from, to, showToast]);
 
   function selectDay(date: string) {
+    const requestId = detailRequest.current + 1;
+    detailRequest.current = requestId;
     setSelectedDate(date);
     setDetail(null);
+    setDetailError(null);
     setDetailLoading(true);
-    void getStudyDayDetail(date).then(setDetail).catch(() => showToast({ kind: "error", message: "Could not load this day." })).finally(() => setDetailLoading(false));
+    void getStudyDayDetail(date)
+      .then((result) => { if (detailRequest.current === requestId) setDetail(result); })
+      .catch((err) => {
+        if (detailRequest.current !== requestId) return;
+        const message = err instanceof Error ? err.message : "Could not load this day.";
+        setDetailError(message);
+        showToast({ kind: "error", message });
+      })
+      .finally(() => { if (detailRequest.current === requestId) setDetailLoading(false); });
   }
 
   const gridStart = useMemo(() => {
@@ -173,11 +186,16 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       {selectedDate && (
         <div className="border-t border-line px-4 pt-[13px] pb-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : `${formatDuration(detail?.activeSeconds ?? 0)} studied`}</strong></div>
+            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : detailError ? "Unavailable" : `${formatDuration(detail?.activeSeconds ?? 0)} studied`}</strong></div>
             <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-[3px] py-[3px] text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => { setSelectedDate(null); setDetail(null); }}>Close</Button>
           </div>
           {detailLoading ? (
             <div className="grid gap-2" role="status" aria-label="Loading day details"><span className="sr-only">Loading day details…</span><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-[74%] opacity-70" /><Skeleton className="h-3 w-[58%] opacity-50" /></div>
+          ) : detailError ? (
+            <div className="mt-[13px] flex items-center justify-between gap-3 text-[10px] text-danger" role="alert">
+              <span>{detailError}</span>
+              <Button type="button" variant="secondary" size="sm" className="shrink-0 !min-h-0 px-2 py-1 text-[10px]" onClick={() => selectDay(selectedDate)}>Retry</Button>
+            </div>
           ) : detail?.workspaces.length ? (
             <div className="mt-[13px] grid gap-2">
               {detail.workspaces.map((workspace) => (

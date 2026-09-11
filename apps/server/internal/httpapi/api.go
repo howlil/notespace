@@ -31,16 +31,27 @@ type API struct {
 	eraserIcons *eraserIconGateway
 }
 
-func New(store project.Store, health func(context.Context) error) http.Handler {
-	studyStore, ok := store.(study.Store)
-	if !ok {
-		panic("httpapi: store does not implement study.Store")
+type Dependencies struct {
+	Projects project.Store
+	Study    study.Store
+	Assets   asset.Store
+	Health   func(context.Context) error
+}
+
+func New(deps Dependencies) http.Handler {
+	if deps.Projects == nil {
+		panic("httpapi: project store is required")
 	}
-	assetStore, ok := store.(asset.Store)
-	if !ok {
-		panic("httpapi: store does not implement asset.Store")
+	if deps.Study == nil {
+		panic("httpapi: study store is required")
 	}
-	a := API{service: project.Service{Store: store}, study: study.Service{Store: studyStore}, assets: assetStore, health: health, eraserIcons: newEraserIconGateway(http.DefaultClient, eraserIconOrigin)}
+	if deps.Assets == nil {
+		panic("httpapi: asset store is required")
+	}
+	if deps.Health == nil {
+		panic("httpapi: health check is required")
+	}
+	a := API{service: project.Service{Store: deps.Projects}, study: study.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(http.DefaultClient, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -78,16 +89,6 @@ func New(store project.Store, health func(context.Context) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
-		if r.Method != "GET" && r.Method != "HEAD" {
-			if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-				send(w, 403, map[string]string{"error": "Cross-site request rejected"})
-				return
-			}
-			if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host && origin != "https://"+r.Host {
-				send(w, 403, map[string]string{"error": "Origin rejected"})
-				return
-			}
-		}
 		mux.ServeHTTP(w, r)
 	})
 }
@@ -153,8 +154,12 @@ func fail(w http.ResponseWriter, err error) {
 }
 
 func (a API) list(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if r.URL.Query().Get("limit") != "" {
+		limit, err := parseIntQuery(r, "limit", 0)
+		if err != nil || limit < 1 || limit > 100 {
+			fail(w, project.ErrInvalid)
+			return
+		}
 		data, err := a.service.Store.ListRecent(r.Context(), limit)
 		if err != nil {
 			fail(w, err)
@@ -171,37 +176,70 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, data)
 }
 
-func parseIntQuery(r *http.Request, key string, fallback int) int {
-	value, err := strconv.Atoi(r.URL.Query().Get(key))
+func parseIntQuery(r *http.Request, key string, fallback int) (int, error) {
+	raw := r.URL.Query().Get(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return fallback
+		return 0, project.ErrInvalid
 	}
-	return value
+	return value, nil
 }
 
-func parseBoolQuery(r *http.Request, key string) bool {
+func parseBoolQuery(r *http.Request, key string) (bool, error) {
 	switch r.URL.Query().Get(key) {
+	case "", "false", "0":
+		return false, nil
 	case "true", "1":
-		return true
+		return true, nil
 	default:
-		return false
+		return false, project.ErrInvalid
 	}
 }
 
-func workspaceQuery(r *http.Request, categoryID string) project.WorkspaceQuery {
+func workspaceQuery(r *http.Request, categoryID string) (project.WorkspaceQuery, error) {
+	hasCanvas, err := parseBoolQuery(r, "hasCanvas")
+	if err != nil {
+		return project.WorkspaceQuery{}, err
+	}
+	hasNotes, err := parseBoolQuery(r, "hasNotes")
+	if err != nil {
+		return project.WorkspaceQuery{}, err
+	}
+	offset, err := parseIntQuery(r, "offset", 0)
+	if err != nil || offset < 0 {
+		return project.WorkspaceQuery{}, project.ErrInvalid
+	}
+	limit, err := parseIntQuery(r, "limit", 50)
+	if err != nil || limit < 1 || limit > 100 {
+		return project.WorkspaceQuery{}, project.ErrInvalid
+	}
+	sortBy := r.URL.Query().Get("sort")
+	switch sortBy {
+	case "", "created", "name", "notes":
+	default:
+		return project.WorkspaceQuery{}, project.ErrInvalid
+	}
 	return project.WorkspaceQuery{
 		CategoryID: categoryID,
 		Query:      r.URL.Query().Get("q"),
-		Sort:       r.URL.Query().Get("sort"),
-		HasCanvas:  parseBoolQuery(r, "hasCanvas"),
-		HasNotes:   parseBoolQuery(r, "hasNotes"),
-		Offset:     parseIntQuery(r, "offset", 0),
-		Limit:      parseIntQuery(r, "limit", 50),
-	}
+		Sort:       sortBy,
+		HasCanvas:  hasCanvas,
+		HasNotes:   hasNotes,
+		Offset:     offset,
+		Limit:      limit,
+	}, nil
 }
 
 func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
-	page, err := a.service.Store.ListWorkspaces(r.Context(), workspaceQuery(r, ""))
+	query, err := workspaceQuery(r, "")
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	page, err := a.service.Store.ListWorkspaces(r.Context(), query)
 	if err != nil {
 		fail(w, err)
 		return
@@ -227,7 +265,12 @@ func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, project.ErrNotFound)
 		return
 	}
-	page, err := a.service.Store.ListWorkspaces(r.Context(), workspaceQuery(r, categoryID))
+	query, err := workspaceQuery(r, categoryID)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	page, err := a.service.Store.ListWorkspaces(r.Context(), query)
 	if err != nil {
 		fail(w, err)
 		return

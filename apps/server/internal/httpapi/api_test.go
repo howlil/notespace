@@ -29,6 +29,15 @@ func call(t *testing.T, api http.Handler, method, path string, body any) *httpte
 	api.ServeHTTP(res, req)
 	return res
 }
+
+func newAPI(store *persistence.Store) http.Handler {
+	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
+		Projects: store,
+		Study:    store,
+		Assets:   store,
+		Health:   store.Healthy,
+	}))
+}
 func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	t.Helper()
 	if res.Code != status {
@@ -59,7 +68,7 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Computer Science"})
 	expect(t, createdCategory, 201)
 	var category project.CategorySummary
@@ -86,7 +95,7 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 
 	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Root workspace"}))
 	if workspace.CategoryID != project.UncategorizedCategoryID {
@@ -100,7 +109,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
 	var category project.CategorySummary
@@ -140,7 +149,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
@@ -181,7 +190,7 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 
 	var firstCategory, secondCategory project.CategorySummary
 	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Learning"}).Body.Bytes(), &firstCategory); err != nil {
@@ -226,7 +235,7 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Research"}))
 	second := project.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 	update := project.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
@@ -249,7 +258,7 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Note actions"}))
 	note := p.Notes[0]
 	note.Document = project.Snapshot{
@@ -302,7 +311,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = store.Close() }()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	empty := call(t, api, "GET", "/api/projects", nil)
 	expect(t, empty, 200)
 	if strings.TrimSpace(empty.Body.String()) != "[]" {
@@ -331,7 +340,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	api = httpapi.New(store, store.Healthy)
+	api = newAPI(store)
 	restored := call(t, api, "GET", "/api/projects/"+p.ID, nil)
 	expect(t, restored, 200)
 	got := decodeProject(t, restored)
@@ -355,7 +364,7 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	for _, title := range []string{"", "   ", strings.Repeat("a", 161)} {
 		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": title}), 400)
 	}
@@ -384,12 +393,55 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 	}
 }
 
+func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "query-boundary.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+
+	for _, query := range []string{
+		"?limit=not-a-number",
+		"?limit=0",
+		"?limit=101",
+		"?offset=-1",
+		"?sort=unsupported",
+		"?hasCanvas=maybe",
+		"?hasNotes=maybe",
+	} {
+		expect(t, call(t, api, "GET", "/api/workspaces"+query, nil), 400)
+	}
+}
+
+func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "library-origin.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace := decodeProject(t, call(t, newAPI(store), "POST", "/api/projects", map[string]string{"title": "Protected workspace"}))
+	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
+		Projects: store,
+		Study:    store,
+		Assets:   store,
+		Health:   store.Healthy,
+	}), store))
+	req := httptest.NewRequest(http.MethodDelete, "/api/projects/"+workspace.ID, nil)
+	req.Header.Set("Origin", "https://untrusted.example")
+	res := httptest.NewRecorder()
+	composed.ServeHTTP(res, req)
+	expect(t, res, 403)
+	expect(t, call(t, newAPI(store), "GET", "/api/projects/"+workspace.ID, nil), 200)
+}
+
 func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Keep me"}))
 	update := project.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
 	update.Document.Format = "unknown"
@@ -416,7 +468,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Backend Fundamentals"}))
 	body := map[string]any{"activityDate": "2026-09-03", "activeSeconds": 120, "finish": false}
 	path := "/api/workspaces/" + p.ID + "/study-sessions/session-1"
@@ -463,7 +515,7 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Search workspace"}))
 	p.Document = project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
 	p.Notes[0].Document = p.Document
@@ -486,7 +538,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Portable workspace"}))
 	history := call(t, api, "GET", "/api/projects/"+p.ID+"/history", nil)
 	expect(t, history, 200)
@@ -506,7 +558,7 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	api := httpapi.New(store, store.Healthy)
+	api := newAPI(store)
 	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "History"}))
 	first := p.Document
 	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)

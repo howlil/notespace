@@ -16,12 +16,12 @@ export function Brand() {
   return <NotespaceLogo />;
 }
 
-type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void };
+type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
 type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[10px] focus:border-transparent";
 
-export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory }: Props) {
+export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory, onChanged }: Props) {
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
@@ -34,6 +34,11 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
   const uncategorized = categories.find((category) => category.id === "legacy") ?? categories.find((category) => category.title.toLowerCase() === "uncategorized");
+
+  function signalLibraryChanged() {
+    notifyLibraryChanged();
+    onChanged?.();
+  }
 
   useEffect(() => {
     if (handledLibraryRevision.current === libraryRevision) return;
@@ -92,7 +97,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       if (target.kind === "workspace" && target.categoryId) {
         setExpanded((current) => new Set(current).add(target.categoryId!));
       }
-      notifyLibraryChanged();
+      signalLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create this item." });
     }
@@ -106,7 +111,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await updateCategory(category.id, value.trim());
       setEditingCategory(null);
-      notifyLibraryChanged();
+      signalLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." });
     }
@@ -120,7 +125,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await renameProject(workspace.id, value.trim());
       setEditingWorkspace(null);
-      notifyLibraryChanged();
+      signalLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
     }
@@ -152,7 +157,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
           ]),
         ));
       }
-      notifyLibraryChanged();
+      signalLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : target.kind === "category" ? "Delete the workspaces in this category first." : "Could not delete workspace." });
     }
@@ -165,7 +170,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     try {
       await moveProject(workspaceId, categoryId);
       setChildren({});
-      notifyLibraryChanged();
+      signalLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not move workspace." });
     }

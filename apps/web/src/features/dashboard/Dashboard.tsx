@@ -85,6 +85,8 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const dismissSearch = useCallback(() => setSearchOpen(false), []);
@@ -93,9 +95,15 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   useEffect(() => {
     const normalized = query.trim();
-    if (normalized.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    if (normalized.length < 2) { setSearchResults([]); setSearchError(null); setSearchLoading(false); setSearchOpen(false); return; }
     let cancelled = false;
-    void searchNotespace(normalized).then((results) => { if (!cancelled) setSearchResults(results.slice(0, 10)); }).catch((err) => { if (!cancelled) { setSearchResults([]); showToast({ kind: "error", message: err instanceof Error ? err.message : "Search is unavailable." }); } });
+    setSearchResults([]);
+    setSearchError(null);
+    setSearchLoading(true);
+    void searchNotespace(normalized)
+      .then((results) => { if (!cancelled) setSearchResults(results.slice(0, 10)); })
+      .catch((err) => { if (!cancelled) { const message = err instanceof Error ? err.message : "Search is unavailable."; setSearchResults([]); setSearchError(message); showToast({ kind: "error", message }); } })
+      .finally(() => { if (!cancelled) setSearchLoading(false); });
     return () => { cancelled = true; };
   }, [query, showToast]);
 
@@ -119,9 +127,9 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     finally { setPageLoading(false); }
   }
 
-  async function openAll() {
+  async function openAll(offset = 0) {
     setView("all"); setSelectedCategoryId(""); setPageLoading(true);
-    try { const result = await listAllWorkspaces({ limit: 50 }); setPage(result); }
+    try { const result = await listAllWorkspaces({ offset, limit: 50 }); setPage(result); }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." }); }
     finally { setPageLoading(false); }
   }
@@ -203,6 +211,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
           collapsed={mobileLibraryOpen ? false : collapsed}
           onToggle={() => { if (mobileLibraryOpen) setMobileLibraryOpen(false); else setCollapsed((value) => !value); }}
           onSelectCategory={(id) => { void selectCategory(id); setMobileLibraryOpen(false); }}
+          onChanged={refreshLibrary}
         />
       </div>
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
@@ -234,8 +243,8 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }}
             />
             {query.trim().length >= 2 && searchOpen && (
-              <PopupSurface className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results">
-                {searchResults.length ? searchResults.map((result) => (
+              <PopupSurface className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results" aria-busy={searchLoading}>
+                {searchLoading ? <span className="px-2.5 py-2 text-[10px] text-muted" role="status">Searching…</span> : searchError ? <span className="px-2.5 py-2 text-[10px] text-danger" role="alert">{searchError}</span> : searchResults.length ? searchResults.map((result) => (
                   <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="grid gap-0.5 rounded-md px-2.5 py-2 hover:bg-tint focus-visible:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
                     <strong className="text-[11px] font-medium text-ink">{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong>
                     <span className="text-[10px] text-muted">{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span>
@@ -268,6 +277,13 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               </div>
             )}
           </section>
+          {view === "all" && page && page.total > page.limit && (
+            <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-muted" aria-label="Workspace pages">
+              <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
+              <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
+              <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => void openAll(page.nextOffset ?? page.offset)}>Next</Button>
+            </nav>
+          )}
           {showLearningActivity && <StudyActivityDashboard />}
         </div>
       </main>

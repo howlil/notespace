@@ -33,7 +33,8 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	api := httpapi.WithLibraryRoutes(httpapi.New(store, store.Healthy), store)
+	deps := httpapi.Dependencies{Projects: store, Study: store, Assets: store, Health: store.Healthy}
+	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}

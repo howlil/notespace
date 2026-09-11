@@ -58,7 +58,14 @@ function EditorLoading({ label }: { label: string }) {
 class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? <div className={editorLoadingClass} role="alert">This editor could not open. Your stored content is preserved. Reload to retry.</div> : this.props.children; }
+  render() {
+    return this.state.failed ? (
+      <div className={`${editorLoadingClass} gap-3`} role="alert">
+        <p className="m-0 max-w-[320px]">This editor could not open. Your stored content is preserved.</p>
+        <Button type="button" variant="secondary" size="sm" onClick={() => this.setState({ failed: false })}>Retry</Button>
+      </div>
+    ) : this.props.children;
+  }
 }
 
 export function Workspace({ project, categoryTitle, categoryWorkspaces }: { project: Project; categoryTitle: string; categoryWorkspaces: ProjectSummary[] }) {
@@ -356,8 +363,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             {(["canvas", "note", "split"] as const).map((mode) => {
               const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
               const selected = activeViewMode === mode;
-              const icon = mode === "canvas" ? <LayoutGrid size={14} /> : mode === "note" ? <FileText size={14} /> : <Columns2 size={14} />;
-              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-7 !min-h-7 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
+              const icon = mode === "canvas" ? <LayoutGrid size={17} strokeWidth={2.1} /> : mode === "note" ? <FileText size={17} strokeWidth={2.1} /> : <Columns2 size={17} strokeWidth={2.1} />;
+              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-8 !min-h-8 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
             })}
           </div>
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-span-3 max-[560px]:row-start-2 max-[560px]:w-full max-[560px]:min-w-0 max-[560px]:overflow-x-auto max-[560px]:overscroll-x-contain max-[560px]:pb-px max-[560px]:[scrollbar-width:none] max-[560px]:[&::-webkit-scrollbar]:hidden max-[560px]:[&>*]:shrink-0">

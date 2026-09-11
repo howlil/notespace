@@ -1,18 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getCategory, listCategories, listCategoryWorkspaces, listRecentWorkspaces } from "../domain/project/api";
-import { Dashboard } from "../features/dashboard/Dashboard";
+import { getCategory, listCategoryWorkspaces } from "../domain/project/api";
+import { CategoryDetail } from "../features/category/CategoryDetail";
 import { RoutePending } from "../components/feedback/RoutePending";
 
 export const Route = createFileRoute("/categories/$categoryId")({
   ssr: false,
   loader: async ({ params }) => {
-    const [categories, category, initialPage, recentWorkspaces] = await Promise.all([
-      listCategories(),
+    const [category, initialPage] = await Promise.all([
       getCategory(params.categoryId),
-      listCategoryWorkspaces(params.categoryId),
-      listRecentWorkspaces(),
+      listCategoryWorkspaces(params.categoryId, { limit: 50 }),
     ]);
-    return { categories, category, initialPage, recentWorkspaces };
+    return { category, initialPage };
   },
   pendingComponent: RoutePending,
   component: CategoryRoute,
@@ -20,5 +18,5 @@ export const Route = createFileRoute("/categories/$categoryId")({
 
 function CategoryRoute() {
   const data = Route.useLoaderData();
-  return <Dashboard categories={data.categories} recentWorkspaces={data.recentWorkspaces} initialSelectedCategoryId={data.category.id} initialCategoryPage={data.initialPage} />;
+  return <CategoryDetail category={data.category} initialPage={data.initialPage} />;
 }

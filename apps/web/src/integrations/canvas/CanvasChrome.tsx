@@ -43,7 +43,7 @@ type ToolDefinition = {
 };
 
 const motionTransition = { duration: 0.16, ease: "easeOut" } as const;
-const controlGlyphClass = "size-4";
+const controlGlyphClass = "size-5";
 
 const primaryTools: readonly ToolDefinition[] = [
   { type: "selection", label: "Select", shortcut: "V", glyph: NativeSelectionIcon },
@@ -105,7 +105,7 @@ function supportedTools(api: ExcalidrawImperativeAPI | null) {
 
 function ToolGlyph({ api, tool }: { api: ExcalidrawImperativeAPI | null; tool: ToolDefinition }) {
   const native = nativeActionIcon(api, tool.nativeAction);
-  if (native) return <span className="grid place-items-center [&_svg]:size-4">{native}</span>;
+  if (native) return <span className="grid place-items-center [&_svg]:size-5">{native}</span>;
   const Glyph = tool.glyph;
   return <Glyph className={controlGlyphClass} aria-hidden="true" />;
 }
@@ -115,7 +115,7 @@ function ToolButton({ icon, label, shortcut, active, onClick }: { icon: ReactNod
     <IconButton
       type="button"
       variant="ghost"
-      className={cn("relative !size-8 shrink-0 text-muted", active ? "!bg-tint !text-accent ring-1 ring-accent/15" : "hover:text-ink")}
+      className={cn("relative !size-8 shrink-0 text-ink/70", active ? "!bg-tint !text-accent ring-1 ring-accent/15" : "hover:bg-tint hover:text-accent")}
       aria-label={label}
       aria-keyshortcuts={shortcut}
       aria-pressed={active}
@@ -123,7 +123,7 @@ function ToolButton({ icon, label, shortcut, active, onClick }: { icon: ReactNod
       onClick={onClick}
     >
       {icon}
-      {shortcut && <kbd className="pointer-events-none absolute right-0.5 bottom-0 text-[7px] font-medium leading-none text-muted max-[560px]:hidden">{shortcut}</kbd>}
+      {shortcut && <kbd className="pointer-events-none absolute right-0.5 bottom-0 text-[8px] font-semibold leading-none text-ink/60 max-[560px]:hidden">{shortcut}</kbd>}
     </IconButton>
   );
 }
@@ -132,7 +132,7 @@ function CompactMenuTool({ api, tool, active, onClick }: { api: ExcalidrawImpera
   return (
     <button
       type="button"
-      className={cn("grid size-8 place-items-center rounded-md border border-transparent text-muted transition-colors hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", active && "border-accent/20 bg-tint text-accent")}
+      className={cn("grid size-8 place-items-center rounded-md border border-transparent text-ink/70 transition-colors hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", active && "border-accent/20 bg-tint text-accent")}
       aria-label={tool.label}
       aria-pressed={active}
       title={tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label}
@@ -341,7 +341,7 @@ function NativeViewAction({ api, name, label, active, mobile = false, onClick }:
   const icon = nativeActionIcon(api, name);
   if (!icon) return null;
   return (
-    <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 text-muted hover:text-ink [&_svg]:size-4", !mobile && "max-[560px]:hidden", active && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label={label} aria-pressed={active} title={label} onClick={onClick}>
+    <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 text-ink/70 hover:bg-tint hover:text-accent [&_svg]:size-5", !mobile && "max-[560px]:hidden", active && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label={label} aria-pressed={active} title={label} onClick={onClick}>
       {icon}
     </IconButton>
   );
@@ -405,9 +405,9 @@ export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapMode
       <span className="mx-0.5 h-4 w-px shrink-0 bg-line max-[560px]:hidden" aria-hidden="true" />
       <NativeViewAction api={api} name="gridMode" label="Toggle grid" active={gridModeEnabled} onClick={() => onAction("gridMode")} />
       <NativeViewAction api={api} name="objectsSnapMode" label="Toggle object snapping" active={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")} />
-      <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 text-muted hover:text-accent max-[560px]:hidden", libraryOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="Browse library" aria-pressed={libraryOpen} onClick={toggleLibrary}><NativeLibraryIcon className="size-4" /></IconButton>
+      <IconButton type="button" variant="ghost" className={cn("!size-8 shrink-0 text-ink/70 hover:bg-tint hover:text-accent max-[560px]:hidden", libraryOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="Browse library" aria-pressed={libraryOpen} onClick={toggleLibrary}><NativeLibraryIcon className="size-5" /></IconButton>
       <div ref={commandMenuRef} className="relative">
-        <IconButton type="button" variant="ghost" className={cn("!size-8 text-muted hover:text-ink", commandMenuOpen && "!bg-tint !text-accent")} aria-label="More canvas view controls" aria-expanded={commandMenuOpen} onClick={() => setCommandMenuOpen((open) => !open)}><NativeDotsHorizontalIcon className="size-4" /></IconButton>
+        <IconButton type="button" variant="ghost" className={cn("!size-8 text-ink/70 hover:bg-tint hover:text-accent", commandMenuOpen && "!bg-tint !text-accent")} aria-label="More canvas view controls" aria-expanded={commandMenuOpen} onClick={() => setCommandMenuOpen((open) => !open)}><NativeDotsHorizontalIcon className="size-5" /></IconButton>
         <CanvasCommandMenu api={api} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={() => setCommandMenuOpen(false)} />
       </div>
     </motion.aside>

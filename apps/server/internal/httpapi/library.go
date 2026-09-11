@@ -47,21 +47,26 @@ func sameOriginMutation(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// WithSameOriginMutations protects every state-changing route in a composed
+// application. Read routes remain directly cacheable and do not require an
+// Origin header.
+func WithSameOriginMutations(base http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !sameOriginMutation(w, r) {
+			return
+		}
+		base.ServeHTTP(w, r)
+	})
+}
+
 // WithLibraryRoutes adds the user-owned library safety/portability boundary
 // without changing the existing authored Workspace API or optimistic-save contract.
-func WithLibraryRoutes(base http.Handler, store any) http.Handler {
-	library, ok := store.(libraryStore)
-	if !ok {
-		panic("httpapi: store does not implement libraryStore")
-	}
+func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
 
 		if id, match := singlePathID(r.URL.Path, "/api/projects/"); match && r.Method == http.MethodDelete {
-			if !sameOriginMutation(w, r) {
-				return
-			}
 			if err := library.TrashWorkspaceAtomic(r.Context(), id); err != nil {
 				fail(w, err)
 				return
@@ -71,9 +76,6 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 		}
 
 		if id, match := singlePathID(r.URL.Path, "/api/categories/"); match && r.Method == http.MethodDelete {
-			if !sameOriginMutation(w, r) {
-				return
-			}
 			hasTrash, err := library.CategoryHasTrash(r.Context(), id)
 			if err != nil {
 				fail(w, err)
@@ -114,9 +116,6 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 			return
 
 		case r.URL.Path == "/api/backup/restore" && r.Method == http.MethodPost:
-			if !sameOriginMutation(w, r) {
-				return
-			}
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || (mediaType != "application/zip" && mediaType != "application/x-zip-compressed" && mediaType != "application/json") {
 				send(w, http.StatusUnsupportedMediaType, map[string]string{"error": "Expected a Notespace ZIP backup or legacy JSON backup"})
@@ -147,9 +146,6 @@ func WithLibraryRoutes(base http.Handler, store any) http.Handler {
 		}
 
 		if id, match := singlePathID(r.URL.Path, "/api/trash/"); match {
-			if !sameOriginMutation(w, r) {
-				return
-			}
 			switch r.Method {
 			case http.MethodPost:
 				workspace, err := library.RestoreTrashedWorkspace(r.Context(), id)

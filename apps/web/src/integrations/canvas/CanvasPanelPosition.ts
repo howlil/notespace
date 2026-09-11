@@ -78,9 +78,17 @@ export function useCanvasPanelPosition(
 
 export function useCanvasPanelDismiss(open: boolean, panelRef: RefObject<HTMLElement | null>, anchorRef: RefObject<HTMLElement | null>, onClose: () => void) {
   const closeTimer = useRef<number | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (!open || typeof document === "undefined") return undefined;
+    if (!open || typeof document === "undefined") {
+      restoreFocusRef.current = null;
+      return undefined;
+    }
+
+    if (!restoreFocusRef.current && document.activeElement instanceof HTMLElement) {
+      restoreFocusRef.current = document.activeElement;
+    }
 
     const clearCloseTimer = () => {
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
@@ -113,13 +121,31 @@ export function useCanvasPanelDismiss(open: boolean, panelRef: RefObject<HTMLEle
         onClose();
       }
     };
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!isInsideSurface(event.target)) {
+        clearCloseTimer();
+        onClose();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      const restoreFocus = restoreFocusRef.current;
+      if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+    };
 
     document.addEventListener("pointermove", handlePointerMove);
     document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       clearCloseTimer();
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [anchorRef, onClose, open, panelRef]);
 }

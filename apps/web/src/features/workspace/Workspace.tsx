@@ -11,6 +11,7 @@ import type { Note, Project, ProjectContent, ProjectSummary, Snapshot } from "..
 import { saveProject } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
+import { rebaseLocalProjectContent } from "../../domain/project/canvas-merge";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
@@ -76,6 +77,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [normalized] = useState(() => normalizeProjectContent(contentOf(project)));
   const initial = normalized.content;
   const current = useRef<ProjectContent>(initial);
+  const savedBase = useRef<ProjectContent>(contentOf(project));
   const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${project.id}`, new Set(initial.notes.map((note) => note.id))));
   const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
   const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
@@ -90,7 +92,18 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
-  const [saver] = useState(() => new Autosave(project.version, (value: ProjectContent, version) => saveProject(project.id, value, version)));
+  const [saver] = useState(() => {
+    let instance!: Autosave<ProjectContent>;
+    instance = new Autosave(project.version, async (value: ProjectContent, version) => {
+      const saved = await saveProject(project.id, value, version, savedBase.current);
+      const savedContent = contentOf(saved);
+      current.current = rebaseLocalProjectContent(value, current.current, savedContent);
+      savedBase.current = savedContent;
+      instance.replacePending(current.current);
+      return saved;
+    });
+    return instance;
+  });
   const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => { if (normalized.changed) saver.schedule(current.current); }, [normalized.changed, saver]);

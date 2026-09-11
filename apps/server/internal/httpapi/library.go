@@ -11,7 +11,9 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
-const maxBackupBytes = 512 << 20
+// Backup restore/export is still assembled in memory by the persistence adapter.
+// Keep the HTTP round-trip bound conservative until that path is fully streamed.
+const maxBackupBytes = 64 << 20
 
 type libraryStore interface {
 	TrashWorkspaceAtomic(context.Context, string) error
@@ -106,7 +108,7 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 				return
 			}
 			if len(data) > maxBackupBytes {
-				send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 512 MiB round-trip limit"})
+				send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 64 MiB round-trip limit"})
 				return
 			}
 			w.Header().Set("Content-Type", "application/zip")
@@ -126,7 +128,7 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 			if err != nil {
 				var tooLarge *http.MaxBytesError
 				if errors.As(err, &tooLarge) {
-					send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 512 MiB restore limit"})
+					send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Backup exceeds the 64 MiB restore limit"})
 					return
 				}
 				fail(w, err)

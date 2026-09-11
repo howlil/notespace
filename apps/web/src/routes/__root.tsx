@@ -14,6 +14,7 @@ import { ThemeProvider } from "../providers/theme-provider";
 import { ToastProvider } from "../providers/toast-provider";
 import { NativePopupManager } from "../components/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
+import { ConflictRecoveryDialog } from "../features/workspace/ConflictRecoveryDialog";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -35,6 +36,7 @@ export const Route = createRootRoute({
         <ToastProvider>
           <ThemeProvider>
             <QuickOpen />
+            <ConflictRecoveryDialog />
             <Outlet />
           </ThemeProvider>
         </ToastProvider>

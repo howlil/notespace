@@ -302,7 +302,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             <div id={toolbarTargetId} className="flex items-center gap-0.5" />
             <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
               <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
-              <div className={cn(popupClass, "pane-menu top-7 right-0", focusMode && "fixed top-9 right-3 left-auto z-60 min-w-[min(165px,calc(100vw_-_24px))] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_48px)]")}>
+              <div className={cn(popupClass, "pane-menu top-7 right-0")}>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canClosePane} onClick={() => closePane(pane.id)}>Close pane</Button>

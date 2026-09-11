@@ -49,10 +49,11 @@ test.describe("Canvas toolbar native grouping", () => {
     }
   });
 
-  test("hovering menu controls switches the anchored popup", async ({ page, request }) => {
-    const id = await openCanvasWorkspace(page, request, `Toolbar hover ${Date.now()}`);
+  test("slash opens Diagram with search focused and explicit controls switch popups", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Toolbar slash ${Date.now()}`);
 
     try {
+      const canvas = page.locator(".notespace-canvas-surface");
       const diagramTrigger = menuTrigger(page, "Diagram");
       const detailsTrigger = menuTrigger(page, "Canvas details");
       const moreTrigger = menuTrigger(page, "More tools");
@@ -60,10 +61,15 @@ test.describe("Canvas toolbar native grouping", () => {
       const details = page.locator('aside[aria-label="Canvas details"]');
       const more = page.locator('aside[aria-label="More canvas tools"]');
 
-      await diagramTrigger.hover();
+      await canvas.click({ position: { x: 240, y: 180 } });
+      await page.keyboard.press("/");
       await expect(diagram).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Search all Eraser icons" })).toBeFocused();
       await expect(details).toBeHidden();
       await expect(more).toBeHidden();
+
+      await diagramTrigger.getByRole("button", { name: "Diagram", exact: true }).click();
+      await expect(diagram).toBeHidden();
 
       await detailsTrigger.hover();
       await expect(details).toHaveCount(0);

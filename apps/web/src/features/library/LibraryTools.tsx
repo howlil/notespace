@@ -6,6 +6,7 @@ import { contentOf } from "../../domain/project/project";
 import type { CategorySummary } from "../../domain/project/project";
 import {
   createProject,
+  deleteProject,
   deleteTrashedWorkspace,
   exportLibraryBackup,
   listCategories,
@@ -122,7 +123,9 @@ export function LibraryTools() {
     setLoading(true);
     let imported = 0;
     let failed = 0;
+    let cleanupFailed = 0;
     for (const markdownFile of markdownFiles) {
+      let createdWorkspaceId: string | null = null;
       try {
         const path = filePath(markdownFile);
         const markdown = await markdownFile.text();
@@ -141,6 +144,7 @@ export function LibraryTools() {
         });
         const title = importedDocumentTitle(path, markdown);
         const workspace = await createProject(title, categoryId);
+        createdWorkspaceId = workspace.id;
         for (const asset of plannedAssets.values()) {
           await storeImageAsset(workspace.id, asset.id, asset.file);
         }
@@ -156,13 +160,23 @@ export function LibraryTools() {
         imported += 1;
       } catch {
         failed += 1;
+        if (createdWorkspaceId) {
+          try {
+            await deleteProject(createdWorkspaceId);
+            await deleteTrashedWorkspace(createdWorkspaceId);
+          } catch {
+            cleanupFailed += 1;
+          }
+        }
       }
     }
     setLoading(false);
     if (vaultInput.current) vaultInput.current.value = "";
     showToast({
       kind: failed ? "error" : "success",
-      message: failed ? `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}; ${failed} failed.` : `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}.`,
+      message: failed
+        ? `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}; ${failed} failed${cleanupFailed ? `; ${cleanupFailed} partial workspace${cleanupFailed === 1 ? "" : "s"} need manual cleanup` : " and were rolled back"}.`
+        : `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}.`,
     });
     if (imported) {
       notifyLibraryChanged();
@@ -194,7 +208,7 @@ export function LibraryTools() {
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
               </div>
-              <input ref={restoreInput} className="hidden" type="file" accept="application/json,.json" onChange={(event) => void restoreBackup(event.target.files?.[0] ?? null)} />
+              <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => void restoreBackup(event.target.files?.[0] ?? null)} />
             </section>
 
             <section className="grid gap-2 border-b border-line py-3">

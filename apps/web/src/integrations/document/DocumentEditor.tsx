@@ -366,9 +366,10 @@ export default function DocumentEditor({
     const start = nextEditor.view.coordsAtPos(selection.from);
     const end = nextEditor.view.coordsAtPos(selection.to);
     const center = (Math.min(start.left, end.left) + Math.max(start.right, end.right)) / 2;
+    const popupWidth = linkEditing ? 312 : 188;
     const position = placeEditorPopup(
-      { left: center - 156, top: Math.min(start.top, end.top), bottom: Math.max(start.bottom, end.bottom) },
-      { width: 312, height: linkEditing ? 82 : 38 },
+      { left: center - popupWidth / 2, top: Math.min(start.top, end.top), bottom: Math.max(start.bottom, end.bottom) },
+      { width: popupWidth, height: linkEditing ? 82 : 70 },
       { width: window.innerWidth, height: window.innerHeight },
       { prefer: "top", gap: 7 },
     );
@@ -791,23 +792,29 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="fixed z-40 min-w-[250px] rounded-lg border border-line bg-surface p-1 shadow-[0_10px_28px_#0002]"
+            className={cn("fixed z-40 rounded-lg border border-line bg-surface p-1 shadow-[0_10px_28px_#0002]", linkEditing ? "w-[312px]" : "w-[188px]")}
             style={{ left: selectionMenu.x, top: selectionMenu.y }}
           >
             {!linkEditing ? (
-              <div className="flex items-center gap-0.5">
-                <MenuButton label="Bold" active={editor.isActive("bold")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleBold().run(); }}><Bold size={14} /></MenuButton>
-                <MenuButton label="Italic" active={editor.isActive("italic")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleItalic().run(); }}><Italic size={14} /></MenuButton>
-                <MenuButton label="Strikethrough" active={editor.isActive("strike")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleStrike().run(); }}><Strikethrough size={14} /></MenuButton>
-                <MenuButton label="Inline code" active={editor.isActive("code")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleCode().run(); }}><Code2 size={14} /></MenuButton>
-                <MenuButton label="Highlight" active={editor.isActive("highlight")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleHighlight().run(); }}><Highlighter size={14} /></MenuButton>
-                <span className="mx-0.5 h-4 w-px bg-line" />
-                <MenuButton label="Edit link" active={editor.isActive("link")} onMouseDown={(event) => {
-                  event.preventDefault();
-                  setLinkUrl(typeof editor.getAttributes("link").href === "string" ? editor.getAttributes("link").href : "");
-                  setLinkEditing(true);
-                  syncSelectionMenu(editor);
-                }}><Link2 size={14} /></MenuButton>
+              <div className="grid gap-1">
+                <div className="flex items-center gap-0.5">
+                  <MenuButton label="Bold" active={editor.isActive("bold")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleBold().run(); }}><Bold size={14} /></MenuButton>
+                  <MenuButton label="Italic" active={editor.isActive("italic")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleItalic().run(); }}><Italic size={14} /></MenuButton>
+                  <MenuButton label="Strikethrough" active={editor.isActive("strike")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleStrike().run(); }}><Strikethrough size={14} /></MenuButton>
+                  <MenuButton label="Inline code" active={editor.isActive("code")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleCode().run(); }}><Code2 size={14} /></MenuButton>
+                  <MenuButton label="Highlight" active={editor.isActive("highlight")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleHighlight().run(); }}><Highlighter size={14} /></MenuButton>
+                  <MenuButton label="Edit link" active={editor.isActive("link")} onMouseDown={(event) => {
+                    event.preventDefault();
+                    setLinkUrl(typeof editor.getAttributes("link").href === "string" ? editor.getAttributes("link").href : "");
+                    setLinkEditing(true);
+                    syncSelectionMenu(editor);
+                  }}><Link2 size={14} /></MenuButton>
+                </div>
+                <div className="flex items-center gap-0.5 border-t border-line pt-1">
+                  <MenuButton label="Bullet list" active={editor.isActive("bulletList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}><List size={14} /></MenuButton>
+                  <MenuButton label="Numbered list" active={editor.isActive("orderedList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}><ListOrdered size={14} /></MenuButton>
+                  <MenuButton label="Checklist" active={editor.isActive("taskList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}><CheckSquare size={14} /></MenuButton>
+                </div>
               </div>
             ) : (
               <form className="flex min-w-[300px] items-center gap-1" onSubmit={(event) => { event.preventDefault(); applyLink(); }}>

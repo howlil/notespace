@@ -32,9 +32,9 @@ export const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 
-export const getProject = (id: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}`);
+export const getProject = (id: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`);
 
-export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
+export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`, {
   method: "PATCH",
   ...json({ ...content, version }),
 });

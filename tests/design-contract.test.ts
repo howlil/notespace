@@ -177,7 +177,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(STUDY_ACTIVITY), /<Button/); assert.match(source(STUDY_INDICATOR), /<Button/);
   assert.match(source(DASHBOARD), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(DASHBOARD), /max-w-\[1120px\]/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /min-h-20/); assert.match(source(DASHBOARD), /<h2 className="m-0 text-\[11px\] font-medium text-ink">Workspaces<\/h2>/);
+  assert.match(source(DASHBOARD), /max-w-\[1120px\]/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /min-h-20/); assert.match(source(DASHBOARD), /<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.match(source(STUDY_ACTIVITY), /rounded-lg border border-line bg-surface/); assert.match(source(STUDY_ACTIVITY), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
   assert.match(source(DASHBOARD), /<WorkspaceListSkeleton/);
@@ -202,7 +202,7 @@ test("design contract: loading, toast, and editor motion remain accessible", () 
 });
 
 test("design contract: no decorative gradients, neon motifs, or legacy Project copy", () => {
-  const content=collectFiles(WEB_SRC,[".tsx"]).map(source).join("\n"); assert.doesNotMatch(`${source(GLOBALS)}\n${content}`,/linear-gradient|radial-gradient|conic-gradient/i); assert.doesNotMatch(content,/#(00ff00|ff00ff|00ffff|ff0033)/i); assert.doesNotMatch(content,/[\u2728\u{1FA84}]/u); assert.doesNotMatch(content,/ai-powered|magic wand|smart assistant/i);
+  const content=collectFiles(WEB_SRC,[".tsx"]).map(source).join("\n"); assert.doesNotMatch(`${source(GLOBALS)}\n${content}`,/linear-gradient|radial-gradient|conic-gradient/i); assert.doesNotMatch(content,/#(00ff00|ff00ff|00ffff|ff0033)/i); assert.doesNotMatch(content,/[^\x00-\x7F]/u); assert.doesNotMatch(content,/ai-powered|magic wand|smart assistant/i);
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 

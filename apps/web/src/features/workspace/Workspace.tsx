@@ -93,8 +93,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const [saver] = useState(() => {
-    let instance!: Autosave<ProjectContent>;
-    instance = new Autosave(project.version, async (value: ProjectContent, version) => {
+    const instance = new Autosave(project.version, async (value: ProjectContent, version) => {
       const saved = await saveProject(project.id, value, version, savedBase.current);
       const savedContent = contentOf(saved);
       current.current = rebaseLocalProjectContent(value, current.current, savedContent);

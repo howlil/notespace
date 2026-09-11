@@ -1,8 +1,9 @@
 import { pruneLocalImageCache } from "../assets/local-image-assets";
 import { BlockingAutosaveError } from "./autosave";
-import { mergeCanvasSnapshots, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
+import { mergeCanvasSnapshots, mergeProjectContent, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
 import { publishWorkspaceConflict } from "./conflict-recovery";
 import { APIError, getProject, updateProjectSnapshot } from "./http";
+import { contentOf } from "./project";
 import type { Project, ProjectContent } from "./project";
 
 export class WorkspaceConflictError extends BlockingAutosaveError {
@@ -50,15 +51,16 @@ function conflict(id: string, local: ProjectContent, latest: Project): never {
 }
 
 /**
- * Persist the latest coalesced workspace snapshot. A stale write caused only by
- * concurrent Canvas edits is reconciled and retried against the newest server
- * version instead of blocking the editor. Conflicts in notes/title/layout are
- * surfaced with an explicit local-draft recovery path because blindly merging
- * those fields would risk silent data loss.
+ * Persist the latest coalesced workspace snapshot. A stale write caused by an
+ * unrelated remote field is rebased when the caller supplies the last
+ * acknowledged base. Canvas edits are merged with Excalidraw element semantics.
+ * True concurrent edits to the same non-Canvas field still stop autosave and
+ * surface the explicit local-draft recovery path.
  */
-export async function saveProject(id: string, content: ProjectContent, version: number) {
+export async function saveProject(id: string, content: ProjectContent, version: number, base?: ProjectContent) {
   let candidate = content;
   let candidateVersion = version;
+  let candidateBase = base;
   let latest: Project | undefined;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -74,14 +76,21 @@ export async function saveProject(id: string, content: ProjectContent, version: 
         await reconcileAssetCache(latest);
         return latest;
       }
-      if (!sameNonCanvasContent(candidate, latest)) {
-        conflict(id, candidate, latest);
-      }
 
-      candidate = {
-        ...candidate,
-        canvas: mergeCanvasSnapshots(candidate.canvas, latest.canvas),
-      };
+      if (candidateBase) {
+        const rebased = mergeProjectContent(candidateBase, candidate, contentOf(latest));
+        if (!rebased) conflict(id, candidate, latest);
+        candidate = rebased;
+        candidateBase = contentOf(latest);
+      } else {
+        if (!sameNonCanvasContent(candidate, latest)) {
+          conflict(id, candidate, latest);
+        }
+        candidate = {
+          ...candidate,
+          canvas: mergeCanvasSnapshots(candidate.canvas, latest.canvas),
+        };
+      }
       candidateVersion = latest.version;
     }
   }

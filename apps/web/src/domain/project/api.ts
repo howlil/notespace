@@ -9,7 +9,16 @@ import { APIError, json, request } from "./http";
 export { APIError, getProject, updateProjectSnapshot } from "./http";
 export { saveProject } from "./save-project";
 
-export const listProjects = () => request<ProjectSummary[]>("/api/projects");
+export async function listProjects() {
+  const items: ProjectSummary[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await listAllWorkspaces({ offset, limit: 100 });
+    items.push(...page.items);
+    if (page.nextOffset === undefined || page.nextOffset <= offset) return items;
+    offset = page.nextOffset;
+  }
+}
 export const listRecentWorkspaces = (limit = 12) => request<ProjectSummary[]>(`/api/projects?limit=${limit}`);
 export const listAllWorkspaces = (params: { query?: string; offset?: number; limit?: number } = {}) => {
   const search = new URLSearchParams();
@@ -45,13 +54,13 @@ export async function listAllCategoryWorkspaces(categoryId: string) {
     offset = page.nextOffset;
   }
 }
-export const createProject = (title: string, categoryId?: string) => request<Project>("/api/projects", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
+export const createProject = (title: string, categoryId?: string) => request<Project>("/api/workspaces", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
 export const createCategory = (title: string) => request<CategorySummary>("/api/categories", { method: "POST", ...json({ title }) });
 export const updateCategory = (id: string, title: string) => request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, { method: "PATCH", ...json({ title }) });
 export const deleteCategory = (id: string) => request<void>(`/api/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
-export const renameProject = (id: string, title: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
-export const deleteProject = (id: string) => request<void>(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
-export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
+export const renameProject = (id: string, title: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
+export const deleteProject = (id: string) => request<void>(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };

@@ -7,10 +7,9 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
-// IndexedProjectStore keeps the derived FTS projection warm after successful
-// authored writes. The authored SQLite rows remain authoritative: projection
-// refresh failures are logged and the existing lazy search repair remains the
-// fallback instead of turning a successful save into a false failure.
+// IndexedProjectStore keeps authored SQLite rows authoritative. Search has its
+// own version-aware lazy repair path, so ordinary high-frequency autosaves do
+// not rebuild the FTS projection before acknowledging the user's write.
 type IndexedProjectStore struct{ *Store }
 
 func NewIndexedProjectStore(store *Store) *IndexedProjectStore {
@@ -32,12 +31,10 @@ func (s *IndexedProjectStore) Create(ctx context.Context, value project.Project)
 }
 
 func (s *IndexedProjectStore) Update(ctx context.Context, id string, update project.Update) (project.Project, error) {
-	value, err := s.Store.Update(ctx, id, update)
-	if err != nil {
-		return value, err
-	}
-	s.refresh(ctx, id)
-	return value, nil
+	// Autosave is the hottest write path. SearchIndexed compares projection meta
+	// with the authored workspace version and repairs stale entries on demand, so
+	// rebuilding every note/block here only adds latency to the save response.
+	return s.Store.Update(ctx, id, update)
 }
 
 func (s *IndexedProjectStore) Move(ctx context.Context, id, categoryID string) (project.Project, error) {

@@ -41,8 +41,11 @@ function assetIDs(project: Project) {
   return ids;
 }
 
-async function reconcileAssetCache(project: Project) {
-  await pruneLocalImageCache(project.id, assetIDs(project));
+function reconcileAssetCache(project: Project) {
+  // This is browser cache hygiene, not part of durable acknowledgement. Keeping
+  // it off the save critical path prevents IndexedDB scans from extending the
+  // time the editor reports Saving… or delaying navigation.
+  void pruneLocalImageCache(project.id, assetIDs(project)).catch(() => {});
 }
 
 function conflict(id: string, local: ProjectContent, latest: Project): never {
@@ -66,14 +69,14 @@ export async function saveProject(id: string, content: ProjectContent, version: 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const saved = await updateProjectSnapshot(id, candidate, candidateVersion);
-      await reconcileAssetCache(saved);
+      reconcileAssetCache(saved);
       return saved;
     } catch (error) {
       if (!(error instanceof APIError) || error.status !== 409) throw error;
 
       latest = await getProject(id);
       if (sameProjectContent(candidate, latest)) {
-        await reconcileAssetCache(latest);
+        reconcileAssetCache(latest);
         return latest;
       }
 

@@ -1,6 +1,7 @@
 import { pruneLocalImageCache } from "../assets/local-image-assets";
 import { BlockingAutosaveError } from "./autosave";
 import { mergeCanvasSnapshots, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
+import { publishWorkspaceConflict } from "./conflict-recovery";
 import { APIError, getProject, updateProjectSnapshot } from "./http";
 import type { Project, ProjectContent } from "./project";
 
@@ -8,7 +9,7 @@ export class WorkspaceConflictError extends BlockingAutosaveError {
   readonly latest: Project;
 
   constructor(latest: Project) {
-    super("This workspace changed elsewhere while you were editing. Notespace kept both canvas scenes where it could, but another workspace field still conflicts.");
+    super("This workspace changed elsewhere. Autosave is paused and your local draft is still open for recovery.");
     this.name = "WorkspaceConflictError";
     this.latest = latest;
   }
@@ -43,11 +44,17 @@ async function reconcileAssetCache(project: Project) {
   await pruneLocalImageCache(project.id, assetIDs(project));
 }
 
+function conflict(id: string, local: ProjectContent, latest: Project): never {
+  publishWorkspaceConflict({ workspaceId: id, local, latest });
+  throw new WorkspaceConflictError(latest);
+}
+
 /**
  * Persist the latest coalesced workspace snapshot. A stale write caused only by
  * concurrent Canvas edits is reconciled and retried against the newest server
  * version instead of blocking the editor. Conflicts in notes/title/layout are
- * still surfaced because blindly merging those would risk silent data loss.
+ * surfaced with an explicit local-draft recovery path because blindly merging
+ * those fields would risk silent data loss.
  */
 export async function saveProject(id: string, content: ProjectContent, version: number) {
   let candidate = content;
@@ -68,7 +75,7 @@ export async function saveProject(id: string, content: ProjectContent, version: 
         return latest;
       }
       if (!sameNonCanvasContent(candidate, latest)) {
-        throw new WorkspaceConflictError(latest);
+        conflict(id, candidate, latest);
       }
 
       candidate = {
@@ -79,5 +86,5 @@ export async function saveProject(id: string, content: ProjectContent, version: 
     }
   }
 
-  throw new WorkspaceConflictError(latest ?? await getProject(id));
+  conflict(id, candidate, latest ?? await getProject(id));
 }

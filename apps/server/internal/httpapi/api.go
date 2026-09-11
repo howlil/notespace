@@ -80,7 +80,9 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/workspaces/{id}/assets/{assetId}", a.getAsset)
 	mux.HandleFunc("PUT /api/workspaces/{id}/assets/{assetId}", a.putAsset)
 	mux.HandleFunc("DELETE /api/workspaces/{id}/assets/{assetId}", a.deleteAsset)
+	mux.HandleFunc("GET /api/workspaces/{id}/study-sessions", a.studySessions)
 	mux.HandleFunc("PUT /api/workspaces/{id}/study-sessions/{sessionId}", a.studyHeartbeat)
+	mux.HandleFunc("DELETE /api/workspaces/{id}/study-sessions/{sessionId}", a.deleteStudySession)
 	mux.HandleFunc("GET /api/workspaces/{id}/study", a.workspaceStudy)
 	mux.HandleFunc("GET /api/study/activity", a.activity)
 	mux.HandleFunc("GET /api/study/activity/{date}", a.dayDetail)
@@ -504,6 +506,19 @@ func (a API) delete(w http.ResponseWriter, r *http.Request) {
 	send(w, 204, nil)
 }
 
+func (a API) studySessions(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseIntQuery(r, "limit", 8)
+	if err != nil {
+		fail(w, study.ErrInvalid)
+		return
+	}
+	sessions, err := a.study.ListSessions(r.Context(), r.PathValue("id"), limit)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 200, sessions)
+}
 func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var body study.Heartbeat
 	if !decode(w, r, &body) {
@@ -520,6 +535,13 @@ func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, 200, session)
+}
+func (a API) deleteStudySession(w http.ResponseWriter, r *http.Request) {
+	if err := a.study.DeleteSession(r.Context(), r.PathValue("id"), r.PathValue("sessionId")); err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, 204, nil)
 }
 func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")

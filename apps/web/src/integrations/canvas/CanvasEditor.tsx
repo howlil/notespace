@@ -136,7 +136,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const queuedPeerSnapshot = useRef<Snapshot | null>(null);
 
   const closeCanvasPopovers = useCallback(() => {
-    setDiagramOpen(false);
     setMoreOpen(false);
   }, []);
 
@@ -371,6 +370,21 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     return { x: -(state?.scrollX ?? 0) + 120, y: -(state?.scrollY ?? 0) + 120 };
   }, []);
 
+  const canvasPointFromClient = useCallback((clientX: number, clientY: number) => {
+    const value = api.current;
+    if (!value || typeof document === "undefined") return canvasOrigin();
+    const target = document.elementFromPoint(clientX, clientY);
+    const surface = target instanceof Element ? target.closest(".notespace-canvas-surface") : null;
+    if (!(surface instanceof HTMLElement)) return canvasOrigin();
+    const bounds = surface.getBoundingClientRect();
+    const state = value.getAppState();
+    const scale = state.zoom.value || 1;
+    return {
+      x: (clientX - bounds.left) / scale - state.scrollX - 28,
+      y: (clientY - bounds.top) / scale - state.scrollY - 28,
+    };
+  }, [canvasOrigin]);
+
   const applyDiagram = useCallback(async (previous: StructuredDiagram | null, next: StructuredDiagram) => {
     const value = api.current;
     if (!value) return;
@@ -390,16 +404,17 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
-  const insertNode = useCallback((item: DiagramCatalogItem) => {
+  const insertNode = useCallback((item: DiagramCatalogItem, drop?: { clientX: number; clientY: number }) => {
+    const droppedOrigin = drop ? canvasPointFromClient(drop.clientX, drop.clientY) : null;
     const currentDiagram = activeDiagram;
     if (!currentDiagram) {
-      void applyDiagram(null, createDiagramWithNode("architecture", item, canvasOrigin(), undefined, "icon"));
+      void applyDiagram(null, createDiagramWithNode("architecture", item, droppedOrigin ?? canvasOrigin(), undefined, "icon"));
       return;
     }
     const tail = currentDiagram.nodes.at(-1);
-    const origin = tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin();
+    const origin = droppedOrigin ?? (tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin());
     void applyDiagram(currentDiagram, addCatalogNode(currentDiagram, item, origin, undefined, "icon"));
-  }, [activeDiagram, applyDiagram, canvasOrigin]);
+  }, [activeDiagram, applyDiagram, canvasOrigin, canvasPointFromClient]);
 
   const connectSelected = useCallback(() => {
     if (!activeDiagram || diagramSelection.nodeIds.length !== 2) return;
@@ -437,7 +452,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           diagramOpen={diagramOpen}
           moreOpen={moreOpen}
           onDiagramToggle={() => { setMoreOpen(false); setDiagramOpen((open) => !open); }}
-          onMoreToggle={() => { setDiagramOpen(false); setMoreOpen((open) => !open); }}
+          onMoreToggle={() => { setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
           onBackgroundChange={setCanvasBackground}
           onAction={runCanvasAction}

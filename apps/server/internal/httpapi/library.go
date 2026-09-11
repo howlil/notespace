@@ -61,14 +61,53 @@ func WithSameOriginMutations(base http.Handler) http.Handler {
 	})
 }
 
-// WithLibraryRoutes adds the user-owned library safety/portability boundary
-// without changing the existing authored Workspace API or optimistic-save contract.
+func legacyWorkspacePath(path string) (string, bool) {
+	if path == "/api/workspaces" {
+		return "/api/projects", true
+	}
+	const prefix = "/api/workspaces/"
+	if !strings.HasPrefix(path, prefix) {
+		return "", false
+	}
+	parts := strings.Split(strings.TrimPrefix(path, prefix), "/")
+	if len(parts) == 1 && parts[0] != "" {
+		return "/api/projects/" + parts[0], true
+	}
+	if len(parts) == 2 && parts[0] != "" && (parts[1] == "title" || parts[1] == "category") {
+		return "/api/projects/" + parts[0] + "/" + parts[1], true
+	}
+	return "", false
+}
+
+func serveRewritten(base http.Handler, w http.ResponseWriter, r *http.Request, path string) {
+	clone := r.Clone(r.Context())
+	urlCopy := *r.URL
+	urlCopy.Path = path
+	clone.URL = &urlCopy
+	base.ServeHTTP(w, clone)
+}
+
+// WithLibraryRoutes owns recovery/portability and the compatibility transition
+// from the old Project HTTP vocabulary to canonical Workspace routes.
 func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
 
+		if strings.HasPrefix(r.URL.Path, "/api/projects") {
+			w.Header().Set("Deprecation", "true")
+			w.Header().Set("Link", `</api/workspaces>; rel="successor-version"`)
+		}
+
 		if id, match := singlePathID(r.URL.Path, "/api/projects/"); match && r.Method == http.MethodDelete {
+			if err := library.TrashWorkspaceAtomic(r.Context(), id); err != nil {
+				fail(w, err)
+				return
+			}
+			send(w, http.StatusNoContent, nil)
+			return
+		}
+		if id, match := singlePathID(r.URL.Path, "/api/workspaces/"); match && r.Method == http.MethodDelete {
 			if err := library.TrashWorkspaceAtomic(r.Context(), id); err != nil {
 				fail(w, err)
 				return
@@ -167,6 +206,14 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 			}
 		}
 
+		if legacyPath, ok := legacyWorkspacePath(r.URL.Path); ok {
+			if r.URL.Path == "/api/workspaces" && r.Method != http.MethodPost {
+				base.ServeHTTP(w, r)
+				return
+			}
+			serveRewritten(base, w, r, legacyPath)
+			return
+		}
 		base.ServeHTTP(w, r)
 	})
 }

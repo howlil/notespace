@@ -85,8 +85,8 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
 
 test("responsive contract: shared dialogs stay inside viewport and above mobile navigation", () => {
   const dialog = source(DIALOG);
-  assert.match(dialog, /max-h-\[calc\(100dvh-32px\)\]/);
+  assert.match(dialog, /max-h-\[calc\(100dvh_-_24px\)\]/);
   assert.match(dialog, /overflow-y-auto/);
-  assert.match(dialog, /z-\[1001\]/);
-  assert.match(dialog, /max-\[560px\]:w-\[calc\(100vw-24px\)\]/);
+  assert.match(dialog, /z-\[120\]/);
+  assert.match(dialog, /max-\[480px\]:w-\[calc\(100vw_-_24px\)\]/);
 });

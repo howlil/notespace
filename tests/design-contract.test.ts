@@ -152,7 +152,9 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
 
   const diagram = source(DIAGRAM_PALETTE);
   assert.match(diagram, /useCanvasPanelPosition/);
-  assert.match(diagram, /useCanvasPanelDismiss/);
+  assert.doesNotMatch(diagram, /useCanvasPanelDismiss/);
+  assert.match(diagram, /aria-label="Close diagram tools"/);
+  assert.match(diagram, /draggable/);
   assert.doesNotMatch(diagram, /All Categories<\/div>/);
   assert.match(diagram, /createPortal/);
   assert.match(diagram, /fixed z-\[1000\]/);

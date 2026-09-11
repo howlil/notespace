@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, reconcileElements } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -56,6 +56,7 @@ declare global {
 window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
 
 function readStoredLibraryItems(): LibraryItems {
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(EXCALIDRAW_LIBRARY_STORAGE_KEY);
     if (!raw) return [];
@@ -119,7 +120,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       ...data,
       appState: { viewBackgroundColor: dark ? "#1d1e24" : "#f8f9fc", ...(initial.data.appState as object) },
       files: {},
-      libraryItems: readStoredLibraryItems(),
     } as ExcalidrawInitialDataState;
   });
   const [hasElements, setHasElements] = useState(() => Array.isArray(initial.data.elements) && initial.data.elements.length > 0);
@@ -140,6 +140,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [gridModeEnabled, setGridModeEnabled] = useState(false);
   const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
   const [canvasApi, setCanvasApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  useHandleLibrary({ excalidrawAPI: canvasApi, getInitialLibraryItems: readStoredLibraryItems });
   const panelAnchorRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
@@ -348,34 +349,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setZoom(value.getAppState().zoom.value);
     setGridModeEnabled(value.getAppState().gridModeEnabled);
     setObjectsSnapModeEnabled(value.getAppState().objectsSnapModeEnabled);
-    if (!window.name) window.name = "notespace";
     void restoreLocalFiles(value);
   }, [restoreLocalFiles]);
-
-  useEffect(() => {
-    if (!canvasApi) return undefined;
-
-    const importLibraryFromHash = () => {
-      const params = new URLSearchParams(window.location.hash.slice(1));
-      const libraryUrl = params.get("addLibrary");
-      if (!libraryUrl) return;
-      const token = params.get("token") ?? undefined;
-
-      void Promise.resolve(canvasApi.importLibrary(libraryUrl, token))
-        .then(() => {
-          if (new URLSearchParams(window.location.hash.slice(1)).has("addLibrary")) {
-            window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
-          }
-        })
-        .catch((error) => {
-          showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not import the Excalidraw library." });
-        });
-    };
-
-    importLibraryFromHash();
-    window.addEventListener("hashchange", importLibraryFromHash);
-    return () => window.removeEventListener("hashchange", importLibraryFromHash);
-  }, [canvasApi, showToast]);
 
   const runCanvasAction = useCallback((name: CanvasRuntimeActionName) => {
     const value = api.current;

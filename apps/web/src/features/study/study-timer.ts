@@ -1,6 +1,7 @@
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
 
 export type ManualStudySession = {
+  logicalSessionId: string;
   segmentId: string;
   activityDate: string;
   status: "running" | "paused";
@@ -22,6 +23,10 @@ export function localDate(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export function studySegmentId(logicalSessionId: string, activityDate: string) {
+  return `${logicalSessionId}:${activityDate}`;
 }
 
 function nextLocalDay(date: string) {
@@ -64,7 +69,6 @@ export function resumeStudySession(session: ManualStudySession, now = Date.now()
 export function advanceStudySession(
   session: ManualStudySession,
   now: number,
-  idFactory: () => string,
 ): { session: ManualStudySession; completed: CompletedStudySegment[] } {
   const targetDate = localDate(new Date(now));
   if (session.activityDate >= targetDate) return { session, completed: [] };
@@ -78,7 +82,7 @@ export function advanceStudySession(
       completed,
       session: {
         ...current,
-        segmentId: idFactory(),
+        segmentId: studySegmentId(current.logicalSessionId, targetDate),
         activityDate: targetDate,
         segmentAccumulatedSeconds: 0,
         baselineTodaySeconds: 0,
@@ -95,7 +99,7 @@ export function advanceStudySession(
     const nextDate = localDate(new Date(boundary));
     current = {
       ...current,
-      segmentId: idFactory(),
+      segmentId: studySegmentId(current.logicalSessionId, nextDate),
       activityDate: nextDate,
       sessionAccumulatedSeconds: sessionSeconds,
       segmentAccumulatedSeconds: 0,

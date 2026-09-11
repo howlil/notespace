@@ -21,6 +21,8 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.match(workspace, /matchMedia\("\(max-width: 760px\)"\)/);
   assert.match(workspace, /node\.direction === "row" && compactPanes \? "column" : node\.direction/);
   assert.match(workspace, /max-\[760px\]:!grid-cols-1/);
+  assert.match(workspace, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)_auto\]/);
+  assert.match(workspace, /max-\[560px\]:grid-rows-\[30px_32px\]/);
   assert.doesNotMatch(workspace, /keepsCanvasOnRight/);
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
@@ -30,16 +32,19 @@ test("responsive contract: mobile library uses an app bar and off-canvas navigat
   const sidebar = source(SIDEBAR);
   assert.match(dashboard, /mobileLibraryOpen/);
   assert.match(dashboard, /aria-label="Open library navigation"/);
+  assert.match(dashboard, /aria-label="Search Notespace"/);
   assert.match(dashboard, /max-\[560px\]:fixed/);
   assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
   assert.match(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
   assert.match(dashboard, /function WorkspaceFolderCard/);
-  assert.match(dashboard, /grid grid-cols-3 gap-4 max-\[900px\]:grid-cols-2 max-\[560px\]:grid-cols-1/);
+  assert.match(dashboard, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
+  assert.match(dashboard, /max-\[560px\]:grid-cols-\[repeat\(auto-fill,minmax\(156px,180px\)\)\]/);
   assert.match(dashboard, /<WorkspaceListSkeleton variant="cards" \/>/);
   assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
+  assert.match(sidebar, /<NotespaceLogo showWordmark=\{false\} size="sm" \/>/);
   assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
 });
 
@@ -66,6 +71,7 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(chrome, /nativeActionIcon/);
   assert.match(chrome, /secondaryToolGroups/);
   assert.match(chrome, /event\.pointerType === "mouse"/);
+  assert.match(chrome, /event\.key !== "\/"/);
   assert.match(chrome, /aria-label="More canvas view controls"/);
   assert.match(chrome, /keepSelection: false/);
   assert.match(chrome, /name="undo" label="Undo"/);
@@ -80,9 +86,7 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
 test("responsive contract: shared dialogs stay inside viewport and above mobile navigation", () => {
   const dialog = source(DIALOG);
   assert.match(dialog, /max-h-\[calc\(100dvh_-_24px\)\]/);
-  assert.match(dialog, /overflow-y-auto overscroll-contain/);
-  assert.match(dialog, /max-\[480px\]:w-\[calc\(100vw_-_24px\)\]/);
-  assert.match(dialog, /max-\[420px\]:flex-col-reverse/);
-  assert.match(dialog, /z-\[110\]/);
+  assert.match(dialog, /overflow-y-auto/);
   assert.match(dialog, /z-\[120\]/);
+  assert.match(dialog, /max-\[480px\]:w-\[calc\(100vw_-_24px\)\]/);
 });

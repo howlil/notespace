@@ -8,6 +8,7 @@ import {
   localDate,
   materializeStudySession,
   resumeStudySession,
+  studySegmentId,
 } from "./study-timer";
 import type { ManualStudySession } from "./study-timer";
 
@@ -44,7 +45,10 @@ function readStoredSession(workspaceId: string): ManualStudySession | null {
       || typeof value.baselineTodaySeconds !== "number"
       || typeof value.baselineTotalSeconds !== "number"
     ) return null;
-    return value as ManualStudySession;
+    const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
+      ? value.logicalSessionId
+      : value.segmentId.split(":", 1)[0] || value.segmentId;
+    return { ...value, logicalSessionId } as ManualStudySession;
   } catch {
     return null;
   }
@@ -72,7 +76,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   }, [workspaceId]);
 
   const reconcile = useCallback((value: ManualStudySession, now: number) => {
-    const result = advanceStudySession(value, now, () => crypto.randomUUID());
+    const result = advanceStudySession(value, now);
     if (result.completed.length > 0) {
       result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
       commitSession(result.session);
@@ -89,7 +93,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     const now = Date.now();
     const restored = readStoredSession(workspaceId);
     if (restored) {
-      const result = advanceStudySession(restored, now, () => crypto.randomUUID());
+      const result = advanceStudySession(restored, now);
       result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
       commitSession(result.session);
       setBaseline({
@@ -154,8 +158,10 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       todaySeconds: baselineDate === date ? baseline.todaySeconds : 0,
       totalSeconds: baseline.totalSeconds,
     };
+    const logicalSessionId = crypto.randomUUID();
     const next: ManualStudySession = {
-      segmentId: crypto.randomUUID(),
+      logicalSessionId,
+      segmentId: studySegmentId(logicalSessionId, date),
       activityDate: date,
       status: "running",
       sessionAccumulatedSeconds: 0,

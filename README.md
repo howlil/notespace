@@ -24,22 +24,37 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
 - Durable image assets.
 - Recoverable Workspace Trash with explicit permanent deletion.
-- Versioned full-library backup/transactional restore covering Categories, active Workspaces, Trash, images, study sessions, and legacy history data when present.
+- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Trash, images, study sessions, and legacy history data when present.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
 - Explicit Start / Pause / Resume / End study sessions.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
 
 ## Self-host with Docker
 
+For a local source build, use the localhost port-publishing override:
+
 ```sh
 git clone https://github.com/howlil/notespace.git
 cd notespace
-docker compose up --build -d --wait
+docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
 ```
 
-Open `http://localhost:8080`. Compose runs one Go process serving the built web app and API with SQLite in the explicitly named `notespace-data` volume. No Node process or external database is required at runtime.
+Open `http://localhost:8080`.
+
+`compose.yaml` intentionally exposes the container port without publishing it on the host because reverse-proxy/PaaS deployments own the public route. `compose.local.yaml` is the explicit localhost override. Both use the same stable `notespace-data` volume.
 
 Do not use `docker compose down -v` unless you intentionally want to remove the data volume. Keep `NOTESPACE_DATA_VOLUME` stable across redeploys.
+
+### Versioned container images
+
+Tags matching `v*` publish versioned images to GitHub Container Registry:
+
+```text
+ghcr.io/howlil/notespace:<version>
+ghcr.io/howlil/notespace:latest
+```
+
+The source-build Compose path remains the simplest local setup. Operators may use the GHCR image in their existing container platform without rebuilding the repository.
 
 ### Remote access protection
 
@@ -59,14 +74,14 @@ This is deliberately a single-owner deployment gate, not an account/RBAC system.
 
 The Library tools surface exposes:
 
-- **Backup** — downloads a versioned `notespace-backup.json` containing all canonical user-owned library data;
-- **Restore** — transactionally replaces the current library from a compatible backup;
+- **Backup** — downloads a versioned `notespace-backup.zip` containing all canonical user-owned library data and deduplicated binary blobs;
+- **Restore** — transactionally replaces the current library from a compatible Notespace ZIP backup or legacy JSON backup;
 - **Trash** — restores accidentally deleted Workspaces or deletes them permanently;
 - **Import Markdown vault** — selects a Markdown directory/vault and imports files into a chosen Category.
 
 The full-library backup includes Categories, active and trashed Workspaces, authored snapshots, durable image assets, study sessions, and legacy history rows when present. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
 
-For infrastructure-level backup, stopping the container and copying the complete SQLite volume remains valid. Include SQLite WAL files when copying a live data directory.
+The application backup/restore path is currently intentionally capped at **64 MiB** because the archive adapter still assembles a round trip in memory. For a larger installation, use infrastructure-level backup until archive streaming is implemented: stop the container and copy the complete SQLite volume, or use an equivalent SQLite-safe snapshot procedure. Include SQLite WAL files when copying a live data directory.
 
 ## Development
 
@@ -112,17 +127,36 @@ Compose additionally supports `NOTESPACE_BIND_IP`, `NOTESPACE_PORT`, and `NOTESP
 
 ## Save and consistency behavior
 
-Edits update immediately and durable autosave runs after 650 ms of inactivity. Saves are serialized per Workspace; **Saved** appears only after SQLite acknowledges the write. Normal autosave no longer writes periodic history checkpoints.
+Edits update immediately and durable autosave runs after 650 ms of inactivity. Saves are serialized per Workspace; **Saved** appears only after SQLite acknowledges the write. Normal autosave does not write periodic history checkpoints.
 
 For the same Workspace opened in multiple tabs in one browser, Canvas element changes are exchanged directly through `BroadcastChannel` and reconciled with Excalidraw element version semantics. This local path is coalesced separately from server autosave, so sibling tabs can converge quickly without sending an HTTP request for every pointer movement.
 
-Each durable save still carries a Workspace version. If two durable Canvas writes race, the stale client fetches the newest Workspace, merges the Canvas snapshots, and retries against the newest version. A conflict involving Notes, title, or other non-Canvas authored fields is not blindly merged and still stops autosave for explicit recovery.
+Each durable save still carries a Workspace version. If two durable Canvas writes race, the stale client fetches the newest Workspace, merges the Canvas snapshots, and retries against the newest version. A conflict involving Notes, title, or other non-Canvas authored fields is not blindly merged and stops autosave for explicit recovery.
 
 Pan and zoom are per-tab view state and are not persisted as authored Canvas changes. This prevents ordinary navigation from generating unnecessary saves or false conflicts.
 
 This is same-browser multi-tab synchronization, not cross-device multiplayer collaboration or offline CRDT synchronization.
 
 Moving a Workspace to Trash captures its authored state and image assets inside one SQLite transaction before removing it from the active library. Full-library backup uses a consistent SQLite read transaction; restore is all-or-nothing.
+
+## Study sessions
+
+Study tracking is manual: Start, Pause/Resume, and End are explicit user actions. A user-visible logical session may cross midnight. Persistence splits daily accounting into date segments, but Recent sessions groups those segments back into one session and deleting it removes the complete logical session.
+
+## Search behavior
+
+SQLite authored Workspace state remains authoritative. Successful Workspace create/update/move operations attempt to refresh only that Workspace's FTS projection. If derived indexing fails after the authored write has already committed, Notespace logs the projection error and the next search repairs stale rows lazily rather than falsely reporting that the authored save failed.
+
+## API compatibility
+
+Workspace terminology is canonical for new clients:
+
+```text
+/workspaces/:id
+/api/workspaces/*
+```
+
+Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/projects/*` routes remain temporarily available for compatibility and advertise deprecation; new application code should not introduce new Project-named HTTP consumers.
 
 ## Verification
 
@@ -132,9 +166,9 @@ Run deterministic local gates with:
 task verify
 ```
 
-The suite covers TypeScript typechecking/lint/unit/build, Go vet/race/build, repository knowledge contracts, and risk-selected production composition checks. Persistence/runtime changes additionally exercise Docker Compose and restart durability.
+The required CI path covers TypeScript typechecking/lint/unit/build, Go formatting/vet/race/build, repository knowledge contracts, focused persistence evidence, and a small Playwright set for critical user journeys: route/reload, search, Trash recovery, and full-library backup/restore. Persistence/runtime changes additionally exercise Docker Compose and restart durability.
 
-Manual browser/black-box testing and screenshot review are not required merge gates.
+The full Playwright suite remains available for targeted debugging but is not the normal merge gate.
 
 ## Implementation boundaries
 

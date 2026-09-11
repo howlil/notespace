@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"container/list"
 	"context"
+	"encoding/xml"
 	"errors"
 	"io"
 	"mime"
@@ -13,8 +15,10 @@ import (
 )
 
 const (
-	eraserIconOrigin   = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
-	maxEraserIconBytes = 1 << 20
+	eraserIconOrigin       = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
+	maxEraserIconBytes     = 1 << 20
+	maxEraserCacheBytes    = 64 << 20
+	maxEraserCacheEntries  = 512
 )
 
 var errInvalidEraserIcon = errors.New("invalid Eraser icon")
@@ -24,19 +28,31 @@ type eraserIconCacheEntry struct {
 	contentType string
 }
 
+type cachedEraserIcon struct {
+	slug  string
+	entry eraserIconCacheEntry
+}
+
 type eraserIconGateway struct {
 	client  *http.Client
 	baseURL string
 
-	mu    sync.RWMutex
-	cache map[string]eraserIconCacheEntry
+	mu         sync.Mutex
+	cache      map[string]*list.Element
+	cacheOrder *list.List
+	cacheBytes int
 }
 
 func newEraserIconGateway(client *http.Client, baseURL string) *eraserIconGateway {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &eraserIconGateway{client: client, baseURL: strings.TrimRight(baseURL, "/") + "/", cache: make(map[string]eraserIconCacheEntry)}
+	return &eraserIconGateway{
+		client: client,
+		baseURL: strings.TrimRight(baseURL, "/") + "/",
+		cache: make(map[string]*list.Element),
+		cacheOrder: list.New(),
+	}
 }
 
 func validEraserIconSlug(slug string) bool {
@@ -53,21 +69,93 @@ func validEraserIconSlug(slug string) bool {
 	return true
 }
 
-func validSVG(data []byte) bool {
-	text := strings.ToLower(string(data))
-	if !strings.Contains(text, "<svg") || strings.Contains(text, "<script") ||
-		strings.Contains(text, "javascript:") || strings.Contains(text, " onload=") ||
-		strings.Contains(text, " onerror=") {
+func unsafeSVGURL(value string) bool {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" || strings.HasPrefix(value, "#") || strings.HasPrefix(value, "data:image/") {
 		return false
 	}
-	return true
+	return strings.Contains(value, ":") || strings.HasPrefix(value, "//")
+}
+
+func validSVG(data []byte) bool {
+	decoder := xml.NewDecoder(strings.NewReader(string(data)))
+	seenSVG := false
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return seenSVG
+		}
+		if err != nil {
+			return false
+		}
+		switch typed := token.(type) {
+		case xml.Directive:
+			if strings.Contains(strings.ToLower(string(typed)), "doctype") {
+				return false
+			}
+		case xml.StartElement:
+			name := strings.ToLower(typed.Name.Local)
+			if name == "svg" {
+				seenSVG = true
+			}
+			switch name {
+			case "script", "foreignobject", "iframe", "object", "embed":
+				return false
+			}
+			for _, attr := range typed.Attr {
+				attrName := strings.ToLower(attr.Name.Local)
+				value := strings.TrimSpace(attr.Value)
+				lowerValue := strings.ToLower(value)
+				if strings.HasPrefix(attrName, "on") || attrName == "base" || strings.Contains(lowerValue, "javascript:") {
+					return false
+				}
+				if attrName == "href" && unsafeSVGURL(value) {
+					return false
+				}
+				if attrName == "style" && (strings.Contains(lowerValue, "javascript:") || strings.Contains(lowerValue, "url(http") || strings.Contains(lowerValue, "url(//")) {
+					return false
+				}
+			}
+		}
+	}
+}
+
+func (g *eraserIconGateway) cached(slug string) (eraserIconCacheEntry, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	element, ok := g.cache[slug]
+	if !ok {
+		return eraserIconCacheEntry{}, false
+	}
+	g.cacheOrder.MoveToFront(element)
+	return element.Value.(cachedEraserIcon).entry, true
+}
+
+func (g *eraserIconGateway) storeCached(slug string, entry eraserIconCacheEntry) eraserIconCacheEntry {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if existing, ok := g.cache[slug]; ok {
+		g.cacheOrder.MoveToFront(existing)
+		return existing.Value.(cachedEraserIcon).entry
+	}
+	element := g.cacheOrder.PushFront(cachedEraserIcon{slug: slug, entry: entry})
+	g.cache[slug] = element
+	g.cacheBytes += len(entry.data)
+	for g.cacheOrder.Len() > maxEraserCacheEntries || g.cacheBytes > maxEraserCacheBytes {
+		oldest := g.cacheOrder.Back()
+		if oldest == nil {
+			break
+		}
+		item := oldest.Value.(cachedEraserIcon)
+		delete(g.cache, item.slug)
+		g.cacheBytes -= len(item.entry.data)
+		g.cacheOrder.Remove(oldest)
+	}
+	return entry
 }
 
 func (g *eraserIconGateway) fetch(ctx context.Context, slug string) (eraserIconCacheEntry, error) {
-	g.mu.RLock()
-	entry, ok := g.cache[slug]
-	g.mu.RUnlock()
-	if ok {
+	if entry, ok := g.cached(slug); ok {
 		return entry, nil
 	}
 
@@ -95,16 +183,8 @@ func (g *eraserIconGateway) fetch(ctx context.Context, slug string) (eraserIconC
 	if err != nil || len(data) == 0 || len(data) > maxEraserIconBytes || !validSVG(data) {
 		return eraserIconCacheEntry{}, errInvalidEraserIcon
 	}
-	entry = eraserIconCacheEntry{data: data, contentType: "image/svg+xml"}
-
-	g.mu.Lock()
-	if cached, alreadyCached := g.cache[slug]; alreadyCached {
-		entry = cached
-	} else {
-		g.cache[slug] = entry
-	}
-	g.mu.Unlock()
-	return entry, nil
+	entry := eraserIconCacheEntry{data: data, contentType: "image/svg+xml"}
+	return g.storeCached(slug, entry), nil
 }
 
 func (g *eraserIconGateway) serve(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from "lucide-react";
+import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, PanelLeftClose, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../ui";
 import { useToast } from "../../providers/toast-provider";
@@ -193,8 +193,16 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
       collapsed && "items-center px-2 max-[560px]:px-4",
     )}>
       <div className={cn("flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0", collapsed && "w-full justify-center px-0")}>
-        {!collapsed && <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>}
-        <IconButton className="m-0 shrink-0 text-ink/70" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</IconButton>
+        {collapsed ? (
+          <button type="button" className="grid size-8 place-items-center rounded-md hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent" onClick={onToggle} aria-label="Expand sidebar" title="Expand sidebar">
+            <NotespaceLogo showWordmark={false} size="sm" />
+          </button>
+        ) : (
+          <>
+            <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>
+            <IconButton className="m-0 shrink-0 text-ink/70" onClick={onToggle} aria-label="Collapse sidebar" title="Collapse sidebar"><PanelLeftClose size={17} /></IconButton>
+          </>
+        )}
       </div>
       {!collapsed && <>
         <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">

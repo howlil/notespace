@@ -109,6 +109,7 @@ export function DiagramPalette({
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 560);
   useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   const [query, setQuery] = useState("");
@@ -132,6 +133,15 @@ export function DiagramPalette({
     setScrollTop(0);
     gridRef.current?.scrollTo({ top: 0 });
   }, [category, query]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const chooseCategory = (next: BrowseCategory) => {
     setCategory(next);
@@ -167,7 +177,7 @@ export function DiagramPalette({
           <div className="border-b border-line p-2">
             <div className="relative">
               <Search size={panelIconSize} strokeWidth={1.5} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 3,947 icons..." aria-label="Search all Eraser icons" className="pl-8" />
+              <Input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 3,947 icons..." aria-label="Search all Eraser icons" className="pl-8" />
             </div>
             {!hasSearch && (
               <div className="mt-2">

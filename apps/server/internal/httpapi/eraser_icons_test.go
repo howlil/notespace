@@ -45,7 +45,20 @@ func TestEraserIconGatewayRejectsInvalidOrUnsafeSVG(t *testing.T) {
 	if validEraserIconSlug("../secrets") || validEraserIconSlug("aws lambda") || validEraserIconSlug("aws?lambda") {
 		t.Fatal("unsafe icon slug accepted")
 	}
-	if validSVG([]byte(`<svg><script>alert(1)</script></svg>`)) || validSVG([]byte(`<html></html>`)) {
-		t.Fatal("unsafe or non-SVG payload accepted")
+	unsafe := []string{
+		`<svg><script>alert(1)</script></svg>`,
+		`<svg><path onclick="alert(1)"/></svg>`,
+		`<svg><image href="https://example.com/tracker.png"/></svg>`,
+		`<svg><foreignObject><div>html</div></foreignObject></svg>`,
+		`<!DOCTYPE svg><svg></svg>`,
+		`<html></html>`,
+	}
+	for _, payload := range unsafe {
+		if validSVG([]byte(payload)) {
+			t.Fatalf("unsafe or non-SVG payload accepted: %q", payload)
+		}
+	}
+	if !validSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><use href="#shape"/></svg>`)) {
+		t.Fatal("safe local SVG reference rejected")
 	}
 }

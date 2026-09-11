@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       CI: true
     steps:
@@ -61,7 +61,7 @@ jobs:
             esac
 
             case "$file" in
-              apps/server/internal/persistence/*|apps/server/migrations/*|compose.yaml|compose.ci.yaml|Dockerfile|scripts/smoke-persistence.py)
+              apps/server/internal/persistence/*|apps/server/migrations/*|compose*.yaml|Dockerfile|scripts/smoke-persistence.py)
                 deploy=true
                 ;;
             esac
@@ -124,7 +124,7 @@ jobs:
           node-version: '24'
 
       - uses: actions/setup-go@v5
-        if: ${{ steps.changes.outputs.server == 'true' }}
+        if: ${{ steps.changes.outputs.server == 'true' || steps.changes.outputs.web == 'true' }}
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
@@ -136,6 +136,14 @@ jobs:
       - name: Frontend static, unit, and build gates
         if: ${{ steps.changes.outputs.web == 'true' }}
         run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
+
+      - name: Install Chromium for critical journeys
+        if: ${{ steps.changes.outputs.web == 'true' }}
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Critical browser journeys
+        if: ${{ steps.changes.outputs.web == 'true' }}
+        run: pnpm test:e2e:critical
 
       - name: Backend static, race, and build gates
         if: ${{ steps.changes.outputs.server == 'true' }}

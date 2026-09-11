@@ -14,7 +14,7 @@ export class APIError extends Error {
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    signal: AbortSignal.timeout(20_000),
+    signal: init?.signal ?? AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
@@ -32,9 +32,9 @@ export const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 
-export const getProject = (id: string) => request<Project>(`/api/projects/${encodeURIComponent(id)}`);
+export const getProject = (id: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`);
 
-export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/projects/${encodeURIComponent(id)}`, {
+export const updateProjectSnapshot = (id: string, content: ProjectContent, version: number) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`, {
   method: "PATCH",
   ...json({ ...content, version }),
 });

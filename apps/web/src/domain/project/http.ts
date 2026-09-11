@@ -14,7 +14,7 @@ export class APIError extends Error {
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    signal: AbortSignal.timeout(20_000),
+    signal: init?.signal ?? AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);

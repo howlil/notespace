@@ -346,9 +346,9 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
 
   return (
     <div className="h-dvh min-w-0 overflow-hidden">
-      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:44px] max-[560px]:[--workspace-header-height:68px]", focusMode && "is-focus-mode")}>
-        <header className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-11 max-[560px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] max-[560px]:grid-rows-[28px_auto] max-[560px]:items-center max-[560px]:gap-1 max-[560px]:px-3 max-[560px]:py-1.5", focusMode && "hidden")}>
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-auto max-[560px]:gap-1">
+      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:44px] max-[560px]:[--workspace-header-height:76px]", focusMode && "is-focus-mode")}>
+        <header className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-[76px] max-[560px]:grid-cols-[minmax(0,1fr)_auto] max-[560px]:grid-rows-[30px_32px] max-[560px]:items-center max-[560px]:gap-x-2 max-[560px]:gap-y-1 max-[560px]:px-2 max-[560px]:py-1.5", focusMode && "hidden")}>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-full max-[560px]:gap-1">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={16} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
             <label className="relative flex min-w-0 max-w-[min(32vw,360px)] items-center max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
@@ -359,7 +359,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
               <ChevronDown size={12} className="pointer-events-none absolute right-1.5 text-muted" aria-hidden="true" />
             </label>
           </div>
-          <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-surface p-px max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-1 max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
+          <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-surface p-px max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-2 max-[560px]:justify-self-start max-[560px]:self-center max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
             {(["canvas", "note", "split"] as const).map((mode) => {
               const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
               const selected = activeViewMode === mode;
@@ -367,9 +367,9 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
               return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-8 !min-h-8 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
             })}
           </div>
-          <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-span-3 max-[560px]:row-start-2 max-[560px]:w-full max-[560px]:min-w-0 max-[560px]:overflow-x-auto max-[560px]:overscroll-x-contain max-[560px]:pb-px max-[560px]:[scrollbar-width:none] max-[560px]:[&::-webkit-scrollbar]:hidden max-[560px]:[&>*]:shrink-0">
+          <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
             <StudyIndicator study={study} />
-            <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px] max-[560px]:text-[9px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={13} /> : status.state === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Circle size={9} />}{saveLabel}</span>
+            <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={13} /> : status.state === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Circle size={9} />}{saveLabel}</span>
             <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={15} /></IconButton>
             <WorkspaceGuide />
           </div>

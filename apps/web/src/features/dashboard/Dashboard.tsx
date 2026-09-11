@@ -34,7 +34,7 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
     <Link
       to="/workspaces/$workspaceId"
       params={{ workspaceId: workspace.id }}
-      className="group block min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group block w-full max-w-[196px] min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       aria-label={`Open ${workspace.title}`}
     >
       <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
@@ -56,10 +56,10 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
         </span>
 
         <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
-          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3 max-[560px]:inset-x-4 max-[560px]:bottom-4">
+          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink max-[560px]:text-[18px]">{workspace.title}</strong>
-              <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70 max-[560px]:text-[11px]">{metadata}</span>
+              <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
+              <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
             </div>
             <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
           </div>
@@ -215,43 +215,36 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         />
       </div>
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
-        <header className="hidden min-h-14 items-center justify-between gap-3 border-b border-line bg-surface px-4 max-[560px]:flex">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <IconButton type="button" className="!size-9 shrink-0 text-ink" aria-label="Open library navigation" title="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
-            <span className="truncate text-sm font-medium text-ink">Library</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1 [&>button]:size-[32px] [&>button]:text-ink"><WorkspaceGuide /><ThemeToggle /></div>
-        </header>
-        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-line bg-surface px-6 max-[560px]:hidden">
-          <span className="text-[11px] font-semibold uppercase tracking-[.11em] text-ink">Library</span>
-          <div className="flex items-center gap-1.5 [&>button]:size-[30px] [&>button]:text-ink"><WorkspaceGuide /><ThemeToggle /></div>
-        </header>
-        <div className="mx-auto w-full max-w-[1120px] px-8 pt-10 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
-          <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
-            <div className="min-w-0"><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent max-[560px]:text-[9px]">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-ink/70 max-[560px]:text-[11px]">{description}</p></div>
-            <span className="shrink-0 pb-1 text-[11px] font-medium text-ink/70 max-[560px]:pt-5 max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
-          </div>
-          <div ref={searchRef} className="relative mb-4 flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-ink shadow-[0_1px_2px_#0000000a] focus-within:border-accent focus-within:ring-2 focus-within:ring-tint">
-            <Search size={16} className="text-ink/70" aria-hidden="true" />
+        <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
+          <IconButton type="button" className="!size-9 hidden shrink-0 text-ink max-[560px]:grid" aria-label="Open library navigation" title="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
+          <div ref={searchRef} className="relative flex min-h-9 w-full max-w-[680px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-ink focus-within:border-accent focus-within:ring-2 focus-within:ring-tint max-[560px]:min-h-8 max-[560px]:min-w-0">
+            <Search size={15} className="shrink-0 text-ink/70" aria-hidden="true" />
             <Input
               ref={searchInput}
-              className="min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2.5 text-xs placeholder:text-ink/70 focus:border-transparent focus:ring-0"
+              className="min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] placeholder:text-ink/60 focus:border-transparent focus:ring-0 max-[560px]:py-1.5"
               aria-label="Search Notespace"
-              placeholder="Search notes, blocks, workspaces, categories…"
+              placeholder="Search notes, workspaces, categories…"
               value={query}
               onFocus={() => setSearchOpen(query.trim().length >= 2)}
               onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }}
             />
             {query.trim().length >= 2 && searchOpen && (
-              <PopupSurface className="absolute top-[calc(100%+4px)] right-0 left-0 z-20 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results" aria-busy={searchLoading}>
+              <PopupSurface className="absolute top-[calc(100%+6px)] right-0 left-0 z-40 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results" aria-busy={searchLoading}>
                 {searchLoading ? <span className="px-2.5 py-2 text-[10px] text-ink/70" role="status">Searching…</span> : searchError ? <span className="px-2.5 py-2 text-[10px] text-danger" role="alert">{searchError}</span> : searchResults.length ? searchResults.map((result) => (
-                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="grid gap-0.5 rounded-md px-2.5 py-2 hover:bg-tint focus-visible:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
+                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="search-result grid gap-0.5 rounded-md px-2.5 py-2 hover:bg-tint focus-visible:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
                     <strong className="text-[11px] font-medium text-ink">{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong>
                     <span className="text-[10px] text-ink/70">{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span>
                   </a>
                 )) : <span className="px-2.5 py-2 text-[10px] text-ink/70">No matching knowledge</span>}
               </PopupSurface>
             )}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px] [&>button]:text-ink max-[560px]:[&>button]:size-[32px]"><WorkspaceGuide /><ThemeToggle /></div>
+        </header>
+        <div className="w-full px-8 pt-8 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
+          <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
+            <div className="min-w-0"><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent max-[560px]:text-[9px]">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-ink/70 max-[560px]:text-[11px]">{description}</p></div>
+            <span className="shrink-0 pb-1 text-[11px] font-medium text-ink/70 max-[560px]:pt-5 max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
           </div>
           <nav className="mb-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
             <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "border-b-accent bg-tint text-accent")} onClick={() => setView("recent")}>Recent</Button>
@@ -264,7 +257,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
               <span className="text-[11px] font-medium text-ink/70">Updated recently</span>
             </div>
             {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
-              <div className="grid grid-cols-3 gap-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1 min-[1041px]:grid-cols-4">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
                 {items.map((workspace) => (
                   <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} />
                 ))}

@@ -71,7 +71,9 @@ export type StudyDay = { date: string; activeSeconds: number };
 export type StudyActivity = { todaySeconds: number; weekSeconds: number; currentStreak: number; days: StudyDay[] };
 export type StudyDayDetail = { date: string; activeSeconds: number; workspaces: Array<{ workspaceId: string; title: string; deleted: boolean; activeSeconds: number }> };
 
+export const listStudySessions = (workspaceId: string, limit = 8) => request<StudySession[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/study-sessions?limit=${limit}`);
 export const recordStudyHeartbeat = (workspaceId: string, sessionId: string, body: { activityDate: string; activeSeconds: number; finish: boolean }) => request<StudySession>(`/api/workspaces/${encodeURIComponent(workspaceId)}/study-sessions/${encodeURIComponent(sessionId)}`, { method: "PUT", ...json(body) });
+export const deleteStudySession = (workspaceId: string, sessionId: string) => request<void>(`/api/workspaces/${encodeURIComponent(workspaceId)}/study-sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
 export const getWorkspaceStudy = (workspaceId: string, date: string) => request<StudyStats>(`/api/workspaces/${encodeURIComponent(workspaceId)}/study?date=${encodeURIComponent(date)}`);
 export const getStudyActivity = (from: string, to: string) => request<StudyActivity>(`/api/study/activity?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const getStudyDayDetail = (date: string) => request<StudyDayDetail>(`/api/study/activity/${encodeURIComponent(date)}`);

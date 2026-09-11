@@ -19,7 +19,7 @@ export function Brand() {
 type Props = { categories: CategorySummary[]; selectedCategoryId?: string; collapsed: boolean; onToggle: () => void; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
 type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
 
-const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[10px] focus:border-transparent";
+const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
 export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, onSelectCategory, onChanged }: Props) {
   const { showToast } = useToast();
@@ -179,7 +179,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
   const inlineCreate = (kind: "category" | "workspace", categoryId?: string) => (
     <form data-category-id={categoryId} className="mx-[5px] mt-[3px] mb-[5px] flex w-[calc(100%_-_14px)] min-w-0 items-center gap-[3px]" onSubmit={submitCreate} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
       <Input className={cn(inlineInputClass, "w-px")} autoFocus aria-label={kind === "category" ? "Category title" : "Workspace title"} placeholder={kind === "category" ? "Category name" : "Workspace name"} value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setCreating(null); }} />
-      <IconButton type="button" className="size-6 shrink-0" aria-label={`Cancel new ${kind}`} onClick={() => setCreating(null)}><span aria-hidden="true">×</span></IconButton>
+      <IconButton type="button" className="size-6 shrink-0 text-ink/70" aria-label={`Cancel new ${kind}`} title={`Cancel new ${kind}`} onClick={() => setCreating(null)}><span aria-hidden="true">×</span></IconButton>
     </form>
   );
 
@@ -194,12 +194,12 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
     )}>
       <div className={cn("flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0", collapsed && "w-full justify-center px-0")}>
         {!collapsed && <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>}
-        <IconButton className="m-0 shrink-0" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</IconButton>
+        <IconButton className="m-0 shrink-0 text-ink/70" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</IconButton>
       </div>
       {!collapsed && <>
         <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">
-          <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
-          <IconButton className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
+          <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
+          <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
           <QuickCapture />
           <LibraryTools />
         </div>
@@ -211,6 +211,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
             const isOpen = expanded.has(category.id);
             const items = children[category.id] ?? [];
             const isSystemCategory = category.id === "legacy";
+            const isSelected = selectedCategoryId === category.id;
             return (
               <div className="relative" key={category.id} data-system-category={isSystemCategory ? "true" : undefined} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void dropWorkspace(category.id, event)}>
                 <ContextMenu onOpenChange={(open) => { if (open) clearTransientState(); }}>
@@ -218,19 +219,19 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
                     <div
                       className={cn(
                         "flex min-h-8 min-w-0 items-center rounded-md",
-                        selectedCategoryId === category.id && "bg-tint",
+                        isSelected && "bg-tint",
                         isSystemCategory && "bg-[color-mix(in_srgb,var(--surface)_55%,transparent)]",
                       )}
                       onContextMenu={handleTriggerContextMenu}
                       onKeyDown={handleTriggerKeyDown}
                     >
-                      <IconButton className="grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-muted" aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
+                      <IconButton className={cn("grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-ink/70", isSelected && "text-accent")} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
                       {editingCategory === category.id && !isSystemCategory ? (
                         <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") setEditingCategory(null); }} />
                       ) : (
-                        <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSystemCategory && "text-muted")} onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                        <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
                           <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
-                          <small className={cn("ml-auto text-[9px] text-muted", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
+                          <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSelected && "text-accent", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                         </Button>
                       )}
                     </div>
@@ -253,15 +254,15 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
                             {editingWorkspace === workspace.id ? (
                               <Input className={inlineInputClass} autoFocus defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => void saveWorkspace(workspace, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(workspace, event.currentTarget.value); if (event.key === "Escape") setEditingWorkspace(null); }} />
                             ) : (
-                              <Link className="flex min-w-0 flex-1 items-center gap-[7px] px-[3px] py-[5px] text-[10px] text-muted hover:text-accent" to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} onDoubleClick={(event) => { event.preventDefault(); setEditingWorkspace(workspace.id); }}><FileText size={14} /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspace.title}</span></Link>
+                              <Link className="flex min-w-0 flex-1 items-center gap-[7px] px-[3px] py-[5px] text-[11px] text-ink/70 hover:text-accent" to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} onDoubleClick={(event) => { event.preventDefault(); setEditingWorkspace(workspace.id); }}><FileText size={14} /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspace.title}</span></Link>
                             )}
                           </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent><ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem></ContextMenuContent>
                       </ContextMenu>
                     ))}
-                    {items.length >= 5 && <Link className="mx-[5px] mt-0.5 ml-[9px] px-[3px] py-[5px] text-[9px] text-accent" to="/categories/$categoryId" params={{ categoryId: category.id }}>View all</Link>}
-                    {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[9px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
+                    {items.length >= 5 && <Link className="mx-[5px] mt-0.5 ml-[9px] px-[3px] py-[5px] text-[10px] font-medium text-accent" to="/categories/$categoryId" params={{ categoryId: category.id }}>View all</Link>}
+                    {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
                   </div>
                 )}
               </div>

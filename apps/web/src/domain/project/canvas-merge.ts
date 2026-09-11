@@ -105,15 +105,82 @@ export function mergeCanvasSnapshots(local: Snapshot, remote: Snapshot): Snapsho
   };
 }
 
+function sameJSON(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+type MergeFieldResult<T> = { value: T } | null;
+
+function mergeField<T>(base: T, local: T, remote: T, same: (left: T, right: T) => boolean): MergeFieldResult<T> {
+  if (same(local, remote)) return { value: local };
+  const localChanged = !same(local, base);
+  const remoteChanged = !same(remote, base);
+  if (!localChanged) return { value: remote };
+  if (!remoteChanged) return { value: local };
+  return null;
+}
+
+/**
+ * Three-way merge for a stale workspace save. Unrelated remote fields are
+ * adopted automatically, local-only fields are preserved, and true concurrent
+ * edits to the same non-Canvas field still surface as a conflict.
+ */
+export function mergeProjectContent(base: ProjectContent, local: ProjectContent, remote: ProjectContent): ProjectContent | null {
+  const title = mergeField(base.title.trim(), local.title.trim(), remote.title.trim(), (left, right) => left === right);
+  const document = mergeField(base.document, local.document, remote.document, sameJSON);
+  const notes = mergeField(base.notes, local.notes, remote.notes, sameJSON);
+  const references = mergeField(base.references, local.references, remote.references, sameJSON);
+  const splitRatio = mergeField(base.splitRatio, local.splitRatio, remote.splitRatio, (left, right) => left === right);
+  if (!title || !document || !notes || !references || !splitRatio) return null;
+
+  let canvas: Snapshot;
+  if (sameJSON(local.canvas, remote.canvas)) canvas = local.canvas;
+  else if (sameJSON(local.canvas, base.canvas)) canvas = remote.canvas;
+  else if (sameJSON(remote.canvas, base.canvas)) canvas = local.canvas;
+  else canvas = mergeCanvasSnapshots(local.canvas, remote.canvas);
+
+  return {
+    title: title.value,
+    document: document.value,
+    notes: notes.value,
+    canvas,
+    references: references.value,
+    splitRatio: splitRatio.value,
+  };
+}
+
+/**
+ * Rebase edits made after a request started onto the server acknowledgement.
+ * Fields untouched since `base` adopt the acknowledged value. Newer local
+ * edits stay local; Canvas edits are merged so a slow save cannot erase them.
+ */
+export function rebaseLocalProjectContent(base: ProjectContent, local: ProjectContent, remote: ProjectContent): ProjectContent {
+  const localTitleChanged = local.title.trim() !== base.title.trim();
+  const localDocumentChanged = !sameJSON(local.document, base.document);
+  const localNotesChanged = !sameJSON(local.notes, base.notes);
+  const localReferencesChanged = !sameJSON(local.references, base.references);
+  const localSplitChanged = local.splitRatio !== base.splitRatio;
+  const localCanvasChanged = !sameJSON(local.canvas, base.canvas);
+
+  return {
+    title: localTitleChanged ? local.title.trim() : remote.title,
+    document: localDocumentChanged ? local.document : remote.document,
+    notes: localNotesChanged ? local.notes : remote.notes,
+    canvas: localCanvasChanged ? mergeCanvasSnapshots(local.canvas, remote.canvas) : remote.canvas,
+    references: localReferencesChanged ? local.references : remote.references,
+    splitRatio: localSplitChanged ? local.splitRatio : remote.splitRatio,
+  };
+}
+
 export function sameNonCanvasContent(content: ProjectContent, latest: Project) {
   return content.title.trim() === latest.title
     && content.splitRatio === latest.splitRatio
-    && JSON.stringify(content.document) === JSON.stringify(latest.document)
-    && JSON.stringify(content.notes) === JSON.stringify(latest.notes)
-    && JSON.stringify(content.references) === JSON.stringify(latest.references);
+    && sameJSON(content.document, latest.document)
+    && sameJSON(content.notes, latest.notes)
+    && sameJSON(content.references, latest.references);
 }
 
 export function sameProjectContent(content: ProjectContent, latest: Project) {
   return sameNonCanvasContent(content, latest)
-    && JSON.stringify(content.canvas) === JSON.stringify(latest.canvas);
+    && sameJSON(content.canvas, latest.canvas);
 }

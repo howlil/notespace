@@ -1,13 +1,46 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasSnapshots } from "./canvas-merge.ts";
-import type { Snapshot } from "./project.ts";
+import { mergeCanvasSnapshots, mergeProjectContent, rebaseLocalProjectContent } from "./canvas-merge.ts";
+import type { ProjectContent, Snapshot } from "./project.ts";
 
 function canvas(elements: Array<Record<string, unknown>>, extra: Record<string, unknown> = {}): Snapshot {
   return {
     format: "excalidraw",
     version: 1,
     data: { elements, appState: {}, files: {}, ...extra },
+  };
+}
+
+function document(text = ""): Snapshot {
+  return {
+    format: "tiptap",
+    version: 1,
+    data: {
+      type: "doc",
+      content: [{
+        type: "paragraph",
+        ...(text ? { content: [{ type: "text", text }] } : {}),
+      }],
+    },
+  };
+}
+
+function content(overrides: Partial<ProjectContent> = {}): ProjectContent {
+  const doc = document();
+  return {
+    title: "Workspace",
+    document: doc,
+    notes: [{
+      id: "note-1",
+      title: "Untitled",
+      document: doc,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    }],
+    canvas: canvas([]),
+    references: [],
+    splitRatio: 0.45,
+    ...overrides,
   };
 }
 
@@ -58,5 +91,47 @@ test("identified canvas metadata arrays are unioned instead of overwritten", () 
   assert.deepEqual(
     (merged.data.diagrams as Array<{ id: string }>).map((item) => item.id).sort(),
     ["local", "remote"],
+  );
+});
+
+test("three-way merge adopts unrelated remote fields while keeping local canvas edits", () => {
+  const base = content();
+  const local = content({
+    canvas: canvas([{ id: "local-icon", version: 1, versionNonce: 2, index: "a1" }]),
+  });
+  const remote = content({ title: "Renamed elsewhere" });
+
+  const merged = mergeProjectContent(base, local, remote);
+  assert.ok(merged);
+  assert.equal(merged.title, "Renamed elsewhere");
+  assert.deepEqual(
+    (merged.canvas.data.elements as Array<{ id: string }>).map((element) => element.id),
+    ["local-icon"],
+  );
+});
+
+test("three-way merge rejects concurrent edits to the same non-canvas field", () => {
+  const base = content();
+  const local = content({ title: "Local title" });
+  const remote = content({ title: "Remote title" });
+
+  assert.equal(mergeProjectContent(base, local, remote), null);
+});
+
+test("ack rebase keeps edits made during save and adopts acknowledged remote fields", () => {
+  const sent = content();
+  const live = content({
+    canvas: canvas([{ id: "newer-local", version: 1, versionNonce: 2, index: "a2" }]),
+  });
+  const acknowledged = content({
+    title: "Remote title",
+    canvas: canvas([{ id: "saved-remote", version: 1, versionNonce: 3, index: "a1" }]),
+  });
+
+  const rebased = rebaseLocalProjectContent(sent, live, acknowledged);
+  assert.equal(rebased.title, "Remote title");
+  assert.deepEqual(
+    (rebased.canvas.data.elements as Array<{ id: string }>).map((element) => element.id),
+    ["saved-remote", "newer-local"],
   );
 });

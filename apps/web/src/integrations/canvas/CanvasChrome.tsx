@@ -323,11 +323,16 @@ export function CanvasToolRail(props: {
     const openDiagramFromSlash = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target;
-      if (!(target instanceof Element) || !target.closest(".notespace-canvas-surface")) return;
-      if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']")) return;
       event.preventDefault();
       event.stopPropagation();
-      if (!diagramOpen) onDiagramToggle();
+      if (!diagramOpen) {
+        onDiagramToggle();
+        return;
+      }
+      const searchInput = document.querySelector<HTMLInputElement>('input[aria-label="Search all Eraser icons"]');
+      searchInput?.focus({ preventScroll: true });
+      searchInput?.select();
     };
     document.addEventListener("keydown", openDiagramFromSlash, true);
     return () => document.removeEventListener("keydown", openDiagramFromSlash, true);
@@ -343,7 +348,7 @@ export function CanvasToolRail(props: {
         <ToolButton icon={<Network className={controlGlyphClass} strokeWidth={1.5} />} label="Diagram" shortcut="/" active={diagramOpen} onClick={onDiagramToggle} />
         {diagramPanel}
       </div>
-      <div ref={panelAnchorRef} data-canvas-menu-trigger="true" className="group relative flex shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse" && !moreOpen) onMoreToggle(); }}>
+      <div ref={panelAnchorRef} data-canvas-menu-trigger="true" className="group relative flex shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse" && !diagramOpen && !moreOpen) onMoreToggle(); }}>
         <ToolButton icon={<NativeDotsHorizontalIcon className={controlGlyphClass} />} label="More tools" active={moreOpen} onClick={onMoreToggle} />
         <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} activeTool={activeTool} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
       </div>

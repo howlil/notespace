@@ -3,6 +3,7 @@ import generatedIconMetadata from "./catalog/eraser-icons.generated.json" with {
 export type DiagramKind = "architecture" | "flowchart";
 export type DiagramCategory = "general" | "tech" | "aws" | "gcp" | "azure" | "oracle" | "kubernetes" | "networking";
 export type DiagramNodeShape = "rectangle" | "diamond" | "ellipse";
+// `component` remains readable for old snapshots. New creation paths are icon-only.
 export type DiagramNodeRenderMode = "component" | "icon";
 
 export interface DiagramCatalogItem {
@@ -73,6 +74,8 @@ export const DIAGRAM_DATA_KEY = "notespaceDiagrams";
 export const NODE_WIDTH = 164;
 export const NODE_HEIGHT = 72;
 
+// Compatibility metadata remains so previously stored structured diagrams can
+// still resolve their historic spec keys. The picker creates only Eraser icons.
 const compatibilityCatalog: readonly DiagramCatalogItem[] = [
   { key: "process", label: "Process", category: "general", glyph: "□", iconKey: "square", shape: "rectangle", keywords: ["step", "task", "flow"] },
   { key: "decision", label: "Decision", category: "general", glyph: "◇", iconKey: "diamond", shape: "diamond", keywords: ["branch", "condition", "flow"] },
@@ -82,7 +85,6 @@ const compatibilityCatalog: readonly DiagramCatalogItem[] = [
   { key: "server", label: "Server", category: "general", glyph: "API", iconKey: "server", keywords: ["backend", "service", "api"] },
   { key: "queue", label: "Queue", category: "general", glyph: "MQ", iconKey: "list", keywords: ["message", "broker", "async"] },
   { key: "user", label: "User", category: "general", glyph: "USR", iconKey: "user", keywords: ["actor", "person"] },
-
   { key: "react", label: "React", category: "tech", glyph: "⚛", iconKey: "code", keywords: ["frontend", "javascript", "typescript"] },
   { key: "nodejs", label: "Node.js", category: "tech", glyph: "JS", iconKey: "braces", keywords: ["javascript", "backend", "runtime"] },
   { key: "go", label: "Go", category: "tech", glyph: "Go", iconKey: "code", keywords: ["golang", "backend", "service"] },
@@ -91,21 +93,18 @@ const compatibilityCatalog: readonly DiagramCatalogItem[] = [
   { key: "docker", label: "Docker", category: "tech", glyph: "D", iconKey: "boxes", keywords: ["container", "runtime"] },
   { key: "kubernetes", label: "Kubernetes", category: "tech", glyph: "K8s", iconKey: "boxes", keywords: ["cluster", "container", "orchestration"] },
   { key: "github", label: "GitHub", category: "tech", glyph: "GH", iconKey: "git", keywords: ["git", "repository", "source"] },
-
   { key: "aws", label: "AWS", category: "aws", glyph: "AWS", iconKey: "cloud", keywords: ["amazon", "cloud"] },
   { key: "aws-lambda", label: "Lambda", category: "aws", glyph: "λ", iconKey: "zap", keywords: ["serverless", "function"] },
   { key: "aws-ec2", label: "EC2", category: "aws", glyph: "EC2", iconKey: "server", keywords: ["compute", "vm", "instance"] },
   { key: "aws-s3", label: "S3", category: "aws", glyph: "S3", iconKey: "archive", keywords: ["storage", "object", "bucket"] },
   { key: "aws-rds", label: "RDS", category: "aws", glyph: "RDS", iconKey: "database", keywords: ["database", "sql"] },
   { key: "aws-dynamodb", label: "DynamoDB", category: "aws", glyph: "DDB", iconKey: "database", keywords: ["nosql", "database"] },
-
   { key: "gcp", label: "Google Cloud", category: "gcp", glyph: "GCP", iconKey: "cloud", keywords: ["google", "cloud"] },
   { key: "gcp-run", label: "Cloud Run", category: "gcp", glyph: "RUN", iconKey: "boxes", keywords: ["serverless", "container"] },
   { key: "gcp-compute", label: "Compute Engine", category: "gcp", glyph: "GCE", iconKey: "server", keywords: ["compute", "vm"] },
   { key: "gcp-storage", label: "Cloud Storage", category: "gcp", glyph: "GCS", iconKey: "archive", keywords: ["storage", "bucket", "object"] },
   { key: "gcp-bigquery", label: "BigQuery", category: "gcp", glyph: "BQ", iconKey: "database", keywords: ["warehouse", "analytics", "sql"] },
   { key: "gcp-pubsub", label: "Pub/Sub", category: "gcp", glyph: "PS", iconKey: "list", keywords: ["queue", "message", "event"] },
-
   { key: "azure", label: "Azure", category: "azure", glyph: "AZ", iconKey: "cloud", keywords: ["microsoft", "cloud"] },
   { key: "azure-functions", label: "Functions", category: "azure", glyph: "ƒ", iconKey: "zap", keywords: ["serverless", "function"] },
   { key: "azure-app-service", label: "App Service", category: "azure", glyph: "APP", iconKey: "server", keywords: ["web", "service", "compute"] },
@@ -163,7 +162,7 @@ export function getCatalogItem(key: string) {
   return diagramCatalog.find((item) => item.key === key) ?? diagramCatalog[0];
 }
 
-function createNode(specKey: string, label: string, x: number, y: number, idFactory: IdFactory, renderMode: DiagramNodeRenderMode = "component"): DiagramNode {
+function createNode(specKey: string, label: string, x: number, y: number, idFactory: IdFactory, renderMode: DiagramNodeRenderMode): DiagramNode {
   return {
     id: idFactory("node"),
     specKey,
@@ -181,42 +180,20 @@ function createEdge(from: string, to: string, label: string, idFactory: IdFactor
   return { id: idFactory("edge"), from, to, label, elementId: idFactory("arrow") };
 }
 
-export function createDiagramWithNode(kind: DiagramKind, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: DiagramNodeRenderMode = "component"): StructuredDiagram {
+export function createDiagramWithNode(kind: DiagramKind, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: "icon" = "icon"): StructuredDiagram {
   const node = createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode);
   return {
     id: idFactory("diagram"),
     kind,
     title: kind === "architecture" ? "Architecture diagram" : "Flowchart",
-    nodes: [renderMode === "icon" ? { ...node, width: 56, height: 56 } : node],
+    nodes: [{ ...node, width: 56, height: 56 }],
     edges: [],
     groups: [],
   };
 }
 
-export function createStarterDiagram(kind: DiagramKind, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId): StructuredDiagram {
-  const specs = kind === "architecture"
-    ? [["browser", "Client"], ["server", "API"], ["postgresql", "PostgreSQL"]] as const
-    : [["start", "Start"], ["process", "Process"], ["decision", "Decision"]] as const;
-
-  const nodes = specs.map(([specKey, label], index) => createNode(specKey, label, origin.x + index * (NODE_WIDTH + 96), origin.y, idFactory));
-  const edges = kind === "architecture"
-    ? [createEdge(nodes[0].id, nodes[1].id, "HTTPS", idFactory), createEdge(nodes[1].id, nodes[2].id, "SQL", idFactory)]
-    : [createEdge(nodes[0].id, nodes[1].id, "next", idFactory), createEdge(nodes[1].id, nodes[2].id, "check", idFactory)];
-
-  return layoutDiagram({
-    id: idFactory("diagram"),
-    kind,
-    title: kind === "architecture" ? "Architecture diagram" : "Flowchart",
-    nodes,
-    edges,
-    groups: [],
-  }, origin);
-}
-
-export function addCatalogNode(diagram: StructuredDiagram, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: DiagramNodeRenderMode = "component"): StructuredDiagram {
-  const node = renderMode === "icon"
-    ? { ...createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode), width: 56, height: 56 }
-    : createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode);
+export function addCatalogNode(diagram: StructuredDiagram, item: DiagramCatalogItem, origin: { x: number; y: number }, idFactory: IdFactory = makeDiagramId, renderMode: "icon" = "icon"): StructuredDiagram {
+  const node = { ...createNode(item.key, item.label, origin.x, origin.y, idFactory, renderMode), width: 56, height: 56 };
   return { ...diagram, nodes: [...diagram.nodes, node] };
 }
 

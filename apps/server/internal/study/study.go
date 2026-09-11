@@ -69,6 +69,8 @@ type DayDetail struct {
 
 type Store interface {
 	UpsertSession(context.Context, Session) (Session, error)
+	ListStudySessions(context.Context, string, int) ([]Session, error)
+	DeleteStudySession(context.Context, string, string) error
 	WorkspaceStats(context.Context, string, string) (WorkspaceStats, error)
 	Activity(context.Context, string, string) (Activity, error)
 	DayDetail(context.Context, string) (DayDetail, error)
@@ -105,6 +107,20 @@ func (s Service) Record(ctx context.Context, workspaceID, workspaceTitle, sessio
 		ActivityDate: input.ActivityDate, StartedAt: now, EndedAt: endedAt,
 		ActiveSeconds: input.ActiveSeconds, LastHeartbeatAt: now,
 	})
+}
+
+func (s Service) ListSessions(ctx context.Context, workspaceID string, limit int) ([]Session, error) {
+	if strings.TrimSpace(workspaceID) == "" || limit < 1 || limit > 50 {
+		return nil, ErrInvalid
+	}
+	return s.Store.ListStudySessions(ctx, workspaceID, limit)
+}
+
+func (s Service) DeleteSession(ctx context.Context, workspaceID, sessionID string) error {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(sessionID) == "" {
+		return ErrInvalid
+	}
+	return s.Store.DeleteStudySession(ctx, workspaceID, sessionID)
 }
 
 func (s Service) GetWorkspaceStats(ctx context.Context, workspaceID, activityDate string) (WorkspaceStats, error) {

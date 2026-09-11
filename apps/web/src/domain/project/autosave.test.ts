@@ -103,3 +103,32 @@ test("independent project queues cannot write each other’s content", async () 
   await Promise.all([one.flush(), two.flush()]);
   assert.deepEqual(written.sort(), ["one:Raft", "two:TCP"]);
 });
+
+test("can rebase a queued snapshot after an in-flight save is acknowledged", async () => {
+  const calls: Array<[string, number]> = [];
+  let release!: () => void;
+  const wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const saver = new Autosave(
+    1,
+    async (value: string, version) => {
+      calls.push([value, version]);
+      if (calls.length === 1) await wait;
+      return { version: version + 1 };
+    },
+    60_000,
+  );
+
+  saver.schedule("first");
+  const saving = saver.flush();
+  saver.schedule("stale queued");
+  saver.replacePending("rebased queued");
+  release();
+  await saving;
+
+  assert.deepEqual(calls, [
+    ["first", 1],
+    ["rebased queued", 2],
+  ]);
+});

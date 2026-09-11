@@ -23,7 +23,7 @@ export class Autosave<T> {
   constructor(
     version: number,
     persist: (value: T, version: number) => Promise<{ version: number }>,
-    delay = 650,
+    delay = 300,
   ) {
     this.version = version;
     this.persist = persist;

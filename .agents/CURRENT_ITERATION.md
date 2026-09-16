@@ -1,170 +1,120 @@
-# Current Iteration
+# Current Iteration — Milestone 2: Note ↔ Canvas Interoperability
 
-## Milestone
+## Status
 
-**Notespace Reliability & Debt Burn-down**
+- **Milestone:** Milestone 2 — Note ↔ Canvas Interoperability
+- **Milestone state:** COMPLETE / INTEGRATED
+- **Active slice:** none
+- **Integrated through:** PR #4, `master` commit `d27cc5dd1e3082350b506986f27c4267b3d4d901`
+- **Blocker:** none
 
-Ship the existing product with fewer correctness gaps, bounded resource use, cleaner compatibility boundaries, and verification that follows real user risk before adding another major feature.
+## Why this milestone existed
 
-## Design graph
+The Milestone 1 workspace already placed a document and canvas inside one Project, but the two surfaces had no durable semantic relationship.
 
-```text
-User action
-  → UI boundary
-  → canonical Workspace API
-  → domain invariant
-  → durable/external boundary
-      ├── SQLite
-      ├── local filesystem / Docker volume
-      └── fixed Eraser icon source
-  → acknowledged result
-  → reload / restore / restart evidence
-```
+Milestone 2 adds that relationship while keeping Notespace Project state—not Tiptap or Excalidraw internals—as the product source of truth.
 
-Model each change in this order:
+## Delivered outcome
 
-1. **A — successful result:** what durable/user-visible state must exist after the action.
-2. **E — breakpoints:** validation, conflict, partial write, timeout, stale compatibility path, or unavailable external source.
-3. **R — requirements:** browser state, HTTP API, project/study service, SQLite, Docker volume, or upstream icon source.
-4. Keep parsing/validation at boundaries and keep authored SQLite state authoritative.
-5. Verify the cheapest test that proves the actual risk; use browser E2E only for complete critical journeys.
+A user can:
 
-## Slices
+- edit supported Tiptap blocks with stable product-owned block IDs;
+- select a supported document block and a canvas object and create a Project-owned reference;
+- navigate from a selected document block to its linked canvas object;
+- navigate from a selected canvas object to its linked document block;
+- continue editing without changing the relationship identity;
+- reload or switch Projects and recover the persisted relationship;
+- keep a relationship as an explicit recoverable broken reference when its target is deleted;
+- remove a broken relationship explicitly instead of Notespace silently relinking it;
+- restart the self-hosted container without losing the Project relationship state.
 
-### S1 — Backup / restore round-trip
+## Completed slices
 
-**Before:** backup downloads ZIP but the Restore picker only selects JSON.
+### Slice 1 — Stable document block identity — COMPLETE
 
-**After:** Restore accepts Notespace ZIP and legacy JSON; backend keeps format validation and transactional restore.
+Delivered through PR #2 (`feat: add stable document block identities`).
 
-**Risk:** a recovery feature that cannot consume its own normal output.
+Evidence:
 
-### S2 — Local self-host contract
+- supported paragraphs, headings, code blocks, and list items receive stable Notespace-owned `blockId` values;
+- existing snapshots without IDs remain readable and are normalized through the document integration;
+- browser coverage verifies IDs survive edit + reload;
+- final PR head `6bbc1fee872f0a123575eed761af5f8c403dca23` passed Verify run #28;
+- integrated on `master` as commit `822743cb309c90b8d1d1f0162b7473bda5e77bb9`.
 
-**Before:** base Compose exposes the container port only, while README implies `localhost:8080` works directly.
+### Slice 2 — Create reference — COMPLETE
 
-**After:** `compose.local.yaml` is the explicit localhost publishing override; base Compose remains suitable for MyPaaS/reverse-proxy deployment.
+Delivered through PR #3 (`feat: create project-owned canvas references`).
 
-### S3 — Bounded backup memory
+Evidence:
 
-**Before:** backup/restore is assembled in memory while the HTTP boundary advertises 512 MiB.
+- Project owns `references[]` with product-owned relationship ID, document `blockId`, and canvas `elementId`;
+- SQLite migration adds durable reference state without destructive schema work;
+- frontend creation uses current document-block and canvas-object selections while editor adapters expose only focused selection capabilities;
+- persistence/restart backend coverage includes references;
+- the initial Go formatting blocker was corrected without expanding scope;
+- final PR head `0b78b26c1ae34d5b15c41a2444cfb5875d06c8fe` passed Verify run #37;
+- integrated on `master` as commit `d0d73c6180c48459486b2c8371536354d9091929`.
 
-**After:** until archive streaming is implemented, the round-trip limit is intentionally 64 MiB and request timeouts allow a realistic recovery operation. Large libraries should use volume-level SQLite backup.
+### Slice 3 — Navigate both ways — COMPLETE
 
-**Invariant:** a successful restore remains all-or-nothing.
+Delivered through PR #4 (`feat: navigate and recover note canvas references`).
 
-### S4 — Import rollback
+Evidence:
 
-```text
-Markdown file
-  → create Workspace
-  → upload referenced images
-  → save authored Note
-       ├── success → keep Workspace
-       └── failure → Trash → permanent delete compensation
-```
+- document block → canvas reference selects/reveals the linked Excalidraw object;
+- canvas object → document reference focuses/reveals the linked Tiptap block;
+- transient Excalidraw selection is reported independently from persisted scene-state changes;
+- document integration reports active block identity during both content and selection transactions;
+- Playwright lifecycle coverage verifies both navigation directions.
 
-A failed vault item should not silently leave a partial Workspace. If compensation itself fails, surface that manual cleanup is required.
+### Slice 4 — Durability gate — COMPLETE
 
-### S5 — Bounded Workspace opening
+Delivered through PR #4.
 
-Opening one Workspace must not fetch every sibling in a large Category. The route loads a bounded switcher preview; global `Ctrl/Cmd + K` remains the scale path for finding arbitrary workspaces.
+Evidence:
 
-### S6 — Explicit conflict recovery
+- Playwright covers relationship creation, ordinary document editing, two-way navigation, reload, Project switching, canvas-target deletion, recoverable orphan state, and explicit broken-link removal;
+- `scripts/smoke-persistence.py --compose-restart` persists document block identity, canvas element identity, and their Project reference across a real Compose container restart;
+- final implementation head `1183fb6fa5da8cbb23368ba5a61714569ab20534` passed Verify run #41;
+- run #41 passed frozen dependency install, production build, TypeScript typecheck, lint, frontend unit tests, Go formatting, `go vet`, Go race tests, Go build, Playwright E2E, Docker Compose build/health, and restart-persistence smoke;
+- PR #4 integrated on `master` as commit `d27cc5dd1e3082350b506986f27c4267b3d4d901`.
 
-Non-Canvas optimistic-version conflicts must never overwrite newer authored state. Local unsaved content stays visible and the recovery UI must make preserving/copying the local draft explicit before reload.
+## Milestone acceptance result
 
-### S7 — Remove retired product/code paths
+**PASS.** The Milestone 2 outcome is implemented and integrated. The required relationship behavior is owned by the Project domain, works in both navigation directions, handles deleted targets explicitly, and survives the required durability boundaries.
 
-- remove the retired Canvas toolbar renderer while retaining the small shared action-name contract;
-- remove obsolete Note↔Canvas reference E2E behavior;
-- keep legacy snapshot read compatibility without keeping unreachable creation UI/helpers alive.
+No new product scope or architecture boundary was introduced to close the milestone.
 
-### S8 — Critical-journey CI
+## Decisions retained
 
-Keep unit/static/build checks, then run only high-value browser journeys:
+- Project owns cross-surface relationships.
+- Product-owned stable IDs are relationship identity.
+- Visible labels, mutable document positions, canvas coordinates, and incidental editor identity are not relational identity.
+- Tiptap and Excalidraw remain adapters; neither owns the relationship.
+- Missing targets remain recoverable broken references until the user removes them explicitly.
+- Do not silently relink by text, position, or proximity.
+- Expand relationship cardinality or supported semantic models only when a concrete product requirement requests it.
 
-- direct route + reload;
-- global search → exact Workspace/Note context;
-- Trash → restore;
-- full-library ZIP backup → restore.
+Durable rationale belongs in `DECISIONS.md`; this file records only the completed milestone state and execution evidence.
 
-Do not make the full browser suite a merge gate.
+## Completed baseline
 
-### S9 — Bounded Eraser gateway
+Milestone 1 / Core Project Workspace remains integrated on `master` via PR #1 and continues to provide:
 
-The gateway accepts only the fixed Eraser origin, validates SVG structure, rejects executable/external content, caps each payload at 1 MiB, and keeps an LRU bounded by both entry count and bytes.
+- Project CRUD and durable Go + SQLite storage;
+- Tiptap document + Excalidraw canvas in one Project workspace;
+- autosave queue/retry/conflict behavior;
+- search/delete/theme/responsive workspace behavior;
+- production Go serving built frontend assets;
+- browser E2E and Docker restart-persistence coverage.
 
-### S10 — Logical study sessions
+`Taskfile.yml` remains the human/agent development orchestration entrypoint.
 
-```text
-Start logical session L
-  → date segment L:2026-09-10
-  → midnight
-  → date segment L:2026-09-11
-  → End L
-```
+## Known scope boundary
 
-Daily accounting may split persistence rows, but Recent sessions groups them as one user-visible session and deleting that session removes all of its date segments.
+Milestone 2 intentionally does not add AI linking, semantic inference, multi-block relation graphs, collaboration/CRDT, public sharing, import/export expansion, templates, or structured-diagram engines.
 
-### S11 — Incremental search projection
+## Next action
 
-A successful create/update/move attempts to refresh only that Workspace's FTS rows. Projection failure is logged but does **not** turn an already-durable authored save into a false failure; lazy search repair remains the fallback.
-
-### S12 — Release path
-
-Version tags publish a GHCR image. Source-build Compose remains supported; releases do not change Notespace's single-container/self-hosted ownership model.
-
-### S13 — Workspace terminology migration
-
-`/workspaces/:id` and `/api/workspaces/*` are canonical. Browser `/projects/:id` redirects to the Workspace route. Legacy `/api/projects/*` remains compatibility-only and advertises deprecation while consumers migrate.
-
-## Invariants
-
-- SQLite authored state is the source of truth; FTS and browser caches are derived.
-- A save acknowledged as durable must not later be reported as failed only because derived indexing failed.
-- Restore remains transactional.
-- Deleting a Workspace still enters recoverable Trash first.
-- Optimistic concurrency remains the guard against stale authored writes.
-- Canvas-only races may merge with the existing deterministic rule; Note/title conflicts do not silently merge.
-- Manual study Start/Pause/Resume/End remain user-controlled.
-- No new multi-user, CRDT, microservice, generic AI-chat, database/wiki, or plugin-marketplace scope is introduced by this milestone.
-
-## Verification gate
-
-Before shipping this milestone:
-
-```text
-frontend typecheck + lint + unit + production build
-backend format + vet + race + build
-focused persistence tests
-critical browser journeys
-production Compose + restart persistence when durable/deploy boundaries changed
-```
-
-## Latest engineering evidence
-
-The first bounded client architecture slice is implemented:
-
-```text
-feature API → injectable HttpTransport → typed APIError/result
-UI edit → Autosave event → explicit save status
-```
-
-- `apps/web/src/domain/project/http.ts` now exposes a swappable transport boundary while preserving existing exports and endpoint behavior.
-- `apps/web/src/domain/project/autosave.ts` now exposes a pure `SaveEvent → SaveStatus` transition contract; queue, version, debounce, max-wait, and conflict semantics remain unchanged.
-- Deterministic web unit suite: 84/84 passed.
-- Web typecheck, lint, production build, and `git diff --check`: passed.
-- Docker/restart and browser gates were not needed for this client-only boundary slice.
-
-Next action: add runtime response schemas at the HTTP boundary only when the API payload contract is defined; keep `DocumentEditor` decomposition as a separate bounded slice.
-
-## Next product milestone
-
-After this gate is green, the highest-value product candidate is **Sources / PDF inside a Workspace** so the learning loop can become:
-
-```text
-Source → Note / Canvas → Recall → Study evidence
-```
-
-Do not start that product slice until this reliability milestone is shipped.
+**STOP. Milestone 2 is complete and integrated. Do not invent Milestone 3. Begin a new milestone only from new user intent.**

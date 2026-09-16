@@ -397,19 +397,27 @@ export function selectionForElements(diagrams: readonly StructuredDiagram[], sel
   return emptyDiagramSelection();
 }
 
-function boundLabel(shape: ElementGeometry, live: Map<string, ElementGeometry>, fallback: string) {
+function boundText(shape: ElementGeometry, live: Map<string, ElementGeometry>) {
   const textId = shape.boundElements?.find((bound) => bound.type === "text")?.id;
-  const text = textId ? live.get(textId)?.text : undefined;
-  return text?.trim() ? text.trim().replace(/\s*\n\s*/g, " ") : fallback;
+  return textId ? live.get(textId)?.text : undefined;
+}
+
+function normalizedLabel(text: string) {
+  return text.trim().replace(/\s*\n\s*/g, " ");
+}
+
+function boundLabel(shape: ElementGeometry, live: Map<string, ElementGeometry>, fallback: string) {
+  const text = boundText(shape, live);
+  return text?.trim() ? normalizedLabel(text) : fallback;
 }
 
 function nodeLabel(node: DiagramNode, shape: ElementGeometry, live: Map<string, ElementGeometry>) {
   const iconLabel = live.get(diagramNodeLabelElementId(node.elementId))?.text;
-  if (iconLabel?.trim()) return iconLabel.trim().replace(/\s*\n\s*/g, " ");
-  const bound = boundLabel(shape, live, node.label);
-  if (bound === node.label) return bound;
-  const lines = bound.split("\n").map((line) => line.trim()).filter(Boolean);
-  return lines.length > 1 ? lines.slice(1).join(" ") : bound;
+  if (iconLabel?.trim()) return normalizedLabel(iconLabel);
+  const text = boundText(shape, live);
+  if (!text?.trim()) return node.label;
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  return lines.length > 1 ? lines.slice(1).join(" ") : lines[0];
 }
 
 export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[], elements: readonly ElementGeometry[]) {

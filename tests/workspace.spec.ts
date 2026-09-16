@@ -128,7 +128,7 @@ test("pane tree splits, enters focus mode, and restores layout", async ({ page, 
     await expect(page.locator(".workspace-main.is-focus-mode")).toBeVisible();
     await expect(page.locator(".workspace-header")).toBeHidden();
 
-    await page.getByRole("button", { name: "Restore layout" }).click();
+    await page.keyboard.press("Escape");
     await expect(page.locator(".workspace-header")).toBeVisible();
   } finally {
     await cleanup(request, id);

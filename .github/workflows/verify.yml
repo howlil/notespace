@@ -1,191 +1,40 @@
 name: Verify
-
 on:
   pull_request:
   push:
     branches: [master]
-
 permissions:
   contents: read
-
-concurrency:
-  group: verify-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CI: true
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Classify changed boundaries
-        id: changes
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          set -euo pipefail
-
-          base="$BASE_SHA"
-          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            base="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
-          fi
-
-          git diff --name-only "$base" "$GITHUB_SHA" | tee changed-files.txt
-
-          web=false
-          server=false
-          deploy=false
-
-          while IFS= read -r file; do
-            case "$file" in
-              .github/workflows/*)
-                web=true
-                server=true
-                deploy=true
-                ;;
-              apps/web/*|tests/*|playwright.config.ts|package.json|pnpm-lock.yaml|eslint.config.*|tsconfig*.json)
-                web=true
-                ;;
-            esac
-
-            case "$file" in
-              apps/server/*|scripts/check-gofmt.mjs)
-                server=true
-                ;;
-            esac
-
-            case "$file" in
-              apps/server/internal/persistence/*|apps/server/migrations/*|compose*.yaml|Dockerfile|scripts/smoke-persistence.py)
-                deploy=true
-                ;;
-            esac
-          done < changed-files.txt
-
-          {
-            echo "web=$web"
-            echo "server=$server"
-            echo "deploy=$deploy"
-          } >> "$GITHUB_OUTPUT"
-
-          printf 'verification plan: web=%s server=%s deploy=%s\n' "$web" "$server" "$deploy"
-
-      - name: Validate repository knowledge contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f AGENTS.md
-          test -f DESIGN.md
-          for file in PROJECT.md ARCHITECTURE.md CURRENT_ITERATION.md CODE_PATTERNS.md QUALITY.md DECISIONS.md; do
-            test -f ".agents/$file"
-          done
-
-      - name: Enforce append-only SQL migrations
-        if: ${{ steps.changes.outputs.server == 'true' }}
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          set -euo pipefail
-          base="$BASE_SHA"
-          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            base="$(git rev-parse HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
-          fi
-          violations="$(git diff --name-status "$base" "$GITHUB_SHA" -- 'apps/server/migrations/*.sql' | awk '$1 !~ /^A/ {print}')"
-          if [[ -n "$violations" ]]; then
-            echo "Released SQL migrations are append-only. Add a new migration instead of changing an existing one:"
-            echo "$violations"
-            exit 1
-          fi
-
-      - uses: pnpm/action-setup@v4
-        if: ${{ steps.changes.outputs.web == 'true' }}
-        with:
-          version: 11.19.0
-          run_install: false
-
-      - name: Set up Node with pnpm cache
-        uses: actions/setup-node@v4
-        if: ${{ steps.changes.outputs.web == 'true' }}
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Set up Node for server tooling
-        uses: actions/setup-node@v4
-        if: ${{ steps.changes.outputs.server == 'true' && steps.changes.outputs.web != 'true' }}
-        with:
-          node-version: '24'
-
       - uses: actions/setup-go@v5
-        if: ${{ steps.changes.outputs.server == 'true' || steps.changes.outputs.web == 'true' }}
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
-
-      - name: Install web dependencies
-        if: ${{ steps.changes.outputs.web == 'true' }}
-        run: pnpm install --frozen-lockfile
-
-      - name: Frontend static, unit, and build gates
-        if: ${{ steps.changes.outputs.web == 'true' }}
-        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
-
-      - name: Install Chromium for critical journeys
-        if: ${{ steps.changes.outputs.web == 'true' }}
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Critical browser journeys
-        if: ${{ steps.changes.outputs.web == 'true' }}
-        run: pnpm test:e2e:critical
-
-      - name: Backend static, race, and build gates
-        if: ${{ steps.changes.outputs.server == 'true' }}
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck && pnpm lint && pnpm test
+      - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
-        run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
-
-      - name: Persistence scale evidence
-        if: ${{ steps.changes.outputs.server == 'true' }}
-        working-directory: apps/server
-        env:
-          NOTESPACE_SCALE_EVIDENCE: "1"
-          NOTESPACE_SCALE_EVIDENCE_FILE: ${{ runner.temp }}/notespace-scale-evidence.json
-        run: go test ./internal/persistence -run '^TestPersistenceScaleEvidence$' -count=1 -v
-
-      - name: Upload persistence scale evidence
-        if: ${{ always() && steps.changes.outputs.server == 'true' }}
-        uses: actions/upload-artifact@v4
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: persistence-scale-evidence-${{ github.sha }}
-          path: ${{ runner.temp }}/notespace-scale-evidence.json
-          if-no-files-found: ignore
+          name: browser-evidence
+          path: |
+            test-results/*.png
+            playwright-report/
           retention-days: 7
-
-      - name: Validate production composition
-        id: compose-config
-        if: ${{ always() && steps.changes.outputs.deploy == 'true' }}
-        run: docker compose -f compose.yaml config
-
-      - name: Start production composition
-        id: compose-up
-        if: ${{ always() && steps.changes.outputs.deploy == 'true' && steps.compose-config.outcome == 'success' }}
-        run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
-
-      - name: Verify restart persistence
-        if: ${{ always() && steps.changes.outputs.deploy == 'true' && steps.compose-up.outcome == 'success' }}
-        run: python3 scripts/smoke-persistence.py --compose-restart
-        env:
-          COMPOSE_FILE: compose.yaml:compose.ci.yaml
-
-      - name: Collect production logs and stop composition
-        if: ${{ always() && steps.changes.outputs.deploy == 'true' }}
-        shell: bash
-        run: |
-          docker compose -f compose.yaml -f compose.ci.yaml logs || true
-          docker compose -f compose.yaml -f compose.ci.yaml down
+      - run: docker compose up --build -d --wait
+      - run: python3 scripts/smoke-persistence.py --compose-restart
+      - run: docker compose logs && docker compose down
+        if: always()

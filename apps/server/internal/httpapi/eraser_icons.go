@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	eraserIconOrigin       = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
-	maxEraserIconBytes     = 1 << 20
-	maxEraserCacheBytes    = 64 << 20
-	maxEraserCacheEntries  = 512
+	eraserIconOrigin      = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
+	maxEraserIconBytes    = 1 << 20
+	maxEraserCacheBytes   = 64 << 20
+	maxEraserCacheEntries = 512
 )
 
 var errInvalidEraserIcon = errors.New("invalid Eraser icon")
@@ -48,9 +48,9 @@ func newEraserIconGateway(client *http.Client, baseURL string) *eraserIconGatewa
 		client = http.DefaultClient
 	}
 	return &eraserIconGateway{
-		client: client,
-		baseURL: strings.TrimRight(baseURL, "/") + "/",
-		cache: make(map[string]*list.Element),
+		client:     client,
+		baseURL:    strings.TrimRight(baseURL, "/") + "/",
+		cache:      make(map[string]*list.Element),
 		cacheOrder: list.New(),
 	}
 }

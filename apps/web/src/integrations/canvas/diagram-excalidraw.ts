@@ -3,6 +3,7 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/t
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import {
+  diagramNodeLabelElementId,
   getCatalogItem,
   structuredElementIds,
   type StructuredDiagram,
@@ -53,6 +54,7 @@ export function renderStructuredDiagram(
       strokeWidth: 1,
       roughness: 0,
       roundness: { type: 3 },
+      label: { text: group.label, fontSize: 12 },
     });
   }
 
@@ -63,33 +65,47 @@ export function renderStructuredDiagram(
     const renderGroupId = eraserNodeRenderGroupId(node.id);
 
     if (node.renderMode === "icon") {
-      skeletons.push(hasEraserIcon && iconName
-        ? {
-            type: "image",
-            id: node.elementId,
-            fileId: eraserIconFileId(iconName) as BinaryFileData["id"],
-            x: node.x,
-            y: node.y,
-            width: node.width,
-            height: node.height,
-            groupIds: [renderGroupId],
-          }
-        : {
-            type: "rectangle",
-            id: node.elementId,
-            x: node.x,
-            y: node.y,
-            width: node.width,
-            height: node.height,
-            strokeColor,
-            backgroundColor,
-            fillStyle: "solid",
-            strokeWidth: 1,
-            roughness: 0,
-            roundness: { type: 3 },
-            groupIds: [renderGroupId],
-            label: { text: fallbackNodeText(node.specKey, node.label), fontSize: 12 },
-          });
+      if (hasEraserIcon && iconName) {
+        skeletons.push({
+          type: "image",
+          id: node.elementId,
+          fileId: eraserIconFileId(iconName) as BinaryFileData["id"],
+          x: node.x,
+          y: node.y,
+          width: node.width,
+          height: node.height,
+          groupIds: [renderGroupId],
+        });
+        skeletons.push({
+          type: "text",
+          id: diagramNodeLabelElementId(node.elementId),
+          x: node.x - 16,
+          y: node.y + node.height + 8,
+          width: node.width + 32,
+          text: node.label,
+          fontSize: 12,
+          textAlign: "center",
+          strokeColor,
+          groupIds: [renderGroupId],
+        });
+      } else {
+        skeletons.push({
+          type: "rectangle",
+          id: node.elementId,
+          x: node.x,
+          y: node.y,
+          width: node.width,
+          height: node.height,
+          strokeColor,
+          backgroundColor,
+          fillStyle: "solid",
+          strokeWidth: 1,
+          roughness: 0,
+          roundness: { type: 3 },
+          groupIds: [renderGroupId],
+          label: { text: fallbackNodeText(node.specKey, node.label), fontSize: 12 },
+        });
+      }
       continue;
     }
 

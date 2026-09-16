@@ -58,7 +58,7 @@ test.describe("Canvas chrome", () => {
 
       const diagram = page.locator('aside[aria-label="Diagram tools"]');
       await expect(diagram).toBeVisible();
-      await expect(page.getByRole("textbox", { name: "Search all Eraser icons" })).toBeFocused();
+      await expect(page.getByRole("textbox", { name: "Search diagram components" })).toBeFocused();
 
       await page.keyboard.press("Escape");
       await expect(diagram).toBeHidden();

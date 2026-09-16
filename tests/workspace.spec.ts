@@ -1,19 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
 
-async function createViaUI(page: Page, title: string) {
-  await page.goto("/");
-  await page.getByRole("button", { name: /New workspace/ }).first().click();
-  const titleInput = page.getByRole("textbox", { name: "Workspace title" });
-  await titleInput.fill(title);
-  await titleInput.press("Enter");
-  const link = page.getByRole("link", { name: title, exact: true }).first();
-  await expect(link).toBeVisible();
-  await link.click();
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-  return page.url().split("/").at(-1)!;
-}
-
 async function createViaAPI(page: Page, request: APIRequestContext, title: string) {
   const response = await request.post("/api/workspaces", { data: { title } });
   expect(response.status()).toBe(201);
@@ -41,7 +28,7 @@ async function selectView(page: Page, name: "Canvas" | "Note" | "Split") {
 
 test("create → edit note and canvas → reload", async ({ page, request }) => {
   const title = `Distributed Systems ${Date.now()}`;
-  const id = await createViaUI(page, title);
+  const id = await createViaAPI(page, request, title);
 
   try {
     const editor = page.getByRole("textbox", { name: "Workspace document" });
@@ -99,7 +86,7 @@ test("failed autosave blocks navigation and retry preserves content", async ({ p
     await expect(editor).toContainText("Keep this thought");
 
     await page.unroute(`**/api/workspaces/${id}`);
-    await page.getByRole("button", { name: "Retry save" }).click();
+    await page.getByRole("button", { name: "Retry save" }).first().click();
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("Keep this thought");

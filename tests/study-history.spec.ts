@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-test("study session activity indicator and history checkpoint preview", async ({
+test("study activity opens current session controls and recent history", async ({
   page,
   request,
 }) => {
-  const title = `Study History ${Date.now()}`;
-  const res = await request.post("/api/projects", {
+  const title = `Study Activity ${Date.now()}`;
+  const res = await request.post("/api/workspaces", {
     data: { title },
   });
   expect(res.status()).toBe(201);
@@ -15,20 +15,22 @@ test("study session activity indicator and history checkpoint preview", async ({
     await page.goto(`/workspaces/${workspace.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
 
-    // Verify study indicator exists in workspace header
-    await expect(page.locator(".study-indicator")).toBeVisible();
+    const activity = page.getByRole("button", { name: /^Study activity,/ });
+    const start = page.getByRole("button", { name: "Start study session" });
+    await expect(activity).toBeVisible();
+    await expect(start).toBeVisible();
 
-    // Make an edit and wait for save
-    const editor = page.getByRole("textbox", { name: "Workspace document" });
-    await editor.click();
-    await editor.fill("Checkpoint test content");
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await activity.click();
+    await expect(page.getByRole("dialog", { name: "Study activity" })).toBeVisible();
+    await expect(page.getByText("Recent sessions", { exact: true })).toBeVisible();
 
-    // Open history drawer
-    await page.locator('summary[aria-label="Workspace actions"]').click();
-    await page.getByRole("button", { name: "History", exact: true }).click();
-    await expect(page.locator(".history-drawer")).toBeVisible();
+    await start.click();
+    await expect(page.getByRole("button", { name: "Pause study session" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "End study session" })).toBeVisible();
+    await page.getByRole("button", { name: "End study session" }).click();
+    await expect(page.getByRole("button", { name: "Start study session" })).toBeVisible();
   } finally {
-    await request.delete(`/api/projects/${workspace.id}`);
+    await request.delete(`/api/workspaces/${workspace.id}`);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

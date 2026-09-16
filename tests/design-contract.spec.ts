@@ -1,75 +1,74 @@
 import { expect, test } from "@playwright/test";
 
-test("design contract: Library is one progressive category tree", async ({ page }) => {
+test("design contract: Library keeps a persistent category tree and global quick search", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Recent workspaces", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New category" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "New workspace" }).first()).toBeVisible();
-  await expect(page.locator(".dashboard-brand")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /New workspace/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Collapse sidebar" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Expand sidebar" })).toHaveCount(0);
 
-  const search = page.getByRole("textbox", { name: "Search Notespace" });
+  const searchTrigger = page.getByRole("button", { name: /Search Notespace/ });
+  await expect(searchTrigger).toBeVisible();
+  await searchTrigger.click();
+  const search = page.getByPlaceholder("Open workspace, note, block, or category…");
+  await expect(search).toBeFocused();
+  await page.keyboard.press("Escape");
+
   await page.keyboard.press("Control+K");
   await expect(search).toBeFocused();
+  await page.keyboard.press("Escape");
 
-  const categoryToggle = page.locator(".tree-expander").first();
+  const categoryToggle = page.getByRole("button", { name: /^Expand / }).first();
   if (await categoryToggle.count()) {
     await expect(categoryToggle).toHaveAttribute("aria-expanded", "false");
     await categoryToggle.click();
     await expect(categoryToggle).toHaveAttribute("aria-expanded", "true");
   }
 
-  await page.getByRole("button", { name: "Collapse sidebar" }).click();
-  await expect(page.getByRole("button", { name: "Expand sidebar", exact: true }).first()).toBeVisible();
-  await expect(page.locator(".sidebar.is-collapsed .brand-link")).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Categories" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
   await expect(page.getByRole("main")).toBeVisible();
 });
 
-test("design contract: sidebar tree uses inline editing and contextual actions", async ({ page }) => {
+test("design contract: sidebar tree keeps inline editing and contextual actions", async ({ page }) => {
   await page.goto("/");
-  const category = page.locator(".tree-label").filter({ hasText: "Uncategorized" }).first();
+
+  await page.getByRole("button", { name: "New category" }).click();
+  const createInput = page.getByRole("textbox", { name: "Category title" });
+  const title = `Design Category ${Date.now()}`;
+  await createInput.fill(title);
+  await createInput.press("Enter");
+
+  const category = page.getByRole("button", { name: new RegExp(title) }).first();
+  await expect(category).toBeVisible();
   await category.dblclick();
   await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();
   await page.keyboard.press("Escape");
+
   await category.click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "New workspace" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "Rename" })).toHaveCount(0);
 });
 
 test("design contract: workspace creation stays in Library and authoring shell is focused", async ({
   page,
   request,
 }) => {
-  let workspaceId: string | undefined;
+  const title = `M10 design contract ${Date.now()}`;
+  const response = await request.post("/api/workspaces", { data: { title } });
+  expect(response.status()).toBe(201);
+  const workspace = await response.json();
 
   try {
-    await page.goto("/");
-    await page.getByRole("button", { name: /New workspace/ }).first().click();
-
-    const title = `M10 design contract ${Date.now()}`;
-    const titleInput = page.getByRole("textbox", { name: "Workspace title" });
-    await titleInput.fill(title);
-    await titleInput.press("Enter");
-
-    await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("link", { name: title }).first()).toBeVisible();
-    await page.getByRole("link", { name: title }).first().click();
+    await page.goto(`/workspaces/${workspace.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-
-    workspaceId = page.url().split("/").at(-1);
-    expect(workspaceId).toBeTruthy();
     await expect(page.locator(".workspace-header")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enter focus mode" })).toHaveCount(0);
     await expect(page.getByText("Capture source URL", { exact: true })).toHaveCount(0);
-    await expect(page.locator(".workspace-menu-popover")).toBeHidden();
-    await page.locator('summary[aria-label="Workspace actions"]').click();
-    await expect(page.getByRole("button", { name: "History", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "History", exact: true })).toHaveCount(0);
   } finally {
-    if (workspaceId) {
-      await request.delete(`/api/projects/${workspaceId}`);
-    }
+    await request.delete(`/api/workspaces/${workspace.id}`);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

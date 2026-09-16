@@ -149,7 +149,7 @@ export function Sidebar({ categories, selectedCategoryId, collapsed, onToggle, o
           return next;
         });
       } else {
-        await deleteProject(target.item.id);
+        await deleteProject(target.item.id, target.item.version);
         setChildren((current) => Object.fromEntries(
           Object.entries(current).map(([categoryId, workspaces]) => [
             categoryId,

@@ -14,7 +14,7 @@ func TestProductionRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := routes(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/projects/example" {
+		if r.URL.Path == "/api/health" || r.URL.Path == "/api/workspaces/example" {
 			w.WriteHeader(204)
 			return
 		}
@@ -32,7 +32,7 @@ func TestProductionRoutes(t *testing.T) {
 		{"GET", "/api/nonexistent", 404},
 		{"GET", "/nonexistent", 404},
 		{"GET", "/categories/test/extra", 404},
-		{"PATCH", "/api/projects/example", 204},
+		{"PATCH", "/api/workspaces/example", 204},
 		{"GET", "/api/health", 204},
 		{"POST", "/", 405},
 	} {

@@ -272,3 +272,37 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 		t.Fatalf("existing library changed after invalid restore: %v", err)
 	}
 }
+
+func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-domain-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep me")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := store.ExportBackupJSONAtomic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup libraryBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	backup.Workspaces[0].Project.Document.Data = json.RawMessage(`{"type":"not-a-doc","content":[]}`)
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, project.ErrInvalid) {
+		t.Fatalf("domain-invalid restore error = %v, want invalid", err)
+	}
+	if _, err := store.Get(ctx, workspace.ID); err != nil {
+		t.Fatalf("existing library changed after domain-invalid restore: %v", err)
+	}
+}

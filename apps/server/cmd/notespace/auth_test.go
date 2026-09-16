@@ -14,7 +14,6 @@ func TestOwnerAuthIsOptional(t *testing.T) {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusNoContent)
 	}
 }
-
 func TestOwnerAuthProtectsApplicationButNotHealth(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	handler := ownerAuth(next, "correct horse battery staple")
@@ -24,17 +23,15 @@ func TestOwnerAuthProtectsApplicationButNotHealth(t *testing.T) {
 	if unauthorized.Code != http.StatusUnauthorized || unauthorized.Header().Get("WWW-Authenticate") == "" {
 		t.Fatalf("unauthorized response = %d headers=%v", unauthorized.Code, unauthorized.Header())
 	}
-
 	wrong := httptest.NewRecorder()
-	wrongRequest := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+	wrongRequest := httptest.NewRequest(http.MethodGet, "/api/workspaces", nil)
 	wrongRequest.SetBasicAuth(ownerUsername, "wrong")
 	handler.ServeHTTP(wrong, wrongRequest)
 	if wrong.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong password status = %d", wrong.Code)
 	}
-
 	allowed := httptest.NewRecorder()
-	allowedRequest := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+	allowedRequest := httptest.NewRequest(http.MethodGet, "/api/workspaces", nil)
 	allowedRequest.SetBasicAuth(ownerUsername, "correct horse battery staple")
 	handler.ServeHTTP(allowed, allowedRequest)
 	if allowed.Code != http.StatusNoContent {

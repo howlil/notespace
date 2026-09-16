@@ -162,6 +162,23 @@ func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
 
+// ValidateProject is the domain boundary for complete aggregate snapshots.
+// Persistence imports and other adapters must use the same rules as ordinary
+// updates before accepting externally supplied workspace data.
+func ValidateProject(p Project) error {
+	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 || p.SplitRatio < .25 || p.SplitRatio > .7 || !validDocument(p.Document) || !validCanvas(p.Canvas) || !validReferences(p.References) || !validNotes(p.Notes) {
+		return ErrInvalid
+	}
+	return nil
+}
+
+func ValidateHistorySnapshot(snapshot HistorySnapshot) error {
+	if strings.TrimSpace(snapshot.ID) == "" || strings.TrimSpace(snapshot.WorkspaceID) == "" || !ValidTitle(snapshot.Title) || snapshot.Version < 1 || snapshot.SplitRatio < .25 || snapshot.SplitRatio > .7 || !validDocument(snapshot.Document) || !validCanvas(snapshot.Canvas) || !validReferences(snapshot.References) || !validNotes(snapshot.Notes) {
+		return ErrInvalid
+	}
+	return nil
+}
+
 func (s Service) CreateCategory(
 	ctx context.Context,
 	title string,
@@ -312,7 +329,7 @@ func validNotes(notes []Note) bool {
 }
 
 func validReferences(references []Reference) bool {
-	if references == nil || len(references) > 1000 {
+	if len(references) > 1000 {
 		return false
 	}
 	seen := map[string]bool{}

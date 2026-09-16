@@ -1,11 +1,41 @@
-export type SaveStatus = {
-  state: "saved" | "pending" | "saving" | "error" | "conflict";
-  message?: string;
-};
-
 // Domain-specific save errors can opt into blocking automatic retries without
 // making the generic autosave queue know about a particular workspace error.
 export class BlockingAutosaveError extends Error {}
+
+export type SaveStatus = { message?: string } & (
+  | { state: "saved" }
+  | { state: "pending" }
+  | { state: "saving" }
+  | { state: "error"; message: string }
+  | { state: "conflict"; message: string }
+);
+
+export type SaveEvent =
+  | { type: "snapshot_scheduled" }
+  | { type: "save_started" }
+  | { type: "save_succeeded" }
+  | { type: "save_failed"; message: string; blocking: boolean };
+
+/**
+ * Pure status contract for the serialized save queue. The queue owns when an
+ * event is legal; this reducer owns the observable typestate it produces.
+ */
+export function transitionSaveStatus(status: SaveStatus, event: SaveEvent): SaveStatus {
+  if (status.state === "conflict") return status;
+
+  switch (event.type) {
+    case "snapshot_scheduled":
+      return { state: "pending" };
+    case "save_started":
+      return { state: "saving" };
+    case "save_succeeded":
+      return { state: "saved" };
+    case "save_failed":
+      return event.blocking
+        ? { state: "conflict", message: event.message }
+        : { state: "error", message: event.message };
+  }
+}
 
 /**
  * One in-flight write per workspace. Quiet edits debounce normally, while
@@ -53,9 +83,9 @@ export class Autosave<T> {
     };
   }
 
-  private emit(status: SaveStatus) {
-    this.status = status;
-    this.listeners.forEach((listener) => listener(status));
+  private dispatch(event: SaveEvent) {
+    this.status = transitionSaveStatus(this.status, event);
+    this.listeners.forEach((listener) => listener(this.status));
   }
 
   private clearTimers() {
@@ -83,10 +113,14 @@ export class Autosave<T> {
   schedule(value: T) {
     this.pending = value;
     if (this.blockedByConflict) {
-      this.emit({ state: "conflict", message: this.conflictError?.message });
+      this.dispatch({
+        type: "save_failed",
+        message: this.conflictError?.message ?? "Workspace conflict",
+        blocking: true,
+      });
       return;
     }
-    this.emit({ state: "pending" });
+    this.dispatch({ type: "snapshot_scheduled" });
     this.scheduleTimers();
   }
 
@@ -95,20 +129,19 @@ export class Autosave<T> {
   }
 
   private async persistSnapshot(snapshot: T) {
-    this.emit({ state: "saving" });
+    this.dispatch({ type: "save_started" });
     try {
       const saved = await this.persist(snapshot, this.version);
       this.version = saved.version;
     } catch (error) {
       if (this.pending === undefined) this.pending = snapshot;
       const normalized = error instanceof Error ? error : new Error("Save failed. Please retry.");
-      if (normalized instanceof BlockingAutosaveError) {
+      const blocking = normalized instanceof BlockingAutosaveError;
+      if (blocking) {
         this.blockedByConflict = true;
         this.conflictError = normalized;
-        this.emit({ state: "conflict", message: normalized.message });
-      } else {
-        this.emit({ state: "error", message: normalized.message });
       }
+      this.dispatch({ type: "save_failed", message: normalized.message, blocking });
       throw normalized;
     }
   }
@@ -138,7 +171,7 @@ export class Autosave<T> {
       }
       if (this.pending === undefined) {
         this.checkpointAfterActive = false;
-        this.emit({ state: "saved" });
+        this.dispatch({ type: "save_succeeded" });
         return;
       }
       if (this.checkpointAfterActive) {
@@ -146,7 +179,7 @@ export class Autosave<T> {
         void this.checkpoint().catch(() => {});
         return;
       }
-      this.emit({ state: "pending" });
+      this.dispatch({ type: "snapshot_scheduled" });
       this.scheduleTimers();
     });
     return this.active;
@@ -177,6 +210,6 @@ export class Autosave<T> {
       await this.persistSnapshot(snapshot);
     }
     this.clearTimers();
-    this.emit({ state: "saved" });
+    this.dispatch({ type: "save_succeeded" });
   }
 }

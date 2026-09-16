@@ -1,8 +1,44 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Autosave, BlockingAutosaveError } from "./autosave.ts";
+import {
+  Autosave,
+  BlockingAutosaveError,
+  transitionSaveStatus,
+  type SaveStatus,
+} from "./autosave.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("models the observable save status contract as pure event transitions", () => {
+  let status: SaveStatus = { state: "saved" };
+
+  status = transitionSaveStatus(status, { type: "snapshot_scheduled" });
+  assert.deepEqual(status, { state: "pending" });
+  status = transitionSaveStatus(status, { type: "save_started" });
+  assert.deepEqual(status, { state: "saving" });
+  status = transitionSaveStatus(status, { type: "save_succeeded" });
+  assert.deepEqual(status, { state: "saved" });
+
+  status = transitionSaveStatus(status, {
+    type: "save_failed",
+    message: "Storage unavailable",
+    blocking: false,
+  });
+  assert.deepEqual(status, { state: "error", message: "Storage unavailable" });
+  status = transitionSaveStatus(status, { type: "snapshot_scheduled" });
+  assert.deepEqual(status, { state: "pending" });
+
+  status = transitionSaveStatus(status, {
+    type: "save_failed",
+    message: "Workspace conflict",
+    blocking: true,
+  });
+  assert.deepEqual(status, { state: "conflict", message: "Workspace conflict" });
+  assert.deepEqual(
+    transitionSaveStatus(status, { type: "snapshot_scheduled" }),
+    { state: "conflict", message: "Workspace conflict" },
+  );
+});
 
 test("serializes writes and saves latest edits made during a slow request", async () => {
   const calls: Array<[string, number]> = [];
@@ -41,16 +77,16 @@ test("max wait checkpoints the latest snapshot during continuous edits", async (
       calls.push([value, version]);
       return { version: version + 1 };
     },
-    50,
-    120,
+    500,
+    500,
   );
 
   saver.schedule("first");
-  await sleep(40);
+  await sleep(80);
   saver.schedule("second");
-  await sleep(40);
+  await sleep(80);
   saver.schedule("latest");
-  await sleep(70);
+  await sleep(450);
 
   assert.deepEqual(calls, [["latest", 1]]);
   assert.equal(saver.dirty, false);

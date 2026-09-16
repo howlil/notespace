@@ -219,6 +219,7 @@ test("capture contract: Quick Capture and Library Tools are direct sidebar actio
 
 test("workspace contract: bounded panes use one interaction policy and Send/Link actions stay removed", () => {
   const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT);
+  assert.doesNotMatch(workspace, /notespace\.workspace:/);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
   assert.match(layout,/function paneInteractionState/); assert.match(layout,/function paneFocusTarget/);
   assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/); assert.match(layout,/layoutForViewMode/); assert.match(layout,/workspaceViewMode/);

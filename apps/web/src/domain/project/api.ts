@@ -9,16 +9,7 @@ import { APIError, json, request } from "./http";
 export { APIError, getProject, updateProjectSnapshot } from "./http";
 export { saveProject } from "./save-project";
 
-export async function listProjects() {
-  const items: ProjectSummary[] = [];
-  let offset = 0;
-  while (true) {
-    const page = await listAllWorkspaces({ offset, limit: 100 });
-    items.push(...page.items);
-    if (page.nextOffset === undefined || page.nextOffset <= offset) return items;
-    offset = page.nextOffset;
-  }
-}
+
 export const listRecentWorkspaces = async (limit = 12) => (await listAllWorkspaces({ limit })).items;
 export const listAllWorkspaces = (params: { query?: string; offset?: number; limit?: number } = {}) => {
   const search = new URLSearchParams();

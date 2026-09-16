@@ -142,6 +142,23 @@ critical browser journeys
 production Compose + restart persistence when durable/deploy boundaries changed
 ```
 
+## Latest engineering evidence
+
+The first bounded client architecture slice is implemented:
+
+```text
+feature API → injectable HttpTransport → typed APIError/result
+UI edit → Autosave event → explicit save status
+```
+
+- `apps/web/src/domain/project/http.ts` now exposes a swappable transport boundary while preserving existing exports and endpoint behavior.
+- `apps/web/src/domain/project/autosave.ts` now exposes a pure `SaveEvent → SaveStatus` transition contract; queue, version, debounce, max-wait, and conflict semantics remain unchanged.
+- Deterministic web unit suite: 84/84 passed.
+- Web typecheck, lint, production build, and `git diff --check`: passed.
+- Docker/restart and browser gates were not needed for this client-only boundary slice.
+
+Next action: add runtime response schemas at the HTTP boundary only when the API payload contract is defined; keep `DocumentEditor` decomposition as a separate bounded slice.
+
 ## Next product milestone
 
 After this gate is green, the highest-value product candidate is **Sources / PDF inside a Workspace** so the learning loop can become:

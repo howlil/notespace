@@ -64,19 +64,28 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/projects", a.list)
 	mux.HandleFunc("GET /api/workspaces", a.listWorkspaces)
 	mux.HandleFunc("POST /api/projects", a.create)
+	mux.HandleFunc("POST /api/workspaces", a.create)
 	mux.HandleFunc("GET /api/categories", a.listCategories)
 	mux.HandleFunc("GET /api/categories/{id}/workspaces", a.listCategoryWorkspaces)
 	mux.HandleFunc("POST /api/categories", a.createCategory)
 	mux.HandleFunc("PATCH /api/categories/{id}", a.updateCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", a.deleteCategory)
 	mux.HandleFunc("GET /api/projects/{id}", a.get)
+	mux.HandleFunc("GET /api/workspaces/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
+	mux.HandleFunc("PATCH /api/workspaces/{id}", a.update)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/projects/{id}/category", a.move)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/category", a.move)
 	mux.HandleFunc("GET /api/projects/{id}/history", a.history)
+	mux.HandleFunc("GET /api/workspaces/{id}/history", a.history)
 	mux.HandleFunc("GET /api/projects/{id}/history/{historyId}", a.historySnapshot)
+	mux.HandleFunc("GET /api/workspaces/{id}/history/{historyId}", a.historySnapshot)
 	mux.HandleFunc("POST /api/projects/{id}/history/{historyId}/restore", a.restore)
+	mux.HandleFunc("POST /api/workspaces/{id}/history/{historyId}/restore", a.restore)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
+	mux.HandleFunc("DELETE /api/workspaces/{id}", a.delete)
 	mux.HandleFunc("GET /api/workspaces/{id}/assets/{assetId}", a.getAsset)
 	mux.HandleFunc("PUT /api/workspaces/{id}/assets/{assetId}", a.putAsset)
 	mux.HandleFunc("DELETE /api/workspaces/{id}/assets/{assetId}", a.deleteAsset)
@@ -154,7 +163,6 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 500, map[string]string{"error": "Unable to access workspace storage. Please retry."})
 	}
 }
-
 func (a API) list(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("limit") != "" {
 		limit, err := parseIntQuery(r, "limit", 0)
@@ -328,7 +336,11 @@ func (a API) create(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	w.Header().Set("Location", "/api/projects/"+p.ID)
+	locationPrefix := "/api/workspaces/"
+	if isLegacyProjectPath(r.URL.Path) {
+		locationPrefix = "/api/projects/"
+	}
+	w.Header().Set("Location", locationPrefix+p.ID)
 	send(w, 201, p)
 }
 func (a API) get(w http.ResponseWriter, r *http.Request) {

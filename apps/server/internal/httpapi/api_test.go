@@ -38,13 +38,22 @@ func newAPI(store *persistence.Store) http.Handler {
 		Health:   store.Healthy,
 	}))
 }
+
+func newLibraryAPI(store *persistence.Store) http.Handler {
+	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
+		Projects: store,
+		Study:    store,
+		Assets:   store,
+		Health:   store.Healthy,
+	}), store))
+}
 func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	t.Helper()
 	if res.Code != status {
 		t.Fatalf("status %d, want %d: %s", res.Code, status, res.Body.String())
 	}
 }
-func decodeProject(t *testing.T, res *httptest.ResponseRecorder) project.Project {
+func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) project.Project {
 	t.Helper()
 	var p project.Project
 	if err := json.Unmarshal(res.Body.Bytes(), &p); err != nil {
@@ -62,6 +71,27 @@ func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.Ca
 	return categories
 }
 
+func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newLibraryAPI(store)
+
+	created := call(t, api, "POST", "/api/projects", map[string]string{"title": "Legacy client"})
+	expect(t, created, http.StatusCreated)
+	if created.Header().Get("Deprecation") != "true" || created.Header().Get("Link") == "" {
+		t.Fatalf("legacy headers = deprecation=%q link=%q", created.Header().Get("Deprecation"), created.Header().Get("Link"))
+	}
+	workspace := decodeWorkspace(t, created)
+	if got := created.Header().Get("Location"); got != "/api/projects/"+workspace.ID {
+		t.Fatalf("legacy location = %q", got)
+	}
+	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), http.StatusOK)
+	expect(t, call(t, api, "DELETE", "/api/projects/"+workspace.ID, nil), http.StatusNoContent)
+}
+
 func TestCategoryGroupsWorkspaces(t *testing.T) {
 	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -75,9 +105,9 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
-	createdWorkspace := call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems", "categoryId": category.ID})
+	createdWorkspace := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems", "categoryId": category.ID})
 	expect(t, createdWorkspace, 201)
-	if workspace := decodeProject(t, createdWorkspace); workspace.CategoryID != category.ID {
+	if workspace := decodeWorkspace(t, createdWorkspace); workspace.CategoryID != category.ID {
 		t.Fatalf("workspace category = %q, want %q", workspace.CategoryID, category.ID)
 	}
 	categories := decodeCategories(t, call(t, api, "GET", "/api/categories", nil))
@@ -97,7 +127,7 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 
-	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Root workspace"}))
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Root workspace"}))
 	if workspace.CategoryID != project.UncategorizedCategoryID {
 		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, project.UncategorizedCategoryID)
 	}
@@ -117,10 +147,10 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, title := range []string{"Redis", "Postgres", "Go"} {
-		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": title, "categoryId": category.ID}), 201)
+		expect(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": title, "categoryId": category.ID}), 201)
 	}
 	for i := 0; i < 100; i++ {
-		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Workspace " + strconv.Itoa(i), "categoryId": category.ID}), 201)
+		expect(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Workspace " + strconv.Itoa(i), "categoryId": category.ID}), 201)
 	}
 	page := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?q=go&limit=1", nil)
 	expect(t, page, 200)
@@ -164,17 +194,17 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 		t.Fatalf("category title = %q, want %q", got, "Backend Engineering")
 	}
 
-	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Go", "categoryId": category.ID}))
-	renameWorkspace := call(t, api, "PATCH", "/api/projects/"+workspace.ID+"/title", map[string]string{"title": "Golang"})
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Go", "categoryId": category.ID}))
+	renameWorkspace := call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/title", map[string]string{"title": "Golang"})
 	expect(t, renameWorkspace, 200)
-	if got := decodeProject(t, renameWorkspace).Title; got != "Golang" {
+	if got := decodeWorkspace(t, renameWorkspace).Title; got != "Golang" {
 		t.Fatalf("workspace title = %q, want %q", got, "Golang")
 	}
 
 	// Category deletion must not cascade into authored workspace data.
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
-	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), 200)
-	expect(t, call(t, api, "DELETE", "/api/projects/"+workspace.ID, nil), 204)
+	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
+	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
 	for _, listed := range decodeCategories(t, call(t, api, "GET", "/api/categories", nil)) {
 		if listed.ID == category.ID {
@@ -199,11 +229,11 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Career"}).Body.Bytes(), &secondCategory); err != nil {
 		t.Fatal(err)
 	}
-	workspace := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems", "categoryId": firstCategory.ID}))
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems", "categoryId": firstCategory.ID}))
 
-	moved := call(t, api, "PATCH", "/api/projects/"+workspace.ID+"/category", map[string]string{"categoryId": secondCategory.ID})
+	moved := call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/category", map[string]string{"categoryId": secondCategory.ID})
 	expect(t, moved, 200)
-	if got := decodeProject(t, moved).CategoryID; got != secondCategory.ID {
+	if got := decodeWorkspace(t, moved).CategoryID; got != secondCategory.ID {
 		t.Fatalf("moved workspace category = %q, want %q", got, secondCategory.ID)
 	}
 
@@ -236,16 +266,16 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Research"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Research"}))
 	second := project.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 	update := project.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
-	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
-	got := decodeProject(t, saved)
+	got := decodeWorkspace(t, saved)
 	if len(got.Notes) != 2 || got.Notes[1].Title != "References" {
 		t.Fatalf("notes not persisted: %+v", got.Notes)
 	}
-	reloaded := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	reloaded := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
 	if len(reloaded.Notes) != 2 || reloaded.Notes[1].ID != "note-second" {
 		t.Fatalf("notes not durable: %+v", reloaded.Notes)
 	}
@@ -259,7 +289,7 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Note actions"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Note actions"}))
 	note := p.Notes[0]
 	note.Document = project.Snapshot{
 		Format:  "tiptap",
@@ -280,9 +310,9 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 		References: []project.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
 		SplitRatio: p.SplitRatio,
 	}
-	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
-	reloaded := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	reloaded := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
 	if len(reloaded.Notes) != 1 || string(reloaded.Notes[0].Document.Data) != string(note.Document.Data) {
 		t.Fatalf("highlighted note was not persisted: %+v", reloaded.Notes)
 	}
@@ -296,8 +326,8 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	deleted.Document = second.Document
 	deleted.Notes = []project.Note{second}
 	deleted.References = []project.Reference{}
-	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, deleted), 200)
-	afterDelete := decodeProject(t, call(t, api, "GET", "/api/projects/"+p.ID, nil))
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, deleted), 200)
+	afterDelete := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
 	if len(afterDelete.Notes) != 1 || afterDelete.Notes[0].ID != second.ID || len(afterDelete.References) != 0 {
 		t.Fatalf("note deletion mapping was not persisted: notes=%+v references=%+v", afterDelete.Notes, afterDelete.References)
 	}
@@ -312,27 +342,27 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 	api := newAPI(store)
-	empty := call(t, api, "GET", "/api/projects", nil)
+	empty := call(t, api, "GET", "/api/workspaces", nil)
 	expect(t, empty, 200)
-	if strings.TrimSpace(empty.Body.String()) != "[]" {
+	if !strings.Contains(empty.Body.String(), `"items":[]`) {
 		t.Fatal(empty.Body.String())
 	}
-	created := call(t, api, "POST", "/api/projects", map[string]string{"title": "Distributed Systems"})
+	created := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems"})
 	expect(t, created, 201)
-	p := decodeProject(t, created)
+	p := decodeWorkspace(t, created)
 	update := project.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
 		Document:   project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
 		Canvas:     project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
 		References: []project.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
 	}
-	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, update)
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
-	expected := decodeProject(t, saved)
+	expected := decodeWorkspace(t, saved)
 	if expected.Version != 2 {
 		t.Fatalf("version %d", expected.Version)
 	}
 	// A stale tab must not overwrite either surface.
-	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 409)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 409)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -341,20 +371,20 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	api = newAPI(store)
-	restored := call(t, api, "GET", "/api/projects/"+p.ID, nil)
+	restored := call(t, api, "GET", "/api/workspaces/"+p.ID, nil)
 	expect(t, restored, 200)
-	got := decodeProject(t, restored)
+	got := decodeWorkspace(t, restored)
 	if got.Title != expected.Title || got.SplitRatio != expected.SplitRatio || got.Version != expected.Version || string(got.Document.Data) != string(expected.Document.Data) || string(got.Canvas.Data) != string(expected.Canvas.Data) || !reflect.DeepEqual(got.References, expected.References) {
 		t.Fatalf("restart changed content: %+v", got)
 	}
-	second := call(t, api, "POST", "/api/projects", map[string]string{"title": "Networking"})
+	second := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Networking"})
 	expect(t, second, 201)
-	if other := decodeProject(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
+	if other := decodeWorkspace(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
 		t.Fatal("project content leaked")
 	}
-	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 204)
-	expect(t, call(t, api, "GET", "/api/projects/"+p.ID, nil), 404)
-	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 404)
+	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
+	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil), 404)
+	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 404)
 	expect(t, call(t, api, "GET", "/api/health", nil), 200)
 }
 
@@ -366,10 +396,10 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 	for _, title := range []string{"", "   ", strings.Repeat("a", 161)} {
-		expect(t, call(t, api, "POST", "/api/projects", map[string]string{"title": title}), 400)
+		expect(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": title}), 400)
 	}
 	for _, body := range []string{`{"title":"ok","extra":true}`, `{"title":"ok"} {}`, `null`, strings.Repeat(" ", 10<<20) + `{}`} {
-		req := httptest.NewRequest("POST", "/api/projects", strings.NewReader(body))
+		req := httptest.NewRequest("POST", "/api/workspaces", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		res := httptest.NewRecorder()
 		api.ServeHTTP(res, req)
@@ -377,18 +407,18 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 			t.Fatalf("malformed body accepted: %d", res.Code)
 		}
 	}
-	req := httptest.NewRequest("POST", "/api/projects", strings.NewReader(`{"title":"cross-origin"}`))
+	req := httptest.NewRequest("POST", "/api/workspaces", strings.NewReader(`{"title":"cross-origin"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://untrusted.example")
 	res := httptest.NewRecorder()
 	api.ServeHTTP(res, req)
 	expect(t, res, 403)
-	req = httptest.NewRequest("POST", "/api/projects", strings.NewReader(`{"title":"wrong media"}`))
+	req = httptest.NewRequest("POST", "/api/workspaces", strings.NewReader(`{"title":"wrong media"}`))
 	res = httptest.NewRecorder()
 	api.ServeHTTP(res, req)
 	expect(t, res, 415)
-	list := call(t, api, "GET", "/api/projects", nil)
-	if strings.TrimSpace(list.Body.String()) != "[]" {
+	list := call(t, api, "GET", "/api/workspaces", nil)
+	if !strings.Contains(list.Body.String(), `"items":[]`) {
 		t.Fatal(list.Body.String())
 	}
 }
@@ -421,19 +451,19 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace := decodeProject(t, call(t, newAPI(store), "POST", "/api/projects", map[string]string{"title": "Protected workspace"}))
+	workspace := decodeWorkspace(t, call(t, newAPI(store), "POST", "/api/workspaces", map[string]string{"title": "Protected workspace"}))
 	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Study:    store,
 		Assets:   store,
 		Health:   store.Healthy,
 	}), store))
-	req := httptest.NewRequest(http.MethodDelete, "/api/projects/"+workspace.ID, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+workspace.ID, nil)
 	req.Header.Set("Origin", "https://untrusted.example")
 	res := httptest.NewRecorder()
 	composed.ServeHTTP(res, req)
 	expect(t, res, 403)
-	expect(t, call(t, newAPI(store), "GET", "/api/projects/"+workspace.ID, nil), 200)
+	expect(t, call(t, newAPI(store), "GET", "/api/workspaces/"+workspace.ID, nil), 200)
 }
 
 func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
@@ -442,20 +472,20 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Keep me"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Keep me"}))
 	update := project.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
 	update.Document.Format = "unknown"
-	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
 	update.Document = p.Document
 	update.Canvas.Data = json.RawMessage(`{"elements":null}`)
-	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
 	update.Canvas = p.Canvas
 	update.SplitRatio = .99
-	expect(t, call(t, api, "PATCH", "/api/projects/"+p.ID, update), 400)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	failure := call(t, api, "GET", "/api/projects", nil)
+	failure := call(t, api, "GET", "/api/workspaces", nil)
 	expect(t, failure, 500)
 	if strings.Contains(failure.Body.String(), "sql:") {
 		t.Fatal("storage internals leaked")
@@ -469,7 +499,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Backend Fundamentals"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend Fundamentals"}))
 	body := map[string]any{"activityDate": "2026-09-03", "activeSeconds": 120, "finish": false}
 	path := "/api/workspaces/" + p.ID + "/study-sessions/session-1"
 	expect(t, call(t, api, "PUT", path, body), 200)
@@ -491,7 +521,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 {
 		t.Fatalf("unexpected activity: %+v", summary)
 	}
-	expect(t, call(t, api, "DELETE", "/api/projects/"+p.ID, nil), 204)
+	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
 	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
 	expect(t, detail, 200)
 	var day struct {
@@ -516,10 +546,10 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Search workspace"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Search workspace"}))
 	p.Document = project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
 	p.Notes[0].Document = p.Document
-	saved := call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, saved, 200)
 	results := call(t, api, "GET", "/api/search?q=consensus", nil)
 	expect(t, results, 200)
@@ -539,8 +569,8 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "Portable workspace"}))
-	history := call(t, api, "GET", "/api/projects/"+p.ID+"/history", nil)
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Portable workspace"}))
+	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
 	var entries []project.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
@@ -549,7 +579,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 	if len(entries) != 1 || entries[0].Version != p.Version {
 		t.Fatalf("initial history = %+v", entries)
 	}
-	expect(t, call(t, api, "GET", "/api/projects/"+p.ID+"/export", nil), http.StatusNotFound)
+	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID+"/export", nil), http.StatusNotFound)
 }
 
 func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
@@ -559,15 +589,15 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeProject(t, call(t, api, "POST", "/api/projects", map[string]string{"title": "History"}))
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "History"}))
 	first := p.Document
 	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
-	saved := decodeProject(t, call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
+	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
 	second := saved.Document
 	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
-	updated := call(t, api, "PATCH", "/api/projects/"+p.ID, project.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, updated, 200)
-	history := call(t, api, "GET", "/api/projects/"+p.ID+"/history", nil)
+	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
 	var entries []project.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
@@ -576,9 +606,9 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("history entries = %d, want initial checkpoint only", len(entries))
 	}
-	restore := call(t, api, "POST", "/api/projects/"+p.ID+"/history/"+entries[0].ID+"/restore", nil)
+	restore := call(t, api, "POST", "/api/workspaces/"+p.ID+"/history/"+entries[0].ID+"/restore", nil)
 	expect(t, restore, 200)
-	if got := decodeProject(t, restore); string(got.Document.Data) != string(p.Document.Data) {
+	if got := decodeWorkspace(t, restore); string(got.Document.Data) != string(p.Document.Data) {
 		t.Fatalf("restored document = %s, want %s", got.Document.Data, p.Document.Data)
 	}
 }

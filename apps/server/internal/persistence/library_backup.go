@@ -147,7 +147,32 @@ func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {
 	return record, nil
 }
 
+func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) error {
+	workspace := envelope.Project
+	workspace.CategoryID = categoryID
+	if err := project.ValidateProject(workspace); err != nil {
+		return err
+	}
+	for _, checkpoint := range envelope.History {
+		if checkpoint.WorkspaceID != workspace.ID {
+			return project.ErrInvalid
+		}
+		if err := project.ValidateHistorySnapshot(checkpoint); err != nil {
+			return err
+		}
+	}
+	for _, stored := range envelope.Assets {
+		if stored.ID == "" || stored.WorkspaceID != workspace.ID || stored.MimeType == "" || len(stored.Data) == 0 {
+			return project.ErrInvalid
+		}
+	}
+	return nil
+}
+
 func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvelope, categoryID string) error {
+	if err := validateWorkspaceEnvelope(envelope, categoryID); err != nil {
+		return err
+	}
 	workspace := envelope.Project
 	workspace.CategoryID = categoryID
 	document, err := json.Marshal(workspace.Document)
@@ -357,6 +382,9 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 			return project.ErrInvalid
 		}
 		trashIDs[record.ID] = true
+		if err := validateWorkspaceEnvelope(record.Payload, record.CategoryID); err != nil {
+			return err
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)

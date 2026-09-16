@@ -46,8 +46,15 @@ export function QuickOpen() {
         setOpen(true);
       }
     };
+    const customHandler = () => setOpen(true);
+
     window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
+    window.addEventListener("open-quick-search", customHandler);
+
+    return () => {
+      window.removeEventListener("keydown", handler, true);
+      window.removeEventListener("open-quick-search", customHandler);
+    };
   }, []);
 
   useEffect(() => {

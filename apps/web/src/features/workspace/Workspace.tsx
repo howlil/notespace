@@ -25,7 +25,7 @@ type FocusRequest = { id: string; request: number } | null;
 
 const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";
 const paneMenuButtonClass = "border-0 bg-transparent px-2 py-[7px] text-left text-[10px] text-ink hover:bg-tint hover:text-accent disabled:opacity-50";
-const iconActionClass = "grid size-7 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
+const iconActionClass = "grid size-9 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
 const popupClass = "absolute z-30 grid min-w-[165px] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]";
 
 function newId() { return crypto.randomUUID(); }
@@ -374,7 +374,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:44px] max-[560px]:[--workspace-header-height:76px]", focusMode && "is-focus-mode")}>
         <header className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-[76px] max-[560px]:grid-cols-[minmax(0,1fr)_auto] max-[560px]:grid-rows-[30px_32px] max-[560px]:items-center max-[560px]:gap-x-2 max-[560px]:gap-y-1 max-[560px]:px-2 max-[560px]:py-1.5", focusMode && "hidden")}>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-full max-[560px]:gap-1">
-            <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={16} /></Link>
+            <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={24} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
             <label className="relative flex min-w-0 max-w-[min(32vw,360px)] items-center max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
               <span className="sr-only">Switch workspace</span>
@@ -388,14 +388,14 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             {(["canvas", "note", "split"] as const).map((mode) => {
               const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
               const selected = activeViewMode === mode;
-              const icon = mode === "canvas" ? <LayoutGrid size={17} strokeWidth={2.1} /> : mode === "note" ? <FileText size={17} strokeWidth={2.1} /> : <Columns2 size={17} strokeWidth={2.1} />;
-              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-8 !min-h-8 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
+              const icon = mode === "canvas" ? <LayoutGrid size={22} strokeWidth={2.1} /> : mode === "note" ? <FileText size={22} strokeWidth={2.1} /> : <Columns2 size={22} strokeWidth={2.1} />;
+              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-9 !min-h-9 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
             })}
           </div>
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
             <StudyIndicator study={study} />
-            <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={13} /> : status.state === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Circle size={9} />}{saveLabel}</span>
-            <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={15} /></IconButton>
+            <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
+            <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>
             <WorkspaceGuide />
           </div>
         </header>

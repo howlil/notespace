@@ -8,7 +8,7 @@ import { useToast } from "../../providers/toast-provider";
 import type { StudySessionState } from "./use-study-session";
 import { formatDay, formatDuration } from "./study-timer";
 
-const timerActionClass = "!size-8 !min-h-8 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
+const timerActionClass = "!size-10 !min-h-10 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
 
 function sessionTime(value: string) {
   const date = new Date(value);
@@ -85,7 +85,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
           title="Start"
           onClick={study.start}
         >
-          <Play size={18} strokeWidth={2.25} />
+          <Play size={24} strokeWidth={2.25} />
         </Button>
       ) : (
         <>
@@ -97,7 +97,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
             title={study.status === "running" ? "Pause" : "Resume"}
             onClick={study.status === "running" ? study.pause : study.resume}
           >
-            {study.status === "running" ? <Pause size={18} strokeWidth={2.25} /> : <Play size={18} strokeWidth={2.25} />}
+            {study.status === "running" ? <Pause size={24} strokeWidth={2.25} /> : <Play size={24} strokeWidth={2.25} />}
           </Button>
           <Button
             variant="secondary"
@@ -107,7 +107,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
             title="End"
             onClick={study.end}
           >
-            <Square size={17} strokeWidth={2.25} />
+            <Square size={24} strokeWidth={2.25} />
           </Button>
         </>
       )}

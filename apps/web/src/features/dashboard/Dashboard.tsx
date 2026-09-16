@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Folder, Menu, Search } from "lucide-react";
+import { Folder, Menu, Plus, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, PopupSurface, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
+import { createProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
 import { useLibrarySyncStore } from "../library/library-sync-store";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
@@ -69,6 +69,77 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
   );
 }
 
+type NewWorkspaceCardProps = {
+  editing: boolean;
+  value: string;
+  loading: boolean;
+  onActivate: () => void;
+  onChange: (v: string) => void;
+  onSubmit: (e: FormEvent) => void;
+  onCancel: () => void;
+};
+
+function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSubmit, onCancel }: NewWorkspaceCardProps) {
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={onActivate}
+        className="group block w-full max-w-[196px] min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        aria-label="New workspace"
+      >
+        <article className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-dashed border-line bg-surface transition-[border-color,background-color] duration-200 group-hover:border-accent group-hover:bg-tint">
+          <span className="grid size-10 place-items-center rounded-full border border-line bg-surface/80 text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
+            <Plus size={18} aria-hidden="true" />
+          </span>
+          <span className="text-[11px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
+            New workspace
+          </span>
+        </article>
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[196px] min-h-20 rounded-[18px]">
+      <article className="relative flex aspect-square flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-accent bg-tint px-4">
+        <form onSubmit={onSubmit} className="w-full grid gap-2">
+          <Input
+            autoFocus
+            className="w-full min-h-0 py-1.5 px-2 text-[11px]"
+            placeholder="Workspace name"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+            aria-label="New workspace name"
+            disabled={loading}
+          />
+          <div className="flex gap-1.5">
+            <Button
+              type="submit"
+              size="sm"
+              className="flex-1 min-h-0 py-1 text-[10px]"
+              disabled={!value.trim() || loading}
+            >
+              {loading ? "Creating…" : "Create"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="min-h-0 py-1 px-2.5 text-[10px]"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              ✕
+            </Button>
+          </div>
+        </form>
+      </article>
+    </div>
+  );
+}
+
 export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -91,7 +162,35 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const searchRef = useRef<HTMLDivElement>(null);
   const dismissSearch = useCallback(() => setSearchOpen(false), []);
   useDismissablePopup(searchRef, searchOpen, dismissSearch);
+
   const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
+
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
+  const [createLoading, setCreateLoading] = useState(false);
+
+  // Assign new workspace to the active category, or to uncategorized for recent/all views.
+  const newWorkspaceCategoryId = useMemo(() => {
+    if (view === "category" && selectedCategoryId) return selectedCategoryId;
+    return (categoryItems.find((c) => c.id === "legacy") ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
+  }, [view, selectedCategoryId, categoryItems]);
+
+  async function handleCreateWorkspace(event: FormEvent) {
+    event.preventDefault();
+    const title = newWorkspaceTitle.trim();
+    if (!title) return;
+    setCreateLoading(true);
+    try {
+      await createProject(title, newWorkspaceCategoryId);
+      setNewWorkspaceTitle("");
+      setCreatingWorkspace(false);
+      refreshLibrary();
+    } catch (err) {
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });
+    } finally {
+      setCreateLoading(false);
+    }
+  }
 
   useEffect(() => {
     const normalized = query.trim();
@@ -118,7 +217,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [mobileLibraryOpen]);
-
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
     setSelectedCategoryId(id); setView("category"); setPageLoading(true);
@@ -261,12 +359,32 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
                 {items.map((workspace) => (
                   <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} />
                 ))}
+                <NewWorkspaceCard
+                  editing={creatingWorkspace}
+                  value={newWorkspaceTitle}
+                  loading={createLoading}
+                  onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+                  onChange={setNewWorkspaceTitle}
+                  onSubmit={(e) => { void handleCreateWorkspace(e); }}
+                  onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
+                />
               </div>
             ) : (
-              <div className="flex min-h-[200px] flex-col items-center justify-center rounded-[18px] border border-line bg-surface p-8 text-center">
-                <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
-                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
-                <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create a workspace from the library menu.</p>
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-[18px] border border-line bg-surface p-8 text-center">
+                <div>
+                  <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent mx-auto"><Folder size={20} /></span>
+                  <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                  <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
+                </div>
+                <NewWorkspaceCard
+                  editing={creatingWorkspace}
+                  value={newWorkspaceTitle}
+                  loading={createLoading}
+                  onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+                  onChange={setNewWorkspaceTitle}
+                  onSubmit={(e) => { void handleCreateWorkspace(e); }}
+                  onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
+                />
               </div>
             )}
           </section>

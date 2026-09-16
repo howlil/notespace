@@ -557,6 +557,16 @@ export default function DocumentEditor({
   editorRef.current = editor;
 
   useEffect(() => {
+    if (!editor || !initial.data) return;
+    const currentJson = editor.getJSON();
+    if (JSON.stringify(currentJson) !== JSON.stringify(initial.data)) {
+      if (!editor.isFocused) {
+        editor.commands.setContent(initial.data, { emitUpdate: false });
+      }
+    }
+  }, [editor, initial.data]);
+
+  useEffect(() => {
     if (!editor || !findOpen) return;
     const onTransaction = () => setFindRevision((value) => value + 1);
     editor.on("transaction", onTransaction);

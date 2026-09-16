@@ -69,7 +69,17 @@ func extractSearchBlocks(raw json.RawMessage) []searchBlock {
 }
 
 func (s *Store) syncSearchIndex(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.notes_state,p.version
+	// Read the authored snapshots and advance the derived projection in the same
+	// transaction. With the store's single SQLite connection, an autosave cannot
+	// land between the version read and the meta/index write and make stale
+	// projection rows look current.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.notes_state,p.version
 FROM projects p LEFT JOIN workspace_search_meta m ON m.workspace_id=p.id
 WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title`)
 	if err != nil {
@@ -90,11 +100,6 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 	}
 	rows.Close()
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
 		return err
 	}

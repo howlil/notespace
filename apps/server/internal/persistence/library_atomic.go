@@ -85,9 +85,16 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceE
 	return workspaceEnvelope{Project: workspace, History: history, Assets: assets}, nil
 }
 
-// TrashWorkspaceAtomic owns the complete save-point. With SQLite's single
-// connection, no autosave can land between the captured snapshot and deletion.
+// TrashWorkspaceAtomic owns the complete save-point. Compatibility callers that
+// do not have an observed version still get one atomic snapshot+delete.
 func (s *Store) TrashWorkspaceAtomic(ctx context.Context, id string) error {
+	return s.TrashWorkspaceAtomicVersion(ctx, id, nil)
+}
+
+// TrashWorkspaceAtomicVersion rejects a destructive command made from a stale
+// workspace view. The version comparison, trash snapshot, and delete share one
+// transaction so no autosave can land between them.
+func (s *Store) TrashWorkspaceAtomicVersion(ctx context.Context, id string, expectedVersion *int) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -96,6 +103,9 @@ func (s *Store) TrashWorkspaceAtomic(ctx context.Context, id string) error {
 	envelope, err := snapshotWorkspaceTx(ctx, tx, id)
 	if err != nil {
 		return err
+	}
+	if expectedVersion != nil && envelope.Project.Version != *expectedVersion {
+		return project.ErrConflict
 	}
 	payload, err := encodeTrashEnvelope(envelope)
 	if err != nil {

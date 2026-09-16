@@ -50,7 +50,10 @@ export const createCategory = (title: string) => request<CategorySummary>("/api/
 export const updateCategory = (id: string, title: string) => request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, { method: "PATCH", ...json({ title }) });
 export const deleteCategory = (id: string) => request<void>(`/api/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const renameProject = (id: string, title: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
-export const deleteProject = (id: string) => request<void>(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const deleteProject = (id: string, expectedVersion?: number) => request<void>(`/api/workspaces/${encodeURIComponent(id)}`, {
+  method: "DELETE",
+  ...(expectedVersion === undefined ? {} : { headers: { "If-Match": `"${expectedVersion}"` } }),
+});
 export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);

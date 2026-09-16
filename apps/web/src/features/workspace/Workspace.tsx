@@ -142,16 +142,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current });
   }, [layout, project.id]);
   useBlocker({
-    shouldBlockFn: () => {
-      if (status.state === "error" || status.state === "conflict") return true;
-      void saver.flush().catch((error) => {
+    shouldBlockFn: async () => {
+      if (status.state === "conflict") return true;
+      if (!saver.dirty) return false;
+      try {
+        await saver.flush();
+        return false;
+      } catch (error) {
         showToast({
           kind: "error",
           message: error instanceof Error ? error.message : "Save failed. Please retry.",
           action: { label: "Retry save", onClick: () => void saver.flush().catch(() => {}) },
         });
-      });
-      return false;
+        return true;
+      }
     },
     enableBeforeUnload: () => saver.dirty,
   });

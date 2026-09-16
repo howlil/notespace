@@ -26,6 +26,8 @@ export type StudySessionState = {
   deleteSession: (sessionId: string) => Promise<void>;
 };
 
+type StudyLease = { release: () => void };
+
 function storageKey(workspaceId: string) {
   return `notespace.study-session:${workspaceId}`;
 }
@@ -54,15 +56,53 @@ function readStoredSession(workspaceId: string): ManualStudySession | null {
   }
 }
 
+function acquireStudyLease(workspaceId: string): Promise<StudyLease | null> {
+  if (typeof navigator === "undefined" || !("locks" in navigator)) {
+    // Older browsers keep the existing single-tab behavior. Modern browsers
+    // use Web Locks so only one tab can own a workspace timer at a time.
+    return Promise.resolve({ release: () => {} });
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    void navigator.locks.request(
+      `notespace.study:${workspaceId}`,
+      { mode: "exclusive", ifAvailable: true },
+      async (lock) => {
+        if (!lock) {
+          resolved = true;
+          resolve(null);
+          return;
+        }
+        let release!: () => void;
+        const held = new Promise<void>((done) => { release = done; });
+        resolved = true;
+        resolve({ release });
+        await held;
+      },
+    ).catch(() => {
+      if (!resolved) resolve(null);
+    });
+  });
+}
+
 export function useStudySession(workspaceId: string, workspaceTitle: string): StudySessionState {
   void workspaceTitle;
   const [session, setSession] = useState<ManualStudySession | null>(null);
   const sessionRef = useRef<ManualStudySession | null>(null);
+  const leaseRef = useRef<StudyLease | null>(null);
+  const acquiringLease = useRef(false);
+  const mountedRef = useRef(true);
   const [baseline, setBaseline] = useState({ todaySeconds: 0, totalSeconds: 0 });
   const [baselineDate, setBaselineDate] = useState(localDate());
   const [clock, setClock] = useState(Date.now());
   const [ready, setReady] = useState(false);
   const sessionStatus = session?.status ?? "idle";
+
+  const releaseLease = useCallback(() => {
+    leaseRef.current?.release();
+    leaseRef.current = null;
+  }, []);
 
   const commitSession = useCallback((next: ManualStudySession | null) => {
     sessionRef.current = next;
@@ -87,26 +127,56 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     return result.session;
   }, [commitSession, sendSegment]);
 
+  const adoptStoredSession = useCallback((stored: ManualStudySession, now: number) => {
+    const result = advanceStudySession(stored, now);
+    result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
+    commitSession(result.session);
+    setBaseline({
+      todaySeconds: result.session.baselineTodaySeconds,
+      totalSeconds: result.session.baselineTotalSeconds,
+    });
+    setBaselineDate(result.session.activityDate);
+    setClock(now);
+    if (result.session.status === "running") {
+      sendSegment(result.session.segmentId, result.session.activityDate, currentSegmentSeconds(result.session, now), false);
+    }
+  }, [commitSession, sendSegment]);
+
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     setReady(false);
     const now = Date.now();
     const restored = readStoredSession(workspaceId);
+
     if (restored) {
-      const result = advanceStudySession(restored, now);
-      result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
-      commitSession(result.session);
-      setBaseline({
-        todaySeconds: result.session.baselineTodaySeconds,
-        totalSeconds: result.session.baselineTotalSeconds,
+      void acquireStudyLease(workspaceId).then((lease) => {
+        if (cancelled || !mountedRef.current) {
+          lease?.release();
+          return;
+        }
+        if (lease) {
+          leaseRef.current = lease;
+          adoptStoredSession(restored, now);
+          setReady(true);
+          return;
+        }
+        // Another tab owns the active/paused session. This tab remains an idle
+        // observer instead of creating a second logical study session.
+        void getWorkspaceStudy(workspaceId, localDate(new Date(now)))
+          .then((stats) => {
+            if (cancelled) return;
+            setBaseline(stats);
+            setBaselineDate(localDate(new Date(now)));
+          })
+          .catch(() => {})
+          .finally(() => { if (!cancelled) setReady(true); });
       });
-      setBaselineDate(result.session.activityDate);
-      setClock(now);
-      setReady(true);
-      if (result.session.status === "running") {
-        sendSegment(result.session.segmentId, result.session.activityDate, currentSegmentSeconds(result.session, now), false);
-      }
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+        mountedRef.current = false;
+        releaseLease();
+      };
     }
 
     void getWorkspaceStudy(workspaceId, localDate(new Date(now)))
@@ -117,8 +187,12 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setReady(true); });
-    return () => { cancelled = true; };
-  }, [commitSession, sendSegment, workspaceId]);
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+      releaseLease();
+    };
+  }, [adoptStoredSession, releaseLease, workspaceId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -151,30 +225,44 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   }, [reconcile, sendSegment, sessionStatus]);
 
   function start() {
-    if (!ready || sessionRef.current) return;
-    const now = Date.now();
-    const date = localDate(new Date(now));
-    const effectiveBaseline = {
-      todaySeconds: baselineDate === date ? baseline.todaySeconds : 0,
-      totalSeconds: baseline.totalSeconds,
-    };
-    const logicalSessionId = crypto.randomUUID();
-    const next: ManualStudySession = {
-      logicalSessionId,
-      segmentId: studySegmentId(logicalSessionId, date),
-      activityDate: date,
-      status: "running",
-      sessionAccumulatedSeconds: 0,
-      segmentAccumulatedSeconds: 0,
-      runningSince: now,
-      baselineTodaySeconds: effectiveBaseline.todaySeconds,
-      baselineTotalSeconds: effectiveBaseline.totalSeconds,
-    };
-    setBaseline(effectiveBaseline);
-    setBaselineDate(date);
-    setClock(now);
-    commitSession(next);
-    sendSegment(next.segmentId, next.activityDate, 0, false);
+    if (!ready || sessionRef.current || leaseRef.current || acquiringLease.current) return;
+    acquiringLease.current = true;
+    void acquireStudyLease(workspaceId).then((lease) => {
+      acquiringLease.current = false;
+      if (!lease || !mountedRef.current) {
+        lease?.release();
+        return;
+      }
+      leaseRef.current = lease;
+      const now = Date.now();
+      const stored = readStoredSession(workspaceId);
+      if (stored) {
+        adoptStoredSession(stored, now);
+        return;
+      }
+      const date = localDate(new Date(now));
+      const effectiveBaseline = {
+        todaySeconds: baselineDate === date ? baseline.todaySeconds : 0,
+        totalSeconds: baseline.totalSeconds,
+      };
+      const logicalSessionId = crypto.randomUUID();
+      const next: ManualStudySession = {
+        logicalSessionId,
+        segmentId: studySegmentId(logicalSessionId, date),
+        activityDate: date,
+        status: "running",
+        sessionAccumulatedSeconds: 0,
+        segmentAccumulatedSeconds: 0,
+        runningSince: now,
+        baselineTodaySeconds: effectiveBaseline.todaySeconds,
+        baselineTotalSeconds: effectiveBaseline.totalSeconds,
+      };
+      setBaseline(effectiveBaseline);
+      setBaselineDate(date);
+      setClock(now);
+      commitSession(next);
+      sendSegment(next.segmentId, next.activityDate, 0, false);
+    });
   }
 
   function pause() {
@@ -214,6 +302,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     setBaselineDate(finished.activityDate);
     setClock(now);
     commitSession(null);
+    releaseLease();
   }
 
   async function deleteSession(sessionId: string) {

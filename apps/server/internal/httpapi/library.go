@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/project"
@@ -16,11 +17,11 @@ import (
 const maxBackupBytes = 64 << 20
 
 type libraryStore interface {
-	TrashWorkspaceAtomic(context.Context, string) error
+	TrashWorkspaceAtomicVersion(context.Context, string, *int) error
 	ListTrashJSON(context.Context) ([]byte, error)
-	RestoreTrashedWorkspace(context.Context, string) (project.Project, error)
+	RestoreTrashedWorkspaceAtomic(context.Context, string) (project.Project, error)
 	DeleteTrashedWorkspace(context.Context, string) error
-	CategoryHasTrash(context.Context, string) (bool, error)
+	DeleteCategoryAtomic(context.Context, string) error
 	ExportBackupArchiveAtomic(context.Context) ([]byte, error)
 	RestoreBackupArchive(context.Context, []byte) error
 	RestoreBackupJSON(context.Context, []byte) error
@@ -32,6 +33,22 @@ func singlePathID(path, prefix string) (string, bool) {
 	}
 	id := strings.TrimPrefix(path, prefix)
 	return id, id != "" && !strings.Contains(id, "/")
+}
+
+func expectedVersion(r *http.Request) (*int, error) {
+	raw := strings.TrimSpace(r.Header.Get("If-Match"))
+	if raw == "" {
+		return nil, nil
+	}
+	if strings.HasPrefix(raw, "W/") {
+		raw = strings.TrimSpace(strings.TrimPrefix(raw, "W/"))
+	}
+	raw = strings.Trim(raw, `"`)
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return nil, project.ErrInvalid
+	}
+	return &value, nil
 }
 
 func sameOriginMutation(w http.ResponseWriter, r *http.Request) bool {
@@ -86,7 +103,12 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 				base.ServeHTTP(w, r)
 				return
 			}
-			if err := library.TrashWorkspaceAtomic(r.Context(), id); err != nil {
+			version, err := expectedVersion(r)
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			if err := library.TrashWorkspaceAtomicVersion(r.Context(), id, version); err != nil {
 				fail(w, err)
 				return
 			}
@@ -95,15 +117,12 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 		}
 
 		if id, match := singlePathID(r.URL.Path, "/api/categories/"); match && r.Method == http.MethodDelete {
-			hasTrash, err := library.CategoryHasTrash(r.Context(), id)
-			if err != nil {
+			if err := library.DeleteCategoryAtomic(r.Context(), id); err != nil {
 				fail(w, err)
 				return
 			}
-			if hasTrash {
-				fail(w, project.ErrNotEmpty)
-				return
-			}
+			send(w, http.StatusNoContent, nil)
+			return
 		}
 
 		switch {
@@ -167,7 +186,7 @@ func WithLibraryRoutes(base http.Handler, library libraryStore) http.Handler {
 		if id, match := singlePathID(r.URL.Path, "/api/trash/"); match {
 			switch r.Method {
 			case http.MethodPost:
-				workspace, err := library.RestoreTrashedWorkspace(r.Context(), id)
+				workspace, err := library.RestoreTrashedWorkspaceAtomic(r.Context(), id)
 				if err != nil {
 					fail(w, err)
 					return

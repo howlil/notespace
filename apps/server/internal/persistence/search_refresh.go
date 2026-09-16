@@ -5,15 +5,19 @@ import (
 )
 
 func (s *Store) refreshWorkspaceSearch(ctx context.Context, workspaceID string) error {
-	value, err := s.Get(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+
+	// Read the authored workspace from the same transaction that advances the
+	// projection. Otherwise an autosave could land after Get and before BeginTx,
+	// causing an older version to overwrite newer search metadata.
+	value, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, workspaceID))
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id=?`, value.ID); err != nil {
 		return err
 	}

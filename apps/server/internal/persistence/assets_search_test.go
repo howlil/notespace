@@ -52,7 +52,8 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := project.Service{Store: store}
+	indexed := NewIndexedProjectStore(store)
+	service := project.Service{Store: indexed}
 	workspace, err := service.Create(ctx, "Search workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +65,7 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results, err := store.SearchIndexed(ctx, "consensus")
+	results, err := service.Search(ctx, "consensus")
 	if err != nil {
 		t.Fatal(err)
 	}

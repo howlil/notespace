@@ -32,7 +32,8 @@ test("responsive contract: mobile library uses an app bar and off-canvas navigat
   const sidebar = source(SIDEBAR);
   assert.match(dashboard, /mobileLibraryOpen/);
   assert.match(dashboard, /aria-label="Open library navigation"/);
-  assert.match(dashboard, /aria-label="Search Notespace"/);
+  assert.match(dashboard, /aria-label="Search Notespace with Control K or Command K"/);
+  assert.match(dashboard, /w-\[min\(320px,42vw\)\]/);
   assert.match(dashboard, /max-\[560px\]:fixed/);
   assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
   assert.match(dashboard, /max-\[560px\]:-translate-x-full/);

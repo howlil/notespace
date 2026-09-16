@@ -2,6 +2,8 @@ import type { DiagramSelection, StructuredDiagram } from "../../features/diagram
 
 export function sameDiagramSelection(left: DiagramSelection, right: DiagramSelection) {
   return left.diagramId === right.diagramId
+    && left.edgeId === right.edgeId
+    && left.groupId === right.groupId
     && left.nodeIds.length === right.nodeIds.length
     && left.nodeIds.every((nodeId, index) => nodeId === right.nodeIds[index]);
 }

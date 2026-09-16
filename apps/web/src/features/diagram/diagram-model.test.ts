@@ -5,6 +5,7 @@ import {
   connectDiagramNodes,
   createDiagramWithNode,
   diagramNodeLabelElementId,
+  diagramPickerIconCount,
   getCatalogItem,
   groupDiagramNodes,
   layoutDiagram,
@@ -41,10 +42,14 @@ test("catalog search supports provider categories and keywords", () => {
   assert(searchDiagramCatalog("function", "azure").some((item) => item.key === "azure-functions"));
 });
 
-test("the generated catalog contains all documented Eraser entries", () => {
-  assert.equal(searchEraserCatalog("").length, 3947);
+test("picker catalog exposes system-design components instead of generic UI actions", () => {
+  assert.equal(diagramPickerIconCount, searchEraserCatalog("").length);
+  assert.equal(searchEraserCatalog("", "general").length, 8);
+  assert.equal(searchEraserCatalog("align left").length, 0);
+  assert.equal(searchEraserCatalog("align end horizontal").length, 0);
   assert.equal(searchEraserCatalog("lambda")[0]?.key, "aws-lambda");
   assert.equal(searchEraserCatalog("cloud run", "gcp")[0]?.key, "gcp-cloud-run");
+  assert(searchEraserCatalog("database", "general").some((item) => item.key === "database"));
 });
 
 test("new insertion is icon-only while old component snapshots remain readable", () => {

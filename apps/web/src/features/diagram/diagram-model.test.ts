@@ -4,14 +4,20 @@ import {
   addCatalogNode,
   connectDiagramNodes,
   createDiagramWithNode,
+  diagramNodeLabelElementId,
   getCatalogItem,
   groupDiagramNodes,
   layoutDiagram,
   readStructuredDiagrams,
+  removeDiagramEdge,
+  renameDiagramEdge,
+  renameDiagramGroup,
+  renameDiagramNode,
   searchDiagramCatalog,
   searchEraserCatalog,
   selectionForElements,
   syncDiagramsFromElements,
+  ungroupDiagramNodes,
   withStructuredDiagrams,
 } from "./diagram-model.ts";
 
@@ -64,6 +70,18 @@ test("architecture and flow layout keep their historical orientation", () => {
   assert.equal(flow.nodes[0].x, flow.nodes[1].x);
 });
 
+test("auto layout stays stable for cycles", () => {
+  const nextId = ids();
+  let diagram = threeNodeDiagram("architecture", nextId);
+  diagram = connectDiagramNodes(diagram, diagram.nodes[2].id, diagram.nodes[0].id, nextId);
+  const once = layoutDiagram(diagram, { x: 20, y: 40 });
+  const twice = layoutDiagram(once, { x: 20, y: 40 });
+  assert.deepEqual(
+    twice.nodes.map(({ x, y }) => ({ x, y })),
+    once.nodes.map(({ x, y }) => ({ x, y })),
+  );
+});
+
 test("connect, group, layout, and snapshot round-trip preserve Notespace ids", () => {
   const nextId = ids();
   let diagram = threeNodeDiagram("architecture", nextId);
@@ -82,6 +100,41 @@ test("connect, group, layout, and snapshot round-trip preserve Notespace ids", (
   assert.equal(restored[0].nodes[3].id, diagram.nodes[3].id);
 });
 
+test("structured commands rename and remove graph values without replacing identities", () => {
+  const nextId = ids();
+  let diagram = threeNodeDiagram("architecture", nextId);
+  diagram = groupDiagramNodes(diagram, [diagram.nodes[0].id, diagram.nodes[1].id], nextId);
+  const nodeId = diagram.nodes[0].id;
+  const edgeId = diagram.edges[0].id;
+  const groupId = diagram.groups[0].id;
+
+  diagram = renameDiagramNode(diagram, nodeId, "Web client");
+  diagram = renameDiagramEdge(diagram, edgeId, "HTTPS");
+  diagram = renameDiagramGroup(diagram, groupId, "Public tier");
+
+  assert.equal(diagram.nodes.find((node) => node.id === nodeId)?.label, "Web client");
+  assert.equal(diagram.edges.find((edge) => edge.id === edgeId)?.label, "HTTPS");
+  assert.equal(diagram.groups.find((group) => group.id === groupId)?.label, "Public tier");
+
+  diagram = removeDiagramEdge(diagram, edgeId);
+  assert(!diagram.edges.some((edge) => edge.id === edgeId));
+  diagram = ungroupDiagramNodes(diagram, groupId);
+  assert.equal(diagram.groups.length, 0);
+  assert(diagram.nodes.every((node) => node.groupId !== groupId));
+});
+
+test("regrouping keeps one group owner per node", () => {
+  const nextId = ids();
+  let diagram = threeNodeDiagram("architecture", nextId);
+  diagram = groupDiagramNodes(diagram, [diagram.nodes[0].id, diagram.nodes[1].id], nextId);
+  const firstGroupId = diagram.groups[0].id;
+  diagram = groupDiagramNodes(diagram, [diagram.nodes[1].id, diagram.nodes[2].id], nextId);
+  assert(!diagram.groups.some((group) => group.id === firstGroupId));
+  assert.equal(diagram.groups.length, 1);
+  assert.equal(diagram.nodes[1].groupId, diagram.groups[0].id);
+  assert.equal(diagram.nodes[2].groupId, diagram.groups[0].id);
+});
+
 test("selection and element sync follow native Excalidraw move, resize, label, and delete", () => {
   const diagram = threeNodeDiagram("flowchart");
   const first = diagram.nodes[0];
@@ -90,8 +143,8 @@ test("selection and element sync follow native Excalidraw move, resize, label, a
   const elements = [
     { id: first.elementId, x: 120, y: 140, width: 220, height: 90, boundElements: [{ id: firstText, type: "text" }] },
     { id: firstText, containerId: first.elementId, text: "○\nBegin" },
-    { id: second.elementId, isDeleted: true },
     ...diagram.nodes.slice(2).map((node) => ({ id: node.elementId, x: node.x, y: node.y, width: node.width, height: node.height })),
+    { id: second.elementId, isDeleted: true },
     ...diagram.edges.map((edge) => ({ id: edge.elementId })),
   ];
 
@@ -104,4 +157,34 @@ test("selection and element sync follow native Excalidraw move, resize, label, a
   assert.equal(synced.nodes[0].label, "Begin");
   assert(!synced.nodes.some((node) => node.id === second.id));
   assert(!synced.edges.some((edge) => edge.from === second.id || edge.to === second.id));
+});
+
+test("icon, connection, and boundary labels round-trip through native elements", () => {
+  const nextId = ids();
+  let diagram = threeNodeDiagram("architecture", nextId);
+  diagram = groupDiagramNodes(diagram, [diagram.nodes[0].id, diagram.nodes[1].id], nextId);
+  const first = diagram.nodes[0];
+  const edge = diagram.edges[0];
+  const group = diagram.groups[0];
+  const edgeText = "edge-text";
+  const groupText = "group-text";
+  const elements = [
+    ...diagram.nodes.map((node) => ({ id: node.elementId, x: node.x, y: node.y, width: node.width, height: node.height })),
+    { id: diagramNodeLabelElementId(first.elementId), text: "Browser client" },
+    { id: edge.elementId, boundElements: [{ id: edgeText, type: "text" }] },
+    { id: edgeText, containerId: edge.elementId, text: "HTTPS" },
+    ...diagram.edges.slice(1).map((item) => ({ id: item.elementId })),
+    { id: group.elementId, boundElements: [{ id: groupText, type: "text" }] },
+    { id: groupText, containerId: group.elementId, text: "Public tier" },
+  ];
+
+  const edgeSelection = selectionForElements([diagram], [edgeText], elements);
+  assert.equal(edgeSelection.edgeId, edge.id);
+  const groupSelection = selectionForElements([diagram], [groupText], elements);
+  assert.equal(groupSelection.groupId, group.id);
+
+  const [synced] = syncDiagramsFromElements([diagram], elements);
+  assert.equal(synced.nodes[0].label, "Browser client");
+  assert.equal(synced.edges[0].label, "HTTPS");
+  assert.equal(synced.groups[0].label, "Public tier");
 });

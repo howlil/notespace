@@ -1,4 +1,4 @@
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { FONT_FAMILY, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
@@ -31,6 +31,8 @@ function fallbackNodeText(specKey: string, label: string) {
   return `${glyph}\n${label}`;
 }
 
+const diagramFontFamily = FONT_FAMILY.Helvetica;
+
 export function renderStructuredDiagram(
   diagram: StructuredDiagram,
   dark: boolean,
@@ -54,7 +56,7 @@ export function renderStructuredDiagram(
       strokeWidth: 1,
       roughness: 0,
       roundness: { type: 3 },
-      label: { text: group.label, fontSize: 12 },
+      label: { text: group.label, fontSize: 12, fontFamily: diagramFontFamily },
     });
   }
 
@@ -84,6 +86,7 @@ export function renderStructuredDiagram(
           width: node.width + 32,
           text: node.label,
           fontSize: 12,
+          fontFamily: diagramFontFamily,
           textAlign: "center",
           strokeColor,
           groupIds: [renderGroupId],
@@ -103,7 +106,7 @@ export function renderStructuredDiagram(
           roughness: 0,
           roundness: { type: 3 },
           groupIds: [renderGroupId],
-          label: { text: fallbackNodeText(node.specKey, node.label), fontSize: 12 },
+          label: { text: fallbackNodeText(node.specKey, node.label), fontSize: 12, fontFamily: diagramFontFamily },
         });
       }
       continue;
@@ -126,6 +129,7 @@ export function renderStructuredDiagram(
       label: {
         text: hasEraserIcon ? node.label : fallbackNodeText(node.specKey, node.label),
         fontSize: 14,
+        fontFamily: diagramFontFamily,
       },
     });
 
@@ -160,7 +164,7 @@ export function renderStructuredDiagram(
       endArrowhead: "arrow",
       start: { id: from.elementId },
       end: { id: to.elementId },
-      ...(edge.label ? { label: { text: edge.label, fontSize: 11 } } : {}),
+      ...(edge.label ? { label: { text: edge.label, fontSize: 11, fontFamily: diagramFontFamily } } : {}),
     });
   }
 

@@ -40,7 +40,7 @@ test("design contract: sidebar tree keeps inline editing and contextual actions"
 
   try {
     await page.goto("/");
-    const category = page.getByRole("button", { name: new RegExp(title) }).first();
+    const category = page.getByRole("button").filter({ hasText: title }).first();
     await expect(category).toBeVisible();
     await category.dblclick();
     await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();

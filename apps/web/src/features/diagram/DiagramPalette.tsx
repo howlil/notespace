@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Button, IconButton, Input } from "../../components/ui";
 import { useCanvasPanelDismiss, useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
 import {
+  diagramPickerIconCount,
   searchEraserCatalog,
   type DiagramCatalogItem,
   type DiagramCategory,
@@ -27,8 +28,8 @@ import { eraserIconUrlForCatalogKey } from "./eraser-icons";
 type BrowseCategory = DiagramCategory | "all";
 
 const categoryLabels: Record<DiagramCategory, string> = {
-  general: "General Icons",
-  tech: "Tech Logos",
+  general: "General Components",
+  tech: "Technology & Integrations",
   aws: "AWS",
   gcp: "Google Cloud",
   azure: "Azure",
@@ -207,7 +208,7 @@ export function DiagramPalette({
           <div className="border-b border-line p-2">
             <div className="relative">
               <Search size={panelIconSize} strokeWidth={1.5} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
-              <Input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 3,947 icons..." aria-label="Search all Eraser icons" className="pl-8" />
+              <Input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${diagramPickerIconCount.toLocaleString()} components...`} aria-label="Search diagram components" className="pl-8" />
             </div>
             {!hasSearch && (
               <div className="mt-2">
@@ -221,9 +222,9 @@ export function DiagramPalette({
                     </motion.div>
                   ) : category === "all" ? (
                     <motion.div key="all" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 6 }} transition={{ duration: 0.14, ease: "easeOut" }} className="space-y-0.5">
-                      <CategoryRow icon={<Shapes strokeWidth={1.5} />} label="General Icons" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} icons`} onClick={() => chooseCategory("general")} />
-                      <CategoryRow icon={<Network strokeWidth={1.5} />} label="Tech Logos" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} icons`} onClick={() => chooseCategory("tech")} />
-                      <CategoryRow icon={<Cloud strokeWidth={1.5} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} icons across 6 groups`} onClick={() => setCloudOpen(true)} />
+                      <CategoryRow icon={<Shapes strokeWidth={1.5} />} label="General Components" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} components`} onClick={() => chooseCategory("general")} />
+                      <CategoryRow icon={<Network strokeWidth={1.5} />} label="Technology & Integrations" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} logos`} onClick={() => chooseCategory("tech")} />
+                      <CategoryRow icon={<Cloud strokeWidth={1.5} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} components across 6 groups`} onClick={() => setCloudOpen(true)} />
                     </motion.div>
                   ) : (
                     <motion.div key={`category-${category}`} initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.14, ease: "easeOut" }}>
@@ -237,8 +238,8 @@ export function DiagramPalette({
 
           {showResults && <>
             <div className="flex items-center justify-between border-b border-line px-2 py-1.5">
-              <div className="flex items-center gap-1 text-[9px] text-muted"><span className="font-medium text-ink">{items.length.toLocaleString()}</span> icons{hasSearch ? " found" : ""}</div>
-              <span className="rounded-md bg-tint px-2 py-1 text-[9px] font-medium text-ink">Icon only</span>
+              <div className="flex items-center gap-1 text-[9px] text-muted"><span className="font-medium text-ink">{items.length.toLocaleString()}</span> components{hasSearch ? " found" : ""}</div>
+              <span className="rounded-md bg-tint px-2 py-1 text-[9px] font-medium text-ink">Diagram component</span>
             </div>
 
             <div ref={gridRef} className="min-h-0 flex-1 overflow-y-auto p-2" style={{ maxHeight: gridViewportHeight }} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}>
@@ -282,7 +283,7 @@ export function DiagramPalette({
                     ))}
                   </motion.div>
                 </div>
-              ) : <div className="grid min-h-24 place-items-center px-4 text-center text-[10px] leading-4 text-muted">No Eraser icon matches this search.</div>}
+              ) : <div className="grid min-h-24 place-items-center px-4 text-center text-[10px] leading-4 text-muted">No system-design component matches this search.</div>}
             </div>
           </>}
 

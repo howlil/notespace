@@ -34,7 +34,7 @@ import {
   type StructuredDiagram,
 } from "../../features/diagram/diagram-model";
 import { useToast } from "../../providers/toast-provider";
-import { sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
+import { forgetDiagramHistory, mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
@@ -137,6 +137,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
+  const diagramHistoryRef = useRef(diagrams);
   const [diagramSelection, setDiagramSelection] = useState<DiagramSelection>(() => emptyDiagramSelection());
   const diagramSelectionRef = useRef(diagramSelection);
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
@@ -175,6 +176,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, []);
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
+    diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, next);
     if (sameStructuredDiagrams(diagramsRef.current, next)) return;
     diagramsRef.current = next;
     setDiagrams(next);
@@ -261,7 +263,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       // itself converges immediately.
       const localAppState = persistedAppState(value.getAppState());
       const seedDiagrams = mergeDiagramSets(diagramsRef.current, readStructuredDiagrams(message.snapshot.data));
-      const nextDiagrams = syncDiagramsFromElements(seedDiagrams, mergedElements);
+      diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, seedDiagrams);
+      const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, mergedElements);
       const data = {
         elements: mergedElements,
         appState: localAppState,
@@ -299,6 +302,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (signature === lastExternalScene.current) return;
     const elements = Array.isArray(initial.data.elements) ? initial.data.elements as OrderedExcalidrawElement[] : [];
     const nextDiagrams = readStructuredDiagrams(initial.data);
+    diagramHistoryRef.current = nextDiagrams;
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     setHasElements(elements.length > 0);
@@ -326,7 +330,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
     setHasElements(elements.some((element) => !element.isDeleted));
 
-    const nextDiagrams = syncDiagramsFromElements(diagramsRef.current, elements);
+    const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, elements);
     updateDiagramState(nextDiagrams);
     updateDiagramSelection(selectionForElements(nextDiagrams, selectedIds, elements));
 
@@ -504,6 +508,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const detachDiagram = useCallback(() => {
     if (!activeDiagram || !api.current) return;
     const nextDiagrams = diagramsRef.current.filter((diagram) => diagram.id !== activeDiagram.id);
+    diagramHistoryRef.current = forgetDiagramHistory(diagramHistoryRef.current, activeDiagram.id);
     updateDiagramState(nextDiagrams);
     updateDiagramSelection(emptyDiagramSelection());
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);

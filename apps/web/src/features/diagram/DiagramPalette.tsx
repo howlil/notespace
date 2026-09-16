@@ -8,6 +8,7 @@ import {
   Network,
   Search,
   Shapes,
+  Trash2,
   Unlink,
   X,
 } from "lucide-react";
@@ -47,9 +48,17 @@ interface Props {
   anchorRef: { current: HTMLDivElement | null };
   activeDiagram: boolean;
   selectedNodeCount: number;
+  selectedNodeLabel: string | null;
+  selectedEdgeLabel: string | null;
+  selectedGroupLabel: string | null;
   onInsertNode: (item: DiagramCatalogItem, drop?: { clientX: number; clientY: number }) => void;
   onConnect: () => void;
   onGroup: () => void;
+  onRenameNode: (label: string) => void;
+  onRenameEdge: (label: string) => void;
+  onDeleteEdge: () => void;
+  onRenameGroup: (label: string) => void;
+  onUngroup: () => void;
   onAutoLayout: () => void;
   onDetach: () => void;
   onClose: () => void;
@@ -97,14 +106,26 @@ function CategoryRow({ icon, label, detail, onClick, disabled = false }: { icon:
   );
 }
 
+function submitOnEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.key === "Enter") event.currentTarget.blur();
+}
+
 export function DiagramPalette({
   open,
   anchorRef,
   activeDiagram,
   selectedNodeCount,
+  selectedNodeLabel,
+  selectedEdgeLabel,
+  selectedGroupLabel,
   onInsertNode,
   onConnect,
   onGroup,
+  onRenameNode,
+  onRenameEdge,
+  onDeleteEdge,
+  onRenameGroup,
+  onUngroup,
   onAutoLayout,
   onDetach,
   onClose,
@@ -112,12 +133,15 @@ export function DiagramPalette({
   const panelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const draggingItemRef = useRef<string | null>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 560);
+  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 620);
   useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BrowseCategory>("all");
   const [cloudOpen, setCloudOpen] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
+  const [nodeLabel, setNodeLabel] = useState("");
+  const [edgeLabel, setEdgeLabel] = useState("");
+  const [groupLabel, setGroupLabel] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
   const items = useMemo(
     () => searchEraserCatalog(query, query.trim() ? "all" : category),
@@ -145,6 +169,10 @@ export function DiagramPalette({
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
+  useEffect(() => setNodeLabel(selectedNodeLabel ?? ""), [selectedNodeLabel]);
+  useEffect(() => setEdgeLabel(selectedEdgeLabel ?? ""), [selectedEdgeLabel]);
+  useEffect(() => setGroupLabel(selectedGroupLabel ?? ""), [selectedGroupLabel]);
+
   const chooseCategory = (next: BrowseCategory) => {
     setCategory(next);
     setCloudOpen(false);
@@ -166,7 +194,7 @@ export function DiagramPalette({
           animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, x: offsetX, y: offsetY }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="fixed z-[1000] flex max-h-[min(680px,calc(100dvh-16px))] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
+          className="fixed z-[1000] flex max-h-[min(720px,calc(100dvh-16px))] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
           style={{ top: position?.top ?? -10000, left: position?.left ?? -10000, visibility: position ? "visible" : "hidden", transformOrigin: `${horizontal === "left" ? "right" : "left"} ${vertical === "above" ? "bottom" : "top"}` }}
           aria-label="Diagram tools"
           onPointerDown={(event) => event.stopPropagation()}
@@ -256,21 +284,69 @@ export function DiagramPalette({
                 </div>
               ) : <div className="grid min-h-24 place-items-center px-4 text-center text-[10px] leading-4 text-muted">No Eraser icon matches this search.</div>}
             </div>
-
-            <AnimatePresence initial={false}>
-              {activeDiagram && (
-                <motion.footer initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="overflow-hidden border-t border-line p-2">
-                  <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-[.08em] text-muted">Selected diagram</div>
-                  <div className="grid grid-cols-2 gap-1.5 [&_svg]:size-4">
-                    <Button variant="secondary" size="sm" disabled={selectedNodeCount !== 2} title="Select exactly two diagram nodes" onClick={onConnect}><Link2 strokeWidth={1.5} /> Connect</Button>
-                    <Button variant="secondary" size="sm" disabled={selectedNodeCount < 2} title="Select two or more diagram nodes" onClick={onGroup}><Boxes strokeWidth={1.5} /> Group</Button>
-                    <Button variant="secondary" size="sm" onClick={onAutoLayout}><Layers3 strokeWidth={1.5} /> Auto layout</Button>
-                    <Button variant="ghost" size="sm" title="Keep native shapes but stop structured diagram management" onClick={onDetach}><Unlink strokeWidth={1.5} /> Detach</Button>
-                  </div>
-                </motion.footer>
-              )}
-            </AnimatePresence>
           </>}
+
+          <AnimatePresence initial={false}>
+            {activeDiagram && (
+              <motion.footer initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} className="overflow-hidden border-t border-line p-2">
+                <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-[.08em] text-muted">Selected diagram</div>
+
+                {selectedNodeLabel !== null && (
+                  <div className="mb-2">
+                    <Input
+                      value={nodeLabel}
+                      aria-label="Diagram node label"
+                      placeholder="Node label"
+                      onChange={(event) => setNodeLabel(event.target.value)}
+                      onKeyDown={submitOnEnter}
+                      onBlur={() => {
+                        if (nodeLabel.trim() && nodeLabel.trim() !== selectedNodeLabel) onRenameNode(nodeLabel);
+                      }}
+                    />
+                  </div>
+                )}
+
+                {selectedEdgeLabel !== null && (
+                  <div className="mb-2 space-y-1.5">
+                    <Input
+                      value={edgeLabel}
+                      aria-label="Diagram connection label"
+                      placeholder="Connection label"
+                      onChange={(event) => setEdgeLabel(event.target.value)}
+                      onKeyDown={submitOnEnter}
+                      onBlur={() => {
+                        if (edgeLabel.trim() !== selectedEdgeLabel) onRenameEdge(edgeLabel);
+                      }}
+                    />
+                    <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onDeleteEdge}><Trash2 strokeWidth={1.5} /> Delete connection</Button>
+                  </div>
+                )}
+
+                {selectedGroupLabel !== null && (
+                  <div className="mb-2 space-y-1.5">
+                    <Input
+                      value={groupLabel}
+                      aria-label="Diagram group label"
+                      placeholder="Boundary label"
+                      onChange={(event) => setGroupLabel(event.target.value)}
+                      onKeyDown={submitOnEnter}
+                      onBlur={() => {
+                        if (groupLabel.trim() && groupLabel.trim() !== selectedGroupLabel) onRenameGroup(groupLabel);
+                      }}
+                    />
+                    <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onUngroup}><Unlink strokeWidth={1.5} /> Ungroup boundary</Button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-1.5 [&_svg]:size-4">
+                  <Button variant="secondary" size="sm" disabled={selectedNodeCount !== 2} title="Select exactly two diagram nodes" onClick={onConnect}><Link2 strokeWidth={1.5} /> Connect</Button>
+                  <Button variant="secondary" size="sm" disabled={selectedNodeCount < 2} title="Select two or more diagram nodes" onClick={onGroup}><Boxes strokeWidth={1.5} /> Group</Button>
+                  <Button variant="secondary" size="sm" onClick={onAutoLayout}><Layers3 strokeWidth={1.5} /> Auto layout</Button>
+                  <Button variant="ghost" size="sm" title="Keep native shapes but stop structured diagram management" onClick={onDetach}><Unlink strokeWidth={1.5} /> Detach</Button>
+                </div>
+              </motion.footer>
+            )}
+          </AnimatePresence>
         </motion.aside>
       )}
     </AnimatePresence>

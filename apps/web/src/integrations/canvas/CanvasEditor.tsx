@@ -18,11 +18,17 @@ import {
   addCatalogNode,
   connectDiagramNodes,
   createDiagramWithNode,
+  emptyDiagramSelection,
   groupDiagramNodes,
   layoutDiagram,
   readStructuredDiagrams,
+  removeDiagramEdge,
+  renameDiagramEdge,
+  renameDiagramGroup,
+  renameDiagramNode,
   selectionForElements,
   syncDiagramsFromElements,
+  ungroupDiagramNodes,
   type DiagramCatalogItem,
   type DiagramSelection,
   type StructuredDiagram,
@@ -131,7 +137,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
-  const [diagramSelection, setDiagramSelection] = useState<DiagramSelection>({ diagramId: null, nodeIds: [] });
+  const [diagramSelection, setDiagramSelection] = useState<DiagramSelection>(() => emptyDiagramSelection());
   const diagramSelectionRef = useRef(diagramSelection);
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
   const [activeTool, setActiveTool] = useState<AppState["activeTool"]["type"]>("selection");
@@ -389,6 +395,21 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     return id ? diagrams.find((diagram) => diagram.id === id) ?? null : null;
   }, [diagramSelection.diagramId, diagrams, lastDiagramId]);
 
+  const selectedNodeLabel = useMemo(() => {
+    if (!activeDiagram || diagramSelection.nodeIds.length !== 1) return null;
+    return activeDiagram.nodes.find((node) => node.id === diagramSelection.nodeIds[0])?.label ?? null;
+  }, [activeDiagram, diagramSelection.nodeIds]);
+
+  const selectedEdgeLabel = useMemo(() => {
+    if (!activeDiagram || !diagramSelection.edgeId) return null;
+    return activeDiagram.edges.find((edge) => edge.id === diagramSelection.edgeId)?.label ?? null;
+  }, [activeDiagram, diagramSelection.edgeId]);
+
+  const selectedGroupLabel = useMemo(() => {
+    if (!activeDiagram || !diagramSelection.groupId) return null;
+    return activeDiagram.groups.find((group) => group.id === diagramSelection.groupId)?.label ?? null;
+  }, [activeDiagram, diagramSelection.groupId]);
+
   const canvasOrigin = useCallback(() => {
     const state = api.current?.getAppState();
     return { x: -(state?.scrollX ?? 0) + 120, y: -(state?.scrollY ?? 0) + 120 };
@@ -423,8 +444,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       : [...diagramsRef.current, next];
     updateDiagramState(nextDiagrams);
     setLastDiagramId(next.id);
-    updateDiagramSelection({ diagramId: next.id, nodeIds: [] });
-    value.updateScene({ elements: nextElements, appState: { selectedElementIds: {} } });
+    updateDiagramSelection({ diagramId: next.id, nodeIds: [], edgeId: null, groupId: null });
+    value.updateScene({ elements: nextElements, appState: { selectedElementIds: {} }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
@@ -450,6 +471,31 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     void applyDiagram(activeDiagram, groupDiagramNodes(activeDiagram, diagramSelection.nodeIds));
   }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);
 
+  const renameSelectedNode = useCallback((label: string) => {
+    if (!activeDiagram || diagramSelection.nodeIds.length !== 1) return;
+    void applyDiagram(activeDiagram, renameDiagramNode(activeDiagram, diagramSelection.nodeIds[0], label));
+  }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);
+
+  const renameSelectedEdge = useCallback((label: string) => {
+    if (!activeDiagram || !diagramSelection.edgeId) return;
+    void applyDiagram(activeDiagram, renameDiagramEdge(activeDiagram, diagramSelection.edgeId, label));
+  }, [activeDiagram, applyDiagram, diagramSelection.edgeId]);
+
+  const deleteSelectedEdge = useCallback(() => {
+    if (!activeDiagram || !diagramSelection.edgeId) return;
+    void applyDiagram(activeDiagram, removeDiagramEdge(activeDiagram, diagramSelection.edgeId));
+  }, [activeDiagram, applyDiagram, diagramSelection.edgeId]);
+
+  const renameSelectedGroup = useCallback((label: string) => {
+    if (!activeDiagram || !diagramSelection.groupId) return;
+    void applyDiagram(activeDiagram, renameDiagramGroup(activeDiagram, diagramSelection.groupId, label));
+  }, [activeDiagram, applyDiagram, diagramSelection.groupId]);
+
+  const ungroupSelected = useCallback(() => {
+    if (!activeDiagram || !diagramSelection.groupId) return;
+    void applyDiagram(activeDiagram, ungroupDiagramNodes(activeDiagram, diagramSelection.groupId));
+  }, [activeDiagram, applyDiagram, diagramSelection.groupId]);
+
   const autoLayout = useCallback(() => {
     if (!activeDiagram) return;
     void applyDiagram(activeDiagram, layoutDiagram(activeDiagram));
@@ -459,7 +505,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (!activeDiagram || !api.current) return;
     const nextDiagrams = diagramsRef.current.filter((diagram) => diagram.id !== activeDiagram.id);
     updateDiagramState(nextDiagrams);
-    updateDiagramSelection({ diagramId: null, nodeIds: [] });
+    updateDiagramSelection(emptyDiagramSelection());
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     emitSnapshot(api.current.getSceneElements(), api.current.getAppState(), nextDiagrams);
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
@@ -486,9 +532,17 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
               anchorRef={panelAnchorRef}
               activeDiagram={Boolean(activeDiagram)}
               selectedNodeCount={diagramSelection.nodeIds.length}
+              selectedNodeLabel={selectedNodeLabel}
+              selectedEdgeLabel={selectedEdgeLabel}
+              selectedGroupLabel={selectedGroupLabel}
               onInsertNode={insertNode}
               onConnect={connectSelected}
               onGroup={groupSelected}
+              onRenameNode={renameSelectedNode}
+              onRenameEdge={renameSelectedEdge}
+              onDeleteEdge={deleteSelectedEdge}
+              onRenameGroup={renameSelectedGroup}
+              onUngroup={ungroupSelected}
               onAutoLayout={autoLayout}
               onDetach={detachDiagram}
               onClose={() => setDiagramOpen(false)}

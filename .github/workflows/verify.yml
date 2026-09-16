@@ -34,7 +34,10 @@ jobs:
             test-results/*.png
             playwright-report/
           retention-days: 7
-      - run: docker compose up --build -d --wait
+      - run: docker compose -f compose.yaml config
+      - run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
       - run: python3 scripts/smoke-persistence.py --compose-restart
-      - run: docker compose logs && docker compose down
+        env:
+          COMPOSE_FILE: compose.yaml:compose.ci.yaml
+      - run: docker compose -f compose.yaml -f compose.ci.yaml logs && docker compose -f compose.yaml -f compose.ci.yaml down
         if: always()

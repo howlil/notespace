@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, IconButton, Input } from "../../components/ui";
-import { useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
+import { useCanvasPanelDismiss, useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
 import {
   searchEraserCatalog,
   type DiagramCatalogItem,
@@ -113,6 +113,7 @@ export function DiagramPalette({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const draggingItemRef = useRef<string | null>(null);
   const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 560);
+  useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BrowseCategory>("all");
   const [cloudOpen, setCloudOpen] = useState(false);

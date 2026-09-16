@@ -31,8 +31,8 @@ func (s *IndexedProjectStore) Create(ctx context.Context, value project.Project)
 }
 
 func (s *IndexedProjectStore) Update(ctx context.Context, id string, update project.Update) (project.Project, error) {
-	// Autosave is the hottest write path. SearchIndexed compares projection meta
-	// with the authored workspace version and repairs stale entries on demand, so
+	// Autosave is the hottest write path. Search compares projection meta with
+	// the authored workspace version and repairs stale entries on demand, so
 	// rebuilding every note/block here only adds latency to the save response.
 	return s.Store.Update(ctx, id, update)
 }
@@ -44,4 +44,10 @@ func (s *IndexedProjectStore) Move(ctx context.Context, id, categoryID string) (
 	}
 	s.refresh(ctx, id)
 	return value, nil
+}
+
+// Search keeps the search projection behind the project.Store port. Callers do
+// not need to know whether retrieval is backed by FTS or the base store.
+func (s *IndexedProjectStore) Search(ctx context.Context, query string) ([]project.SearchResult, error) {
+	return s.Store.SearchIndexed(ctx, query)
 }

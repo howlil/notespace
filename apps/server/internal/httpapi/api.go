@@ -19,10 +19,6 @@ import (
 
 const maxAssetBytes = 8 << 20
 
-type indexedSearcher interface {
-	SearchIndexed(context.Context, string) ([]project.SearchResult, error)
-}
-
 type API struct {
 	service     project.Service
 	study       study.Service
@@ -163,6 +159,7 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 500, map[string]string{"error": "Unable to access workspace storage. Please retry."})
 	}
 }
+
 func (a API) list(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("limit") != "" {
 		limit, err := parseIntQuery(r, "limit", 0)
@@ -170,7 +167,7 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 			fail(w, project.ErrInvalid)
 			return
 		}
-		data, err := a.service.Store.ListRecent(r.Context(), limit)
+		data, err := a.service.ListRecent(r.Context(), limit)
 		if err != nil {
 			fail(w, err)
 			return
@@ -178,7 +175,7 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, data)
 		return
 	}
-	data, err := a.service.Store.List(r.Context())
+	data, err := a.service.List(r.Context())
 	if err != nil {
 		fail(w, err)
 		return
@@ -249,44 +246,38 @@ func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	page, err := a.service.Store.ListWorkspaces(r.Context(), query)
+	page, err := a.service.ListWorkspaces(r.Context(), query)
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, page)
 }
+
 func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
-	data, err := a.service.Store.ListCategories(r.Context())
+	data, err := a.service.ListCategories(r.Context())
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, data)
 }
+
 func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
 	categoryID := r.PathValue("id")
-	exists, err := a.service.Store.CategoryExists(r.Context(), categoryID)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	if !exists {
-		fail(w, project.ErrNotFound)
-		return
-	}
 	query, err := workspaceQuery(r, categoryID)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	page, err := a.service.Store.ListWorkspaces(r.Context(), query)
+	page, err := a.service.ListCategoryWorkspaces(r.Context(), categoryID, query)
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, page)
 }
+
 func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
@@ -302,6 +293,7 @@ func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Location", "/api/categories/"+category.ID)
 	send(w, 201, category)
 }
+
 func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
@@ -316,6 +308,7 @@ func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, category)
 }
+
 func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	if err := a.service.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
@@ -323,6 +316,7 @@ func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 204, nil)
 }
+
 func (a API) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title      string `json:"title"`
@@ -343,14 +337,16 @@ func (a API) create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Location", locationPrefix+p.ID)
 	send(w, 201, p)
 }
+
 func (a API) get(w http.ResponseWriter, r *http.Request) {
-	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
+	p, err := a.service.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, p)
 }
+
 func (a API) update(w http.ResponseWriter, r *http.Request) {
 	var body project.Update
 	if !decode(w, r, &body) {
@@ -363,6 +359,7 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, p)
 }
+
 func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
@@ -377,6 +374,7 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, p)
 }
+
 func (a API) move(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		CategoryID string `json:"categoryId"`
@@ -393,16 +391,7 @@ func (a API) move(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) search(w http.ResponseWriter, r *http.Request) {
-	if indexed, ok := a.service.Store.(indexedSearcher); ok {
-		data, err := indexed.SearchIndexed(r.Context(), r.URL.Query().Get("q"))
-		if err != nil {
-			fail(w, err)
-			return
-		}
-		send(w, 200, data)
-		return
-	}
-	data, err := a.service.Store.Search(r.Context(), r.URL.Query().Get("q"))
+	data, err := a.service.Search(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -413,13 +402,14 @@ func (a API) search(w http.ResponseWriter, r *http.Request) {
 func validAssetID(value string) bool {
 	return value != "" && len(value) <= 160 && !strings.ContainsAny(value, "/\\")
 }
+
 func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 	workspaceID, assetID := r.PathValue("id"), r.PathValue("assetId")
 	if !validAssetID(assetID) {
 		fail(w, asset.ErrInvalid)
 		return
 	}
-	if _, err := a.service.Store.Get(r.Context(), workspaceID); err != nil {
+	if _, err := a.service.Get(r.Context(), workspaceID); err != nil {
 		fail(w, err)
 		return
 	}
@@ -450,6 +440,7 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
 func (a API) getAsset(w http.ResponseWriter, r *http.Request) {
 	value, err := a.assets.GetAsset(r.Context(), r.PathValue("id"), r.PathValue("assetId"))
 	if err != nil {
@@ -463,6 +454,7 @@ func (a API) getAsset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(value.Data)
 }
+
 func (a API) deleteAsset(w http.ResponseWriter, r *http.Request) {
 	if err := a.assets.DeleteAsset(r.Context(), r.PathValue("id"), r.PathValue("assetId")); err != nil {
 		fail(w, err)
@@ -472,19 +464,16 @@ func (a API) deleteAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) history(w http.ResponseWriter, r *http.Request) {
-	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil {
-		fail(w, err)
-		return
-	}
-	data, err := a.service.Store.ListHistory(r.Context(), r.PathValue("id"))
+	data, err := a.service.ListHistory(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, data)
 }
+
 func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
-	data, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
+	data, err := a.service.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -492,24 +481,16 @@ func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
 	data.References = []project.Reference{}
 	send(w, 200, data)
 }
+
 func (a API) restore(w http.ResponseWriter, r *http.Request) {
-	current, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	snapshot, err := a.service.Store.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	restored, err := a.service.Update(r.Context(), current.ID, project.Update{Title: snapshot.Title, Document: snapshot.Document, Notes: snapshot.Notes, Canvas: snapshot.Canvas, References: []project.Reference{}, SplitRatio: snapshot.SplitRatio, Version: current.Version})
+	restored, err := a.service.RestoreHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	send(w, 200, restored)
 }
+
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
 	if err := a.service.Delete(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
@@ -531,12 +512,13 @@ func (a API) studySessions(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, sessions)
 }
+
 func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var body study.Heartbeat
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Store.Get(r.Context(), r.PathValue("id"))
+	p, err := a.service.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -548,6 +530,7 @@ func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, session)
 }
+
 func (a API) deleteStudySession(w http.ResponseWriter, r *http.Request) {
 	if err := a.study.DeleteSession(r.Context(), r.PathValue("id"), r.PathValue("sessionId")); err != nil {
 		fail(w, err)
@@ -555,12 +538,13 @@ func (a API) deleteStudySession(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 204, nil)
 }
+
 func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
 	if date == "" {
 		date = time.Now().Format(study.DateLayout)
 	}
-	if _, err := a.service.Store.Get(r.Context(), r.PathValue("id")); err != nil {
+	if _, err := a.service.Get(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
 		return
 	}
@@ -571,6 +555,7 @@ func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, stats)
 }
+
 func (a API) activity(w http.ResponseWriter, r *http.Request) {
 	data, err := a.study.GetActivity(r.Context(), r.URL.Query().Get("from"), r.URL.Query().Get("to"))
 	if err != nil {
@@ -579,6 +564,7 @@ func (a API) activity(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, data)
 }
+
 func (a API) dayDetail(w http.ResponseWriter, r *http.Request) {
 	data, err := a.study.GetDayDetail(r.Context(), r.PathValue("date"))
 	if err != nil {

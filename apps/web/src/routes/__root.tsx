@@ -27,6 +27,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "preconnect", href: "https://storage.googleapis.com" },
+      { rel: "dns-prefetch", href: "//storage.googleapis.com" },
     ],
   }),
   shellComponent: RootDocument,

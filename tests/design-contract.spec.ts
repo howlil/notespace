@@ -4,7 +4,8 @@ test("design contract: Library keeps a persistent category tree and global quick
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Recent workspaces", exact: true })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
+  const categories = page.getByRole("navigation", { name: "Categories" });
+  await expect(categories).toBeVisible();
   await expect(page.getByRole("button", { name: "New category" })).toBeVisible();
   await expect(page.getByRole("button", { name: /New workspace/ }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Collapse sidebar" })).toHaveCount(0);
@@ -21,14 +22,14 @@ test("design contract: Library keeps a persistent category tree and global quick
   await expect(search).toBeFocused();
   await page.keyboard.press("Escape");
 
-  const categoryToggle = page.getByRole("button", { name: /^Expand / }).first();
+  const categoryToggle = categories.locator('button[aria-expanded]').first();
   if (await categoryToggle.count()) {
     await expect(categoryToggle).toHaveAttribute("aria-expanded", "false");
     await categoryToggle.click();
     await expect(categoryToggle).toHaveAttribute("aria-expanded", "true");
   }
 
-  await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
+  await expect(categories).toBeVisible();
   await expect(page.getByRole("main")).toBeVisible();
 });
 

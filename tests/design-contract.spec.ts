@@ -32,24 +32,26 @@ test("design contract: Library keeps a persistent category tree and global quick
   await expect(page.getByRole("main")).toBeVisible();
 });
 
-test("design contract: sidebar tree keeps inline editing and contextual actions", async ({ page }) => {
-  await page.goto("/");
-
-  await page.getByRole("button", { name: "New category" }).click();
-  const createInput = page.getByRole("textbox", { name: "Category title" });
+test("design contract: sidebar tree keeps inline editing and contextual actions", async ({ page, request }) => {
   const title = `Design Category ${Date.now()}`;
-  await createInput.fill(title);
-  await createInput.press("Enter");
+  const response = await request.post("/api/categories", { data: { title } });
+  expect(response.status()).toBe(201);
+  const created = await response.json();
 
-  const category = page.getByRole("button", { name: new RegExp(title) }).first();
-  await expect(category).toBeVisible();
-  await category.dblclick();
-  await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();
-  await page.keyboard.press("Escape");
+  try {
+    await page.goto("/");
+    const category = page.getByRole("button", { name: new RegExp(title) }).first();
+    await expect(category).toBeVisible();
+    await category.dblclick();
+    await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();
+    await page.keyboard.press("Escape");
 
-  await category.click({ button: "right" });
-  await expect(page.getByRole("menuitem", { name: "New workspace" })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+    await category.click({ button: "right" });
+    await expect(page.getByRole("menuitem", { name: "New workspace" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  } finally {
+    await request.delete(`/api/categories/${created.id}`);
+  }
 });
 
 test("design contract: workspace creation stays in Library and authoring shell is focused", async ({

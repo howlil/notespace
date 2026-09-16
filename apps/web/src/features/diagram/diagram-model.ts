@@ -85,7 +85,8 @@ export function diagramNodeLabelElementId(nodeElementId: string) {
 }
 
 // Compatibility metadata remains so previously stored structured diagrams can
-// still resolve their historic spec keys. The picker creates only Eraser icons.
+// still resolve their historic spec keys. Only the generic system-design subset
+// is surfaced from this list in the picker.
 const compatibilityCatalog: readonly DiagramCatalogItem[] = [
   { key: "process", label: "Process", category: "general", glyph: "□", iconKey: "square", shape: "rectangle", keywords: ["step", "task", "flow"] },
   { key: "decision", label: "Decision", category: "general", glyph: "◇", iconKey: "diamond", shape: "diamond", keywords: ["branch", "condition", "flow"] },
@@ -129,7 +130,16 @@ function iconGlyph(label: string) {
   return label.split(/\s+/).map((word) => word[0]).join("").slice(0, 3).toUpperCase() || "ICON";
 }
 
-export const eraserDiagramCatalog: readonly DiagramCatalogItem[] = generatedIconMetadata
+function uniqueCatalog(items: readonly DiagramCatalogItem[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.key)) return false;
+    seen.add(item.key);
+    return true;
+  });
+}
+
+const generatedEraserCatalog: readonly DiagramCatalogItem[] = generatedIconMetadata
   .filter((item): item is { name: string; category: string; label: string } => typeof item.name === "string" && typeof item.category === "string" && typeof item.label === "string")
   .filter((item) => categoryValues.has(item.category as DiagramCategory))
   .map((item) => ({
@@ -141,7 +151,20 @@ export const eraserDiagramCatalog: readonly DiagramCatalogItem[] = generatedIcon
     keywords: [item.name, item.category, ...item.label.toLowerCase().split(/\s+/)],
   }));
 
-export const diagramCatalog: readonly DiagramCatalogItem[] = [...compatibilityCatalog, ...eraserDiagramCatalog];
+// The Eraser source also contains generic UI/action glyphs such as alignment
+// controls. Those are valid icons, but they are not architecture components.
+// Keep the raw catalog readable for existing snapshots while exposing only a
+// curated generic set plus technology/provider icons in the Diagram picker.
+const genericSystemDesignCatalog = compatibilityCatalog.filter((item) => item.category === "general");
+export const eraserDiagramCatalog: readonly DiagramCatalogItem[] = uniqueCatalog([
+  ...genericSystemDesignCatalog,
+  ...generatedEraserCatalog.filter((item) => item.category !== "general"),
+]);
+export const diagramPickerIconCount = eraserDiagramCatalog.length;
+
+// Full catalog remains available to resolve historic spec keys, including
+// general icons that are no longer offered for new insertion.
+export const diagramCatalog: readonly DiagramCatalogItem[] = uniqueCatalog([...compatibilityCatalog, ...generatedEraserCatalog]);
 
 export type IdFactory = (prefix: string) => string;
 

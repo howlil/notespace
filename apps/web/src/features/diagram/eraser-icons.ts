@@ -1,6 +1,7 @@
 import generatedIconMetadata from "./catalog/eraser-icons.generated.json" with { type: "json" };
 
 export const ERASER_ICON_BASE_URL = "/api/icons/eraser";
+export const ERASER_ICON_PREVIEW_BASE_URL = "https://storage.googleapis.com/eraser-public-assets/canvas-icons";
 
 const iconNameByCatalogKey: Readonly<Record<string, string>> = {
   process: "square",
@@ -49,13 +50,21 @@ export function eraserIconName(catalogKey: string) {
   return iconNameByCatalogKey[catalogKey] ?? (generatedIconNames.has(catalogKey) ? catalogKey : null);
 }
 
+// Canvas insertion keeps using the same-origin gateway so external SVG is
+// validated before it is persisted into a workspace asset.
 export function eraserIconUrl(iconName: string) {
   return `${ERASER_ICON_BASE_URL}/${encodeURIComponent(iconName)}`;
 }
 
+// Palette previews are isolated <img> resources, so they can safely use the
+// public Eraser CDN directly and avoid the extra Notespace -> GCS proxy hop.
+export function eraserIconPreviewUrl(iconName: string) {
+  return `${ERASER_ICON_PREVIEW_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
+}
+
 export function eraserIconUrlForCatalogKey(catalogKey: string) {
   const iconName = eraserIconName(catalogKey);
-  return iconName ? eraserIconUrl(iconName) : null;
+  return iconName ? eraserIconPreviewUrl(iconName) : null;
 }
 
 export function eraserIconFileId(iconName: string) {

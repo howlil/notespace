@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ERASER_ICON_BASE_URL,
+  ERASER_ICON_PREVIEW_BASE_URL,
   eraserIconFileId,
   eraserIconName,
+  eraserIconPreviewUrl,
   eraserIconUrl,
   eraserIconUrlForCatalogKey,
   eraserNodeIconElementId,
@@ -18,9 +20,11 @@ test("catalog keys resolve to the canonical Eraser icon names", () => {
   assert.equal(eraserIconName("azure-functions"), "azure-function-apps");
 });
 
-test("Eraser asset URLs and generated Excalidraw ids are deterministic", () => {
+test("palette previews use the CDN while canvas insertion keeps the validated gateway", () => {
   assert.equal(eraserIconUrl("docker"), `${ERASER_ICON_BASE_URL}/docker`);
-  assert.equal(eraserIconUrlForCatalogKey("docker"), `${ERASER_ICON_BASE_URL}/docker`);
+  assert.equal(eraserIconPreviewUrl("docker"), `${ERASER_ICON_PREVIEW_BASE_URL}/docker.svg`);
+  assert.equal(eraserIconUrlForCatalogKey("docker"), `${ERASER_ICON_PREVIEW_BASE_URL}/docker.svg`);
+  assert.equal(eraserIconUrlForCatalogKey("aws-s3"), `${ERASER_ICON_PREVIEW_BASE_URL}/aws-simple-storage-service.svg`);
   assert.equal(eraserIconFileId("docker"), "eraser-icon-docker");
   assert.equal(eraserNodeIconElementId("shape-1"), "shape-1-eraser-icon");
 });

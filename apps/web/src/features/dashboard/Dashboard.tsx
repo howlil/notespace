@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Folder, Menu, Plus, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, IconButton, Input, PopupSurface, cn } from "../../components/ui";
+import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
-import { useDismissablePopup } from "../../components/ui/dismissable";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
-import type { SearchResult } from "../../domain/project/api";
+import { createProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces } from "../../domain/project/api";
 import { useLibrarySyncStore } from "../library/library-sync-store";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
@@ -145,7 +143,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
@@ -153,23 +150,12 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
   const [pageLoading, setPageLoading] = useState(false);
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const searchInput = useRef<HTMLInputElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const dismissSearch = useCallback(() => setSearchOpen(false), []);
-  useDismissablePopup(searchRef, searchOpen, dismissSearch);
-
   const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
 
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
 
-  // Assign new workspace to the active category, or to uncategorized for recent/all views.
   const newWorkspaceCategoryId = useMemo(() => {
     if (view === "category" && selectedCategoryId) return selectedCategoryId;
     return (categoryItems.find((c) => c.id === "legacy") ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
@@ -193,30 +179,12 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   }
 
   useEffect(() => {
-    const normalized = query.trim();
-    if (normalized.length < 2) { setSearchResults([]); setSearchError(null); setSearchLoading(false); setSearchOpen(false); return; }
-    let cancelled = false;
-    setSearchResults([]);
-    setSearchError(null);
-    setSearchLoading(true);
-    void searchNotespace(normalized)
-      .then((results) => { if (!cancelled) setSearchResults(results.slice(0, 10)); })
-      .catch((err) => { if (!cancelled) { const message = err instanceof Error ? err.message : "Search is unavailable."; setSearchResults([]); setSearchError(message); showToast({ kind: "error", message }); } })
-      .finally(() => { if (!cancelled) setSearchLoading(false); });
-    return () => { cancelled = true; };
-  }, [query, showToast]);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); searchInput.current?.focus(); } };
-    window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
     if (!mobileLibraryOpen) return undefined;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileLibraryOpen(false); };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [mobileLibraryOpen]);
+
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
     setSelectedCategoryId(id); setView("category"); setPageLoading(true);
@@ -230,12 +198,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     try { const result = await listAllWorkspaces({ offset, limit: 50 }); setPage(result); }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." }); }
     finally { setPageLoading(false); }
-  }
-
-  function searchHref(result: SearchResult) {
-    if (result.type === "category" && result.categoryId) return `/categories/${encodeURIComponent(result.categoryId)}`;
-    if (result.type === "workspace") return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
-    return `/workspaces/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}${result.blockId ? `&block=${encodeURIComponent(result.blockId)}` : ""}`;
   }
 
   const refreshLibrary = useCallback(() => {
@@ -287,12 +249,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const workspaceCount = view === "recent" ? recentItems.length : page?.total ?? items.length;
 
   return (
-    <div className={cn(
-      "dashboard-shell grid min-h-dvh max-[560px]:grid-cols-[minmax(0,1fr)]",
-      collapsed
-        ? "grid-cols-[60px_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]"
-        : "grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]",
-    )}>
+    <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
       <button
         type="button"
         className={cn("fixed inset-0 z-[70] hidden bg-black/20 backdrop-blur-[1px] max-[560px]:block", !mobileLibraryOpen && "max-[560px]:hidden")}
@@ -306,8 +263,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         <Sidebar
           categories={categoryItems}
           selectedCategoryId={selectedCategoryId}
-          collapsed={mobileLibraryOpen ? false : collapsed}
-          onToggle={() => { if (mobileLibraryOpen) setMobileLibraryOpen(false); else setCollapsed((value) => !value); }}
           onSelectCategory={(id) => { void selectCategory(id); setMobileLibraryOpen(false); }}
           onChanged={refreshLibrary}
         />
@@ -315,28 +270,16 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
         <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
           <IconButton type="button" className="!size-9 hidden shrink-0 text-ink max-[560px]:grid" aria-label="Open library navigation" title="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
-          <div ref={searchRef} className="relative flex min-h-9 w-full max-w-[1120px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-ink focus-within:border-accent focus-within:ring-2 focus-within:ring-tint max-[560px]:min-h-8 max-[560px]:min-w-0">
-            <Search size={15} className="shrink-0 text-ink/70" aria-hidden="true" />
-            <Input
-              ref={searchInput}
-              className="min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-2 text-[11px] placeholder:text-ink/60 focus:border-transparent focus:ring-0 max-[560px]:py-1.5"
-              aria-label="Search Notespace"
-              placeholder="Search notes, workspaces, categories…"
-              value={query}
-              onFocus={() => setSearchOpen(query.trim().length >= 2)}
-              onChange={(event) => { setQuery(event.target.value); setSearchOpen(event.target.value.trim().length >= 2); }}
-            />
-            {query.trim().length >= 2 && searchOpen && (
-              <PopupSurface className="absolute top-[calc(100%+6px)] right-0 left-0 z-40 grid max-h-[min(60dvh,420px)] gap-0.5 overflow-y-auto p-1.5" role="listbox" aria-label="Search results" aria-busy={searchLoading}>
-                {searchLoading ? <span className="px-2.5 py-2 text-[10px] text-ink/70" role="status">Searching…</span> : searchError ? <span className="px-2.5 py-2 text-[10px] text-danger" role="alert">{searchError}</span> : searchResults.length ? searchResults.map((result) => (
-                  <a key={`${result.type}-${result.workspaceId}-${result.noteId}-${result.blockId}`} href={searchHref(result)} role="option" className="search-result grid gap-0.5 rounded-md px-2.5 py-2 hover:bg-tint focus-visible:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
-                    <strong className="text-[11px] font-medium text-ink">{result.type === "category" ? result.categoryTitle : result.type === "workspace" ? result.workspaceTitle : result.noteTitle}</strong>
-                    <span className="text-[10px] text-ink/70">{result.type === "category" ? "Category" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`}</span>
-                  </a>
-                )) : <span className="px-2.5 py-2 text-[10px] text-ink/70">No matching knowledge</span>}
-              </PopupSurface>
-            )}
-          </div>
+          <button
+            type="button"
+            className="flex min-h-9 w-[min(320px,42vw)] min-w-[190px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-ink/70 transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-[560px]:min-h-8 max-[560px]:w-full max-[560px]:min-w-0"
+            aria-label="Search Notespace with Control K or Command K"
+            onClick={() => window.dispatchEvent(new Event("open-quick-search"))}
+          >
+            <Search size={15} className="shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">Search Notespace</span>
+            <kbd className="shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 text-[9px] font-medium text-ink/60">Ctrl/⌘ K</kbd>
+          </button>
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px] [&>button]:text-ink max-[560px]:[&>button]:size-[32px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>
         <div className="w-full px-8 pt-8 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">

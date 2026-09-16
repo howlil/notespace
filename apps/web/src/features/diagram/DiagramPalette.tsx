@@ -80,7 +80,7 @@ function EraserIconPreview({ item }: { item: DiagramCatalogItem }) {
       aria-hidden="true"
       draggable={false}
       className="size-7 object-contain"
-      loading="lazy"
+      loading="eager"
       decoding="async"
       onError={() => setFailed(true)}
     />

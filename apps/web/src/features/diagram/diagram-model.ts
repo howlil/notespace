@@ -56,6 +56,8 @@ export interface StructuredDiagram {
 export interface DiagramSelection {
   diagramId: string | null;
   nodeIds: string[];
+  edgeId: string | null;
+  groupId: string | null;
 }
 
 export interface ElementGeometry {
@@ -73,6 +75,14 @@ export interface ElementGeometry {
 export const DIAGRAM_DATA_KEY = "notespaceDiagrams";
 export const NODE_WIDTH = 164;
 export const NODE_HEIGHT = 72;
+
+export function emptyDiagramSelection(): DiagramSelection {
+  return { diagramId: null, nodeIds: [], edgeId: null, groupId: null };
+}
+
+export function diagramNodeLabelElementId(nodeElementId: string) {
+  return `${nodeElementId}-diagram-label`;
+}
 
 // Compatibility metadata remains so previously stored structured diagrams can
 // still resolve their historic spec keys. The picker creates only Eraser icons.
@@ -197,15 +207,35 @@ export function addCatalogNode(diagram: StructuredDiagram, item: DiagramCatalogI
   return { ...diagram, nodes: [...diagram.nodes, node] };
 }
 
+export function renameDiagramNode(diagram: StructuredDiagram, nodeId: string, label: string) {
+  const nextLabel = label.trim();
+  if (!nextLabel) return diagram;
+  return { ...diagram, nodes: diagram.nodes.map((node) => node.id === nodeId ? { ...node, label: nextLabel } : node) };
+}
+
 export function connectDiagramNodes(diagram: StructuredDiagram, from: string, to: string, idFactory: IdFactory = makeDiagramId) {
   if (from === to || !diagram.nodes.some((node) => node.id === from) || !diagram.nodes.some((node) => node.id === to)) return diagram;
   if (diagram.edges.some((edge) => edge.from === from && edge.to === to)) return diagram;
   return { ...diagram, edges: [...diagram.edges, createEdge(from, to, "", idFactory)] };
 }
 
+export function renameDiagramEdge(diagram: StructuredDiagram, edgeId: string, label: string) {
+  const nextLabel = label.trim();
+  return { ...diagram, edges: diagram.edges.map((edge) => edge.id === edgeId ? { ...edge, label: nextLabel } : edge) };
+}
+
+export function removeDiagramEdge(diagram: StructuredDiagram, edgeId: string) {
+  return { ...diagram, edges: diagram.edges.filter((edge) => edge.id !== edgeId) };
+}
+
 export function groupDiagramNodes(diagram: StructuredDiagram, nodeIds: readonly string[], idFactory: IdFactory = makeDiagramId) {
   const unique = [...new Set(nodeIds)].filter((id) => diagram.nodes.some((node) => node.id === id));
   if (unique.length < 2) return diagram;
+  const selected = new Set(unique);
+  const remainingGroups = diagram.groups
+    .map((group) => ({ ...group, nodeIds: group.nodeIds.filter((id) => !selected.has(id)) }))
+    .filter((group) => group.nodeIds.length >= 2);
+  const remainingGroupIds = new Set(remainingGroups.map((group) => group.id));
   const id = idFactory("group");
   const group: DiagramGroup = {
     id,
@@ -215,43 +245,84 @@ export function groupDiagramNodes(diagram: StructuredDiagram, nodeIds: readonly 
   };
   return {
     ...diagram,
-    nodes: diagram.nodes.map((node) => unique.includes(node.id) ? { ...node, groupId: id } : node),
-    groups: [...diagram.groups, group],
+    nodes: diagram.nodes.map((node) => {
+      if (selected.has(node.id)) return { ...node, groupId: id };
+      if (node.groupId && !remainingGroupIds.has(node.groupId)) return { ...node, groupId: undefined };
+      return node;
+    }),
+    groups: [...remainingGroups, group],
   };
 }
 
-function depthByNode(diagram: StructuredDiagram) {
-  const depth = new Map(diagram.nodes.map((node) => [node.id, 0]));
-  for (let pass = 0; pass < diagram.nodes.length; pass += 1) {
-    let changed = false;
-    for (const edge of diagram.edges) {
-      const next = Math.min(diagram.nodes.length - 1, (depth.get(edge.from) ?? 0) + 1);
-      if (next > (depth.get(edge.to) ?? 0)) {
-        depth.set(edge.to, next);
-        changed = true;
-      }
-    }
-    if (!changed) break;
+export function renameDiagramGroup(diagram: StructuredDiagram, groupId: string, label: string) {
+  const nextLabel = label.trim();
+  if (!nextLabel) return diagram;
+  return { ...diagram, groups: diagram.groups.map((group) => group.id === groupId ? { ...group, label: nextLabel } : group) };
+}
+
+export function ungroupDiagramNodes(diagram: StructuredDiagram, groupId: string) {
+  if (!diagram.groups.some((group) => group.id === groupId)) return diagram;
+  return {
+    ...diagram,
+    nodes: diagram.nodes.map((node) => node.groupId === groupId ? { ...node, groupId: undefined } : node),
+    groups: diagram.groups.filter((group) => group.id !== groupId),
+  };
+}
+
+function layerByNode(diagram: StructuredDiagram) {
+  const nodeIds = new Set(diagram.nodes.map((node) => node.id));
+  const indegree = new Map(diagram.nodes.map((node) => [node.id, 0]));
+  const outgoing = new Map(diagram.nodes.map((node) => [node.id, [] as string[]]));
+  const layer = new Map(diagram.nodes.map((node) => [node.id, 0]));
+
+  for (const edge of diagram.edges) {
+    if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) continue;
+    indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
+    outgoing.get(edge.from)?.push(edge.to);
   }
-  return depth;
+
+  const queue = diagram.nodes.filter((node) => (indegree.get(node.id) ?? 0) === 0).map((node) => node.id);
+  const visited = new Set<string>();
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const id = queue[cursor];
+    visited.add(id);
+    for (const next of outgoing.get(id) ?? []) {
+      layer.set(next, Math.max(layer.get(next) ?? 0, (layer.get(id) ?? 0) + 1));
+      const nextIndegree = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, nextIndegree);
+      if (nextIndegree === 0) queue.push(next);
+    }
+  }
+
+  // Cycles have no zero-indegree entry point. Keep them together in one stable
+  // layer instead of repeatedly increasing depth on every layout pass.
+  const fallbackLayer = Math.max(0, ...layer.values());
+  for (const node of diagram.nodes) {
+    if (!visited.has(node.id)) layer.set(node.id, fallbackLayer);
+  }
+  return layer;
 }
 
 export function layoutDiagram(diagram: StructuredDiagram, origin?: { x: number; y: number }): StructuredDiagram {
   if (!diagram.nodes.length) return diagram;
   const startX = origin?.x ?? Math.min(...diagram.nodes.map((node) => node.x));
   const startY = origin?.y ?? Math.min(...diagram.nodes.map((node) => node.y));
-  const depth = depthByNode(diagram);
+  const layer = layerByNode(diagram);
   const rows = new Map<number, number>();
   const horizontal = diagram.kind === "architecture";
+  const maxWidth = Math.max(...diagram.nodes.map((node) => node.width || NODE_WIDTH));
+  const maxHeight = Math.max(...diagram.nodes.map((node) => node.height || NODE_HEIGHT));
+  const horizontalStep = maxWidth + 120;
+  const verticalStep = maxHeight + 72;
 
   const nodes = diagram.nodes.map((node) => {
-    const layer = depth.get(node.id) ?? 0;
-    const row = rows.get(layer) ?? 0;
-    rows.set(layer, row + 1);
+    const nodeLayer = layer.get(node.id) ?? 0;
+    const row = rows.get(nodeLayer) ?? 0;
+    rows.set(nodeLayer, row + 1);
     return {
       ...node,
-      x: horizontal ? startX + layer * (NODE_WIDTH + 104) : startX + row * (NODE_WIDTH + 48),
-      y: horizontal ? startY + row * (NODE_HEIGHT + 48) : startY + layer * (NODE_HEIGHT + 88),
+      x: horizontal ? startX + nodeLayer * horizontalStep : startX + row * (maxWidth + 64),
+      y: horizontal ? startY + row * verticalStep : startY + nodeLayer * (maxHeight + 96),
       width: node.width || NODE_WIDTH,
       height: node.height || NODE_HEIGHT,
     };
@@ -302,7 +373,7 @@ export function withStructuredDiagrams(data: Record<string, unknown>, diagrams: 
 
 export function structuredElementIds(diagram: StructuredDiagram) {
   return new Set([
-    ...diagram.nodes.map((node) => node.elementId),
+    ...diagram.nodes.flatMap((node) => [node.elementId, diagramNodeLabelElementId(node.elementId)]),
     ...diagram.edges.map((edge) => edge.elementId),
     ...diagram.groups.map((group) => group.elementId),
   ]);
@@ -313,19 +384,32 @@ export function selectionForElements(diagrams: readonly StructuredDiagram[], sel
   const selectedContainers = new Set(elements.filter((element) => selected.has(element.id) && element.containerId).map((element) => element.containerId as string));
   for (const diagram of diagrams) {
     const nodeIds = diagram.nodes
-      .filter((node) => selected.has(node.elementId) || selectedContainers.has(node.elementId))
+      .filter((node) => selected.has(node.elementId) || selected.has(diagramNodeLabelElementId(node.elementId)) || selectedContainers.has(node.elementId))
       .map((node) => node.id);
-    if (nodeIds.length) return { diagramId: diagram.id, nodeIds };
+    if (nodeIds.length) return { diagramId: diagram.id, nodeIds, edgeId: null, groupId: null };
+
+    const edge = diagram.edges.find((candidate) => selected.has(candidate.elementId) || selectedContainers.has(candidate.elementId));
+    if (edge) return { diagramId: diagram.id, nodeIds: [], edgeId: edge.id, groupId: null };
+
+    const group = diagram.groups.find((candidate) => selected.has(candidate.elementId) || selectedContainers.has(candidate.elementId));
+    if (group) return { diagramId: diagram.id, nodeIds: [], edgeId: null, groupId: group.id };
   }
-  return { diagramId: null, nodeIds: [] };
+  return emptyDiagramSelection();
 }
 
-function nodeLabel(shape: ElementGeometry, live: Map<string, ElementGeometry>, fallback: string) {
+function boundLabel(shape: ElementGeometry, live: Map<string, ElementGeometry>, fallback: string) {
   const textId = shape.boundElements?.find((bound) => bound.type === "text")?.id;
   const text = textId ? live.get(textId)?.text : undefined;
-  if (!text?.trim()) return fallback;
-  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
-  return lines.length > 1 ? lines.slice(1).join(" ") : lines[0];
+  return text?.trim() ? text.trim().replace(/\s*\n\s*/g, " ") : fallback;
+}
+
+function nodeLabel(node: DiagramNode, shape: ElementGeometry, live: Map<string, ElementGeometry>) {
+  const iconLabel = live.get(diagramNodeLabelElementId(node.elementId))?.text;
+  if (iconLabel?.trim()) return iconLabel.trim().replace(/\s*\n\s*/g, " ");
+  const bound = boundLabel(shape, live, node.label);
+  if (bound === node.label) return bound;
+  const lines = bound.split("\n").map((line) => line.trim()).filter(Boolean);
+  return lines.length > 1 ? lines.slice(1).join(" ") : bound;
 }
 
 export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[], elements: readonly ElementGeometry[]) {
@@ -337,7 +421,7 @@ export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[],
       if (!shape) return [];
       return [{
         ...node,
-        label: nodeLabel(shape, live, node.label),
+        label: nodeLabel(node, shape, live),
         x: typeof shape.x === "number" ? shape.x : node.x,
         y: typeof shape.y === "number" ? shape.y : node.y,
         width: typeof shape.width === "number" && shape.width > 0 ? shape.width : node.width,
@@ -347,11 +431,17 @@ export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[],
     if (!nodes.length) return [];
 
     const nodeIds = new Set(nodes.map((node) => node.id));
-    const edges = diagram.edges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to) && live.has(edge.elementId));
+    const edges = diagram.edges.flatMap((edge) => {
+      if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) return [];
+      const shape = live.get(edge.elementId);
+      if (!shape) return [];
+      return [{ ...edge, label: boundLabel(shape, live, edge.label) }];
+    });
     const groups = diagram.groups.flatMap((group) => {
       const members = group.nodeIds.filter((id) => nodeIds.has(id));
-      if (members.length < 2 || !live.has(group.elementId)) return [];
-      return [{ ...group, nodeIds: members }];
+      const shape = live.get(group.elementId);
+      if (members.length < 2 || !shape) return [];
+      return [{ ...group, label: boundLabel(shape, live, group.label), nodeIds: members }];
     });
     const groupIds = new Set(groups.map((group) => group.id));
     return [{

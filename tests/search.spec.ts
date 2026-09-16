@@ -61,10 +61,13 @@ test("global search finds note content and navigates to exact context", async ({
     expect(update.status()).toBe(200);
 
     await page.goto("/");
-    const search = page.getByRole("textbox", { name: "Search Notespace" });
+    await page.getByRole("button", { name: /Search Notespace/ }).click();
+
+    const search = page.getByPlaceholder("Open workspace, note, block, or category…");
+    await expect(search).toBeVisible();
     await search.fill(uniqueToken);
 
-    const result = page.locator(".search-result").first();
+    const result = page.getByRole("button", { name: new RegExp(uniqueToken) }).first();
     await expect(result).toBeVisible();
     await result.click();
 

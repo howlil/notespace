@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Folder, Menu, Plus, Search } from "lucide-react";
+import { Folder, Plus, Search } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, IconButton, Input, cn } from "../../components/ui";
+import { Button, Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
@@ -143,7 +143,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
-  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
@@ -177,13 +176,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       setCreateLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (!mobileLibraryOpen) return undefined;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileLibraryOpen(false); };
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [mobileLibraryOpen]);
 
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
@@ -250,26 +242,14 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   return (
     <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
-      <button
-        type="button"
-        className={cn("fixed inset-0 z-[70] hidden bg-black/20 backdrop-blur-[1px] max-[560px]:block", !mobileLibraryOpen && "max-[560px]:hidden")}
-        aria-label="Close library navigation"
-        onClick={() => setMobileLibraryOpen(false)}
+      <Sidebar
+        categories={categoryItems}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={(id) => { void selectCategory(id); }}
+        onChanged={refreshLibrary}
       />
-      <div className={cn(
-        "contents max-[560px]:fixed max-[560px]:inset-y-0 max-[560px]:left-0 max-[560px]:z-[80] max-[560px]:block max-[560px]:w-[min(320px,86vw)] max-[560px]:transition-transform max-[560px]:duration-200 [&>aside]:max-[560px]:!h-dvh [&>aside]:max-[560px]:!max-h-none [&>aside]:max-[560px]:!w-full [&>aside]:max-[560px]:!border-r [&>aside]:max-[560px]:!border-b-0 [&>aside]:max-[560px]:!px-3 [&>aside]:max-[560px]:!py-3.5",
-        mobileLibraryOpen ? "max-[560px]:translate-x-0" : "max-[560px]:-translate-x-full",
-      )}>
-        <Sidebar
-          categories={categoryItems}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={(id) => { void selectCategory(id); setMobileLibraryOpen(false); }}
-          onChanged={refreshLibrary}
-        />
-      </div>
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
         <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
-          <IconButton type="button" className="!size-9 hidden shrink-0 text-ink max-[560px]:grid" aria-label="Open library navigation" title="Open library navigation" onClick={() => setMobileLibraryOpen(true)}><Menu size={18} /></IconButton>
           <button
             type="button"
             className="flex min-h-9 w-[min(320px,42vw)] min-w-[190px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-ink/70 transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-[560px]:min-h-8 max-[560px]:w-full max-[560px]:min-w-0"

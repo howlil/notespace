@@ -45,7 +45,8 @@ test("responsive contract: mobile library uses an app bar and off-canvas navigat
   assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
-  assert.match(sidebar, /<NotespaceLogo showWordmark=\{false\} size="sm" \/>/);
+  assert.match(sidebar, /return <NotespaceLogo \/>/);
+  assert.match(sidebar, /<Brand \/>/);
   assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
 });
 

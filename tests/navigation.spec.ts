@@ -14,9 +14,9 @@ test.describe("Production-Safe Navigation & Reload", () => {
 
     try {
       await page.goto(`/categories/${category.id}`);
-      await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
       await page.reload();
-      await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
     } finally {
       await request.delete(`/api/categories/${category.id}`);
     }
@@ -33,21 +33,25 @@ test.describe("Production-Safe Navigation & Reload", () => {
     expect(res.status()).toBe(201);
     const workspace = await res.json();
 
+    const assertWorkspaceLoaded = async () => {
+      await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+      await expect(page.locator(".workspace-header")).toBeVisible();
+      const switcher = page.getByRole("combobox", { name: "Switch workspace" });
+      await expect(switcher).toHaveValue(workspace.id);
+      await expect(switcher.locator("option:checked")).toHaveText(title);
+    };
+
     try {
       await page.goto(`/workspaces/${workspace.id}`);
-      await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-      await expect(page.locator(".workspace-header")).toBeVisible();
-      await expect(page.getByText(title, { exact: true })).toBeVisible();
+      await assertWorkspaceLoaded();
 
       await page.reload();
-      await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-      await expect(page.locator(".workspace-header")).toBeVisible();
-      await expect(page.getByText(title, { exact: true })).toBeVisible();
+      await assertWorkspaceLoaded();
 
       // Legacy browser URLs remain a compatibility redirect only.
       await page.goto(`/projects/${workspace.id}`);
       await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}$`));
-      await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+      await assertWorkspaceLoaded();
     } finally {
       await request.delete(`/api/workspaces/${workspace.id}`);
       await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);

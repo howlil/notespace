@@ -27,16 +27,16 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
 
-test("responsive contract: mobile library uses an app bar and off-canvas navigation", () => {
+test("responsive contract: mobile library keeps persistent navigation without a drawer toggle", () => {
   const dashboard = source(DASHBOARD);
   const sidebar = source(SIDEBAR);
-  assert.match(dashboard, /mobileLibraryOpen/);
-  assert.match(dashboard, /aria-label="Open library navigation"/);
+  assert.doesNotMatch(dashboard, /mobileLibraryOpen/);
+  assert.doesNotMatch(dashboard, /Open library navigation/);
+  assert.doesNotMatch(dashboard, /Close library navigation/);
+  assert.doesNotMatch(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /aria-label="Search Notespace with Control K or Command K"/);
   assert.match(dashboard, /w-\[min\(320px,42vw\)\]/);
-  assert.match(dashboard, /max-\[560px\]:fixed/);
-  assert.match(dashboard, /max-\[560px\]:w-\[min\(320px,86vw\)\]/);
-  assert.match(dashboard, /max-\[560px\]:-translate-x-full/);
+  assert.match(dashboard, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
   assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
   assert.match(dashboard, /function WorkspaceFolderCard/);
   assert.match(dashboard, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);

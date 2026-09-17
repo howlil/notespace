@@ -527,13 +527,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {
     const direction = directionFromKey(event.key);
     if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    const target = event.target;
     if (event.isComposing) return;
-    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true'], button, [role='dialog'], [role='menu'], [role='listbox']"))) return;
-    const surface = document.querySelector(".notespace-canvas-surface");
-    if (!surface) return;
-    if (target instanceof Node && target !== document.body && target !== document.documentElement && !surface.contains(target)) return;
-
     const value = api.current;
     if (!value) return;
     const state = value.getAppState() as AppState & { editingLinearElement?: unknown };

@@ -23,7 +23,7 @@ import {
   type DiagramCatalogItem,
   type DiagramCategory,
 } from "./diagram-model";
-import { eraserIconUrlForCatalogKey } from "./eraser-icons";
+import { eraserIconUrlForCatalogKey, warmEraserIconPreviews } from "./eraser-icons";
 
 type BrowseCategory = DiagramCategory | "all";
 
@@ -43,6 +43,8 @@ const gridColumns = 4;
 const gridRowHeight = 72;
 const gridViewportHeight = 356;
 const panelIconSize = 16;
+const eagerPreviewCount = gridColumns * 2;
+const warmPreviewCount = gridColumns * 3;
 
 interface Props {
   open: boolean;
@@ -65,7 +67,7 @@ interface Props {
   onClose: () => void;
 }
 
-function EraserIconPreview({ item }: { item: DiagramCatalogItem }) {
+function EraserIconPreview({ item, eager = false }: { item: DiagramCatalogItem; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
   const url = eraserIconUrlForCatalogKey(item.key);
 
@@ -80,14 +82,14 @@ function EraserIconPreview({ item }: { item: DiagramCatalogItem }) {
       aria-hidden="true"
       draggable={false}
       className="size-7 object-contain"
-      loading="eager"
+      loading={eager ? "eager" : "lazy"}
       decoding="async"
       onError={() => setFailed(true)}
     />
   );
 }
 
-function CategoryRow({ icon, label, detail, onClick, disabled = false }: { icon: React.ReactNode; label: string; detail: string; onClick?: () => void; disabled?: boolean }) {
+function CategoryRow({ icon, label, detail, onClick, onPointerEnter, disabled = false }: { icon: React.ReactNode; label: string; detail: string; onClick?: () => void; onPointerEnter?: () => void; disabled?: boolean }) {
   return (
     <Button
       variant="ghost"
@@ -96,6 +98,7 @@ function CategoryRow({ icon, label, detail, onClick, disabled = false }: { icon:
       disabled={disabled}
       className="!min-h-0 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-[color,background-color,transform] duration-150 focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.985] disabled:cursor-default disabled:opacity-55 disabled:active:scale-100"
       onClick={onClick}
+      onPointerEnter={onPointerEnter}
     >
       <span className="grid size-8 shrink-0 place-items-center rounded-md bg-canvas text-muted [&_svg]:size-4">{icon}</span>
       <span className="min-w-0 flex-1">
@@ -156,6 +159,10 @@ export function DiagramPalette({
   const hasSearch = query.trim().length > 0;
   const showResults = hasSearch || category !== "all";
 
+  const warmCategory = (next: DiagramCategory) => {
+    warmEraserIconPreviews(searchEraserCatalog("", next).map((item) => item.key), warmPreviewCount);
+  };
+
   useEffect(() => {
     setScrollTop(0);
     gridRef.current?.scrollTo({ top: 0 });
@@ -166,9 +173,15 @@ export function DiagramPalette({
     const frame = requestAnimationFrame(() => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
+      warmCategory("general");
     });
     return () => cancelAnimationFrame(frame);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !showResults) return;
+    warmEraserIconPreviews(items.map((item) => item.key), warmPreviewCount);
+  }, [items, open, showResults]);
 
   useEffect(() => setNodeLabel(selectedNodeLabel ?? ""), [selectedNodeLabel]);
   useEffect(() => setEdgeLabel(selectedEdgeLabel ?? ""), [selectedEdgeLabel]);
@@ -217,14 +230,14 @@ export function DiagramPalette({
                     <motion.div key="cloud" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.14, ease: "easeOut" }}>
                       <Button variant="ghost" size="sm" type="button" className="!min-h-0 mb-1 justify-start gap-1 rounded-none px-2 text-[10px] font-medium text-muted hover:bg-transparent hover:text-ink" onClick={() => setCloudOpen(false)}><ChevronLeft size={panelIconSize} strokeWidth={1.5} /> Cloud &amp; Infrastructure</Button>
                       <div className="grid grid-cols-2 gap-0.5">
-                        {cloudCategories.map((item) => <Button variant="ghost" size="sm" key={item} type="button" className={`!min-h-0 justify-start rounded-md px-2 py-1.5 text-left text-[10px] transition-colors ${category === item ? "bg-tint font-medium text-ink" : "text-muted"}`} onClick={() => chooseCategory(item)}>{categoryLabels[item]} <span className="text-[9px] opacity-70">{searchEraserCatalog("", item).length.toLocaleString()}</span></Button>)}
+                        {cloudCategories.map((item) => <Button variant="ghost" size="sm" key={item} type="button" className={`!min-h-0 justify-start rounded-md px-2 py-1.5 text-left text-[10px] transition-colors ${category === item ? "bg-tint font-medium text-ink" : "text-muted"}`} onPointerEnter={() => warmCategory(item)} onClick={() => chooseCategory(item)}>{categoryLabels[item]} <span className="text-[9px] opacity-70">{searchEraserCatalog("", item).length.toLocaleString()}</span></Button>)}
                       </div>
                     </motion.div>
                   ) : category === "all" ? (
                     <motion.div key="all" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 6 }} transition={{ duration: 0.14, ease: "easeOut" }} className="space-y-0.5">
-                      <CategoryRow icon={<Shapes strokeWidth={1.5} />} label="General Components" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} components`} onClick={() => chooseCategory("general")} />
-                      <CategoryRow icon={<Network strokeWidth={1.5} />} label="Technology & Integrations" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} logos`} onClick={() => chooseCategory("tech")} />
-                      <CategoryRow icon={<Cloud strokeWidth={1.5} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} components across 6 groups`} onClick={() => setCloudOpen(true)} />
+                      <CategoryRow icon={<Shapes strokeWidth={1.5} />} label="General Components" detail={`${searchEraserCatalog("", "general").length.toLocaleString()} components`} onPointerEnter={() => warmCategory("general")} onClick={() => chooseCategory("general")} />
+                      <CategoryRow icon={<Network strokeWidth={1.5} />} label="Technology & Integrations" detail={`${searchEraserCatalog("", "tech").length.toLocaleString()} logos`} onPointerEnter={() => warmCategory("tech")} onClick={() => chooseCategory("tech")} />
+                      <CategoryRow icon={<Cloud strokeWidth={1.5} />} label="Cloud & Infrastructure" detail={`${cloudCategories.reduce((count, item) => count + searchEraserCatalog("", item).length, 0).toLocaleString()} components across 6 groups`} onPointerEnter={() => warmCategory("aws")} onClick={() => setCloudOpen(true)} />
                     </motion.div>
                   ) : (
                     <motion.div key={`category-${category}`} initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.14, ease: "easeOut" }}>
@@ -246,7 +259,7 @@ export function DiagramPalette({
               {items.length ? (
                 <div className="relative" style={{ height: totalRows * gridRowHeight }}>
                   <motion.div key={`${category}:${query.trim()}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.16 }} className="absolute inset-x-0 grid grid-cols-4 gap-1.5" style={{ top: topOffset }}>
-                    {visibleItems.map((item) => (
+                    {visibleItems.map((item, index) => (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -277,7 +290,7 @@ export function DiagramPalette({
                           onInsertNode(item);
                         }}
                       >
-                        <EraserIconPreview item={item} />
+                        <EraserIconPreview item={item} eager={index < eagerPreviewCount} />
                         <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8px] text-muted group-hover:text-ink">{item.label}</span>
                       </Button>
                     ))}

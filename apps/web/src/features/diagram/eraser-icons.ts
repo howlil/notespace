@@ -45,6 +45,7 @@ const iconNameByCatalogKey: Readonly<Record<string, string>> = {
 };
 
 const generatedIconNames = new Set(generatedIconMetadata.map((item) => item.name));
+const warmedPreviewUrls = new Set<string>();
 
 export function eraserIconName(catalogKey: string) {
   return iconNameByCatalogKey[catalogKey] ?? (generatedIconNames.has(catalogKey) ? catalogKey : null);
@@ -65,6 +66,21 @@ export function eraserIconPreviewUrl(iconName: string) {
 export function eraserIconUrlForCatalogKey(catalogKey: string) {
   const iconName = eraserIconName(catalogKey);
   return iconName ? eraserIconPreviewUrl(iconName) : null;
+}
+
+// Warm only a small likely-to-be-visible set. The browser HTTP cache owns the
+// bytes, so opening the palette later reuses them without an application cache.
+export function warmEraserIconPreviews(catalogKeys: readonly string[], limit = 12) {
+  if (typeof Image === "undefined") return;
+
+  for (const catalogKey of catalogKeys.slice(0, limit)) {
+    const url = eraserIconUrlForCatalogKey(catalogKey);
+    if (!url || warmedPreviewUrls.has(url)) continue;
+    warmedPreviewUrls.add(url);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+  }
 }
 
 export function eraserIconFileId(iconName: string) {

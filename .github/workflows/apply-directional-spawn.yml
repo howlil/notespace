@@ -21,6 +21,7 @@ jobs:
       - run: |
           sed -i 's/{ \[selectedNode.elementId\]: true }/{ [selectedNode.elementId]: true as const }/' apps/web/src/integrations/canvas/CanvasEditor.tsx
           sed -i 's/\.filter((bound) =>/\.filter((bound: { id: string; type: string }) =>/' apps/web/src/integrations/canvas/CanvasEditor.tsx
+          sed -i 's#../../features/diagram/diagram-model"#../../features/diagram/diagram-model.ts"#' apps/web/src/integrations/canvas/CanvasDirectionalSpawn.ts
       - run: pnpm typecheck && pnpm lint && pnpm test
       - run: |
           git config user.name "github-actions[bot]"

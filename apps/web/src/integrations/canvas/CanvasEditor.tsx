@@ -9,7 +9,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
-import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
@@ -524,11 +524,15 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
-  const handleDirectionalSpawnKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+  const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {
     const direction = directionFromKey(event.key);
     if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const target = event.target;
-    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true']"))) return;
+    if (event.isComposing) return;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true'], button, [role='dialog'], [role='menu'], [role='listbox']"))) return;
+    const surface = document.querySelector(".notespace-canvas-surface");
+    if (!surface) return;
+    if (target instanceof Node && target !== document.body && target !== document.documentElement && !surface.contains(target)) return;
 
     const value = api.current;
     if (!value) return;
@@ -570,8 +574,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     });
   }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);
 
+  useEffect(() => {
+    window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);
+    return () => window.removeEventListener("keydown", handleDirectionalSpawnKeyDown, true);
+  }, [handleDirectionalSpawnKeyDown]);
+
   return (
-    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas" onKeyDownCapture={handleDirectionalSpawnKeyDown}>
+    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas">
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
         <CanvasToolRail
           api={canvasApi}

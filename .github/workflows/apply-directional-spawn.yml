@@ -18,6 +18,9 @@ jobs:
       - run: npm install --global pnpm@11.19.0
       - run: pnpm install --frozen-lockfile
       - run: python3 .github/scripts/apply-directional-spawn.py
+      - run: |
+          sed -i 's/{ \[selectedNode.elementId\]: true }/{ [selectedNode.elementId]: true as const }/' apps/web/src/integrations/canvas/CanvasEditor.tsx
+          sed -i 's/\.filter((bound) =>/\.filter((bound: { id: string; type: string }) =>/' apps/web/src/integrations/canvas/CanvasEditor.tsx
       - run: pnpm typecheck && pnpm lint && pnpm test
       - run: |
           git config user.name "github-actions[bot]"

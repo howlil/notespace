@@ -1,0 +1,48 @@
+name: Patch directional spawn once
+on:
+  push:
+    paths:
+      - .github/workflows/patch-directional-spawn-once.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/src/integrations/canvas/CanvasEditor.tsx')
+          text = path.read_text()
+          text = text.replace(
+              'import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";',
+              'import { useCallback, useEffect, useMemo, useRef, useState } from "react";'
+          )
+          text = text.replace(
+              '  const handleDirectionalSpawnKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {',
+              '  const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {'
+          )
+          old = '''    const target = event.target;\n    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable=\'true\']"))) return;\n\n    const value = api.current;'''
+          new = '''    const target = event.target;\n    if (event.isComposing) return;\n    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable=\'true\'], button, [role=\'dialog\'], [role=\'menu\'], [role=\'listbox\']"))) return;\n    const surface = document.querySelector(".notespace-canvas-surface");\n    if (!surface) return;\n    if (target instanceof Node && target !== document.body && target !== document.documentElement && !surface.contains(target)) return;\n\n    const value = api.current;'''
+          if old not in text:
+              raise SystemExit('target guard block not found')
+          text = text.replace(old, new)
+          marker = '''  }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);\n\n  return (\n    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas" onKeyDownCapture={handleDirectionalSpawnKeyDown}>'''
+          replacement = '''  }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);\n\n  useEffect(() => {\n    window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);\n    return () => window.removeEventListener("keydown", handleDirectionalSpawnKeyDown, true);\n  }, [handleDirectionalSpawnKeyDown]);\n\n  return (\n    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas">'''
+          if marker not in text:
+              raise SystemExit('handler/root marker not found')
+          text = text.replace(marker, replacement)
+          path.write_text(text)
+          PY
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/integrations/canvas/CanvasEditor.tsx
+          git commit -m "fix(canvas): capture directional spawn shortcut at window boundary"
+          git push origin HEAD:master

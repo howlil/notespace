@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { directionalSpawnPosition, spawnConnectedStructuredNode } from "../../integrations/canvas/CanvasDirectionalSpawn.ts";
 import {
   addCatalogNode,
   connectDiagramNodes,
@@ -192,4 +193,33 @@ test("icon, connection, and boundary labels round-trip through native elements",
   assert.equal(synced.nodes[0].label, "Browser client");
   assert.equal(synced.edges[0].label, "HTTPS");
   assert.equal(synced.groups[0].label, "Public tier");
+});
+
+
+test("directional spawn positions and connects a structured node", () => {
+  const nextId = ids();
+  const diagram = createDiagramWithNode("architecture", getCatalogItem("server"), { x: 40, y: 60 }, nextId);
+  const source = diagram.nodes[0];
+  const result = spawnConnectedStructuredNode(diagram, source.id, "right", 120, nextId);
+  assert(result);
+  const spawned = result.diagram.nodes.find((node) => node.id === result.nodeId);
+  assert(spawned);
+  assert.deepEqual(
+    { x: spawned.x, y: spawned.y },
+    directionalSpawnPosition(source, "right", 120),
+  );
+  assert.equal(result.diagram.edges.at(-1)?.from, source.id);
+  assert.equal(result.diagram.edges.at(-1)?.to, spawned.id);
+});
+
+test("directional spawn keeps the new structured node inside its source group", () => {
+  const nextId = ids();
+  let diagram = threeNodeDiagram("architecture", nextId);
+  diagram = groupDiagramNodes(diagram, [diagram.nodes[0].id, diagram.nodes[1].id], nextId);
+  const source = diagram.nodes[0];
+  const result = spawnConnectedStructuredNode(diagram, source.id, "down", 120, nextId);
+  assert(result);
+  const spawned = result.diagram.nodes.find((node) => node.id === result.nodeId);
+  assert(spawned?.groupId);
+  assert(result.diagram.groups.find((group) => group.id === spawned.groupId)?.nodeIds.includes(spawned.id));
 });

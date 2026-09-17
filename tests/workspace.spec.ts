@@ -150,3 +150,40 @@ test("Canvas content survives reload independently from pane layout", async ({ p
     await cleanup(request, id);
   }
 });
+
+
+test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Directional spawn ${Date.now()}`);
+
+  try {
+    await selectView(page, "Canvas");
+    const canvas = page.locator(".excalidraw__canvas.interactive");
+    await expect(canvas).toBeVisible();
+    const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+    await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
+    const bounds = await canvas.boundingBox();
+    if (!bounds) throw new Error("Canvas did not render");
+    const left = bounds.x + 220;
+    const top = bounds.y + 180;
+    await page.mouse.move(left, top);
+    await page.mouse.down();
+    await page.mouse.move(left + 120, top + 70, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.press("Escape");
+    await page.mouse.click(left + 60, top + 35);
+    await page.keyboard.press("Alt+ArrowRight");
+
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+      };
+      const live = stored.canvas.data.elements.filter((element) => !element.isDeleted);
+      return {
+        rectangles: live.filter((element) => element.type === "rectangle").length,
+        arrows: live.filter((element) => element.type === "arrow").length,
+      };
+    }).toEqual({ rectangles: 2, arrows: 1 });
+  } finally {
+    await cleanup(request, id);
+  }
+});

@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -8,7 +8,8 @@ import type {
   LibraryItems,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
@@ -35,6 +36,7 @@ import {
 } from "../../features/diagram/diagram-model";
 import { useToast } from "../../providers/toast-provider";
 import { forgetDiagramHistory, mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
+import { directionFromKey, nativeDirectionalSpawnPlan, spawnConnectedStructuredNode } from "./CanvasDirectionalSpawn";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
@@ -434,7 +436,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     };
   }, [canvasOrigin]);
 
-  const applyDiagram = useCallback(async (previous: StructuredDiagram | null, next: StructuredDiagram) => {
+  const applyDiagram = useCallback(async (
+    previous: StructuredDiagram | null,
+    next: StructuredDiagram,
+    options: { selectNodeId?: string } = {},
+  ) => {
     const value = api.current;
     if (!value) return;
     await document.fonts.ready;
@@ -446,10 +452,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const nextDiagrams = previous
       ? diagramsRef.current.map((diagram) => diagram.id === previous.id ? next : diagram)
       : [...diagramsRef.current, next];
+    const selectedNode = options.selectNodeId ? next.nodes.find((node) => node.id === options.selectNodeId) ?? null : null;
+    const selectedElementIds = selectedNode ? { [selectedNode.elementId]: true as const } : {};
     updateDiagramState(nextDiagrams);
     setLastDiagramId(next.id);
-    updateDiagramSelection({ diagramId: next.id, nodeIds: [], edgeId: null, groupId: null });
-    value.updateScene({ elements: nextElements, appState: { selectedElementIds: {} }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+    updateDiagramSelection({ diagramId: next.id, nodeIds: selectedNode ? [selectedNode.id] : [], edgeId: null, groupId: null });
+    value.updateScene({ elements: nextElements, appState: { selectedElementIds }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [dark, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState, workspaceId]);
 
@@ -516,8 +524,54 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
+  const handleDirectionalSpawnKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const direction = directionFromKey(event.key);
+    if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true']"))) return;
+
+    const value = api.current;
+    if (!value) return;
+    const state = value.getAppState() as AppState & { editingLinearElement?: unknown };
+    if (state.editingTextElement || state.editingLinearElement || state.openDialog) return;
+    const selectedIds = Object.entries(state.selectedElementIds).filter(([, selected]) => selected).map(([id]) => id);
+    if (selectedIds.length !== 1) return;
+
+    if (activeDiagram && diagramSelection.nodeIds.length === 1) {
+      const result = spawnConnectedStructuredNode(activeDiagram, diagramSelection.nodeIds[0], direction);
+      if (!result) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void applyDiagram(activeDiagram, result.diagram, { selectNodeId: result.nodeId });
+      return;
+    }
+
+    const scene = value.getSceneElements();
+    const source = scene.find((element) => element.id === selectedIds[0] && !element.isDeleted);
+    if (!source) return;
+    const plan = nativeDirectionalSpawnPlan(source, direction);
+    if (!plan) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const created = convertToExcalidrawElements(plan.skeletons as ExcalidrawElementSkeleton[]) as OrderedExcalidrawElement[];
+    const nextSource = {
+      ...source,
+      boundElements: [...(source.boundElements ?? []).filter((bound: { id: string; type: string }) => bound.id !== plan.arrowId), { id: plan.arrowId, type: "arrow" as const }],
+    } as OrderedExcalidrawElement;
+    const nextElements = [
+      ...scene.map((element) => element.id === source.id ? nextSource : element),
+      ...created,
+    ];
+    value.updateScene({
+      elements: nextElements,
+      appState: { selectedElementIds: { [plan.shapeId]: true } },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+  }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);
+
   return (
-    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas">
+    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas" onKeyDownCapture={handleDirectionalSpawnKeyDown}>
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
         <CanvasToolRail
           api={canvasApi}

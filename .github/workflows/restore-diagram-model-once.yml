@@ -1,0 +1,22 @@
+name: Restore diagram model once
+on:
+  push:
+    paths:
+      - .github/workflows/restore-diagram-model-once.yml
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+      - run: git checkout ba89fdb89d5b294b6ac64b924222635cdef273e7 -- apps/web/src/features/diagram/diagram-model.ts
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/features/diagram/diagram-model.ts
+          git commit -m "fix(diagram): restore diagram model after malformed write"
+          git push origin HEAD:master

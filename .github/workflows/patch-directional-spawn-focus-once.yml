@@ -1,0 +1,32 @@
+name: Patch directional spawn focus once
+on:
+  push:
+    paths:
+      - .github/workflows/patch-directional-spawn-focus-once.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/src/integrations/canvas/CanvasEditor.tsx')
+          text = path.read_text()
+          old = '''    const target = event.target;\n    if (event.isComposing) return;\n    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [contenteditable='true'], button, [role='dialog'], [role='menu'], [role='listbox']"))) return;\n    const surface = document.querySelector(".notespace-canvas-surface");\n    if (!surface) return;\n    if (target instanceof Node && target !== document.body && target !== document.documentElement && !surface.contains(target)) return;\n\n    const value = api.current;'''
+          new = '''    if (event.isComposing) return;\n    const value = api.current;'''
+          if old not in text:
+              raise SystemExit('old target guard block not found')
+          text = text.replace(old, new)
+          path.write_text(text)
+          PY
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/integrations/canvas/CanvasEditor.tsx
+          git commit -m "fix(canvas): gate directional spawn on editor state"
+          git push origin HEAD:master

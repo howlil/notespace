@@ -1,6 +1,7 @@
 import { FONT_FAMILY, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { LocalPoint } from "@excalidraw/excalidraw/math/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import {
   diagramNodeLabelElementId,
@@ -8,23 +9,13 @@ import {
   structuredElementIds,
   type StructuredDiagram,
 } from "../../features/diagram/diagram-model";
+import { diagramGroupBounds, routeStructuredDiagram } from "../../features/diagram/diagram-routing";
 import {
   eraserIconFileId,
   eraserIconName,
   eraserNodeIconElementId,
   eraserNodeRenderGroupId,
 } from "../../features/diagram/eraser-icons";
-
-function groupBounds(diagram: StructuredDiagram, nodeIds: readonly string[]) {
-  const nodes = diagram.nodes.filter((node) => nodeIds.includes(node.id));
-  if (!nodes.length) return null;
-  const padding = 28;
-  const left = Math.min(...nodes.map((node) => node.x)) - padding;
-  const top = Math.min(...nodes.map((node) => node.y)) - padding;
-  const right = Math.max(...nodes.map((node) => node.x + node.width)) + padding;
-  const bottom = Math.max(...nodes.map((node) => node.y + node.height)) + padding;
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
 
 function fallbackNodeText(specKey: string, label: string) {
   const glyph = getCatalogItem(specKey).glyph;
@@ -44,7 +35,7 @@ export function renderStructuredDiagram(
   const skeletons: ExcalidrawElementSkeleton[] = [];
 
   for (const group of diagram.groups) {
-    const bounds = groupBounds(diagram, group.nodeIds);
+    const bounds = diagramGroupBounds(diagram, group.nodeIds);
     if (!bounds) continue;
     skeletons.push({
       type: "rectangle",
@@ -148,19 +139,23 @@ export function renderStructuredDiagram(
     }
   }
 
+  const routes = routeStructuredDiagram(diagram);
   const byId = new Map(diagram.nodes.map((node) => [node.id, node]));
   for (const edge of diagram.edges) {
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
     if (!from || !to) continue;
+    const route = routes.get(edge.id);
     skeletons.push({
       type: "arrow",
       id: edge.elementId,
-      x: 0,
-      y: 0,
+      x: route?.x ?? 0,
+      y: route?.y ?? 0,
+      ...(route ? { points: route.points as LocalPoint[] } : {}),
       strokeColor,
       strokeWidth: 1,
       roughness: 0,
+      roundness: route ? { type: 2 } : undefined,
       endArrowhead: "arrow",
       start: { id: from.elementId },
       end: { id: to.elementId },

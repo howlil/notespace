@@ -48,9 +48,6 @@ func (s Service) hydrateGranularState(ctx context.Context, value Project) (Proje
 	}
 	if len(notes) > 0 {
 		value.Notes = notes
-		// document is a compatibility projection only. Keep it deterministic
-		// while granular Note rows are the authored source for current clients.
-		value.Document = notes[0].Document
 	}
 	canvas, err := store.GetCanvasState(ctx, value.ID)
 	if err != nil {

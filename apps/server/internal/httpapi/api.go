@@ -70,7 +70,9 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/workspaces/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/workspaces/{id}", a.update)
+	mux.HandleFunc("POST /api/workspaces/{id}/notes", a.createNote)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/notes/{noteId}", a.updateNote)
+	mux.HandleFunc("DELETE /api/workspaces/{id}/notes/{noteId}", a.deleteNote)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/canvas", a.updateCanvas)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/title", a.rename)
@@ -362,6 +364,19 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, p)
 }
 
+func (a API) createNote(w http.ResponseWriter, r *http.Request) {
+	var body project.NoteCreate
+	if !decode(w, r, &body) {
+		return
+	}
+	note, err := a.service.CreateNote(r.Context(), r.PathValue("id"), body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusCreated, note)
+}
+
 func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
 	var body project.NoteUpdate
 	if !decode(w, r, &body) {
@@ -373,6 +388,19 @@ func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, http.StatusOK, note)
+}
+
+func (a API) deleteNote(w http.ResponseWriter, r *http.Request) {
+	version, err := expectedVersion(r)
+	if err != nil || version == nil {
+		fail(w, project.ErrInvalid)
+		return
+	}
+	if err := a.service.DeleteNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), *version); err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusNoContent, nil)
 }
 
 func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {

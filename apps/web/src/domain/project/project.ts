@@ -37,12 +37,14 @@ export interface Note {
   document: Snapshot;
   createdAt: string;
   updatedAt: string;
+  version: number;
 }
 
 export interface Project extends ProjectSummary {
   document: Snapshot;
   notes: Note[];
   canvas: Snapshot;
+  canvasVersion: number;
   references: ProjectReference[];
   splitRatio: number;
 }
@@ -69,6 +71,7 @@ export function contentOf(project: Project): ProjectContent {
       document: project.document,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      version: 1,
     }],
     canvas: project.canvas,
     references: project.references,

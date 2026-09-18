@@ -152,7 +152,7 @@ test("Canvas content survives reload independently from pane layout", async ({ p
 });
 
 
-test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, request }) => {
+test("flowchart spawn previews, chains, auto-connects, and switches shape type", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Directional spawn ${Date.now()}`);
 
   try {
@@ -182,6 +182,20 @@ test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, 
 
     const editor = page.locator(".excalidraw").first();
     await expect(editor).toBeFocused();
+
+    const addRight = page.getByRole("button", { name: "Add connected shape right" });
+    await expect(addRight).toBeVisible();
+    await addRight.hover();
+    await expect(page.getByText("Alt", { exact: true })).toBeVisible();
+
+    const previewState = await (await request.get(`/api/workspaces/${id}`)).json() as {
+      canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+    };
+    const previewLive = previewState.canvas.data.elements.filter((element) => !element.isDeleted);
+    expect(previewLive.filter((element) => element.type === "rectangle")).toHaveLength(1);
+    expect(previewLive.filter((element) => element.type === "arrow")).toHaveLength(0);
+
+    await page.mouse.move(bounds.x + 40, bounds.y + 40);
     await editor.press("Alt+ArrowRight");
 
     await expect.poll(async () => {
@@ -194,6 +208,39 @@ test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, 
         arrows: live.filter((element) => element.type === "arrow").length,
       };
     }).toEqual({ rectangles: 2, arrows: 1 });
+
+    await editor.press("Alt+ArrowRight");
+
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+      };
+      const live = stored.canvas.data.elements.filter((element) => !element.isDeleted);
+      return {
+        rectangles: live.filter((element) => element.type === "rectangle").length,
+        arrows: live.filter((element) => element.type === "arrow").length,
+      };
+    }).toEqual({ rectangles: 3, arrows: 2 });
+
+    await editor.press("Tab");
+    const shapeSwitcher = page.locator(".ConvertElementTypePopup");
+    await expect(shapeSwitcher).toBeVisible();
+    await expect(shapeSwitcher.getByRole("button", { name: "rectangle" })).toBeVisible();
+    await expect(shapeSwitcher.getByRole("button", { name: "diamond" })).toBeVisible();
+    await expect(shapeSwitcher.getByRole("button", { name: "ellipse" })).toBeVisible();
+
+    await shapeSwitcher.getByRole("button", { name: "diamond" }).click();
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+      };
+      const live = stored.canvas.data.elements.filter((element) => !element.isDeleted);
+      return {
+        rectangles: live.filter((element) => element.type === "rectangle").length,
+        diamonds: live.filter((element) => element.type === "diamond").length,
+        arrows: live.filter((element) => element.type === "arrow").length,
+      };
+    }).toEqual({ rectangles: 2, diamonds: 1, arrows: 2 });
   } finally {
     await cleanup(request, id);
   }

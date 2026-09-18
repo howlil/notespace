@@ -85,15 +85,17 @@ type Note struct {
 	Document  Snapshot `json:"document"`
 	CreatedAt string   `json:"createdAt"`
 	UpdatedAt string   `json:"updatedAt"`
+	Version   int      `json:"version,omitempty"`
 }
 
 type Project struct {
 	Summary
-	Document   Snapshot    `json:"document"`
-	Notes      []Note      `json:"notes"`
-	Canvas     Snapshot    `json:"canvas"`
-	References []Reference `json:"references"`
-	SplitRatio float64     `json:"splitRatio"`
+	Document      Snapshot    `json:"document"`
+	Notes         []Note      `json:"notes"`
+	Canvas        Snapshot    `json:"canvas"`
+	CanvasVersion int         `json:"canvasVersion,omitempty"`
+	References    []Reference `json:"references"`
+	SplitRatio    float64     `json:"splitRatio"`
 }
 
 type SearchResult struct {
@@ -286,8 +288,9 @@ func (s Service) Create(
 			Version:    1,
 		},
 		Document:   Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
-		Notes:      []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now}},
+		Notes:      []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now, Version: 1}},
 		Canvas:     Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
+		CanvasVersion: 1,
 		References: []Reference{},
 		SplitRatio: 0.45,
 	}

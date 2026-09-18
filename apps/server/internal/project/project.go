@@ -287,12 +287,12 @@ func (s Service) Create(
 			UpdatedAt:  now,
 			Version:    1,
 		},
-		Document:   Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
-		Notes:      []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now, Version: 1}},
-		Canvas:     Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
+		Document:      Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
+		Notes:         []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now, Version: 1}},
+		Canvas:        Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 		CanvasVersion: 1,
-		References: []Reference{},
-		SplitRatio: 0.45,
+		References:    []Reference{},
+		SplitRatio:    0.45,
 	}
 	if err := s.Store.Create(ctx, p); err != nil {
 		return Project{}, err

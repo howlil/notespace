@@ -116,17 +116,25 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     current.current = { ...current.current, canvas: saved.canvas };
   }, []);
 
-  const granular = useGranularWorkspaceAutosave({
+  const {
+    status: granularStatus,
+    dirty: granularDirty,
+    scheduleNote,
+    scheduleCanvas,
+    flushAll: flushGranular,
+    flushNote,
+    forgetNote,
+  } = useGranularWorkspaceAutosave({
     workspaceId: project.id,
     canvasVersion: project.canvasVersion,
     onNoteSaved,
     onCanvasSaved,
   });
-  const status = combineSaveStatuses(workspaceStatus, granular.status);
-  const dirty = saver.dirty || granular.dirty;
+  const status = combineSaveStatuses(workspaceStatus, granularStatus);
+  const dirty = saver.dirty || granularDirty;
   const flushAll = useCallback(async () => {
-    await Promise.all([saver.flush(), granular.flushAll()]);
-  }, [granular, saver]);
+    await Promise.all([saver.flush(), flushGranular()]);
+  }, [flushGranular, saver]);
   const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => { if (normalized.changed) saver.schedule(current.current); }, [normalized.changed, saver]);
@@ -204,12 +212,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       document,
       notes: current.current.notes.map((note) => note.id === nextNote.id ? nextNote : note),
     };
-    granular.scheduleNote(nextNote);
-  }, [granular, layout]);
+    scheduleNote(nextNote);
+  }, [layout, scheduleNote]);
   const updateCanvas = useCallback((canvas: Snapshot) => {
     current.current = { ...current.current, canvas };
-    granular.scheduleCanvas(canvas);
-  }, [granular]);
+    scheduleCanvas(canvas);
+  }, [scheduleCanvas]);
   const interactionState = () => paneInteractionState(layout, current.current.notes.map((note) => note.id));
 
   function splitPane(paneId: string, direction: "row" | "column") {

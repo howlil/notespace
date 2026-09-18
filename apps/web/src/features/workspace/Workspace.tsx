@@ -8,7 +8,7 @@ import { useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectContent, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { saveProject } from "../../domain/project/api";
+import { createWorkspaceNote, deleteWorkspaceNote, saveProject } from "../../domain/project/api";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
 import { rebaseLocalProjectContent } from "../../domain/project/canvas-merge";
@@ -18,6 +18,7 @@ import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
+import { combineSaveStatuses, useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -82,7 +83,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
   const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
   const [maximizedSplitId, setMaximizedSplitId] = useState<string | null>(null);
-  const [status, setStatus] = useState<SaveStatus>({ state: "saved" });
+  const [workspaceStatus, setWorkspaceStatus] = useState<SaveStatus>({ state: "saved" });
   const [selectedTextPaneId, setSelectedTextPaneId] = useState<string | null>(null);
   const [highlightRequest, setHighlightRequest] = useState<{ paneId: string; request: number } | null>(null);
   const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
@@ -103,10 +104,33 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     });
     return instance;
   });
+
+  const onNoteSaved = useCallback((saved: Note) => {
+    current.current = {
+      ...current.current,
+      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, ...saved } : note),
+    };
+  }, []);
+
+  const onCanvasSaved = useCallback((saved: { canvas: Snapshot }) => {
+    current.current = { ...current.current, canvas: saved.canvas };
+  }, []);
+
+  const granular = useGranularWorkspaceAutosave({
+    workspaceId: project.id,
+    canvasVersion: project.canvasVersion,
+    onNoteSaved,
+    onCanvasSaved,
+  });
+  const status = combineSaveStatuses(workspaceStatus, granular.status);
+  const dirty = saver.dirty || granular.dirty;
+  const flushAll = useCallback(async () => {
+    await Promise.all([saver.flush(), granular.flushAll()]);
+  }, [granular, saver]);
   const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => { if (normalized.changed) saver.schedule(current.current); }, [normalized.changed, saver]);
-  useEffect(() => saver.subscribe(setStatus), [saver]);
+  useEffect(() => saver.subscribe(setWorkspaceStatus), [saver]);
   useEffect(() => {
     if (status.state === "error") {
       showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void saver.flush().catch(() => {}) } });

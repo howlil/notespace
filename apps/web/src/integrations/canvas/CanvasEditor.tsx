@@ -579,7 +579,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       aria-label="Workspace canvas"
       onPointerDownCapture={(event) => {
         const target = event.target;
-        if (target instanceof Element && target.closest(".excalidraw__canvas")) api.current?.focusContainer();
+        if (!(target instanceof Element) || !target.closest(".excalidraw__canvas")) return;
+        const editor = target.closest(".excalidraw");
+        if (editor instanceof HTMLElement) editor.focus({ preventScroll: true });
       }}
     >
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">

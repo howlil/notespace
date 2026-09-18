@@ -198,6 +198,9 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 	); err != nil {
 		return err
 	}
+	if err := insertGranularStateTx(ctx, tx, workspace); err != nil {
+		return err
+	}
 	for _, checkpoint := range envelope.History {
 		if err := createHistory(ctx, tx, checkpoint); err != nil {
 			return err

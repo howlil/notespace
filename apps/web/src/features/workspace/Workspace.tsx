@@ -133,12 +133,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   useEffect(() => saver.subscribe(setWorkspaceStatus), [saver]);
   useEffect(() => {
     if (status.state === "error") {
-      showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void saver.flush().catch(() => {}) } });
+      showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) } });
     }
     if (status.state === "conflict") {
       showToast({ kind: "error", message: status.message ?? "Workspace changed elsewhere.", action: { label: "Reload latest", onClick: () => window.location.reload() } });
     }
-  }, [saver, showToast, status]);
+  }, [flushAll, showToast, status]);
   useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {
       if ((event.target as Element).closest(".pane-actions > summary, .pane-note-switcher > summary")) event.stopPropagation();
@@ -168,26 +168,26 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   useBlocker({
     shouldBlockFn: async () => {
       if (status.state === "conflict") return true;
-      if (!saver.dirty) return false;
+      if (!dirty) return false;
       try {
-        await saver.flush();
+        await flushAll();
         return false;
       } catch (error) {
         showToast({
           kind: "error",
           message: error instanceof Error ? error.message : "Save failed. Please retry.",
-          action: { label: "Retry save", onClick: () => void saver.flush().catch(() => {}) },
+          action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) },
         });
         return true;
       }
     },
-    enableBeforeUnload: () => saver.dirty,
+    enableBeforeUnload: () => dirty,
   });
   useEffect(() => {
-    const flush = () => { if (document.visibilityState === "hidden") void saver.flush().catch(() => {}); };
+    const flush = () => { if (document.visibilityState === "hidden") void flushAll().catch(() => {}); };
     document.addEventListener("visibilitychange", flush);
-    return () => { document.removeEventListener("visibilitychange", flush); void saver.flush().catch(() => {}); };
-  }, [saver]);
+    return () => { document.removeEventListener("visibilitychange", flush); void flushAll().catch(() => {}); };
+  }, [flushAll]);
 
   const update = useCallback((patch: Partial<ProjectContent>) => {
     current.current = { ...current.current, ...patch };
@@ -196,11 +196,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const updateDocument = useCallback((paneId: string, document: Snapshot) => {
     const pane = findPane(layout, paneId);
     if (!pane?.noteId) return;
-    const now = new Date().toISOString();
-    const notes = current.current.notes.map((note) => note.id === pane.noteId ? { ...note, document, updatedAt: now } : note);
-    update({ document, notes });
-  }, [layout, update]);
-  const updateCanvas = useCallback((canvas: Snapshot) => update({ canvas }), [update]);
+    const existing = current.current.notes.find((note) => note.id === pane.noteId);
+    if (!existing) return;
+    const nextNote: Note = { ...existing, document, updatedAt: new Date().toISOString() };
+    current.current = {
+      ...current.current,
+      document,
+      notes: current.current.notes.map((note) => note.id === nextNote.id ? nextNote : note),
+    };
+    granular.scheduleNote(nextNote);
+  }, [granular, layout]);
+  const updateCanvas = useCallback((canvas: Snapshot) => {
+    current.current = { ...current.current, canvas };
+    granular.scheduleCanvas(canvas);
+  }, [granular]);
   const interactionState = () => paneInteractionState(layout, current.current.notes.map((note) => note.id));
 
   function splitPane(paneId: string, direction: "row" | "column") {

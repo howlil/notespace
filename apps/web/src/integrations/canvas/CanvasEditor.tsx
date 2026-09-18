@@ -152,7 +152,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   useHandleLibrary({ excalidrawAPI: canvasApi, getInitialLibraryItems: readStoredLibraryItems });
   const panelAnchorRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
-  const latestAppStateRef = useRef<AppState | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
@@ -322,7 +321,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [focusRequest]);
 
   const changed = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, files: BinaryFiles) => {
-    latestAppStateRef.current = state;
     setActiveTool(state.activeTool.type);
     const selectedIds = Object.entries(state.selectedElementIds).filter(([, value]) => value).map(([id]) => id);
     setSelectedElementCount(selectedIds.length);
@@ -359,7 +357,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
-    latestAppStateRef.current = value.getAppState();
     setCanvasApi(value);
     setZoom(value.getAppState().zoom.value);
     setGridModeEnabled(value.getAppState().gridModeEnabled);
@@ -533,7 +530,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (event.isComposing) return;
     const value = api.current;
     if (!value) return;
-    const state = (latestAppStateRef.current ?? value.getAppState()) as AppState & { editingLinearElement?: unknown };
+    const state = value.getAppState() as AppState & { editingLinearElement?: unknown };
     if (state.editingTextElement || state.editingLinearElement || state.openDialog) return;
     const selectedIds = Object.entries(state.selectedElementIds).filter(([, selected]) => selected).map(([id]) => id);
     if (selectedIds.length !== 1) return;
@@ -564,7 +561,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       ...scene.map((element) => element.id === source.id ? nextSource : element),
       ...created,
     ];
-    latestAppStateRef.current = { ...state, selectedElementIds: { [plan.shapeId]: true } };
     value.updateScene({
       elements: nextElements,
       appState: { selectedElementIds: { [plan.shapeId]: true } },

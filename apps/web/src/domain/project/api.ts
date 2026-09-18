@@ -1,13 +1,41 @@
 import type {
   CategorySummary,
+  Note,
   Project,
   ProjectSummary,
+  Snapshot,
   WorkspacePage,
 } from "./project";
 import { APIError, json, request } from "./http";
 
 export { APIError, getProject, updateProjectSnapshot } from "./http";
 export { saveProject } from "./save-project";
+
+export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
+
+export const createWorkspaceNote = (workspaceId: string, input: { id: string; title: string; document: Snapshot }) =>
+  request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes`, {
+    method: "POST",
+    ...json(input),
+  });
+
+export const updateWorkspaceNote = (workspaceId: string, noteId: string, input: { title: string; document: Snapshot; version: number }) =>
+  request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, {
+    method: "PATCH",
+    ...json(input),
+  });
+
+export const deleteWorkspaceNote = (workspaceId: string, noteId: string, version: number) =>
+  request<void>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, {
+    method: "DELETE",
+    headers: { "If-Match": `"${version}"` },
+  });
+
+export const updateWorkspaceCanvas = (workspaceId: string, canvas: Snapshot, version: number) =>
+  request<CanvasState>(`/api/workspaces/${encodeURIComponent(workspaceId)}/canvas`, {
+    method: "PATCH",
+    ...json({ canvas, version }),
+  });
 
 
 export const listRecentWorkspaces = async (limit = 12) => (await listAllWorkspaces({ limit })).items;

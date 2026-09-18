@@ -9,6 +9,13 @@ export type DirectionalSpawnDirection = "left" | "right" | "up" | "down";
 
 type Box = { x: number; y: number; width: number; height: number };
 
+export function keyFromDirection(direction: DirectionalSpawnDirection) {
+  if (direction === "left") return "ArrowLeft";
+  if (direction === "right") return "ArrowRight";
+  if (direction === "up") return "ArrowUp";
+  return "ArrowDown";
+}
+
 export const DIRECTIONAL_SPAWN_GAP = 120;
 
 export function directionFromKey(key: string): DirectionalSpawnDirection | null {
@@ -90,6 +97,10 @@ type NativeShapeSource = Box & {
 };
 
 const nativeShapeTypes = new Set(["rectangle", "ellipse", "diamond"]);
+
+export function isNativeFlowchartShapeType(type: string) {
+  return nativeShapeTypes.has(type);
+}
 
 export function nativeDirectionalSpawnPlan(
   source: NativeShapeSource,

@@ -12,7 +12,11 @@ func (s Service) Get(ctx context.Context, id string) (Project, error) {
 	if id == "" {
 		return Project{}, ErrInvalid
 	}
-	return s.Store.Get(ctx, id)
+	value, err := s.Store.Get(ctx, id)
+	if err != nil {
+		return Project{}, err
+	}
+	return s.hydrateGranularState(ctx, value)
 }
 
 func (s Service) List(ctx context.Context) ([]Summary, error) {

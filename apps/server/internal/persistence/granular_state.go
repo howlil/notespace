@@ -168,6 +168,75 @@ ON CONFLICT(workspace_id) DO UPDATE SET
 	return err
 }
 
+func syncLegacyNotesTx(ctx context.Context, tx *sql.Tx, workspaceID, updatedAt string) error {
+	notes, err := listGranularNotes(ctx, tx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if len(notes) == 0 {
+		return project.ErrInvalid
+	}
+	legacyNotes, err := json.Marshal(notes)
+	if err != nil {
+		return err
+	}
+	legacyDocument, err := json.Marshal(notes[0].Document)
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET notes_state=?,document_state=?,updated_at=? WHERE id=?`,
+		legacyNotes, legacyDocument, updatedAt, workspaceID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return project.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) CreateNote(ctx context.Context, workspaceID string, input project.NoteCreate) (project.Note, error) {
+	document, err := json.Marshal(input.Document)
+	if err != nil {
+		return project.Note{}, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return project.Note{}, err
+	}
+	defer tx.Rollback()
+
+	var workspaceExists int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, workspaceID).Scan(&workspaceExists); err != nil {
+		return project.Note{}, err
+	}
+	if workspaceExists == 0 {
+		return project.Note{}, project.ErrNotFound
+	}
+	var existing int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, input.ID).Scan(&existing); err != nil {
+		return project.Note{}, err
+	}
+	if existing != 0 {
+		return project.Note{}, project.ErrConflict
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_notes(workspace_id,id,title,document_state,created_at,updated_at,version)
+VALUES (?,?,?,?,?,?,1)`, workspaceID, input.ID, input.Title, document, now, now); err != nil {
+		return project.Note{}, err
+	}
+	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
+		return project.Note{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return project.Note{}, err
+	}
+	return project.Note{
+		ID: input.ID, Title: input.Title, Document: input.Document,
+		CreatedAt: now, UpdatedAt: now, Version: 1,
+	}, nil
+}
+
 func (s *Store) UpdateNote(ctx context.Context, workspaceID, noteID string, update project.NoteUpdate) (project.Note, error) {
 	document, err := json.Marshal(update.Document)
 	if err != nil {
@@ -205,34 +274,51 @@ RETURNING id,title,document_state,created_at,updated_at,version`,
 		return project.Note{}, err
 	}
 
-	notes, err := listGranularNotes(ctx, tx, workspaceID)
-	if err != nil {
+	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
 		return project.Note{}, err
-	}
-	legacyNotes, err := json.Marshal(notes)
-	if err != nil {
-		return project.Note{}, err
-	}
-	compatDocument := note.Document
-	if len(notes) > 0 {
-		compatDocument = notes[0].Document
-	}
-	legacyDocument, err := json.Marshal(compatDocument)
-	if err != nil {
-		return project.Note{}, err
-	}
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET notes_state=?,document_state=?,updated_at=? WHERE id=?`,
-		legacyNotes, legacyDocument, now, workspaceID)
-	if err != nil {
-		return project.Note{}, err
-	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		return project.Note{}, project.ErrNotFound
 	}
 	if err := tx.Commit(); err != nil {
 		return project.Note{}, err
 	}
 	return note, nil
+}
+
+func (s *Store) DeleteNote(ctx context.Context, workspaceID, noteID string, version int) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=?`, workspaceID).Scan(&total); err != nil {
+		return err
+	}
+	if total == 0 {
+		return project.ErrNotFound
+	}
+	if total <= 1 {
+		return project.ErrInvalid
+	}
+	var currentVersion int
+	err = tx.QueryRowContext(ctx, `SELECT version FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID).Scan(&currentVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return project.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if currentVersion != version {
+		return project.ErrConflict
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID); err != nil {
+		return err
+	}
+	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update project.CanvasUpdate) (project.CanvasState, error) {

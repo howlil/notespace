@@ -44,7 +44,6 @@ ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=exc
 	return tx.Commit()
 }
 
-
 func (s *Store) refreshNoteSearch(ctx context.Context, workspaceID, noteID string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

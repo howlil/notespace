@@ -179,7 +179,22 @@ test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, 
 
     await page.keyboard.press("Escape");
     await page.mouse.click(left + 60, top + 35);
-    await expect(page.getByRole("toolbar", { name: "Selected shape actions" })).toBeVisible();
+
+    const beforeNudge = await (await request.get(`/api/workspaces/${id}`)).json() as {
+      canvas: { data: { elements: Array<{ type?: string; x?: number; isDeleted?: boolean }> } };
+    };
+    const sourceX = beforeNudge.canvas.data.elements.find((element) => !element.isDeleted && element.type === "rectangle")?.x;
+    if (typeof sourceX !== "number") throw new Error("Source rectangle was not persisted");
+
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ type?: string; x?: number; isDeleted?: boolean }> } };
+      };
+      const x = stored.canvas.data.elements.find((element) => !element.isDeleted && element.type === "rectangle")?.x;
+      return typeof x === "number" && x !== sourceX;
+    }).toBe(true);
+
     await page.keyboard.press("Alt+ArrowRight");
 
     await expect.poll(async () => {

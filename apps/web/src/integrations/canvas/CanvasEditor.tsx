@@ -153,6 +153,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [canvasApi, setCanvasApi] = useState<ExcalidrawImperativeAPI | null>(null);
   useHandleLibrary({ excalidrawAPI: canvasApi, getInitialLibraryItems: readStoredLibraryItems });
   const panelAnchorRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
@@ -563,9 +564,79 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
+  const focusCanvasEditor = useCallback(() => {
+    const editor = surfaceRef.current?.querySelector(".excalidraw");
+    if (editor instanceof HTMLElement) editor.focus({ preventScroll: true });
+  }, []);
+
+  const cancelNativeFlowchartPreview = useCallback(() => {
+    if (!flowchartPreviewRef.current) return;
+    const value = api.current;
+    if (value) {
+      value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: false,
+        cancelable: true,
+      }));
+    }
+    flowchartPreviewRef.current = null;
+    setFlowchartPreviewDirection(null);
+  }, []);
+
+  const beginNativeFlowchartPreview = useCallback((direction: DirectionalSpawnDirection) => {
+    const value = api.current;
+    if (!value) return false;
+    const state = value.getAppState() as AppState & { editingLinearElement?: unknown };
+    if (state.editingTextElement || state.editingLinearElement || state.openDialog) return false;
+    const selectedIds = Object.entries(state.selectedElementIds).filter(([, selected]) => selected).map(([id]) => id);
+    if (selectedIds.length !== 1) return false;
+    const source = value.getSceneElements().find((element) => element.id === selectedIds[0] && !element.isDeleted);
+    if (!source || !isNativeFlowchartShapeType(source.type)) return false;
+
+    if (flowchartPreviewRef.current && flowchartPreviewRef.current !== direction) {
+      value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: false,
+        cancelable: true,
+      }));
+    }
+
+    const handled = value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
+      key: keyFromDirection(direction),
+      ctrlKey: true,
+      metaKey: true,
+      bubbles: false,
+      cancelable: true,
+    }));
+    if (!handled || !value.app.flowchart.isCreatingChart) return false;
+
+    flowchartPreviewRef.current = direction;
+    setFlowchartPreviewDirection(direction);
+    return true;
+  }, []);
+
+  const commitNativeFlowchartPreview = useCallback((direction?: DirectionalSpawnDirection) => {
+    if (!flowchartPreviewRef.current && direction && !beginNativeFlowchartPreview(direction)) return;
+    const value = api.current;
+    const activeDirection = flowchartPreviewRef.current;
+    if (!value || !activeDirection) return;
+
+    value.app.flowchart.handleKeyEvent(new KeyboardEvent("keyup", {
+      key: keyFromDirection(activeDirection),
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      bubbles: false,
+      cancelable: true,
+    }));
+    flowchartPreviewRef.current = null;
+    setFlowchartPreviewDirection(null);
+    requestAnimationFrame(focusCanvasEditor);
+  }, [beginNativeFlowchartPreview, focusCanvasEditor]);
+
   const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {
     const direction = directionFromKey(event.key);
-    if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
     if (event.isComposing) return;
     const value = api.current;
     if (!value) return;
@@ -583,37 +654,35 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       return;
     }
 
-    const scene = value.getSceneElements();
-    const source = scene.find((element) => element.id === selectedIds[0] && !element.isDeleted);
-    if (!source) return;
-    const plan = nativeDirectionalSpawnPlan(source, direction);
-    if (!plan) return;
+    const source = value.getSceneElements().find((element) => element.id === selectedIds[0] && !element.isDeleted);
+    if (!source || !isNativeFlowchartShapeType(source.type)) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    const created = convertToExcalidrawElements(plan.skeletons as ExcalidrawElementSkeleton[]) as OrderedExcalidrawElement[];
-    const nextSource = {
-      ...source,
-      boundElements: [...(source.boundElements ?? []).filter((bound: { id: string; type: string }) => bound.id !== plan.arrowId), { id: plan.arrowId, type: "arrow" as const }],
-    } as OrderedExcalidrawElement;
-    const nextElements = [
-      ...scene.map((element) => element.id === source.id ? nextSource : element),
-      ...created,
-    ];
-    value.updateScene({
-      elements: nextElements,
-      appState: { selectedElementIds: { [plan.shapeId]: true } },
-      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-    });
-  }, [activeDiagram, applyDiagram, diagramSelection.nodeIds]);
+    beginNativeFlowchartPreview(direction);
+  }, [activeDiagram, applyDiagram, beginNativeFlowchartPreview, diagramSelection.nodeIds]);
+
+  const handleDirectionalSpawnKeyUp = useCallback((event: KeyboardEvent) => {
+    if (!flowchartPreviewRef.current) return;
+    const direction = directionFromKey(event.key);
+    if (!direction && event.key !== "Alt") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    commitNativeFlowchartPreview();
+  }, [commitNativeFlowchartPreview]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);
-    return () => window.removeEventListener("keydown", handleDirectionalSpawnKeyDown, true);
-  }, [handleDirectionalSpawnKeyDown]);
+    window.addEventListener("keyup", handleDirectionalSpawnKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", handleDirectionalSpawnKeyDown, true);
+      window.removeEventListener("keyup", handleDirectionalSpawnKeyUp, true);
+    };
+  }, [handleDirectionalSpawnKeyDown, handleDirectionalSpawnKeyUp]);
 
   return (
     <div
+      ref={surfaceRef}
       className="notespace-canvas-surface relative min-h-0 w-full flex-1"
       aria-label="Workspace canvas"
       onPointerDownCapture={(event) => {
@@ -662,6 +731,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       </div>
       <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
       <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
+      <CanvasFlowchartHandles
+        anchor={flowchartAnchor}
+        previewDirection={flowchartPreviewDirection}
+        onPreviewStart={beginNativeFlowchartPreview}
+        onPreviewCancel={cancelNativeFlowchartPreview}
+        onCommit={commitNativeFlowchartPreview}
+      />
 
       {!hasElements && (
         <div className="pointer-events-none absolute top-1/2 left-1/2 z-[1] flex -translate-x-1/2 -translate-y-[40%] flex-col items-center gap-[7px] text-center text-muted">

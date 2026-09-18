@@ -36,6 +36,7 @@ function content(overrides: Partial<ProjectContent> = {}): ProjectContent {
       document: doc,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
+      version: 1,
     }],
     canvas: canvas([]),
     references: [],

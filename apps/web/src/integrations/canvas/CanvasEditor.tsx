@@ -574,7 +574,14 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [handleDirectionalSpawnKeyDown]);
 
   return (
-    <div className="notespace-canvas-surface relative min-h-0 w-full flex-1" aria-label="Workspace canvas">
+    <div
+      className="notespace-canvas-surface relative min-h-0 w-full flex-1"
+      aria-label="Workspace canvas"
+      onPointerDownCapture={(event) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest(".excalidraw__canvas")) api.current?.focusContainer();
+      }}
+    >
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
         <CanvasToolRail
           api={canvasApi}

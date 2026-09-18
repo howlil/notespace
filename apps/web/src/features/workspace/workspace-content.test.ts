@@ -9,7 +9,7 @@ function content(document = blankDocument("existing-block")): ProjectContent {
   return {
     title: "Workspace",
     document,
-    notes: [{ id: "note-1", title: "Note", document, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }],
+    notes: [{ id: "note-1", title: "Note", document, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", version: 1 }],
     canvas: { format: "excalidraw", version: 1, data: { elements: [], appState: {}, files: {} } },
     references: [],
     splitRatio: 0.5,

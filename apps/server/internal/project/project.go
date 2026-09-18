@@ -294,7 +294,10 @@ func (s Service) Create(
 		References: []Reference{},
 		SplitRatio: 0.45,
 	}
-	return p, s.Store.Create(ctx, p)
+	if err := s.Store.Create(ctx, p); err != nil {
+		return Project{}, err
+	}
+	return s.Get(ctx, p.ID)
 }
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Project, error) {
@@ -314,7 +317,11 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Project, erro
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Project{}, ErrInvalid
 	}
-	return s.Store.Update(ctx, id, u)
+	value, err := s.Store.Update(ctx, id, u)
+	if err != nil {
+		return Project{}, err
+	}
+	return s.hydrateGranularState(ctx, value)
 }
 
 func validNotes(notes []Note) bool {

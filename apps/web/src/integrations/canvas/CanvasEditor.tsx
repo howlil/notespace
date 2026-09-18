@@ -336,8 +336,44 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setHasElements(elements.some((element) => !element.isDeleted));
 
     const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, elements);
+    const nextDiagramSelection = selectionForElements(nextDiagrams, selectedIds, elements);
     updateDiagramState(nextDiagrams);
-    updateDiagramSelection(selectionForElements(nextDiagrams, selectedIds, elements));
+    updateDiagramSelection(nextDiagramSelection);
+
+    const selectedElement = selectedIds.length === 1
+      ? elements.find((element) => element.id === selectedIds[0] && !element.isDeleted) ?? null
+      : null;
+    if (
+      selectedElement &&
+      nextDiagramSelection.nodeIds.length === 0 &&
+      state.activeTool.type === "selection" &&
+      isNativeFlowchartShapeType(selectedElement.type)
+    ) {
+      const topLeft = sceneCoordsToViewportCoords(
+        { sceneX: selectedElement.x, sceneY: selectedElement.y },
+        state,
+      );
+      const bottomRight = sceneCoordsToViewportCoords(
+        {
+          sceneX: selectedElement.x + selectedElement.width,
+          sceneY: selectedElement.y + selectedElement.height,
+        },
+        state,
+      );
+      setFlowchartAnchor({
+        id: selectedElement.id,
+        left: Math.min(topLeft.x, bottomRight.x),
+        top: Math.min(topLeft.y, bottomRight.y),
+        right: Math.max(topLeft.x, bottomRight.x),
+        bottom: Math.max(topLeft.y, bottomRight.y),
+      });
+    } else {
+      setFlowchartAnchor(null);
+      if (flowchartPreviewRef.current) {
+        flowchartPreviewRef.current = null;
+        setFlowchartPreviewDirection(null);
+      }
+    }
 
     const data = {
       elements,

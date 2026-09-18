@@ -90,8 +90,10 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
+  const [, setContentRevision] = useState(0);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const navigationRequest = useRef(0);
+  const touchContent = useCallback(() => setContentRevision((value) => value + 1), []);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const [saver] = useState(() => {
     const instance = new Autosave(project.version, async (value: ProjectContent, version) => {
@@ -197,10 +199,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     return () => { document.removeEventListener("visibilitychange", flush); void flushAll().catch(() => {}); };
   }, [flushAll]);
 
-  const update = useCallback((patch: Partial<ProjectContent>) => {
-    current.current = { ...current.current, ...patch };
-    saver.schedule(current.current);
-  }, [saver]);
   const updateDocument = useCallback((paneId: string, document: Snapshot) => {
     const pane = findPane(layout, paneId);
     if (!pane?.noteId) return;
@@ -252,11 +250,21 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setSelectedTextPaneId((selectedPaneId) => selectedPaneId === paneId ? null : selectedPaneId);
     setHighlightRequest((request) => request?.paneId === paneId ? null : request);
   }
-  function createNote(paneId: string) {
-    const now = new Date().toISOString();
-    const note: Note = { id: newId(), title: "Untitled", document: blankDocument(), createdAt: now, updatedAt: now };
-    update({ notes: [...current.current.notes, note], document: note.document });
-    switchPaneNote(paneId, note.id);
+  async function createNote(paneId: string) {
+    const id = newId();
+    const document = blankDocument();
+    try {
+      const note = await createWorkspaceNote(project.id, { id, title: "Untitled", document });
+      current.current = {
+        ...current.current,
+        notes: [...current.current.notes, note],
+        document: note.document,
+      };
+      touchContent();
+      switchPaneNote(paneId, note.id);
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not create note." });
+    }
   }
   function beginRenameNote(pane: Pane, noteId = pane.noteId) {
     if (!noteId) return;
@@ -269,21 +277,39 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     const value = noteTitle.trim();
     const noteId = renamingNote?.paneId === pane.id ? renamingNote.noteId : pane.noteId;
     if (!noteId || !value) { setRenamingNote(null); return; }
-    update({ notes: current.current.notes.map((note) => note.id === noteId ? { ...note, title: value, updatedAt: new Date().toISOString() } : note) });
+    const existing = current.current.notes.find((note) => note.id === noteId);
+    if (!existing) { setRenamingNote(null); return; }
+    const nextNote: Note = { ...existing, title: value, updatedAt: new Date().toISOString() };
+    current.current = {
+      ...current.current,
+      notes: current.current.notes.map((note) => note.id === noteId ? nextNote : note),
+    };
+    touchContent();
+    scheduleNote(nextNote);
     setRenamingNote(null);
   }
   function highlightSelectedText() {
     if (!selectedTextPaneId) return;
     setHighlightRequest({ paneId: selectedTextPaneId, request: ++navigationRequest.current });
   }
-  function removeNote() {
+  async function removeNote() {
     if (!deletingNote || current.current.notes.length <= 1) return;
-    const notes = current.current.notes.filter((note) => note.id !== deletingNote.id);
-    const target = leaves(layout).find((pane) => pane.noteId === deletingNote.id);
-    const replacement = notes[0];
-    update({ notes, document: replacement.document });
-    if (target) switchPaneNote(target.id, replacement.id);
-    setDeletingNote(null);
+    try {
+      await flushNote(deletingNote.id);
+      const persisted = current.current.notes.find((note) => note.id === deletingNote.id);
+      if (!persisted) return;
+      await deleteWorkspaceNote(project.id, persisted.id, persisted.version);
+      const notes = current.current.notes.filter((note) => note.id !== persisted.id);
+      const target = leaves(layout).find((pane) => pane.noteId === persisted.id);
+      const replacement = notes[0];
+      current.current = { ...current.current, notes, document: replacement.document };
+      forgetNote(persisted.id);
+      touchContent();
+      if (target) switchPaneNote(target.id, replacement.id);
+      setDeletingNote(null);
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not delete note." });
+    }
   }
   const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];

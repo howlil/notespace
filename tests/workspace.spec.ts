@@ -177,9 +177,6 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
       return stored.canvas.data.elements.filter((element) => !element.isDeleted && element.type === "rectangle").length;
     }).toBe(1);
 
-    await page.keyboard.press("Escape");
-    await page.mouse.click(left + 60, top + 35);
-
     const editor = page.locator(".excalidraw").first();
     await expect(editor).toBeFocused();
 

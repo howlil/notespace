@@ -14,7 +14,7 @@ func granularDocument(text string) project.Snapshot {
 	data, _ := json.Marshal(map[string]any{
 		"type": "doc",
 		"content": []any{map[string]any{
-			"type": "paragraph",
+			"type":    "paragraph",
 			"content": []any{map[string]any{"type": "text", "text": text}},
 		}},
 	})

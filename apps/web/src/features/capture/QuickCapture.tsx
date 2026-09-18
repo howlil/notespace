@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../components/ui";
-import { contentOf } from "../../domain/project/project";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { getProject, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../domain/project/api";
-import { saveProject } from "../../domain/project/save-project";
+import { createWorkspaceNote, getProject, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../providers/toast-provider";
 import { notifyLibraryChanged } from "../library/library-sync-store";
@@ -105,21 +103,12 @@ export function QuickCapture() {
     setSaving(true);
     try {
       const workspace = await getProject(effectiveWorkspaceId);
-      const content = contentOf(workspace);
       const document = markdownToSnapshot(value);
-      const now = new Date().toISOString();
-      const note = {
+      await createWorkspaceNote(workspace.id, {
         id: crypto.randomUUID(),
         title: captureTitle(value),
         document,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await saveProject(workspace.id, {
-        ...content,
-        notes: [...content.notes, note],
-        document,
-      }, workspace.version);
+      });
       localStorage.setItem(lastWorkspaceKey, workspace.id);
       setWorkspaceId(workspace.id);
       setBody("");

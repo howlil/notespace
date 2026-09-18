@@ -70,6 +70,8 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/workspaces/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/workspaces/{id}", a.update)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/notes/{noteId}", a.updateNote)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/canvas", a.updateCanvas)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/projects/{id}/category", a.move)
@@ -358,6 +360,32 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, 200, p)
+}
+
+func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
+	var body project.NoteUpdate
+	if !decode(w, r, &body) {
+		return
+	}
+	note, err := a.service.UpdateNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, note)
+}
+
+func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {
+	var body project.CanvasUpdate
+	if !decode(w, r, &body) {
+		return
+	}
+	canvas, err := a.service.UpdateCanvas(r.Context(), r.PathValue("id"), body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, canvas)
 }
 
 func (a API) rename(w http.ResponseWriter, r *http.Request) {

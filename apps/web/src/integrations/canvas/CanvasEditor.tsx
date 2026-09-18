@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, reconcileElements, sceneCoordsToViewportCoords, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFileData,
@@ -8,7 +8,6 @@ import type {
   LibraryItems,
 } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
@@ -36,10 +35,11 @@ import {
 } from "../../features/diagram/diagram-model";
 import { useToast } from "../../providers/toast-provider";
 import { forgetDiagramHistory, mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
-import { directionFromKey, nativeDirectionalSpawnPlan, spawnConnectedStructuredNode } from "./CanvasDirectionalSpawn";
+import { directionFromKey, isNativeFlowchartShapeType, keyFromDirection, spawnConnectedStructuredNode, type DirectionalSpawnDirection } from "./CanvasDirectionalSpawn";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
+import { CanvasFlowchartHandles, type CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -145,6 +145,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
   const [activeTool, setActiveTool] = useState<AppState["activeTool"]["type"]>("selection");
   const [selectedElementCount, setSelectedElementCount] = useState(0);
+  const [flowchartAnchor, setFlowchartAnchor] = useState<CanvasFlowchartAnchor | null>(null);
+  const [flowchartPreviewDirection, setFlowchartPreviewDirection] = useState<DirectionalSpawnDirection | null>(null);
   const [zoom, setZoom] = useState(1);
   const [gridModeEnabled, setGridModeEnabled] = useState(false);
   const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
@@ -159,6 +161,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const peerChannel = useRef<BroadcastChannel | null>(null);
   const peerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queuedPeerSnapshot = useRef<Snapshot | null>(null);
+  const flowchartPreviewRef = useRef<DirectionalSpawnDirection | null>(null);
 
   const closeCanvasPopovers = useCallback(() => {
     setMoreOpen(false);

@@ -145,6 +145,9 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 	if err != nil {
 		return err
 	}
+	if err := insertGranularStateTx(ctx, tx, p); err != nil {
+		return err
+	}
 	// Retain one creation baseline only for legacy backup/restore compatibility.
 	// Normal autosave no longer produces periodic history checkpoints.
 	if err := createHistory(ctx, tx, project.HistorySnapshot{
@@ -324,19 +327,44 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 	notes, _ := json.Marshal(u.Notes)
 	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 
-	// One atomic compare-and-swap is the complete successful autosave path.
-	// The old history checkpoint path needed a pre-read + transaction; without
-	// periodic checkpoints that work only added latency and SQLite traffic.
-	p, err := readProject(s.db.QueryRowContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=? RETURNING `+columns,
-		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, time.Now().UTC().Format(time.RFC3339Nano), id, u.Version))
-	if errors.Is(err, project.ErrNotFound) {
-		if _, getErr := s.Get(ctx, id); getErr != nil {
-			return p, getErr
-		}
-		return p, project.ErrConflict
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return project.Project{}, err
 	}
-	return p, err
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=?`,
+		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, now, id, u.Version)
+	if err != nil {
+		return project.Project{}, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return project.Project{}, err
+	}
+	if affected == 0 {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, id).Scan(&exists); err != nil {
+			return project.Project{}, err
+		}
+		if exists == 0 {
+			return project.Project{}, project.ErrNotFound
+		}
+		return project.Project{}, project.ErrConflict
+	}
+	if err := reconcileGranularStateTx(ctx, tx, id, u.Notes, u.Canvas, now); err != nil {
+		return project.Project{}, err
+	}
+	p, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	if err != nil {
+		return project.Project{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return project.Project{}, err
+	}
+	return p, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id string) error {

@@ -169,8 +169,17 @@ test("Alt+Arrow spawns and auto-connects a native canvas shape", async ({ page, 
     await page.mouse.down();
     await page.mouse.move(left + 120, top + 70, { steps: 8 });
     await page.mouse.up();
+
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+      };
+      return stored.canvas.data.elements.filter((element) => !element.isDeleted && element.type === "rectangle").length;
+    }).toBe(1);
+
     await page.keyboard.press("Escape");
     await page.mouse.click(left + 60, top + 35);
+    await expect(page.getByRole("toolbar", { name: "Selected shape actions" })).toBeVisible();
     await page.keyboard.press("Alt+ArrowRight");
 
     await expect.poll(async () => {

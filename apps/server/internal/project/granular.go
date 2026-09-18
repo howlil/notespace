@@ -11,6 +11,12 @@ type CanvasState struct {
 	UpdatedAt string   `json:"updatedAt"`
 }
 
+type NoteCreate struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Document Snapshot `json:"document"`
+}
+
 type NoteUpdate struct {
 	Title    string   `json:"title"`
 	Document Snapshot `json:"document"`
@@ -28,7 +34,9 @@ type CanvasUpdate struct {
 type GranularStore interface {
 	ListNotes(context.Context, string) ([]Note, error)
 	GetCanvasState(context.Context, string) (CanvasState, error)
+	CreateNote(context.Context, string, NoteCreate) (Note, error)
 	UpdateNote(context.Context, string, string, NoteUpdate) (Note, error)
+	DeleteNote(context.Context, string, string, int) error
 	UpdateCanvas(context.Context, string, CanvasUpdate) (CanvasState, error)
 }
 
@@ -58,6 +66,20 @@ func (s Service) hydrateGranularState(ctx context.Context, value Project) (Proje
 	return value, nil
 }
 
+func (s Service) CreateNote(ctx context.Context, workspaceID string, input NoteCreate) (Note, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	input.ID = strings.TrimSpace(input.ID)
+	input.Title = strings.TrimSpace(input.Title)
+	if workspaceID == "" || input.ID == "" || !ValidTitle(input.Title) || !validDocument(input.Document) {
+		return Note{}, ErrInvalid
+	}
+	store, ok := s.granularStore()
+	if !ok {
+		return Note{}, ErrInvalid
+	}
+	return store.CreateNote(ctx, workspaceID, input)
+}
+
 func (s Service) UpdateNote(ctx context.Context, workspaceID, noteID string, update NoteUpdate) (Note, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	noteID = strings.TrimSpace(noteID)
@@ -82,4 +104,17 @@ func (s Service) UpdateCanvas(ctx context.Context, workspaceID string, update Ca
 		return CanvasState{}, ErrInvalid
 	}
 	return store.UpdateCanvas(ctx, workspaceID, update)
+}
+
+func (s Service) DeleteNote(ctx context.Context, workspaceID, noteID string, version int) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	noteID = strings.TrimSpace(noteID)
+	if workspaceID == "" || noteID == "" || version < 1 {
+		return ErrInvalid
+	}
+	store, ok := s.granularStore()
+	if !ok {
+		return ErrInvalid
+	}
+	return store.DeleteNote(ctx, workspaceID, noteID, version)
 }

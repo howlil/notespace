@@ -28,6 +28,7 @@ const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPan
 const CANVAS_PEER_CHANNEL = join(WEB_SRC, "integrations", "canvas", "use-canvas-peer-channel.ts");
 const CANVAS_CODE_BLOCK = join(WEB_SRC, "integrations", "canvas", "canvas-code-block.ts");
 const CANVAS_CODE_BLOCK_LAYER = join(WEB_SRC, "integrations", "canvas", "CanvasCodeBlockLayer.tsx");
+const CANVAS_CODE_RUNNER = join(WEB_SRC, "integrations", "canvas", "canvas-code-runner.ts");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "providers", "toast-provider.tsx");
 const STUDY_ACTIVITY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
@@ -115,6 +116,16 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /convertToExcalidrawElements/);
   assert.match(canvas, /customData: withCanvasCodeBlock/);
   assert.doesNotMatch(codeLayer, /localStorage|fetch\(|WebSocket|new Worker/);
+  const codeRunner = source(CANVAS_CODE_RUNNER);
+  assert.match(codeLayer, /startJavaScriptRun/);
+  assert.match(codeLayer, /Run JavaScript/);
+  assert.match(codeLayer, /Code output/);
+  assert.match(codeRunner, /new Worker/);
+  assert.match(codeRunner, /DEFAULT_CODE_RUN_TIMEOUT_MS = 2_000/);
+  assert.match(codeRunner, /MAX_CODE_RUN_OUTPUT_LINES = 100/);
+  assert.match(codeRunner, /self\.fetch = \(\) => Promise\.reject/);
+  assert.match(codeRunner, /worker\.terminate\(\)/);
+  assert.doesNotMatch(codeRunner, /\/api\//);
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);

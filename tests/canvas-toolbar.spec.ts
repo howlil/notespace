@@ -25,7 +25,7 @@ test.describe("Canvas chrome", () => {
 
     try {
       const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
-      for (const label of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Image", "Eraser", "Diagram", "More tools"]) {
+      for (const label of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Image", "Eraser", "Code block", "Diagram", "More tools"]) {
         await expect(toolbar.getByRole("button", { name: label, exact: true })).toBeVisible();
       }
       await expect(toolbar.getByRole("button", { name: "Colors", exact: true })).toHaveCount(0);
@@ -43,6 +43,61 @@ test.describe("Canvas chrome", () => {
       await expect(view.getByRole("button", { name: "Zoom in" })).toBeVisible();
       await expect(view.getByRole("button", { name: "Zoom out" })).toBeVisible();
       await expect(view.getByRole("button", { name: "More canvas view controls" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
+  test("code block edits, runs JavaScript locally, persists source, and keeps output ephemeral", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas code ${Date.now()}`);
+
+    try {
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      await toolbar.getByRole("button", { name: "Code block", exact: true }).click();
+
+      const block = page.locator("[data-canvas-code-block]").first();
+      await expect(block).toBeVisible();
+      await expect(block.getByRole("button", { name: "Run JavaScript" })).toBeVisible();
+
+      await block.getByRole("button", { name: "Edit code" }).click();
+      const editor = block.getByRole("textbox", { name: "Edit code block" });
+      await editor.fill('console.log("worker-ok");\nreturn 42;');
+      await expect(editor).toHaveValue('console.log("worker-ok");\nreturn 42;');
+      await editor.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
+
+      const output = block.getByLabel("Code output", { exact: true });
+      await expect(output).toContainText("worker-ok");
+      await expect(output).toContainText("42");
+      await expect(output).toContainText(/Done/);
+
+      await expect.poll(async () => {
+        const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+          canvas: { data: { elements: Array<{ customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+        };
+        const element = stored.canvas.data.elements.find((candidate) => {
+          const customData = candidate.customData as { notespaceCodeBlock?: { code?: string } } | undefined;
+          return !candidate.isDeleted && customData?.notespaceCodeBlock?.code?.includes("worker-ok");
+        });
+        return element?.customData;
+      }).toMatchObject({
+        notespaceCodeBlock: {
+          code: 'console.log("worker-ok");\nreturn 42;',
+          language: "javascript",
+        },
+      });
+
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: unknown };
+      };
+      expect(JSON.stringify(stored.canvas.data)).not.toContain("worker-ok\",\"status");
+      expect(JSON.stringify(stored.canvas.data)).not.toContain("\"stdout\"");
+
+      await page.reload();
+      await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+      const reloaded = page.locator("[data-canvas-code-block]").first();
+      await expect(reloaded).toBeVisible();
+      await expect(reloaded.getByLabel("Highlighted code")).toContainText("worker-ok");
+      await expect(reloaded.getByLabel("Code output", { exact: true })).toHaveCount(0);
     } finally {
       await cleanup(request, id);
     }

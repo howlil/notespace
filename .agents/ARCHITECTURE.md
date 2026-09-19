@@ -124,6 +124,8 @@ For the same Workspace in sibling tabs of one browser, Canvas element snapshots 
 
 Pan and zoom stay local to each Excalidraw instance. They are presentation state, not authored content, and must not cause durable writes.
 
+Canvas Code Block execution is an explicit browser-local action and is not authored state. Only JavaScript is runnable in the current boundary. Each run uses a disposable Web Worker, has a finite timeout/output budget, and attempts to disable ordinary Worker network APIs before user code starts. stdout/stderr/result stay ephemeral and must not enter Canvas snapshots, autosave, peer sync, backup, or server APIs. This local runner is a damage-limiting execution environment for the owner's own snippets, not a hardened hostile-code sandbox; server-side or multi-language arbitrary execution requires a separate approved isolation design.
+
 ## Edit and autosave
 
 ```text
@@ -155,7 +157,7 @@ Note version conflict → block only that Note save queue and preserve its local
 - **Domain state:** workspace identity, authored Notes/Canvas content, durable assets.
 - **Derived state:** FTS search projection, study summaries.
 - **Presentation state:** pane tree, selection, Canvas pan/zoom/focus state where not explicitly persisted.
-- **Runtime state:** server health, storage/configuration, same-browser peer channel.
+- **Runtime state:** server health, storage/configuration, same-browser peer channel, ephemeral local Code Block execution/output.
 
 Do not collapse these into one unbounded store.
 
@@ -163,7 +165,7 @@ Do not collapse these into one unbounded store.
 
 Notespace remains a trusted/private single-user instance. Same-origin mutation defenses are not an authentication system. App-level authentication, multi-user identity, or authorization changes the security boundary and requires explicit product/architecture approval.
 
-Treat content, imported payloads, images, URLs, and future embeds as untrusted input. Preserve server validation, safe file/MIME handling, no arbitrary script execution, no client-controlled filesystem paths, and no secret exposure.
+Treat content, imported payloads, images, URLs, and future embeds as untrusted input. Preserve server validation, safe file/MIME handling, no server-side arbitrary code execution, no client-controlled filesystem paths, and no secret exposure. The Canvas JavaScript runner must remain explicit user-triggered, browser-local, disposable, time/output bounded, and isolated from durable/peer state.
 
 ## Material changes requiring approval
 

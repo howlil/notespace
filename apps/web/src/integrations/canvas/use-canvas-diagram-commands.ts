@@ -27,6 +27,7 @@ import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 
 type DiagramCommandsOptions = {
   apiRef: MutableRefObject<ExcalidrawImperativeAPI | null>;
+  surfaceRef: MutableRefObject<HTMLDivElement | null>;
   workspaceId: string;
   dark: boolean;
   diagrams: StructuredDiagram[];
@@ -42,14 +43,13 @@ type DiagramCommandsOptions = {
     state: AppState,
     diagrams: readonly StructuredDiagram[],
   ) => void;
-  canvasOrigin: () => { x: number; y: number };
-  canvasPointFromClient: (clientX: number, clientY: number) => { x: number; y: number };
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 };
 
 export function useCanvasDiagramCommands({
   apiRef,
+  surfaceRef,
   workspaceId,
   dark,
   diagrams,
@@ -61,11 +61,27 @@ export function useCanvasDiagramCommands({
   updateDiagramState,
   updateDiagramSelection,
   emitSnapshot,
-  canvasOrigin,
-  canvasPointFromClient,
   onError,
   onSuccess,
 }: DiagramCommandsOptions) {
+  const canvasOrigin = useCallback(() => {
+    const state = apiRef.current?.getAppState();
+    return { x: -(state?.scrollX ?? 0) + 120, y: -(state?.scrollY ?? 0) + 120 };
+  }, [apiRef]);
+
+  const canvasPointFromClient = useCallback((clientX: number, clientY: number) => {
+    const value = apiRef.current;
+    const surface = surfaceRef.current;
+    if (!value || !surface) return canvasOrigin();
+    const bounds = surface.getBoundingClientRect();
+    const state = value.getAppState();
+    const scale = state.zoom.value || 1;
+    return {
+      x: (clientX - bounds.left) / scale - state.scrollX - 28,
+      y: (clientY - bounds.top) / scale - state.scrollY - 28,
+    };
+  }, [apiRef, canvasOrigin, surfaceRef]);
+
   const activeDiagram = useMemo(() => {
     const id = diagramSelection.diagramId ?? lastDiagramId ?? diagrams.at(-1)?.id ?? null;
     return id ? diagrams.find((diagram) => diagram.id === id) ?? null : null;

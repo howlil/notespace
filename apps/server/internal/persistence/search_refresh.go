@@ -27,7 +27,11 @@ func (s *Store) refreshWorkspaceSearch(ctx context.Context, workspaceID string) 
 	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, "", "", "", value.Title, ""); err != nil {
 		return err
 	}
-	for _, note := range value.Notes {
+	notes, err := listGranularNotes(ctx, tx, value.ID)
+	if err != nil {
+		return err
+	}
+	for _, note := range notes {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, note.ID, note.Title, "", note.Title, ""); err != nil {
 			return err
 		}
@@ -37,8 +41,12 @@ func (s *Store) refreshWorkspaceSearch(ctx context.Context, workspaceID string) 
 			}
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
-ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.ID, value.Version, value.CategoryID, value.Title); err != nil {
+	var notesRevision int
+	if err := tx.QueryRowContext(ctx, `SELECT notes_revision FROM projects WHERE id=?`, value.ID).Scan(&notesRevision); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title,notes_revision) VALUES (?,?,?,?,?)
+ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title,notes_revision=excluded.notes_revision`, value.ID, value.Version, value.CategoryID, value.Title, notesRevision); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -52,7 +60,8 @@ func (s *Store) refreshNoteSearch(ctx context.Context, workspaceID, noteID strin
 	defer tx.Rollback()
 
 	var categoryID, workspaceTitle string
-	if err := tx.QueryRowContext(ctx, `SELECT category_id,title FROM projects WHERE id=?`, workspaceID).Scan(&categoryID, &workspaceTitle); err != nil {
+	var workspaceVersion, notesRevision int
+	if err := tx.QueryRowContext(ctx, `SELECT category_id,title,version,notes_revision FROM projects WHERE id=?`, workspaceID).Scan(&categoryID, &workspaceTitle, &workspaceVersion, &notesRevision); err != nil {
 		return err
 	}
 	var noteTitle, encodedDocument string
@@ -75,6 +84,11 @@ VALUES ('note',?,?,?,?,?,?,?,?)`, categoryID, workspaceID, workspaceTitle, noteI
 VALUES ('block',?,?,?,?,?,?,?,?)`, categoryID, workspaceID, workspaceTitle, noteID, noteTitle, block.ID, "", block.Text); err != nil {
 			return err
 		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title,notes_revision) VALUES (?,?,?,?,?)
+ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title,notes_revision=excluded.notes_revision`,
+		workspaceID, workspaceVersion, categoryID, workspaceTitle, notesRevision); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

@@ -1,4 +1,4 @@
-# Current Iteration — Milestone 2: Note ↔ Canvas Interoperability
+# Historical Milestone Record — Milestone 2: Note ↔ Canvas Interoperability
 
 ## Status
 
@@ -115,6 +115,6 @@ Milestone 1 / Core Project Workspace remains integrated on `master` via PR #1 an
 
 Milestone 2 intentionally does not add AI linking, semantic inference, multi-block relation graphs, collaboration/CRDT, public sharing, import/export expansion, templates, or structured-diagram engines.
 
-## Next action
+## Continuation rule
 
-**STOP. Milestone 2 is complete and integrated. Do not invent Milestone 3. Begin a new milestone only from new user intent.**
+Milestone 2 is complete historical context, not a stop instruction for later repository work. New implementation may proceed from explicit user intent while preserving the durable architecture decisions in `DECISIONS.md` and the current boundaries in `ARCHITECTURE.md`.

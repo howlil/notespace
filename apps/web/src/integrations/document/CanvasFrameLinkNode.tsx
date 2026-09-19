@@ -36,11 +36,15 @@ function CanvasFramePreviewImage({
     let active = true;
     let objectUrl: string | null = null;
     setSrc(null);
-    void loadImageAsset(workspaceId, element.fileId).then((asset) => {
-      if (!active || !asset) return;
-      objectUrl = URL.createObjectURL(asset.blob);
-      setSrc(objectUrl);
-    });
+    void loadImageAsset(workspaceId, element.fileId)
+      .then((asset) => {
+        if (!active || !asset) return;
+        objectUrl = URL.createObjectURL(asset.blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (active) setSrc(null);
+      });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);

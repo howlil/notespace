@@ -1,9 +1,5 @@
-import { Check, Clipboard, Code2, ListOrdered, Moon, Pencil, Play, Square, Sun, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { cn } from "../../components/ui";
 import {
-  codeLanguageOptions,
   codeThemeSurface,
   codeTokenColor,
   detectCodeLanguage,
@@ -11,14 +7,17 @@ import {
   readCanvasCodeBlock,
   resolveCodeTheme,
   type CanvasCodeBlockData,
-  type CodeBlockTheme,
 } from "./canvas-code-block";
 import {
-  canRunCanvasCode,
-  startJavaScriptRun,
-  type JavaScriptRunHandle,
-  type JavaScriptRunResult,
-} from "./canvas-code-runner";
+  CODE_BLOCK_BODY_PADDING_X,
+  CODE_BLOCK_BODY_PADDING_Y,
+  CODE_BLOCK_FONT_SIZE,
+  CODE_BLOCK_LINE_HEIGHT,
+  CODE_BLOCK_LINE_NUMBER_WIDTH,
+} from "./canvas-code-block-layout";
+import { CanvasCodeBlockMeasure } from "./CanvasCodeBlockMeasure";
+import { canRunCanvasCode } from "./canvas-code-runner";
+import type { CodeRunView } from "./use-canvas-code-runner";
 
 type CanvasViewport = {
   zoom: number;
@@ -29,30 +28,6 @@ type CanvasViewport = {
 type CodeElement = OrderedExcalidrawElement & {
   customData?: Record<string, unknown>;
 };
-
-type CodeRunView =
-  | { status: "running"; stdout: string[]; stderr: string[] }
-  | JavaScriptRunResult;
-
-function languageLabel(language: string) {
-  return codeLanguageOptions.find(([value]) => value === language)?.[1] ?? language;
-}
-
-function nextTheme(theme: CodeBlockTheme): CodeBlockTheme {
-  if (theme === "auto") return "dark";
-  if (theme === "dark") return "light";
-  return "auto";
-}
-
-function themeTitle(theme: CodeBlockTheme) {
-  if (theme === "auto") return "Theme follows Notespace";
-  if (theme === "dark") return "JetBrains Darcula";
-  return "IntelliJ Light";
-}
-
-function ThemeIcon({ resolved }: { resolved: "light" | "dark" }) {
-  return resolved === "dark" ? <Moon size={12} /> : <Sun size={12} />;
-}
 
 function runStatusLabel(run: CodeRunView) {
   if (run.status === "running") return "Running";
@@ -67,77 +42,30 @@ export function CanvasCodeBlockLayer({
   viewport,
   appDark,
   selectedElementId,
+  editingElementId,
+  runs,
   onUpdate,
+  onEditingChange,
+  onRun,
+  onClearRun,
+  onAutoFit,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   viewport: CanvasViewport;
   appDark: boolean;
   selectedElementId: string | null;
+  editingElementId: string | null;
+  runs: Record<string, CodeRunView>;
   onUpdate: (elementId: string, block: CanvasCodeBlockData) => void;
+  onEditingChange: (elementId: string | null) => void;
+  onRun: (elementId: string, block: CanvasCodeBlockData) => void;
+  onClearRun: (elementId: string) => void;
+  onAutoFit: (elementId: string, height: number) => void;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [runs, setRuns] = useState<Record<string, CodeRunView>>({});
-  const runHandles = useRef(new Map<string, JavaScriptRunHandle>());
-  const codeElements = useMemo(
-    () => elements
-      .filter((element) => !element.isDeleted)
-      .map((element) => ({ element: element as CodeElement, block: readCanvasCodeBlock(element as CodeElement) }))
-      .filter((entry): entry is { element: CodeElement; block: CanvasCodeBlockData } => entry.block !== null),
-    [elements],
-  );
-
-  const clearRun = useCallback((elementId: string) => {
-    const handle = runHandles.current.get(elementId);
-    runHandles.current.delete(elementId);
-    handle?.stop();
-    setRuns((current) => {
-      if (!(elementId in current)) return current;
-      const next = { ...current };
-      delete next[elementId];
-      return next;
-    });
-  }, []);
-
-  const runBlock = useCallback((elementId: string, block: CanvasCodeBlockData) => {
-    if (!canRunCanvasCode(block.language)) return;
-    const previous = runHandles.current.get(elementId);
-    previous?.stop();
-
-    const handle = startJavaScriptRun(block.code);
-    runHandles.current.set(elementId, handle);
-    setRuns((current) => ({
-      ...current,
-      [elementId]: { status: "running", stdout: [], stderr: [] },
-    }));
-
-    void handle.result.then((result) => {
-      if (runHandles.current.get(elementId) !== handle) return;
-      runHandles.current.delete(elementId);
-      setRuns((current) => ({ ...current, [elementId]: result }));
-    });
-  }, []);
-
-  useEffect(() => {
-    if (editingId && !codeElements.some(({ element }) => element.id === editingId)) setEditingId(null);
-
-    const liveIds = new Set(codeElements.map(({ element }) => element.id));
-    for (const [elementId, handle] of runHandles.current) {
-      if (liveIds.has(elementId)) continue;
-      runHandles.current.delete(elementId);
-      handle.stop();
-    }
-    setRuns((current) => {
-      const entries = Object.entries(current).filter(([elementId]) => liveIds.has(elementId));
-      if (entries.length === Object.keys(current).length) return current;
-      return Object.fromEntries(entries);
-    });
-  }, [codeElements, editingId]);
-
-  useEffect(() => () => {
-    for (const handle of runHandles.current.values()) handle.stop();
-    runHandles.current.clear();
-  }, []);
+  const codeElements = elements
+    .filter((element) => !element.isDeleted)
+    .map((element) => ({ element: element as CodeElement, block: readCanvasCodeBlock(element as CodeElement) }))
+    .filter((entry): entry is { element: CodeElement; block: CanvasCodeBlockData } => entry.block !== null);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-label="Canvas code blocks">
@@ -145,7 +73,7 @@ export function CanvasCodeBlockLayer({
         const resolvedTheme = resolveCodeTheme(block.theme, appDark);
         const palette = codeThemeSurface(resolvedTheme);
         const selected = selectedElementId === element.id;
-        const editing = editingId === element.id;
+        const editing = editingElementId === element.id;
         const run = runs[element.id];
         const runnable = canRunCanvasCode(block.language);
         const zoom = viewport.zoom;
@@ -155,139 +83,90 @@ export function CanvasCodeBlockLayer({
         const height = Math.max(1, element.height * zoom);
         const tokens = highlightCode(block.code, block.language);
         const lineCount = Math.max(1, block.code.split("\n").length);
+        const paddingX = CODE_BLOCK_BODY_PADDING_X * zoom;
+        const paddingY = CODE_BLOCK_BODY_PADDING_Y * zoom;
+        const gutterWidth = CODE_BLOCK_LINE_NUMBER_WIDTH * zoom;
+        const fontSize = Math.max(6, CODE_BLOCK_FONT_SIZE * zoom);
+        const lineHeight = Math.max(8, CODE_BLOCK_LINE_HEIGHT * zoom);
 
         const update = (patch: Partial<CanvasCodeBlockData>) => {
-          if (patch.code !== undefined && run) clearRun(element.id);
-          const next = { ...block, ...patch };
-          onUpdate(element.id, next);
+          onUpdate(element.id, { ...block, ...patch });
         };
 
         const finishEditing = () => {
           if (!block.languageLocked) update({ language: detectCodeLanguage(block.code) });
-          setEditingId(null);
+          onEditingChange(null);
         };
 
         return (
-          <section
+          <div
             key={element.id}
-            className={cn("absolute overflow-hidden rounded-[6px]", editing && "pointer-events-auto")}
+            className="absolute overflow-visible"
             style={{
               left,
               top,
               width,
-              height,
               transform: `rotate(${element.angle}rad)`,
               transformOrigin: "center",
-              background: palette.background,
-              color: palette.foreground,
-              border: `1px solid ${selected ? "#4f7396" : palette.border}`,
-              boxShadow: selected ? "0 0 0 1px color-mix(in srgb, #4f7396 35%, transparent)" : "none",
               fontFamily: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace',
+              fontSize,
+              lineHeight: `${lineHeight}px`,
             }}
-            data-canvas-code-block={element.id}
-            aria-label={`Code block, ${languageLabel(block.language)}`}
           >
-            <header
-              className={cn("flex h-7 items-center gap-1 border-b px-2 text-[10px]", selected && "pointer-events-auto")}
-              style={{ background: palette.toolbar, borderColor: palette.border }}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              {selected ? (
-                <>
-                  <Code2 size={12} aria-hidden="true" />
-                  <select
-                    className="min-w-0 max-w-28 flex-1 bg-transparent text-[10px] outline-none"
-                    value={block.languageLocked ? block.language : "auto"}
-                    aria-label="Code language"
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      clearRun(element.id);
-                      if (value === "auto") {
-                        update({ language: detectCodeLanguage(block.code), languageLocked: false });
-                      } else {
-                        update({ language: value, languageLocked: true });
-                      }
-                    }}
-                  >
-                    <option value="auto">Auto · {languageLabel(block.language)}</option>
-                    {codeLanguageOptions.filter(([value]) => value !== "plaintext").map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    <option value="plaintext">Plain text</option>
-                  </select>
-                  {runnable && (
-                    <button
-                      type="button"
-                      className="grid size-5 place-items-center rounded hover:bg-black/10"
-                      title={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"}
-                      aria-label={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"}
-                      onClick={() => {
-                        if (run?.status === "running") {
-                          runHandles.current.get(element.id)?.stop();
-                        } else {
-                          runBlock(element.id, block);
-                        }
-                      }}
-                    >
-                      {run?.status === "running" ? <Square size={10} fill="currentColor" /> : <Play size={11} fill="currentColor" />}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="grid size-5 place-items-center rounded hover:bg-black/10"
-                    title={themeTitle(block.theme)}
-                    aria-label={themeTitle(block.theme)}
-                    onClick={() => update({ theme: nextTheme(block.theme) })}
-                  >
-                    <ThemeIcon resolved={resolvedTheme} />
-                  </button>
-                  <button
-                    type="button"
-                    className="grid size-5 place-items-center rounded hover:bg-black/10"
-                    title={block.lineNumbers ? "Hide line numbers" : "Show line numbers"}
-                    aria-label={block.lineNumbers ? "Hide line numbers" : "Show line numbers"}
-                    aria-pressed={block.lineNumbers}
-                    onClick={() => update({ lineNumbers: !block.lineNumbers })}
-                  >
-                    <ListOrdered size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="grid size-5 place-items-center rounded hover:bg-black/10"
-                    title={editing ? "Finish editing" : "Edit code"}
-                    aria-label={editing ? "Finish editing" : "Edit code"}
-                    onClick={() => editing ? finishEditing() : setEditingId(element.id)}
-                  >
-                    {editing ? <Check size={12} /> : <Pencil size={12} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="grid size-5 place-items-center rounded hover:bg-black/10"
-                    title="Copy code"
-                    aria-label="Copy code"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(block.code).then(() => {
-                        setCopiedId(element.id);
-                        window.setTimeout(() => setCopiedId((current) => current === element.id ? null : current), 1200);
-                      });
-                    }}
-                  >
-                    {copiedId === element.id ? <Check size={12} /> : <Clipboard size={12} />}
-                  </button>
-                </>
-              ) : (
-                <span className="truncate font-medium">{languageLabel(block.language)}</span>
-              )}
-            </header>
+            {block.heightMode === "auto" && (
+              <CanvasCodeBlockMeasure
+                code={block.code}
+                width={element.width}
+                lineNumbers={block.lineNumbers}
+                onHeight={(targetHeight) => onAutoFit(element.id, targetHeight)}
+              />
+            )}
 
-            <div className="flex h-[calc(100%-28px)] min-h-0 flex-col text-[11px] leading-[1.55]">
-              <div className="min-h-0 flex-1 overflow-auto">
+            <section
+              className={editing ? "pointer-events-auto overflow-hidden rounded-[6px]" : "overflow-hidden rounded-[6px]"}
+              style={{
+                width,
+                height,
+                background: palette.background,
+                color: palette.foreground,
+                border: `1px solid ${selected ? "#4f7396" : palette.border}`,
+                boxShadow: selected ? "0 0 0 1px color-mix(in srgb, #4f7396 35%, transparent)" : "none",
+              }}
+              data-canvas-code-block={element.id}
+              aria-label={`Code block, ${block.language}`}
+            >
+              <div className="flex h-full min-h-0 overflow-y-auto overflow-x-hidden">
+                {block.lineNumbers && !editing && (
+                  <div
+                    className="shrink-0 select-none border-r text-right"
+                    style={{
+                      width: gutterWidth,
+                      paddingTop: paddingY,
+                      paddingBottom: paddingY,
+                      paddingRight: Math.max(3, 6 * zoom),
+                      color: palette.muted,
+                      borderColor: palette.border,
+                    }}
+                  >
+                    {Array.from({ length: lineCount }, (_, index) => <div key={index}>{index + 1}</div>)}
+                  </div>
+                )}
+
                 {editing ? (
                   <textarea
                     autoFocus
+                    wrap="soft"
                     spellCheck={false}
                     value={block.code}
                     aria-label="Edit code block"
-                    className="h-full w-full resize-none border-0 bg-transparent p-2 font-[inherit] text-[11px] leading-[1.55] outline-none"
-                    style={{ color: palette.foreground, tabSize: 2 }}
+                    className="h-full min-w-0 flex-1 resize-none overflow-x-hidden border-0 bg-transparent font-[inherit] outline-none whitespace-pre-wrap [overflow-wrap:anywhere]"
+                    style={{
+                      color: palette.foreground,
+                      tabSize: 2,
+                      padding: `${paddingY}px ${paddingX}px`,
+                      fontSize,
+                      lineHeight: `${lineHeight}px`,
+                    }}
                     onPointerDown={(event) => event.stopPropagation()}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
@@ -297,7 +176,7 @@ export function CanvasCodeBlockLayer({
                       }
                       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                         event.preventDefault();
-                        if (runnable) runBlock(element.id, block);
+                        if (runnable) onRun(element.id, block);
                         else finishEditing();
                         return;
                       }
@@ -319,45 +198,54 @@ export function CanvasCodeBlockLayer({
                     }}
                   />
                 ) : (
-                  <div className="flex min-h-full">
-                    {block.lineNumbers && (
-                      <div className="select-none border-r px-2 py-2 text-right" style={{ color: palette.muted, borderColor: palette.border }}>
-                        {Array.from({ length: lineCount }, (_, index) => <div key={index}>{index + 1}</div>)}
-                      </div>
-                    )}
-                    <pre className="m-0 min-w-0 flex-1 overflow-visible p-2 font-[inherit] whitespace-pre" aria-label="Highlighted code">
-                      <code>
-                        {tokens.map((token, index) => (
-                          <span key={index} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
-                        ))}
-                      </code>
-                    </pre>
-                  </div>
+                  <pre
+                    className="m-0 min-w-0 flex-1 overflow-x-hidden font-[inherit] whitespace-pre-wrap [overflow-wrap:anywhere]"
+                    style={{ padding: `${paddingY}px ${paddingX}px`, fontSize, lineHeight: `${lineHeight}px` }}
+                    aria-label="Highlighted code"
+                  >
+                    <code>
+                      {tokens.map((token, index) => (
+                        <span key={index} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
+                      ))}
+                    </code>
+                  </pre>
                 )}
               </div>
+            </section>
 
-              {run && (
-                <div
-                  className={cn("max-h-24 shrink-0 overflow-auto border-t px-2 py-1.5 text-[10px]", selected && "pointer-events-auto")}
-                  style={{ background: palette.toolbar, borderColor: palette.border }}
-                  aria-label="Code output"
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="font-medium">{runStatusLabel(run)}</span>
-                    {selected && run.status !== "running" && (
-                      <button type="button" className="grid size-4 place-items-center rounded hover:bg-black/10" aria-label="Clear code output" title="Clear output" onClick={() => clearRun(element.id)}>
-                        <X size={10} />
-                      </button>
-                    )}
-                  </div>
-                  {run.stdout.map((line, index) => <div key={`out-${index}`} className="whitespace-pre-wrap">{line}</div>)}
-                  {run.stderr.map((line, index) => <div key={`err-${index}`} className="whitespace-pre-wrap" style={{ color: resolvedTheme === "dark" ? "#ff6b68" : "#b91c1c" }}>{line}</div>)}
-                  {"result" in run && run.result !== undefined && <div className="mt-1 whitespace-pre-wrap"><span style={{ color: palette.muted }}>↳ </span>{run.result}</div>}
+            {run && (
+              <div
+                className={selected ? "pointer-events-auto mt-1 max-h-24 overflow-auto rounded-md border px-2 py-1.5" : "mt-1 max-h-24 overflow-auto rounded-md border px-2 py-1.5"}
+                style={{
+                  width,
+                  background: palette.toolbar,
+                  color: palette.foreground,
+                  borderColor: palette.border,
+                  fontSize: Math.max(9, 10 * zoom),
+                  lineHeight: `${Math.max(12, 15 * zoom)}px`,
+                }}
+                aria-label="Code output"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="font-medium">{runStatusLabel(run)}</span>
+                  {selected && run.status !== "running" && (
+                    <button
+                      type="button"
+                      className="rounded px-1 hover:bg-black/10"
+                      aria-label="Clear code output"
+                      onClick={() => onClearRun(element.id)}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          </section>
+                {run.stdout.map((line, index) => <div key={`out-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]">{line}</div>)}
+                {run.stderr.map((line, index) => <div key={`err-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]" style={{ color: resolvedTheme === "dark" ? "#ff6b68" : "#b91c1c" }}>{line}</div>)}
+                {"result" in run && run.result !== undefined && <div className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]"><span style={{ color: palette.muted }}>↳ </span>{run.result}</div>}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

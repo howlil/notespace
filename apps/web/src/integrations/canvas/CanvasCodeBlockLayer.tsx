@@ -85,8 +85,8 @@ export function CanvasCodeBlockLayer({
         const paddingX = CODE_BLOCK_BODY_PADDING_X * zoom;
         const paddingY = CODE_BLOCK_BODY_PADDING_Y * zoom;
         const gutterWidth = CODE_BLOCK_LINE_NUMBER_WIDTH * zoom;
-        const fontSize = Math.max(6, CODE_BLOCK_FONT_SIZE * zoom);
-        const lineHeight = Math.max(8, CODE_BLOCK_LINE_HEIGHT * zoom);
+        const fontSize = CODE_BLOCK_FONT_SIZE * zoom;
+        const lineHeight = CODE_BLOCK_LINE_HEIGHT * zoom;
 
         const update = (patch: Partial<CanvasCodeBlockData>) => {
           onUpdate(element.id, { ...block, ...patch });

@@ -34,7 +34,7 @@ test.describe("Canvas chrome", () => {
       await toolbar.getByRole("button", { name: "More tools", exact: true }).click();
       const more = page.locator('aside[aria-label="More canvas tools"]');
       await expect(more).toBeVisible();
-      for (const label of ["Lasso select", "Frame", "Laser pointer", "Bucket fill"]) {
+      for (const label of ["Lasso select", "Frame", "Embed", "Laser pointer", "Bucket fill"]) {
         await expect(more.getByRole("button", { name: label, exact: true })).toBeVisible();
       }
 
@@ -43,6 +43,68 @@ test.describe("Canvas chrome", () => {
       await expect(view.getByRole("button", { name: "Zoom in" })).toBeVisible();
       await expect(view.getByRole("button", { name: "Zoom out" })).toBeVisible();
       await expect(view.getByRole("button", { name: "More canvas view controls" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
+  test("renders arbitrary HTTPS embeds without a domain whitelist", async ({ page, request }) => {
+    const response = await request.post("/api/workspaces", { data: { title: `Canvas embed ${Date.now()}` } });
+    expect(response.status()).toBe(201);
+    const workspace = await response.json() as { id: string };
+    const id = workspace.id;
+
+    try {
+      const current = await (await request.get(`/api/workspaces/${id}`)).json() as { canvasVersion: number };
+      const element = {
+        id: "embed-howil",
+        type: "embeddable",
+        x: 120,
+        y: 90,
+        width: 520,
+        height: 320,
+        angle: 0,
+        strokeColor: "#1b1b1f",
+        backgroundColor: "transparent",
+        fillStyle: "solid",
+        strokeWidth: 1,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        roundness: null,
+        seed: 1,
+        version: 1,
+        versionNonce: 1,
+        isDeleted: false,
+        boundElements: null,
+        updated: 1,
+        link: "https://howlil.tech",
+        locked: false,
+        index: "a0",
+      };
+      const update = await request.patch(`/api/workspaces/${id}/canvas`, {
+        data: {
+          canvas: {
+            format: "excalidraw",
+            version: 1,
+            data: { elements: [element], appState: { viewBackgroundColor: "#f8f9fc" }, files: {} },
+          },
+          version: current.canvasVersion,
+        },
+      });
+      expect(update.status()).toBe(200);
+
+      await page.goto(`/workspaces/${id}`);
+      await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+      await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
+      await expect(page.locator('iframe[src^="https://howlil.tech"]')).toHaveCount(1);
+
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ id?: string; link?: string }> } };
+      };
+      expect(stored.canvas.data.elements.find((candidate) => candidate.id === "embed-howil")?.link).toBe("https://howlil.tech");
     } finally {
       await cleanup(request, id);
     }

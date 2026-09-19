@@ -16,7 +16,7 @@ import {
 test("code block metadata round-trips through Excalidraw customData", () => {
   const block = defaultCanvasCodeBlock();
   const customData = withCanvasCodeBlock({ existing: "kept" }, block);
-  assert.equal(customData.existing, "kept");
+  assert.equal((customData as Record<string, unknown>).existing, "kept");
   assert.deepEqual(readCanvasCodeBlock({ customData }), block);
   assert.deepEqual(customData[CODE_BLOCK_DATA_KEY], block);
 });

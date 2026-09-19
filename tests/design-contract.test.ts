@@ -35,6 +35,7 @@ const CANVAS_CODE_BLOCK_MEASURE = join(WEB_SRC, "integrations", "canvas", "Canva
 const CANVAS_CODE_BLOCK_LAYOUT = join(WEB_SRC, "integrations", "canvas", "canvas-code-block-layout.ts");
 const CANVAS_CODE_RUNNER = join(WEB_SRC, "integrations", "canvas", "canvas-code-runner.ts");
 const CANVAS_CODE_RUNNER_HOOK = join(WEB_SRC, "integrations", "canvas", "use-canvas-code-runner.ts");
+const CANVAS_EMBED = join(WEB_SRC, "integrations", "canvas", "canvas-embed.ts");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "providers", "toast-provider.tsx");
 const STUDY_ACTIVITY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
@@ -155,6 +156,11 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);
+  const canvasEmbed = source(CANVAS_EMBED);
+  assert.match(canvas, /validateEmbeddable=\{validateCanvasEmbeddable\}/);
+  assert.doesNotMatch(canvas, /validateEmbeddable=\{false\}/);
+  assert.match(canvasEmbed, /url\.protocol === "http:" \|\| url\.protocol === "https:"/);
+  assert.doesNotMatch(canvasEmbed, /fetch\(|\/api\//);
 
   assert.match(nativeActions, /export function nativeActionIcon/);
   assert.match(nativeActions, /export function executeNativeAction/);

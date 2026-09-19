@@ -127,11 +127,11 @@ Compose additionally supports `NOTESPACE_BIND_IP`, `NOTESPACE_PORT`, and `NOTESP
 
 ## Save and consistency behavior
 
-Edits update immediately and durable autosave runs after 650 ms of inactivity. Saves are serialized per Workspace; **Saved** appears only after SQLite acknowledges the write. Normal autosave does not write periodic history checkpoints.
+Edits update immediately and durable authoring saves are coalesced independently for each Note and for the Canvas. Notes use per-Note optimistic versions and Canvas uses its own version, so editing one surface no longer rewrites the whole Workspace snapshot. **Saved** appears only after all pending authoring queues are acknowledged by SQLite. Normal autosave does not write periodic history checkpoints.
 
 For the same Workspace opened in multiple tabs in one browser, Canvas element changes are exchanged directly through `BroadcastChannel` and reconciled with Excalidraw element version semantics. This local path is coalesced separately from server autosave, so sibling tabs can converge quickly without sending an HTTP request for every pointer movement.
 
-Each durable save still carries a Workspace version. If two durable Canvas writes race, the stale client fetches the newest Workspace, merges the Canvas snapshots, and retries against the newest version. A conflict involving Notes, title, or other non-Canvas authored fields is not blindly merged and stops autosave for explicit recovery.
+Granular durable writes carry the version of the resource they mutate. A stale Note conflicts with that Note rather than blocking unrelated Notes or Canvas. Canvas keeps an independent version and its Excalidraw-specific reconciliation boundary. Legacy whole-workspace update routes remain compatibility surfaces, not the primary authoring path.
 
 Pan and zoom are per-tab view state and are not persisted as authored Canvas changes. This prevents ordinary navigation from generating unnecessary saves or false conflicts.
 

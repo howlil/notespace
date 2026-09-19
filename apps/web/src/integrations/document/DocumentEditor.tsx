@@ -268,6 +268,8 @@ function MenuButton({
 export default function DocumentEditor({
   initial,
   onChange,
+  onDirtyChange,
+  registerSnapshotFlush,
   onBlockSelect,
   focusRequest,
   highlightRequest = null,
@@ -279,6 +281,8 @@ export default function DocumentEditor({
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  registerSnapshotFlush?: (flush: (() => void) | null) => void;
   onBlockSelect?: (blockId: string | null, hasTextSelection: boolean) => void;
   focusRequest?: FocusRequest;
   highlightRequest?: HighlightRequest;
@@ -295,6 +299,15 @@ export default function DocumentEditor({
   const selectedCommandRef = useRef(0);
   const openCanvasFrameRef = useRef(onOpenCanvasFrame);
   openCanvasFrameRef.current = onOpenCanvasFrame;
+  const onChangeRef = useRef(onChange);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  const registerSnapshotFlushRef = useRef(registerSnapshotFlush);
+  onChangeRef.current = onChange;
+  onDirtyChangeRef.current = onDirtyChange;
+  registerSnapshotFlushRef.current = registerSnapshotFlush;
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSnapshotRef = useRef(false);
+  const outlineOpenRef = useRef(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
 
@@ -303,6 +316,7 @@ export default function DocumentEditor({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  outlineOpenRef.current = outlineOpen;
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setOutlineRevision] = useState(0);
   const [, setFindRevision] = useState(0);
@@ -347,6 +361,31 @@ export default function DocumentEditor({
     findInputRef.current?.focus();
     findInputRef.current?.select();
   }, [findOpen]);
+
+  const emitPendingSnapshot = useCallback(() => {
+    if (snapshotTimerRef.current) {
+      clearTimeout(snapshotTimerRef.current);
+      snapshotTimerRef.current = null;
+    }
+    if (!pendingSnapshotRef.current) return;
+    const currentEditor = editorRef.current;
+    if (!currentEditor) return;
+    pendingSnapshotRef.current = false;
+    onChangeRef.current({ format: "tiptap", version: 1, data: currentEditor.getJSON() });
+    onDirtyChangeRef.current?.(false);
+  }, []);
+
+  const scheduleSnapshot = useCallback(() => {
+    if (!pendingSnapshotRef.current) {
+      pendingSnapshotRef.current = true;
+      onDirtyChangeRef.current?.(true);
+    }
+    if (snapshotTimerRef.current) return;
+    snapshotTimerRef.current = setTimeout(() => {
+      snapshotTimerRef.current = null;
+      emitPendingSnapshot();
+    }, 120);
+  }, [emitPendingSnapshot]);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -568,11 +607,14 @@ export default function DocumentEditor({
       },
     },
     onUpdate: ({ editor: changed }) => {
-      onChange({ format: "tiptap", version: 1, data: changed.getJSON() });
+      scheduleSnapshot();
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
       syncSelectionMenu(changed);
-      setOutlineRevision((value) => value + 1);
+      if (outlineOpenRef.current) setOutlineRevision((value) => value + 1);
+    },
+    onBlur: () => {
+      emitPendingSnapshot();
     },
     onSelectionUpdate: ({ editor: changed }) => {
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
@@ -584,7 +626,15 @@ export default function DocumentEditor({
   editorRef.current = editor;
 
   useEffect(() => {
-    if (!editor || !initial.data) return;
+    registerSnapshotFlushRef.current?.(emitPendingSnapshot);
+    return () => {
+      emitPendingSnapshot();
+      registerSnapshotFlushRef.current?.(null);
+    };
+  }, [emitPendingSnapshot]);
+
+  useEffect(() => {
+    if (!editor || !initial.data || pendingSnapshotRef.current) return;
     const currentJson = editor.getJSON();
     if (JSON.stringify(currentJson) !== JSON.stringify(initial.data)) {
       if (!editor.isFocused) {

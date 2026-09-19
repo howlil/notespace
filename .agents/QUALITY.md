@@ -27,6 +27,7 @@ task build                                    # production web + Go binary
 task e2e                                      # built web + full browser suite
 task e2e:target SPEC=tests/example.spec.ts    # one focused browser spec
 task verify                                   # build + check + full browser E2E
+task perf:evidence                            # frame-scale regression + persistence timing evidence
 task up                                       # build/start Docker Compose stack
 task down                                     # stop stack without deleting persisted data
 task logs                                     # follow compose logs
@@ -141,6 +142,29 @@ For changes touching the web workspace, verify applicable behavior:
 - user-facing controls remain keyboard reachable and labelled where needed.
 
 Editor dependency upgrades require interaction regression testing, not only TypeScript compatibility.
+
+## Performance evidence
+
+Performance work must preserve correctness first: local authored state stays authoritative, dirty state must become observable immediately, and navigation/visibility flushes must materialize any deferred editor snapshot before durable autosave is flushed.
+
+Use:
+
+```sh
+task perf:evidence
+```
+
+as the repeatable repository-level evidence entrypoint. It currently protects large Canvas-frame extraction/preview bounds and runs the explicit 1 MiB persistence scale measurement. Browser timing remains environment-sensitive, so collect Chrome/Playwright traces before turning interaction targets into hard CI thresholds.
+
+Current interaction budgets for profiling:
+
+- long-Note typing: target p95 main-thread input work below 16 ms;
+- Canvas drag around 1,000 elements: avoid sustained frames above 16 ms and long tasks above 50 ms;
+- Canvas frame listing around 5,000 elements: target under 100 ms;
+- offscreen Canvas-frame embeds: do not mount their SVG/image preview until near the viewport;
+- repeated references to one image asset: one in-flight remote load per workspace/asset key;
+- local persistence scale evidence: investigate when autosave p95 exceeds 250 ms.
+
+A performance refactor is incomplete if it merely lowers request count while leaving full-document/full-scene CPU work on every high-frequency editor event.
 
 ## Persistence checks
 

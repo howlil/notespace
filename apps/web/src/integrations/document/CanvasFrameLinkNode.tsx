@@ -1,11 +1,95 @@
 import { mergeAttributes, Node as TiptapNode } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { ArrowUpRight, Frame, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, Frame, ImageOff, Trash2 } from "lucide-react";
 import { IconButton, cn } from "../../components/ui";
+import { loadImageAsset } from "../../domain/assets/local-image-assets";
 import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../features/workspace/canvas-frame-link";
 
-function shapeElement(element: CanvasFramePreviewElement) {
+function imageTransform(element: CanvasFramePreviewElement) {
+  const centerX = element.x + element.width / 2;
+  const centerY = element.y + element.height / 2;
+  const rotate = element.angle ? `rotate(${element.angle * 180 / Math.PI} ${centerX} ${centerY})` : "";
+  const flipX = element.scale?.[0] === -1;
+  const flipY = element.scale?.[1] === -1;
+  const flip = flipX || flipY
+    ? `translate(${flipX ? centerX * 2 : 0} ${flipY ? centerY * 2 : 0}) scale(${flipX ? -1 : 1} ${flipY ? -1 : 1})`
+    : "";
+  return [rotate, flip].filter(Boolean).join(" ") || undefined;
+}
+
+function CanvasFramePreviewImage({
+  element,
+  workspaceId,
+}: {
+  element: CanvasFramePreviewElement;
+  workspaceId: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!element.fileId) {
+      setSrc(null);
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    setSrc(null);
+    void loadImageAsset(workspaceId, element.fileId).then((asset) => {
+      if (!active || !asset) return;
+      objectUrl = URL.createObjectURL(asset.blob);
+      setSrc(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [element.fileId, workspaceId]);
+
+  if (!src) {
+    return (
+      <g data-canvas-frame-preview-image={element.id}>
+        <rect
+          x={element.x}
+          y={element.y}
+          width={element.width}
+          height={element.height}
+          fill="var(--surface)"
+          stroke="var(--line)"
+          strokeDasharray="4 3"
+          transform={imageTransform(element)}
+        />
+        <foreignObject
+          x={element.x}
+          y={element.y}
+          width={element.width}
+          height={element.height}
+          transform={imageTransform(element)}
+        >
+          <div className="grid h-full w-full place-items-center text-muted">
+            <ImageOff size={Math.max(12, Math.min(24, element.width / 3, element.height / 3))} aria-hidden="true" />
+          </div>
+        </foreignObject>
+      </g>
+    );
+  }
+
+  return (
+    <image
+      data-canvas-frame-preview-image={element.id}
+      href={src}
+      x={element.x}
+      y={element.y}
+      width={element.width}
+      height={element.height}
+      preserveAspectRatio="none"
+      transform={imageTransform(element)}
+    />
+  );
+}
+
+function shapeElement(element: CanvasFramePreviewElement, workspaceId: string) {
   const common = {
     stroke: element.strokeColor,
     strokeWidth: element.strokeWidth,
@@ -16,6 +100,9 @@ function shapeElement(element: CanvasFramePreviewElement) {
     ? `rotate(${element.angle * 180 / Math.PI} ${element.x + element.width / 2} ${element.y + element.height / 2})`
     : undefined;
 
+  if (element.type === "image") {
+    return <CanvasFramePreviewImage key={element.id} element={element} workspaceId={workspaceId} />;
+  }
   if ((element.type === "line" || element.type === "arrow" || element.type === "draw") && element.points?.length) {
     return <polyline key={element.id} points={element.points.map(([x, y]) => `${x},${y}`).join(" ")} {...common} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
   }
@@ -50,11 +137,13 @@ export function CanvasFramePreview({
   selected = false,
   onOpen,
   onDelete,
+  workspaceId,
 }: {
   preview: CanvasFrameLinkData;
   selected?: boolean;
   onOpen?: () => void;
   onDelete?: () => void;
+  workspaceId: string;
 }) {
   return (
     <div className={cn("group relative my-4 overflow-hidden rounded-lg border border-line bg-background", selected && "ring-2 ring-accent/35")}>
@@ -82,7 +171,7 @@ export function CanvasFramePreview({
             aria-label={`Preview of ${preview.label}`}
           >
             <rect x="0" y="0" width={preview.width} height={preview.height} fill="transparent" stroke="var(--line)" strokeWidth={Math.max(1, Math.min(preview.width, preview.height) / 180)} />
-            {preview.elements.map(shapeElement)}
+            {preview.elements.map((element) => shapeElement(element, workspaceId))}
           </svg>
         </div>
       </button>
@@ -101,14 +190,14 @@ export function CanvasFramePreview({
   );
 }
 
-function CanvasFrameLinkNodeView({ node, selected, deleteNode, onOpen }: NodeViewProps & { onOpen: (frameId: string) => void }) {
+function CanvasFrameLinkNodeView({ node, selected, deleteNode, onOpen, workspaceId }: NodeViewProps & { onOpen: (frameId: string) => void; workspaceId: string }) {
   const preview = node.attrs.preview as CanvasFrameLinkData | null;
   if (!preview || typeof preview.frameId !== "string") {
     return <NodeViewWrapper className="my-4 rounded-lg border border-dashed border-line p-3 text-[11px] text-muted">Canvas frame preview is unavailable.</NodeViewWrapper>;
   }
   return (
     <NodeViewWrapper className="block" data-canvas-frame-link={preview.frameId}>
-      <CanvasFramePreview preview={preview} selected={selected} onOpen={() => onOpen(preview.frameId)} onDelete={deleteNode} />
+      <CanvasFramePreview preview={preview} selected={selected} onOpen={() => onOpen(preview.frameId)} onDelete={deleteNode} workspaceId={workspaceId} />
     </NodeViewWrapper>
   );
 }
@@ -122,7 +211,7 @@ function decodedPreview(value: string | null) {
   try { return JSON.parse(decodeURIComponent(value)); } catch { return null; }
 }
 
-export function createCanvasFrameLinkExtension(onOpen: (frameId: string) => void) {
+export function createCanvasFrameLinkExtension(workspaceId: string, onOpen: (frameId: string) => void) {
   return TiptapNode.create({
     name: "canvasFrameLink",
     group: "block",
@@ -158,7 +247,7 @@ export function createCanvasFrameLinkExtension(onOpen: (frameId: string) => void
       }), node.attrs.label || "Canvas frame"];
     },
     addNodeView() {
-      return ReactNodeViewRenderer((props) => <CanvasFrameLinkNodeView {...props} onOpen={onOpen} />);
+      return ReactNodeViewRenderer((props) => <CanvasFrameLinkNodeView {...props} onOpen={onOpen} workspaceId={workspaceId} />);
     },
   });
 }

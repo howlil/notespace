@@ -65,7 +65,8 @@ test("failed autosave blocks navigation and retry preserves content", async ({ p
   const id = await createViaAPI(page, request, `Recovery ${Date.now()}`);
 
   try {
-    await page.route(`**/api/workspaces/${id}`, async (route) => {
+    const noteSaveRoute = `**/api/workspaces/${id}/notes/*`;
+    await page.route(noteSaveRoute, async (route) => {
       if (route.request().method() === "PATCH") {
         await route.fulfill({
           status: 503,
@@ -85,7 +86,7 @@ test("failed autosave blocks navigation and retry preserves content", async ({ p
     await expect(page).toHaveURL(new RegExp(`/workspaces/${id}`));
     await expect(editor).toContainText("Keep this thought");
 
-    await page.unroute(`**/api/workspaces/${id}`);
+    await page.unroute(noteSaveRoute);
     await page.getByRole("button", { name: "Retry save" }).first().click();
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     await page.reload();

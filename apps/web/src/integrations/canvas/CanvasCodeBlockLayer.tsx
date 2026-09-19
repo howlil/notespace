@@ -3,7 +3,7 @@ import {
   codeThemeSurface,
   codeTokenColor,
   detectCodeLanguage,
-  highlightCode,
+  highlightCodeLines,
   readCanvasCodeBlock,
   resolveCodeTheme,
   type CanvasCodeBlockData,
@@ -81,8 +81,7 @@ export function CanvasCodeBlockLayer({
         const top = (element.y + viewport.scrollY) * zoom;
         const width = Math.max(1, element.width * zoom);
         const height = Math.max(1, element.height * zoom);
-        const tokens = highlightCode(block.code, block.language);
-        const lineCount = Math.max(1, block.code.split("\n").length);
+        const highlightedLines = highlightCodeLines(block.code, block.language);
         const paddingX = CODE_BLOCK_BODY_PADDING_X * zoom;
         const paddingY = CODE_BLOCK_BODY_PADDING_Y * zoom;
         const gutterWidth = CODE_BLOCK_LINE_NUMBER_WIDTH * zoom;
@@ -136,22 +135,6 @@ export function CanvasCodeBlockLayer({
               aria-label={`Code block, ${block.language}`}
             >
               <div className="flex h-full min-h-0 overflow-y-auto overflow-x-hidden">
-                {block.lineNumbers && !editing && (
-                  <div
-                    className="shrink-0 select-none border-r text-right"
-                    style={{
-                      width: gutterWidth,
-                      paddingTop: paddingY,
-                      paddingBottom: paddingY,
-                      paddingRight: Math.max(3, 6 * zoom),
-                      color: palette.muted,
-                      borderColor: palette.border,
-                    }}
-                  >
-                    {Array.from({ length: lineCount }, (_, index) => <div key={index}>{index + 1}</div>)}
-                  </div>
-                )}
-
                 {editing ? (
                   <textarea
                     autoFocus
@@ -198,17 +181,44 @@ export function CanvasCodeBlockLayer({
                     }}
                   />
                 ) : (
-                  <pre
-                    className="m-0 min-w-0 flex-1 overflow-x-hidden font-[inherit] whitespace-pre-wrap [overflow-wrap:anywhere]"
-                    style={{ padding: `${paddingY}px ${paddingX}px`, fontSize, lineHeight: `${lineHeight}px` }}
+                  <div
+                    className="min-w-0 flex-1 overflow-x-hidden"
+                    style={{ paddingTop: paddingY, paddingBottom: paddingY }}
                     aria-label="Highlighted code"
                   >
-                    <code>
-                      {tokens.map((token, index) => (
-                        <span key={index} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
-                      ))}
-                    </code>
-                  </pre>
+                    {highlightedLines.map((lineTokens, lineIndex) => (
+                      <div
+                        key={lineIndex}
+                        className="grid min-w-0"
+                        style={{ gridTemplateColumns: block.lineNumbers ? `${gutterWidth}px minmax(0,1fr)` : "minmax(0,1fr)" }}
+                      >
+                        {block.lineNumbers && (
+                          <span
+                            className="select-none text-right"
+                            style={{ paddingRight: Math.max(3, 6 * zoom), color: palette.muted }}
+                            aria-hidden="true"
+                          >
+                            {lineIndex + 1}
+                          </span>
+                        )}
+                        <code
+                          className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
+                          style={{
+                            paddingLeft: paddingX,
+                            paddingRight: paddingX,
+                            color: palette.foreground,
+                            fontSize,
+                            lineHeight: `${lineHeight}px`,
+                          }}
+                        >
+                          {lineTokens.map((token, tokenIndex) => (
+                            <span key={tokenIndex} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
+                          ))}
+                          {lineTokens.length === 0 ? "\u200b" : null}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </section>

@@ -48,7 +48,7 @@ test.describe("Canvas chrome", () => {
     }
   });
 
-  test("code block edits, runs JavaScript locally, persists source, and keeps output ephemeral", async ({ page, request }) => {
+  test("code block actions live in the action bar and auto height follows wrapped source", async ({ page, request }) => {
     const id = await openCanvasWorkspace(page, request, `Canvas code ${Date.now()}`);
 
     try {
@@ -56,48 +56,88 @@ test.describe("Canvas chrome", () => {
       await toolbar.getByRole("button", { name: "Code block", exact: true }).click();
 
       const block = page.locator("[data-canvas-code-block]").first();
+      const actions = page.getByRole("toolbar", { name: "Code block actions" });
       await expect(block).toBeVisible();
-      await expect(block.getByRole("button", { name: "Run JavaScript" })).toBeVisible();
+      await expect(actions).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Run JavaScript" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Fit code height" })).toHaveAttribute("aria-pressed", "true");
+      await expect(block.getByRole("button", { name: "Run JavaScript" })).toHaveCount(0);
 
-      await block.getByRole("button", { name: "Edit code" }).click();
+      const initialBox = await block.boundingBox();
+      expect(initialBox?.height ?? 999).toBeLessThan(80);
+
+      const initialHeight = await expect.poll(async () => {
+        const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+          canvas: { data: { elements: Array<{ height?: number; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+        };
+        const element = stored.canvas.data.elements.find((candidate) => {
+          const customData = candidate.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined;
+          return !candidate.isDeleted && customData?.notespaceCodeBlock;
+        });
+        return {
+          height: element?.height ?? 0,
+          mode: (element?.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined)?.notespaceCodeBlock?.heightMode,
+        };
+      }).toMatchObject({ mode: "auto" });
+
+      await actions.getByRole("button", { name: "Edit code" }).click();
       const editor = block.getByRole("textbox", { name: "Edit code block" });
-      await editor.fill('console.log("worker-ok");\nreturn 42;');
-      await expect(editor).toHaveValue('console.log("worker-ok");\nreturn 42;');
+      const longValue = "abcdefghijklmnopqrstuvwxyz".repeat(12);
+      const code = `const veryLong = "${longValue}"; console.log("worker-ok"); return veryLong.length;`;
+      await editor.fill(code);
+      await expect(editor).toHaveValue(code);
       await editor.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
 
-      const output = block.getByLabel("Code output", { exact: true });
+      const output = page.getByLabel("Code output", { exact: true });
       await expect(output).toContainText("worker-ok");
-      await expect(output).toContainText("42");
+      await expect(output).toContainText(String(longValue.length));
       await expect(output).toContainText(/Done/);
+
+      await actions.getByRole("button", { name: "Finish editing" }).click();
+      const preview = block.getByLabel("Highlighted code");
+      await expect(preview).toContainText("veryLong");
+      const wrapping = await preview.evaluate((node) => ({
+        scrollWidth: node.scrollWidth,
+        clientWidth: node.clientWidth,
+        whiteSpace: getComputedStyle(node).whiteSpace,
+      }));
+      expect(wrapping.whiteSpace).toBe("pre-wrap");
+      expect(wrapping.scrollWidth).toBeLessThanOrEqual(wrapping.clientWidth + 1);
 
       await expect.poll(async () => {
         const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
-          canvas: { data: { elements: Array<{ customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+          canvas: { data: { elements: Array<{ height?: number; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
         };
         const element = stored.canvas.data.elements.find((candidate) => {
-          const customData = candidate.customData as { notespaceCodeBlock?: { code?: string } } | undefined;
-          return !candidate.isDeleted && customData?.notespaceCodeBlock?.code?.includes("worker-ok");
+          const customData = candidate.customData as { notespaceCodeBlock?: { code?: string; heightMode?: string } } | undefined;
+          return !candidate.isDeleted && customData?.notespaceCodeBlock?.code === code;
         });
-        return element?.customData;
-      }).toMatchObject({
-        notespaceCodeBlock: {
-          code: 'console.log("worker-ok");\nreturn 42;',
-          language: "javascript",
-        },
+        const metadata = element?.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined;
+        return {
+          height: element?.height ?? 0,
+          mode: metadata?.notespaceCodeBlock?.heightMode,
+        };
+      }).toEqual({
+        height: expect.any(Number),
+        mode: "auto",
       });
 
       const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
-        canvas: { data: unknown };
+        canvas: { data: { elements: Array<{ height?: number; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
       };
-      expect(JSON.stringify(stored.canvas.data)).not.toContain("worker-ok\",\"status");
+      const persisted = stored.canvas.data.elements.find((candidate) => {
+        const customData = candidate.customData as { notespaceCodeBlock?: { code?: string } } | undefined;
+        return !candidate.isDeleted && customData?.notespaceCodeBlock?.code === code;
+      });
+      expect(persisted?.height ?? 0).toBeGreaterThan(initialHeight.height);
       expect(JSON.stringify(stored.canvas.data)).not.toContain("\"stdout\"");
 
       await page.reload();
       await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
       const reloaded = page.locator("[data-canvas-code-block]").first();
       await expect(reloaded).toBeVisible();
-      await expect(reloaded.getByLabel("Highlighted code")).toContainText("worker-ok");
-      await expect(reloaded.getByLabel("Code output", { exact: true })).toHaveCount(0);
+      await expect(reloaded.getByLabel("Highlighted code")).toContainText("veryLong");
+      await expect(page.getByLabel("Code output", { exact: true })).toHaveCount(0);
     } finally {
       await cleanup(request, id);
     }

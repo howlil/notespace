@@ -48,13 +48,13 @@ Category
 
 A category owns grouping only; a workspace owns authored Note/Canvas state. Notespace no longer exposes cross-surface Send/Link relationships. The legacy references field remains wire/storage compatibility only and new authored state normalizes it to empty.
 
-Project versioning guards Workspace metadata and the legacy whole-workspace compatibility route. Canonical Notes use per-Note versions and Canvas uses its own version, so conflicts stay scoped to the resource being edited. Do not reintroduce a generic whole-workspace last-write-wins policy.
+`Project.version` is the aggregate revision/ETag for Workspace metadata and legacy whole-workspace compatibility writes. Every canonical Note/Canvas mutation advances that aggregate revision so a stale aggregate snapshot cannot overwrite newer child state. Canonical Notes still use per-Note versions and Canvas uses its own version for their write guards, so granular conflicts stay scoped to the resource being edited. Do not use the aggregate revision as the concurrency guard for granular Note/Canvas writes.
 
 ## HTTP boundary
 
 `apps/server/internal/httpapi` owns request/response mapping, validation/error translation, asset transfer, export composition, and API composition. Browser/editor-specific structures must not become routing concerns.
 
-Workspace version conflicts return HTTP 409 with `workspace_conflict`. The browser may recover automatically only when the conflicting authored difference is Canvas-only; other aggregate conflicts remain explicit.
+Legacy aggregate Workspace conflicts return HTTP 409 with `workspace_conflict`. Granular Note/Canvas writes use their own resource versions. Note conflicts remain explicit and preserve the local draft; Canvas conflicts may fetch the latest Canvas, reconcile Excalidraw elements, and retry before surfacing recovery.
 
 ## Persistence boundary
 
@@ -75,7 +75,7 @@ Current constraints:
 - legacy history tables/read-restore paths and one creation baseline remain only for backup-format compatibility;
 - image binaries live in `workspace_assets` as workspace-scoped SQLite BLOBs, so the same durable database/volume backup includes authored images;
 - browser IndexedDB is a cache and legacy migration source only;
-- global retrieval uses `workspace_search` FTS5 plus `workspace_search_meta` as a derived projection. Authored snapshots remain authoritative; stale projection rows are rebuilt lazily by workspace version/category/title;
+- global retrieval uses `workspace_search` FTS5 plus `workspace_search_meta` as a derived projection. Authored snapshots remain authoritative; stale projection rows are detected by aggregate revision/category/title plus `notes_revision`. Canvas-only writes advance the stored projection revision without rebuilding searchable Note content;
 - export includes notes, canvas metadata, and every durable workspace asset in one ZIP.
 
 Schema/data migrations are architecture-sensitive. Destructive or irreversible migrations require explicit user approval and recovery evidence.

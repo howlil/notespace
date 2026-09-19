@@ -116,7 +116,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     };
   }, []);
 
-  const onCanvasSaved = useCallback((_saved: { canvas: Snapshot }) => {
+  const onCanvasSaved = useCallback(() => {
     // Autosave owns the server version internally. Never replace the current
     // local Canvas with an older acknowledgement snapshot.
   }, []);

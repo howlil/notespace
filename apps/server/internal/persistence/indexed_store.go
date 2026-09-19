@@ -33,7 +33,7 @@ func (s *IndexedProjectStore) Create(ctx context.Context, value project.Project)
 func (s *IndexedProjectStore) Update(ctx context.Context, id string, update project.Update) (project.Project, error) {
 	// Autosave is the hottest write path. Search compares projection meta with
 	// the authored workspace version and repairs stale entries on demand, so
-	// rebuilding every note/block here only adds latency to the save response.
+	// rebuilding every note/block here only adds latency to the compatibility save response.
 	return s.Store.Update(ctx, id, update)
 }
 

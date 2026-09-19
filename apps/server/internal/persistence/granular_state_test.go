@@ -120,3 +120,50 @@ func TestGranularWorkspaceStateHasIndependentVersions(t *testing.T) {
 		t.Fatalf("reloaded canvas = %s, want %s", reloaded.Canvas.Data, canvas.Canvas.Data)
 	}
 }
+
+
+func TestGranularWriteInvalidatesStaleAggregateSnapshot(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "granular-aggregate-race.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	service := project.Service{Store: store}
+	workspace, err := service.Create(ctx, "Race guard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := workspace
+	note := workspace.Notes[0]
+
+	savedNote, err := service.UpdateNote(ctx, workspace.ID, note.ID, project.NoteUpdate{
+		Title: note.Title, Document: granularDocument("new granular content"), Version: note.Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if savedNote.Version != note.Version+1 {
+		t.Fatalf("saved note version = %d, want %d", savedNote.Version, note.Version+1)
+	}
+
+	_, err = service.Update(ctx, workspace.ID, project.Update{
+		Title: stale.Title, Document: stale.Document, Notes: stale.Notes, Canvas: stale.Canvas,
+		References: stale.References, SplitRatio: stale.SplitRatio, Version: stale.Version,
+	})
+	if !errors.Is(err, project.ErrConflict) {
+		t.Fatalf("stale aggregate write error = %v, want conflict", err)
+	}
+
+	reloaded, err := service.Get(ctx, workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Notes) != 1 || string(reloaded.Notes[0].Document.Data) != string(savedNote.Document.Data) {
+		t.Fatalf("stale aggregate write replaced granular note: %#v", reloaded.Notes)
+	}
+	if reloaded.Version <= stale.Version {
+		t.Fatalf("aggregate revision = %d, want > stale %d", reloaded.Version, stale.Version)
+	}
+}

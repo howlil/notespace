@@ -64,6 +64,7 @@ test.describe("Canvas chrome", () => {
       await page.mouse.down();
       await page.mouse.move(bounds.x + 700, bounds.y + 450, { steps: 8 });
       await page.mouse.up();
+      await page.keyboard.press("Control+K");
 
       const linkInput = page.getByPlaceholder("Type or paste your link here");
       await expect(linkInput).toBeVisible();

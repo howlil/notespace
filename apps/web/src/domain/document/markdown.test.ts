@@ -83,6 +83,18 @@ test("markdown image export replaces Notespace asset URLs with supplied portable
   assert.equal(snapshotToMarkdown(snapshot), "[Image: diagram]\n\n[Image: diagram duplicate]\n");
 });
 
+test("markdown export keeps Canvas frame references readable", () => {
+  const snapshot = {
+    format: "tiptap" as const,
+    version: 1,
+    data: {
+      type: "doc",
+      content: [{ type: "canvasFrameLink", attrs: { frameId: "frame 1", label: "Architecture" } }],
+    },
+  };
+  assert.equal(snapshotToMarkdown(snapshot), "[Canvas frame: Architecture](notespace://canvas/frame/frame%201)\n");
+});
+
 test("quick capture derives a compact title from markdown", () => {
   assert.equal(captureTitle("## MVCC in PostgreSQL\nnotes"), "MVCC in PostgreSQL");
   assert.equal(captureTitle("- review WAL internals"), "review WAL internals");

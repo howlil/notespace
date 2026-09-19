@@ -74,20 +74,18 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A 1 MiB note is duplicated in the current aggregate's document/notes
-	// compatibility fields, deliberately exercising a >2 MiB authored row.
+	// Exercise the production hot path directly: one large Note autosave must
+	// update only that Note row, not duplicate the full Workspace aggregate.
 	const iterations = 12
 	const documentBytes = 1 << 20
 	saves := make([]time.Duration, 0, iterations)
 	searches := make([]time.Duration, 0, iterations)
+	note := workspace.Notes[0]
 	for i := 0; i < iterations; i++ {
 		document := scaleDocument(i, documentBytes)
-		notes := append([]project.Note(nil), workspace.Notes...)
-		notes[0].Document = document
 		started := time.Now()
-		workspace, err = service.Update(ctx, workspace.ID, project.Update{
-			Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas,
-			References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version,
+		note, err = service.UpdateNote(ctx, workspace.ID, note.ID, project.NoteUpdate{
+			Title: note.Title, Document: document, Version: note.Version,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -101,7 +99,11 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 	}
 
 	var authoredBytes int64
-	if err := store.db.QueryRowContext(ctx, `SELECT length(document_state)+length(notes_state)+length(canvas_state)+length(references_state) FROM projects WHERE id=?`, workspace.ID).Scan(&authoredBytes); err != nil {
+	if err := store.db.QueryRowContext(ctx, `SELECT
+COALESCE((SELECT SUM(length(title)+length(document_state)) FROM workspace_notes WHERE workspace_id=?),0)
++ COALESCE((SELECT length(canvas_state) FROM workspace_canvas WHERE workspace_id=?),0)
++ COALESCE((SELECT length(title)+length(references_state) FROM projects WHERE id=?),0)`,
+		workspace.ID, workspace.ID, workspace.ID).Scan(&authoredBytes); err != nil {
 		t.Fatal(err)
 	}
 	backup, err := store.ExportBackupArchiveAtomic(ctx)
@@ -110,9 +112,9 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 	}
 	saveP50, saveP95 := percentile(saves, .50), percentile(saves, .95)
 	searchP50, searchP95 := percentile(searches, .50), percentile(searches, .95)
-	decision := "defer"
-	if authoredBytes > 2<<20 && saveP95 > 250*time.Millisecond {
-		decision = "normalization-candidate"
+	decision := "granular"
+	if saveP95 > 250*time.Millisecond {
+		decision = "investigate-granular-write-latency"
 	}
 	evidence := scaleEvidence{
 		AuthoredBytes: authoredBytes, DatabaseBytes: fileSize(dbPath), WALBytes: fileSize(dbPath + "-wal"), BackupBytes: int64(len(backup)),

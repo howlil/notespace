@@ -56,6 +56,7 @@ func (s Service) hydrateGranularState(ctx context.Context, value Project) (Proje
 	}
 	if len(notes) > 0 {
 		value.Notes = notes
+		value.Document = notes[0].Document
 	}
 	canvas, err := store.GetCanvasState(ctx, value.ID)
 	if err != nil {

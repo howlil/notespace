@@ -257,6 +257,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     setHasElements(elements.length > 0);
+    setOverlayElements(elements);
     api.current.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
     lastExternalScene.current = signature;
   }, [initial, updateDiagramState]);
@@ -278,6 +279,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     setBackgroundColor(state.viewBackgroundColor);
     const selected = selectedIds[0] ?? null;
+    setSelectedElementId(selected);
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
     setHasElements(elements.some((element) => !element.isDeleted));
 
@@ -315,9 +317,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
     setCanvasApi(value);
-    setZoom(value.getAppState().zoom.value);
-    setGridModeEnabled(value.getAppState().gridModeEnabled);
-    setObjectsSnapModeEnabled(value.getAppState().objectsSnapModeEnabled);
+    const state = value.getAppState();
+    setZoom(state.zoom.value);
+    setCanvasViewport({ zoom: state.zoom.value, scrollX: state.scrollX, scrollY: state.scrollY });
+    setOverlayElements(value.getSceneElementsIncludingDeleted());
+    setGridModeEnabled(state.gridModeEnabled);
+    setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     void restoreLocalFiles(value);
   }, [restoreLocalFiles]);
 
@@ -502,6 +507,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           onDiagramToggle={() => { setMoreOpen(false); setDiagramOpen((open) => !open); }}
           onMoreToggle={() => { setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
+          onInsertCodeBlock={insertCodeBlock}
           onBackgroundChange={setCanvasBackground}
           onAction={runCanvasAction}
           diagramPanel={(
@@ -528,8 +534,17 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           )}
         />
       </div>
+      <CanvasCodeBlockLayer
+        elements={overlayElements}
+        viewport={canvasViewport}
+        appDark={dark}
+        selectedElementId={selectedElementId}
+        onUpdate={updateCodeBlock}
+      />
       <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
-      <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
+      {!readCanvasCodeBlock(overlayElements.find((element) => element.id === selectedElementId)) && (
+        <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
+      )}
       <CanvasFlowchartHandles
         anchor={flowchartAnchor}
         previewDirection={flowchartPreviewDirection}

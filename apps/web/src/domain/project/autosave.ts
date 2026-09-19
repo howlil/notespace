@@ -38,7 +38,7 @@ export function transitionSaveStatus(status: SaveStatus, event: SaveEvent): Save
 }
 
 /**
- * One in-flight write per workspace. Quiet edits debounce normally, while
+ * One in-flight write per Autosave instance/resource. Quiet edits debounce normally, while
  * continuous edits are checkpointed at maxWait so drag-heavy canvas work
  * cannot starve persistence indefinitely. Pending edits always coalesce to the
  * newest snapshot.

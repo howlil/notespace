@@ -66,19 +66,25 @@ test.describe("Canvas chrome", () => {
       const initialBox = await block.boundingBox();
       expect(initialBox?.height ?? 999).toBeLessThan(80);
 
-      const initialHeight = await expect.poll(async () => {
+      await expect.poll(async () => {
         const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
-          canvas: { data: { elements: Array<{ height?: number; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+          canvas: { data: { elements: Array<{ customData?: Record<string, unknown>; isDeleted?: boolean }> } };
         };
         const element = stored.canvas.data.elements.find((candidate) => {
           const customData = candidate.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined;
           return !candidate.isDeleted && customData?.notespaceCodeBlock;
         });
-        return {
-          height: element?.height ?? 0,
-          mode: (element?.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined)?.notespaceCodeBlock?.heightMode,
-        };
-      }).toMatchObject({ mode: "auto" });
+        return (element?.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined)?.notespaceCodeBlock?.heightMode;
+      }).toBe("auto");
+
+      const initialStored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ height?: number; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+      };
+      const initialElement = initialStored.canvas.data.elements.find((candidate) => {
+        const customData = candidate.customData as { notespaceCodeBlock?: unknown } | undefined;
+        return !candidate.isDeleted && customData?.notespaceCodeBlock;
+      });
+      const initialHeight = initialElement?.height ?? 0;
 
       await actions.getByRole("button", { name: "Edit code" }).click();
       const editor = block.getByRole("textbox", { name: "Edit code block" });
@@ -129,7 +135,7 @@ test.describe("Canvas chrome", () => {
         const customData = candidate.customData as { notespaceCodeBlock?: { code?: string } } | undefined;
         return !candidate.isDeleted && customData?.notespaceCodeBlock?.code === code;
       });
-      expect(persisted?.height ?? 0).toBeGreaterThan(initialHeight.height);
+      expect(persisted?.height ?? 0).toBeGreaterThan(initialHeight);
       expect(JSON.stringify(stored.canvas.data)).not.toContain("\"stdout\"");
 
       await page.reload();

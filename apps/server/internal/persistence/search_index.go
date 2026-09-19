@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode"
@@ -14,8 +13,8 @@ type staleSearchWorkspace struct {
 	ID         string
 	CategoryID string
 	Title      string
-	NotesJSON  string
-	Version    int
+	Version       int
+	NotesRevision int
 }
 
 type searchBlock struct {
@@ -79,16 +78,16 @@ func (s *Store) syncSearchIndex(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.notes_state,p.version
+	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.version,p.notes_revision
 FROM projects p LEFT JOIN workspace_search_meta m ON m.workspace_id=p.id
-WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title`)
+WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title OR m.notes_revision<>p.notes_revision`)
 	if err != nil {
 		return err
 	}
 	stale := []staleSearchWorkspace{}
 	for rows.Next() {
 		var value staleSearchWorkspace
-		if err := rows.Scan(&value.ID, &value.CategoryID, &value.Title, &value.NotesJSON, &value.Version); err != nil {
+		if err := rows.Scan(&value.ID, &value.CategoryID, &value.Title, &value.Version, &value.NotesRevision); err != nil {
 			rows.Close()
 			return err
 		}
@@ -113,8 +112,8 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, "", "", "", value.Title, ""); err != nil {
 			return err
 		}
-		var notes []project.Note
-		if err := json.Unmarshal([]byte(value.NotesJSON), &notes); err != nil {
+		notes, err := listGranularNotes(ctx, tx, value.ID)
+		if err != nil {
 			return fmt.Errorf("index workspace %s notes: %w", value.ID, err)
 		}
 		for _, note := range notes {
@@ -127,8 +126,8 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 				}
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
-ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.ID, value.Version, value.CategoryID, value.Title); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title,notes_revision) VALUES (?,?,?,?,?)
+ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title,notes_revision=excluded.notes_revision`, value.ID, value.Version, value.CategoryID, value.Title, value.NotesRevision); err != nil {
 			return err
 		}
 	}

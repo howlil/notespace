@@ -3,6 +3,7 @@ import { common, createLowlight } from "lowlight";
 export const CODE_BLOCK_DATA_KEY = "notespaceCodeBlock";
 
 export type CodeBlockTheme = "auto" | "light" | "dark";
+export type CodeBlockHeightMode = "auto" | "manual";
 
 export type CanvasCodeBlockData = {
   version: 1;
@@ -11,6 +12,7 @@ export type CanvasCodeBlockData = {
   languageLocked: boolean;
   theme: CodeBlockTheme;
   lineNumbers: boolean;
+  heightMode: CodeBlockHeightMode;
 };
 
 export type HighlightToken = {
@@ -77,7 +79,7 @@ export function detectCodeLanguage(code: string) {
 }
 
 export function defaultCanvasCodeBlock(): CanvasCodeBlockData {
-  const code = "const x = 1;\nconsole.log(x);";
+  const code = "const x = 1;";
   return {
     version: 1,
     code,
@@ -85,23 +87,36 @@ export function defaultCanvasCodeBlock(): CanvasCodeBlockData {
     languageLocked: false,
     theme: "auto",
     lineNumbers: true,
+    heightMode: "auto",
   };
 }
 
-function isCodeBlockData(value: unknown): value is CanvasCodeBlockData {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+function normalizeCodeBlockData(value: unknown): CanvasCodeBlockData | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const data = value as Partial<CanvasCodeBlockData>;
-  return data.version === 1
-    && typeof data.code === "string"
-    && typeof data.language === "string"
-    && typeof data.languageLocked === "boolean"
-    && (data.theme === "auto" || data.theme === "light" || data.theme === "dark")
-    && typeof data.lineNumbers === "boolean";
+  if (
+    data.version !== 1
+    || typeof data.code !== "string"
+    || typeof data.language !== "string"
+    || typeof data.languageLocked !== "boolean"
+    || (data.theme !== "auto" && data.theme !== "light" && data.theme !== "dark")
+    || typeof data.lineNumbers !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    version: 1,
+    code: data.code,
+    language: data.language,
+    languageLocked: data.languageLocked,
+    theme: data.theme,
+    lineNumbers: data.lineNumbers,
+    heightMode: data.heightMode === "manual" ? "manual" : "auto",
+  };
 }
 
 export function readCanvasCodeBlock(element: { customData?: Record<string, unknown> } | null | undefined) {
-  const value = element?.customData?.[CODE_BLOCK_DATA_KEY];
-  return isCodeBlockData(value) ? value : null;
+  return normalizeCodeBlockData(element?.customData?.[CODE_BLOCK_DATA_KEY]);
 }
 
 export function withCanvasCodeBlock(
@@ -152,6 +167,18 @@ export function highlightCode(code: string, language: string) {
   } catch {
     return [{ text: code, classes: [] }] satisfies HighlightToken[];
   }
+}
+
+export function highlightCodeLines(code: string, language: string) {
+  const lines: HighlightToken[][] = [[]];
+  for (const token of highlightCode(code, language)) {
+    const parts = token.text.split("\n");
+    parts.forEach((part, index) => {
+      if (part) lines[lines.length - 1].push({ text: part, classes: token.classes });
+      if (index < parts.length - 1) lines.push([]);
+    });
+  }
+  return lines;
 }
 
 export function resolveCodeTheme(theme: CodeBlockTheme, appDark: boolean): "light" | "dark" {

@@ -8,7 +8,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
@@ -24,8 +24,10 @@ import {
 import { useToast } from "../../providers/toast-provider";
 import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { directionFromKey } from "./CanvasDirectionalSpawn";
+import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
-import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { defaultCanvasCodeBlock, detectCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
@@ -33,6 +35,7 @@ import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
 import { useCanvasAssets } from "./use-canvas-assets";
 import { useCanvasFlowchart } from "./use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./use-canvas-diagram-commands";
+import { useCanvasCodeRunner } from "./use-canvas-code-runner";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -101,6 +104,16 @@ function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly 
   return [...merged.values()];
 }
 
+function codeGeometryMap(elements: readonly OrderedExcalidrawElement[]) {
+  const geometry = new Map<string, { width: number; height: number }>();
+  for (const element of elements) {
+    if (!element.isDeleted && readCanvasCodeBlock(element)) {
+      geometry.set(element.id, { width: element.width, height: element.height });
+    }
+  }
+  return geometry;
+}
+
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
   const { showToast } = useToast();
   const [initialData] = useState(() => {
@@ -117,7 +130,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [hasElements, setHasElements] = useState(() => initialElements.length > 0);
   const [overlayElements, setOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialElements);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState({ zoom: 1, scrollX: 0, scrollY: 0 });
+  const codeGeometryRef = useRef(codeGeometryMap(initialElements));
+  const expectedAutoFitHeightRef = useRef(new Map<string, number>());
   const [backgroundColor, setBackgroundColor] = useState(() => {
     const appState = objectValue(initial.data.appState);
     return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : (dark ? "#1d1e24" : "#f8f9fc");
@@ -143,6 +159,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
+  const liveCodeElementIds = useMemo(
+    () => overlayElements.filter((element) => !element.isDeleted && readCanvasCodeBlock(element)).map((element) => element.id),
+    [overlayElements],
+  );
+  const { runs: codeRuns, runBlock: runCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeElementIds);
 
   const closeCanvasPopovers = useCallback(() => {
     setMoreOpen(false);
@@ -224,6 +245,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     setHasElements(mergedElements.some((element) => !element.isDeleted));
+    codeGeometryRef.current = codeGeometryMap(mergedElements);
+    expectedAutoFitHeightRef.current.clear();
     setOverlayElements(mergedElements);
 
     value.updateScene({
@@ -261,6 +284,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
     setHasElements(elements.length > 0);
+    codeGeometryRef.current = codeGeometryMap(elements);
+    expectedAutoFitHeightRef.current.clear();
     setOverlayElements(elements);
     api.current.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
     lastExternalScene.current = signature;
@@ -280,29 +305,61 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setSelectedElementCount(selectedIds.length);
     setZoom(state.zoom.value);
     setCanvasViewport({ zoom: state.zoom.value, scrollX: state.scrollX, scrollY: state.scrollY });
-    setOverlayElements(elements);
+
+    let authoredElements = elements;
+    let normalizedManualResize = false;
+    const previousGeometry = codeGeometryRef.current;
+    authoredElements = elements.map((element) => {
+      const block = readCanvasCodeBlock(element);
+      if (!block || element.isDeleted) return element;
+      const previous = previousGeometry.get(element.id);
+      const expectedHeight = expectedAutoFitHeightRef.current.get(element.id);
+      const autoFitAcknowledged = expectedHeight !== undefined && !codeBlockHeightChanged(expectedHeight, element.height);
+      if (autoFitAcknowledged) {
+        expectedAutoFitHeightRef.current.delete(element.id);
+        return element;
+      }
+      if (shouldSwitchCodeBlockToManualHeight({
+        heightMode: block.heightMode,
+        previousHeight: previous?.height,
+        currentHeight: element.height,
+        expectedAutoFitHeight: expectedHeight,
+      })) {
+        normalizedManualResize = true;
+        return newElementWith(element, {
+          customData: withCanvasCodeBlock(element.customData, { ...block, heightMode: "manual" }),
+        });
+      }
+      return element;
+    }) as readonly OrderedExcalidrawElement[];
+
+    codeGeometryRef.current = codeGeometryMap(authoredElements);
+    setOverlayElements(authoredElements);
+    if (normalizedManualResize) {
+      api.current?.updateScene({ elements: authoredElements, captureUpdate: CaptureUpdateAction.NEVER });
+    }
     setGridModeEnabled(state.gridModeEnabled);
     setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     setBackgroundColor(state.viewBackgroundColor);
     const selected = selectedIds[0] ?? null;
     setSelectedElementId(selected);
     if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
-    setHasElements(elements.some((element) => !element.isDeleted));
+    setHasElements(authoredElements.some((element) => !element.isDeleted));
 
-    const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, elements);
-    const nextDiagramSelection = selectionForElements(nextDiagrams, selectedIds, elements);
+    const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, authoredElements);
+    const nextDiagramSelection = selectionForElements(nextDiagrams, selectedIds, authoredElements);
     updateDiagramState(nextDiagrams);
     updateDiagramSelection(nextDiagramSelection);
 
     syncFlowchartSelection(
-      elements,
+      authoredElements,
       state,
       selectedIds,
       nextDiagramSelection.nodeIds.length > 0,
     );
 
     const data = {
-      elements,
+      elements: authoredElements,
       appState: persistedAppState(state),
       files: {},
       [DIAGRAM_DATA_KEY]: nextDiagrams,
@@ -326,7 +383,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const state = value.getAppState();
     setZoom(state.zoom.value);
     setCanvasViewport({ zoom: state.zoom.value, scrollX: state.scrollX, scrollY: state.scrollY });
-    setOverlayElements(value.getSceneElementsIncludingDeleted());
+    const initializedElements = value.getSceneElementsIncludingDeleted();
+    codeGeometryRef.current = codeGeometryMap(initializedElements);
+    setOverlayElements(initializedElements);
     setGridModeEnabled(state.gridModeEnabled);
     setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     void restoreLocalFiles(value);
@@ -368,11 +427,27 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const value = api.current;
     if (!value) return;
     const elements = value.getSceneElementsIncludingDeleted().map((element) => {
-      if (element.id !== elementId || !readCanvasCodeBlock(element)) return element;
+      if (element.id !== elementId) return element;
+      const previous = readCanvasCodeBlock(element);
+      if (!previous) return element;
+      if (previous.code !== block.code || previous.language !== block.language) clearCodeRun(elementId);
       return newElementWith(element, {
         customData: withCanvasCodeBlock(element.customData, block),
       });
     }) as OrderedExcalidrawElement[];
+    value.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+  }, [clearCodeRun]);
+
+  const autoFitCodeBlock = useCallback((elementId: string, targetHeight: number) => {
+    const value = api.current;
+    if (!value) return;
+    const current = value.getSceneElementsIncludingDeleted().find((element) => element.id === elementId);
+    const block = current ? readCanvasCodeBlock(current) : null;
+    if (!current || !block || block.heightMode !== "auto" || !codeBlockHeightChanged(current.height, targetHeight)) return;
+    expectedAutoFitHeightRef.current.set(elementId, targetHeight);
+    const elements = value.getSceneElementsIncludingDeleted().map((element) => (
+      element.id === elementId ? newElementWith(element, { height: targetHeight }) : element
+    )) as OrderedExcalidrawElement[];
     value.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
   }, []);
 
@@ -383,8 +458,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const bounds = surfaceRef.current?.getBoundingClientRect();
     const viewportWidth = bounds?.width ?? 900;
     const viewportHeight = bounds?.height ?? 600;
-    const width = 360;
-    const height = 200;
+    const width = CODE_BLOCK_DEFAULT_WIDTH;
+    const height = codeBlockMinimumHeight();
     const x = viewportWidth / (2 * state.zoom.value) - state.scrollX - width / 2;
     const y = viewportHeight / (2 * state.zoom.value) - state.scrollY - height / 2;
     const block = defaultCanvasCodeBlock();
@@ -483,6 +558,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [commitNativeFlowchartPreview, flowchartPreviewDirection]);
 
   useEffect(() => {
+    if (editingCodeBlockId && !liveCodeElementIds.includes(editingCodeBlockId)) setEditingCodeBlockId(null);
+  }, [editingCodeBlockId, liveCodeElementIds]);
+
+  useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);
     window.addEventListener("keyup", handleDirectionalSpawnKeyUp, true);
     return () => {
@@ -545,12 +624,53 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         viewport={canvasViewport}
         appDark={dark}
         selectedElementId={selectedElementId}
+        editingElementId={editingCodeBlockId}
+        runs={codeRuns}
         onUpdate={updateCodeBlock}
+        onEditingChange={setEditingCodeBlockId}
+        onRun={runCodeBlock}
+        onClearRun={clearCodeRun}
+        onAutoFit={autoFitCodeBlock}
       />
       <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
-      {!readCanvasCodeBlock(overlayElements.find((element) => element.id === selectedElementId)) && (
-        <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />
-      )}
+      {(() => {
+        const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
+        const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
+        if (selectedCodeElement && selectedCodeBlock) {
+          const editing = editingCodeBlockId === selectedCodeElement.id;
+          return (
+            <CanvasCodeBlockActions
+              block={selectedCodeBlock}
+              appDark={dark}
+              run={codeRuns[selectedCodeElement.id]}
+              editing={editing}
+              onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
+              onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
+              onStop={() => stopCodeRun(selectedCodeElement.id)}
+              onEdit={() => {
+                if (editing) {
+                  if (!selectedCodeBlock.languageLocked) {
+                    updateCodeBlock(selectedCodeElement.id, {
+                      ...selectedCodeBlock,
+                      language: detectCodeLanguage(selectedCodeBlock.code),
+                    });
+                  }
+                  setEditingCodeBlockId(null);
+                } else {
+                  setEditingCodeBlockId(selectedCodeElement.id);
+                }
+              }}
+              onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
+              onDelete={() => {
+                clearCodeRun(selectedCodeElement.id);
+                setEditingCodeBlockId(null);
+                runCanvasAction("deleteSelectedElements");
+              }}
+            />
+          );
+        }
+        return <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />;
+      })()}
       <CanvasFlowchartHandles
         anchor={flowchartAnchor}
         previewDirection={flowchartPreviewDirection}

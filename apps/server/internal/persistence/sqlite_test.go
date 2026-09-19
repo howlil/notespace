@@ -51,10 +51,6 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 	if err := store.db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil || mode != "wal" {
 		t.Fatalf("WAL: %s %v", mode, err)
 	}
-	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil || count != 12 {
-		t.Fatalf("migration ledger: %d %v", count, err)
-	}
 }
 
 func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Snapshot } from "../../domain/project/project.ts";
 import {
+  MAX_FRAME_PREVIEW_ELEMENTS,
   canvasFrameLinkFromClipboard,
   canvasFrameLinkFromSnapshot,
   listCanvasFrameLinks,
@@ -71,4 +72,79 @@ test("ordinary text and multi-frame clipboard payloads are not converted into fr
       { id: "frame-2", type: "frame" },
     ],
   }), canvas()), null);
+});
+
+
+test("large Canvas frames keep exact object counts while bounding serialized preview elements", () => {
+  const childCount = MAX_FRAME_PREVIEW_ELEMENTS * 4;
+  const snapshot: Snapshot = {
+    format: "excalidraw",
+    version: 1,
+    data: {
+      elements: [
+        { id: "frame-large", type: "frame", name: "Large frame", x: 0, y: 0, width: 1200, height: 900, isDeleted: false },
+        ...Array.from({ length: childCount }, (_, index) => ({
+          id: `child-${index}`,
+          type: "rectangle",
+          x: index % 40 * 20,
+          y: Math.floor(index / 40) * 20,
+          width: 16,
+          height: 16,
+          angle: 0,
+          strokeColor: "#111111",
+          backgroundColor: "#ffffff",
+          strokeWidth: 1,
+          frameId: "frame-large",
+          isDeleted: false,
+        })),
+      ],
+      appState: {},
+      files: {},
+    },
+  };
+
+  const link = canvasFrameLinkFromSnapshot(snapshot, "frame-large");
+  assert.ok(link);
+  assert.equal(link.elementCount, childCount);
+  assert.equal(link.elements.length, MAX_FRAME_PREVIEW_ELEMENTS);
+  assert.equal(new Set(link.elements.map((element) => element.id)).size, MAX_FRAME_PREVIEW_ELEMENTS);
+});
+
+test("frame listing resolves many frames from one shared Canvas index", () => {
+  const frameCount = 80;
+  const childrenPerFrame = 12;
+  const snapshot: Snapshot = {
+    format: "excalidraw",
+    version: 1,
+    data: {
+      elements: Array.from({ length: frameCount }, (_, frameIndex) => [
+        {
+          id: `frame-${frameIndex}`,
+          type: "frame",
+          name: `Frame ${frameIndex}`,
+          x: frameIndex * 10,
+          y: frameIndex * 10,
+          width: 300,
+          height: 200,
+          isDeleted: false,
+        },
+        ...Array.from({ length: childrenPerFrame }, (_, childIndex) => ({
+          id: `frame-${frameIndex}-child-${childIndex}`,
+          type: "rectangle",
+          x: frameIndex * 10 + childIndex,
+          y: frameIndex * 10 + childIndex,
+          width: 10,
+          height: 10,
+          frameId: `frame-${frameIndex}`,
+          isDeleted: false,
+        })),
+      ]).flat(),
+      appState: {},
+      files: {},
+    },
+  };
+
+  const frames = listCanvasFrameLinks(snapshot);
+  assert.equal(frames.length, frameCount);
+  assert.ok(frames.every((frame) => frame.elementCount === childrenPerFrame));
 });

@@ -297,7 +297,7 @@ test("workspace contract: bounded panes keep legacy Send/Link removed while expl
   assert.match(editor, /aria-label="Canvas frames"/);
   assert.match(editor, /createCanvasFrameLinkExtension/);
   assert.match(frameLink, /parsed\.type !== "excalidraw\/clipboard"/);
-  assert.match(frameLink, /element\.frameId === frameId/);
+  assert.match(frameLink, /belongsToFrame/); assert.match(frameLink, /parentId === frameId/);
   assert.match(frameNode, /data-canvas-frame-link/);
   assert.match(frameNode, /Open canvas frame/);
   assert.match(frameNode, /Preview of/);

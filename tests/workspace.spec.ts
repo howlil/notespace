@@ -54,6 +54,7 @@ function frameCanvasSnapshot() {
       elements: [
         { ...base, id: "frame-architecture", type: "frame", x: 120, y: 90, width: 440, height: 260, frameId: null, index: "a0", name: "Architecture" },
         { ...base, id: "service-box", type: "rectangle", x: 180, y: 145, width: 180, height: 90, frameId: "frame-architecture", index: "a1", backgroundColor: "#e8eef6" },
+        { ...base, id: "service-logo", type: "image", x: 390, y: 155, width: 64, height: 64, frameId: "frame-architecture", index: "a2", fileId: "asset-frame-logo", status: "saved", scale: [1, 1], crop: null },
       ],
       appState: { viewBackgroundColor: "#f8f9fc" },
       files: {},
@@ -308,6 +309,12 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
   const id = await createViaAPI(page, request, `Frame link ${Date.now()}`);
 
   try {
+    const assetUpload = await request.put(`/api/workspaces/${id}/assets/asset-frame-logo`, {
+      headers: { "Content-Type": "image/svg+xml" },
+      data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#ef4444"/><rect x="8" y="8" width="16" height="16" fill="#ffffff"/></svg>'),
+    });
+    expect(assetUpload.status()).toBe(204);
+
     const current = await (await request.get(`/api/workspaces/${id}`)).json() as { canvasVersion: number };
     const canvasUpdate = await request.patch(`/api/workspaces/${id}/canvas`, {
       data: { canvas: frameCanvasSnapshot(), version: current.canvasVersion },
@@ -329,7 +336,10 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     const preview = page.getByRole("button", { name: "Open canvas frame Architecture" });
     await expect(preview).toHaveCount(1);
     await expect(page.getByRole("img", { name: "Preview of Architecture" })).toBeVisible();
-    await expect(preview.getByText("1 object", { exact: true })).toBeVisible();
+    await expect(preview.getByText("2 objects", { exact: true })).toBeVisible();
+    const previewImage = preview.locator('image[data-canvas-frame-preview-image="service-logo"]');
+    await expect(previewImage).toHaveCount(1);
+    await expect(previewImage).toHaveAttribute("href", /^blob:/);
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
     await preview.click();

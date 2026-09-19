@@ -13,6 +13,8 @@ export type CanvasFramePreviewElement = {
   strokeWidth: number;
   text?: string;
   fontSize?: number;
+  fileId?: string;
+  scale?: [number, number];
   points?: Array<[number, number]>;
 };
 
@@ -73,6 +75,10 @@ function previewElement(element: RawElement, frameX: number, frameY: number): Ca
     strokeWidth: Math.max(1, finite(element.strokeWidth, 1)),
     ...(textValue(element) ? { text: textValue(element)?.slice(0, 240) } : {}),
     ...(typeof element.fontSize === "number" ? { fontSize: Math.max(8, Math.min(48, element.fontSize)) } : {}),
+    ...(typeof element.fileId === "string" && element.fileId ? { fileId: element.fileId } : {}),
+    ...(Array.isArray(element.scale) && element.scale.length >= 2
+      ? { scale: [finite(element.scale[0], 1), finite(element.scale[1], 1)] as [number, number] }
+      : {}),
     ...(pointsValue(element, frameX, frameY)?.length ? { points: pointsValue(element, frameX, frameY) } : {}),
   };
 }

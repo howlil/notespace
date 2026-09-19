@@ -435,7 +435,7 @@ export default function DocumentEditor({
       StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true, tabSize: 2 }),
       createLocalImageExtension(workspaceId),
-      createCanvasFrameLinkExtension((frameId) => openCanvasFrameRef.current?.(frameId)),
+      createCanvasFrameLinkExtension(workspaceId, (frameId) => openCanvasFrameRef.current?.(frameId)),
       TaskList,
       TaskItem.configure({
         nested: true,

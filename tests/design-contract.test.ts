@@ -307,6 +307,12 @@ test("workspace contract: bounded panes keep legacy Send/Link removed while expl
   assert.match(frameNode, /data-canvas-frame-link/);
   assert.match(frameNode, /Open canvas frame/);
   assert.match(frameNode, /Preview of/);
+  assert.match(frameLink, /fileId\?: string/);
+  assert.match(frameNode, /loadImageAsset/);
+  assert.match(frameNode, /data-canvas-frame-preview-image/);
+  assert.match(frameNode, /URL\.createObjectURL/);
+  assert.match(frameNode, /URL\.revokeObjectURL/);
+  assert.match(editor, /createCanvasFrameLinkExtension\(workspaceId/);
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {

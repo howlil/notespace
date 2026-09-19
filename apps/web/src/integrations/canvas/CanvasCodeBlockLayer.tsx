@@ -184,7 +184,6 @@ export function CanvasCodeBlockLayer({
                   <div
                     className="min-w-0 flex-1 overflow-x-hidden"
                     style={{ paddingTop: paddingY, paddingBottom: paddingY }}
-                    aria-label="Highlighted code"
                   >
                     {highlightedLines.map((lineTokens, lineIndex) => (
                       <div
@@ -202,7 +201,8 @@ export function CanvasCodeBlockLayer({
                           </span>
                         )}
                         <code
-                          className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
+                          className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
+                          aria-label={lineIndex === 0 ? "Highlighted code" : undefined}
                           style={{
                             paddingLeft: paddingX,
                             paddingRight: paddingX,

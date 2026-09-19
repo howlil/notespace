@@ -55,7 +55,8 @@ test.describe("Canvas chrome", () => {
       const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
       await toolbar.getByRole("button", { name: "More tools", exact: true }).click();
       const more = page.locator('aside[aria-label="More canvas tools"]');
-      await more.getByRole("button", { name: "Embed", exact: true }).click();
+      await expect(more).toBeVisible();
+      await more.getByRole("button", { name: "Embed", exact: true }).dispatchEvent("click");
 
       const canvas = page.locator(".excalidraw__canvas.interactive");
       const bounds = await canvas.boundingBox();

@@ -27,7 +27,7 @@ import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
 import { defaultCanvasCodeBlock, detectCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
-import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./canvas-code-block-layout";
+import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
@@ -319,7 +319,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         expectedAutoFitHeightRef.current.delete(element.id);
         return element;
       }
-      if (previous && block.heightMode === "auto" && codeBlockHeightChanged(previous.height, element.height)) {
+      if (shouldSwitchCodeBlockToManualHeight({
+        heightMode: block.heightMode,
+        previousHeight: previous?.height,
+        currentHeight: element.height,
+        expectedAutoFitHeight: expectedHeight,
+      })) {
         normalizedManualResize = true;
         return newElementWith(element, {
           customData: withCanvasCodeBlock(element.customData, { ...block, heightMode: "manual" }),

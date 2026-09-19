@@ -14,6 +14,15 @@ type rowsQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
+type rowQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type granularQueryer interface {
+	rowsQueryer
+	rowQueryer
+}
+
 func listGranularNotes(ctx context.Context, q rowsQueryer, workspaceID string) ([]project.Note, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id,title,document_state,created_at,updated_at,version
 FROM workspace_notes WHERE workspace_id=? ORDER BY created_at,id`, workspaceID)
@@ -68,6 +77,27 @@ func (s *Store) GetCanvasState(ctx context.Context, workspaceID string) (project
 		`SELECT canvas_state,version,updated_at FROM workspace_canvas WHERE workspace_id=?`,
 		workspaceID,
 	))
+}
+
+func hydrateGranularProject(ctx context.Context, q granularQueryer, value project.Project) (project.Project, error) {
+	notes, err := listGranularNotes(ctx, q, value.ID)
+	if err != nil {
+		return project.Project{}, err
+	}
+	if len(notes) > 0 {
+		value.Notes = notes
+		value.Document = notes[0].Document
+	}
+	canvas, err := canvasStateFromRow(q.QueryRowContext(ctx,
+		`SELECT canvas_state,version,updated_at FROM workspace_canvas WHERE workspace_id=?`,
+		value.ID,
+	))
+	if err != nil {
+		return project.Project{}, err
+	}
+	value.Canvas = canvas.Canvas
+	value.CanvasVersion = canvas.Version
+	return value, nil
 }
 
 func insertGranularStateTx(ctx context.Context, tx *sql.Tx, workspace project.Project) error {
@@ -168,33 +198,6 @@ ON CONFLICT(workspace_id) DO UPDATE SET
 	return err
 }
 
-func syncLegacyNotesTx(ctx context.Context, tx *sql.Tx, workspaceID, updatedAt string) error {
-	notes, err := listGranularNotes(ctx, tx, workspaceID)
-	if err != nil {
-		return err
-	}
-	if len(notes) == 0 {
-		return project.ErrInvalid
-	}
-	legacyNotes, err := json.Marshal(notes)
-	if err != nil {
-		return err
-	}
-	legacyDocument, err := json.Marshal(notes[0].Document)
-	if err != nil {
-		return err
-	}
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET notes_state=?,document_state=?,updated_at=? WHERE id=?`,
-		legacyNotes, legacyDocument, updatedAt, workspaceID)
-	if err != nil {
-		return err
-	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		return project.ErrNotFound
-	}
-	return nil
-}
-
 func (s *Store) CreateNote(ctx context.Context, workspaceID string, input project.NoteCreate) (project.Note, error) {
 	document, err := json.Marshal(input.Document)
 	if err != nil {
@@ -225,7 +228,7 @@ func (s *Store) CreateNote(ctx context.Context, workspaceID string, input projec
 VALUES (?,?,?,?,?,?,1)`, workspaceID, input.ID, input.Title, document, now, now); err != nil {
 		return project.Note{}, err
 	}
-	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return project.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -274,7 +277,7 @@ RETURNING id,title,document_state,created_at,updated_at,version`,
 		return project.Note{}, err
 	}
 
-	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return project.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -315,7 +318,7 @@ func (s *Store) DeleteNote(ctx context.Context, workspaceID, noteID string, vers
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID); err != nil {
 		return err
 	}
-	if err := syncLegacyNotesTx(ctx, tx, workspaceID, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -358,7 +361,7 @@ RETURNING canvas_state,version,updated_at`,
 		return project.CanvasState{}, err
 	}
 
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET canvas_state=?,updated_at=? WHERE id=?`, stored, now, workspaceID)
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=? WHERE id=?`, now, workspaceID)
 	if err != nil {
 		return project.CanvasState{}, err
 	}

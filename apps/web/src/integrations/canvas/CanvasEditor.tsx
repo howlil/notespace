@@ -18,6 +18,7 @@ import {
   createDiagramWithNode,
   emptyDiagramSelection,
   groupDiagramNodes,
+  hydrateDiagramGeometryFromElements,
   layoutDiagram,
   readStructuredDiagrams,
   removeDiagramEdge,
@@ -398,19 +399,30 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     };
   }, [canvasOrigin]);
 
+  const withLiveDiagramGeometry = useCallback((diagram: StructuredDiagram) => {
+    const value = api.current;
+    return value
+      ? hydrateDiagramGeometryFromElements(diagram, value.getSceneElements())
+      : diagram;
+  }, []);
+
   const applyDiagram = useCallback(async (
     previous: StructuredDiagram | null,
     next: StructuredDiagram,
-    options: { selectNodeId?: string } = {},
+    options: { selectNodeId?: string; geometry?: "scene" | "command" } = {},
   ) => {
     const value = api.current;
     if (!value) return;
     await document.fonts.ready;
-    const iconLoad = await ensureEraserDiagramIconFiles(value, next, workspaceId);
+    const scene = value.getSceneElements();
+    const renderDiagram = options.geometry === "command"
+      ? next
+      : hydrateDiagramGeometryFromElements(next, scene);
+    const iconLoad = await ensureEraserDiagramIconFiles(value, renderDiagram, workspaceId);
     if (iconLoad.failed.length) {
       showToast({ kind: "error", message: "Some Eraser icons could not load. Text fallback was kept for those nodes." });
     }
-    const nextElements = replaceStructuredDiagramElements(value.getSceneElements(), previous, next, dark, iconLoad.available);
+    const nextElements = replaceStructuredDiagramElements(scene, previous, renderDiagram, dark, iconLoad.available);
     const nextDiagrams = previous
       ? diagramsRef.current.map((diagram) => diagram.id === previous.id ? next : diagram)
       : [...diagramsRef.current, next];
@@ -425,15 +437,16 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const insertNode = useCallback((item: DiagramCatalogItem, drop?: { clientX: number; clientY: number }) => {
     const droppedOrigin = drop ? canvasPointFromClient(drop.clientX, drop.clientY) : null;
-    const currentDiagram = activeDiagram;
-    if (!currentDiagram) {
+    const previousDiagram = activeDiagram;
+    if (!previousDiagram) {
       void applyDiagram(null, createDiagramWithNode("architecture", item, droppedOrigin ?? canvasOrigin(), undefined, "icon"));
       return;
     }
+    const currentDiagram = withLiveDiagramGeometry(previousDiagram);
     const tail = currentDiagram.nodes.at(-1);
     const origin = droppedOrigin ?? (tail ? { x: tail.x + 96, y: tail.y } : canvasOrigin());
-    void applyDiagram(currentDiagram, addCatalogNode(currentDiagram, item, origin, undefined, "icon"));
-  }, [activeDiagram, applyDiagram, canvasOrigin, canvasPointFromClient]);
+    void applyDiagram(previousDiagram, addCatalogNode(currentDiagram, item, origin, undefined, "icon"));
+  }, [activeDiagram, applyDiagram, canvasOrigin, canvasPointFromClient, withLiveDiagramGeometry]);
 
   const connectSelected = useCallback(() => {
     if (!activeDiagram || diagramSelection.nodeIds.length !== 2) return;
@@ -472,8 +485,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const autoLayout = useCallback(() => {
     if (!activeDiagram) return;
-    void applyDiagram(activeDiagram, layoutDiagram(activeDiagram));
-  }, [activeDiagram, applyDiagram]);
+    const currentDiagram = withLiveDiagramGeometry(activeDiagram);
+    void applyDiagram(
+      activeDiagram,
+      layoutDiagram(currentDiagram),
+      { geometry: "command" },
+    );
+  }, [activeDiagram, applyDiagram, withLiveDiagramGeometry]);
 
   const detachDiagram = useCallback(() => {
     if (!activeDiagram || !api.current) return;
@@ -498,7 +516,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (selectedIds.length !== 1) return;
 
     if (activeDiagram && diagramSelection.nodeIds.length === 1) {
-      const result = spawnConnectedStructuredNode(activeDiagram, diagramSelection.nodeIds[0], direction);
+      const currentDiagram = withLiveDiagramGeometry(activeDiagram);
+      const result = spawnConnectedStructuredNode(currentDiagram, diagramSelection.nodeIds[0], direction);
       if (!result) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -509,7 +528,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (!beginNativeFlowchartPreview(direction)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-  }, [activeDiagram, applyDiagram, beginNativeFlowchartPreview, diagramSelection.nodeIds]);
+  }, [activeDiagram, applyDiagram, beginNativeFlowchartPreview, diagramSelection.nodeIds, withLiveDiagramGeometry]);
 
   const handleDirectionalSpawnKeyUp = useCallback((event: KeyboardEvent) => {
     if (!flowchartPreviewDirection) return;

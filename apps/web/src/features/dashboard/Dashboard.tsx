@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Folder, Plus, Search } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, Input, cn } from "../../components/ui";
 import { ThemeToggle } from "../../providers/theme-provider";
@@ -20,7 +21,7 @@ type LibraryView = "recent" | "all" | "category";
 const tabClass = "border-0 border-b-2 border-b-transparent bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-ink focus-visible:bg-tint";
 const showLearningActivity = false;
 
-function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectSummary; categoryTitle?: string }) {
+function WorkspaceFolderCard({ workspace, categoryTitle, entering = false }: { workspace: ProjectSummary; categoryTitle?: string; entering?: boolean }) {
   const noteCount = workspace.noteCount ?? 0;
   const metadata = [
     categoryTitle,
@@ -28,42 +29,62 @@ function WorkspaceFolderCard({ workspace, categoryTitle }: { workspace: ProjectS
     workspace.hasCanvas ? "Canvas" : null,
   ].filter(Boolean).join(" · ");
 
-  return (
-    <Link
-      to="/workspaces/$workspaceId"
-      params={{ workspaceId: workspace.id }}
-      className="group block w-full max-w-[196px] min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      aria-label={`Open ${workspace.title}`}
-    >
-      <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
-        <span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%] rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
-          <span className="block h-1 w-[82%] rounded-full bg-line" />
-          <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
-          <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
-        </span>
-        <span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%] rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
-          <span className="block h-1 w-[84%] rounded-full bg-line" />
-          <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
-          <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
-        </span>
-        <span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%] -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
-          <span className="block h-1 w-[86%] rounded-full bg-line" />
-          <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
-          <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
-          <span className="mt-1.5 block h-1 w-[52%] rounded-full bg-line" />
-        </span>
+  const paperMotion = (delay: number) => ({
+    initial: entering ? { opacity: 0, y: 5, scale: 0.96 } : false,
+    animate: { opacity: 1, y: 0, scale: 1 },
+    transition: entering ? { duration: 0.16, delay, ease: "easeOut" as const } : undefined,
+  });
 
-        <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
-          <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
-              <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
+  return (
+    <motion.div
+      layout="position"
+      initial={entering ? { opacity: 0, y: 6, scale: 0.985 } : false}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={entering ? { duration: 0.18, ease: "easeOut" } : undefined}
+      className="w-full max-w-[196px]"
+    >
+      <Link
+        to="/workspaces/$workspaceId"
+        params={{ workspaceId: workspace.id }}
+        className="group block w-full min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        aria-label={`Open ${workspace.title}`}
+      >
+        <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
+          <motion.span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%]" {...paperMotion(0.04)}>
+            <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
+              <span className="block h-1 w-[82%] rounded-full bg-line" />
+              <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
+              <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
+            </span>
+          </motion.span>
+          <motion.span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%]" {...paperMotion(0.065)}>
+            <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
+              <span className="block h-1 w-[84%] rounded-full bg-line" />
+              <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
+              <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
+            </span>
+          </motion.span>
+          <motion.span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%]" {...paperMotion(0.09)}>
+            <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
+              <span className="block h-1 w-[86%] rounded-full bg-line" />
+              <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
+              <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
+              <span className="mt-1.5 block h-1 w-[52%] rounded-full bg-line" />
+            </span>
+          </motion.span>
+
+          <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
+            <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
+                <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
+              </div>
+              <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
             </div>
-            <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
           </div>
-        </div>
-      </article>
-    </Link>
+        </article>
+      </Link>
+    </motion.div>
   );
 }
 
@@ -78,63 +99,78 @@ type NewWorkspaceCardProps = {
 };
 
 function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSubmit, onCancel }: NewWorkspaceCardProps) {
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        onClick={onActivate}
-        className="group block w-full max-w-[196px] min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        aria-label="New workspace"
-      >
-        <article className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-dashed border-line bg-surface transition-[border-color,background-color] duration-200 group-hover:border-accent group-hover:bg-tint">
-          <span className="grid size-10 place-items-center rounded-full border border-line bg-surface/80 text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
-            <Plus size={18} aria-hidden="true" />
-          </span>
-          <span className="text-[11px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
-            New workspace
-          </span>
-        </article>
-      </button>
-    );
-  }
-
   return (
-    <div className="w-full max-w-[196px] min-h-20 rounded-[18px]">
-      <article className="relative flex aspect-square flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-accent bg-tint px-4">
-        <form onSubmit={onSubmit} className="w-full grid gap-2">
-          <Input
-            autoFocus
-            className="w-full min-h-0 py-1.5 px-2 text-[11px]"
-            placeholder="Workspace name"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
-            aria-label="New workspace name"
-            disabled={loading}
-          />
-          <div className="flex gap-1.5">
-            <Button
-              type="submit"
-              size="sm"
-              className="flex-1 min-h-0 py-1 text-[10px]"
-              disabled={!value.trim() || loading}
-            >
-              {loading ? "Creating…" : "Create"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="min-h-0 py-1 px-2.5 text-[10px]"
-              onClick={onCancel}
-              disabled={loading}
-            >
-              ✕
-            </Button>
-          </div>
-        </form>
-      </article>
-    </div>
+    <motion.div layout="position" className="relative aspect-square w-full max-w-[196px] min-h-20 rounded-[18px]">
+      <AnimatePresence initial={false}>
+        {!editing ? (
+          <motion.button
+            key="idle"
+            type="button"
+            onClick={onActivate}
+            initial={{ opacity: 0, scale: 0.985 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.985 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            whileTap={{ scale: 0.97 }}
+            className="group absolute inset-0 block w-full rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            aria-label="New workspace"
+          >
+            <article className="relative flex size-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-dashed border-line bg-surface transition-[border-color,background-color] duration-200 group-hover:border-accent group-hover:bg-tint">
+              <span className="grid size-10 place-items-center rounded-full border border-line bg-surface/80 text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
+                <Plus size={18} aria-hidden="true" />
+              </span>
+              <span className="text-[11px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
+                New workspace
+              </span>
+            </article>
+          </motion.button>
+        ) : (
+          <motion.div
+            key="editing"
+            initial={{ opacity: 0, y: 4, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 2, scale: 0.985 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="absolute inset-0 rounded-[18px]"
+          >
+            <article className="relative flex size-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-accent bg-tint px-4">
+              <form onSubmit={onSubmit} className="grid w-full gap-2">
+                <Input
+                  autoFocus
+                  className="w-full min-h-0 py-1.5 px-2 text-[11px]"
+                  placeholder="Workspace name"
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+                  aria-label="New workspace name"
+                  disabled={loading}
+                />
+                <div className="flex gap-1.5">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="flex-1 min-h-0 py-1 text-[10px]"
+                    disabled={!value.trim() || loading}
+                  >
+                    {loading ? "Creating…" : "Create"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="min-h-0 py-1 px-2.5 text-[10px]"
+                    onClick={onCancel}
+                    disabled={loading}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </form>
+            </article>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -154,6 +190,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
+  const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
 
   const newWorkspaceCategoryId = useMemo(() => {
     if (view === "category" && selectedCategoryId) return selectedCategoryId;
@@ -166,10 +203,22 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     if (!title) return;
     setCreateLoading(true);
     try {
-      await createProject(title, newWorkspaceCategoryId);
+      const workspace = await createProject(title, newWorkspaceCategoryId);
+      setRecentlyCreatedWorkspaceId(workspace.id);
+
+      if (view === "recent") {
+        setRecentItems((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)].slice(0, 20));
+      } else {
+        setPage((current) => current ? {
+          ...current,
+          items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
+          total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
+        } : current);
+      }
+
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
-      refreshLibrary();
+      refreshLibrary({ silent: true });
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });
     } finally {
@@ -192,20 +241,21 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     finally { setPageLoading(false); }
   }
 
-  const refreshLibrary = useCallback(() => {
+  const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
+    const silent = options.silent ?? false;
     void listRecentWorkspaces(20)
       .then(setRecentItems)
       .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
 
     if (view === "all") {
-      setPageLoading(true);
+      if (!silent) setPageLoading(true);
       void listAllWorkspaces({ limit: 50 })
         .then(setPage)
         .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }))
-        .finally(() => setPageLoading(false));
+        .finally(() => { if (!silent) setPageLoading(false); });
     }
 
-    if (view === "category" && selectedCategoryId) setPageLoading(true);
+    if (view === "category" && selectedCategoryId && !silent) setPageLoading(true);
     void listCategories()
       .then((nextCategories) => {
         setCategoryItems(nextCategories);
@@ -221,10 +271,10 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
           .then(setPage)
           .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." }))
-          .finally(() => setPageLoading(false));
+          .finally(() => { if (!silent) setPageLoading(false); });
       })
       .catch((err) => {
-        if (view === "category") setPageLoading(false);
+        if (view === "category" && !silent) setPageLoading(false);
         showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
       });
   }, [navigate, selectedCategoryId, showToast, view]);
@@ -234,6 +284,12 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
     handledLibraryRevision.current = libraryRevision;
     refreshLibrary();
   }, [libraryRevision, refreshLibrary]);
+
+  useEffect(() => {
+    if (!recentlyCreatedWorkspaceId) return;
+    const timeout = window.setTimeout(() => setRecentlyCreatedWorkspaceId(null), 600);
+    return () => window.clearTimeout(timeout);
+  }, [recentlyCreatedWorkspaceId]);
 
   const items = view === "recent" ? recentItems : (page?.items ?? []);
   const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
@@ -280,7 +336,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
                 {items.map((workspace) => (
-                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} />
+                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} entering={workspace.id === recentlyCreatedWorkspaceId} />
                 ))}
                 <NewWorkspaceCard
                   editing={creatingWorkspace}

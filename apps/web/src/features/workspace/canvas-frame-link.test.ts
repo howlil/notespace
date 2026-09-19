@@ -37,10 +37,10 @@ test("frame links preserve frame identity and preview only authored frame childr
   assert.equal(link.elements[0]?.y, 40);
 });
 
-test("frame listing exposes named Canvas frames", () => {
+test("frame listing exposes top-level and nested named Canvas frames", () => {
   const frames = listCanvasFrameLinks(canvas());
-  assert.equal(frames.length, 1);
-  assert.equal(frames[0]?.label, "Architecture");
+  assert.equal(frames.length, 2);
+  assert.deepEqual(frames.map((frame) => frame.label), ["Architecture", "Nested"]);
 });
 
 test("native Excalidraw clipboard data resolves a single copied frame and prefers live Canvas content", () => {

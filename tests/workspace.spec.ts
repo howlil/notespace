@@ -313,7 +313,7 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
       headers: { "Content-Type": "image/svg+xml" },
       data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#ef4444"/><rect x="8" y="8" width="16" height="16" fill="#ffffff"/></svg>'),
     });
-    expect(assetUpload.status()).toBe(200);
+    expect(assetUpload.status()).toBe(204);
 
     const current = await (await request.get(`/api/workspaces/${id}`)).json() as { canvasVersion: number };
     const canvasUpdate = await request.patch(`/api/workspaces/${id}/canvas`, {

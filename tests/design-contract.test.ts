@@ -121,7 +121,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(codeLayer, /overflow-wrap:anywhere/);
   assert.match(codeLayer, /CanvasCodeBlockMeasure/);
   assert.match(codeLayer, /Code output/);
-  assert.doesNotMatch(codeLayer, /Code language|Run JavaScript|Edit code|Copy code/);
+  assert.doesNotMatch(codeLayer, /aria-label="Code language"|Run JavaScript|Copy code/); assert.match(codeLayer, /aria-label="Edit code block"/);
   assert.match(codeActions, /aria-label="Code block actions"/);
   assert.match(codeActions, /aria-label="Code language"/);
   assert.match(codeActions, /Run JavaScript/);

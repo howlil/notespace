@@ -65,7 +65,7 @@ test.describe("Canvas chrome", () => {
       await expect(editor).toHaveValue('console.log("worker-ok");\nreturn 42;');
       await editor.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
 
-      const output = block.getByLabel("Code output");
+      const output = block.getByLabel("Code output", { exact: true });
       await expect(output).toContainText("worker-ok");
       await expect(output).toContainText("42");
       await expect(output).toContainText(/Done/);
@@ -97,7 +97,7 @@ test.describe("Canvas chrome", () => {
       const reloaded = page.locator("[data-canvas-code-block]").first();
       await expect(reloaded).toBeVisible();
       await expect(reloaded.getByLabel("Highlighted code")).toContainText("worker-ok");
-      await expect(reloaded.getByLabel("Code output")).toHaveCount(0);
+      await expect(reloaded.getByLabel("Code output", { exact: true })).toHaveCount(0);
     } finally {
       await cleanup(request, id);
     }

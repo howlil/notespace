@@ -11,9 +11,9 @@ import (
 )
 
 type staleSearchWorkspace struct {
-	ID         string
-	CategoryID string
-	Title      string
+	ID            string
+	CategoryID    string
+	Title         string
 	Version       int
 	NotesRevision int
 }

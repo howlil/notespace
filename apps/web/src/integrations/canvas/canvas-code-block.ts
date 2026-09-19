@@ -40,7 +40,7 @@ export const codeLanguageOptions = [
   ["markdown", "Markdown"],
 ] as const;
 
-const detectableLanguages = codeLanguageOptions
+const detectableLanguages: string[] = codeLanguageOptions
   .map(([language]) => language)
   .filter((language) => language !== "plaintext" && lowlight.listLanguages().includes(language));
 

@@ -83,63 +83,8 @@ export function spawnConnectedStructuredNode(
   };
 }
 
-type NativeShapeSource = Box & {
-  id: string;
-  type: string;
-  strokeColor: string;
-  backgroundColor: string;
-  fillStyle: string;
-  strokeWidth: number;
-  strokeStyle: string;
-  roughness: number;
-  opacity: number;
-  roundness?: unknown;
-};
-
 const nativeShapeTypes = new Set(["rectangle", "ellipse", "diamond"]);
 
 export function isNativeFlowchartShapeType(type: string) {
   return nativeShapeTypes.has(type);
-}
-
-export function nativeDirectionalSpawnPlan(
-  source: NativeShapeSource,
-  direction: DirectionalSpawnDirection,
-  gap = DIRECTIONAL_SPAWN_GAP,
-  idFactory: IdFactory = makeDiagramId,
-) {
-  if (!nativeShapeTypes.has(source.type)) return null;
-  const position = directionalSpawnPosition(source, direction, gap);
-  const shapeId = idFactory("shape");
-  const arrowId = idFactory("arrow");
-  const shape = {
-    type: source.type,
-    id: shapeId,
-    ...position,
-    width: source.width,
-    height: source.height,
-    strokeColor: source.strokeColor,
-    backgroundColor: source.backgroundColor,
-    fillStyle: source.fillStyle,
-    strokeWidth: source.strokeWidth,
-    strokeStyle: source.strokeStyle,
-    roughness: source.roughness,
-    opacity: source.opacity,
-    ...(source.roundness ? { roundness: source.roundness } : {}),
-  };
-  const arrow = {
-    type: "arrow",
-    id: arrowId,
-    x: 0,
-    y: 0,
-    strokeColor: source.strokeColor,
-    strokeWidth: source.strokeWidth,
-    strokeStyle: "solid",
-    roughness: source.roughness,
-    opacity: source.opacity,
-    endArrowhead: "arrow",
-    start: { id: source.id },
-    end: { id: shapeId },
-  };
-  return { shapeId, arrowId, skeletons: [shape, arrow] };
 }

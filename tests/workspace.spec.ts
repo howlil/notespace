@@ -329,7 +329,7 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     const preview = page.getByRole("button", { name: "Open canvas frame Architecture" });
     await expect(preview).toHaveCount(1);
     await expect(page.getByRole("img", { name: "Preview of Architecture" })).toBeVisible();
-    await expect(page.getByText("1 object", { exact: true })).toBeVisible();
+    await expect(preview.getByText("1 object", { exact: true })).toBeVisible();
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
     await preview.click();

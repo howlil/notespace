@@ -1,5 +1,5 @@
 import { Check, Clipboard, Code2, ListOrdered, Maximize2, Moon, Pencil, Play, Square, Sun, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "../../components/ui";
 import {
   codeLanguageOptions,
@@ -33,7 +33,7 @@ function ActionButton({
   label: string;
   active?: boolean;
   danger?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
   onClick: () => void;
 }) {
   return (

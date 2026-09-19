@@ -1,4 +1,4 @@
-import { Check, Clipboard, Code2, Moon, Pencil, Sun } from "lucide-react";
+import { Check, Clipboard, Code2, ListOrdered, Moon, Pencil, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { cn } from "../../components/ui";
@@ -148,6 +148,16 @@ export function CanvasCodeBlockLayer({
                   <button
                     type="button"
                     className="grid size-5 place-items-center rounded hover:bg-black/10"
+                    title={block.lineNumbers ? "Hide line numbers" : "Show line numbers"}
+                    aria-label={block.lineNumbers ? "Hide line numbers" : "Show line numbers"}
+                    aria-pressed={block.lineNumbers}
+                    onClick={() => update({ lineNumbers: !block.lineNumbers })}
+                  >
+                    <ListOrdered size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className="grid size-5 place-items-center rounded hover:bg-black/10"
                     title={editing ? "Finish editing" : "Edit code"}
                     aria-label={editing ? "Finish editing" : "Edit code"}
                     onClick={() => {
@@ -188,10 +198,11 @@ export function CanvasCodeBlockLayer({
                   style={{ color: palette.foreground, tabSize: 2 }}
                   onPointerDown={(event) => event.stopPropagation()}
                   onKeyDown={(event) => {
-                    if (event.key === "Escape") {
+                    if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
                       event.preventDefault();
                       if (!block.languageLocked) update({ language: detectCodeLanguage(block.code) });
                       setEditingId(null);
+                      return;
                     }
                     if (event.key === "Tab") {
                       event.preventDefault();
@@ -199,22 +210,13 @@ export function CanvasCodeBlockLayer({
                       const start = target.selectionStart;
                       const end = target.selectionEnd;
                       const nextCode = `${block.code.slice(0, start)}  ${block.code.slice(end)}`;
-                      update({
-                        code: nextCode,
-                        ...(!block.languageLocked ? { language: detectCodeLanguage(nextCode) } : {}),
-                      });
+                      update({ code: nextCode });
                       requestAnimationFrame(() => {
                         target.selectionStart = target.selectionEnd = start + 2;
                       });
                     }
                   }}
-                  onChange={(event) => {
-                    const code = event.target.value;
-                    update({
-                      code,
-                      ...(!block.languageLocked ? { language: detectCodeLanguage(code) } : {}),
-                    });
-                  }}
+                  onChange={(event) => update({ code: event.target.value })}
                   onBlur={() => {
                     if (!block.languageLocked) update({ language: detectCodeLanguage(block.code) });
                   }}

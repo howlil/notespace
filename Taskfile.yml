@@ -99,6 +99,22 @@ tasks:
       - task: check
       - pnpm test:e2e
 
+  perf:evidence:
+    desc: Run repeatable performance evidence checks
+    cmds:
+      - task: test:web
+        vars:
+          TEST: apps/web/src/features/workspace/canvas-frame-link.test.ts
+      - task: perf:persistence
+
+  perf:persistence:
+    internal: true
+    dir: apps/server
+    env:
+      NOTESPACE_SCALE_EVIDENCE: "1"
+    cmds:
+      - go test ./internal/persistence -run TestPersistenceScaleEvidence -count=1
+
   up:
     desc: Build and start the self-hosted Docker Compose stack
     cmds:

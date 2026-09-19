@@ -155,6 +155,10 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);
+  assert.match(canvas, /authoredSceneData/);
+  assert.match(canvas, /sameElementVersions/);
+  assert.match(canvas, /hasStructuredDiagrams/);
+  assert.match(canvas, /lastExternalScene\.current = serialized/);
   assert.match(canvas, /validateEmbeddable=\{true\}/);
   assert.doesNotMatch(canvas, /validateEmbeddable=\{false\}|validateCanvasEmbeddable/);
 
@@ -299,22 +303,31 @@ test("workspace contract: bounded panes keep legacy Send/Link removed while expl
   assert.match(editor, /aria-label="Canvas frames"/);
   assert.match(editor, /createCanvasFrameLinkExtension/);
   assert.match(frameLink, /parsed\.type !== "excalidraw\/clipboard"/);
-  assert.match(frameLink, /belongsToFrame/); assert.match(frameLink, /parentId === frameId/);
+  assert.match(frameLink, /MAX_FRAME_PREVIEW_ELEMENTS = 160/);
+  assert.match(frameLink, /function buildFrameIndex/);
+  assert.match(frameLink, /childrenByFrame/);
+  assert.match(frameLink, /function frameDescendants/);
   assert.match(frameNode, /data-canvas-frame-link/);
   assert.match(frameNode, /Open canvas frame/);
   assert.match(frameNode, /Preview of/);
+  assert.match(frameNode, /IntersectionObserver/);
+  assert.match(frameNode, /data-canvas-frame-preview-deferred/);
   assert.match(frameLink, /fileId\?: string/);
   assert.match(frameNode, /loadImageAsset/);
   assert.match(frameNode, /data-canvas-frame-preview-image/);
   assert.match(frameNode, /URL\.createObjectURL/);
   assert.match(frameNode, /URL\.revokeObjectURL/);
   assert.match(editor, /createCanvasFrameLinkExtension\(workspaceId/);
+  assert.match(editor, /scheduleSnapshot/);
+  assert.match(editor, /registerSnapshotFlushRef/);
+  assert.match(workspace, /editorSnapshotFlushers/);
+  assert.match(workspace, /unsnapshottedPanes/);
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {
   const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), assets=source(IMAGE_ASSETS), packageJson=source(WEB_PACKAGE);
   assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(editor,/storeImageAsset\(workspaceId, assetId/);
-  assert.match(assets,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(assets,/method:\s*"PUT"/); assert.match(assets,/loadRemoteAsset/); assert.match(assets,/Read-through migration/); assert.match(assets,/indexedDB\.open\(DATABASE_NAME/);
+  assert.match(assets,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(assets,/method:\s*"PUT"/); assert.match(assets,/loadRemoteAsset/); assert.match(assets,/Read-through migration/); assert.match(assets,/indexedDB\.open\(DATABASE_NAME/); assert.match(assets,/inFlightAssetLoads/);
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {

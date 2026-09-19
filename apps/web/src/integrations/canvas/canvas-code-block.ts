@@ -169,6 +169,18 @@ export function highlightCode(code: string, language: string) {
   }
 }
 
+export function highlightCodeLines(code: string, language: string) {
+  const lines: HighlightToken[][] = [[]];
+  for (const token of highlightCode(code, language)) {
+    const parts = token.text.split("\n");
+    parts.forEach((part, index) => {
+      if (part) lines[lines.length - 1].push({ text: part, classes: token.classes });
+      if (index < parts.length - 1) lines.push([]);
+    });
+  }
+  return lines;
+}
+
 export function resolveCodeTheme(theme: CodeBlockTheme, appDark: boolean): "light" | "dark" {
   if (theme === "auto") return appDark ? "dark" : "light";
   return theme;

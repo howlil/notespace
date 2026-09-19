@@ -97,7 +97,19 @@ export function canvasFrameLinkFromElements(elements: readonly RawElement[], fra
   const frameY = finite(frame.y);
   const width = Math.max(1, finite(frame.width, 1));
   const height = Math.max(1, finite(frame.height, 1));
-  const children = elements.filter((element) => element.isDeleted !== true && element.id !== frameId && element.frameId === frameId);
+  const byId = new Map(elements.filter((element) => typeof element.id === "string").map((element) => [element.id as string, element]));
+  const belongsToFrame = (element: RawElement) => {
+    let parentId = typeof element.frameId === "string" ? element.frameId : null;
+    const visited = new Set<string>();
+    while (parentId && !visited.has(parentId)) {
+      if (parentId === frameId) return true;
+      visited.add(parentId);
+      const parent = byId.get(parentId);
+      parentId = parent && typeof parent.frameId === "string" ? parent.frameId : null;
+    }
+    return false;
+  };
+  const children = elements.filter((element) => element.isDeleted !== true && element.id !== frameId && belongsToFrame(element));
   return {
     frameId,
     label: frameLabel(frame, frameIndex),

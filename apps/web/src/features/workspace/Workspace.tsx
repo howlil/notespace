@@ -89,7 +89,23 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [, setContentRevision] = useState(0);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const navigationRequest = useRef(0);
+  const editorSnapshotFlushers = useRef(new Map<string, () => void>());
+  const [unsnapshottedPanes, setUnsnapshottedPanes] = useState<Set<string>>(() => new Set());
   const touchContent = useCallback(() => setContentRevision((value) => value + 1), []);
+  const setPaneSnapshotDirty = useCallback((paneId: string, dirty: boolean) => {
+    setUnsnapshottedPanes((current) => {
+      const hasPane = current.has(paneId);
+      if (hasPane === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(paneId);
+      else next.delete(paneId);
+      return next;
+    });
+  }, []);
+  const registerPaneSnapshotFlush = useCallback((paneId: string, flush: (() => void) | null) => {
+    if (flush) editorSnapshotFlushers.current.set(paneId, flush);
+    else editorSnapshotFlushers.current.delete(paneId);
+  }, []);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const onNoteSaved = useCallback((saved: Note) => {
     current.current = {
@@ -120,8 +136,11 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     onCanvasSaved,
   });
   const status = granularStatus;
-  const dirty = granularDirty;
-  const flushAll = flushGranular;
+  const dirty = granularDirty || unsnapshottedPanes.size > 0;
+  const flushAll = useCallback(async () => {
+    for (const flushSnapshot of editorSnapshotFlushers.current.values()) flushSnapshot();
+    await flushGranular();
+  }, [flushGranular]);
   const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => {
@@ -387,7 +406,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     const toolbarTargetId = `note-pane-toolbar-${pane.id}`;
     const articleMode = pane.kind === "note" && (leaves(layout).length === 1 || maximizedPaneId === pane.id);
     const surface = pane.kind === "note" && note ? (
-      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} articleMode={articleMode} getCanvasSnapshot={() => current.current.canvas} onOpenCanvasFrame={openCanvasFrame} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onDirtyChange={(value) => setPaneSnapshotDirty(pane.id, value)} registerSnapshotFlush={(flush) => registerPaneSnapshotFlush(pane.id, flush)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} articleMode={articleMode} getCanvasSnapshot={() => current.current.canvas} onOpenCanvasFrame={openCanvasFrame} /></Suspense></EditorBoundary>
     ) : (
       <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>
     );

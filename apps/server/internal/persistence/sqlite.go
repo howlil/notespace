@@ -319,7 +319,11 @@ func readProject(row scanner) (project.Project, error) {
 const columns = `id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version`
 
 func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
-	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	value, err := readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	if err != nil {
+		return project.Project{}, err
+	}
+	return hydrateGranularProject(ctx, s.db, value)
 }
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {

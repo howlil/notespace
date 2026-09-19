@@ -132,14 +132,11 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 		return err
 	}
 	defer tx.Rollback()
-	doc, _ := json.Marshal(p.Document)
-	notes, _ := json.Marshal(p.Notes)
-	canvas, _ := json.Marshal(p.Canvas)
 	references, _ := json.Marshal(p.References)
 	_, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO projects(id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.CategoryID, p.Title, string(doc), string(canvas), string(references), string(notes),
+		`INSERT INTO projects(id,category_id,title,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?)`,
+		p.ID, p.CategoryID, p.Title, string(references),
 		p.SplitRatio, p.CreatedAt, p.UpdatedAt, p.Version,
 	)
 	if err != nil {
@@ -160,7 +157,10 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 }
 
 func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,category_id,title,created_at,updated_at,version FROM projects ORDER BY updated_at DESC,id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,
+(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id),
+(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))
+FROM projects p ORDER BY p.updated_at DESC,p.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
 	for rows.Next() {
 		var p project.Summary
 		if err := rows.Scan(
-			&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version,
+			&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version, &p.NoteCount, &p.HasCanvas,
 		); err != nil {
 			return nil, err
 		}
@@ -182,7 +182,10 @@ func (s *Store) ListRecent(ctx context.Context, limit int) ([]project.Summary, e
 	if limit < 1 || limit > 100 {
 		limit = 12
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id,category_id,title,created_at,updated_at,version FROM projects ORDER BY updated_at DESC,id LIMIT ?`, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,
+(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id),
+(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))
+FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +193,7 @@ func (s *Store) ListRecent(ctx context.Context, limit int) ([]project.Summary, e
 	out := []project.Summary{}
 	for rows.Next() {
 		var p project.Summary
-		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version); err != nil {
+		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version, &p.NoteCount, &p.HasCanvas); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -282,6 +285,10 @@ func (s *Store) Move(ctx context.Context, id, categoryID string) (project.Projec
 	if err != nil {
 		return project.Project{}, err
 	}
+	moved, err = hydrateGranularProject(ctx, tx, moved)
+	if err != nil {
+		return project.Project{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return project.Project{}, err
 	}
@@ -292,9 +299,9 @@ type scanner interface{ Scan(...any) error }
 
 func readProject(row scanner) (project.Project, error) {
 	var p project.Project
-	var doc, canvas, references, notes string
+	var references string
 	err := row.Scan(
-		&p.ID, &p.CategoryID, &p.Title, &doc, &canvas, &references, &notes,
+		&p.ID, &p.CategoryID, &p.Title, &references,
 		&p.SplitRatio, &p.CreatedAt, &p.UpdatedAt, &p.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -303,25 +310,13 @@ func readProject(row scanner) (project.Project, error) {
 	if err != nil {
 		return p, err
 	}
-	if err = json.Unmarshal([]byte(doc), &p.Document); err != nil {
-		return p, fmt.Errorf("decode document: %w", err)
-	}
-	if err = json.Unmarshal([]byte(notes), &p.Notes); err != nil {
-		return p, fmt.Errorf("decode notes: %w", err)
-	}
-	if len(p.Notes) == 0 {
-		p.Notes = []project.Note{{ID: p.ID + "-default", Title: "Untitled", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}}
-	}
-	if err = json.Unmarshal([]byte(canvas), &p.Canvas); err != nil {
-		return p, fmt.Errorf("decode canvas: %w", err)
-	}
 	if err = json.Unmarshal([]byte(references), &p.References); err != nil {
 		return p, fmt.Errorf("decode references: %w", err)
 	}
 	return p, nil
 }
 
-const columns = `id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version`
+const columns = `id,category_id,title,references_state,split_ratio,created_at,updated_at,version`
 
 func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 	value, err := readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
@@ -332,9 +327,6 @@ func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
 }
 
 func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
-	doc, _ := json.Marshal(u.Document)
-	notes, _ := json.Marshal(u.Notes)
-	canvas, _ := json.Marshal(u.Canvas)
 	references, _ := json.Marshal(u.References)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
@@ -344,8 +336,8 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 	}
 	defer tx.Rollback()
 
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET title=?,document_state=?,canvas_state=?,references_state=?,notes_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=?`,
-		u.Title, string(doc), string(canvas), string(references), string(notes), u.SplitRatio, now, id, u.Version)
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET title=?,references_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=?`,
+		u.Title, string(references), u.SplitRatio, now, id, u.Version)
 	if err != nil {
 		return project.Project{}, err
 	}
@@ -367,6 +359,10 @@ func (s *Store) Update(ctx context.Context, id string, u project.Update) (projec
 		return project.Project{}, err
 	}
 	p, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	if err != nil {
+		return project.Project{}, err
+	}
+	p, err = hydrateGranularProject(ctx, tx, p)
 	if err != nil {
 		return project.Project{}, err
 	}

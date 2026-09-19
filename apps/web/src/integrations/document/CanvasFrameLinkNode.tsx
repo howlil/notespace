@@ -147,11 +147,15 @@ export function createCanvasFrameLinkExtension(onOpen: (frameId: string) => void
       }];
     },
     renderHTML({ node, HTMLAttributes }) {
-      return ["div", mergeAttributes({
+      const attributes = { ...HTMLAttributes };
+      delete attributes.frameId;
+      delete attributes.label;
+      delete attributes.preview;
+      return ["div", mergeAttributes(attributes, {
         "data-canvas-frame-link": node.attrs.frameId,
         "data-canvas-frame-label": node.attrs.label,
         "data-canvas-frame-preview": encodedPreview(node.attrs.preview),
-      }, HTMLAttributes), node.attrs.label || "Canvas frame"];
+      }), node.attrs.label || "Canvas frame"];
     },
     addNodeView() {
       return ReactNodeViewRenderer((props) => <CanvasFrameLinkNodeView {...props} onOpen={onOpen} />);

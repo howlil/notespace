@@ -27,7 +27,6 @@ import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
 import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
-import { validateCanvasEmbeddable } from "./canvas-embed";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
@@ -716,7 +715,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           <span className="whitespace-nowrap text-[11px] max-[700px]:w-[180px] max-[700px]:whitespace-normal">Add a note, shape, code block, image, connection, or structured diagram.</span>
         </div>
       )}
-      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} onLibraryChange={persistLibraryItems} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={validateCanvasEmbeddable} UIOptions={canvasUIOptions} />
+      <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} onLibraryChange={persistLibraryItems} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={true} UIOptions={canvasUIOptions} />
     </div>
   );
 }

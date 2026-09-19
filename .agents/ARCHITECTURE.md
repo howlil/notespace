@@ -48,7 +48,7 @@ Category
 
 A category owns grouping only; a workspace owns authored Note/Canvas state. Notespace no longer exposes cross-surface Send/Link relationships. The legacy references field remains wire/storage compatibility only and new authored state normalizes it to empty.
 
-Optimistic Project versioning remains the durable concurrent-write guard. Canvas-only races may be deterministically reconciled and retried; this must not become a generic whole-workspace last-write-wins policy.
+Project versioning guards Workspace metadata and the legacy whole-workspace compatibility route. Canonical Notes use per-Note versions and Canvas uses its own version, so conflicts stay scoped to the resource being edited. Do not reintroduce a generic whole-workspace last-write-wins policy.
 
 ## HTTP boundary
 
@@ -68,7 +68,7 @@ Current constraints:
 - SQLite WAL with FULL synchronous durability;
 - canonical Note rows live in `workspace_notes` with per-Note optimistic versions;
 - canonical Canvas state lives in `workspace_canvas` with its own optimistic version;
-- legacy aggregate snapshot columns remain compatibility/migration sources and must not become the hot authoring path again;
+- `projects` is metadata-only; legacy aggregate payloads are hydrated at the API/backup boundary from canonical `workspace_notes` and `workspace_canvas` rows;
 - `/data` maps to a stable named volume configured by `NOTESPACE_DATA_VOLUME`;
 - category deletion refuses non-empty categories;
 - normal autosave updates authored snapshots directly and does not create periodic history checkpoints;
@@ -105,7 +105,7 @@ Responsibility boundaries:
 - `features/workspace/workspace-content.ts`: note snapshot normalization, stable block identity, and legacy relationship cleanup;
 - `features/study/use-study-session.ts`: manual study-session state machine and local continuity across reload/navigation;
 - `features/study/study-timer.ts`: pure elapsed-time, pause/resume, rollover, and aggregation logic;
-- `integrations/canvas/CanvasEditor.tsx`: Excalidraw adapter plus same-browser peer synchronization;
+- `integrations/canvas/CanvasEditor.tsx`: Excalidraw composition root; peer transport, asset lifecycle, and native flowchart interaction live behind dedicated hooks;
 - `domain/project/canvas-merge.ts`: pure fallback merge for Canvas-only durable-version races;
 - `domain/assets/local-image-assets.ts`: server-backed durable asset transfer plus browser cache/read-through migration;
 - generic UI primitives: presentation only.

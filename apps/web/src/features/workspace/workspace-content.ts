@@ -61,6 +61,10 @@ export function documentText(snapshot: Snapshot) {
     if (!value || typeof value !== "object") return;
     const record = value as Record<string, unknown>;
     if (typeof record.text === "string") result += `${record.text} `;
+    if (record.type === "canvasFrameLink" && record.attrs && typeof record.attrs === "object") {
+      const label = (record.attrs as Record<string, unknown>).label;
+      if (typeof label === "string") result += `${label} `;
+    }
     if (record.content) visit(record.content);
   };
   visit(snapshot.data);

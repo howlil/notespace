@@ -26,6 +26,8 @@ const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNat
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
 const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPanelPosition.ts");
 const CANVAS_PEER_CHANNEL = join(WEB_SRC, "integrations", "canvas", "use-canvas-peer-channel.ts");
+const CANVAS_CODE_BLOCK = join(WEB_SRC, "integrations", "canvas", "canvas-code-block.ts");
+const CANVAS_CODE_BLOCK_LAYER = join(WEB_SRC, "integrations", "canvas", "CanvasCodeBlockLayer.tsx");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "providers", "toast-provider.tsx");
 const STUDY_ACTIVITY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
@@ -101,6 +103,18 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.doesNotMatch(canvas, /<MainMenu/);
   assert.match(canvas, /useCanvasPeerChannel\(workspaceId, handlePeerSnapshot\)/);
   assert.match(peerChannel, /new BroadcastChannel\(`notespace\.canvas:\$\{workspaceId\}`\)/);
+  const codeBlock = source(CANVAS_CODE_BLOCK), codeLayer = source(CANVAS_CODE_BLOCK_LAYER);
+  assert.match(codeBlock, /CODE_BLOCK_DATA_KEY = "notespaceCodeBlock"/);
+  assert.match(codeBlock, /createLowlight\(common\)/);
+  assert.match(codeBlock, /highlightAuto/);
+  assert.match(codeBlock, /theme: CodeBlockTheme/);
+  assert.match(codeLayer, /readCanvasCodeBlock/);
+  assert.match(codeLayer, /JetBrains Mono/);
+  assert.match(codeLayer, /Edit code/);
+  assert.match(codeLayer, /Copy code/);
+  assert.match(canvas, /convertToExcalidrawElements/);
+  assert.match(canvas, /customData: withCanvasCodeBlock/);
+  assert.doesNotMatch(codeLayer, /localStorage|fetch\(|WebSocket|new Worker/);
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);

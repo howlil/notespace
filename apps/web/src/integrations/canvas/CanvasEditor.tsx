@@ -1,7 +1,6 @@
 import { CaptureUpdateAction, Excalidraw, reconcileElements, sceneCoordsToViewportCoords, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
-  BinaryFileData,
   BinaryFiles,
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
@@ -11,7 +10,6 @@ import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/ty
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
-import { blobFromDataUrl, blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {
   DIAGRAM_DATA_KEY,
@@ -42,6 +40,7 @@ import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles, type CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
+import { useCanvasAssets } from "./use-canvas-assets";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -73,11 +72,6 @@ function readStoredLibraryItems(): LibraryItems {
   } catch {
     return [];
   }
-}
-
-function readCanvasFiles(data: Record<string, unknown>) {
-  const files = data.files;
-  return files && typeof files === "object" ? files as BinaryFiles : {};
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -117,9 +111,6 @@ function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly 
 
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
   const { showToast } = useToast();
-  const initialFiles = useRef<BinaryFiles>(readCanvasFiles(initial.data));
-  const pendingFileIds = useRef(new Set<string>());
-  const persistedFileIds = useRef(new Set<string>());
   const [initialData] = useState(() => {
     const data = { ...initial.data };
     delete data.files;
@@ -164,6 +155,15 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setMoreOpen(false);
   }, []);
 
+  const reportCanvasAssetError = useCallback((message: string) => {
+    showToast({ kind: "error", message });
+  }, [showToast]);
+  const { restoreFiles: restoreLocalFiles, persistFiles: persistCanvasFiles } = useCanvasAssets({
+    initial,
+    workspaceId,
+    onError: reportCanvasAssetError,
+  });
+
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
     diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, next);
     if (sameStructuredDiagrams(diagramsRef.current, next)) return;
@@ -176,34 +176,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     diagramSelectionRef.current = next;
     setDiagramSelection(next);
   }, []);
-
-  const restoreLocalFiles = useCallback(async (value: ExcalidrawImperativeAPI) => {
-    const fileIds = new Set(value.getSceneElements().map((element) => "fileId" in element && typeof element.fileId === "string" ? String(element.fileId) : null).filter((fileId): fileId is string => fileId !== null));
-    const files = await Promise.all([...fileIds].map(async (fileId) => {
-      const source = initialFiles.current[fileId];
-      let asset = await loadImageAsset(workspaceId, fileId);
-      if (!asset && source) asset = await storeImageAsset(workspaceId, fileId, await blobFromDataUrl(source.dataURL));
-      if (!asset) return null;
-      const dataURL = await blobToDataUrl(asset.blob);
-      return source
-        ? { ...source, dataURL: dataURL as BinaryFileData["dataURL"], mimeType: asset.mimeType as BinaryFileData["mimeType"], lastRetrieved: Date.now() } as BinaryFileData
-        : { id: fileId as BinaryFileData["id"], dataURL: dataURL as BinaryFileData["dataURL"], mimeType: asset.mimeType as BinaryFileData["mimeType"], created: asset.createdAt, lastRetrieved: Date.now() } as BinaryFileData;
-    }));
-    const restored = files.filter((file): file is BinaryFileData => file !== null);
-    if (restored.length) value.addFiles(restored);
-  }, [workspaceId]);
-
-  const persistCanvasFiles = useCallback((files: BinaryFiles) => {
-    for (const [fileId, file] of Object.entries(files)) {
-      if (pendingFileIds.current.has(fileId) || persistedFileIds.current.has(fileId)) continue;
-      pendingFileIds.current.add(fileId);
-      void blobFromDataUrl(file.dataURL)
-        .then((blob) => storeImageAsset(workspaceId, fileId, blob))
-        .then(() => persistedFileIds.current.add(fileId))
-        .catch((error) => showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this canvas image locally." }))
-        .finally(() => pendingFileIds.current.delete(fileId));
-    }
-  }, [showToast, workspaceId]);
 
   const persistLibraryItems = useCallback((items: LibraryItems) => {
     try {

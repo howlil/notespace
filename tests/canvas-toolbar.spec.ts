@@ -61,6 +61,7 @@ test.describe("Canvas chrome", () => {
       await expect(actions).toBeVisible();
       await expect(actions.getByRole("button", { name: "Run JavaScript" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Fit code height" })).toHaveAttribute("aria-pressed", "true");
+      await expect(actions.getByRole("button", { name: /Edit code|Finish editing/ })).toHaveCount(0);
       await expect(block.getByRole("button", { name: "Run JavaScript" })).toHaveCount(0);
 
       const initialBox = await block.boundingBox();
@@ -86,12 +87,19 @@ test.describe("Canvas chrome", () => {
       });
       const initialHeight = initialElement?.height ?? 0;
 
-      await actions.getByRole("button", { name: "Edit code" }).click();
+      const box = await block.boundingBox();
+      expect(box).not.toBeNull();
+      await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await page.mouse.dblclick(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
       const editor = block.getByRole("textbox", { name: "Edit code block" });
       const longValue = "abcdefghijklmnopqrstuvwxyz".repeat(12);
       const code = `const veryLong = "${longValue}"; console.log("worker-ok"); return veryLong.length;`;
       await editor.fill(code);
       await expect(editor).toHaveValue(code);
+      const livePreview = block.getByLabel("Live syntax preview");
+      await expect(livePreview).toContainText("veryLong");
+      await expect(livePreview.locator("span[style*='color']").first()).toBeVisible();
       await editor.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
 
       const output = page.getByLabel("Code output", { exact: true });
@@ -99,7 +107,8 @@ test.describe("Canvas chrome", () => {
       await expect(output).toContainText(String(longValue.length));
       await expect(output).toContainText(/Done/);
 
-      await actions.getByRole("button", { name: "Finish editing" }).click();
+      await editor.press("Escape");
+      await expect(block.getByRole("textbox", { name: "Edit code block" })).toHaveCount(0);
       const preview = block.getByLabel("Highlighted code");
       await expect(preview).toContainText("veryLong");
       const wrapping = await preview.evaluate((node) => ({

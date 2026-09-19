@@ -1,4 +1,4 @@
-// Package project owns the single aggregate shared by both editing surfaces.
+// Package project owns Workspace metadata plus the hydrated compatibility view exposed to clients.\n// Note and Canvas authored state have independent persistence/version boundaries.
 package project
 
 import (

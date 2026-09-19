@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, reconcileElements, sceneCoordsToViewportCoords, useHandleLibrary } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFiles,
@@ -33,14 +33,15 @@ import {
 } from "../../features/diagram/diagram-model";
 import { useToast } from "../../providers/toast-provider";
 import { forgetDiagramHistory, mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
-import { directionFromKey, isNativeFlowchartShapeType, keyFromDirection, spawnConnectedStructuredNode, type DirectionalSpawnDirection } from "./CanvasDirectionalSpawn";
+import { directionFromKey, spawnConnectedStructuredNode } from "./CanvasDirectionalSpawn";
 import { replaceStructuredDiagramElements } from "./diagram-excalidraw";
 import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
-import { CanvasFlowchartHandles, type CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
+import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
 import { useCanvasAssets } from "./use-canvas-assets";
+import { useCanvasFlowchart } from "./use-canvas-flowchart";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -136,8 +137,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [lastDiagramId, setLastDiagramId] = useState<string | null>(() => diagrams.at(-1)?.id ?? null);
   const [activeTool, setActiveTool] = useState<AppState["activeTool"]["type"]>("selection");
   const [selectedElementCount, setSelectedElementCount] = useState(0);
-  const [flowchartAnchor, setFlowchartAnchor] = useState<CanvasFlowchartAnchor | null>(null);
-  const [flowchartPreviewDirection, setFlowchartPreviewDirection] = useState<DirectionalSpawnDirection | null>(null);
   const [zoom, setZoom] = useState(1);
   const [gridModeEnabled, setGridModeEnabled] = useState(false);
   const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
@@ -149,7 +148,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
-  const flowchartPreviewRef = useRef<DirectionalSpawnDirection | null>(null);
 
   const closeCanvasPopovers = useCallback(() => {
     setMoreOpen(false);
@@ -163,6 +161,16 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     workspaceId,
     onError: reportCanvasAssetError,
   });
+
+  const {
+    anchor: flowchartAnchor,
+    previewDirection: flowchartPreviewDirection,
+    beginPreview: beginNativeFlowchartPreview,
+    cancelPreview: cancelNativeFlowchartPreview,
+    commitPreview: commitNativeFlowchartPreview,
+    syncSelection: syncFlowchartSelection,
+    focusEditor: focusCanvasEditor,
+  } = useCanvasFlowchart({ apiRef: api, surfaceRef });
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
     diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, next);
@@ -283,40 +291,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     updateDiagramState(nextDiagrams);
     updateDiagramSelection(nextDiagramSelection);
 
-    const selectedElement = selectedIds.length === 1
-      ? elements.find((element) => element.id === selectedIds[0] && !element.isDeleted) ?? null
-      : null;
-    if (
-      selectedElement &&
-      nextDiagramSelection.nodeIds.length === 0 &&
-      state.activeTool.type === "selection" &&
-      isNativeFlowchartShapeType(selectedElement.type)
-    ) {
-      const topLeft = sceneCoordsToViewportCoords(
-        { sceneX: selectedElement.x, sceneY: selectedElement.y },
-        state,
-      );
-      const bottomRight = sceneCoordsToViewportCoords(
-        {
-          sceneX: selectedElement.x + selectedElement.width,
-          sceneY: selectedElement.y + selectedElement.height,
-        },
-        state,
-      );
-      setFlowchartAnchor({
-        id: selectedElement.id,
-        left: Math.min(topLeft.x, bottomRight.x),
-        top: Math.min(topLeft.y, bottomRight.y),
-        right: Math.max(topLeft.x, bottomRight.x),
-        bottom: Math.max(topLeft.y, bottomRight.y),
-      });
-    } else {
-      setFlowchartAnchor(null);
-      if (flowchartPreviewRef.current) {
-        flowchartPreviewRef.current = null;
-        setFlowchartPreviewDirection(null);
-      }
-    }
+    syncFlowchartSelection(
+      elements,
+      state,
+      selectedIds,
+      nextDiagramSelection.nodeIds.length > 0,
+    );
 
     const data = {
       elements,
@@ -335,7 +315,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       onChange(snapshot);
       publishPeerSnapshot(snapshot);
     }
-  }, [onChange, onElementSelect, persistCanvasFiles, publishPeerSnapshot, updateDiagramSelection, updateDiagramState]);
+  }, [onChange, onElementSelect, persistCanvasFiles, publishPeerSnapshot, syncFlowchartSelection, updateDiagramSelection, updateDiagramState]);
 
   const onInitialize = useCallback((value: ExcalidrawImperativeAPI) => {
     api.current = value;
@@ -506,76 +486,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     showToast({ kind: "success", message: "Diagram detached. Its Excalidraw shapes remain fully editable." });
   }, [activeDiagram, emitSnapshot, showToast, updateDiagramSelection, updateDiagramState]);
 
-  const focusCanvasEditor = useCallback(() => {
-    const editor = surfaceRef.current?.querySelector(".excalidraw");
-    if (editor instanceof HTMLElement) editor.focus({ preventScroll: true });
-  }, []);
-
-  const cancelNativeFlowchartPreview = useCallback(() => {
-    if (!flowchartPreviewRef.current) return;
-    const value = api.current;
-    if (value) {
-      value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
-        key: "Escape",
-        bubbles: false,
-        cancelable: true,
-      }));
-    }
-    flowchartPreviewRef.current = null;
-    setFlowchartPreviewDirection(null);
-  }, []);
-
-  const beginNativeFlowchartPreview = useCallback((direction: DirectionalSpawnDirection) => {
-    const value = api.current;
-    if (!value) return false;
-    const state = value.getAppState() as AppState & { editingLinearElement?: unknown };
-    if (state.editingTextElement || state.editingLinearElement || state.openDialog) return false;
-    const selectedIds = Object.entries(state.selectedElementIds).filter(([, selected]) => selected).map(([id]) => id);
-    if (selectedIds.length !== 1) return false;
-    const source = value.getSceneElements().find((element) => element.id === selectedIds[0] && !element.isDeleted);
-    if (!source || !isNativeFlowchartShapeType(source.type)) return false;
-
-    if (flowchartPreviewRef.current && flowchartPreviewRef.current !== direction) {
-      value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
-        key: "Escape",
-        bubbles: false,
-        cancelable: true,
-      }));
-    }
-
-    const handled = value.app.flowchart.handleKeyEvent(new KeyboardEvent("keydown", {
-      key: keyFromDirection(direction),
-      ctrlKey: true,
-      metaKey: true,
-      bubbles: false,
-      cancelable: true,
-    }));
-    if (!handled || !value.app.flowchart.isCreatingChart) return false;
-
-    flowchartPreviewRef.current = direction;
-    setFlowchartPreviewDirection(direction);
-    return true;
-  }, []);
-
-  const commitNativeFlowchartPreview = useCallback((direction?: DirectionalSpawnDirection) => {
-    if (!flowchartPreviewRef.current && direction && !beginNativeFlowchartPreview(direction)) return;
-    const value = api.current;
-    const activeDirection = flowchartPreviewRef.current;
-    if (!value || !activeDirection) return;
-
-    value.app.flowchart.handleKeyEvent(new KeyboardEvent("keyup", {
-      key: keyFromDirection(activeDirection),
-      ctrlKey: false,
-      metaKey: false,
-      altKey: false,
-      bubbles: false,
-      cancelable: true,
-    }));
-    flowchartPreviewRef.current = null;
-    setFlowchartPreviewDirection(null);
-    requestAnimationFrame(focusCanvasEditor);
-  }, [beginNativeFlowchartPreview, focusCanvasEditor]);
-
   const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {
     const direction = directionFromKey(event.key);
     if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
@@ -596,22 +506,19 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       return;
     }
 
-    const source = value.getSceneElements().find((element) => element.id === selectedIds[0] && !element.isDeleted);
-    if (!source || !isNativeFlowchartShapeType(source.type)) return;
-
+    if (!beginNativeFlowchartPreview(direction)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    beginNativeFlowchartPreview(direction);
   }, [activeDiagram, applyDiagram, beginNativeFlowchartPreview, diagramSelection.nodeIds]);
 
   const handleDirectionalSpawnKeyUp = useCallback((event: KeyboardEvent) => {
-    if (!flowchartPreviewRef.current) return;
+    if (!flowchartPreviewDirection) return;
     const direction = directionFromKey(event.key);
     if (!direction && event.key !== "Alt") return;
     event.preventDefault();
     event.stopImmediatePropagation();
     commitNativeFlowchartPreview();
-  }, [commitNativeFlowchartPreview]);
+  }, [commitNativeFlowchartPreview, flowchartPreviewDirection]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);
@@ -630,8 +537,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       onPointerDownCapture={(event) => {
         const target = event.target;
         if (!(target instanceof Element) || !target.closest(".excalidraw__canvas")) return;
-        const editor = target.closest(".excalidraw");
-        if (editor instanceof HTMLElement) editor.focus({ preventScroll: true });
+        focusCanvasEditor();
       }}
     >
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">

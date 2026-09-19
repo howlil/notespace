@@ -14,6 +14,7 @@ export type LocalImageAsset = {
 type StoredImageAsset = LocalImageAsset & { key: string };
 
 const memoryAssets = new Map<string, StoredImageAsset>();
+const inFlightAssetLoads = new Map<string, Promise<StoredImageAsset | null>>();
 let databasePromise: Promise<IDBDatabase | null> | null = null;
 
 function assetKey(workspaceId: string, assetId: string) {
@@ -195,26 +196,36 @@ export async function loadImageAsset(workspaceId: string, id: string) {
   const memory = memoryAssets.get(key);
   if (memory) return memory;
 
-  try {
-    const remote = await loadRemoteAsset(workspaceId, id);
-    if (remote) return remote;
-  } catch {
-    // A local cache may still make an acknowledged legacy workspace readable.
-  }
+  const existing = inFlightAssetLoads.get(key);
+  if (existing) return existing;
 
-  const legacy = await readLocalCache(workspaceId, id);
-  if (!legacy) return null;
-  // Read-through migration: legacy browser-only assets become server-owned once seen.
-  try {
-    const accepted = await uploadAsset(workspaceId, id, legacy.blob);
-    if (!accepted) {
-      await removeLocalCache(workspaceId, id);
-      return null;
+  const load = (async () => {
+    try {
+      const remote = await loadRemoteAsset(workspaceId, id);
+      if (remote) return remote;
+    } catch {
+      // A local cache may still make an acknowledged legacy workspace readable.
     }
-  } catch {
-    // Keep legacy readable when the server is temporarily unavailable.
-  }
-  return legacy;
+
+    const legacy = await readLocalCache(workspaceId, id);
+    if (!legacy) return null;
+    // Read-through migration: legacy browser-only assets become server-owned once seen.
+    try {
+      const accepted = await uploadAsset(workspaceId, id, legacy.blob);
+      if (!accepted) {
+        await removeLocalCache(workspaceId, id);
+        return null;
+      }
+    } catch {
+      // Keep legacy readable when the server is temporarily unavailable.
+    }
+    return legacy;
+  })().finally(() => {
+    if (inFlightAssetLoads.get(key) === load) inFlightAssetLoads.delete(key);
+  });
+
+  inFlightAssetLoads.set(key, load);
+  return load;
 }
 
 export async function blobFromDataUrl(dataUrl: string) {

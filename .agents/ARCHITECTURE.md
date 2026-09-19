@@ -46,7 +46,7 @@ Category
     └── split ratio compatibility field
 ```
 
-A category owns grouping only; a workspace owns authored Note/Canvas state. Notespace no longer exposes cross-surface Send/Link relationships. The legacy references field remains wire/storage compatibility only and new authored state normalizes it to empty.
+A category owns grouping only; a workspace owns authored Note/Canvas state. The legacy generic cross-surface Send/Link system remains removed: the legacy `references` field is wire/storage compatibility only and new authored state normalizes it to empty. The one scoped cross-surface reference is an explicit Note → Canvas Frame embed stored inside the Note document as a Tiptap `canvasFrameLink` node. It stores the Canvas `frameId` plus a lightweight insertion-time preview; Canvas remains authoritative and clicking the embed navigates to the live frame.
 
 `Project.version` is the aggregate revision/ETag for Workspace metadata and legacy whole-workspace compatibility writes. Every canonical Note/Canvas mutation advances that aggregate revision so a stale aggregate snapshot cannot overwrite newer child state. Canonical Notes still use per-Note versions and Canvas uses its own version for their write guards, so granular conflicts stay scoped to the resource being edited. Do not use the aggregate revision as the concurrency guard for granular Note/Canvas writes.
 
@@ -114,7 +114,7 @@ Do not introduce a global state library without demonstrated cross-cutting need.
 
 ## Document integration
 
-Tiptap is the structured document editor. Notespace owns serialized snapshots and stable block identity required for exact search/deep-link navigation. Stable block IDs must not be repurposed into an implicit linking system.
+Tiptap is the structured document editor. Notespace owns serialized snapshots and stable block identity required for exact search/deep-link navigation. Stable block IDs must not be repurposed into an implicit linking system. Canvas Frame embeds use the explicit Excalidraw `frameId`, not Note block identity. In single-Note/non-split presentation the authored column is centered and article-width; split panes use the available pane width.
 
 ## Canvas integration
 

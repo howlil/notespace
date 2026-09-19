@@ -1,4 +1,4 @@
-import { Check, Clipboard, Code2, ListOrdered, Maximize2, Moon, Pencil, Play, Square, Sun, Trash2 } from "lucide-react";
+import { Check, Clipboard, Code2, ListOrdered, Maximize2, Moon, Play, Square, Sun, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "../../components/ui";
 import {
@@ -58,22 +58,18 @@ export function CanvasCodeBlockActions({
   block,
   appDark,
   run,
-  editing,
   onUpdate,
   onRun,
   onStop,
-  onEdit,
   onFitContent,
   onDelete,
 }: {
   block: CanvasCodeBlockData;
   appDark: boolean;
   run?: CodeRunView;
-  editing: boolean;
   onUpdate: (block: CanvasCodeBlockData) => void;
   onRun: () => void;
   onStop: () => void;
-  onEdit: () => void;
   onFitContent: () => void;
   onDelete: () => void;
 }) {
@@ -130,9 +126,6 @@ export function CanvasCodeBlockActions({
         <Maximize2 className="size-3.5" />
       </ActionButton>
 
-      <ActionButton label={editing ? "Finish editing" : "Edit code"} active={editing} onClick={onEdit}>
-        {editing ? <Check className="size-3.5" /> : <Pencil className="size-3.5" />}
-      </ActionButton>
 
       <ActionButton
         label={copied ? "Code copied" : "Copy code"}

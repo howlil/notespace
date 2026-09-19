@@ -6,7 +6,8 @@ import type {
   ExcalidrawInitialDataState,
   LibraryItems,
 } from "@excalidraw/excalidraw/types";
-import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";\nimport type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/transform";
+import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import type { Snapshot } from "../../domain/project/project";
@@ -23,7 +24,9 @@ import {
 import { useToast } from "../../providers/toast-provider";
 import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { directionFromKey } from "./CanvasDirectionalSpawn";
-import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";\nimport { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";\nimport { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
+import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
+import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
@@ -220,7 +223,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     lastExternalScene.current = sceneSignature(data);
     updateDiagramState(nextDiagrams);
     setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
-    setHasElements(mergedElements.some((element) => !element.isDeleted));\n    setOverlayElements(mergedElements);
+    setHasElements(mergedElements.some((element) => !element.isDeleted));
+    setOverlayElements(mergedElements);
 
     value.updateScene({
       elements: mergedElements,
@@ -274,7 +278,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setActiveTool(state.activeTool.type);
     const selectedIds = Object.entries(state.selectedElementIds).filter(([, value]) => value).map(([id]) => id);
     setSelectedElementCount(selectedIds.length);
-    setZoom(state.zoom.value);\n    setCanvasViewport({ zoom: state.zoom.value, scrollX: state.scrollX, scrollY: state.scrollY });\n    setOverlayElements(elements);
+    setZoom(state.zoom.value);
+    setCanvasViewport({ zoom: state.zoom.value, scrollX: state.scrollX, scrollY: state.scrollY });
+    setOverlayElements(elements);
     setGridModeEnabled(state.gridModeEnabled);
     setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     setBackgroundColor(state.viewBackgroundColor);

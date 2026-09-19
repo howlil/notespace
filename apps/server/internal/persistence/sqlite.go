@@ -205,6 +205,11 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	if offset < 0 {
 		offset = 0
 	}
+	// Library summaries are derived from the granular authored tables. The
+	// legacy JSON columns in projects are compatibility projections and are no
+	// longer updated by high-frequency Note/Canvas autosaves.
+	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
+	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))"
 	orderBy := "p.updated_at DESC, p.id"
 	switch sortBy {
 	case "created":
@@ -212,7 +217,7 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	case "name":
 		orderBy = "p.title COLLATE NOCASE ASC, p.id"
 	case "notes":
-		orderBy = "json_array_length(p.notes_state) DESC, p.updated_at DESC, p.id"
+		orderBy = noteCount + " DESC, p.updated_at DESC, p.id"
 	}
 	conditions := []string{"1=1"}
 	args := []any{}
@@ -225,17 +230,17 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 		args = append(args, "%"+strings.ToLower(strings.TrimSpace(query))+"%")
 	}
 	if hasCanvas == "true" || hasCanvas == "1" {
-		conditions = append(conditions, "json_array_length(COALESCE(json_extract(p.canvas_state, '$.elements'), '[]')) > 0")
+		conditions = append(conditions, hasCanvasExpr)
 	}
 	if hasNotes == "true" || hasNotes == "1" {
-		conditions = append(conditions, "json_array_length(COALESCE(json_extract(p.notes_state, '$'), '[]')) > 0")
+		conditions = append(conditions, noteCount+" > 0")
 	}
 	where := strings.Join(conditions, " AND ")
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects p WHERE `+where, args...).Scan(&total); err != nil {
 		return project.WorkspacePage{}, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,json_array_length(COALESCE(json_extract(p.notes_state, '$'), '[]')),(json_array_length(COALESCE(json_extract(p.canvas_state, '$.elements'), '[]')) > 0) FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, append(args, limit, offset)...)
+	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,`+noteCount+`,`+hasCanvasExpr+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, append(args, limit, offset)...)
 	if err != nil {
 		return project.WorkspacePage{}, err
 	}

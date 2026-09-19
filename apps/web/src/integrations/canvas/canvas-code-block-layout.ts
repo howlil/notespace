@@ -26,3 +26,19 @@ export function clampCodeBlockHeight(height: number) {
 export function codeBlockHeightChanged(previous: number, current: number) {
   return Math.abs(previous - current) >= 1;
 }
+
+export function shouldSwitchCodeBlockToManualHeight({
+  heightMode,
+  previousHeight,
+  currentHeight,
+  expectedAutoFitHeight,
+}: {
+  heightMode: "auto" | "manual";
+  previousHeight: number | undefined;
+  currentHeight: number;
+  expectedAutoFitHeight: number | undefined;
+}) {
+  if (heightMode !== "auto" || previousHeight === undefined) return false;
+  if (expectedAutoFitHeight !== undefined && !codeBlockHeightChanged(expectedAutoFitHeight, currentHeight)) return false;
+  return codeBlockHeightChanged(previousHeight, currentHeight);
+}

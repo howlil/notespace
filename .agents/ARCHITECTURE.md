@@ -114,7 +114,7 @@ Do not introduce a global state library without demonstrated cross-cutting need.
 
 ## Document integration
 
-Tiptap is the structured document editor. Notespace owns serialized snapshots and stable block identity required for exact search/deep-link navigation. Stable block IDs must not be repurposed into an implicit linking system. Canvas Frame embeds use the explicit Excalidraw `frameId`, not Note block identity. In single-Note/non-split presentation the authored column is centered and article-width; split panes use the available pane width.
+Tiptap is the structured document editor. Notespace owns serialized snapshots and stable block identity required for exact search/deep-link navigation. Stable block IDs must not be repurposed into an implicit linking system. Note transactions mark the workspace dirty immediately, while full Tiptap JSON snapshots are checkpointed on a short throttle and synchronously materialized before workspace flush/navigation. This keeps typing off the full-document serialization path without hiding unsnapshotted edits from durability guards. Canvas Frame embeds use the explicit Excalidraw `frameId`, not Note block identity. Their insertion-time preview is bounded to 160 representative elements and rendered only near the viewport; `elementCount` remains the exact authored descendant count and Canvas remains authoritative. In single-Note/non-split presentation the authored column is centered and article-width; split panes use the available pane width.
 
 ## Canvas integration
 
@@ -132,6 +132,7 @@ Canvas Code Block execution is an explicit browser-local action and is not autho
 
 ```text
 Canvas authored change
+  ├─ high-frequency UI path keeps only interaction state/code overlays needed by React
   ├─ ~80 ms coalesced BroadcastChannel → sibling browser tabs
   │       → Excalidraw element reconciliation
   │
@@ -139,13 +140,15 @@ Canvas authored change
           → serialized debounce/coalescing
           → Canvas-only update with canvas version
           → workspace_canvas durable SQLite write
-          → acknowledged canvas version replaces local version
+          → acknowledgement advances the autosave version only
 
 Note authored change
+  → mark unsnapshotted local edit dirty immediately
+  → ~120 ms full-document snapshot checkpoint, or synchronous snapshot on blur/flush
   → per-Note serialized debounce/coalescing
   → Note-only update with note version
   → workspace_notes durable SQLite write
-  → acknowledged note version replaces only that Note
+  → acknowledgement advances only that Note's autosave version
 ```
 
 Network/server failure → keep pending snapshot → retry is allowed.

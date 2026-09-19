@@ -124,6 +124,8 @@ For the same Workspace in sibling tabs of one browser, Canvas element snapshots 
 
 Pan and zoom stay local to each Excalidraw instance. They are presentation state, not authored content, and must not cause durable writes.
 
+Canvas external embeds use Excalidraw embeddable elements and their existing `link` field as the single authored source of truth. Notespace intentionally removes Excalidraw's domain allowlist for embeds, but only accepts absolute `http:` and `https:` URLs at its validation boundary; non-web protocols such as `javascript:`, `data:`, `file:`, `blob:`, and `about:` remain rejected. Known-provider URL transforms remain Excalidraw-owned. A valid Notespace embed is permission to attempt browser rendering, not a promise that a third-party site will permit framing: CSP `frame-ancestors`, `X-Frame-Options`, authentication, cookie, or third-party browser policy may still prevent live rendering. Notespace does not proxy or server-fetch arbitrary embed URLs.
+
 Canvas Code Block execution is an explicit browser-local action and is not authored state. Only JavaScript is runnable in the current boundary. Each run uses a disposable Web Worker, has a finite timeout/output budget, and attempts to disable ordinary Worker network APIs before user code starts. stdout/stderr/result stay ephemeral and must not enter Canvas snapshots, autosave, peer sync, backup, or server APIs. This local runner is a damage-limiting execution environment for the owner's own snippets, not a hardened hostile-code sandbox; server-side or multi-language arbitrary execution requires a separate approved isolation design.
 
 ## Edit and autosave
@@ -165,7 +167,7 @@ Do not collapse these into one unbounded store.
 
 Notespace remains a trusted/private single-user instance. Same-origin mutation defenses are not an authentication system. App-level authentication, multi-user identity, or authorization changes the security boundary and requires explicit product/architecture approval.
 
-Treat content, imported payloads, images, URLs, and future embeds as untrusted input. Preserve server validation, safe file/MIME handling, no server-side arbitrary code execution, no client-controlled filesystem paths, and no secret exposure. The Canvas JavaScript runner must remain explicit user-triggered, browser-local, disposable, time/output bounded, and isolated from durable/peer state.
+Treat content, imported payloads, images, URLs, and embeds as untrusted input. Preserve server validation, safe file/MIME handling, no server-side arbitrary code execution, no client-controlled filesystem paths, no arbitrary server-side URL fetching, and no secret exposure. The Canvas JavaScript runner must remain explicit user-triggered, browser-local, disposable, time/output bounded, and isolated from durable/peer state.
 
 ## Material changes requiring approval
 

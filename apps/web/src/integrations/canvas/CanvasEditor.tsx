@@ -317,12 +317,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, [initial, updateDiagramState]);
 
   useEffect(() => {
-    if (!focusRequest || !api.current) return;
-    const element = api.current.getSceneElements().find((candidate) => candidate.id === focusRequest.id && !candidate.isDeleted);
+    if (!focusRequest || !canvasApi) return;
+    const element = canvasApi.getSceneElements().find((candidate) => candidate.id === focusRequest.id && !candidate.isDeleted);
     if (!element) return;
-    api.current.updateScene({ appState: { selectedElementIds: { [element.id]: true } } });
-    api.current.setViewport({ target: element, fit: "scale-down", animation: { duration: 250 } });
-  }, [focusRequest]);
+    canvasApi.updateScene({ appState: { selectedElementIds: { [element.id]: true } } });
+    canvasApi.setViewport({ target: element, fit: "scale-down", animation: { duration: 250 } });
+  }, [canvasApi, focusRequest]);
 
   const changed = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, files: BinaryFiles) => {
     setActiveTool(state.activeTool.type);

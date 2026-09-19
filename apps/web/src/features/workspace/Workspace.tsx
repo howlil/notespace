@@ -94,12 +94,15 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const onNoteSaved = useCallback((saved: Note) => {
     current.current = {
       ...current.current,
-      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, ...saved } : note),
+      // Save acknowledgements may arrive after a newer local edit was queued.
+      // Advance only the optimistic version; authored local fields stay authoritative.
+      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, version: saved.version } : note),
     };
   }, []);
 
-  const onCanvasSaved = useCallback((saved: { canvas: Snapshot }) => {
-    current.current = { ...current.current, canvas: saved.canvas };
+  const onCanvasSaved = useCallback((_saved: { canvas: Snapshot }) => {
+    // Autosave owns the server version internally. Never replace the current
+    // local Canvas with an older acknowledgement snapshot.
   }, []);
 
   const {

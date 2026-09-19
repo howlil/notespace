@@ -302,7 +302,8 @@ func (s Service) Create(
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Project, error) {
 	u.Title = strings.TrimSpace(u.Title)
-	if u.References == nil || u.Notes == nil {
+	notesOmitted := u.Notes == nil
+	if u.References == nil || notesOmitted {
 		current, err := s.Store.Get(ctx, id)
 		if err != nil {
 			return Project{}, err
@@ -310,9 +311,17 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Project, erro
 		if u.References == nil {
 			u.References = current.References
 		}
-		if u.Notes == nil {
-			u.Notes = current.Notes
+		if notesOmitted {
+			u.Notes = append([]Note(nil), current.Notes...)
+			if len(u.Notes) > 0 {
+				u.Notes[0].Document = u.Document
+			}
 		}
+	}
+	if len(u.Notes) > 0 {
+		// Notes are canonical authored state. The legacy top-level Document
+		// remains a compatibility projection of the first Note.
+		u.Document = u.Notes[0].Document
 	}
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Project{}, ErrInvalid

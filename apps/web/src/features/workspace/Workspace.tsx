@@ -8,17 +8,14 @@ import { useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectContent, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { createWorkspaceNote, deleteWorkspaceNote, saveProject } from "../../domain/project/api";
-import { Autosave } from "../../domain/project/autosave";
-import type { SaveStatus } from "../../domain/project/autosave";
-import { rebaseLocalProjectContent } from "../../domain/project/canvas-merge";
+import { createWorkspaceNote, deleteWorkspaceNote } from "../../domain/project/api";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
-import { combineSaveStatuses, useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
+import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -78,12 +75,10 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [normalized] = useState(() => normalizeProjectContent(contentOf(project)));
   const initial = normalized.content;
   const current = useRef<ProjectContent>(initial);
-  const savedBase = useRef<ProjectContent>(contentOf(project));
   const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${project.id}`, new Set(initial.notes.map((note) => note.id))));
   const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
   const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
   const [maximizedSplitId, setMaximizedSplitId] = useState<string | null>(null);
-  const [workspaceStatus, setWorkspaceStatus] = useState<SaveStatus>({ state: "saved" });
   const [selectedTextPaneId, setSelectedTextPaneId] = useState<string | null>(null);
   const [highlightRequest, setHighlightRequest] = useState<{ paneId: string; request: number } | null>(null);
   const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
@@ -95,18 +90,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const navigationRequest = useRef(0);
   const touchContent = useCallback(() => setContentRevision((value) => value + 1), []);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
-  const [saver] = useState(() => {
-    const instance = new Autosave(project.version, async (value: ProjectContent, version) => {
-      const saved = await saveProject(project.id, value, version, savedBase.current);
-      const savedContent = contentOf(saved);
-      current.current = rebaseLocalProjectContent(value, current.current, savedContent);
-      savedBase.current = savedContent;
-      instance.replacePending(current.current);
-      return saved;
-    });
-    return instance;
-  });
-
   const onNoteSaved = useCallback((saved: Note) => {
     current.current = {
       ...current.current,
@@ -132,15 +115,15 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     onNoteSaved,
     onCanvasSaved,
   });
-  const status = combineSaveStatuses(workspaceStatus, granularStatus);
-  const dirty = saver.dirty || granularDirty;
-  const flushAll = useCallback(async () => {
-    await Promise.all([saver.flush(), flushGranular()]);
-  }, [flushGranular, saver]);
+  const status = granularStatus;
+  const dirty = granularDirty;
+  const flushAll = flushGranular;
   const study = useStudySession(project.id, current.current.title);
 
-  useEffect(() => { if (normalized.changed) saver.schedule(current.current); }, [normalized.changed, saver]);
-  useEffect(() => saver.subscribe(setWorkspaceStatus), [saver]);
+  useEffect(() => {
+    if (!normalized.changed) return;
+    for (const note of current.current.notes) scheduleNote(note);
+  }, [normalized.changed, scheduleNote]);
   useEffect(() => {
     if (status.state === "error") {
       showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) } });

@@ -91,6 +91,14 @@ func TestGranularWorkspaceStateHasIndependentVersions(t *testing.T) {
 		t.Fatalf("stale canvas update error = %v, want conflict", err)
 	}
 
+	page, err := service.ListWorkspaces(ctx, project.WorkspaceQuery{Offset: 0, Limit: 50, HasCanvas: true, HasNotes: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != workspace.ID || page.Items[0].NoteCount != 2 || !page.Items[0].HasCanvas {
+		t.Fatalf("granular library summary = %#v, want noteCount=2 and hasCanvas=true", page.Items)
+	}
+
 	if err := service.DeleteNote(ctx, workspace.ID, created.ID, created.Version); !errors.Is(err, project.ErrConflict) {
 		t.Fatalf("stale note delete error = %v, want conflict", err)
 	}

@@ -29,6 +29,7 @@ export function useCanvasAssets({
   const initialFiles = useRef<BinaryFiles>(readCanvasFiles(initial.data));
   const pendingFileIds = useRef(new Set<string>());
   const persistedFileIds = useRef(new Set<string>());
+  const lastFilesRef = useRef<BinaryFiles | null>(null);
 
   const restoreFiles = useCallback(async (api: ExcalidrawImperativeAPI) => {
     const fileIds = new Set(
@@ -83,6 +84,8 @@ export function useCanvasAssets({
   }, [workspaceId]);
 
   const persistFiles = useCallback((files: BinaryFiles) => {
+    if (lastFilesRef.current === files) return;
+    lastFilesRef.current = files;
     for (const [fileId, file] of Object.entries(files)) {
       if (
         pendingFileIds.current.has(fileId) ||

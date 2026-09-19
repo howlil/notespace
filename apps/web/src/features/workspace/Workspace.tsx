@@ -94,7 +94,9 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const onNoteSaved = useCallback((saved: Note) => {
     current.current = {
       ...current.current,
-      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, ...saved } : note),
+      // A save acknowledgement can arrive after a newer local edit was queued.
+      // Only advance the server version here; the in-memory authored fields stay authoritative.
+      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, version: saved.version } : note),
     };
   }, []);
 

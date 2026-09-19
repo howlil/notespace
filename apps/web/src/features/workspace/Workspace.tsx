@@ -82,6 +82,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [selectedTextPaneId, setSelectedTextPaneId] = useState<string | null>(null);
   const [highlightRequest, setHighlightRequest] = useState<{ paneId: string; request: number } | null>(null);
   const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
+  const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
@@ -310,6 +311,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setMaximizedSplitId(null);
   }
 
+  function openCanvasFrame(frameId: string) {
+    const existingCanvasPane = leaves(layout).find((pane) => pane.kind === "canvas");
+    if (existingCanvasPane) {
+      setActivePaneId(existingCanvasPane.id);
+    } else {
+      const next = layoutForViewMode(layout, "canvas", current.current.notes[0]?.id);
+      setLayout(next);
+      setActivePaneId(leaves(next).find((pane) => pane.kind === "canvas")?.id ?? leaves(next)[0]?.id ?? "");
+    }
+    setMaximizedPaneId(null);
+    setMaximizedSplitId(null);
+    setCanvasFocus({ id: frameId, request: ++navigationRequest.current });
+  }
+
   function toggleActiveMaximize() {
     if (focusMode) { setMaximizedPaneId(null); setMaximizedSplitId(null); return; }
     if (!activeFocusTarget) return;
@@ -367,10 +382,11 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       )
     );
     const toolbarTargetId = `note-pane-toolbar-${pane.id}`;
+    const articleMode = pane.kind === "note" && (leaves(layout).length === 1 || maximizedPaneId === pane.id);
     const surface = pane.kind === "note" && note ? (
-      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} articleMode={articleMode} getCanvasSnapshot={() => current.current.canvas} onOpenCanvasFrame={openCanvasFrame} /></Suspense></EditorBoundary>
     ) : (
-      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} dark={dark} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>
     );
 
     return (

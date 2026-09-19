@@ -333,6 +333,11 @@ function blockMarkdown(node: JsonNode, assetSources: AssetSources, depth = 0): s
       return `${"  ".repeat(depth)}- [${checked}] ${body}${nested ? `\n${nested}` : ""}`;
     }).join("\n");
   }
+  if (node.type === "canvasFrameLink") {
+    const label = typeof node.attrs?.label === "string" && node.attrs.label.trim() ? node.attrs.label.trim() : "Canvas frame";
+    const frameId = typeof node.attrs?.frameId === "string" ? node.attrs.frameId : "";
+    return frameId ? `[Canvas frame: ${label}](notespace://canvas/frame/${encodeURIComponent(frameId)})` : `[Canvas frame: ${label}]`;
+  }
   if (node.type === "image") {
     const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "image";
     const assetId = typeof node.attrs?.assetId === "string" ? node.attrs.assetId : "";

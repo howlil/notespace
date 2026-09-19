@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import type { ProjectContent } from "../../domain/project/project.ts";
-import { blankDocument, normalizeProjectContent } from "./workspace-content.ts";
+import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content.ts";
 
 function content(document = blankDocument("existing-block")): ProjectContent {
   return {
@@ -45,4 +45,19 @@ test("workspace note panes remount on note switch and expose non-destructive pan
   assert.match(workspace, /function closePane\(paneId: string\)/);
   assert.match(workspace, /removeNode\(layout, paneId\)/);
   assert.match(workspace, /onClick=\{\(\) => closePane\(pane\.id\)\}>Close pane<\/Button>/);
+});
+test("Canvas frame links remain authored Note nodes and contribute their label to note text", () => {
+  const document = {
+    format: "tiptap",
+    version: 1,
+    data: {
+      type: "doc",
+      content: [{ type: "canvasFrameLink", attrs: { frameId: "frame-1", label: "Architecture", preview: { frameId: "frame-1" } } }],
+    },
+  };
+  const normalized = normalizeProjectContent(content(document));
+  const root = normalized.content.document.data as { content?: Array<{ type?: string; attrs?: Record<string, unknown> }> };
+  assert.equal(root.content?.[0]?.type, "canvasFrameLink");
+  assert.equal(root.content?.[0]?.attrs?.frameId, "frame-1");
+  assert.equal(documentText(document), "Architecture");
 });

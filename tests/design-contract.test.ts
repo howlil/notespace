@@ -19,7 +19,9 @@ const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
+const CANVAS_FRAME_LINK = join(WEB_SRC, "features", "workspace", "canvas-frame-link.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
+const CANVAS_FRAME_LINK_NODE = join(WEB_SRC, "integrations", "document", "CanvasFrameLinkNode.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
 const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
 const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNativeActions.ts");
@@ -268,8 +270,8 @@ test("capture contract: Quick Capture and Library Tools are direct sidebar actio
   assert.doesNotMatch(tools,/createPortal|MutationObserver|querySelector|useRouterState/);
 });
 
-test("workspace contract: bounded panes use one interaction policy and Send/Link actions stay removed", () => {
-  const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT);
+test("workspace contract: bounded panes keep legacy Send/Link removed while explicit Canvas frame embeds stay scoped to Note content", () => {
+  const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
   assert.doesNotMatch(workspace, /notespace\.workspace:/);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
   assert.match(layout,/function paneInteractionState/); assert.match(layout,/function paneFocusTarget/);
@@ -285,6 +287,20 @@ test("workspace contract: bounded panes use one interaction policy and Send/Link
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.doesNotMatch(workspace,/historyDrawerRef|openHistory|restoreSelectedHistory|>History</);
   assert.match(content,/references:\s*\[\]/);
+  assert.match(workspace, /articleMode=\{articleMode\}/);
+  assert.match(workspace, /getCanvasSnapshot=\{\(\) => current\.current\.canvas\}/);
+  assert.match(workspace, /onOpenCanvasFrame=\{openCanvasFrame\}/);
+  assert.match(workspace, /focusRequest=\{canvasFocus\}/);
+  assert.match(editor, /max-w-\[760px\]/);
+  assert.match(editor, /label: "Link canvas"/);
+  assert.match(editor, /canvasFrameLinkFromClipboard/);
+  assert.match(editor, /aria-label="Canvas frames"/);
+  assert.match(editor, /createCanvasFrameLinkExtension/);
+  assert.match(frameLink, /parsed\.type !== "excalidraw\/clipboard"/);
+  assert.match(frameLink, /belongsToFrame/); assert.match(frameLink, /parentId === frameId/);
+  assert.match(frameNode, /data-canvas-frame-link/);
+  assert.match(frameNode, /Open canvas frame/);
+  assert.match(frameNode, /Preview of/);
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {

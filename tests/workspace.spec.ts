@@ -26,6 +26,46 @@ async function selectView(page: Page, name: "Canvas" | "Note" | "Split") {
   await page.getByTestId("workspace-view-switcher").getByRole("button", { name, exact: true }).click();
 }
 
+function frameCanvasSnapshot() {
+  const base = {
+    angle: 0,
+    strokeColor: "#4f7396",
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 1,
+    strokeStyle: "solid",
+    roughness: 0,
+    opacity: 100,
+    groupIds: [],
+    roundness: null,
+    seed: 1,
+    version: 1,
+    versionNonce: 1,
+    isDeleted: false,
+    boundElements: null,
+    updated: 1,
+    link: null,
+    locked: false,
+  };
+  return {
+    format: "excalidraw",
+    version: 1,
+    data: {
+      elements: [
+        { ...base, id: "frame-architecture", type: "frame", x: 120, y: 90, width: 440, height: 260, frameId: null, index: "a0", name: "Architecture" },
+        { ...base, id: "service-box", type: "rectangle", x: 180, y: 145, width: 180, height: 90, frameId: "frame-architecture", index: "a1", backgroundColor: "#e8eef6" },
+      ],
+      appState: { viewBackgroundColor: "#f8f9fc" },
+      files: {},
+    },
+  };
+}
+
+function frameClipboardPayload() {
+  const snapshot = frameCanvasSnapshot();
+  return JSON.stringify({ type: "excalidraw/clipboard", elements: snapshot.data.elements });
+}
+
 test("create → edit note and canvas → reload", async ({ page, request }) => {
   const title = `Distributed Systems ${Date.now()}`;
   const id = await createViaAPI(page, request, title);
@@ -239,6 +279,83 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
         arrows: live.filter((element) => element.type === "arrow").length,
       };
     }).toEqual({ rectangles: 2, diamonds: 1, arrows: 2 });
+  } finally {
+    await cleanup(request, id);
+  }
+});
+
+
+test("single Note view uses a centered article-width writing column", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const id = await createViaAPI(page, request, `Article width ${Date.now()}`);
+
+  try {
+    await selectView(page, "Note");
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
+    const pane = page.locator('section[aria-label$="note pane"]').first();
+    const editorBox = await editor.boundingBox();
+    const paneBox = await pane.boundingBox();
+    expect(editorBox).not.toBeNull();
+    expect(paneBox).not.toBeNull();
+    expect(editorBox!.width).toBeLessThanOrEqual(762);
+    expect(Math.abs((editorBox!.x + editorBox!.width / 2) - (paneBox!.x + paneBox!.width / 2))).toBeLessThan(6);
+  } finally {
+    await cleanup(request, id);
+  }
+});
+
+test("Note can embed Canvas frames by slash command or pasted Excalidraw frame and open the live frame", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Frame link ${Date.now()}`);
+
+  try {
+    const current = await (await request.get(`/api/workspaces/${id}`)).json() as { canvasVersion: number };
+    const canvasUpdate = await request.patch(`/api/workspaces/${id}/canvas`, {
+      data: { canvas: frameCanvasSnapshot(), version: current.canvasVersion },
+    });
+    expect(canvasUpdate.status()).toBe(200);
+    await page.reload();
+    await selectView(page, "Note");
+
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
+    await editor.fill("/link");
+    const insertMenu = page.getByRole("listbox", { name: "Insert block" });
+    await expect(insertMenu).toBeVisible();
+    await insertMenu.getByRole("option", { name: /Link canvas/ }).click();
+
+    const framePicker = page.getByRole("listbox", { name: "Canvas frames" });
+    await expect(framePicker).toBeVisible();
+    await framePicker.getByRole("option", { name: /Architecture/ }).click();
+
+    const preview = page.getByRole("button", { name: "Open canvas frame Architecture" });
+    await expect(preview).toHaveCount(1);
+    await expect(page.getByRole("img", { name: "Preview of Architecture" })).toBeVisible();
+    await expect(preview.getByText("1 object", { exact: true })).toBeVisible();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+    await preview.click();
+    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
+    await expect(page.getByRole("toolbar", { name: "Selected shape actions" })).toBeVisible();
+
+    await selectView(page, "Note");
+    const reloadedEditor = page.getByRole("textbox", { name: "Workspace document" });
+    await reloadedEditor.click();
+    await reloadedEditor.evaluate((node, payload) => {
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", payload);
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: transfer });
+      node.dispatchEvent(event);
+    }, frameClipboardPayload());
+
+    await expect(page.getByRole("button", { name: "Open canvas frame Architecture" })).toHaveCount(2);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+    const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+      notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { frameId?: string } }> } } }>;
+    };
+    const frameNodes = stored.notes[0]?.document.data.content?.filter((node) => node.type === "canvasFrameLink") ?? [];
+    expect(frameNodes).toHaveLength(2);
+    expect(frameNodes.every((node) => node.attrs?.frameId === "frame-architecture")).toBe(true);
   } finally {
     await cleanup(request, id);
   }

@@ -349,6 +349,19 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     await selectView(page, "Note");
     const reloadedEditor = page.getByRole("textbox", { name: "Workspace document" });
     await reloadedEditor.click();
+
+    const noteSaveRoute = `**/api/workspaces/${id}/notes/*`;
+    let noteSaveAttempt = 0;
+    await page.route(noteSaveRoute, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      noteSaveAttempt += 1;
+      await new Promise((resolve) => setTimeout(resolve, noteSaveAttempt === 1 ? 500 : 900));
+      await route.continue();
+    });
+
     await reloadedEditor.evaluate((node, payload) => {
       const transfer = new DataTransfer();
       transfer.setData("text/plain", payload);
@@ -357,14 +370,24 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
       node.dispatchEvent(event);
     }, frameClipboardPayload());
 
-    await expect(page.getByRole("button", { name: "Open canvas frame Architecture" })).toHaveCount(2);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    const linkedFrames = page.getByRole("button", { name: "Open canvas frame Architecture" });
+    await expect(linkedFrames).toHaveCount(2);
+    await expect(page.getByText("Saving…", { exact: true })).toBeVisible();
+
+    // Delete while the previous two-frame snapshot is still in flight. Its later
+    // acknowledgement must not restore the deleted node into the editor.
+    await page.getByRole("button", { name: "Remove canvas frame link" }).first().click({ force: true });
+    await expect(linkedFrames).toHaveCount(1);
+    await page.waitForTimeout(650);
+    await expect(linkedFrames).toHaveCount(1);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await page.unroute(noteSaveRoute);
 
     const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
       notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { frameId?: string } }> } } }>;
     };
     const frameNodes = stored.notes[0]?.document.data.content?.filter((node) => node.type === "canvasFrameLink") ?? [];
-    expect(frameNodes).toHaveLength(2);
+    expect(frameNodes).toHaveLength(1);
     expect(frameNodes.every((node) => node.attrs?.frameId === "frame-architecture")).toBe(true);
   } finally {
     await cleanup(request, id);

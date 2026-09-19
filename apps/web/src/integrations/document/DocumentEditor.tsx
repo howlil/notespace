@@ -26,6 +26,7 @@ import {
   Code2,
   Copy,
   ExternalLink,
+  Frame,
   Heading2,
   Highlighter,
   ImagePlus,
@@ -48,6 +49,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
+import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../features/workspace/canvas-frame-link";
+import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
 import { looksLikeMarkdown, markdownToSnapshot } from "../../domain/document/markdown";
 import {
   Button,
@@ -71,6 +74,7 @@ type OutlineItem = { id: string; level: number; text: string };
 type EditorJson = { type?: string; content?: JSONContent[] };
 type PopupPosition = ReturnType<typeof placeEditorPopup>;
 type SlashMenu = { from: number; query: string } & PopupPosition;
+type FramePicker = { frames: CanvasFrameLinkData[] } & PopupPosition;
 type SelectionMenu = PopupPosition | null;
 type MathEdit = { kind: "inline" | "block"; pos: number; latex: string } | null;
 type FindStorage = {
@@ -151,7 +155,8 @@ type SlashCommand = {
   description: string;
   keywords: string;
   icon: LucideIcon;
-  run: (editor: Editor) => void;
+  kind?: "canvas-frame";
+  run?: (editor: Editor) => void;
 };
 
 function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selected }: NodeViewProps & { workspaceId: string }) {
@@ -268,6 +273,9 @@ export default function DocumentEditor({
   highlightRequest = null,
   workspaceId,
   toolbarTargetId,
+  articleMode = false,
+  getCanvasSnapshot,
+  onOpenCanvasFrame,
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
@@ -276,16 +284,22 @@ export default function DocumentEditor({
   highlightRequest?: HighlightRequest;
   workspaceId: string;
   toolbarTargetId?: string;
+  articleMode?: boolean;
+  getCanvasSnapshot?: () => Snapshot;
+  onOpenCanvasFrame?: (frameId: string) => void;
 }) {
   const { showToast } = useToast();
   const documentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const slashMenuRef = useRef<SlashMenu | null>(null);
   const selectedCommandRef = useRef(0);
+  const openCanvasFrameRef = useRef(onOpenCanvasFrame);
+  openCanvasFrameRef.current = onOpenCanvasFrame;
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
 
   const [slashMenu, setSlashMenu] = useState<SlashMenu | null>(null);
+  const [framePicker, setFramePicker] = useState<FramePicker | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -305,7 +319,11 @@ export default function DocumentEditor({
     slashMenuRef.current = null;
     setSlashMenu(null);
   }, []);
-  useDismissablePopup(documentRef, !!slashMenu, dismissSlashMenu);
+  const dismissInsertPopups = useCallback(() => {
+    dismissSlashMenu();
+    setFramePicker(null);
+  }, [dismissSlashMenu]);
+  useDismissablePopup(documentRef, !!slashMenu || !!framePicker, dismissInsertPopups);
 
   useEffect(() => {
     if (!toolbarTargetId) { setToolbarTarget(null); return; }
@@ -405,6 +423,7 @@ export default function DocumentEditor({
     { label: "Table", description: "Insert a 3 × 3 comparison table", keywords: "table grid compare", icon: Table2, run: (editor) => { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); } },
     { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", icon: Quote, run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
     { label: "Code block", description: "Syntax-highlighted code", keywords: "code pre source", icon: Code2, run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
+    { label: "Link canvas", description: "Embed a Canvas frame preview", keywords: "link canvas frame embed preview", icon: Frame, kind: "canvas-frame" },
     { label: "Inline math", description: "Insert a compact equation", keywords: "math equation latex inline", icon: Sigma, run: (editor) => { editor.chain().focus().insertInlineMath({ latex: "x^2" }).run(); } },
     { label: "Math block", description: "Insert a display equation", keywords: "math equation latex block", icon: Sigma, run: (editor) => { editor.chain().focus().insertBlockMath({ latex: "\\\\frac{a}{b}" }).run(); } },
     { label: "Image", description: "Choose an image from this device", keywords: "image photo upload", icon: ImagePlus, run: () => { imageInputRef.current?.click(); } },
@@ -416,6 +435,7 @@ export default function DocumentEditor({
       StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
       CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true, tabSize: 2 }),
       createLocalImageExtension(workspaceId),
+      createCanvasFrameLinkExtension((frameId) => openCanvasFrameRef.current?.(frameId)),
       TaskList,
       TaskItem.configure({
         nested: true,
@@ -451,7 +471,7 @@ export default function DocumentEditor({
         role: "textbox",
         "aria-multiline": "true",
         spellcheck: "false",
-        class: cn(editorClassName, codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+        class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
       },
       handlePaste: (_view, event) => {
         const clipboard = event.clipboardData;
@@ -461,10 +481,17 @@ export default function DocumentEditor({
           .filter((file): file is File => file !== null);
         if (files.length) { event.preventDefault(); void insertImages(files); return true; }
 
+        const text = clipboard?.getData("text/plain") ?? "";
+        const copiedFrame = canvasFrameLinkFromClipboard(text, getCanvasSnapshot?.());
+        if (copiedFrame) {
+          event.preventDefault();
+          editorRef.current?.chain().focus().insertContent(canvasFrameLinkNode(copiedFrame)).run();
+          return true;
+        }
+
         const html = clipboard?.getData("text/html") ?? "";
         if (hasStructuredClipboardHtml(html)) return false;
 
-        const text = clipboard?.getData("text/plain") ?? "";
         if (!looksLikeMarkdown(text)) return false;
         const root = markdownToSnapshot(text).data as EditorJson;
         if (!root.content?.length) return false;
@@ -580,19 +607,36 @@ export default function DocumentEditor({
         ...editor.options.editorProps,
         attributes: {
           ...editor.options.editorProps.attributes,
-          class: cn(editorClassName, codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+          class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
         },
       },
     });
-  }, [codeWrap, editor]);
+  }, [articleMode, codeWrap, editor]);
 
   function runSlashCommand(command: SlashCommand) {
     const menu = slashMenuRef.current;
     const currentEditor = editorRef.current;
     if (!menu || !currentEditor) return;
     currentEditor.chain().focus().deleteRange({ from: menu.from, to: currentEditor.state.selection.from }).run();
-    command.run(currentEditor);
+    if (command.kind === "canvas-frame") {
+      const frames = listCanvasFrameLinks(getCanvasSnapshot?.());
+      dismissSlashMenu();
+      if (!frames.length) {
+        showToast({ kind: "info", message: "Create a Canvas frame before linking it into this note." });
+        return;
+      }
+      setFramePicker({ x: menu.x, y: menu.y, placement: menu.placement, frames });
+      return;
+    }
+    command.run?.(currentEditor);
     dismissSlashMenu();
+  }
+
+  function insertCanvasFrame(preview: CanvasFrameLinkData) {
+    const currentEditor = editorRef.current;
+    if (!currentEditor) return;
+    currentEditor.chain().focus().insertContent(canvasFrameLinkNode(preview)).run();
+    setFramePicker(null);
   }
 
   function focusHeading(blockId: string) {
@@ -880,6 +924,43 @@ export default function DocumentEditor({
               >
                 <span className="grid size-5 shrink-0 place-items-center text-accent"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-4"><span className="text-[11px] font-medium">{command.label}</span><span className="text-[10px] text-muted">{command.description}</span></span>
+              </Button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {framePicker && (
+          <motion.div
+            key="canvas-frame-picker"
+            initial={{ opacity: 0, y: framePicker.placement === "top" ? 6 : -6, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.985 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(320px,calc(100vw_-_24px))] overflow-y-auto rounded-lg border border-line bg-surface p-1.5 shadow-[0_12px_32px_#0002] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="listbox"
+            aria-label="Canvas frames"
+            data-placement={framePicker.placement}
+            style={{ left: framePicker.x, top: framePicker.y }}
+          >
+            <div className="px-[9px] pt-1.5 pb-[5px] text-[10px] font-medium text-muted">Link Canvas frame</div>
+            {framePicker.frames.map((frame) => (
+              <Button
+                key={frame.frameId}
+                type="button"
+                variant="ghost"
+                size="sm"
+                role="option"
+                className="!min-h-0 !flex w-full !items-center !justify-start !gap-3 rounded-md px-2.5 py-2.5 text-left text-ink hover:bg-tint"
+                onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
+                onClick={() => insertCanvasFrame(frame)}
+              >
+                <span className="grid size-5 shrink-0 place-items-center text-accent"><Frame size={15} strokeWidth={1.8} aria-hidden="true" /></span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-4">
+                  <span className="truncate text-[11px] font-medium">{frame.label}</span>
+                  <span className="text-[10px] text-muted">{frame.elementCount} object{frame.elementCount === 1 ? "" : "s"}</span>
+                </span>
               </Button>
             ))}
           </motion.div>

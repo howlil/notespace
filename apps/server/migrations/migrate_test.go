@@ -78,4 +78,21 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 	if foreignKeyCount != 1 {
 		t.Fatalf("projects foreign keys to categories = %d, want 1", foreignKeyCount)
 	}
+	var duplicateAuthoredColumns int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('document_state','notes_state','canvas_state')`).Scan(&duplicateAuthoredColumns); err != nil {
+		t.Fatal(err)
+	}
+	if duplicateAuthoredColumns != 0 {
+		t.Fatalf("legacy authored project columns = %d, want 0", duplicateAuthoredColumns)
+	}
+	var granularNotes, granularCanvas int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id='legacy-project'`).Scan(&granularNotes); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id='legacy-project'`).Scan(&granularCanvas); err != nil {
+		t.Fatal(err)
+	}
+	if granularNotes != 1 || granularCanvas != 1 {
+		t.Fatalf("granular backfill = notes:%d canvas:%d, want 1/1", granularNotes, granularCanvas)
+	}
 }

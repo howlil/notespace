@@ -38,14 +38,14 @@ Use Tiptap for structured notes and Excalidraw for the canvas behind Notespace-o
 
 **Consequences:** editor-native payloads may be stored in versioned snapshots, but product identity/relationships must remain Notespace-owned. Replacing either primary editor is material.
 
-## D004 — SQLite persistence with optimistic workspace versioning
+## D004 — SQLite persistence with aggregate and granular optimistic versioning
 
-**Status:** Accepted  
+**Status:** Accepted; refined 2026-09-19  
 **Date:** 2026-09-01
 
-Use Go `database/sql` with pure-Go `modernc.org/sqlite`, explicit SQL, embedded migrations, one connection, WAL, and FULL synchronous mode. Existing project-named update contracts use optimistic version conflict detection.
+Use Go `database/sql` with pure-Go `modernc.org/sqlite`, explicit SQL, embedded migrations, one connection, WAL, and FULL synchronous mode. `Project.version` is retained as an aggregate Workspace revision/ETag for metadata and legacy aggregate compatibility writes. Canonical Notes and Canvas have independent resource versions used by their granular write paths.
 
-**Consequences:** stale writes conflict rather than auto-merge. Persistence technology, conflict semantics, or destructive migration changes are material and durability claims require restart/reopen evidence.
+**Consequences:** every canonical Note/Canvas mutation also advances the aggregate revision so a stale whole-workspace snapshot cannot overwrite newer child state. Granular Note writes conflict only on that Note version; Canvas writes conflict on Canvas version and may reconcile Excalidraw elements before retrying. Persistence technology, these conflict semantics, or destructive migration changes are material and durability claims require restart/reopen evidence.
 
 ## D005 — Verification is boundary- and risk-proportional
 

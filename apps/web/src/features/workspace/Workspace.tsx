@@ -129,7 +129,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) } });
     }
     if (status.state === "conflict") {
-      showToast({ kind: "error", message: status.message ?? "Workspace changed elsewhere.", action: { label: "Reload latest", onClick: () => window.location.reload() } });
+      showToast({ kind: "error", message: status.message ?? "Autosave paused. Preserve the local draft before reloading." });
     }
   }, [flushAll, showToast, status]);
   useEffect(() => {

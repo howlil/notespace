@@ -228,7 +228,7 @@ func (s *Store) CreateNote(ctx context.Context, workspaceID string, input projec
 VALUES (?,?,?,?,?,?,1)`, workspaceID, input.ID, input.Title, document, now, now); err != nil {
 		return project.Note{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return project.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -277,7 +277,7 @@ RETURNING id,title,document_state,created_at,updated_at,version`,
 		return project.Note{}, err
 	}
 
-	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return project.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -318,7 +318,7 @@ func (s *Store) DeleteNote(ctx context.Context, workspaceID, noteID string, vers
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -361,12 +361,20 @@ RETURNING canvas_state,version,updated_at`,
 		return project.CanvasState{}, err
 	}
 
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=? WHERE id=?`, now, workspaceID)
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1 WHERE id=?`, now, workspaceID)
 	if err != nil {
 		return project.CanvasState{}, err
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return project.CanvasState{}, project.ErrNotFound
+	}
+	// Canvas content is not searchable, so advance only the aggregate revision
+	// recorded by an existing FTS projection. Title/category/notes_revision
+	// mismatches still force the normal lazy rebuild.
+	if _, err := tx.ExecContext(ctx, `UPDATE workspace_search_meta
+SET version=(SELECT version FROM projects WHERE id=?)
+WHERE workspace_id=?`, workspaceID, workspaceID); err != nil {
+		return project.CanvasState{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return project.CanvasState{}, err

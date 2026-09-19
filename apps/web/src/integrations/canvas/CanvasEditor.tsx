@@ -26,7 +26,7 @@ import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } fro
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
-import { defaultCanvasCodeBlock, detectCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
@@ -112,6 +112,31 @@ function codeGeometryMap(elements: readonly OrderedExcalidrawElement[]) {
     }
   }
   return geometry;
+}
+
+function codeElementContainsClientPoint(
+  element: OrderedExcalidrawElement,
+  viewport: { zoom: number; scrollX: number; scrollY: number },
+  surfaceRect: DOMRect,
+  clientX: number,
+  clientY: number,
+) {
+  const zoom = viewport.zoom;
+  const left = (element.x + viewport.scrollX) * zoom;
+  const top = (element.y + viewport.scrollY) * zoom;
+  const width = element.width * zoom;
+  const height = element.height * zoom;
+  const pointX = clientX - surfaceRect.left;
+  const pointY = clientY - surfaceRect.top;
+  const centerX = left + width / 2;
+  const centerY = top + height / 2;
+  const dx = pointX - centerX;
+  const dy = pointY - centerY;
+  const cos = Math.cos(-element.angle);
+  const sin = Math.sin(-element.angle);
+  const localX = dx * cos - dy * sin + width / 2;
+  const localY = dx * sin + dy * cos + height / 2;
+  return localX >= 0 && localX <= width && localY >= 0 && localY <= height;
 }
 
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
@@ -580,6 +605,25 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         if (!(target instanceof Element) || !target.closest(".excalidraw__canvas")) return;
         focusCanvasEditor();
       }}
+      onDoubleClickCapture={(event) => {
+        if (editingCodeBlockId) return;
+        const target = event.target;
+        if (target instanceof Element && target.closest(".notespace-selection-actions")) return;
+        const value = api.current;
+        const rect = surfaceRef.current?.getBoundingClientRect();
+        if (!value || !rect) return;
+        const selectedIds = Object.entries(value.getAppState().selectedElementIds)
+          .filter(([, selected]) => selected)
+          .map(([id]) => id);
+        if (selectedIds.length !== 1) return;
+        const element = value.getSceneElementsIncludingDeleted().find((candidate) => candidate.id === selectedIds[0] && !candidate.isDeleted);
+        if (!element || !readCanvasCodeBlock(element)) return;
+        if (!codeElementContainsClientPoint(element, canvasViewport, rect, event.clientX, event.clientY)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedElementId(element.id);
+        setEditingCodeBlockId(element.id);
+      }}
     >
       <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
         <CanvasToolRail
@@ -637,29 +681,14 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
         const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
         if (selectedCodeElement && selectedCodeBlock) {
-          const editing = editingCodeBlockId === selectedCodeElement.id;
           return (
             <CanvasCodeBlockActions
               block={selectedCodeBlock}
               appDark={dark}
               run={codeRuns[selectedCodeElement.id]}
-              editing={editing}
               onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
               onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
               onStop={() => stopCodeRun(selectedCodeElement.id)}
-              onEdit={() => {
-                if (editing) {
-                  if (!selectedCodeBlock.languageLocked) {
-                    updateCodeBlock(selectedCodeElement.id, {
-                      ...selectedCodeBlock,
-                      language: detectCodeLanguage(selectedCodeBlock.code),
-                    });
-                  }
-                  setEditingCodeBlockId(null);
-                } else {
-                  setEditingCodeBlockId(selectedCodeElement.id);
-                }
-              }}
               onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
               onDelete={() => {
                 clearCodeRun(selectedCodeElement.id);

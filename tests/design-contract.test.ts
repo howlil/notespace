@@ -25,6 +25,7 @@ const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx"
 const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNativeActions.ts");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
 const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPanelPosition.ts");
+const CANVAS_PEER_CHANNEL = join(WEB_SRC, "integrations", "canvas", "use-canvas-peer-channel.ts");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "providers", "toast-provider.tsx");
 const STUDY_ACTIVITY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
@@ -78,7 +79,7 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
 });
 
 test("canvas contract: tool, contextual, and viewport chrome have distinct ownership", () => {
-  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS);
+  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS), peerChannel = source(CANVAS_PEER_CHANNEL);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw\s*\{/);
   assert.match(globals, /--color-primary:\s*var\(--accent\)/);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
@@ -98,7 +99,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /actionManager\.actions\[name\]/);
   assert.match(canvas, /setCanvasBackground/);
   assert.doesNotMatch(canvas, /<MainMenu/);
-  assert.match(canvas, /new BroadcastChannel\(`notespace\.canvas:\$\{workspaceId\}`\)/);
+  assert.match(canvas, /useCanvasPeerChannel\(workspaceId, handlePeerSnapshot\)/);
+  assert.match(peerChannel, /new BroadcastChannel\(`notespace\.canvas:\$\{workspaceId\}`\)/);
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);

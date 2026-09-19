@@ -260,7 +260,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const emitSnapshot = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, nextDiagrams: readonly StructuredDiagram[]) => {
     const data = {
-      elements: authoredElements,
+      elements,
       appState: persistedAppState(state),
       files: {},
       [DIAGRAM_DATA_KEY]: nextDiagrams,
@@ -359,7 +359,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     );
 
     const data = {
-      elements,
+      elements: authoredElements,
       appState: persistedAppState(state),
       files: {},
       [DIAGRAM_DATA_KEY]: nextDiagrams,

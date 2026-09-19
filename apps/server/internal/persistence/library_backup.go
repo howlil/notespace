@@ -175,25 +175,13 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 	}
 	workspace := envelope.Project
 	workspace.CategoryID = categoryID
-	document, err := json.Marshal(workspace.Document)
-	if err != nil {
-		return err
-	}
-	notes, err := json.Marshal(workspace.Notes)
-	if err != nil {
-		return err
-	}
-	canvas, err := json.Marshal(workspace.Canvas)
-	if err != nil {
-		return err
-	}
 	references, err := json.Marshal(workspace.References)
 	if err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects(id,category_id,title,document_state,canvas_state,references_state,notes_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		workspace.ID, workspace.CategoryID, workspace.Title, document, canvas, references, notes,
+		`INSERT INTO projects(id,category_id,title,references_state,split_ratio,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?)`,
+		workspace.ID, workspace.CategoryID, workspace.Title, references,
 		workspace.SplitRatio, workspace.CreatedAt, workspace.UpdatedAt, workspace.Version,
 	); err != nil {
 		return err
@@ -401,6 +389,8 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		`DELETE FROM workspace_history_payload`,
 		`DELETE FROM workspace_history`,
 		`DELETE FROM workspace_assets`,
+		`DELETE FROM workspace_notes`,
+		`DELETE FROM workspace_canvas`,
 		`DELETE FROM projects`,
 		`DELETE FROM workspace_trash`,
 		`DELETE FROM study_sessions`,

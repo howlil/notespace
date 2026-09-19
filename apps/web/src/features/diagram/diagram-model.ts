@@ -443,6 +443,38 @@ function nodeLabel(node: DiagramNode, shape: ElementGeometry, live: Map<string, 
   return lines.length > 1 ? lines.slice(1).join(" ") : lines[0];
 }
 
+export function hydrateDiagramGeometryFromElements(
+  diagram: StructuredDiagram,
+  elements: readonly ElementGeometry[],
+): StructuredDiagram {
+  const live = new Map(
+    elements
+      .filter((element) => !element.isDeleted)
+      .map((element) => [element.id, element]),
+  );
+
+  return {
+    ...diagram,
+    nodes: diagram.nodes.map((node) => {
+      const shape = live.get(node.elementId);
+      if (!shape) return node;
+      return {
+        ...node,
+        x: typeof shape.x === "number" ? shape.x : node.x,
+        y: typeof shape.y === "number" ? shape.y : node.y,
+        width:
+          typeof shape.width === "number" && shape.width > 0
+            ? shape.width
+            : node.width,
+        height:
+          typeof shape.height === "number" && shape.height > 0
+            ? shape.height
+            : node.height,
+      };
+    }),
+  };
+}
+
 export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[], elements: readonly ElementGeometry[]) {
   const live = new Map(elements.filter((element) => !element.isDeleted).map((element) => [element.id, element]));
 
@@ -452,11 +484,10 @@ export function syncDiagramsFromElements(diagrams: readonly StructuredDiagram[],
       if (!shape) return [];
       return [{
         ...node,
+        // Excalidraw owns live geometry. StructuredDiagram keeps semantic
+        // identity/labels plus compatibility bootstrap geometry, but native
+        // move/resize no longer writes a second geometry source on every frame.
         label: nodeLabel(node, shape, live),
-        x: typeof shape.x === "number" ? shape.x : node.x,
-        y: typeof shape.y === "number" ? shape.y : node.y,
-        width: typeof shape.width === "number" && shape.width > 0 ? shape.width : node.width,
-        height: typeof shape.height === "number" && shape.height > 0 ? shape.height : node.height,
       }];
     });
     if (!nodes.length) return [];

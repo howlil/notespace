@@ -121,7 +121,6 @@ func TestGranularWorkspaceStateHasIndependentVersions(t *testing.T) {
 	}
 }
 
-
 func TestGranularWriteInvalidatesStaleAggregateSnapshot(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "granular-aggregate-race.db"))

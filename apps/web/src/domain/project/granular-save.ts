@@ -1,5 +1,5 @@
 import { BlockingAutosaveError } from "./autosave";
-import { mergeCanvasSnapshots } from "./canvas-merge";
+import { reconcileCanvasConflict } from "./canvas-conflict-retry";
 import { publishGranularConflict } from "./conflict-recovery";
 import { APIError, getProject } from "./http";
 import { updateWorkspaceCanvas, updateWorkspaceNote } from "./api";
@@ -38,9 +38,6 @@ export async function saveWorkspaceNote(
   }
 }
 
-function sameSnapshot(left: Snapshot, right: Snapshot) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
 
 export async function saveWorkspaceCanvas(
   workspaceId: string,
@@ -58,13 +55,14 @@ export async function saveWorkspaceCanvas(
       if (!(error instanceof APIError) || error.status !== 409) throw error;
 
       latest = await getProject(workspaceId);
-      candidate = mergeCanvasSnapshots(candidate, latest.canvas);
-      candidateVersion = latest.canvasVersion;
+      const resolution = reconcileCanvasConflict(candidate, latest);
+      candidate = resolution.canvas;
+      candidateVersion = resolution.version;
 
       // Another tab may already have converged to exactly the same authored
       // scene. Treat that state as the acknowledgement instead of generating
       // an unnecessary version bump.
-      if (sameSnapshot(candidate, latest.canvas)) {
+      if (resolution.converged) {
         return {
           canvas: latest.canvas,
           version: latest.canvasVersion,

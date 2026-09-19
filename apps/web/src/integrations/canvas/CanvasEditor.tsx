@@ -41,9 +41,9 @@ import { ensureEraserDiagramIconFiles } from "./eraser-icon-files";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles, type CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
+import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
 
 type FocusRequest = { id: string; request: number } | null;
-type CanvasPeerMessage = { source: string; snapshot: Snapshot };
 
 const canvasUIOptions = {
   canvasActions: {
@@ -158,27 +158,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
-  const peerId = useRef(crypto.randomUUID());
-  const peerChannel = useRef<BroadcastChannel | null>(null);
-  const peerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queuedPeerSnapshot = useRef<Snapshot | null>(null);
   const flowchartPreviewRef = useRef<DirectionalSpawnDirection | null>(null);
 
   const closeCanvasPopovers = useCallback(() => {
     setMoreOpen(false);
-  }, []);
-
-  const publishPeerSnapshot = useCallback((snapshot: Snapshot) => {
-    if (typeof BroadcastChannel === "undefined") return;
-    queuedPeerSnapshot.current = snapshot;
-    if (peerTimer.current) clearTimeout(peerTimer.current);
-    peerTimer.current = setTimeout(() => {
-      const channel = peerChannel.current;
-      const queued = queuedPeerSnapshot.current;
-      queuedPeerSnapshot.current = null;
-      peerTimer.current = null;
-      if (channel && queued) channel.postMessage({ source: peerId.current, snapshot: queued } satisfies CanvasPeerMessage);
-    }, 80);
   }, []);
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
@@ -193,21 +176,6 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     diagramSelectionRef.current = next;
     setDiagramSelection(next);
   }, []);
-
-  const emitSnapshot = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, nextDiagrams: readonly StructuredDiagram[]) => {
-    const data = {
-      elements,
-      appState: persistedAppState(state),
-      files: {},
-      [DIAGRAM_DATA_KEY]: nextDiagrams,
-    };
-    const snapshot: Snapshot = { format: "excalidraw", version: 1, data };
-    const serialized = JSON.stringify(data);
-    last.current = serialized;
-    lastExternalScene.current = sceneSignature(data);
-    onChange(snapshot);
-    publishPeerSnapshot(snapshot);
-  }, [onChange, publishPeerSnapshot]);
 
   const restoreLocalFiles = useCallback(async (value: ExcalidrawImperativeAPI) => {
     const fileIds = new Set(value.getSceneElements().map((element) => "fileId" in element && typeof element.fileId === "string" ? String(element.fileId) : null).filter((fileId): fileId is string => fileId !== null));
@@ -245,62 +213,64 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     }
   }, [showToast]);
 
-  useEffect(() => {
-    if (typeof BroadcastChannel === "undefined") return undefined;
-    const channel = new BroadcastChannel(`notespace.canvas:${workspaceId}`);
-    peerChannel.current = channel;
-    channel.onmessage = (event: MessageEvent<CanvasPeerMessage>) => {
-      const message = event.data;
-      if (!message || message.source === peerId.current || message.snapshot?.format !== "excalidraw") return;
-      const value = api.current;
-      if (!value) return;
+  const handlePeerSnapshot = useCallback((snapshot: Snapshot) => {
+    const value = api.current;
+    if (!value) return;
 
-      const remoteElements = Array.isArray(message.snapshot.data.elements)
-        ? message.snapshot.data.elements as OrderedExcalidrawElement[]
-        : [];
-      const localElements = value.getSceneElementsIncludingDeleted();
-      const mergedElements = reconcileElements(
-        localElements,
-        remoteElements as Parameters<typeof reconcileElements>[1],
-        value.getAppState(),
-      );
-      // Peer tabs share authored elements, not each other's viewport/UI state.
-      // This keeps pan, zoom, grid and background controls local while the scene
-      // itself converges immediately.
-      const localAppState = persistedAppState(value.getAppState());
-      const seedDiagrams = mergeDiagramSets(diagramsRef.current, readStructuredDiagrams(message.snapshot.data));
-      diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, seedDiagrams);
-      const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, mergedElements);
-      const data = {
-        elements: mergedElements,
-        appState: localAppState,
-        files: {},
-        [DIAGRAM_DATA_KEY]: nextDiagrams,
-      };
-      const serialized = JSON.stringify(data);
-      if (serialized === last.current) return;
+    const remoteElements = Array.isArray(snapshot.data.elements)
+      ? snapshot.data.elements as OrderedExcalidrawElement[]
+      : [];
+    const localElements = value.getSceneElementsIncludingDeleted();
+    const mergedElements = reconcileElements(
+      localElements,
+      remoteElements as Parameters<typeof reconcileElements>[1],
+      value.getAppState(),
+    );
 
-      last.current = serialized;
-      lastExternalScene.current = sceneSignature(data);
-      updateDiagramState(nextDiagrams);
-      setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
-      setHasElements(mergedElements.some((element) => !element.isDeleted));
-
-      value.updateScene({
-        elements: mergedElements,
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-      onChange({ format: "excalidraw", version: 1, data });
+    // Peer tabs share authored elements, not each other's viewport/UI state.
+    const localAppState = persistedAppState(value.getAppState());
+    const seedDiagrams = mergeDiagramSets(diagramsRef.current, readStructuredDiagrams(snapshot.data));
+    diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, seedDiagrams);
+    const nextDiagrams = syncDiagramsFromElements(diagramHistoryRef.current, mergedElements);
+    const data = {
+      elements: mergedElements,
+      appState: localAppState,
+      files: {},
+      [DIAGRAM_DATA_KEY]: nextDiagrams,
     };
+    const serialized = JSON.stringify(data);
+    if (serialized === last.current) return;
 
-    return () => {
-      if (peerTimer.current) clearTimeout(peerTimer.current);
-      peerTimer.current = null;
-      queuedPeerSnapshot.current = null;
-      peerChannel.current = null;
-      channel.close();
+    last.current = serialized;
+    lastExternalScene.current = sceneSignature(data);
+    updateDiagramState(nextDiagrams);
+    setLastDiagramId(nextDiagrams.at(-1)?.id ?? null);
+    setHasElements(mergedElements.some((element) => !element.isDeleted));
+
+    value.updateScene({
+      elements: mergedElements,
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    onChange({ format: "excalidraw", version: 1, data });
+  }, [onChange, updateDiagramState]);
+
+  const publishPeerSnapshot = useCanvasPeerChannel(workspaceId, handlePeerSnapshot);
+
+  const emitSnapshot = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, nextDiagrams: readonly StructuredDiagram[]) => {
+    const data = {
+      elements,
+      appState: persistedAppState(state),
+      files: {},
+      [DIAGRAM_DATA_KEY]: nextDiagrams,
     };
-  }, [onChange, updateDiagramState, workspaceId]);
+    const snapshot: Snapshot = { format: "excalidraw", version: 1, data };
+    const serialized = JSON.stringify(data);
+    last.current = serialized;
+    lastExternalScene.current = sceneSignature(data);
+    onChange(snapshot);
+    publishPeerSnapshot(snapshot);
+  }, [onChange, publishPeerSnapshot]);
+
 
   useEffect(() => {
     if (!api.current) return;

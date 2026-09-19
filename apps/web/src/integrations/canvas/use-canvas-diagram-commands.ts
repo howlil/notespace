@@ -1,3 +1,4 @@
+import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
@@ -134,7 +135,7 @@ export function useCanvasDiagramCommands({
     value.updateScene({
       elements: nextElements,
       appState: { selectedElementIds },
-      captureUpdate: "IMMEDIATELY" as never,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
     emitSnapshot(nextElements, value.getAppState(), nextDiagrams);
   }, [

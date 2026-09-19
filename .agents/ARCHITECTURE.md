@@ -35,7 +35,7 @@ Do not split services or add infrastructure unless a concrete requirement proves
 
 ## Category and workspace domain
 
-`apps/server/internal/project` owns category summaries plus the workspace aggregate. Existing package and HTTP `project` naming remains compatibility debt.
+`apps/server/internal/project` owns category summaries plus the workspace compatibility view. Notes and Canvas now have independent authored persistence/version boundaries; the hydrated `Project` response remains an API compatibility aggregate. Existing package and HTTP `project` naming remains compatibility debt.
 
 ```text
 Category
@@ -66,7 +66,9 @@ Current constraints:
 - explicit SQL and embedded migrations;
 - one database connection;
 - SQLite WAL with FULL synchronous durability;
-- persisted snapshots remain versioned;
+- canonical Note rows live in `workspace_notes` with per-Note optimistic versions;
+- canonical Canvas state lives in `workspace_canvas` with its own optimistic version;
+- legacy aggregate snapshot columns remain compatibility/migration sources and must not become the hot authoring path again;
 - `/data` maps to a stable named volume configured by `NOTESPACE_DATA_VOLUME`;
 - category deletion refuses non-empty categories;
 - normal autosave updates authored snapshots directly and does not create periodic history checkpoints;
@@ -116,7 +118,7 @@ Tiptap is the structured document editor. Notespace owns serialized snapshots an
 
 ## Canvas integration
 
-Excalidraw is the spatial editor. Scene metadata may be persisted in the workspace snapshot; binary image data is stored through the durable asset boundary rather than embedded into every authored snapshot.
+Excalidraw is the spatial editor and owns live Canvas geometry, selection, native bindings, resize/move behavior, and undo/redo. Structured Diagram metadata owns semantic identity such as catalog component, labels, edges/groups, and compatibility bootstrap geometry; ordinary native move/resize must not mirror a second live geometry source back into semantic metadata on every frame. Scene metadata is persisted with Canvas state; binary image data is stored through the durable asset boundary rather than embedded into every authored snapshot.
 
 For the same Workspace in sibling tabs of one browser, Canvas element snapshots use `BroadcastChannel` as a local transport and Excalidraw's `reconcileElements()` semantics for convergence. This path does not involve the server and is coalesced independently from durable autosave. It is intentionally not a cross-device collaboration protocol.
 
@@ -129,18 +131,24 @@ Canvas authored change
   ├─ ~80 ms coalesced BroadcastChannel → sibling browser tabs
   │       → Excalidraw element reconciliation
   │
-  └─ local Workspace draft
-          → 650 ms serialized debounce/coalescing
-          → complete Workspace update with optimistic version
-          → durable SQLite write
-          → acknowledged version replaces local version
+  └─ local Canvas draft
+          → serialized debounce/coalescing
+          → Canvas-only update with canvas version
+          → workspace_canvas durable SQLite write
+          → acknowledged canvas version replaces local version
+
+Note authored change
+  → per-Note serialized debounce/coalescing
+  → Note-only update with note version
+  → workspace_notes durable SQLite write
+  → acknowledged note version replaces only that Note
 ```
 
 Network/server failure → keep pending snapshot → retry is allowed.
 
-Canvas-only version conflict → fetch latest Workspace → merge Canvas elements → retry with latest version.
+Canvas version conflict → keep the Canvas queue isolated from Note queues; reconcile only Canvas state where the client has a safe Excalidraw merge path.
 
-Notes/title/other authored-field conflict → keep pending snapshot → enter `conflict` state → explicit reload/recovery required. Do not blindly merge those fields.
+Note version conflict → block only that Note save queue and preserve its local draft. Other Notes and Canvas must remain independently saveable. Workspace metadata conflicts remain explicit; do not introduce whole-workspace last-write-wins.
 
 ## State taxonomy
 

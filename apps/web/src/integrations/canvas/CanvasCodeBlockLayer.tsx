@@ -75,13 +75,14 @@ export function CanvasCodeBlockLayer({
         const selected = selectedElementId === element.id;
         const editing = editingElementId === element.id;
         const run = runs[element.id];
-        const runnable = canRunCanvasCode(block.language);
+        const effectiveLanguage = block.languageLocked ? block.language : detectCodeLanguage(block.code);
+        const runnable = canRunCanvasCode(effectiveLanguage);
         const zoom = viewport.zoom;
         const left = (element.x + viewport.scrollX) * zoom;
         const top = (element.y + viewport.scrollY) * zoom;
         const width = Math.max(1, element.width * zoom);
         const height = Math.max(1, element.height * zoom);
-        const highlightedLines = highlightCodeLines(block.code, block.language);
+        const highlightedLines = highlightCodeLines(block.code, effectiveLanguage);
         const paddingX = CODE_BLOCK_BODY_PADDING_X * zoom;
         const paddingY = CODE_BLOCK_BODY_PADDING_Y * zoom;
         const gutterWidth = CODE_BLOCK_LINE_NUMBER_WIDTH * zoom;
@@ -132,28 +133,82 @@ export function CanvasCodeBlockLayer({
                 boxShadow: selected ? "0 0 0 1px color-mix(in srgb, #4f7396 35%, transparent)" : "none",
               }}
               data-canvas-code-block={element.id}
-              aria-label={`Code block, ${block.language}`}
+              aria-label={`Code block, ${effectiveLanguage}`}
             >
-              <div className="flex h-full min-h-0 overflow-y-auto overflow-x-hidden">
-                {editing ? (
+              <div className="relative h-full min-h-0 overflow-hidden">
+                <div
+                  className="min-h-full min-w-0 overflow-x-hidden"
+                  style={{
+                    paddingTop: paddingY,
+                    paddingBottom: paddingY,
+                    transform: "translateY(var(--code-scroll-y, 0px))",
+                  }}
+                  aria-label={editing ? "Live syntax preview" : undefined}
+                >
+                  {highlightedLines.map((lineTokens, lineIndex) => (
+                    <div
+                      key={lineIndex}
+                      className="grid min-w-0"
+                      style={{ gridTemplateColumns: block.lineNumbers ? `${gutterWidth}px minmax(0,1fr)` : "minmax(0,1fr)" }}
+                    >
+                      {block.lineNumbers && (
+                        <span
+                          className="select-none text-right"
+                          style={{ paddingRight: Math.max(3, 6 * zoom), color: palette.muted }}
+                          aria-hidden="true"
+                        >
+                          {lineIndex + 1}
+                        </span>
+                      )}
+                      <code
+                        className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
+                        aria-label={lineIndex === 0 ? "Highlighted code" : undefined}
+                        style={{
+                          paddingLeft: paddingX,
+                          paddingRight: paddingX,
+                          color: palette.foreground,
+                          fontSize,
+                          lineHeight: `${lineHeight}px`,
+                        }}
+                      >
+                        {lineTokens.map((token, tokenIndex) => (
+                          <span key={tokenIndex} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
+                        ))}
+                        {lineTokens.length === 0 ? "\u200b" : null}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+
+                {editing && (
                   <textarea
                     autoFocus
                     wrap="soft"
                     spellCheck={false}
                     value={block.code}
                     aria-label="Edit code block"
-                    className="h-full min-w-0 flex-1 resize-none overflow-x-hidden border-0 bg-transparent font-[inherit] outline-none whitespace-pre-wrap [overflow-wrap:anywhere]"
+                    className="absolute inset-0 h-full w-full resize-none overflow-x-hidden border-0 bg-transparent font-[inherit] outline-none whitespace-pre-wrap [overflow-wrap:anywhere]"
                     style={{
-                      color: palette.foreground,
+                      boxSizing: "border-box",
+                      color: "transparent",
+                      caretColor: palette.foreground,
+                      WebkitTextFillColor: "transparent",
                       tabSize: 2,
-                      padding: `${paddingY}px ${paddingX}px`,
+                      paddingTop: paddingY,
+                      paddingBottom: paddingY,
+                      paddingLeft: (block.lineNumbers ? gutterWidth : 0) + paddingX,
+                      paddingRight: paddingX,
                       fontSize,
                       lineHeight: `${lineHeight}px`,
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
+                    onScroll={(event) => {
+                      event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", `${-event.currentTarget.scrollTop}px`);
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         event.preventDefault();
+                        event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", "0px");
                         finishEditing();
                         return;
                       }
@@ -169,56 +224,27 @@ export function CanvasCodeBlockLayer({
                         const start = target.selectionStart;
                         const end = target.selectionEnd;
                         const nextCode = `${block.code.slice(0, start)}  ${block.code.slice(end)}`;
-                        update({ code: nextCode });
+                        update({
+                          code: nextCode,
+                          ...(!block.languageLocked ? { language: detectCodeLanguage(nextCode) } : {}),
+                        });
                         requestAnimationFrame(() => {
                           target.selectionStart = target.selectionEnd = start + 2;
                         });
                       }
                     }}
-                    onChange={(event) => update({ code: event.target.value })}
-                    onBlur={() => {
-                      if (!block.languageLocked) update({ language: detectCodeLanguage(block.code) });
+                    onChange={(event) => {
+                      const code = event.target.value;
+                      update({
+                        code,
+                        ...(!block.languageLocked ? { language: detectCodeLanguage(code) } : {}),
+                      });
+                    }}
+                    onBlur={(event) => {
+                      event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", "0px");
+                      finishEditing();
                     }}
                   />
-                ) : (
-                  <div
-                    className="min-w-0 flex-1 overflow-x-hidden"
-                    style={{ paddingTop: paddingY, paddingBottom: paddingY }}
-                  >
-                    {highlightedLines.map((lineTokens, lineIndex) => (
-                      <div
-                        key={lineIndex}
-                        className="grid min-w-0"
-                        style={{ gridTemplateColumns: block.lineNumbers ? `${gutterWidth}px minmax(0,1fr)` : "minmax(0,1fr)" }}
-                      >
-                        {block.lineNumbers && (
-                          <span
-                            className="select-none text-right"
-                            style={{ paddingRight: Math.max(3, 6 * zoom), color: palette.muted }}
-                            aria-hidden="true"
-                          >
-                            {lineIndex + 1}
-                          </span>
-                        )}
-                        <code
-                          className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
-                          aria-label={lineIndex === 0 ? "Highlighted code" : undefined}
-                          style={{
-                            paddingLeft: paddingX,
-                            paddingRight: paddingX,
-                            color: palette.foreground,
-                            fontSize,
-                            lineHeight: `${lineHeight}px`,
-                          }}
-                        >
-                          {lineTokens.map((token, tokenIndex) => (
-                            <span key={tokenIndex} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
-                          ))}
-                          {lineTokens.length === 0 ? "\u200b" : null}
-                        </code>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
             </section>

@@ -9,6 +9,7 @@ import {
   diagramPickerIconCount,
   getCatalogItem,
   groupDiagramNodes,
+  hydrateDiagramGeometryFromElements,
   layoutDiagram,
   readStructuredDiagrams,
   removeDiagramEdge,
@@ -158,11 +159,15 @@ test("selection and element sync follow native Excalidraw move, resize, label, a
   assert.deepEqual(selection.nodeIds, [first.id]);
 
   const [synced] = syncDiagramsFromElements([diagram], elements);
-  assert.equal(synced.nodes[0].x, 120);
-  assert.equal(synced.nodes[0].width, 220);
+  assert.equal(synced.nodes[0].x, first.x);
+  assert.equal(synced.nodes[0].width, first.width);
   assert.equal(synced.nodes[0].label, "Begin");
   assert(!synced.nodes.some((node) => node.id === second.id));
   assert(!synced.edges.some((edge) => edge.from === second.id || edge.to === second.id));
+
+  const hydrated = hydrateDiagramGeometryFromElements(synced, elements);
+  assert.equal(hydrated.nodes[0].x, 120);
+  assert.equal(hydrated.nodes[0].width, 220);
 });
 
 test("icon, connection, and boundary labels round-trip through native elements", () => {

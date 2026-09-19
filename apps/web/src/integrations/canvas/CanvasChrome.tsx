@@ -307,6 +307,7 @@ export function CanvasToolRail(props: {
   onDiagramToggle: () => void;
   onMoreToggle: () => void;
   onCoreToolSelect: () => void;
+  onInsertCodeBlock: () => void;
   onBackgroundChange: (color: string) => void;
   onAction: (name: CanvasActionName) => void;
   diagramPanel: ReactNode;
@@ -342,7 +343,7 @@ export function CanvasToolRail(props: {
     <motion.div initial={{ opacity: 0, x: -3 }} animate={{ opacity: 1, x: 0 }} transition={motionTransition} className="pointer-events-auto relative flex max-h-[calc(100dvh-16px)] flex-col items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex min-h-0 max-h-[calc(100dvh-104px)] flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
-        <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { onCoreToolSelect(); onInsertCodeBlock(); }} />
+        <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
       </div>
       <span className="h-px w-5 shrink-0 bg-line" aria-hidden="true" />
       <div data-canvas-menu-trigger="true" className="group relative flex shrink-0">

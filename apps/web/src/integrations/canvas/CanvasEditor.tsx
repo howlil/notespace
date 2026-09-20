@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, newElementWith, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFiles,
@@ -26,8 +26,8 @@ import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } fro
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
-import { defaultCanvasCodeBlock, readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
-import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockMinimumHeight } from "./canvas-code-block-layout";
+import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
@@ -37,6 +37,7 @@ import { useCanvasFlowchart } from "./use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./use-canvas-diagram-commands";
 import { useCanvasCodeRunner } from "./use-canvas-code-runner";
 import {
+  canvasBackgroundColor,
   codeGeometryMap,
   codeOverlayElements,
   deriveCanvasElementState,
@@ -130,10 +131,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialCodeElements));
   const expectedAutoFitHeightRef = useRef(new Map<string, number>());
-  const [backgroundColor, setBackgroundColor] = useState(() => {
-    const appState = objectValue(initial.data.appState);
-    return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : (dark ? "#1d1e24" : "#f8f9fc");
-  });
+  const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, dark ? "#1d1e24" : "#f8f9fc"));
   const [diagramOpen, setDiagramOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));

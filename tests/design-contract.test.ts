@@ -21,6 +21,7 @@ const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
 const CANVAS_FRAME_LINK = join(WEB_SRC, "domain", "workspace", "canvas-frame-link.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
+const DOCUMENT_SLASH_COMMANDS = join(WEB_SRC, "integrations", "document", "document-slash-commands.ts");
 const CANVAS_FRAME_LINK_NODE = join(WEB_SRC, "integrations", "document", "CanvasFrameLinkNode.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
 const CANVAS_SCENE_STATE = join(WEB_SRC, "integrations", "canvas", "canvas-scene-state.ts");
@@ -292,7 +293,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(workspace, /onOpenCanvasFrame=\{openCanvasFrame\}/);
   assert.match(workspace, /focusRequest=\{canvasFocus\}/);
   assert.match(editor, /max-w-\[760px\]/);
-  assert.match(editor, /label: "Link canvas"/);
+  assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Link canvas"/);
   assert.match(editor, /canvasFrameLinkFromClipboard/);
   assert.match(frameLink, /MAX_FRAME_PREVIEW_ELEMENTS = 160/);
   assert.match(frameNode, /data-canvas-frame-link/);

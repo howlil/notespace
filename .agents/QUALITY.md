@@ -228,3 +228,17 @@ Before marking a slice or milestone release-ready, record in `CURRENT_ITERATION.
 ## Stop rule
 
 Stop when the bounded acceptance criteria are satisfied and the relevant gates pass. Do not continue with speculative polish, future abstractions, unrelated refactors, or an automatically invented next milestone.
+
+
+## System latency evidence
+
+Production API logs emit `http_request` with request ID, route, status, response bytes, total duration, and global SQLite pool-wait deltas observed during the request window. Treat the DB wait deltas as contention evidence, not exact per-request spans.
+
+When investigating latency, separate:
+1. client snapshot/autosave queue delay;
+2. HTTP request duration;
+3. SQLite pool wait/saturation;
+4. durable transaction work;
+5. derived work such as FTS repair.
+
+`TestPersistenceScaleEvidence` must use the same `IndexedProjectStore` boundary as production so persistence evidence cannot accidentally benchmark a cheaper adapter.

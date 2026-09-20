@@ -128,7 +128,6 @@ func TestExcerptPreservesUnicodeBoundaries(t *testing.T) {
 	}
 }
 
-
 func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "lazy-search.db"))

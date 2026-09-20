@@ -36,7 +36,7 @@ import { analyzeCanvasSelection } from "./canvas-selection-capabilities";
 
 export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor";
 
-type Panel = "color" | "properties" | "arrow" | "font" | "text" | "more";
+type Panel = "color" | "properties" | "specific" | "arrow" | "font" | "text" | "more";
 type StrokeWidthKey = "thin" | "medium" | "bold";
 type ArrowType = "sharp" | "round" | "elbow";
 type GridColumns = 2 | 3 | 4 | 5;
@@ -64,6 +64,7 @@ const inactiveTools = new Set<AppState["activeTool"]["type"]>(["selection", "era
 const panelWidthClass: Record<Panel, string> = {
   color: "w-[min(212px,calc(100vw-24px))]",
   properties: "w-[min(128px,calc(100vw-24px))]",
+  specific: "w-[min(200px,calc(100vw-24px))]",
   arrow: "w-[min(200px,calc(100vw-24px))]",
   font: "w-[min(216px,calc(100vw-24px))]",
   text: "w-[min(164px,calc(100vw-24px))]",
@@ -447,13 +448,23 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
         {openPanel === "properties" && (
           <div className="grid gap-4">
-            {(shapeEditing || freeDrawEditing || bucketFillEditing || (capabilities.mixed && capabilities.specific.fill)) && <Section label={capabilities.mixed ? "Fill · shapes" : "Fill"}><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
             {!bucketFillEditing && (shapeEditing || lineEditing || freeDrawEditing || selectedEditable.some((element) => styleableElementTypes.has(element.type))) && <Section label="Stroke width"><OptionGrid columns={3}>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing || (capabilities.mixed && capabilities.specific.line)) && <Section label={capabilities.mixed ? "Stroke pattern · lines" : "Stroke pattern"}><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing || (capabilities.mixed && capabilities.specific.line)) && <Section label={capabilities.mixed ? "Line feel · lines" : "Line feel"}><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || (capabilities.mixed && capabilities.specific.fill)) && <Section label={capabilities.mixed ? "Corners · shapes" : "Corners"}><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
-            {!bucketFillEditing && (freeDrawEditing || (capabilities.mixed && capabilities.specific.freeDraw)) && <Section label={capabilities.mixed ? "Pressure · pen" : "Pressure"}><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Stroke pattern"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Line feel"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && shapeEditing && <Section label="Corners"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
+            {!bucketFillEditing && freeDrawEditing && <Section label="Pressure"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
             <Section label="Opacity"><div className="flex items-center gap-2"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
+          </div>
+        )}
+
+        {openPanel === "specific" && capabilities.mixed && (
+          <div className="grid gap-4">
+            {capabilities.specific.fill && <Section label="Fill · shapes"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {capabilities.specific.fill && <Section label="Corners · shapes"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
+            {capabilities.specific.line && <Section label="Stroke pattern · lines"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {capabilities.specific.line && <Section label="Line feel · lines"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {capabilities.specific.freeDraw && <Section label="Pressure · pen"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
           </div>
         )}
 
@@ -480,7 +491,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
               <Section label="Selection-specific">
                 <div className="grid gap-1">
                   {(capabilities.specific.fill || capabilities.specific.freeDraw || capabilities.specific.line) && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("properties")}>
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("specific")}>
                       <NativeAdjustmentsIcon /><span>Drawing styles</span>
                     </button>
                   )}

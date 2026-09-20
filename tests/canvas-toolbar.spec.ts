@@ -228,6 +228,66 @@ test.describe("Canvas chrome", () => {
     }
   });
 
+  test("mixed selection aggregates common actions and groups type-specific controls", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas mixed selection ${Date.now()}`);
+
+    try {
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      const canvas = page.locator(".excalidraw__canvas.interactive");
+      const bounds = await canvas.boundingBox();
+      if (!bounds) throw new Error("Canvas did not render");
+
+      await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
+      await page.mouse.move(bounds.x + 180, bounds.y + 170);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 300, bounds.y + 240, { steps: 5 });
+      await page.mouse.up();
+
+      await toolbar.getByRole("button", { name: "Text", exact: true }).click();
+      await page.mouse.click(bounds.x + 390, bounds.y + 210);
+      await page.keyboard.type("mixed");
+      await page.keyboard.press("Escape");
+
+      await toolbar.getByRole("button", { name: "Arrow", exact: true }).click();
+      await page.mouse.move(bounds.x + 220, bounds.y + 330);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 390, bounds.y + 330, { steps: 5 });
+      await page.mouse.up();
+
+      await toolbar.getByRole("button", { name: "Draw", exact: true }).click();
+      await page.mouse.move(bounds.x + 470, bounds.y + 180);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 540, bounds.y + 250, { steps: 8 });
+      await page.mouse.up();
+
+      await toolbar.getByRole("button", { name: "Select", exact: true }).click();
+      const editor = page.locator(".excalidraw").first();
+      await editor.click({ position: { x: 620, y: 420 } });
+      await editor.press("Control+A");
+
+      const actions = page.getByRole("toolbar", { name: "Selected shape actions" });
+      await expect(actions).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Colors" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Common drawing properties" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Arrow properties" })).toHaveCount(0);
+      await expect(actions.getByRole("button", { name: "Font family" })).toHaveCount(0);
+
+      const actionBox = await actions.boundingBox();
+      expect(actionBox).not.toBeNull();
+      expect(Math.abs((actionBox!.y + actionBox!.height) - (bounds.y + bounds.height))).toBeLessThan(24);
+
+      await actions.getByRole("button", { name: "More selected shape actions" }).click();
+      const specific = page.getByRole("region", { name: "Selection-specific" });
+      await expect(specific).toBeVisible();
+      await expect(specific.getByRole("button", { name: "Drawing styles" })).toBeVisible();
+      await expect(specific.getByRole("button", { name: "Arrow properties" })).toBeVisible();
+      await expect(specific.getByRole("button", { name: "Font family" })).toBeVisible();
+      await expect(specific.getByRole("button", { name: "Text properties" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
   test("slash opens Diagram search and Escape closes it", async ({ page, request }) => {
     const id = await openCanvasWorkspace(page, request, `Canvas diagram ${Date.now()}`);
 

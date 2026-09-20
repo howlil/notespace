@@ -2,7 +2,7 @@ import type { NodeViewProps } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { Check, Clipboard, Code2, Play, Square, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   codeLanguageLabel,
   codeLanguageOptions,
@@ -51,7 +51,7 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
       data-note-code-block={blockId}
       data-code-language={effectiveLanguage}
       className="my-3 overflow-hidden rounded-lg border border-line bg-background"
-      onKeyDownCapture={(event) => {
+      onKeyDownCapture={(event: ReactKeyboardEvent<HTMLDivElement>) => {
         if (!(event.metaKey || event.ctrlKey) || event.key !== "Enter") return;
         const target = event.target;
         if (!(target instanceof Element) || !target.closest("[data-note-code-source]")) return;
@@ -116,15 +116,14 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
         </div>
       </div>
 
-      <pre className="m-0 overflow-hidden rounded-none border-0 bg-background p-0">
+      <div className="m-0 overflow-hidden rounded-none border-0 bg-background p-0">
         <NodeViewContent
-          as="code"
           data-note-code-source=""
           aria-label="Edit code block"
           spellCheck={false}
           className="block min-h-10 whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-[1.7] text-ink outline-none [overflow-wrap:anywhere]"
         />
-      </pre>
+      </div>
 
       {run && (
         <div

@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../features/workspace/canvas-frame-link";
+import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../domain/workspace/canvas-frame-link";
 import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
 import { looksLikeMarkdown, markdownToSnapshot } from "../../domain/document/markdown";
 import {

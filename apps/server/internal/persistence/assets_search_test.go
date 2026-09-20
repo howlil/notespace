@@ -127,3 +127,91 @@ func TestExcerptPreservesUnicodeBoundaries(t *testing.T) {
 		t.Fatalf("excerpt has %d runes, want <= 140", utf8.RuneCountInString(got))
 	}
 }
+
+
+func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "lazy-search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	indexed := NewIndexedProjectStore(store)
+	service := project.Service{Store: indexed}
+	workspace, err := service.Create(ctx, "Lazy search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := workspace.Notes[0]
+	document := project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"lazy-block"},"content":[{"type":"text","text":"deferred projection needle"}]}]}`)}
+	note, err = service.UpdateNote(ctx, workspace.ID, note.ID, project.NoteUpdate{
+		Title: note.Title, Document: document, Version: note.Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var projectRevision, indexedRevision int
+	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM projects WHERE id=?`, workspace.ID).Scan(&projectRevision); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM workspace_search_meta WHERE workspace_id=?`, workspace.ID).Scan(&indexedRevision); err != nil {
+		t.Fatal(err)
+	}
+	if indexedRevision == projectRevision {
+		t.Fatalf("note autosave rebuilt search synchronously: project=%d index=%d", projectRevision, indexedRevision)
+	}
+
+	results, err := service.Search(ctx, "needle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, result := range results {
+		if result.Type == "block" && result.BlockID == "lazy-block" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("lazy search repair missed updated note: %#v", results)
+	}
+	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM workspace_search_meta WHERE workspace_id=?`, workspace.ID).Scan(&indexedRevision); err != nil {
+		t.Fatal(err)
+	}
+	if indexedRevision != projectRevision {
+		t.Fatalf("search did not repair projection: project=%d index=%d", projectRevision, indexedRevision)
+	}
+}
+
+func TestWorkspaceExistsAndAssetPutAvoidHydratedReadback(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "asset-fast-path.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := (project.Service{Store: store}).Create(ctx, "Asset fast path")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exists, err := store.WorkspaceExists(ctx, workspace.ID)
+	if err != nil || !exists {
+		t.Fatalf("workspace exists = %v err=%v", exists, err)
+	}
+	exists, err = store.WorkspaceExists(ctx, "missing")
+	if err != nil || exists {
+		t.Fatalf("missing workspace exists = %v err=%v", exists, err)
+	}
+
+	stored, err := store.PutAsset(ctx, asset.Stored{
+		ID: "image-fast", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("payload"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ID != "image-fast" || stored.WorkspaceID != workspace.ID || stored.CreatedAt == "" || string(stored.Data) != "payload" {
+		t.Fatalf("put result = %#v", stored)
+	}
+}

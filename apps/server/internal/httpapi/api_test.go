@@ -613,7 +613,6 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 	}
 }
 
-
 func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 	ctx := context.Background()
 	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))

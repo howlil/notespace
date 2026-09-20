@@ -32,6 +32,7 @@ import {
   NativeTextSizeIcon,
 } from "./CanvasNativeIcons";
 import type { CanvasActionName } from "./CanvasToolbar";
+import { analyzeCanvasSelection } from "./canvas-selection-capabilities";
 
 export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor";
 
@@ -287,15 +288,16 @@ function selectionContext(api: ExcalidrawImperativeAPI | null, activeTool: AppSt
   const selectedEditable = selectedElements.filter((element) => styleableElementTypes.has(element.type) || element.type === "text");
   const primary = selectedEditable[0] ?? null;
   const single = selectedElements.length === 1 ? selectedElements[0] : null;
-  const editingType = single?.type ?? activeTool;
+  const editingType = single?.type ?? (selectedElements.length === 0 ? activeTool : "selection");
   return {
     appState,
     selectedElements,
     selectedEditable,
     primary,
-    selectedArrow: single?.type === "arrow" ? single : null,
-    selectedFreeDraw: single?.type === "freedraw" ? single : null,
-    selectedText: single?.type === "text" ? single : null,
+    capabilities: analyzeCanvasSelection(selectedElements),
+    selectedArrow: selectedElements.find((element) => element.type === "arrow") ?? null,
+    selectedFreeDraw: selectedElements.find((element) => element.type === "freedraw") ?? null,
+    selectedText: selectedElements.find((element) => element.type === "text") ?? null,
     shapeEditing: editingType === "rectangle" || editingType === "diamond" || editingType === "ellipse",
     lineEditing: editingType === "line" || editingType === "arrow",
     freeDrawEditing: editingType === "freedraw",
@@ -318,9 +320,9 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   useDismissablePopup(rootRef, openPanel !== null, closePanel);
 
   const context = selectionContext(api, activeTool);
-  const { appState, selectedElements, selectedEditable, primary, selectedArrow, selectedFreeDraw, selectedText, shapeEditing, lineEditing, freeDrawEditing, textEditing, bucketFillEditing } = context;
+  const { appState, selectedElements, selectedEditable, primary, capabilities, selectedArrow, selectedFreeDraw, selectedText, shapeEditing, lineEditing, freeDrawEditing, textEditing, bucketFillEditing } = context;
   const hasSelection = selectedElementCount > 0;
-  const hasStyleContext = selectedEditable.length > 0 || shapeEditing || lineEditing || freeDrawEditing || textEditing || bucketFillEditing;
+  const hasStyleContext = selectedEditable.length > 0 || capabilities.common.opacity || shapeEditing || lineEditing || freeDrawEditing || textEditing || bucketFillEditing;
   const shouldShow = hasSelection || (!inactiveTools.has(activeTool) && hasStyleContext);
   if (!api || !appState || !shouldShow) return null;
 
@@ -385,6 +387,11 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         if (element.type !== "arrow") { delete nextPatch.startArrowhead; delete nextPatch.endArrowhead; delete nextPatch.elbowed; }
         if (element.type !== "freedraw") delete nextPatch.strokeOptions;
         if (element.type !== "text") { delete nextPatch.fontFamily; delete nextPatch.fontSize; delete nextPatch.textAlign; }
+        if (element.type !== "rectangle" && element.type !== "diamond" && element.type !== "ellipse") {
+          delete nextPatch.backgroundColor;
+          delete nextPatch.fillStyle;
+          delete nextPatch.roundness;
+        }
         if (patch.strokeWidth) nextPatch.strokeWidth = getStrokeWidthByKey(element.type, patch.strokeWidth);
         return newElementWith(element, nextPatch);
       });
@@ -407,12 +414,12 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   };
 
   const runAndClose = (name: CanvasRuntimeActionName) => { onAction(name); closePanel(); };
-  const shapeProperties = shapeEditing || lineEditing || freeDrawEditing || bucketFillEditing || selectedEditable.length > 0;
-  const showStroke = !bucketFillEditing && (shapeProperties || textEditing);
-  const showFill = bucketFillEditing || shapeEditing || selectedEditable.some((element) => element.type === "rectangle" || element.type === "diamond" || element.type === "ellipse");
-  const showArrow = Boolean(selectedArrow);
-  const showText = textEditing;
-  const showLinearEditor = Boolean(hasSelection && lineEditing);
+  const shapeProperties = shapeEditing || lineEditing || freeDrawEditing || bucketFillEditing || capabilities.common.stroke || capabilities.common.opacity;
+  const showStroke = !bucketFillEditing && (hasSelection ? capabilities.common.stroke : (shapeProperties || textEditing));
+  const showFill = bucketFillEditing || (!capabilities.mixed && (shapeEditing || capabilities.specific.fill));
+  const showArrow = !capabilities.mixed && Boolean(selectedArrow);
+  const showText = !capabilities.mixed && (textEditing || Boolean(selectedText));
+  const showLinearEditor = Boolean(hasSelection && !capabilities.mixed && lineEditing);
 
   const renderPanel = () => {
     if (!openPanel) return null;
@@ -424,7 +431,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         exit={{ opacity: 0, y: 3, scale: 0.985 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
         className={cn(
-          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none min-[561px]:top-0 min-[561px]:bottom-auto min-[561px]:left-[calc(100%+6px)] min-[561px]:translate-x-0",
+          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(58dvh,420px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none",
           panelWidthClass[openPanel],
         )}
         role="dialog"
@@ -440,12 +447,12 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
         {openPanel === "properties" && (
           <div className="grid gap-4">
-            {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {(shapeEditing || freeDrawEditing || bucketFillEditing || (capabilities.mixed && capabilities.specific.fill)) && <Section label={capabilities.mixed ? "Fill · shapes" : "Fill"}><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
             {!bucketFillEditing && (shapeEditing || lineEditing || freeDrawEditing || selectedEditable.some((element) => styleableElementTypes.has(element.type))) && <Section label="Stroke width"><OptionGrid columns={3}>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Stroke pattern"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Line feel"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && shapeEditing && <Section label="Corners"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
-            {!bucketFillEditing && freeDrawEditing && <Section label="Pressure"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing || (capabilities.mixed && capabilities.specific.line)) && <Section label={capabilities.mixed ? "Stroke pattern · lines" : "Stroke pattern"}><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || lineEditing || (capabilities.mixed && capabilities.specific.line)) && <Section label={capabilities.mixed ? "Line feel · lines" : "Line feel"}><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {!bucketFillEditing && (shapeEditing || (capabilities.mixed && capabilities.specific.fill)) && <Section label={capabilities.mixed ? "Corners · shapes" : "Corners"}><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
+            {!bucketFillEditing && (freeDrawEditing || (capabilities.mixed && capabilities.specific.freeDraw)) && <Section label={capabilities.mixed ? "Pressure · pen" : "Pressure"}><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
             <Section label="Opacity"><div className="flex items-center gap-2"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
           </div>
         )}
@@ -469,6 +476,32 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
         {openPanel === "more" && (
           <div className="grid gap-4">
+            {capabilities.mixed && (
+              <Section label="Selection-specific">
+                <div className="grid gap-1">
+                  {(capabilities.specific.fill || capabilities.specific.freeDraw || capabilities.specific.line) && (
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("properties")}>
+                      <NativeAdjustmentsIcon /><span>Drawing styles</span>
+                    </button>
+                  )}
+                  {capabilities.specific.arrow && (
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("arrow")}>
+                      <NativeArrowTypeIcon type={arrowType} /><span>Arrow properties</span>
+                    </button>
+                  )}
+                  {capabilities.specific.text && (
+                    <>
+                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("font")}>
+                        <span className="w-4 text-center text-[11px] font-medium">Aa</span><span>Font family</span>
+                      </button>
+                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("text")}>
+                        <NativeTextSizeIcon /><span>Text properties</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </Section>
+            )}
             <Section label="Layer"><OptionGrid columns={4}><ActionButton api={api} name="sendToBack" label="Send to back" onClick={() => runAndClose("sendToBack")} /><ActionButton api={api} name="sendBackward" label="Send backward" onClick={() => runAndClose("sendBackward")} /><ActionButton api={api} name="bringForward" label="Bring forward" onClick={() => runAndClose("bringForward")} /><ActionButton api={api} name="bringToFront" label="Bring to front" onClick={() => runAndClose("bringToFront")} /></OptionGrid></Section>
             {selectedElementCount >= 2 && <Section label="Align & distribute"><OptionGrid columns={4}><ActionButton api={api} name="alignLeft" label="Align left" onClick={() => runAndClose("alignLeft")} /><ActionButton api={api} name="alignHorizontallyCentered" label="Align center" onClick={() => runAndClose("alignHorizontallyCentered")} /><ActionButton api={api} name="alignRight" label="Align right" onClick={() => runAndClose("alignRight")} /><ActionButton api={api} name="distributeHorizontally" label="Distribute horizontally" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeHorizontally")} /><ActionButton api={api} name="alignTop" label="Align top" onClick={() => runAndClose("alignTop")} /><ActionButton api={api} name="alignVerticallyCentered" label="Align middle" onClick={() => runAndClose("alignVerticallyCentered")} /><ActionButton api={api} name="alignBottom" label="Align bottom" onClick={() => runAndClose("alignBottom")} /><ActionButton api={api} name="distributeVertically" label="Distribute vertically" disabled={selectedElementCount < 3} onClick={() => runAndClose("distributeVertically")} /></OptionGrid></Section>}
             <Section label="Group & edit"><OptionGrid columns={4}><ActionButton api={api} name="group" label="Group" disabled={selectedElementCount < 2} onClick={() => runAndClose("group")} /><ActionButton api={api} name="ungroup" label="Ungroup" disabled={!hasSelection} onClick={() => runAndClose("ungroup")} /><ActionButton api={api} name="duplicateSelection" label="Duplicate" disabled={!hasSelection} onClick={() => runAndClose("duplicateSelection")} /><ActionButton api={api} name="deleteSelectedElements" label="Delete" danger disabled={!hasSelection} onClick={() => runAndClose("deleteSelectedElements")} /></OptionGrid></Section>
@@ -488,15 +521,15 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
       initial={{ opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.16, ease: "easeOut" }}
-      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-10 w-[min(520px,calc(100%-16px))] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none min-[561px]:top-1/2 min-[561px]:bottom-auto min-[561px]:left-[48px] min-[561px]:h-auto min-[561px]:max-h-[calc(100dvh-16px)] min-[561px]:w-10 min-[561px]:translate-x-0 min-[561px]:-translate-y-1/2 min-[561px]:flex-col [&~_.excalidraw_.mobile-shape-actions]:!hidden"
+      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-10 w-[min(520px,calc(100%-16px))] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar"
       aria-label="Selected shape actions"
       onPointerDown={(event) => event.stopPropagation()}
     >
       <AnimatePresence initial={false}>{renderPanel()}</AnimatePresence>
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[561px]:w-full min-[561px]:flex-none min-[561px]:flex-col min-[561px]:overflow-x-hidden min-[561px]:overflow-y-auto">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {showColors && <ColorTrigger strokeColor={strokeColor} fillColor={backgroundColor} showStroke={showStroke} showFill={showFill} open={openPanel === "color"} onClick={() => setOpenPanel((panel) => panel === "color" ? null : "color")} />}
-        {shapeProperties && <CompactButton label="Drawing properties" open={openPanel === "properties"} onClick={() => setOpenPanel((panel) => panel === "properties" ? null : "properties")}><NativeAdjustmentsIcon /></CompactButton>}
+        {shapeProperties && <CompactButton label={capabilities.mixed ? "Common drawing properties" : "Drawing properties"} open={openPanel === "properties"} onClick={() => setOpenPanel((panel) => panel === "properties" ? null : "properties")}><NativeAdjustmentsIcon /></CompactButton>}
         {showArrow && <CompactButton label="Arrow properties" open={openPanel === "arrow"} onClick={() => setOpenPanel((panel) => panel === "arrow" ? null : "arrow")}><NativeArrowTypeIcon type={arrowType} /></CompactButton>}
         {showLinearEditor && <CompactButton label="Edit line" onClick={() => onAction("toggleLinearEditor")}>{linearEditorIcon ? <span className="grid place-items-center [&_svg]:size-4">{linearEditorIcon}</span> : <NativePencilIcon />}</CompactButton>}
         {showText && <><CompactButton label="Font family" open={openPanel === "font"} onClick={() => setOpenPanel((panel) => panel === "font" ? null : "font")}><span className="text-[12px] font-medium leading-none">Aa</span></CompactButton><CompactButton label="Text properties" open={openPanel === "text"} onClick={() => setOpenPanel((panel) => panel === "text" ? null : "text")}><NativeTextSizeIcon /></CompactButton></>}

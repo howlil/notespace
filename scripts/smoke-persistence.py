@@ -65,8 +65,8 @@ with urllib.request.urlopen(args.url, timeout=10) as page:
     shell = page.read()
 assert b'Notespace' in shell, 'Application shell missing'
 verify_stylesheet(shell)
-project = call('/api/projects', 'POST', {'title': 'Persistence smoke test'})
-path = '/api/projects/' + project['id']
+project = call('/api/workspaces', 'POST', {'title': 'Persistence smoke test'})
+path = '/api/workspaces/' + project['id']
 try:
     update = {key: project[key] for key in ('title', 'document', 'canvas', 'references', 'splitRatio', 'version')}
     update['document']['data'] = {

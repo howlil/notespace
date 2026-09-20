@@ -205,8 +205,20 @@ func readProject(row scanner) (project.Project, error) {
 
 const columns = `id,category_id,title,references_state,split_ratio,created_at,updated_at,version`
 
+func (s *Store) GetWorkspaceRecord(ctx context.Context, id string) (project.Project, error) {
+	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+}
+
+func (s *Store) WorkspaceExists(ctx context.Context, id string) (bool, error) {
+	var exists int
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM projects WHERE id=?)`, id).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists != 0, nil
+}
+
 func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
-	value, err := readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	value, err := s.GetWorkspaceRecord(ctx, id)
 	if err != nil {
 		return project.Project{}, err
 	}

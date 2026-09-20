@@ -72,8 +72,24 @@ test.describe("Canvas chrome", () => {
       await linkInput.fill("https://howlil.tech");
       await linkInput.press("Enter");
 
-      await expect(page.locator('iframe[src^="https://howlil.tech"]')).toHaveCount(1);
+      const iframe = page.locator('iframe[src^="https://howlil.tech"]');
+      await expect(iframe).toHaveCount(1);
       await expect(page.getByText(/Embedding this url is currently not allowed/i)).toHaveCount(0);
+
+      const embedActions = page.getByRole("toolbar", { name: "Selected shape actions" });
+      await expect(embedActions).toBeVisible();
+      const interact = embedActions.getByRole("button", { name: "Interact with embed" });
+      await expect(interact).toBeVisible();
+      await interact.click();
+      await expect(embedActions.getByRole("button", { name: "Lock embed" })).toBeVisible();
+      await embedActions.getByRole("button", { name: "Lock embed" }).click();
+      await expect(embedActions.getByRole("button", { name: "Interact with embed" })).toBeVisible();
+
+      await embedActions.getByRole("button", { name: "More selected shape actions" }).click();
+      const embedSection = page.getByRole("region", { name: "Embed" });
+      await expect(embedSection.getByRole("button", { name: "Edit embed URL" })).toBeVisible();
+      await expect(embedSection.getByRole("button", { name: "Open embed source" })).toBeVisible();
+
       await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
       const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
@@ -269,14 +285,22 @@ test.describe("Canvas chrome", () => {
       await expect(actions).toBeVisible();
       await expect(actions.getByRole("button", { name: "Colors" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Common drawing properties" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Layer" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Align & distribute" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Duplicate" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Delete" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Arrow properties" })).toHaveCount(0);
       await expect(actions.getByRole("button", { name: "Font family" })).toHaveCount(0);
 
       const actionBox = await actions.boundingBox();
       expect(actionBox).not.toBeNull();
+      expect(actionBox!.width).toBeLessThan(420);
       expect(Math.abs((actionBox!.y + actionBox!.height) - (bounds.y + bounds.height))).toBeLessThan(24);
 
       await actions.getByRole("button", { name: "More selected shape actions" }).click();
+      const morePanel = page.getByRole("dialog", { name: "more properties" });
+      const overflow = await morePanel.evaluate((node) => ({ clientHeight: node.clientHeight, scrollHeight: node.scrollHeight }));
+      expect(overflow.scrollHeight).toBeLessThanOrEqual(overflow.clientHeight + 1);
       const specific = page.getByRole("region", { name: "Selection-specific" });
       await expect(specific).toBeVisible();
       await expect(specific.getByRole("button", { name: "Drawing styles" })).toBeVisible();

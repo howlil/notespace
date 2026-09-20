@@ -305,6 +305,46 @@ test("single Note view uses a centered article-width writing column", async ({ p
   }
 });
 
+test("Note code blocks auto-detect JavaScript and run with ephemeral output", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Note code ${Date.now()}`);
+
+  try {
+    await selectView(page, "Note");
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
+    await editor.fill("/code");
+
+    const insertMenu = page.getByRole("listbox", { name: "Insert block" });
+    await expect(insertMenu).toBeVisible();
+    await insertMenu.getByRole("option", { name: /Code block/ }).click();
+
+    const block = page.locator("[data-note-code-block]").first();
+    await expect(block).toBeVisible();
+    const source = block.getByLabel("Edit code block");
+    const code = 'const answer = 40 + 2; console.log("note-ok"); return answer;';
+    await source.fill(code);
+
+    const language = block.getByRole("combobox", { name: "Code language" });
+    await expect(language).toHaveValue("auto");
+    await expect(language.locator("option:checked")).toHaveText("Auto · JavaScript");
+
+    await block.getByRole("button", { name: "Run JavaScript" }).click();
+    const output = block.getByLabel("Code output");
+    await expect(output).toContainText("note-ok");
+    await expect(output).toContainText("42");
+    await expect(output).toContainText(/Done/);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+    const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+      notes: Array<{ document: { data: { content?: Array<{ type?: string; content?: Array<{ text?: string }> }> } } }>;
+    };
+    const codeNode = stored.notes[0]?.document.data.content?.find((node) => node.type === "codeBlock");
+    expect(codeNode?.content?.map((item) => item.text ?? "").join("")).toBe(code);
+    expect(JSON.stringify(stored.notes[0]?.document.data)).not.toContain("note-ok");
+  } finally {
+    await cleanup(request, id);
+  }
+});
+
 test("Note can embed Canvas frames by slash command or pasted Excalidraw frame and open the live frame", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Frame link ${Date.now()}`);
 

@@ -19,6 +19,12 @@ import type { CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 
 type FlowchartAppState = AppState & { editingLinearElement?: unknown };
 
+type FlowchartSemanticPreview = {
+  sourceId: string;
+  beforeIds: Set<string>;
+  targetId?: string;
+};
+
 export function useCanvasFlowchart({
   apiRef,
   surfaceRef,
@@ -35,6 +41,7 @@ export function useCanvasFlowchart({
   const [previewDirection, setPreviewDirection] =
     useState<DirectionalSpawnDirection | null>(null);
   const previewRef = useRef<DirectionalSpawnDirection | null>(null);
+  const semanticPreviewRef = useRef<FlowchartSemanticPreview | null>(null);
 
   const focusEditor = useCallback(() => {
     const editor = surfaceRef.current?.querySelector(".excalidraw");
@@ -54,6 +61,7 @@ export function useCanvasFlowchart({
       );
     }
     previewRef.current = null;
+    semanticPreviewRef.current = null;
     setPreviewDirection(null);
   }, [apiRef]);
 
@@ -106,6 +114,10 @@ export function useCanvasFlowchart({
       );
       if (!handled || !api.app.flowchart.isCreatingChart) return false;
 
+      const semanticPreview: FlowchartSemanticPreview = {
+        sourceId: source.id,
+        beforeIds,
+      };
       if (decorateTarget) {
         let decorated = false;
         const elements = api.getSceneElementsIncludingDeleted().map((element) => {
@@ -117,8 +129,11 @@ export function useCanvasFlowchart({
           ) {
             return element;
           }
+          const next = decorateTarget(source, element);
+          if (next === element) return element;
           decorated = true;
-          return decorateTarget(source, element);
+          semanticPreview.targetId = element.id;
+          return next;
         });
         if (decorated) {
           api.updateScene({
@@ -127,6 +142,7 @@ export function useCanvasFlowchart({
           });
         }
       }
+      semanticPreviewRef.current = semanticPreview;
 
       previewRef.current = direction;
       setPreviewDirection(direction);
@@ -149,6 +165,7 @@ export function useCanvasFlowchart({
       const activeDirection = previewRef.current;
       if (!api || !activeDirection) return;
 
+      const semanticPreview = semanticPreviewRef.current;
       api.app.flowchart.handleKeyEvent(
         new KeyboardEvent("keyup", {
           key: keyFromDirection(activeDirection),
@@ -159,11 +176,47 @@ export function useCanvasFlowchart({
           cancelable: true,
         }),
       );
+
+      const decorateCommittedTarget = () => {
+        if (!decorateTarget || !semanticPreview) return false;
+        const current = api.getSceneElementsIncludingDeleted();
+        const source = current.find(
+          (element) => element.id === semanticPreview.sourceId && !element.isDeleted,
+        );
+        if (!source) return false;
+
+        let decorated = false;
+        const elements = current.map((element) => {
+          const isTarget = semanticPreview.targetId
+            ? element.id === semanticPreview.targetId
+            : !semanticPreview.beforeIds.has(element.id)
+              && !element.isDeleted
+              && isNativeFlowchartShapeType(element.type);
+          if (!isTarget || decorated || element.isDeleted) return element;
+          const next = decorateTarget(source, element);
+          if (next === element) return element;
+          decorated = true;
+          semanticPreview.targetId = element.id;
+          return next;
+        });
+        if (!decorated) return false;
+        api.updateScene({
+          elements,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        return true;
+      };
+
+      const decoratedSynchronously = decorateCommittedTarget();
       previewRef.current = null;
+      semanticPreviewRef.current = null;
       setPreviewDirection(null);
-      requestAnimationFrame(focusEditor);
+      requestAnimationFrame(() => {
+        if (!decoratedSynchronously) decorateCommittedTarget();
+        focusEditor();
+      });
     },
-    [apiRef, beginPreview, focusEditor],
+    [apiRef, beginPreview, decorateTarget, focusEditor],
   );
 
   const syncSelection = useCallback(
@@ -214,6 +267,7 @@ export function useCanvasFlowchart({
       setAnchor(null);
       if (previewRef.current) {
         previewRef.current = null;
+        semanticPreviewRef.current = null;
         setPreviewDirection(null);
       }
     },

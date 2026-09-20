@@ -205,9 +205,10 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(selection, /aria-label="Selected shape actions"/);
   assert.match(selection, /import \{ executeNativeAction, nativeActionIcon \} from "\.\/CanvasNativeActions"/);
   assert.doesNotMatch(selection, /function nativeActionIcon|function NativeIconFrame|function AdjustmentsIcon|function UndoIcon|function RedoIcon|function DuplicateIcon|function DeleteIcon/);
-  assert.match(selection, /min-\[561px\]:left-\[48px\]/);
-  assert.match(selection, /min-\[561px\]:flex-col/);
-  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
+  assert.match(selection, /bottom-2 left-1\/2/);
+  assert.match(selection, /analyzeCanvasSelection/);
+  assert.match(selection, /Selection-specific/);
+  assert.doesNotMatch(selection, /min-\[561px\]:left-\[48px\]|min-\[561px\]:flex-col|min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.match(selection, /toggleLinearEditor/);
   assert.match(selection, /Font family/); assert.match(selection, /Text properties/);
   assert.match(selection, /type Panel = "color" \| "properties"/);
@@ -309,6 +310,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(noteCodeBlock, /detectCodeLanguage/);
   assert.match(noteCodeBlock, /useCodeRunner/);
   assert.match(noteCodeBlock, /Run JavaScript/);
+  assert.match(noteCodeBlock, /codeThemeVariables/);
+  assert.match(noteCodeBlock, /nextCodeTheme/);
+  assert.match(noteCodeBlock, /theme: \{ default: "auto" \}/);
   assert.match(noteCodeBlock, /Code output/);
   assert.match(editor, /canvasFrameLinkFromClipboard/);
   assert.match(frameLink, /MAX_FRAME_PREVIEW_ELEMENTS = 160/);

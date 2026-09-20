@@ -36,7 +36,7 @@ import {
 import type { CanvasActionName } from "./CanvasToolbar";
 import { analyzeCanvasSelection } from "./canvas-selection-capabilities";
 
-export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor";
+export type CanvasRuntimeActionName = CanvasActionName | "toggleLinearEditor" | "hyperlink";
 
 type Panel = "color" | "properties" | "specific" | "arrow" | "font" | "text" | "layer" | "align" | "more";
 type StrokeWidthKey = "thin" | "medium" | "bold";
@@ -257,6 +257,7 @@ function ColorSwatches({ colors, current, label, onChange }: {
 function fallbackActionIcon(name: CanvasRuntimeActionName) {
   if (name === "wrapSelectionInFrame") return <NativeFrameIcon className="size-4" />;
   if (name === "addToLibrary") return <NativeLibraryIcon className="size-4" />;
+  if (name === "hyperlink") return <NativeEmbedIcon className="size-4" />;
   return <NativeDotsHorizontalIcon className="size-4" />;
 }
 
@@ -533,25 +534,46 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
 
         {openPanel === "more" && (
           <div className="grid gap-4">
+            {selectedEmbed && (
+              <Section label="Embed">
+                <div className="grid gap-1">
+                  <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => runAndClose("hyperlink")}>
+                    <NativeEmbedIcon /><span>Edit embed URL</span>
+                  </button>
+                  {selectedEmbed.link && (
+                    <button
+                      type="button"
+                      className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4"
+                      onClick={() => {
+                        window.open(selectedEmbed.link!, "_blank", "noopener,noreferrer");
+                        closePanel();
+                      }}
+                    >
+                      <NativeEmbedIcon /><span>Open embed source</span>
+                    </button>
+                  )}
+                </div>
+              </Section>
+            )}
             {capabilities.mixed && (
               <Section label="Selection-specific">
                 <div className="grid gap-1">
                   {(capabilities.fill === "some" || capabilities.freeDraw === "some" || capabilities.line === "some") && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("specific")}>
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("specific")}>
                       <NativeAdjustmentsIcon /><span>Drawing styles</span>
                     </button>
                   )}
                   {capabilities.arrow === "some" && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("arrow")}>
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("arrow")}>
                       <NativeArrowTypeIcon type={arrowType} /><span>Arrow properties</span>
                     </button>
                   )}
                   {capabilities.text === "some" && (
                     <>
-                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("font")}>
+                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("font")}>
                         <span className="w-4 text-center text-[11px] font-medium">Aa</span><span>Font family</span>
                       </button>
-                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent" onClick={() => setOpenPanel("text")}>
+                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("text")}>
                         <NativeTextSizeIcon /><span>Text properties</span>
                       </button>
                     </>

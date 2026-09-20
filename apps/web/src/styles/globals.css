@@ -167,7 +167,7 @@
   .notespace-canvas-surface > div:has(> [aria-label="Canvas tools"]) {
     top: auto !important;
     right: auto !important;
-    bottom: 8px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
     left: 50% !important;
     width: calc(100% - 16px);
     max-width: 520px;
@@ -213,7 +213,7 @@
   }
 
   .notespace-canvas-surface .notespace-selection-actions {
-    bottom: 50px !important;
+    bottom: calc(50px + env(safe-area-inset-bottom)) !important;
     width: max-content !important;
     max-width: calc(100% - 16px) !important;
   }

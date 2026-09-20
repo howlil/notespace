@@ -104,7 +104,7 @@ tasks:
     cmds:
       - task: test:web
         vars:
-          TEST: apps/web/src/features/workspace/canvas-frame-link.test.ts
+          TEST: apps/web/src/domain/workspace/canvas-frame-link.test.ts
       - task: perf:persistence
 
   perf:persistence:

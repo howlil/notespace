@@ -4,7 +4,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Frame, ImageOff, Trash2 } from "lucide-react";
 import { IconButton, cn } from "../../components/ui";
-import { loadImageAsset } from "../../domain/assets/local-image-assets";
+import { useImageAssetUrl } from "../assets/use-image-asset-url";
 import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../features/workspace/canvas-frame-link";
 
 function usePreviewVisibility() {
@@ -49,30 +49,7 @@ function CanvasFramePreviewImage({
   element: CanvasFramePreviewElement;
   workspaceId: string;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!element.fileId) {
-      setSrc(null);
-      return;
-    }
-    let active = true;
-    let objectUrl: string | null = null;
-    setSrc(null);
-    void loadImageAsset(workspaceId, element.fileId)
-      .then((asset) => {
-        if (!active || !asset) return;
-        objectUrl = URL.createObjectURL(asset.blob);
-        setSrc(objectUrl);
-      })
-      .catch(() => {
-        if (active) setSrc(null);
-      });
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [element.fileId, workspaceId]);
+  const src = useImageAssetUrl(workspaceId, element.fileId ?? null);
 
   if (!src) {
     return (

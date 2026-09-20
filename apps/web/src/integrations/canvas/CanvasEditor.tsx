@@ -28,7 +28,7 @@ import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
 import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./canvas-code-block-layout";
-import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
+import { CanvasBottomChrome, CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
 import { useCanvasPeerChannel } from "./use-canvas-peer-channel";
@@ -146,6 +146,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [gridModeEnabled, setGridModeEnabled] = useState(false);
   const [objectsSnapModeEnabled, setObjectsSnapModeEnabled] = useState(false);
   const [canvasApi, setCanvasApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [contextualInteractionActive, setContextualInteractionActive] = useState(false);
   useHandleLibrary({ excalidrawAPI: canvasApi, getInitialLibraryItems: readStoredLibraryItems });
   const panelAnchorRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -200,6 +201,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     syncSelection: syncFlowchartSelection,
     focusEditor: focusCanvasEditor,
   } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
+
+  const canvasOverlayInteractionActive = contextualInteractionActive || diagramOpen || moreOpen || editingCodeBlockId !== null;
+
+  useEffect(() => {
+    if (canvasOverlayInteractionActive) cancelNativeFlowchartPreview();
+  }, [cancelNativeFlowchartPreview, canvasOverlayInteractionActive]);
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
     diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, next);
@@ -546,6 +553,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   });
 
   const handleDirectionalSpawnKeyDown = useCallback((event: KeyboardEvent) => {
+    if (canvasOverlayInteractionActive) return;
     const direction = directionFromKey(event.key);
     if (!direction || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
     if (event.isComposing) return;
@@ -565,7 +573,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     if (!beginNativeFlowchartPreview(direction)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-  }, [beginNativeFlowchartPreview, spawnSelectedDiagramNode]);
+  }, [beginNativeFlowchartPreview, canvasOverlayInteractionActive, spawnSelectedDiagramNode]);
 
   const handleDirectionalSpawnKeyUp = useCallback((event: KeyboardEvent) => {
     if (!flowchartPreviewDirection) return;
@@ -619,8 +627,54 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         setEditingCodeBlockId(element.id);
       }}
     >
-      <div className="pointer-events-auto absolute top-1/2 left-2 z-[100] isolate -translate-y-1/2">
-        <CanvasToolRail
+      <CanvasCodeBlockLayer
+        elements={overlayElements}
+        viewport={canvasViewport}
+        appDark={dark}
+        selectedElementId={selectedElementId}
+        editingElementId={editingCodeBlockId}
+        runs={codeRuns}
+        onUpdate={updateCodeBlock}
+        onEditingChange={setEditingCodeBlockId}
+        onRun={runCodeBlock}
+        onClearRun={clearCodeRun}
+        onAutoFit={autoFitCodeBlock}
+      />
+      <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
+      <CanvasBottomChrome
+        contextual={(() => {
+          const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
+          const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
+          if (selectedCodeElement && selectedCodeBlock) {
+            return (
+              <CanvasCodeBlockActions
+                block={selectedCodeBlock}
+                appDark={dark}
+                run={codeRuns[selectedCodeElement.id]}
+                onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
+                onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
+                onStop={() => stopCodeRun(selectedCodeElement.id)}
+                onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
+                onDelete={() => {
+                  clearCodeRun(selectedCodeElement.id);
+                  setEditingCodeBlockId(null);
+                  runCanvasAction("deleteSelectedElements");
+                }}
+              />
+            );
+          }
+          return (
+            <CanvasSelectionActions
+              api={canvasApi}
+              activeTool={activeTool}
+              selectedElementCount={selectedElementCount}
+              onAction={runCanvasAction}
+              onInteractionStateChange={setContextualInteractionActive}
+            />
+          );
+        })()}
+        tools={(
+          <CanvasToolRail
           api={canvasApi}
           panelAnchorRef={panelAnchorRef}
           activeTool={activeTool}
@@ -656,46 +710,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
             />
           )}
         />
-      </div>
-      <CanvasCodeBlockLayer
-        elements={overlayElements}
-        viewport={canvasViewport}
-        appDark={dark}
-        selectedElementId={selectedElementId}
-        editingElementId={editingCodeBlockId}
-        runs={codeRuns}
-        onUpdate={updateCodeBlock}
-        onEditingChange={setEditingCodeBlockId}
-        onRun={runCodeBlock}
-        onClearRun={clearCodeRun}
-        onAutoFit={autoFitCodeBlock}
+        )}
       />
-      <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
-      {(() => {
-        const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
-        const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
-        if (selectedCodeElement && selectedCodeBlock) {
-          return (
-            <CanvasCodeBlockActions
-              block={selectedCodeBlock}
-              appDark={dark}
-              run={codeRuns[selectedCodeElement.id]}
-              onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
-              onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
-              onStop={() => stopCodeRun(selectedCodeElement.id)}
-              onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
-              onDelete={() => {
-                clearCodeRun(selectedCodeElement.id);
-                setEditingCodeBlockId(null);
-                runCanvasAction("deleteSelectedElements");
-              }}
-            />
-          );
-        }
-        return <CanvasSelectionActions api={canvasApi} activeTool={activeTool} selectedElementCount={selectedElementCount} onAction={runCanvasAction} />;
-      })()}
       <CanvasFlowchartHandles
-        anchor={flowchartAnchor}
+        anchor={canvasOverlayInteractionActive ? null : flowchartAnchor}
         previewDirection={flowchartPreviewDirection}
         onPreviewStart={beginNativeFlowchartPreview}
         onPreviewCancel={cancelNativeFlowchartPreview}

@@ -82,6 +82,8 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(selection, /bottom-2 left-1\/2/);
   assert.match(selection, /analyzeCanvasSelection/);
   assert.match(selection, /Selection-specific/);
+  assert.match(selection, /w-fit max-w-\[calc\(100%-16px\)\]/);
+  assert.match(selection, /Interact with embed/);
   assert.doesNotMatch(selection, /min-\[561px\]:left-\[48px\]|min-\[561px\]:flex-col|min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.doesNotMatch(selection, /min-\[561px\]:size-10/);
 });

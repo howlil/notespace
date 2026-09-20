@@ -246,6 +246,15 @@ func (a API) deleteNote(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusNoContent, nil)
 }
 
+func (a API) getCanvas(w http.ResponseWriter, r *http.Request) {
+	canvas, err := a.service.GetCanvasState(r.Context(), r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, canvas)
+}
+
 func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {
 	var body project.CanvasUpdate
 	if !decode(w, r, &body) {

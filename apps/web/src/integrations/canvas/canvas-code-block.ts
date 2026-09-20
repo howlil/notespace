@@ -1,5 +1,5 @@
 import { codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
-import { codeThemeSurface, codeTokenColor, resolveCodeTheme, type CodeBlockTheme } from "../../domain/code/code-theme.ts";
+import type { CodeBlockTheme } from "../../domain/code/code-theme.ts";
 
 export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
 export { codeThemeSurface, codeThemeTitle, codeThemeVariables, codeTokenColor, nextCodeTheme, resolveCodeTheme } from "../../domain/code/code-theme.ts";

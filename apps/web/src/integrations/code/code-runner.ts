@@ -1,4 +1,4 @@
-import { normalizeCodeLanguage } from "../../domain/code/code-language";
+import { normalizeCodeLanguage } from "../../domain/code/code-language.ts";
 
 export type JavaScriptRunStatus = "success" | "error" | "timeout" | "cancelled";
 

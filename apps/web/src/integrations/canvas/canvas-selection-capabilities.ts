@@ -3,22 +3,21 @@ export type CanvasSelectionElementLike = {
   customData?: Record<string, unknown>;
 };
 
+export type CapabilityCoverage = "all" | "some" | "none";
+
 export type CanvasSelectionCapabilities = {
   count: number;
   types: string[];
   mixed: boolean;
   hasCode: boolean;
-  common: {
-    stroke: boolean;
-    opacity: boolean;
-  };
-  specific: {
-    fill: boolean;
-    line: boolean;
-    arrow: boolean;
-    text: boolean;
-    freeDraw: boolean;
-  };
+  stroke: CapabilityCoverage;
+  opacity: CapabilityCoverage;
+  fill: CapabilityCoverage;
+  line: CapabilityCoverage;
+  arrow: CapabilityCoverage;
+  text: CapabilityCoverage;
+  freeDraw: CapabilityCoverage;
+  embed: CapabilityCoverage;
 };
 
 const strokeTypes = new Set(["rectangle", "diamond", "ellipse", "arrow", "line", "freedraw", "text"]);
@@ -30,24 +29,27 @@ function semanticType(element: CanvasSelectionElementLike) {
   return code && typeof code === "object" ? "code" : element.type;
 }
 
+function coverage(elements: readonly CanvasSelectionElementLike[], predicate: (element: CanvasSelectionElementLike) => boolean): CapabilityCoverage {
+  if (elements.length === 0) return "none";
+  const supported = elements.reduce((count, element) => count + (predicate(element) ? 1 : 0), 0);
+  if (supported === 0) return "none";
+  return supported === elements.length ? "all" : "some";
+}
+
 export function analyzeCanvasSelection(elements: readonly CanvasSelectionElementLike[]): CanvasSelectionCapabilities {
   const types = [...new Set(elements.map(semanticType))];
-  const nonCode = elements.filter((element) => semanticType(element) !== "code");
   return {
     count: elements.length,
     types,
     mixed: types.length > 1,
     hasCode: types.includes("code"),
-    common: {
-      stroke: nonCode.length > 0 && nonCode.every((element) => strokeTypes.has(element.type)),
-      opacity: elements.length > 0,
-    },
-    specific: {
-      fill: nonCode.some((element) => fillTypes.has(element.type)),
-      line: nonCode.some((element) => lineTypes.has(element.type)),
-      arrow: nonCode.some((element) => element.type === "arrow"),
-      text: nonCode.some((element) => element.type === "text"),
-      freeDraw: nonCode.some((element) => element.type === "freedraw"),
-    },
+    stroke: coverage(elements, (element) => semanticType(element) !== "code" && strokeTypes.has(element.type)),
+    opacity: coverage(elements, () => true),
+    fill: coverage(elements, (element) => semanticType(element) !== "code" && fillTypes.has(element.type)),
+    line: coverage(elements, (element) => semanticType(element) !== "code" && lineTypes.has(element.type)),
+    arrow: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "arrow"),
+    text: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "text"),
+    freeDraw: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "freedraw"),
+    embed: coverage(elements, (element) => element.type === "embeddable"),
   };
 }

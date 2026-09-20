@@ -66,7 +66,6 @@ func TestEraserIconGatewayRejectsInvalidOrUnsafeSVG(t *testing.T) {
 	}
 }
 
-
 func TestEraserIconGatewayDedupesConcurrentCacheMisses(t *testing.T) {
 	var requests atomic.Int32
 	started := make(chan struct{})

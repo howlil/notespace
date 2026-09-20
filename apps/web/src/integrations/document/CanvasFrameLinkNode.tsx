@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Frame, ImageOff, Trash2 } from "lucide-react";
 import { IconButton, cn } from "../../components/ui";
 import { useImageAssetUrl } from "../assets/use-image-asset-url";
-import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../features/workspace/canvas-frame-link";
+import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../domain/workspace/canvas-frame-link";
 
 function usePreviewVisibility() {
   const ref = useRef<HTMLDivElement>(null);

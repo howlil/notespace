@@ -339,7 +339,10 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     };
     const codeNode = stored.notes[0]?.document.data.content?.find((node) => node.type === "codeBlock");
     expect(codeNode?.content?.map((item) => item.text ?? "").join("")).toBe(code);
-    expect(JSON.stringify(stored.notes[0]?.document.data)).not.toContain("note-ok");
+    const storedDocument = JSON.stringify(stored.notes[0]?.document.data);
+    expect(storedDocument).not.toContain('"stdout"');
+    expect(storedDocument).not.toContain('"stderr"');
+    expect(storedDocument).not.toContain('"durationMs"');
   } finally {
     await cleanup(request, id);
   }

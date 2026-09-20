@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
 const maxAssetBytes = 8 << 20
@@ -23,8 +24,13 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 		fail(w, asset.ErrInvalid)
 		return
 	}
-	if _, err := a.service.Get(r.Context(), workspaceID); err != nil {
+	exists, err := a.service.WorkspaceExists(r.Context(), workspaceID)
+	if err != nil {
 		fail(w, err)
+		return
+	}
+	if !exists {
+		fail(w, project.ErrNotFound)
 		return
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))

@@ -37,6 +37,6 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-func (s *Store) Stats() sql.DBStats                      { return s.db.Stats() }
-func (s *Store) Close() error                      { return s.db.Close() }
+func (s *Store) Stats() sql.DBStats { return s.db.Stats() }
+func (s *Store) Close() error       { return s.db.Close() }
 func (s *Store) Healthy(ctx context.Context) error { return s.db.PingContext(ctx) }

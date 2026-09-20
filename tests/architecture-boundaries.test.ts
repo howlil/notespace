@@ -59,15 +59,17 @@ test("workspace delegates authored state and autosave ownership to its session b
 
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {
   const editor = source("integrations/document/DocumentEditor.tsx");
+  const localImage = source("integrations/document/LocalImageNode.tsx");
   const frameNode = source("integrations/document/CanvasFrameLinkNode.tsx");
   const canvas = source("integrations/canvas/CanvasEditor.tsx");
 
   assert.match(editor, /useDocumentSnapshotSession/);
-  assert.match(editor, /useImageAssetUrl/);
+  assert.match(localImage, /useImageAssetUrl/);
   assert.match(frameNode, /useImageAssetUrl/);
   assert.match(canvas, /deriveCanvasElementState/);
 
   assert.doesNotMatch(editor, /URL\.createObjectURL|URL\.revokeObjectURL/);
+  assert.doesNotMatch(localImage, /URL\.createObjectURL|URL\.revokeObjectURL/);
   assert.doesNotMatch(frameNode, /URL\.createObjectURL|URL\.revokeObjectURL/);
   assert.doesNotMatch(canvas, /shouldSwitchCodeBlockToManualHeight/);
 });

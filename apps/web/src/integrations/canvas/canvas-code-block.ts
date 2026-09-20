@@ -1,4 +1,4 @@
-import { codeLanguageOptions, codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
+import { codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
 
 export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
 

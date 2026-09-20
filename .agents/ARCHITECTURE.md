@@ -193,3 +193,13 @@ The concrete SQLite store remains one `*persistence.Store` and one database conn
 - `study_store.go`: study activity persistence.
 
 HTTP follows the same rule: `api.go` owns dependency wiring and common JSON/error handling, while workspace, asset, history/search, and study handlers live in dedicated files. File boundaries must not introduce duplicate stores, transaction owners, or service layers.
+
+
+## System critical paths
+
+- Note autosave acknowledges after the authored SQLite transaction commits; FTS is a derived projection and must not extend the hot autosave acknowledgement path.
+- Search repairs stale FTS rows lazily from authored Note state using `notes_revision`.
+- Canvas conflict recovery reads only granular Canvas state/version, not the full Workspace aggregate.
+- Asset upload validates Workspace ownership with a lightweight existence query and must not hydrate Notes/Canvas or reread the uploaded BLOB.
+- `workspace_canvas.element_count` is the summary source for library `hasCanvas`; library queries must not parse full Canvas JSON for this boolean.
+- SQLite remains one pooled connection with WAL + FULL synchronous durability. Do not increase connection count without measured DB wait evidence.

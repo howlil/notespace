@@ -185,10 +185,21 @@ export function useCanvasFlowchart({
         );
         if (!source) return false;
 
+        const rememberedTargetId =
+          semanticPreview.targetId
+          && current.some(
+            (element) =>
+              element.id === semanticPreview.targetId
+              && !element.isDeleted
+              && isNativeFlowchartShapeType(element.type),
+          )
+            ? semanticPreview.targetId
+            : undefined;
+
         let decorated = false;
         const elements = current.map((element) => {
-          const isTarget = semanticPreview.targetId
-            ? element.id === semanticPreview.targetId
+          const isTarget = rememberedTargetId
+            ? element.id === rememberedTargetId
             : !semanticPreview.beforeIds.has(element.id)
               && !element.isDeleted
               && isNativeFlowchartShapeType(element.type);

@@ -1,6 +1,6 @@
-import { codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
+import { codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
 
-export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
+export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
 
 export const CODE_BLOCK_DATA_KEY = "notespaceCodeBlock";
 

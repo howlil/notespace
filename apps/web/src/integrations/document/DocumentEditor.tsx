@@ -64,9 +64,11 @@ import {
   cn,
 } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
-import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { useImageAssetUrl } from "../assets/use-image-asset-url";
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
+import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
@@ -162,22 +164,9 @@ type SlashCommand = {
 function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selected }: NodeViewProps & { workspaceId: string }) {
   const assetId = typeof node.attrs.assetId === "string" ? node.attrs.assetId : "";
   const fallbackSrc = typeof node.attrs.src === "string" && !node.attrs.src.startsWith("notespace-asset:") ? node.attrs.src : null;
-  const [src, setSrc] = useState<string | null>(fallbackSrc);
+  const src = useImageAssetUrl(workspaceId, assetId || null, fallbackSrc);
   const [editingAlt, setEditingAlt] = useState(false);
   const [alt, setAlt] = useState(typeof node.attrs.alt === "string" ? node.attrs.alt : "");
-
-  useEffect(() => {
-    if (!assetId) { setSrc(fallbackSrc); return; }
-    let active = true;
-    let objectUrl: string | null = null;
-    setSrc(null);
-    void loadImageAsset(workspaceId, assetId).then((asset) => {
-      if (!active || !asset) return;
-      objectUrl = URL.createObjectURL(asset.blob);
-      setSrc(objectUrl);
-    });
-    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [assetId, fallbackSrc, workspaceId]);
 
   function commitAlt() {
     updateAttributes({ alt: alt.trim() || "Pasted image" });
@@ -299,14 +288,6 @@ export default function DocumentEditor({
   const selectedCommandRef = useRef(0);
   const openCanvasFrameRef = useRef(onOpenCanvasFrame);
   openCanvasFrameRef.current = onOpenCanvasFrame;
-  const onChangeRef = useRef(onChange);
-  const onDirtyChangeRef = useRef(onDirtyChange);
-  const registerSnapshotFlushRef = useRef(registerSnapshotFlush);
-  onChangeRef.current = onChange;
-  onDirtyChangeRef.current = onDirtyChange;
-  registerSnapshotFlushRef.current = registerSnapshotFlush;
-  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSnapshotRef = useRef(false);
   const outlineOpenRef = useRef(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +309,12 @@ export default function DocumentEditor({
   const [codeWrap, setCodeWrap] = useState(false);
   const [mathEdit, setMathEdit] = useState<MathEdit>(null);
   const [mathValue, setMathValue] = useState("");
+  const { schedule: scheduleSnapshot, flush: emitPendingSnapshot, hasPending: hasPendingSnapshot } = useDocumentSnapshotSession({
+    editorRef,
+    onChange,
+    onDirtyChange,
+    registerSnapshotFlush,
+  });
 
   const dismissSlashMenu = useCallback(() => {
     slashMenuRef.current = null;
@@ -361,31 +348,6 @@ export default function DocumentEditor({
     findInputRef.current?.focus();
     findInputRef.current?.select();
   }, [findOpen]);
-
-  const emitPendingSnapshot = useCallback(() => {
-    if (snapshotTimerRef.current) {
-      clearTimeout(snapshotTimerRef.current);
-      snapshotTimerRef.current = null;
-    }
-    if (!pendingSnapshotRef.current) return;
-    const currentEditor = editorRef.current;
-    if (!currentEditor) return;
-    pendingSnapshotRef.current = false;
-    onChangeRef.current({ format: "tiptap", version: 1, data: currentEditor.getJSON() });
-    onDirtyChangeRef.current?.(false);
-  }, []);
-
-  const scheduleSnapshot = useCallback(() => {
-    if (!pendingSnapshotRef.current) {
-      pendingSnapshotRef.current = true;
-      onDirtyChangeRef.current?.(true);
-    }
-    if (snapshotTimerRef.current) return;
-    snapshotTimerRef.current = setTimeout(() => {
-      snapshotTimerRef.current = null;
-      emitPendingSnapshot();
-    }, 120);
-  }, [emitPendingSnapshot]);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -626,22 +588,14 @@ export default function DocumentEditor({
   editorRef.current = editor;
 
   useEffect(() => {
-    registerSnapshotFlushRef.current?.(emitPendingSnapshot);
-    return () => {
-      emitPendingSnapshot();
-      registerSnapshotFlushRef.current?.(null);
-    };
-  }, [emitPendingSnapshot]);
-
-  useEffect(() => {
-    if (!editor || !initial.data || pendingSnapshotRef.current) return;
+    if (!editor || !initial.data || hasPendingSnapshot()) return;
     const currentJson = editor.getJSON();
     if (JSON.stringify(currentJson) !== JSON.stringify(initial.data)) {
       if (!editor.isFocused) {
         editor.commands.setContent(initial.data, { emitUpdate: false });
       }
     }
-  }, [editor, initial.data]);
+  }, [editor, hasPendingSnapshot, initial.data]);
 
   useEffect(() => {
     if (!editor || !findOpen) return;

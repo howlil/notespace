@@ -54,7 +54,9 @@ Examples:
 - one browser journey: `task e2e:target SPEC=...`;
 - cross-stack/release candidate: `task verify` after the focused loop is green.
 
-Targeted verification is a feedback-loop optimization, not a substitute for the required final gate. Do not invent unrelated tests merely to satisfy this sequence; use the narrowest existing or newly-required regression test that protects the changed behavior.
+Targeted verification is a feedback-loop optimization, not a substitute for the required final gate.
+
+`tests/architecture-boundaries.test.ts` protects dependency direction and ownership. Prefer behavior/unit tests plus this boundary test over source-regex assertions that lock private function names or exact implementation shape. Do not invent unrelated tests merely to satisfy this sequence; use the narrowest existing or newly-required regression test that protects the changed behavior.
 
 ## Baseline gates
 

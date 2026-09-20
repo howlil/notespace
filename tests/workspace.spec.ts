@@ -328,7 +328,7 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     await expect(language.locator("option:checked")).toHaveText("Auto · JavaScript");
 
     await block.getByRole("button", { name: "Run JavaScript" }).click();
-    const output = block.getByLabel("Code output");
+    const output = block.getByLabel("Code output", { exact: true });
     await expect(output).toContainText("note-ok");
     await expect(output).toContainText("42");
     await expect(output).toContainText(/Done/);

@@ -1,7 +1,6 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import FindAndReplace from "@tiptap/extension-find-and-replace";
 import Highlight from "@tiptap/extension-highlight";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -9,7 +8,6 @@ import { Mathematics } from "@tiptap/extension-mathematics";
 import { TableKit } from "@tiptap/extension-table";
 import UniqueID from "@tiptap/extension-unique-id";
 import "katex/dist/katex.min.css";
-import { common, createLowlight } from "lowlight";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
@@ -36,7 +34,6 @@ import {
   Strikethrough,
   Trash2,
   Unlink,
-  WrapText,
   X,
 } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
@@ -61,6 +58,7 @@ import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
 import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";
 import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
+import { createNoteCodeBlockExtension } from "./NoteCodeBlockNode";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
@@ -81,7 +79,6 @@ type FindStorage = {
   currentIndex: number | null;
 };
 
-const lowlight = createLowlight(common);
 
 function hasStructuredClipboardHtml(html: string) {
   return /<(?:table|thead|tbody|tr|th|td|h[1-6]|blockquote|ul|ol)\b/i.test(html);
@@ -134,16 +131,6 @@ function outlineItems(editor: Editor): OutlineItem[] {
   });
   return items;
 }
-
-function activeCodeText(editor: Editor) {
-  const { $from } = editor.state.selection;
-  for (let depth = $from.depth; depth >= 0; depth -= 1) {
-    const node = $from.node(depth);
-    if (node.type.name === "codeBlock") return node.textContent;
-  }
-  return "";
-}
-
 
 function MenuButton({
   active = false,
@@ -221,7 +208,6 @@ export default function DocumentEditor({
   const [replaceTerm, setReplaceTerm] = useState("");
   const [linkEditing, setLinkEditing] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
-  const [codeWrap, setCodeWrap] = useState(false);
   const [mathEdit, setMathEdit] = useState<MathEdit>(null);
   const [mathValue, setMathValue] = useState("");
   const { schedule: scheduleSnapshot, flush: emitPendingSnapshot, hasPending: hasPendingSnapshot } = useDocumentSnapshotSession({
@@ -336,7 +322,7 @@ export default function DocumentEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
-      CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true, tabSize: 2 }),
+      createNoteCodeBlockExtension(),
       createLocalImageExtension(workspaceId),
       createCanvasFrameLinkExtension(workspaceId, (frameId) => openCanvasFrameRef.current?.(frameId)),
       TaskList,
@@ -374,7 +360,7 @@ export default function DocumentEditor({
         role: "textbox",
         "aria-multiline": "true",
         spellcheck: "false",
-        class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+        class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]"),
       },
       handlePaste: (_view, event) => {
         const clipboard = event.clipboardData;
@@ -513,11 +499,11 @@ export default function DocumentEditor({
         ...editor.options.editorProps,
         attributes: {
           ...editor.options.editorProps.attributes,
-          class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+          class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]"),
         },
       },
     });
-  }, [articleMode, codeWrap, editor]);
+  }, [articleMode, editor]);
 
   function runDocumentSlashCommand(command: DocumentSlashCommand) {
     const menu = slashMenuRef.current;
@@ -624,11 +610,18 @@ export default function DocumentEditor({
   const findTotal = findStorage.results.length;
   const findCurrent = findStorage.currentIndex === null ? 0 : findStorage.currentIndex + 1;
   const tableActive = editor.isActive("table");
-  const codeActive = editor.isActive("codeBlock");
-  const codeLanguage = typeof editor.getAttributes("codeBlock").language === "string" ? editor.getAttributes("codeBlock").language : "";
-  const codeLanguages = lowlight.listLanguages().sort();
+  const codeBlockActive = editor.isActive("codeBlock");
 
   const toolbarButtons = <>
+    <IconButton
+      type="button"
+      aria-pressed={codeBlockActive || undefined}
+      className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
+      aria-label="Code block"
+      onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+    >
+      <Code2 size={14} aria-hidden="true" />
+    </IconButton>
     <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Find in note" aria-expanded={findOpen} onClick={() => { dismissSlashMenu(); setFindOpen((value) => !value); }}>
       <Search size={14} aria-hidden="true" />
     </IconButton>
@@ -774,6 +767,7 @@ export default function DocumentEditor({
                   <MenuButton label="Bullet list" active={editor.isActive("bulletList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}><List size={14} /></MenuButton>
                   <MenuButton label="Numbered list" active={editor.isActive("orderedList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}><ListOrdered size={14} /></MenuButton>
                   <MenuButton label="Checklist" active={editor.isActive("taskList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}><CheckSquare size={14} /></MenuButton>
+                  <MenuButton label="Code block" active={editor.isActive("codeBlock")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleCodeBlock().run(); }}><Code2 size={14} /></MenuButton>
                 </div>
               </div>
             ) : (
@@ -874,40 +868,22 @@ export default function DocumentEditor({
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
-        {(tableActive || codeActive) && (
+        {tableActive && (
           <motion.div
-            key={tableActive ? "table-tools" : "code-tools"}
+            key="table-tools"
             initial={{ opacity: 0, y: 6, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.985 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
             className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface/95 p-1 shadow-[0_10px_28px_#0002] backdrop-blur"
-            aria-label={tableActive ? "Table tools" : "Code block tools"}
+            aria-label="Table tools"
           >
-            {tableActive ? (
-              <>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} />Column</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</Button>
-                <span className="h-4 w-px bg-line" />
-                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></IconButton>
-              </>
-            ) : (
-              <>
-                <select
-                  value={codeLanguage}
-                  onChange={(event) => editor.chain().focus().updateAttributes("codeBlock", { language: event.target.value || null }).run()}
-                  className="max-w-32 rounded border border-line bg-surface px-2 py-1 text-[10px] text-ink outline-none focus:border-accent"
-                  aria-label="Code language"
-                >
-                  <option value="">Auto detect</option>
-                  {codeLanguages.map((language) => <option key={language} value={language}>{language}</option>)}
-                </select>
-                <IconButton type="button" aria-pressed={codeWrap} className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Toggle code wrapping" onClick={() => setCodeWrap((value) => !value)}><WrapText size={13} /></IconButton>
-                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Copy code block" onClick={() => void copyText(activeCodeText(editor), "Code copied.")}><Copy size={13} /></IconButton>
-              </>
-            )}
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} />Column</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</Button>
+            <span className="h-4 w-px bg-line" />
+            <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></IconButton>
           </motion.div>
         )}
       </AnimatePresence>

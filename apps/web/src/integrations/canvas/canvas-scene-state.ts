@@ -1,8 +1,8 @@
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { DIAGRAM_DATA_KEY } from "../../features/diagram/diagram-model";
-import { readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
-import { codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
+import { DIAGRAM_DATA_KEY } from "../../features/diagram/diagram-model.ts";
+import { readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block.ts";
+import { codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout.ts";
 
 export type CodeGeometry = { width: number; height: number };
 

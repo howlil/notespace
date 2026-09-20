@@ -33,6 +33,12 @@ type cachedEraserIcon struct {
 	entry eraserIconCacheEntry
 }
 
+type eraserIconFlight struct {
+	done  chan struct{}
+	entry eraserIconCacheEntry
+	err   error
+}
+
 type eraserIconGateway struct {
 	client  *http.Client
 	baseURL string
@@ -41,6 +47,7 @@ type eraserIconGateway struct {
 	cache      map[string]*list.Element
 	cacheOrder *list.List
 	cacheBytes int
+	inFlight   map[string]*eraserIconFlight
 }
 
 func newEraserIconGateway(client *http.Client, baseURL string) *eraserIconGateway {
@@ -52,6 +59,7 @@ func newEraserIconGateway(client *http.Client, baseURL string) *eraserIconGatewa
 		baseURL:    strings.TrimRight(baseURL, "/") + "/",
 		cache:      make(map[string]*list.Element),
 		cacheOrder: list.New(),
+		inFlight:   make(map[string]*eraserIconFlight),
 	}
 }
 
@@ -154,11 +162,7 @@ func (g *eraserIconGateway) storeCached(slug string, entry eraserIconCacheEntry)
 	return entry
 }
 
-func (g *eraserIconGateway) fetch(ctx context.Context, slug string) (eraserIconCacheEntry, error) {
-	if entry, ok := g.cached(slug); ok {
-		return entry, nil
-	}
-
+func (g *eraserIconGateway) fetchUpstream(ctx context.Context, slug string) (eraserIconCacheEntry, error) {
 	requestURL := g.baseURL + url.PathEscape(slug) + ".svg"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -183,8 +187,40 @@ func (g *eraserIconGateway) fetch(ctx context.Context, slug string) (eraserIconC
 	if err != nil || len(data) == 0 || len(data) > maxEraserIconBytes || !validSVG(data) {
 		return eraserIconCacheEntry{}, errInvalidEraserIcon
 	}
-	entry := eraserIconCacheEntry{data: data, contentType: "image/svg+xml"}
-	return g.storeCached(slug, entry), nil
+	return eraserIconCacheEntry{data: data, contentType: "image/svg+xml"}, nil
+}
+
+func (g *eraserIconGateway) fetch(ctx context.Context, slug string) (eraserIconCacheEntry, error) {
+	if entry, ok := g.cached(slug); ok {
+		return entry, nil
+	}
+
+	g.mu.Lock()
+	if existing, ok := g.inFlight[slug]; ok {
+		g.mu.Unlock()
+		select {
+		case <-existing.done:
+			return existing.entry, existing.err
+		case <-ctx.Done():
+			return eraserIconCacheEntry{}, ctx.Err()
+		}
+	}
+	flight := &eraserIconFlight{done: make(chan struct{})}
+	g.inFlight[slug] = flight
+	g.mu.Unlock()
+
+	entry, err := g.fetchUpstream(ctx, slug)
+	if err == nil {
+		entry = g.storeCached(slug, entry)
+	}
+
+	g.mu.Lock()
+	flight.entry = entry
+	flight.err = err
+	delete(g.inFlight, slug)
+	close(flight.done)
+	g.mu.Unlock()
+	return entry, err
 }
 
 func (g *eraserIconGateway) serve(w http.ResponseWriter, r *http.Request) {

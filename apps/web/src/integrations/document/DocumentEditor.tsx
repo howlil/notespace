@@ -25,27 +25,20 @@ import {
   Copy,
   ExternalLink,
   Frame,
-  Heading2,
   Highlighter,
-  ImagePlus,
   Italic,
   Link2,
   List,
   ListOrdered,
   ListTree,
-  Minus,
   Plus,
-  Quote,
   Search,
-  Sigma,
   Strikethrough,
-  Table2,
   Trash2,
   Unlink,
   WrapText,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
 import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../domain/workspace/canvas-frame-link";
 import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
@@ -66,6 +59,7 @@ import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-i
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
+import { createDocumentDocumentSlashCommands, type DocumentDocumentSlashCommand } from "./document-slash-commands";
 import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -150,14 +144,6 @@ function activeCodeText(editor: Editor) {
   return "";
 }
 
-type SlashCommand = {
-  label: string;
-  description: string;
-  keywords: string;
-  icon: LucideIcon;
-  kind?: "canvas-frame";
-  run?: (editor: Editor) => void;
-};
 
 function MenuButton({
   active = false,
@@ -345,20 +331,7 @@ export default function DocumentEditor({
     }
   }
 
-  const slashCommands: SlashCommand[] = [
-    { label: "Heading", description: "Large section heading", keywords: "heading h2", icon: Heading2, run: (editor) => { editor.chain().focus().toggleHeading({ level: 2 }).run(); } },
-    { label: "Bullet list", description: "Turn this into a list", keywords: "bullet list ul", icon: List, run: (editor) => { editor.chain().focus().toggleBulletList().run(); } },
-    { label: "Numbered list", description: "Create an ordered list", keywords: "numbered ordered list ol", icon: ListOrdered, run: (editor) => { editor.chain().focus().toggleOrderedList().run(); } },
-    { label: "Checklist", description: "Interactive task list", keywords: "task todo checkbox checklist", icon: CheckSquare, run: (editor) => { editor.chain().focus().toggleTaskList().run(); } },
-    { label: "Table", description: "Insert a 3 × 3 comparison table", keywords: "table grid compare", icon: Table2, run: (editor) => { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); } },
-    { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", icon: Quote, run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
-    { label: "Code block", description: "Syntax-highlighted code", keywords: "code pre source", icon: Code2, run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
-    { label: "Link canvas", description: "Embed a Canvas frame preview", keywords: "link canvas frame embed preview", icon: Frame, kind: "canvas-frame" },
-    { label: "Inline math", description: "Insert a compact equation", keywords: "math equation latex inline", icon: Sigma, run: (editor) => { editor.chain().focus().insertInlineMath({ latex: "x^2" }).run(); } },
-    { label: "Math block", description: "Insert a display equation", keywords: "math equation latex block", icon: Sigma, run: (editor) => { editor.chain().focus().insertBlockMath({ latex: "\\\\frac{a}{b}" }).run(); } },
-    { label: "Image", description: "Choose an image from this device", keywords: "image photo upload", icon: ImagePlus, run: () => { imageInputRef.current?.click(); } },
-    { label: "Divider", description: "Add a horizontal rule", keywords: "divider rule line", icon: Minus, run: (editor) => { editor.chain().focus().setHorizontalRule().run(); } },
-  ];
+  const slashCommands = createDocumentDocumentSlashCommands(() => imageInputRef.current?.click());
 
   const editor = useEditor({
     extensions: [
@@ -491,7 +464,7 @@ export default function DocumentEditor({
         if (event.key === "Escape") { event.preventDefault(); dismissSlashMenu(); return true; }
         if (event.key === "Enter" && filtered.length) {
           event.preventDefault();
-          runSlashCommand(filtered[Math.min(selectedCommandRef.current, filtered.length - 1)]);
+          runDocumentSlashCommand(filtered[Math.min(selectedCommandRef.current, filtered.length - 1)]);
           return true;
         }
         return false;
@@ -546,7 +519,7 @@ export default function DocumentEditor({
     });
   }, [articleMode, codeWrap, editor]);
 
-  function runSlashCommand(command: SlashCommand) {
+  function runDocumentSlashCommand(command: DocumentSlashCommand) {
     const menu = slashMenuRef.current;
     const currentEditor = editorRef.current;
     if (!menu || !currentEditor) return;
@@ -853,7 +826,7 @@ export default function DocumentEditor({
                 aria-selected={index === selectedCommand}
                 className="!min-h-0 !flex w-full !items-center !justify-start !gap-3 rounded-md border-0 px-2.5 py-2.5 text-left text-ink aria-selected:bg-tint"
                 onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
-                onClick={() => runSlashCommand(command)}
+                onClick={() => runDocumentSlashCommand(command)}
               >
                 <span className="grid size-5 shrink-0 place-items-center text-accent"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-4"><span className="text-[11px] font-medium">{command.label}</span><span className="text-[10px] text-muted">{command.description}</span></span>

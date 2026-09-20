@@ -37,10 +37,17 @@ function codeElement(overrides: Record<string, unknown> = {}) {
   } as unknown as OrderedExcalidrawElement;
 }
 
+function normalizeManualHeight(element: OrderedExcalidrawElement, block: ReturnType<typeof defaultCanvasCodeBlock>) {
+  return {
+    ...element,
+    customData: withCanvasCodeBlock(element.customData, block),
+  } as OrderedExcalidrawElement;
+}
+
 test("canvas element derivation keeps non-code elements out of the HTML overlay", () => {
   const code = codeElement();
   const ordinary = { ...codeElement({ id: "shape-1", customData: undefined }), type: "rectangle" } as OrderedExcalidrawElement;
-  const result = deriveCanvasElementState([ordinary, code], new Map(), new Map());
+  const result = deriveCanvasElementState([ordinary, code], new Map(), new Map(), normalizeManualHeight);
 
   assert.equal(result.hasLiveElements, true);
   assert.deepEqual(result.codeElements.map((element) => element.id), ["code-1"]);
@@ -54,6 +61,7 @@ test("canvas element derivation converts a user-resized auto code block to manua
     [resized],
     new Map([["code-1", { width: previous.width, height: previous.height }]]),
     new Map(),
+    normalizeManualHeight,
   );
 
   assert.equal(result.normalizedManualResize, true);
@@ -67,6 +75,7 @@ test("canvas element derivation acknowledges expected auto-fit height without sw
     [resized],
     new Map([["code-1", { width: 320, height: 180 }]]),
     new Map([["code-1", 220]]),
+    normalizeManualHeight,
   );
 
   assert.deepEqual(result.acknowledgedAutoFitIds, ["code-1"]);

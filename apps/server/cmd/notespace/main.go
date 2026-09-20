@@ -36,6 +36,16 @@ func run() error {
 	projects := persistence.NewIndexedProjectStore(store)
 	deps := httpapi.Dependencies{Projects: projects, Study: store, Assets: store, Health: store.Healthy}
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
+	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
+		stats := store.Stats()
+		return httpapi.DatabaseStats{
+			OpenConnections: stats.OpenConnections,
+			InUse:           stats.InUse,
+			Idle:            stats.Idle,
+			WaitCount:       stats.WaitCount,
+			WaitDuration:    stats.WaitDuration,
+		}
+	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}

@@ -41,6 +41,10 @@ export function QuickOpen() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        const activeElement = document.activeElement;
+        const canvasOwnsShortcut = activeElement instanceof Element
+          && Boolean(activeElement.closest(".notespace-canvas-surface"));
+        if (canvasOwnsShortcut) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         setOpen(true);

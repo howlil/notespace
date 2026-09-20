@@ -453,7 +453,8 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         exit={{ opacity: 0, y: 3, scale: 0.985 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
         className={cn(
-          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] max-h-[min(46dvh,360px)] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none",
+          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none",
+          openPanel === "more" ? "max-h-[min(50dvh,380px)]" : "max-h-[min(46dvh,360px)]",
           panelWidthClass[openPanel],
         )}
         role="dialog"

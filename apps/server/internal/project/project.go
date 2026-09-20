@@ -138,12 +138,15 @@ type Update struct {
 	Version    int         `json:"version"`
 }
 
-type Store interface {
+type CategoryStore interface {
 	CreateCategory(context.Context, CategorySummary) error
 	UpdateCategory(context.Context, string, string) (CategorySummary, error)
 	DeleteCategory(context.Context, string) error
 	ListCategories(context.Context) ([]CategorySummary, error)
 	CategoryExists(context.Context, string) (bool, error)
+}
+
+type WorkspaceStore interface {
 	Create(context.Context, Project) error
 	List(context.Context) ([]Summary, error)
 	ListRecent(context.Context, int) ([]Summary, error)
@@ -152,10 +155,25 @@ type Store interface {
 	Get(context.Context, string) (Project, error)
 	Update(context.Context, string, Update) (Project, error)
 	Delete(context.Context, string) error
+}
+
+type SearchStore interface {
 	Search(context.Context, string) ([]SearchResult, error)
+}
+
+type HistoryStore interface {
 	ListHistory(context.Context, string) ([]HistoryEntry, error)
 	GetHistory(context.Context, string, string) (HistorySnapshot, error)
 	CreateHistory(context.Context, HistorySnapshot) error
+}
+
+// Store is the composition used by the application service. Tests and future
+// adapters may depend on the narrower capability interfaces above.
+type Store interface {
+	CategoryStore
+	WorkspaceStore
+	SearchStore
+	HistoryStore
 }
 
 type Service struct{ Store Store }

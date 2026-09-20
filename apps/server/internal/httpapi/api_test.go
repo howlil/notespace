@@ -612,3 +612,28 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 		t.Fatalf("restored document = %s, want %s", got.Document.Data, p.Document.Data)
 	}
 }
+
+
+func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
+	ctx := context.Background()
+	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Canvas state"}))
+
+	response := call(t, api, "GET", "/api/workspaces/"+workspace.ID+"/canvas", nil)
+	expect(t, response, http.StatusOK)
+	var state project.CanvasState
+	if err := json.Unmarshal(response.Body.Bytes(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Version != workspace.CanvasVersion || string(state.Canvas.Data) != string(workspace.Canvas.Data) {
+		t.Fatalf("canvas state = %+v, workspace version=%d", state, workspace.CanvasVersion)
+	}
+	if strings.Contains(response.Body.String(), `"notes"`) || strings.Contains(response.Body.String(), `"title"`) {
+		t.Fatalf("canvas endpoint leaked aggregate workspace payload: %s", response.Body.String())
+	}
+}

@@ -112,7 +112,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   useEffect(() => {
     if (!normalized.changed) return;
     for (const note of current.current.notes) scheduleNote(note);
-  }, [normalized.changed, scheduleNote]);
+  }, [current, normalized.changed, scheduleNote]);
   useEffect(() => {
     if (status.state === "error") {
       showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) } });

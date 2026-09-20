@@ -1,8 +1,8 @@
 import type { NodeViewProps } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
-import { Check, Clipboard, Code2, Play, Square, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Check, Clipboard, Code2, Moon, Play, Square, Sun, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   codeLanguageLabel,
   codeLanguageOptions,
@@ -10,6 +10,15 @@ import {
   detectCodeLanguage,
   normalizeCodeLanguage,
 } from "../../domain/code/code-language";
+import {
+  codeThemeSurface,
+  codeThemeTitle,
+  codeThemeVariables,
+  nextCodeTheme,
+  resolveCodeTheme,
+  type CodeBlockTheme,
+} from "../../domain/code/code-theme";
+import { useTheme } from "../../providers/theme-provider";
 import { canRunCode } from "../code/code-runner";
 import { useCodeRunner, type CodeRunView } from "../code/use-code-runner";
 
@@ -22,7 +31,17 @@ function runStatusLabel(run: CodeRunView) {
 }
 
 function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps) {
+  const { dark } = useTheme();
   const code = node.textContent;
+  const theme: CodeBlockTheme = node.attrs.theme === "dark" || node.attrs.theme === "light" ? node.attrs.theme : "auto";
+  const resolvedTheme = resolveCodeTheme(theme, dark);
+  const palette = codeThemeSurface(resolvedTheme);
+  const themeStyle = {
+    ...codeThemeVariables(resolvedTheme),
+    background: palette.background,
+    color: palette.foreground,
+    borderColor: palette.border,
+  } as CSSProperties;
   const explicitLanguage = typeof node.attrs.language === "string" && node.attrs.language.trim()
     ? normalizeCodeLanguage(node.attrs.language)
     : "";
@@ -50,7 +69,8 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
       as="div"
       data-note-code-block={blockId}
       data-code-language={effectiveLanguage}
-      className="my-3 overflow-hidden rounded-lg border border-line bg-background"
+      className="notespace-code-theme my-3 overflow-hidden rounded-lg border"
+      style={themeStyle}
       onKeyDownCapture={(event: ReactKeyboardEvent<HTMLDivElement>) => {
         if (!(event.metaKey || event.ctrlKey) || event.key !== "Enter") return;
         const target = event.target;
@@ -63,13 +83,14 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
     >
       <div
         contentEditable={false}
-        className="flex min-h-9 items-center gap-1 border-b border-line bg-surface px-1.5 py-1"
+        className="flex min-h-9 items-center gap-1 border-b px-1.5 py-1"
+        style={{ background: palette.toolbar, borderColor: palette.border, color: palette.foreground }}
       >
         <Code2 className="ml-1 size-3.5 shrink-0 text-muted" strokeWidth={1.5} aria-hidden="true" />
         <select
           aria-label="Code language"
           value={explicitLanguage || "auto"}
-          className="h-7 min-w-[132px] max-w-[180px] rounded-md border border-line bg-background px-2 text-[10px] text-ink outline-none focus:border-accent"
+          className="h-7 min-w-[132px] max-w-[180px] rounded-md border bg-transparent px-2 text-[10px] outline-none focus:border-accent"
           onChange={(event) => {
             const value = event.target.value;
             updateAttributes({ language: value === "auto" ? null : value });
@@ -83,6 +104,17 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
         </select>
 
         <div className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            className="grid size-7 place-items-center rounded-md text-[var(--code-muted)] hover:bg-black/5 hover:text-[var(--code-fg)] focus-visible:outline-2 focus-visible:outline-accent"
+            aria-label={codeThemeTitle(theme, dark)}
+            title={codeThemeTitle(theme, dark)}
+            onClick={() => updateAttributes({ theme: nextCodeTheme(theme) })}
+          >
+            {resolvedTheme === "dark"
+              ? <Moon className="size-3.5" />
+              : <Sun className="size-3.5" />}
+          </button>
           {runnable && (
             <button
               type="button"
@@ -116,20 +148,21 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
         </div>
       </div>
 
-      <div className="m-0 overflow-hidden rounded-none border-0 bg-background p-0">
+      <div className="m-0 overflow-hidden rounded-none border-0 p-0">
         <NodeViewContent
           data-note-code-source=""
           aria-label="Edit code block"
           spellCheck={false}
-          className="block min-h-10 whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-[1.7] text-ink outline-none [overflow-wrap:anywhere]"
+          className="block min-h-10 whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-[1.7] text-[var(--code-fg)] outline-none [overflow-wrap:anywhere]"
         />
       </div>
 
       {run && (
         <div
           contentEditable={false}
-          className="max-h-40 overflow-auto border-t border-line bg-surface px-3 py-2 font-mono text-[10px] leading-4 text-ink"
+          className="max-h-40 overflow-auto border-t px-3 py-2 font-mono text-[10px] leading-4"
           aria-label="Code output"
+          style={{ background: palette.toolbar, borderColor: palette.border, color: palette.foreground }}
         >
           <div className="mb-1 flex items-center justify-between gap-2">
             <span className="font-medium">{runStatusLabel(run)}</span>
@@ -148,7 +181,7 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
             <div key={`out-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]">{line}</div>
           ))}
           {run.stderr.map((line, index) => (
-            <div key={`err-${index}`} className="whitespace-pre-wrap text-danger [overflow-wrap:anywhere]">{line}</div>
+            <div key={`err-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]" style={{ color: palette.error }}>{line}</div>
           ))}
           {"result" in run && run.result !== undefined && (
             <div className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
@@ -163,6 +196,12 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
 
 export function createNoteCodeBlockExtension() {
   return CodeBlockLowlight.extend({
+    addAttributes() {
+      return {
+        ...(this.parent?.() ?? {}),
+        theme: { default: "auto" },
+      };
+    },
     addNodeView() {
       return ReactNodeViewRenderer(NoteCodeBlockNodeView);
     },

@@ -100,6 +100,16 @@ func hydrateGranularProject(ctx context.Context, q granularQueryer, value projec
 	return value, nil
 }
 
+func canvasElementCount(canvas project.Snapshot) (int, error) {
+	var scene struct {
+		Elements []json.RawMessage `json:"elements"`
+	}
+	if err := json.Unmarshal(canvas.Data, &scene); err != nil {
+		return 0, err
+	}
+	return len(scene.Elements), nil
+}
+
 func insertGranularStateTx(ctx context.Context, tx *sql.Tx, workspace project.Project) error {
 	for _, note := range workspace.Notes {
 		document, err := json.Marshal(note.Document)
@@ -119,12 +129,16 @@ VALUES (?,?,?,?,?,?,?)`, workspace.ID, note.ID, note.Title, document, note.Creat
 	if err != nil {
 		return err
 	}
+	elementCount, err := canvasElementCount(workspace.Canvas)
+	if err != nil {
+		return err
+	}
 	canvasVersion := workspace.CanvasVersion
 	if canvasVersion < 1 {
 		canvasVersion = 1
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,version,updated_at)
-VALUES (?,?,?,?)`, workspace.ID, canvas, canvasVersion, workspace.UpdatedAt)
+	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,version,updated_at,element_count)
+VALUES (?,?,?,?,?)`, workspace.ID, canvas, canvasVersion, workspace.UpdatedAt, elementCount)
 	return err
 }
 
@@ -187,14 +201,19 @@ ON CONFLICT(workspace_id,id) DO UPDATE SET
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,version,updated_at)
-VALUES (?,?,1,?)
+	elementCount, err := canvasElementCount(canvas)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,version,updated_at,element_count)
+VALUES (?,?,1,?,?)
 ON CONFLICT(workspace_id) DO UPDATE SET
   canvas_state=excluded.canvas_state,
   updated_at=excluded.updated_at,
+  element_count=excluded.element_count,
   version=CASE WHEN workspace_canvas.canvas_state<>excluded.canvas_state
     THEN workspace_canvas.version+1 ELSE workspace_canvas.version END`,
-		workspaceID, encodedCanvas, updatedAt)
+		workspaceID, encodedCanvas, updatedAt, elementCount)
 	return err
 }
 
@@ -329,6 +348,10 @@ func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update pro
 	if err != nil {
 		return project.CanvasState{}, err
 	}
+	elementCount, err := canvasElementCount(update.Canvas)
+	if err != nil {
+		return project.CanvasState{}, err
+	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -339,10 +362,10 @@ func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update pro
 	var state project.CanvasState
 	var stored string
 	err = tx.QueryRowContext(ctx, `UPDATE workspace_canvas
-SET canvas_state=?,updated_at=?,version=version+1
+SET canvas_state=?,updated_at=?,version=version+1,element_count=?
 WHERE workspace_id=? AND version=?
 RETURNING canvas_state,version,updated_at`,
-		encoded, now, workspaceID, update.Version,
+		encoded, now, elementCount, workspaceID, update.Version,
 	).Scan(&stored, &state.Version, &state.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		var count int

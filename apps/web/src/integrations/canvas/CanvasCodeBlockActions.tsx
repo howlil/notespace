@@ -3,25 +3,14 @@ import { useState, type ReactNode } from "react";
 import { cn } from "../../components/ui";
 import {
   codeLanguageOptions,
+  codeThemeTitle,
   detectCodeLanguage,
+  nextCodeTheme,
   resolveCodeTheme,
   type CanvasCodeBlockData,
-  type CodeBlockTheme,
 } from "./canvas-code-block";
 import { canRunCanvasCode } from "./canvas-code-runner";
 import type { CodeRunView } from "./use-canvas-code-runner";
-
-function nextTheme(theme: CodeBlockTheme): CodeBlockTheme {
-  if (theme === "auto") return "dark";
-  if (theme === "dark") return "light";
-  return "auto";
-}
-
-function themeTitle(theme: CodeBlockTheme) {
-  if (theme === "auto") return "Theme follows Notespace";
-  if (theme === "dark") return "JetBrains Darcula";
-  return "IntelliJ Light";
-}
 
 function ActionButton({
   label,
@@ -108,8 +97,8 @@ export function CanvasCodeBlockActions({
       )}
 
       <ActionButton
-        label={themeTitle(block.theme)}
-        onClick={() => onUpdate({ ...block, theme: nextTheme(block.theme) })}
+        label={codeThemeTitle(block.theme, appDark)}
+        onClick={() => onUpdate({ ...block, theme: nextCodeTheme(block.theme) })}
       >
         {resolvedTheme === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
       </ActionButton>

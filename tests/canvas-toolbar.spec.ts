@@ -196,6 +196,38 @@ test.describe("Canvas chrome", () => {
     }
   });
 
+  test("directional spawn from a code block creates another code block", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas code spawn ${Date.now()}`);
+
+    try {
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      await toolbar.getByRole("button", { name: "Code block", exact: true }).click();
+
+      const blocks = page.locator("[data-canvas-code-block]");
+      await expect(blocks).toHaveCount(1);
+      const editor = page.locator(".excalidraw").first();
+      await editor.press("Alt+ArrowRight");
+
+      await expect(blocks).toHaveCount(2);
+      await expect.poll(async () => {
+        const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+          canvas: { data: { elements: Array<{ type?: string; customData?: Record<string, unknown>; isDeleted?: boolean }> } };
+        };
+        const live = stored.canvas.data.elements.filter((element) => !element.isDeleted);
+        const codeBlocks = live.filter((element) => {
+          const customData = element.customData as { notespaceCodeBlock?: unknown } | undefined;
+          return !!customData?.notespaceCodeBlock;
+        });
+        return {
+          codeBlocks: codeBlocks.length,
+          arrows: live.filter((element) => element.type === "arrow").length,
+        };
+      }).toEqual({ codeBlocks: 2, arrows: 1 });
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
   test("slash opens Diagram search and Escape closes it", async ({ page, request }) => {
     const id = await openCanvasWorkspace(page, request, `Canvas diagram ${Date.now()}`);
 

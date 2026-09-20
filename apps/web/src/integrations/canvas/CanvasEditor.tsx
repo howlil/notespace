@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, newElementWith, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, reconcileElements, useHandleLibrary } from "@excalidraw/excalidraw";
 import type {
   AppState,
   BinaryFiles,
@@ -26,8 +26,8 @@ import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } fro
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
-import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
-import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
+import { defaultCanvasCodeBlock, readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
+import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockMinimumHeight } from "./canvas-code-block-layout";
 import { CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
 import { CanvasFlowchartHandles } from "./CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./CanvasSelectionActions";
@@ -36,6 +36,14 @@ import { useCanvasAssets } from "./use-canvas-assets";
 import { useCanvasFlowchart } from "./use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./use-canvas-diagram-commands";
 import { useCanvasCodeRunner } from "./use-canvas-code-runner";
+import {
+  codeGeometryMap,
+  codeOverlayElements,
+  deriveCanvasElementState,
+  persistedAppState,
+  sameElementVersions,
+  sceneSignature,
+} from "./canvas-scene-state";
 
 type FocusRequest = { id: string; request: number } | null;
 
@@ -69,69 +77,10 @@ function readStoredLibraryItems(): LibraryItems {
   }
 }
 
-function objectValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-}
-
-function authoredSceneData(data: Record<string, unknown>) {
-  const appState = objectValue(data.appState);
-  return {
-    elements: Array.isArray(data.elements) ? data.elements : [],
-    appState: {
-      viewBackgroundColor: appState.viewBackgroundColor,
-      gridModeEnabled: appState.gridModeEnabled,
-      objectsSnapModeEnabled: appState.objectsSnapModeEnabled,
-    },
-    files: {},
-    [DIAGRAM_DATA_KEY]: data[DIAGRAM_DATA_KEY] ?? [],
-  };
-}
-
-function sceneSignature(data: Record<string, unknown>) {
-  return JSON.stringify(authoredSceneData(data));
-}
-
-function codeOverlayElements(elements: readonly OrderedExcalidrawElement[]) {
-  return elements.filter((element) => !element.isDeleted && Boolean(readCanvasCodeBlock(element)));
-}
-
-function sameElementVersions(left: readonly OrderedExcalidrawElement[], right: readonly OrderedExcalidrawElement[]) {
-  return left.length === right.length && left.every((element, index) => {
-    const candidate = right[index];
-    return candidate?.id === element.id
-      && candidate.version === element.version
-      && candidate.versionNonce === element.versionNonce
-      && candidate.width === element.width
-      && candidate.height === element.height;
-  });
-}
-
-// Viewport state (pan/zoom) is intentionally local to each tab. Persisting it
-// made ordinary navigation generate server writes and caused false conflicts.
-function persistedAppState(state: AppState) {
-  return {
-    viewBackgroundColor: state.viewBackgroundColor,
-    gridModeEnabled: state.gridModeEnabled,
-    objectsSnapModeEnabled: state.objectsSnapModeEnabled,
-  };
-}
-
 function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly StructuredDiagram[]) {
   const merged = new Map(local.map((diagram) => [diagram.id, diagram]));
   for (const diagram of remote) merged.set(diagram.id, diagram);
   return [...merged.values()];
-}
-
-function codeGeometryMap(elements: readonly OrderedExcalidrawElement[]) {
-  const geometry = new Map<string, { width: number; height: number }>();
-  for (const element of elements) {
-    if (!element.isDeleted && readCanvasCodeBlock(element)) {
-      geometry.set(element.id, { width: element.width, height: element.height });
-    }
-  }
-  return geometry;
 }
 
 function codeElementContainsClientPoint(
@@ -365,45 +314,20 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       setCanvasViewport(nextViewport);
     }
 
-    let authoredElements: readonly OrderedExcalidrawElement[] = elements;
-    let mutableElements: OrderedExcalidrawElement[] | null = null;
-    let normalizedManualResize = false;
-    let hasLiveElements = false;
-    const previousGeometry = codeGeometryRef.current;
-    const nextCodeGeometry = new Map<string, { width: number; height: number }>();
-    const nextCodeElements: OrderedExcalidrawElement[] = [];
-
-    elements.forEach((element, index) => {
-      if (!element.isDeleted) hasLiveElements = true;
-      const block = readCanvasCodeBlock(element);
-      if (!block || element.isDeleted) return;
-
-      let nextElement = element;
-      const previous = previousGeometry.get(element.id);
-      const expectedHeight = expectedAutoFitHeightRef.current.get(element.id);
-      const autoFitAcknowledged = expectedHeight !== undefined && !codeBlockHeightChanged(expectedHeight, element.height);
-      if (autoFitAcknowledged) {
-        expectedAutoFitHeightRef.current.delete(element.id);
-      } else if (shouldSwitchCodeBlockToManualHeight({
-        heightMode: block.heightMode,
-        previousHeight: previous?.height,
-        currentHeight: element.height,
-        expectedAutoFitHeight: expectedHeight,
-      })) {
-        normalizedManualResize = true;
-        nextElement = newElementWith(element, {
-          customData: withCanvasCodeBlock(element.customData, { ...block, heightMode: "manual" }),
-        });
-        if (!mutableElements) mutableElements = [...elements];
-        mutableElements[index] = nextElement;
-      }
-
-      nextCodeGeometry.set(nextElement.id, { width: nextElement.width, height: nextElement.height });
-      nextCodeElements.push(nextElement);
-    });
-
-    if (mutableElements) authoredElements = mutableElements;
-    codeGeometryRef.current = nextCodeGeometry;
+    const {
+      authoredElements,
+      codeElements: nextCodeElements,
+      codeGeometry,
+      acknowledgedAutoFitIds,
+      normalizedManualResize,
+      hasLiveElements,
+    } = deriveCanvasElementState(
+      elements,
+      codeGeometryRef.current,
+      expectedAutoFitHeightRef.current,
+    );
+    for (const elementId of acknowledgedAutoFitIds) expectedAutoFitHeightRef.current.delete(elementId);
+    codeGeometryRef.current = codeGeometry;
     setOverlayElements((current) => sameElementVersions(current, nextCodeElements) ? current : nextCodeElements);
     if (normalizedManualResize) {
       api.current?.updateScene({ elements: authoredElements, captureUpdate: CaptureUpdateAction.NEVER });

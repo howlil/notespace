@@ -101,7 +101,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
   assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-menu_top/);
   assert.match(canvas, /className="notespace-canvas-surface/);
-  assert.match(canvas, /absolute top-1\/2 left-2 z-\[100\] isolate -translate-y-1\/2/);
+  assert.match(canvas, /<CanvasBottomChrome/);
+  assert.match(chrome, /notespace-canvas-bottom-chrome/);
   assert.match(canvas, /<CanvasToolRail/);
   assert.match(canvas, /<CanvasViewControls/);
   assert.match(canvas, /<CanvasSelectionActions/);

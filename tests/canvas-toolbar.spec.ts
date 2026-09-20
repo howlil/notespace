@@ -67,6 +67,7 @@ test.describe("Canvas chrome", () => {
       await page.mouse.up();
       await page.keyboard.press("Control+K");
 
+      await expect(page.getByRole("dialog", { name: "Quick Open" })).toHaveCount(0);
       const linkInput = page.getByPlaceholder("Type or paste your link here");
       await expect(linkInput).toBeVisible();
       await linkInput.fill("https://howlil.tech");

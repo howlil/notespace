@@ -103,9 +103,14 @@ Responsibility boundaries:
 - Project/workspace domain modules: authored state and API orchestration;
 - `features/workspace/pane-layout.ts`: pane-tree invariants (max four panes, max one Canvas), layout repair, split/resize tree operations;
 - `features/workspace/workspace-content.ts`: note snapshot normalization, stable block identity, and legacy relationship cleanup;
+- `features/workspace/use-workspace-session.ts`: authored Note/Canvas ownership, dirty tracking, snapshot flush registration, and granular autosave coordination;
 - `features/study/use-study-session.ts`: manual study-session state machine and local continuity across reload/navigation;
 - `features/study/study-timer.ts`: pure elapsed-time, pause/resume, rollover, and aggregation logic;
 - `integrations/canvas/CanvasEditor.tsx`: Excalidraw composition root; peer transport, asset lifecycle, and native flowchart interaction live behind dedicated hooks;
+- `integrations/canvas/canvas-scene-state.ts`: pure Canvas scene/code-overlay derivation used by the composition root;
+- `integrations/document/use-document-snapshot-session.ts`: Note dirty/snapshot checkpoint lifecycle;
+- `integrations/assets/use-image-asset-url.ts`: shared browser object-URL lifecycle for durable image assets;
+- `domain/workspace/canvas-frame-link.ts`: cross-surface Canvas-frame reference/preview model, independent of Workspace UI;
 - `domain/project/canvas-merge.ts`: pure fallback merge for Canvas-only durable-version races;
 - `domain/assets/local-image-assets.ts`: server-backed durable asset transfer plus browser cache/read-through migration;
 - generic UI primitives: presentation only.
@@ -175,3 +180,16 @@ Treat content, imported payloads, images, URLs, and embeds as untrusted input. P
 ## Material changes requiring approval
 
 Stop before changing workspace ownership semantics; adding independently deployed services; replacing Tiptap/Excalidraw; replacing SQLite; introducing cross-device collaboration/CRDT/event sourcing; adding authentication/authorization or hosted infrastructure; changing public API/data contracts incompatibly; destructive migrations; or broad plugin architecture.
+
+## Backend file ownership
+
+The concrete SQLite store remains one `*persistence.Store` and one database connection policy, but implementation files are split by reason to change:
+
+- `sqlite.go`: database lifecycle only;
+- `categories_store.go`: category persistence;
+- `workspace_store.go`: workspace aggregate persistence;
+- `search_fallback.go`: compatibility/fallback search traversal;
+- `history_store.go`: history payload/checkpoint persistence;
+- `study_store.go`: study activity persistence.
+
+HTTP follows the same rule: `api.go` owns dependency wiring and common JSON/error handling, while workspace, asset, history/search, and study handlers live in dedicated files. File boundaries must not introduce duplicate stores, transaction owners, or service layers.

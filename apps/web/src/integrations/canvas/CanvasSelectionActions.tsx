@@ -432,16 +432,35 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   const embedInteractive = Boolean(selectedEmbed && appState.activeEmbeddable?.element.id === selectedEmbed.id && appState.activeEmbeddable.state === "active");
   const toggleEmbedInteraction = () => {
     if (!selectedEmbed) return;
+    if (!embedInteractive) {
+      api.updateScene({
+        appState: {
+          activeEmbeddable: { element: selectedEmbed, state: "active" },
+          selectedElementIds: { [selectedEmbed.id]: true },
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      refresh((value) => value + 1);
+      return;
+    }
+
+    const embedId = selectedEmbed.id;
     api.updateScene({
-      appState: {
-        activeEmbeddable: embedInteractive
-          ? null
-          : { element: selectedEmbed, state: "active" },
-        selectedElementIds: { [selectedEmbed.id]: true },
-      },
+      appState: { activeEmbeddable: null },
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-    refresh((value) => value + 1);
+    window.requestAnimationFrame(() => {
+      const current = api.getSceneElements().find((element) => element.id === embedId && !element.isDeleted);
+      if (!current) return;
+      api.updateScene({
+        appState: {
+          activeEmbeddable: null,
+          selectedElementIds: { [embedId]: true },
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      refresh((value) => value + 1);
+    });
   };
 
   const renderPanel = () => {

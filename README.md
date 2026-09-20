@@ -145,7 +145,7 @@ Study tracking is manual: Start, Pause/Resume, and End are explicit user actions
 
 ## Search behavior
 
-SQLite authored Workspace state remains authoritative. Successful Workspace create/update/move operations attempt to refresh only that Workspace's FTS projection. If derived indexing fails after the authored write has already committed, Notespace logs the projection error and the next search repairs stale rows lazily rather than falsely reporting that the authored save failed.
+SQLite authored Workspace state remains authoritative. High-frequency granular Note autosaves acknowledge after the authored transaction commits and deliberately leave FTS repair to the next search. Lower-frequency create/move operations may refresh their projection eagerly. Search compares projection metadata with authored revisions and repairs stale rows lazily, so derived indexing never turns a successfully committed Note autosave into a failed save.
 
 ## API compatibility
 

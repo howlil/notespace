@@ -263,11 +263,18 @@ test.describe("Canvas chrome", () => {
       await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
       await page.mouse.move(bounds.x + 220, bounds.y + 180);
       await page.mouse.down();
-      await page.mouse.move(bounds.x + 360, bounds.y + 270, { steps: 5 });
+      await page.mouse.move(bounds.x + 360, bounds.y + 250, { steps: 8 });
       await page.mouse.up();
-      await toolbar.getByRole("button", { name: "Select", exact: true }).click();
-      await page.mouse.click(bounds.x + 290, bounds.y + 225);
 
+      await expect.poll(async () => {
+        const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+          canvas: { data: { elements: Array<{ type?: string; isDeleted?: boolean }> } };
+        };
+        return stored.canvas.data.elements.filter((element) => !element.isDeleted && element.type === "rectangle").length;
+      }).toBe(1);
+
+      const editor = page.locator(".excalidraw").first();
+      await expect(editor).toBeFocused();
       const addRight = page.getByRole("button", { name: "Add connected shape right" });
       await expect(addRight).toBeVisible();
 
@@ -280,7 +287,7 @@ test.describe("Canvas chrome", () => {
         canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
       };
       const beforeCount = before.canvas.data.elements.filter((element) => !element.isDeleted).length;
-      await page.keyboard.press("Alt+ArrowRight");
+      await editor.press("Alt+ArrowRight");
       await page.waitForTimeout(200);
       const after = await (await request.get(`/api/workspaces/${id}`)).json() as {
         canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };

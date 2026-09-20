@@ -437,6 +437,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         activeEmbeddable: embedInteractive
           ? null
           : { element: selectedEmbed, state: "active" },
+        selectedElementIds: { [selectedEmbed.id]: true },
       },
       captureUpdate: CaptureUpdateAction.NEVER,
     });

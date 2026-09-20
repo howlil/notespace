@@ -205,14 +205,16 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(selection, /aria-label="Selected shape actions"/);
   assert.match(selection, /import \{ executeNativeAction, nativeActionIcon \} from "\.\/CanvasNativeActions"/);
   assert.doesNotMatch(selection, /function nativeActionIcon|function NativeIconFrame|function AdjustmentsIcon|function UndoIcon|function RedoIcon|function DuplicateIcon|function DeleteIcon/);
-  assert.match(selection, /bottom-2 left-1\/2/);
+  assert.match(chrome, /CanvasBottomChrome/);
+  assert.match(chrome, /notespace-canvas-bottom-chrome/);
   assert.match(selection, /analyzeCanvasSelection/);
-  assert.match(selection, /Selection-specific/);
+  assert.match(selection, /onInteractionStateChange/);
+  assert.match(selection, /More drawing options/);
   assert.match(selection, /Interact with embed/);
   assert.match(selection, /activeEmbeddable/);
   assert.match(selection, /label="Layer"/);
   assert.match(selection, /label="Align & distribute"/);
-  assert.match(selection, /w-fit max-w-\[calc\(100%-16px\)\]/);
+  assert.match(selection, /w-fit max-w-full/);
   assert.doesNotMatch(selection, /min-\[561px\]:left-\[48px\]|min-\[561px\]:flex-col|min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.match(selection, /toggleLinearEditor/);
   assert.match(selection, /Font family/); assert.match(selection, /Text properties/);
@@ -221,7 +223,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(selection, /Line feel/); assert.match(selection, /Clean/); assert.match(selection, /Hand-drawn/); assert.match(selection, /Rough/);
   assert.doesNotMatch(selection, /type Panel = "stroke"|type Panel = "fill"|min-\[561px\]:size-10/);
   assert.doesNotMatch(selection, /label="Undo"|label="Redo"/);
-  for (const group of ["Layer", "Align & distribute", "Group", "Transform & reuse"]) assert.match(selection, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const group of ["Layer", "Align & distribute", "Group", "Transform & reuse"]) assert.match(selection, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\  for (const group of ["Layer", "Align & distribute", "Group", "Transform & reuse"]) assert.match(selection, new RegExp(group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));")));
   for (const styleState of ["currentItemStrokeColor", "currentItemBackgroundColor", "currentItemFillStyle", "currentItemStrokeWidthKey", "currentItemStrokeStyle", "currentItemRoughness", "currentItemRoundness", "currentItemOpacity", "currentItemStartArrowhead", "currentItemEndArrowhead", "currentItemFontFamily", "currentItemFontSize", "currentItemTextAlign"]) assert.match(selection, new RegExp(styleState));
   for (const action of ["group", "ungroup", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.match(selection, new RegExp(action));
 

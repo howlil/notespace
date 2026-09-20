@@ -46,7 +46,7 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,
 (SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id),
-(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))
+(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))
 FROM projects p ORDER BY p.updated_at DESC,p.id`)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (s *Store) ListRecent(ctx context.Context, limit int) ([]project.Summary, e
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,
 (SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id),
-(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))
+(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))
 FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	// legacy JSON columns in projects are compatibility projections and are no
 	// longer updated by high-frequency Note/Canvas autosaves.
 	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
-	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c, json_each(COALESCE(json_extract(c.canvas_state, '$.data.elements'), json('[]'))) e WHERE c.workspace_id=p.id))"
+	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
 	orderBy := "p.updated_at DESC, p.id"
 	switch sortBy {
 	case "created":

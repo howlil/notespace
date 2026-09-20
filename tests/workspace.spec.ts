@@ -327,6 +327,15 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     await expect(language).toHaveValue("auto");
     await expect(language.locator("option:checked")).toHaveText("Auto · JavaScript");
 
+    const theme = block.getByRole("button", { name: /Theme: Auto/ });
+    await expect(theme).toBeVisible();
+    await theme.click();
+    await expect(block.getByRole("button", { name: "Theme: JetBrains Darcula" })).toBeVisible();
+    await expect(block).toHaveCSS("background-color", "rgb(43, 43, 43)");
+    const keyword = source.locator(".hljs-keyword").first();
+    await expect(keyword).toBeVisible();
+    await expect(keyword).toHaveCSS("color", "rgb(204, 120, 50)");
+
     await block.getByRole("button", { name: "Run JavaScript" }).click();
     const output = block.getByLabel("Code output", { exact: true });
     await expect(output).toContainText("note-ok");
@@ -335,10 +344,11 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
     const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
-      notes: Array<{ document: { data: { content?: Array<{ type?: string; content?: Array<{ text?: string }> }> } } }>;
+      notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { theme?: string }; content?: Array<{ text?: string }> }> } } }>;
     };
     const codeNode = stored.notes[0]?.document.data.content?.find((node) => node.type === "codeBlock");
     expect(codeNode?.content?.map((item) => item.text ?? "").join("")).toBe(code);
+    expect(codeNode?.attrs?.theme).toBe("dark");
     const storedDocument = JSON.stringify(stored.notes[0]?.document.data);
     expect(storedDocument).not.toContain('"stdout"');
     expect(storedDocument).not.toContain('"stderr"');

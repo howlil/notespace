@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import type { Note, ProjectContent, Snapshot } from "../../domain/project/project";
+import type { ProjectContent, Snapshot } from "../../domain/project/project";
+import { acknowledgeNoteVersion, applyCanvasSnapshot, applyNoteDocument } from "./workspace-session-state";
 import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 
 export function useWorkspaceSession({
@@ -18,13 +19,8 @@ export function useWorkspaceSession({
 
   const touch = useCallback(() => setRevision((value) => value + 1), []);
 
-  const onNoteSaved = useCallback((saved: Note) => {
-    current.current = {
-      ...current.current,
-      // Save acknowledgements only advance optimistic versions. Local authored
-      // fields remain authoritative because a newer edit may already exist.
-      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, version: saved.version } : note),
-    };
+  const onNoteSaved = useCallback((saved) => {
+    current.current = acknowledgeNoteVersion(current.current, saved);
   }, []);
 
   const onCanvasSaved = useCallback(() => {
@@ -60,19 +56,14 @@ export function useWorkspaceSession({
   }, [autosave.flushAll]);
 
   const updateNoteDocument = useCallback((noteId: string, document: Snapshot) => {
-    const existing = current.current.notes.find((note) => note.id === noteId);
-    if (!existing) return;
-    const next: Note = { ...existing, document, updatedAt: new Date().toISOString() };
-    current.current = {
-      ...current.current,
-      document,
-      notes: current.current.notes.map((note) => note.id === noteId ? next : note),
-    };
-    autosave.scheduleNote(next);
+    const transition = applyNoteDocument(current.current, noteId, document, new Date().toISOString());
+    if (!transition) return;
+    current.current = transition.content;
+    autosave.scheduleNote(transition.note);
   }, [autosave.scheduleNote]);
 
   const updateCanvas = useCallback((canvas: Snapshot) => {
-    current.current = { ...current.current, canvas };
+    current.current = applyCanvasSnapshot(current.current, canvas);
     autosave.scheduleCanvas(canvas);
   }, [autosave.scheduleCanvas]);
 

@@ -13,6 +13,11 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
+export function canvasBackgroundColor(data: Record<string, unknown>, fallback: string) {
+  const appState = objectValue(data.appState);
+  return typeof appState.viewBackgroundColor === "string" ? appState.viewBackgroundColor : fallback;
+}
+
 export function authoredSceneData(data: Record<string, unknown>) {
   const appState = objectValue(data.appState);
   return {

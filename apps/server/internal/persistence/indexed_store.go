@@ -49,14 +49,10 @@ func (s *IndexedProjectStore) CreateNote(ctx context.Context, workspaceID string
 }
 
 func (s *IndexedProjectStore) UpdateNote(ctx context.Context, workspaceID, noteID string, update project.NoteUpdate) (project.Note, error) {
-	note, err := s.Store.UpdateNote(ctx, workspaceID, noteID, update)
-	if err != nil {
-		return note, err
-	}
-	if err := s.Store.refreshNoteSearch(ctx, workspaceID, noteID); err != nil {
-		slog.Warn("note search projection refresh failed", "workspace_id", workspaceID, "note_id", noteID, "error", err)
-	}
-	return note, nil
+	// Note autosave is the hottest durable path. Authored rows and projection
+	// metadata advance atomically in Store.UpdateNote; SearchIndexed detects the
+	// stale notes_revision and repairs FTS lazily on the next search.
+	return s.Store.UpdateNote(ctx, workspaceID, noteID, update)
 }
 
 func (s *IndexedProjectStore) DeleteNote(ctx context.Context, workspaceID, noteID string, version int) error {

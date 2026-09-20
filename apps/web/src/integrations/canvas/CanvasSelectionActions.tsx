@@ -11,7 +11,7 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import { executeNativeAction, nativeActionIcon } from "./CanvasNativeActions";
@@ -65,14 +65,14 @@ const styleableElementTypes = new Set<ExcalidrawElement["type"]>(["rectangle", "
 const inactiveTools = new Set<AppState["activeTool"]["type"]>(["selection", "eraser", "hand", "laser", "lasso"]);
 const panelWidthClass: Record<Panel, string> = {
   color: "w-[min(212px,calc(100vw-24px))]",
-  properties: "w-[min(128px,calc(100vw-24px))]",
-  specific: "w-[min(200px,calc(100vw-24px))]",
+  properties: "w-[min(196px,calc(100vw-24px))]",
+  specific: "w-[min(196px,calc(100vw-24px))]",
   arrow: "w-[min(200px,calc(100vw-24px))]",
   font: "w-[min(216px,calc(100vw-24px))]",
   text: "w-[min(164px,calc(100vw-24px))]",
   layer: "w-[min(164px,calc(100vw-24px))]",
   align: "w-[min(196px,calc(100vw-24px))]",
-  more: "w-[min(220px,calc(100vw-24px))]",
+  more: "w-[min(184px,calc(100vw-24px))]",
 };
 const optionGridClass: Record<GridColumns, string> = {
   2: "grid-cols-2",
@@ -287,6 +287,31 @@ function ActionButton({ api, name, label, disabled, danger, onClick }: {
   );
 }
 
+function MenuRowAction({ api, name, label, disabled, danger, onClick }: {
+  api: ExcalidrawImperativeAPI;
+  name: CanvasRuntimeActionName;
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  const icon = nativeActionIcon(api, name) ?? fallbackActionIcon(name);
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40",
+        danger && "hover:text-danger",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span className="grid size-4 shrink-0 place-items-center [&_svg]:size-4">{icon}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
 function selectionContext(api: ExcalidrawImperativeAPI | null, activeTool: AppState["activeTool"]["type"]) {
   const appState = api?.getAppState();
   const selectedIds = new Set(Object.entries(appState?.selectedElementIds ?? {}).filter(([, selected]) => selected).map(([id]) => id));
@@ -315,11 +340,12 @@ function selectionContext(api: ExcalidrawImperativeAPI | null, activeTool: AppSt
   };
 }
 
-export function CanvasSelectionActions({ api, activeTool, selectedElementCount, onAction }: {
+export function CanvasSelectionActions({ api, activeTool, selectedElementCount, onAction, onInteractionStateChange }: {
   api: ExcalidrawImperativeAPI | null;
   activeTool: AppState["activeTool"]["type"];
   selectedElementCount: number;
   onAction: (name: CanvasRuntimeActionName) => void;
+  onInteractionStateChange?: (active: boolean) => void;
 }) {
   const [, refresh] = useState(0);
   const [openPanel, setOpenPanel] = useState<Panel | null>(null);
@@ -333,6 +359,11 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   const hasSelection = selectedElementCount > 0;
   const hasStyleContext = selectedEditable.length > 0 || capabilities.opacity !== "none" || shapeEditing || lineEditing || freeDrawEditing || textEditing || bucketFillEditing;
   const shouldShow = hasSelection || (!inactiveTools.has(activeTool) && hasStyleContext);
+  const embedInteractive = Boolean(selectedEmbed && appState?.activeEmbeddable?.element.id === selectedEmbed.id && appState.activeEmbeddable.state === "active");
+  useEffect(() => {
+    onInteractionStateChange?.(openPanel !== null || embedInteractive);
+  }, [embedInteractive, onInteractionStateChange, openPanel]);
+  useEffect(() => () => onInteractionStateChange?.(false), [onInteractionStateChange]);
   if (!api || !appState || !shouldShow) return null;
 
   const strokeColor = primary?.strokeColor ?? selectedText?.strokeColor ?? appState.currentItemStrokeColor ?? "#1e1e1e";
@@ -429,7 +460,6 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   const showArrow = capabilities.arrow === "all" && Boolean(selectedArrow);
   const showText = capabilities.text === "all" && Boolean(selectedText);
   const showLinearEditor = Boolean(hasSelection && capabilities.line === "all" && !capabilities.mixed);
-  const embedInteractive = Boolean(selectedEmbed && appState.activeEmbeddable?.element.id === selectedEmbed.id && appState.activeEmbeddable.state === "active");
   const toggleEmbedInteraction = () => {
     if (!selectedEmbed) return;
     if (!embedInteractive) {
@@ -473,8 +503,8 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         exit={{ opacity: 0, y: 3, scale: 0.985 }}
         transition={{ duration: 0.16, ease: "easeOut" }}
         className={cn(
-          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-3 text-ink shadow-none",
-          openPanel === "more" ? "max-h-[min(50dvh,380px)]" : "max-h-[min(46dvh,360px)]",
+          "absolute bottom-[calc(100%+6px)] left-1/2 z-[110] -translate-x-1/2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface p-2.5 text-ink shadow-none",
+          openPanel === "more" ? "max-h-[min(42dvh,300px)]" : "max-h-[min(42dvh,320px)]",
           panelWidthClass[openPanel],
         )}
         role="dialog"
@@ -489,24 +519,25 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         )}
 
         {openPanel === "properties" && (
-          <div className="grid gap-4">
-            {(shapeEditing || freeDrawEditing || bucketFillEditing) && <Section label="Fill"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+          <div className="grid gap-3">
+            {showFill && <Section label="Fill"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
             {!bucketFillEditing && showStroke && <Section label="Stroke width"><OptionGrid columns={3}>{strokeWidthOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeWidth === value} onClick={() => updateStyle({ strokeWidth: value })}><NativeStrokeWidthIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Stroke pattern"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && (shapeEditing || lineEditing) && <Section label="Line feel"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {!bucketFillEditing && shapeEditing && <Section label="Corners"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
-            {!bucketFillEditing && freeDrawEditing && <Section label="Pressure"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
             <Section label="Opacity"><div className="flex items-center gap-2"><input type="range" min="0" max="100" value={opacity} aria-label="Opacity" className="h-1.5 min-w-0 flex-1 accent-accent" onChange={(event) => updateStyle({ opacity: Number(event.target.value) })} /><output className="w-8 text-right text-[9px] tabular-nums text-muted">{Math.round(opacity)}%</output></div></Section>
+            {(shapeEditing || lineEditing || freeDrawEditing || capabilities.fill === "some" || capabilities.line === "some" || capabilities.freeDraw === "some") && (
+              <button type="button" className="flex min-h-8 items-center gap-2 rounded-md border-t border-line px-1 pt-2 text-left text-[10px] text-muted hover:text-accent" onClick={() => setOpenPanel("specific")}>
+                <NativeAdjustmentsIcon className="size-4" /><span>More drawing options</span>
+              </button>
+            )}
           </div>
         )}
 
-        {openPanel === "specific" && capabilities.mixed && (
-          <div className="grid gap-4">
-            {capabilities.fill === "some" && <Section label="Fill · shapes"><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {capabilities.fill === "some" && <Section label="Corners · shapes"><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
-            {capabilities.line === "some" && <Section label="Stroke pattern · lines"><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {capabilities.line === "some" && <Section label="Line feel · lines"><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
-            {capabilities.freeDraw === "some" && <Section label="Pressure · pen"><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
+        {openPanel === "specific" && (
+          <div className="grid gap-3">
+            {(shapeEditing || capabilities.fill === "some") && <Section label={capabilities.mixed ? "Fill · shapes" : "Fill style"}><OptionGrid columns={3}>{fillStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={fillStyle === value} onClick={() => updateStyle({ fillStyle: value })}><NativeFillIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {(shapeEditing || lineEditing || capabilities.line === "some") && <Section label={capabilities.mixed ? "Stroke pattern · lines" : "Stroke pattern"}><OptionGrid columns={3}>{strokeStyleOptions.map(({ value, label }) => <Choice key={value} label={label} active={strokeStyle === value} onClick={() => updateStyle({ strokeStyle: value })}><NativeStrokeStyleIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {(shapeEditing || lineEditing || capabilities.line === "some") && <Section label={capabilities.mixed ? "Line feel · lines" : "Line feel"}><OptionGrid columns={3}>{roughnessOptions.map(({ value, label }) => <Choice key={value} label={label} active={roughness === value} onClick={() => updateStyle({ roughness: value })}><NativeSloppinessIcon value={value} /></Choice>)}</OptionGrid></Section>}
+            {(shapeEditing || capabilities.fill === "some") && <Section label={capabilities.mixed ? "Corners · shapes" : "Corners"}><OptionGrid columns={2}><Choice label="Sharp corners" active={roundness === "sharp"} onClick={() => updateStyle({ roundness: "sharp" })}><NativeEdgeIcon value="sharp" /></Choice><Choice label="Rounded corners" active={roundness === "round"} onClick={() => updateStyle({ roundness: "round" })}><NativeEdgeIcon value="round" /></Choice></OptionGrid></Section>}
+            {(freeDrawEditing || capabilities.freeDraw === "some") && <Section label={capabilities.mixed ? "Pressure · pen" : "Pressure"}><OptionGrid columns={2}><Choice label="Constant pressure" active={pressure === "constant"} onClick={() => updateStyle({ pressure: "constant" })}><NativePressureIcon value="constant" /></Choice><Choice label="Variable pressure" active={pressure === "variable"} onClick={() => updateStyle({ pressure: "variable" })}><NativePressureIcon value="variable" /></Choice></OptionGrid></Section>}
           </div>
         )}
 
@@ -554,56 +585,36 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         )}
 
         {openPanel === "more" && (
-          <div className="grid gap-4">
+          <div className="grid gap-2">
             {selectedEmbed && (
               <Section label="Embed">
-                <div className="grid gap-1">
+                <div className="grid gap-0.5">
                   <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => runAndClose("hyperlink")}>
                     <NativeEmbedIcon /><span>Edit embed URL</span>
                   </button>
                   {selectedEmbed.link && (
-                    <button
-                      type="button"
-                      className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4"
-                      onClick={() => {
-                        window.open(selectedEmbed.link!, "_blank", "noopener,noreferrer");
-                        closePanel();
-                      }}
-                    >
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => { window.open(selectedEmbed.link!, "_blank", "noopener,noreferrer"); closePanel(); }}>
                       <NativeEmbedIcon /><span>Open embed source</span>
                     </button>
                   )}
                 </div>
               </Section>
             )}
-            {capabilities.mixed && (
-              <Section label="Selection-specific">
-                <div className="grid gap-1">
-                  {(capabilities.fill === "some" || capabilities.freeDraw === "some" || capabilities.line === "some") && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("specific")}>
-                      <NativeAdjustmentsIcon /><span>Drawing styles</span>
-                    </button>
-                  )}
-                  {capabilities.arrow === "some" && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("arrow")}>
-                      <NativeArrowTypeIcon type={arrowType} /><span>Arrow properties</span>
-                    </button>
-                  )}
-                  {capabilities.text === "some" && (
-                    <>
-                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("font")}>
-                        <span className="w-4 text-center text-[11px] font-medium">Aa</span><span>Font family</span>
-                      </button>
-                      <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => setOpenPanel("text")}>
-                        <NativeTextSizeIcon /><span>Text properties</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </Section>
-            )}
-            <Section label="Group"><OptionGrid columns={2}><ActionButton api={api} name="group" label="Group" disabled={selectedElementCount < 2} onClick={() => runAndClose("group")} /><ActionButton api={api} name="ungroup" label="Ungroup" disabled={!hasSelection} onClick={() => runAndClose("ungroup")} /></OptionGrid></Section>
-            <Section label="Transform & reuse"><OptionGrid columns={4}><ActionButton api={api} name="flipHorizontal" label="Flip horizontally" disabled={!hasSelection} onClick={() => runAndClose("flipHorizontal")} /><ActionButton api={api} name="flipVertical" label="Flip vertically" disabled={!hasSelection} onClick={() => runAndClose("flipVertical")} /><ActionButton api={api} name="toggleElementLock" label="Lock or unlock" disabled={!hasSelection} onClick={() => runAndClose("toggleElementLock")} /><ActionButton api={api} name="wrapSelectionInFrame" label="Wrap in frame" disabled={!hasSelection} onClick={() => runAndClose("wrapSelectionInFrame")} /><ActionButton api={api} name="addToLibrary" label="Add to library" disabled={!hasSelection} onClick={() => runAndClose("addToLibrary")} /></OptionGrid></Section>
+            <Section label="Group">
+              <div className="grid gap-0.5">
+                <MenuRowAction api={api} name="group" label="Group selection" disabled={selectedElementCount < 2} onClick={() => runAndClose("group")} />
+                <MenuRowAction api={api} name="ungroup" label="Ungroup" disabled={!hasSelection} onClick={() => runAndClose("ungroup")} />
+              </div>
+            </Section>
+            <Section label="Transform & reuse">
+              <div className="grid gap-0.5">
+                <MenuRowAction api={api} name="flipHorizontal" label="Flip horizontal" disabled={!hasSelection} onClick={() => runAndClose("flipHorizontal")} />
+                <MenuRowAction api={api} name="flipVertical" label="Flip vertical" disabled={!hasSelection} onClick={() => runAndClose("flipVertical")} />
+                <MenuRowAction api={api} name="toggleElementLock" label="Lock or unlock" disabled={!hasSelection} onClick={() => runAndClose("toggleElementLock")} />
+                <MenuRowAction api={api} name="wrapSelectionInFrame" label="Wrap in frame" disabled={!hasSelection} onClick={() => runAndClose("wrapSelectionInFrame")} />
+                <MenuRowAction api={api} name="addToLibrary" label="Add to library" disabled={!hasSelection} onClick={() => runAndClose("addToLibrary")} />
+              </div>
+            </Section>
           </div>
         )}
       </motion.div>
@@ -619,7 +630,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
       initial={{ opacity: 0, y: 3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.16, ease: "easeOut" }}
-      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-10 w-fit max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none [&~_.excalidraw_.mobile-shape-actions]:!hidden"
+      className="notespace-selection-actions pointer-events-auto relative z-[1] flex h-10 w-fit max-w-full items-center gap-1 rounded-lg border border-line bg-surface p-1 shadow-none [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar"
       aria-label="Selected shape actions"
       onPointerDown={(event) => event.stopPropagation()}
@@ -631,6 +642,9 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         {showArrow && <CompactButton label="Arrow properties" open={openPanel === "arrow"} onClick={() => setOpenPanel((panel) => panel === "arrow" ? null : "arrow")}><NativeArrowTypeIcon type={arrowType} /></CompactButton>}
         {showLinearEditor && <CompactButton label="Edit line" onClick={() => onAction("toggleLinearEditor")}>{linearEditorIcon ? <span className="grid place-items-center [&_svg]:size-4">{linearEditorIcon}</span> : <NativePencilIcon />}</CompactButton>}
         {showText && <><CompactButton label="Font family" open={openPanel === "font"} onClick={() => setOpenPanel((panel) => panel === "font" ? null : "font")}><span className="text-[12px] font-medium leading-none">Aa</span></CompactButton><CompactButton label="Text properties" open={openPanel === "text"} onClick={() => setOpenPanel((panel) => panel === "text" ? null : "text")}><NativeTextSizeIcon /></CompactButton></>}
+        {capabilities.mixed && (capabilities.fill === "some" || capabilities.line === "some" || capabilities.freeDraw === "some") && <CompactButton label="Drawing styles" open={openPanel === "specific"} onClick={() => setOpenPanel((panel) => panel === "specific" ? null : "specific")}><NativeAdjustmentsIcon /></CompactButton>}
+        {capabilities.mixed && capabilities.arrow === "some" && <CompactButton label="Arrow properties" open={openPanel === "arrow"} onClick={() => setOpenPanel((panel) => panel === "arrow" ? null : "arrow")}><NativeArrowTypeIcon type={arrowType} /></CompactButton>}
+        {capabilities.mixed && capabilities.text === "some" && <><CompactButton label="Font family" open={openPanel === "font"} onClick={() => setOpenPanel((panel) => panel === "font" ? null : "font")}><span className="text-[12px] font-medium leading-none">Aa</span></CompactButton><CompactButton label="Text properties" open={openPanel === "text"} onClick={() => setOpenPanel((panel) => panel === "text" ? null : "text")}><NativeTextSizeIcon /></CompactButton></>}
         {selectedEmbed && <CompactButton label={embedInteractive ? "Lock embed" : "Interact with embed"} open={embedInteractive} onClick={toggleEmbedInteraction}><NativeEmbedIcon /></CompactButton>}
         {hasSelection && <CompactButton label="Layer" open={openPanel === "layer"} onClick={() => setOpenPanel((panel) => panel === "layer" ? null : "layer")}>{nativeActionIcon(api, "sendBackward") ?? <NativeDotsHorizontalIcon />}</CompactButton>}
         {selectedElementCount >= 2 && <CompactButton label="Align & distribute" open={openPanel === "align"} onClick={() => setOpenPanel((panel) => panel === "align" ? null : "align")}>{nativeActionIcon(api, "alignHorizontallyCentered") ?? <NativeAdjustmentsIcon />}</CompactButton>}

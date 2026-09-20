@@ -1,10 +1,12 @@
 import { codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
+import { codeThemeSurface, codeTokenColor, resolveCodeTheme, type CodeBlockTheme } from "../../domain/code/code-theme.ts";
 
 export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language.ts";
+export { codeThemeSurface, codeThemeTitle, codeThemeVariables, codeTokenColor, nextCodeTheme, resolveCodeTheme } from "../../domain/code/code-theme.ts";
+export type { CodeBlockTheme, ResolvedCodeTheme } from "../../domain/code/code-theme.ts";
 
 export const CODE_BLOCK_DATA_KEY = "notespaceCodeBlock";
 
-export type CodeBlockTheme = "auto" | "light" | "dark";
 export type CodeBlockHeightMode = "auto" | "manual";
 
 export type CanvasCodeBlockData = {
@@ -123,41 +125,4 @@ export function highlightCodeLines(code: string, language: string) {
     });
   }
   return lines;
-}
-
-export function resolveCodeTheme(theme: CodeBlockTheme, appDark: boolean): "light" | "dark" {
-  if (theme === "auto") return appDark ? "dark" : "light";
-  return theme;
-}
-
-export function codeTokenColor(classes: readonly string[], theme: "light" | "dark") {
-  const has = (...names: string[]) => names.some((name) => classes.includes(name));
-  if (theme === "dark") {
-    if (has("hljs-comment", "hljs-quote")) return "#808080";
-    if (has("hljs-keyword", "hljs-selector-tag", "hljs-literal")) return "#cc7832";
-    if (has("hljs-string", "hljs-regexp", "hljs-addition")) return "#6a8759";
-    if (has("hljs-number", "hljs-symbol", "hljs-bullet")) return "#6897bb";
-    if (has("hljs-title", "hljs-section", "hljs-function")) return "#ffc66d";
-    if (has("hljs-type", "hljs-built_in", "hljs-class")) return "#a9b7c6";
-    if (has("hljs-attr", "hljs-attribute", "hljs-property")) return "#bababa";
-    if (has("hljs-variable", "hljs-template-variable")) return "#9876aa";
-    if (has("hljs-deletion")) return "#bc3f3c";
-    return "#a9b7c6";
-  }
-  if (has("hljs-comment", "hljs-quote")) return "#808080";
-  if (has("hljs-keyword", "hljs-selector-tag", "hljs-literal")) return "#000080";
-  if (has("hljs-string", "hljs-regexp", "hljs-addition")) return "#008000";
-  if (has("hljs-number", "hljs-symbol", "hljs-bullet")) return "#0000ff";
-  if (has("hljs-title", "hljs-section", "hljs-function")) return "#660e7a";
-  if (has("hljs-type", "hljs-built_in", "hljs-class")) return "#000000";
-  if (has("hljs-attr", "hljs-attribute", "hljs-property")) return "#0000ff";
-  if (has("hljs-variable", "hljs-template-variable")) return "#660e7a";
-  if (has("hljs-deletion")) return "#a31515";
-  return "#080808";
-}
-
-export function codeThemeSurface(theme: "light" | "dark") {
-  return theme === "dark"
-    ? { background: "#2b2b2b", foreground: "#a9b7c6", muted: "#808080", border: "#4e5257", toolbar: "#313335" }
-    : { background: "#ffffff", foreground: "#080808", muted: "#7f7f7f", border: "#c9ccd1", toolbar: "#f5f5f5" };
 }

@@ -31,6 +31,9 @@ export const deleteWorkspaceNote = (workspaceId: string, noteId: string, version
     headers: { "If-Match": `"${version}"` },
   });
 
+export const getWorkspaceCanvas = (workspaceId: string) =>
+  request<CanvasState>(`/api/workspaces/${encodeURIComponent(workspaceId)}/canvas`);
+
 export const updateWorkspaceCanvas = (workspaceId: string, canvas: Snapshot, version: number) =>
   request<CanvasState>(`/api/workspaces/${encodeURIComponent(workspaceId)}/canvas`, {
     method: "PATCH",

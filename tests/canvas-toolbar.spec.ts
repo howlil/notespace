@@ -251,6 +251,49 @@ test.describe("Canvas chrome", () => {
     }
   });
 
+  test("property editing suppresses directional spawn affordances and hotkeys", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas property focus ${Date.now()}`);
+
+    try {
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      const canvas = page.locator(".excalidraw__canvas.interactive");
+      const bounds = await canvas.boundingBox();
+      if (!bounds) throw new Error("Canvas did not render");
+
+      await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
+      await page.mouse.move(bounds.x + 220, bounds.y + 180);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 360, bounds.y + 270, { steps: 5 });
+      await page.mouse.up();
+      await toolbar.getByRole("button", { name: "Select", exact: true }).click();
+      await page.mouse.click(bounds.x + 290, bounds.y + 225);
+
+      const addRight = page.getByRole("button", { name: "Add connected shape right" });
+      await expect(addRight).toBeVisible();
+
+      const actions = page.getByRole("toolbar", { name: "Selected shape actions" });
+      await actions.getByRole("button", { name: "Drawing properties" }).click();
+      await expect(page.getByRole("dialog", { name: "properties properties" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Add connected shape/ })).toHaveCount(0);
+
+      const before = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
+      };
+      const beforeCount = before.canvas.data.elements.filter((element) => !element.isDeleted).length;
+      await page.keyboard.press("Alt+ArrowRight");
+      await page.waitForTimeout(200);
+      const after = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
+      };
+      expect(after.canvas.data.elements.filter((element) => !element.isDeleted)).toHaveLength(beforeCount);
+
+      await actions.getByRole("button", { name: "Drawing properties" }).click();
+      await expect(addRight).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
   test("mixed selection aggregates common actions and groups type-specific controls", async ({ page, request }) => {
     const id = await openCanvasWorkspace(page, request, `Canvas mixed selection ${Date.now()}`);
 
@@ -296,24 +339,29 @@ test.describe("Canvas chrome", () => {
       await expect(actions.getByRole("button", { name: "Align & distribute" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Duplicate" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Delete" })).toBeVisible();
-      await expect(actions.getByRole("button", { name: "Arrow properties" })).toHaveCount(0);
-      await expect(actions.getByRole("button", { name: "Font family" })).toHaveCount(0);
+      await expect(actions.getByRole("button", { name: "Drawing styles" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Arrow properties" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Font family" })).toBeVisible();
+      await expect(actions.getByRole("button", { name: "Text properties" })).toBeVisible();
 
       const actionBox = await actions.boundingBox();
+      const toolBox = await toolbar.boundingBox();
       expect(actionBox).not.toBeNull();
-      expect(actionBox!.width).toBeLessThan(420);
-      expect(Math.abs((actionBox!.y + actionBox!.height) - (bounds.y + bounds.height))).toBeLessThan(24);
+      expect(toolBox).not.toBeNull();
+      expect(actionBox!.width).toBeLessThan(560);
+      const stackGap = toolBox!.y - (actionBox!.y + actionBox!.height);
+      expect(stackGap).toBeGreaterThanOrEqual(0);
+      expect(stackGap).toBeLessThanOrEqual(16);
 
       await actions.getByRole("button", { name: "More selected shape actions" }).click();
       const morePanel = page.getByRole("dialog", { name: "more properties" });
-      const overflow = await morePanel.evaluate((node) => ({ clientHeight: node.clientHeight, scrollHeight: node.scrollHeight }));
-      expect(overflow.scrollHeight).toBeLessThanOrEqual(overflow.clientHeight + 1);
-      const specific = page.getByRole("region", { name: "Selection-specific" });
-      await expect(specific).toBeVisible();
-      await expect(specific.getByRole("button", { name: "Drawing styles" })).toBeVisible();
-      await expect(specific.getByRole("button", { name: "Arrow properties" })).toBeVisible();
-      await expect(specific.getByRole("button", { name: "Font family" })).toBeVisible();
-      await expect(specific.getByRole("button", { name: "Text properties" })).toBeVisible();
+      const moreBox = await morePanel.boundingBox();
+      expect(moreBox).not.toBeNull();
+      expect(moreBox!.width).toBeLessThanOrEqual(190);
+      await expect(page.getByRole("region", { name: "Selection-specific" })).toHaveCount(0);
+      await expect(morePanel.getByRole("button", { name: "Group selection" })).toBeVisible();
+      await expect(morePanel.getByRole("button", { name: "Flip horizontal" })).toBeVisible();
+      await expect(morePanel.getByRole("button", { name: "Add to library" })).toBeVisible();
     } finally {
       await cleanup(request, id);
     }

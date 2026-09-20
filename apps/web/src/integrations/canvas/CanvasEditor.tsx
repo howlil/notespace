@@ -323,6 +323,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       elements,
       codeGeometryRef.current,
       expectedAutoFitHeightRef.current,
+      (element, block) => newElementWith(element, {
+        customData: withCanvasCodeBlock(element.customData, block),
+      }),
     );
     for (const elementId of acknowledgedAutoFitIds) expectedAutoFitHeightRef.current.delete(elementId);
     codeGeometryRef.current = codeGeometry;

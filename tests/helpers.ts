@@ -68,7 +68,7 @@ export async function deleteWorkspace(
   id: string,
 ): Promise<void> {
   if (id) {
-    await request.delete(`/api/projects/${id}`);
+    await request.delete(`/api/workspaces/${id}`);
   }
 }
 

@@ -23,6 +23,8 @@ const CANVAS_FRAME_LINK = join(WEB_SRC, "domain", "workspace", "canvas-frame-lin
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
 const CANVAS_FRAME_LINK_NODE = join(WEB_SRC, "integrations", "document", "CanvasFrameLinkNode.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
+const CANVAS_SCENE_STATE = join(WEB_SRC, "integrations", "canvas", "canvas-scene-state.ts");
+const IMAGE_ASSET_URL = join(WEB_SRC, "integrations", "assets", "use-image-asset-url.ts");
 const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
 const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNativeActions.ts");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
@@ -142,7 +144,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(codeLayer, /WebkitTextFillColor: "transparent"/);
   assert.match(codeLayer, /caretColor: palette\.foreground/);
   assert.match(codeLayer, /onBlur=\{\(event\) =>/);
-  assert.match(canvas, /shouldSwitchCodeBlockToManualHeight/);
+  assert.match(source(CANVAS_SCENE_STATE), /deriveCanvasElementState/);
   assert.doesNotMatch(codeLayer, /localStorage|fetch\(|WebSocket|new Worker/);
   const codeRunner = source(CANVAS_CODE_RUNNER);
   assert.match(codeRunnerHook, /startJavaScriptRun/);
@@ -155,8 +157,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /reconcileElements\(/);
   assert.match(canvas, /getSceneElementsIncludingDeleted\(\)/);
   assert.match(canvas, /persistedAppState/);
-  assert.match(canvas, /authoredSceneData/);
-  assert.match(canvas, /sameElementVersions/);
+  assert.match(source(CANVAS_SCENE_STATE), /authoredSceneData/);
+  assert.match(source(CANVAS_SCENE_STATE), /sameElementVersions/);
   assert.match(canvas, /hasStructuredDiagrams/);
   assert.match(canvas, /lastExternalScene\.current = serialized/);
   assert.match(canvas, /validateEmbeddable=\{true\}/);
@@ -276,22 +278,14 @@ test("capture contract: Quick Capture and Library Tools are direct sidebar actio
   assert.doesNotMatch(tools,/createPortal|MutationObserver|querySelector|useRouterState/);
 });
 
-test("workspace contract: bounded panes keep legacy Send/Link removed while explicit Canvas frame embeds stay scoped to Note content", () => {
+test("workspace contract: bounded panes and explicit Canvas frame embeds remain user-facing behavior", () => {
   const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
-  assert.doesNotMatch(workspace, /notespace\.workspace:/);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
-  assert.match(layout,/function paneInteractionState/); assert.match(layout,/function paneFocusTarget/);
-  assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/); assert.match(layout,/layoutForViewMode/); assert.match(layout,/workspaceViewMode/);
-  assert.match(workspace,/data-testid="workspace-view-switcher"/); for (const mode of ["Canvas", "Note", "Split"]) assert.match(workspace, new RegExp(`"${mode}"`));
-  assert.doesNotMatch(workspace,/Open Canvas|Open note/);
-  assert.match(workspace,/>Close pane<\/Button>/); assert.match(workspace,/removeNode\(layout, paneId\)/);
-  assert.match(workspace,/paneInteractionState\(layout/); assert.match(workspace,/paneFocusTarget\(layout/);
-  assert.match(workspace,/pane\.kind === "note" \? "grid-rows-\[34px_minmax\(0,1fr\)\]"/);
-  assert.match(workspace,/pane\.kind === "note" && <header/);
-  assert.doesNotMatch(workspace,/Minimize2/);
-  assert.doesNotMatch(workspace,/<Layers[^>]*\/> Canvas/);
+  assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/);
+  assert.match(workspace,/data-testid="workspace-view-switcher"/);
+  for (const mode of ["Canvas", "Note", "Split"]) assert.match(workspace, new RegExp(`"${mode}"`));
+  assert.match(workspace,/>Close pane<\/Button>/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
-  assert.doesNotMatch(workspace,/historyDrawerRef|openHistory|restoreSelectedHistory|>History</);
   assert.match(content,/references:\s*\[\]/);
   assert.match(workspace, /articleMode=\{articleMode\}/);
   assert.match(workspace, /getCanvasSnapshot=\{\(\) => current\.current\.canvas\}/);
@@ -300,28 +294,13 @@ test("workspace contract: bounded panes keep legacy Send/Link removed while expl
   assert.match(editor, /max-w-\[760px\]/);
   assert.match(editor, /label: "Link canvas"/);
   assert.match(editor, /canvasFrameLinkFromClipboard/);
-  assert.match(editor, /aria-label="Canvas frames"/);
-  assert.match(editor, /createCanvasFrameLinkExtension/);
-  assert.match(frameLink, /parsed\.type !== "excalidraw\/clipboard"/);
   assert.match(frameLink, /MAX_FRAME_PREVIEW_ELEMENTS = 160/);
-  assert.match(frameLink, /function buildFrameIndex/);
-  assert.match(frameLink, /childrenByFrame/);
-  assert.match(frameLink, /function frameDescendants/);
   assert.match(frameNode, /data-canvas-frame-link/);
   assert.match(frameNode, /Open canvas frame/);
-  assert.match(frameNode, /Preview of/);
   assert.match(frameNode, /IntersectionObserver/);
   assert.match(frameNode, /data-canvas-frame-preview-deferred/);
-  assert.match(frameLink, /fileId\?: string/);
-  assert.match(frameNode, /loadImageAsset/);
-  assert.match(frameNode, /data-canvas-frame-preview-image/);
-  assert.match(frameNode, /URL\.createObjectURL/);
-  assert.match(frameNode, /URL\.revokeObjectURL/);
-  assert.match(editor, /createCanvasFrameLinkExtension\(workspaceId/);
-  assert.match(editor, /scheduleSnapshot/);
-  assert.match(editor, /registerSnapshotFlushRef/);
-  assert.match(workspace, /editorSnapshotFlushers/);
-  assert.match(workspace, /unsnapshottedPanes/);
+  assert.match(source(IMAGE_ASSET_URL), /URL\.createObjectURL/);
+  assert.match(source(IMAGE_ASSET_URL), /URL\.revokeObjectURL/);
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {

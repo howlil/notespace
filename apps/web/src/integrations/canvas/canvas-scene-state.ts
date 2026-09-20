@@ -1,8 +1,7 @@
-import { newElementWith } from "@excalidraw/excalidraw";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { DIAGRAM_DATA_KEY } from "../../features/diagram/diagram-model";
-import { readCanvasCodeBlock, withCanvasCodeBlock } from "./canvas-code-block";
+import { readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
 import { codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout";
 
 export type CodeGeometry = { width: number; height: number };
@@ -73,6 +72,7 @@ export function deriveCanvasElementState(
   elements: readonly OrderedExcalidrawElement[],
   previousGeometry: ReadonlyMap<string, CodeGeometry>,
   expectedAutoFitHeights: ReadonlyMap<string, number>,
+  normalizeManualHeight: (element: OrderedExcalidrawElement, block: CanvasCodeBlockData) => OrderedExcalidrawElement,
 ) {
   let authoredElements: readonly OrderedExcalidrawElement[] = elements;
   let mutableElements: OrderedExcalidrawElement[] | null = null;
@@ -101,9 +101,7 @@ export function deriveCanvasElementState(
       expectedAutoFitHeight: expectedHeight,
     })) {
       normalizedManualResize = true;
-      nextElement = newElementWith(element, {
-        customData: withCanvasCodeBlock(element.customData, { ...block, heightMode: "manual" }),
-      });
+      nextElement = normalizeManualHeight(element, { ...block, heightMode: "manual" });
       if (!mutableElements) mutableElements = [...elements];
       mutableElements[index] = nextElement;
     }

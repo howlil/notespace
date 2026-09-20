@@ -242,3 +242,12 @@ When investigating latency, separate:
 5. derived work such as FTS repair.
 
 `TestPersistenceScaleEvidence` must use the same `IndexedProjectStore` boundary as production so persistence evidence cannot accidentally benchmark a cheaper adapter.
+
+
+## Code-block behavior evidence
+
+Browser coverage must prove both semantic surfaces:
+- Alt-direction from a Canvas Code Block produces a connected target that is also a Code Block.
+- A Note Code Block auto-detects JavaScript, runs it through the shared sandbox, shows stdout/result, persists its authored source, and does not persist runtime output state.
+
+Do not claim local execution support for a language unless `canRunCode` supports it and browser coverage exercises it.

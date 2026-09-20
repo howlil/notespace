@@ -203,3 +203,12 @@ HTTP follows the same rule: `api.go` owns dependency wiring and common JSON/erro
 - Asset upload validates Workspace ownership with a lightweight existence query and must not hydrate Notes/Canvas or reread the uploaded BLOB.
 - `workspace_canvas.element_count` is the summary source for library `hasCanvas`; library queries must not parse full Canvas JSON for this boolean.
 - SQLite remains one pooled connection with WAL + FULL synchronous durability. Do not increase connection count without measured DB wait evidence.
+
+
+## Shared code blocks
+
+- Code language normalization and auto-detection live in `domain/code/code-language.ts` and are shared by Canvas and Note.
+- Sandboxed local execution lives in `integrations/code/code-runner.ts`; Canvas and Note must not maintain separate runner implementations.
+- Local execution currently supports JavaScript only. Other recognized languages may be detected and highlighted but are not presented as locally runnable.
+- Note Code Block execution output is ephemeral UI state. Authored Note snapshots persist only the code block content and language attributes, never stdout, stderr, result, or run timing.
+- Native Excalidraw flowchart behavior remains authoritative for directional-spawn geometry, bindings, and arrows. Notespace reapplies semantic `notespaceCodeBlock` metadata to the spawned target so a Code Block spawns another Code Block without forking Excalidraw layout behavior.

@@ -67,8 +67,8 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(globals, /\[data-testid="main-menu-trigger"\]/);
   assert.match(globals, /\.undo-redo-buttons/);
   assert.match(globals, /:has\(> \[aria-label="Canvas tools"\]\)/);
-  assert.match(globals, /bottom: 8px !important/);
-  assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: 50px !important/);
+  assert.match(globals, /bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important/);
+  assert.match(globals, /\.notespace-selection-actions[\s\S]*bottom: calc\(50px \+ env\(safe-area-inset-bottom\)\) !important/);
   assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
   assert.match(chrome, /nativeActionIcon/);
   assert.match(chrome, /secondaryToolGroups/);
@@ -79,9 +79,10 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(chrome, /name="undo" label="Undo"/);
   assert.match(chrome, /name="redo" label="Redo"/);
   assert.doesNotMatch(chrome, /min-\[561px\]:!size-10/);
-  assert.match(selection, /min-\[561px\]:left-\[48px\]/);
-  assert.match(selection, /min-\[561px\]:flex-col/);
-  assert.match(selection, /min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
+  assert.match(selection, /bottom-2 left-1\/2/);
+  assert.match(selection, /analyzeCanvasSelection/);
+  assert.match(selection, /Selection-specific/);
+  assert.doesNotMatch(selection, /min-\[561px\]:left-\[48px\]|min-\[561px\]:flex-col|min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.doesNotMatch(selection, /min-\[561px\]:size-10/);
 });
 

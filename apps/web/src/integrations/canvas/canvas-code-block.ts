@@ -1,4 +1,6 @@
-import { common, createLowlight } from "lowlight";
+import { codeLanguageOptions, codeLowlight, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
+
+export { codeLanguageOptions, detectCodeLanguage, normalizeCodeLanguage } from "../../domain/code/code-language";
 
 export const CODE_BLOCK_DATA_KEY = "notespaceCodeBlock";
 
@@ -19,64 +21,6 @@ export type HighlightToken = {
   text: string;
   classes: string[];
 };
-
-const lowlight = createLowlight(common);
-
-export const codeLanguageOptions = [
-  ["plaintext", "Plain text"],
-  ["javascript", "JavaScript"],
-  ["typescript", "TypeScript"],
-  ["python", "Python"],
-  ["go", "Go"],
-  ["java", "Java"],
-  ["rust", "Rust"],
-  ["c", "C"],
-  ["cpp", "C++"],
-  ["csharp", "C#"],
-  ["bash", "Shell"],
-  ["json", "JSON"],
-  ["sql", "SQL"],
-  ["xml", "HTML / XML"],
-  ["css", "CSS"],
-  ["yaml", "YAML"],
-  ["markdown", "Markdown"],
-] as const;
-
-const detectableLanguages: string[] = codeLanguageOptions
-  .map(([language]) => language)
-  .filter((language) => language !== "plaintext" && lowlight.listLanguages().includes(language));
-
-const languageAliases: Record<string, string> = {
-  js: "javascript",
-  jsx: "javascript",
-  ts: "typescript",
-  tsx: "typescript",
-  py: "python",
-  golang: "go",
-  shell: "bash",
-  sh: "bash",
-  html: "xml",
-  yml: "yaml",
-  md: "markdown",
-};
-
-export function normalizeCodeLanguage(language: string | null | undefined) {
-  const normalized = language?.trim().toLowerCase() ?? "";
-  if (!normalized) return "plaintext";
-  return languageAliases[normalized] ?? normalized;
-}
-
-export function detectCodeLanguage(code: string) {
-  if (!code.trim()) return "plaintext";
-  try {
-    const result = lowlight.highlightAuto(code, { subset: detectableLanguages });
-    const data = result.data as { language?: unknown } | undefined;
-    const detected = typeof data?.language === "string" ? normalizeCodeLanguage(data.language) : "plaintext";
-    return detectableLanguages.includes(detected) ? detected : "plaintext";
-  } catch {
-    return "plaintext";
-  }
-}
 
 export function defaultCanvasCodeBlock(): CanvasCodeBlockData {
   const code = "const x = 1;";
@@ -158,11 +102,11 @@ function flattenHighlight(nodes: readonly HastLike[], inherited: readonly string
 
 export function highlightCode(code: string, language: string) {
   const normalized = normalizeCodeLanguage(language);
-  if (normalized === "plaintext" || !lowlight.listLanguages().includes(normalized)) {
+  if (normalized === "plaintext" || !codeLowlight.listLanguages().includes(normalized)) {
     return [{ text: code, classes: [] }] satisfies HighlightToken[];
   }
   try {
-    const root = lowlight.highlight(normalized, code) as unknown as { children?: HastLike[] };
+    const root = codeLowlight.highlight(normalized, code) as unknown as { children?: HastLike[] };
     return flattenHighlight(root.children ?? []);
   } catch {
     return [{ text: code, classes: [] }] satisfies HighlightToken[];

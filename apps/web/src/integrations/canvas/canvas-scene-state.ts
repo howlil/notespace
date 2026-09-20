@@ -2,7 +2,7 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { DIAGRAM_DATA_KEY } from "../../features/diagram/diagram-model.ts";
 import { readCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block.ts";
-import { codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout.ts";
+import { clampCodeBlockHeight, codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "./canvas-code-block-layout.ts";
 
 export type CodeGeometry = { width: number; height: number };
 
@@ -90,18 +90,27 @@ export function deriveCanvasElementState(
     let nextElement = element;
     const previous = previousGeometry.get(element.id);
     const expectedHeight = expectedAutoFitHeights.get(element.id);
+    const clampedHeight = clampCodeBlockHeight(element.height);
+    const heightWasClamped = clampedHeight !== element.height;
+    const clampedElement = heightWasClamped ? { ...element, height: clampedHeight } : element;
     const autoFitAcknowledged = expectedHeight !== undefined && !codeBlockHeightChanged(expectedHeight, element.height);
 
     if (autoFitAcknowledged) {
       acknowledgedAutoFitIds.push(element.id);
-    } else if (shouldSwitchCodeBlockToManualHeight({
-      heightMode: block.heightMode,
-      previousHeight: previous?.height,
-      currentHeight: element.height,
-      expectedAutoFitHeight: expectedHeight,
-    })) {
+    } else {
+      const manualResize = shouldSwitchCodeBlockToManualHeight({
+        heightMode: block.heightMode,
+        previousHeight: previous?.height,
+        currentHeight: element.height,
+        expectedAutoFitHeight: expectedHeight,
+      });
+      if (!heightWasClamped && !manualResize) {
+        codeGeometry.set(nextElement.id, { width: nextElement.width, height: nextElement.height });
+        codeElements.push(nextElement);
+        return;
+      }
       normalizedManualResize = true;
-      nextElement = normalizeManualHeight(element, { ...block, heightMode: "manual" });
+      nextElement = normalizeManualHeight(clampedElement, { ...block, ...(manualResize ? { heightMode: "manual" } : {}) });
       if (!mutableElements) mutableElements = [...elements];
       mutableElements[index] = nextElement;
     }

@@ -346,10 +346,19 @@ test.describe("Canvas chrome", () => {
       await expect(actions.getByRole("button", { name: "Align & distribute" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Duplicate" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Delete" })).toBeVisible();
-      await expect(actions.getByRole("button", { name: "Drawing styles" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Arrow properties" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Font family" })).toBeVisible();
       await expect(actions.getByRole("button", { name: "Text properties" })).toBeVisible();
+
+      await actions.getByRole("button", { name: "Common drawing properties" }).click();
+      const drawingProperties = page.locator('[role="dialog"][aria-label="properties properties"]');
+      await expect(drawingProperties.getByRole("region", { name: "Stroke width" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Opacity" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Fill · shapes" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Stroke pattern · lines" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Line feel · lines" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Corners · shapes" })).toBeVisible();
+      await expect(drawingProperties.getByRole("region", { name: "Pressure · pen" })).toBeVisible();
 
       const actionBox = await actions.boundingBox();
       const toolBox = await toolbar.boundingBox();

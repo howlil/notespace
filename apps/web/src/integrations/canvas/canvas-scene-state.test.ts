@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { defaultCanvasCodeBlock, withCanvasCodeBlock } from "./canvas-code-block.ts";
+import { codeBlockMinimumHeight } from "./canvas-code-block-layout.ts";
 import { deriveCanvasElementState, sameElementVersions } from "./canvas-scene-state.ts";
 
 function codeElement(overrides: Record<string, unknown> = {}) {
@@ -66,6 +67,21 @@ test("canvas element derivation converts a user-resized auto code block to manua
 
   assert.equal(result.normalizedManualResize, true);
   const customData = result.authoredElements[0].customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined;
+  assert.equal(customData?.notespaceCodeBlock?.heightMode, "manual");
+});
+
+test("canvas element derivation clamps code blocks to one line when resized too small", () => {
+  const previous = codeElement({ height: 180 });
+  const resized = codeElement({ height: 1, version: 2, versionNonce: 2 });
+  const result = deriveCanvasElementState(
+    [resized],
+    new Map([["code-1", { width: previous.width, height: previous.height }]]),
+    new Map(),
+    normalizeManualHeight,
+  );
+
+  assert.equal(result.authoredElements[0]?.height, codeBlockMinimumHeight());
+  const customData = result.authoredElements[0]?.customData as { notespaceCodeBlock?: { heightMode?: string } } | undefined;
   assert.equal(customData?.notespaceCodeBlock?.heightMode, "manual");
 });
 

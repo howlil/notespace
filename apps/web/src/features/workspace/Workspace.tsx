@@ -8,7 +8,7 @@ import { useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { createWorkspaceNote, deleteWorkspaceNote } from "../../domain/project/api";
+import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../domain/project/api";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
 import { WorkspaceGuide } from "./WorkspaceGuide";
@@ -24,7 +24,7 @@ type FocusRequest = { id: string; request: number } | null;
 const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";
 const paneMenuButtonClass = "border-0 bg-transparent px-2 py-[7px] text-left text-[10px] text-ink hover:bg-tint hover:text-accent disabled:opacity-50";
 const iconActionClass = "grid size-9 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
-const popupClass = "absolute z-30 grid min-w-[165px] max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002]";
+const popupClass = "absolute z-30 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0";
 
 function newId() { return crypto.randomUUID(); }
 
@@ -104,7 +104,13 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
+  const [renamingWorkspace, setRenamingWorkspace] = useState(false);
+  const [workspaceTitle, setWorkspaceTitle] = useState(project.title);
+  const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState(project.title);
+  const [workspaceRenamePending, setWorkspaceRenamePending] = useState(false);
   const noteRenameInput = useRef<HTMLInputElement>(null);
+  const workspaceRenameInput = useRef<HTMLInputElement>(null);
+  const workspaceRenameSubmitting = useRef(false);
   const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const study = useStudySession(project.id, current.current.title);
@@ -122,14 +128,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     }
   }, [flushAll, showToast, status]);
   useEffect(() => {
+    setWorkspaceTitle(project.title);
+    setWorkspaceTitleDraft(project.title);
+    setRenamingWorkspace(false);
+  }, [project.id, project.title]);
+  useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {
-      if ((event.target as Element).closest(".pane-actions > summary, .pane-note-switcher > summary")) event.stopPropagation();
+      if ((event.target as Element).closest(".pane-actions > summary, .pane-note-switcher > summary, .workspace-switcher > summary")) event.stopPropagation();
     };
     document.addEventListener("mousedown", keepPaneMenuClicksLocal, true);
     return () => document.removeEventListener("mousedown", keepPaneMenuClicksLocal, true);
   }, []);
   useEffect(() => { localStorage.setItem(`notespace.workspace-layout:${project.id}`, JSON.stringify(layout)); }, [layout, project.id]);
   useEffect(() => { if (renamingNote) { noteRenameInput.current?.focus(); noteRenameInput.current?.select(); } }, [renamingNote]);
+  useEffect(() => { if (renamingWorkspace) { workspaceRenameInput.current?.focus(); workspaceRenameInput.current?.select(); } }, [renamingWorkspace]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && (maximizedPaneId || maximizedSplitId)) { setMaximizedPaneId(null); setMaximizedSplitId(null); }
@@ -233,6 +245,37 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setNoteTitle(note.title);
     setRenamingNote({ paneId: pane.id, noteId });
   }
+  function beginRenameWorkspace() {
+    setWorkspaceTitleDraft(workspaceTitle);
+    setRenamingWorkspace(true);
+  }
+  function cancelRenameWorkspace() {
+    if (workspaceRenameSubmitting.current) return;
+    setWorkspaceTitleDraft(workspaceTitle);
+    setRenamingWorkspace(false);
+  }
+  async function commitRenameWorkspace() {
+    if (workspaceRenameSubmitting.current) return;
+    const value = workspaceTitleDraft.trim();
+    if (!value || value === workspaceTitle) {
+      cancelRenameWorkspace();
+      return;
+    }
+    workspaceRenameSubmitting.current = true;
+    setWorkspaceRenamePending(true);
+    try {
+      const renamed = await renameProject(project.id, value);
+      setWorkspaceTitle(renamed.title);
+      setWorkspaceTitleDraft(renamed.title);
+      setRenamingWorkspace(false);
+      showToast({ kind: "success", message: "Workspace renamed." });
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not rename workspace." });
+    } finally {
+      workspaceRenameSubmitting.current = false;
+      setWorkspaceRenamePending(false);
+    }
+  }
   function commitRenameNote(pane: Pane) {
     const value = noteTitle.trim();
     const noteId = renamingNote?.paneId === pane.id ? renamingNote.noteId : pane.noteId;
@@ -275,7 +318,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
   const activeFocusTarget = activePane ? paneFocusTarget(layout, activePane.id) : undefined;
   const maximizeLabel = focusMode ? "Restore layout" : activeFocusTarget?.kind === "split" ? "Maximize active split" : "Maximize active pane";
-  const workspaceOptions = [project, ...categoryWorkspaces.filter((workspace) => workspace.id !== project.id)];
+  const workspaceOptions = [{ ...project, title: workspaceTitle }, ...categoryWorkspaces.filter((workspace) => workspace.id !== project.id)];
   const activeViewMode = workspaceViewMode(layout);
 
   function selectWorkspaceView(mode: WorkspaceViewMode) {
@@ -422,20 +465,51 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
           <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-full max-[560px]:gap-1">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={24} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
-            <label className="relative flex min-w-0 max-w-[min(32vw,360px)] items-center max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
-              <span className="sr-only">Switch workspace</span>
-              <select className="h-7 min-w-0 w-full appearance-none rounded-md border border-transparent bg-transparent px-1.5 pr-6 text-[12px] font-medium text-ink outline-none hover:border-line hover:bg-tint focus:border-accent focus:bg-tint" value={project.id} onChange={(event) => { if (event.target.value !== project.id) void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: event.target.value } }); }} aria-label="Switch workspace">
-                {workspaceOptions.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.title}</option>)}
-              </select>
-              <ChevronDown size={12} className="pointer-events-none absolute right-1.5 text-muted" aria-hidden="true" />
-            </label>
+            <div className="flex min-w-0 max-w-[min(32vw,360px)] flex-1 items-center gap-0.5 max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
+              <ContextMenu>
+                {renamingWorkspace ? (
+                  <Input ref={workspaceRenameInput} className="h-7 w-full rounded-none border-0 bg-transparent px-1.5 text-[12px] font-medium focus:border-transparent focus:ring-0" aria-label="Workspace title" value={workspaceTitleDraft} disabled={workspaceRenamePending} onChange={(event) => setWorkspaceTitleDraft(event.target.value)} onBlur={() => void commitRenameWorkspace()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitRenameWorkspace(); } if (event.key === "Escape") { event.preventDefault(); cancelRenameWorkspace(); } }} />
+                ) : (
+                  <details className="workspace-switcher relative min-w-0 flex-1 [&>summary::-webkit-details-marker]:hidden">
+                    <ContextMenuTrigger asChild>
+                      <summary className="flex h-7 min-w-0 cursor-pointer list-none items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-ink hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label="Switch workspace" onDoubleClick={(event) => { event.preventDefault(); beginRenameWorkspace(); }}>
+                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspaceTitle}</span>
+                        <ChevronDown size={13} className="shrink-0 text-muted" aria-hidden="true" />
+                      </summary>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={beginRenameWorkspace}><Pencil size={13} /> Rename workspace</ContextMenuItem>
+                    </ContextMenuContent>
+                    <div className={cn(popupClass, "top-7 left-0")} role="listbox" aria-label="Workspaces in this category">
+                      {workspaceOptions.map((workspace) => (
+                        <Button
+                          key={workspace.id}
+                          variant="ghost"
+                          size="sm"
+                          className={cn("!min-h-0 w-full justify-start whitespace-nowrap", paneMenuButtonClass, workspace.id === project.id && "bg-tint text-accent")}
+                          role="option"
+                          aria-selected={workspace.id === project.id}
+                          onClick={(event) => {
+                            const details = event.currentTarget.closest("details");
+                            if (details) details.open = false;
+                            if (workspace.id !== project.id) void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } });
+                          }}
+                        >
+                          {workspace.title}
+                        </Button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </ContextMenu>
+            </div>
           </div>
-          <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-surface p-px max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-2 max-[560px]:justify-self-start max-[560px]:self-center max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
+          <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 bg-transparent max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-2 max-[560px]:justify-self-start max-[560px]:self-center max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
             {(["canvas", "note", "split"] as const).map((mode) => {
               const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
               const selected = activeViewMode === mode;
               const icon = mode === "canvas" ? <LayoutGrid size={22} strokeWidth={2.1} /> : mode === "note" ? <FileText size={22} strokeWidth={2.1} /> : <Columns2 size={22} strokeWidth={2.1} />;
-              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("!size-9 !min-h-9 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent shadow-[inset_0_0_0_1px_var(--line)] hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
+              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("relative !size-9 !min-h-9 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent ring-1 ring-accent/15 hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
             })}
           </div>
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">

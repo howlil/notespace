@@ -52,7 +52,8 @@
 /* Canvas opacity: replace the browser's heavy default range treatment with
    a thin track and a clear, theme-aware thumb. */
 .notespace-selection-actions input[type="range"][aria-label="Opacity"] {
-  width: 100%;
+  width: 62px;
+  flex: 0 0 62px;
   height: 20px;
   margin: 0;
   padding: 0;

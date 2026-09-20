@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Folder, Plus, Search } from "lucide-react";
+import { Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, Input, cn } from "../../components/ui";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../components/ui";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces } from "../../domain/project/api";
-import { useLibrarySyncStore } from "../library/library-sync-store";
+import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../domain/project/api";
+import { notifyLibraryChanged, useLibrarySyncStore } from "../library/library-sync-store";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
@@ -21,7 +22,33 @@ type LibraryView = "recent" | "all" | "category";
 const tabClass = "border-0 border-b-2 border-b-transparent bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-ink focus-visible:bg-tint";
 const showLearningActivity = false;
 
-function WorkspaceFolderCard({ workspace, categoryTitle, entering = false }: { workspace: ProjectSummary; categoryTitle?: string; entering?: boolean }) {
+type WorkspaceFolderCardProps = {
+  workspace: ProjectSummary;
+  categoryTitle?: string;
+  entering?: boolean;
+  editing?: boolean;
+  editingTitle?: string;
+  editLoading?: boolean;
+  onEditingTitleChange?: (value: string) => void;
+  onCommitTitle?: () => void;
+  onCancelTitle?: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+};
+
+function WorkspaceFolderCard({
+  workspace,
+  categoryTitle,
+  entering = false,
+  editing = false,
+  editingTitle = "",
+  editLoading = false,
+  onEditingTitleChange,
+  onCommitTitle,
+  onCancelTitle,
+  onRename,
+  onDelete,
+}: WorkspaceFolderCardProps) {
   const noteCount = workspace.noteCount ?? 0;
   const metadata = [
     categoryTitle,
@@ -35,6 +62,60 @@ function WorkspaceFolderCard({ workspace, categoryTitle, entering = false }: { w
     transition: entering ? { duration: 0.16, delay, ease: "easeOut" as const } : undefined,
   });
 
+  const cardLinkClass = "group block w-full min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const cardBody = (
+    <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
+      <motion.span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%]" {...paperMotion(0.04)}>
+        <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
+          <span className="block h-1 w-[82%] rounded-full bg-line" />
+          <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
+          <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
+        </span>
+      </motion.span>
+      <motion.span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%]" {...paperMotion(0.065)}>
+        <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
+          <span className="block h-1 w-[84%] rounded-full bg-line" />
+          <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
+          <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
+        </span>
+      </motion.span>
+      <motion.span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%]" {...paperMotion(0.09)}>
+        <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
+          <span className="block h-1 w-[86%] rounded-full bg-line" />
+          <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
+          <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
+          <span className="mt-1.5 block h-1 w-[52%] rounded-full bg-line" />
+        </span>
+      </motion.span>
+
+      <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
+        <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {editing ? (
+              <Input
+                autoFocus
+                className="min-h-0 w-full rounded-md border-accent bg-surface px-2 py-1.5 text-[15px] font-semibold leading-tight tracking-[-.25px]"
+                aria-label="Workspace title"
+                value={editingTitle}
+                disabled={editLoading}
+                onChange={(event) => onEditingTitleChange?.(event.target.value)}
+                onBlur={() => onCommitTitle?.()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") { event.preventDefault(); onCommitTitle?.(); }
+                  if (event.key === "Escape") { event.preventDefault(); onCancelTitle?.(); }
+                }}
+              />
+            ) : (
+              <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
+            )}
+            <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
+          </div>
+          <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+        </div>
+      </div>
+    </article>
+  );
+
   return (
     <motion.div
       layout="position"
@@ -43,47 +124,19 @@ function WorkspaceFolderCard({ workspace, categoryTitle, entering = false }: { w
       transition={entering ? { duration: 0.18, ease: "easeOut" } : undefined}
       className="w-full max-w-[196px]"
     >
-      <Link
-        to="/workspaces/$workspaceId"
-        params={{ workspaceId: workspace.id }}
-        className="group block w-full min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        aria-label={`Open ${workspace.title}`}
-      >
-        <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
-          <motion.span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%]" {...paperMotion(0.04)}>
-            <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
-              <span className="block h-1 w-[82%] rounded-full bg-line" />
-              <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
-              <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
-            </span>
-          </motion.span>
-          <motion.span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%]" {...paperMotion(0.065)}>
-            <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
-              <span className="block h-1 w-[84%] rounded-full bg-line" />
-              <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
-              <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
-            </span>
-          </motion.span>
-          <motion.span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%]" {...paperMotion(0.09)}>
-            <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
-              <span className="block h-1 w-[86%] rounded-full bg-line" />
-              <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
-              <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
-              <span className="mt-1.5 block h-1 w-[52%] rounded-full bg-line" />
-            </span>
-          </motion.span>
-
-          <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
-            <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
-                <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
-              </div>
-              <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
-            </div>
-          </div>
-        </article>
-      </Link>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {editing ? (
+            <div className={cardLinkClass} aria-label={`Edit ${workspace.title}`}>{cardBody}</div>
+          ) : (
+            <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className={cardLinkClass} aria-label={`Open ${workspace.title}`}>{cardBody}</Link>
+          )}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={onRename}><Pencil size={13} /> Edit title</ContextMenuItem>
+          <ContextMenuItem className="text-danger" onSelect={onDelete}><Trash2 size={13} /> Delete</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </motion.div>
   );
 }
@@ -191,6 +244,12 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
+  const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");
+  const [savingWorkspaceId, setSavingWorkspaceId] = useState<string | null>(null);
+  const [deletingWorkspace, setDeletingWorkspace] = useState<ProjectSummary | null>(null);
+  const workspaceRenameSubmitting = useRef(false);
+  const workspaceRenameCancelled = useRef(false);
 
   const newWorkspaceCategoryId = useMemo(() => {
     if (view === "category" && selectedCategoryId) return selectedCategoryId;
@@ -223,6 +282,74 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });
     } finally {
       setCreateLoading(false);
+    }
+  }
+
+  function beginWorkspaceRename(workspace: ProjectSummary) {
+    workspaceRenameCancelled.current = false;
+    setEditingWorkspaceId(workspace.id);
+    setWorkspaceTitleDraft(workspace.title);
+  }
+
+  function cancelWorkspaceRename() {
+    if (workspaceRenameSubmitting.current) return;
+    workspaceRenameCancelled.current = true;
+    setEditingWorkspaceId(null);
+    setWorkspaceTitleDraft("");
+  }
+
+  function replaceWorkspaceInLists(updated: ProjectSummary) {
+    const replace = (workspace: ProjectSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
+    setRecentItems((current) => current.map(replace));
+    setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
+  }
+
+  async function saveWorkspaceTitle(workspace: ProjectSummary) {
+    if (workspaceRenameSubmitting.current) return;
+    if (workspaceRenameCancelled.current) {
+      workspaceRenameCancelled.current = false;
+      return;
+    }
+    const value = workspaceTitleDraft.trim();
+    if (!value || value === workspace.title) {
+      cancelWorkspaceRename();
+      return;
+    }
+    workspaceRenameSubmitting.current = true;
+    setSavingWorkspaceId(workspace.id);
+    try {
+      const renamed = await renameProject(workspace.id, value);
+      replaceWorkspaceInLists(renamed);
+      setEditingWorkspaceId(null);
+      setWorkspaceTitleDraft("");
+      workspaceRenameCancelled.current = false;
+      notifyLibraryChanged();
+      showToast({ kind: "success", message: "Workspace renamed." });
+    } catch (err) {
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
+    } finally {
+      workspaceRenameSubmitting.current = false;
+      setSavingWorkspaceId(null);
+    }
+  }
+
+  async function confirmDeleteWorkspace() {
+    if (!deletingWorkspace) return;
+    const target = deletingWorkspace;
+    setDeletingWorkspace(null);
+    try {
+      await deleteProject(target.id, target.version);
+      setRecentItems((current) => current.filter((workspace) => workspace.id !== target.id));
+      setPage((current) => {
+        if (!current) return current;
+        const items = current.items.filter((workspace) => workspace.id !== target.id);
+        return items.length === current.items.length ? current : { ...current, items, total: Math.max(0, current.total - 1) };
+      });
+      if (editingWorkspaceId === target.id) cancelWorkspaceRename();
+      notifyLibraryChanged();
+      showToast({ kind: "success", message: "Workspace deleted." });
+    } catch (err) {
+      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." });
     }
   }
 
@@ -294,7 +421,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
   const items = view === "recent" ? recentItems : (page?.items ?? []);
   const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
   const description = view === "recent" ? "Pick up where you left off." : view === "all" ? "Browse the complete workspace library in bounded pages." : `${page?.total ?? selectedCategory?.workspaceCount ?? 0} workspace${(page?.total ?? selectedCategory?.workspaceCount ?? 0) === 1 ? "" : "s"}`;
-  const workspaceCount = view === "recent" ? recentItems.length : page?.total ?? items.length;
 
   return (
     <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
@@ -320,8 +446,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
         </header>
         <div className="w-full px-8 pt-8 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
           <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
-            <div className="min-w-0"><p className="m-0 text-[10px] font-medium uppercase tracking-[.12em] text-accent max-[560px]:text-[9px]">Resume your work</p><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-ink/70 max-[560px]:text-[11px]">{description}</p></div>
-            <span className="shrink-0 pb-1 text-[11px] font-medium text-ink/70 max-[560px]:pt-5 max-[560px]:pb-0">{workspaceCount} workspace{workspaceCount === 1 ? "" : "s"}</span>
+            <div className="min-w-0"><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-ink/70 max-[560px]:text-[11px]">{description}</p></div>
           </div>
           <nav className="mb-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
             <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "border-b-accent bg-tint text-accent")} onClick={() => setView("recent")}>Recent</Button>
@@ -329,14 +454,23 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             {selectedCategory && <Button variant="ghost" size="sm" aria-current={view === "category" ? "page" : undefined} className={cn(tabClass, view === "category" && "border-b-accent bg-tint text-accent")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</Button>}
           </nav>
           <section className="min-w-0" aria-labelledby="library-list-title">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="m-0 text-xs font-semibold text-ink">Workspaces</h2>
-              <span className="text-[11px] font-medium text-ink/70">Updated recently</span>
-            </div>
             {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
                 {items.map((workspace) => (
-                  <WorkspaceFolderCard key={workspace.id} workspace={workspace} categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title} entering={workspace.id === recentlyCreatedWorkspaceId} />
+                  <WorkspaceFolderCard
+                    key={workspace.id}
+                    workspace={workspace}
+                    categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
+                    entering={workspace.id === recentlyCreatedWorkspaceId}
+                    editing={editingWorkspaceId === workspace.id}
+                    editingTitle={workspaceTitleDraft}
+                    editLoading={savingWorkspaceId === workspace.id}
+                    onEditingTitleChange={setWorkspaceTitleDraft}
+                    onCommitTitle={() => void saveWorkspaceTitle(workspace)}
+                    onCancelTitle={cancelWorkspaceRename}
+                    onRename={() => beginWorkspaceRename(workspace)}
+                    onDelete={() => setDeletingWorkspace(workspace)}
+                  />
                 ))}
                 <NewWorkspaceCard
                   editing={creatingWorkspace}
@@ -377,6 +511,14 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
           {showLearningActivity && <StudyActivityDashboard />}
         </div>
       </main>
+      <ConfirmDialog
+        open={!!deletingWorkspace}
+        title="Delete this workspace?"
+        description={deletingWorkspace ? `“${deletingWorkspace.title}” will be removed.` : ""}
+        confirmLabel="Delete"
+        onOpenChange={(open) => { if (!open) setDeletingWorkspace(null); }}
+        onConfirm={() => void confirmDeleteWorkspace()}
+      />
     </div>
   );
 }

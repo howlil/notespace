@@ -7,7 +7,7 @@ import { useExclusivePopup } from "../../components/ui/dismissable";
 import { useTheme } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
-import type { Note, Project, ProjectContent, ProjectSummary, Snapshot } from "../../domain/project/project";
+import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
 import { createWorkspaceNote, deleteWorkspaceNote } from "../../domain/project/api";
 import { StudyIndicator } from "../study/StudyIndicator";
 import { useStudySession } from "../study/use-study-session";
@@ -15,7 +15,7 @@ import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
-import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
+import { useWorkspaceSession } from "./use-workspace-session";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -74,7 +74,25 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const compactPanes = useCompactPaneLayout();
   const [normalized] = useState(() => normalizeProjectContent(contentOf(project)));
   const initial = normalized.content;
-  const current = useRef<ProjectContent>(initial);
+  const session = useWorkspaceSession({
+    workspaceId: project.id,
+    canvasVersion: project.canvasVersion,
+    initial,
+  });
+  const {
+    current,
+    touch: touchContent,
+    status,
+    dirty,
+    scheduleNote,
+    flushNote,
+    forgetNote,
+    flushAll,
+    setPaneSnapshotDirty,
+    registerPaneSnapshotFlush,
+    updateNoteDocument,
+    updateCanvas,
+  } = session;
   const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${project.id}`, new Set(initial.notes.map((note) => note.id))));
   const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
   const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
@@ -86,61 +104,9 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
-  const [, setContentRevision] = useState(0);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const navigationRequest = useRef(0);
-  const editorSnapshotFlushers = useRef(new Map<string, () => void>());
-  const [unsnapshottedPanes, setUnsnapshottedPanes] = useState<Set<string>>(() => new Set());
-  const touchContent = useCallback(() => setContentRevision((value) => value + 1), []);
-  const setPaneSnapshotDirty = useCallback((paneId: string, dirty: boolean) => {
-    setUnsnapshottedPanes((current) => {
-      const hasPane = current.has(paneId);
-      if (hasPane === dirty) return current;
-      const next = new Set(current);
-      if (dirty) next.add(paneId);
-      else next.delete(paneId);
-      return next;
-    });
-  }, []);
-  const registerPaneSnapshotFlush = useCallback((paneId: string, flush: (() => void) | null) => {
-    if (flush) editorSnapshotFlushers.current.set(paneId, flush);
-    else editorSnapshotFlushers.current.delete(paneId);
-  }, []);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
-  const onNoteSaved = useCallback((saved: Note) => {
-    current.current = {
-      ...current.current,
-      // Save acknowledgements may arrive after a newer local edit was queued.
-      // Advance only the optimistic version; authored local fields stay authoritative.
-      notes: current.current.notes.map((note) => note.id === saved.id ? { ...note, version: saved.version } : note),
-    };
-  }, []);
-
-  const onCanvasSaved = useCallback(() => {
-    // Autosave owns the server version internally. Never replace the current
-    // local Canvas with an older acknowledgement snapshot.
-  }, []);
-
-  const {
-    status: granularStatus,
-    dirty: granularDirty,
-    scheduleNote,
-    scheduleCanvas,
-    flushAll: flushGranular,
-    flushNote,
-    forgetNote,
-  } = useGranularWorkspaceAutosave({
-    workspaceId: project.id,
-    canvasVersion: project.canvasVersion,
-    onNoteSaved,
-    onCanvasSaved,
-  });
-  const status = granularStatus;
-  const dirty = granularDirty || unsnapshottedPanes.size > 0;
-  const flushAll = useCallback(async () => {
-    for (const flushSnapshot of editorSnapshotFlushers.current.values()) flushSnapshot();
-    await flushGranular();
-  }, [flushGranular]);
   const study = useStudySession(project.id, current.current.title);
 
   useEffect(() => {
@@ -208,20 +174,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const updateDocument = useCallback((paneId: string, document: Snapshot) => {
     const pane = findPane(layout, paneId);
     if (!pane?.noteId) return;
-    const existing = current.current.notes.find((note) => note.id === pane.noteId);
-    if (!existing) return;
-    const nextNote: Note = { ...existing, document, updatedAt: new Date().toISOString() };
-    current.current = {
-      ...current.current,
-      document,
-      notes: current.current.notes.map((note) => note.id === nextNote.id ? nextNote : note),
-    };
-    scheduleNote(nextNote);
-  }, [layout, scheduleNote]);
-  const updateCanvas = useCallback((canvas: Snapshot) => {
-    current.current = { ...current.current, canvas };
-    scheduleCanvas(canvas);
-  }, [scheduleCanvas]);
+    updateNoteDocument(pane.noteId, document);
+  }, [layout, updateNoteDocument]);
   const interactionState = () => paneInteractionState(layout, current.current.notes.map((note) => note.id));
 
   function splitPane(paneId: string, direction: "row" | "column") {

@@ -28,7 +28,15 @@ export function useWorkspaceSession({
     // current authored scene with an older acknowledgement snapshot.
   }, []);
 
-  const autosave = useGranularWorkspaceAutosave({
+  const {
+    status,
+    dirty: granularDirty,
+    scheduleNote,
+    scheduleCanvas,
+    flushAll: flushGranular,
+    flushNote,
+    forgetNote,
+  } = useGranularWorkspaceAutosave({
     workspaceId,
     canvasVersion,
     onNoteSaved,
@@ -52,29 +60,29 @@ export function useWorkspaceSession({
 
   const flushAll = useCallback(async () => {
     for (const flushSnapshot of snapshotFlushers.current.values()) flushSnapshot();
-    await autosave.flushAll();
-  }, [autosave.flushAll]);
+    await flushGranular();
+  }, [flushGranular]);
 
   const updateNoteDocument = useCallback((noteId: string, document: Snapshot) => {
     const transition = applyNoteDocument(current.current, noteId, document, new Date().toISOString());
     if (!transition) return;
     current.current = transition.content;
-    autosave.scheduleNote(transition.note);
-  }, [autosave.scheduleNote]);
+    scheduleNote(transition.note);
+  }, [scheduleNote]);
 
   const updateCanvas = useCallback((canvas: Snapshot) => {
     current.current = applyCanvasSnapshot(current.current, canvas);
-    autosave.scheduleCanvas(canvas);
-  }, [autosave.scheduleCanvas]);
+    scheduleCanvas(canvas);
+  }, [scheduleCanvas]);
 
   return {
     current,
     touch,
-    status: autosave.status,
-    dirty: autosave.dirty || unsnapshottedPanes.size > 0,
-    scheduleNote: autosave.scheduleNote,
-    flushNote: autosave.flushNote,
-    forgetNote: autosave.forgetNote,
+    status,
+    dirty: granularDirty || unsnapshottedPanes.size > 0,
+    scheduleNote,
+    flushNote,
+    forgetNote,
     flushAll,
     setPaneSnapshotDirty,
     registerPaneSnapshotFlush,

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { ProjectContent, Snapshot } from "../../domain/project/project";
+import type { Note, ProjectContent, Snapshot } from "../../domain/project/project";
 import { acknowledgeNoteVersion, applyCanvasSnapshot, applyNoteDocument } from "./workspace-session-state";
 import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 
@@ -19,7 +19,7 @@ export function useWorkspaceSession({
 
   const touch = useCallback(() => setRevision((value) => value + 1), []);
 
-  const onNoteSaved = useCallback((saved) => {
+  const onNoteSaved = useCallback((saved: Note) => {
     current.current = acknowledgeNoteVersion(current.current, saved);
   }, []);
 

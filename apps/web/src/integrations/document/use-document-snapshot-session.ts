@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import type { Snapshot } from "../../domain/project/project";
 
 export function useDocumentSnapshotSession({
@@ -9,7 +10,7 @@ export function useDocumentSnapshotSession({
   registerSnapshotFlush,
   delay = 120,
 }: {
-  editorRef: React.RefObject<Editor | null>;
+  editorRef: RefObject<Editor | null>;
   onChange: (snapshot: Snapshot) => void;
   onDirtyChange?: (dirty: boolean) => void;
   registerSnapshotFlush?: (flush: (() => void) | null) => void;

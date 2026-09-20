@@ -175,6 +175,22 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     onError: reportCanvasAssetError,
   });
 
+  const decorateDirectionalSpawnTarget = useCallback((
+    source: OrderedExcalidrawElement,
+    target: OrderedExcalidrawElement,
+  ) => {
+    const sourceBlock = readCanvasCodeBlock(source);
+    if (!sourceBlock) return target;
+    const nextBlock = {
+      ...defaultCanvasCodeBlock(),
+      theme: sourceBlock.theme,
+      lineNumbers: sourceBlock.lineNumbers,
+    };
+    return newElementWith(target, {
+      customData: withCanvasCodeBlock(target.customData, nextBlock),
+    });
+  }, []);
+
   const {
     anchor: flowchartAnchor,
     previewDirection: flowchartPreviewDirection,
@@ -183,7 +199,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     commitPreview: commitNativeFlowchartPreview,
     syncSelection: syncFlowchartSelection,
     focusEditor: focusCanvasEditor,
-  } = useCanvasFlowchart({ apiRef: api, surfaceRef });
+  } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
 
   const updateDiagramState = useCallback((next: StructuredDiagram[]) => {
     diagramHistoryRef.current = mergeDiagramHistory(diagramHistoryRef.current, next);

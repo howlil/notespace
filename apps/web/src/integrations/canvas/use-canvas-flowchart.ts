@@ -1,4 +1,4 @@
-import { sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
@@ -22,9 +22,14 @@ type FlowchartAppState = AppState & { editingLinearElement?: unknown };
 export function useCanvasFlowchart({
   apiRef,
   surfaceRef,
+  decorateTarget,
 }: {
   apiRef: RefObject<ExcalidrawImperativeAPI | null>;
   surfaceRef: RefObject<HTMLDivElement | null>;
+  decorateTarget?: (
+    source: OrderedExcalidrawElement,
+    target: OrderedExcalidrawElement,
+  ) => OrderedExcalidrawElement;
 }) {
   const [anchor, setAnchor] = useState<CanvasFlowchartAnchor | null>(null);
   const [previewDirection, setPreviewDirection] =
@@ -78,6 +83,7 @@ export function useCanvasFlowchart({
             element.id === selectedIds[0] && !element.isDeleted,
         );
       if (!source || !isNativeFlowchartShapeType(source.type)) return false;
+      const beforeIds = new Set(api.getSceneElementsIncludingDeleted().map((element) => element.id));
 
       if (previewRef.current && previewRef.current !== direction) {
         api.app.flowchart.handleKeyEvent(
@@ -100,11 +106,33 @@ export function useCanvasFlowchart({
       );
       if (!handled || !api.app.flowchart.isCreatingChart) return false;
 
+      if (decorateTarget) {
+        let decorated = false;
+        const elements = api.getSceneElementsIncludingDeleted().map((element) => {
+          if (
+            decorated
+            || beforeIds.has(element.id)
+            || element.isDeleted
+            || !isNativeFlowchartShapeType(element.type)
+          ) {
+            return element;
+          }
+          decorated = true;
+          return decorateTarget(source, element);
+        });
+        if (decorated) {
+          api.updateScene({
+            elements,
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+        }
+      }
+
       previewRef.current = direction;
       setPreviewDirection(direction);
       return true;
     },
-    [apiRef],
+    [apiRef, decorateTarget],
   );
 
   const commitPreview = useCallback(

@@ -361,8 +361,8 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
   const shouldShow = hasSelection || (!inactiveTools.has(activeTool) && hasStyleContext);
   const embedInteractive = Boolean(selectedEmbed && appState?.activeEmbeddable?.element.id === selectedEmbed.id && appState.activeEmbeddable.state === "active");
   useEffect(() => {
-    onInteractionStateChange?.(openPanel !== null || embedInteractive);
-  }, [embedInteractive, onInteractionStateChange, openPanel]);
+    onInteractionStateChange?.(shouldShow && (openPanel !== null || embedInteractive));
+  }, [embedInteractive, onInteractionStateChange, openPanel, shouldShow]);
   useEffect(() => () => onInteractionStateChange?.(false), [onInteractionStateChange]);
   if (!api || !appState || !shouldShow) return null;
 

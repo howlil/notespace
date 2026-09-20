@@ -83,6 +83,12 @@ test.describe("Canvas chrome", () => {
       await expect(interact).toBeVisible();
       await interact.click();
       await expect(embedActions.getByRole("button", { name: "Lock embed" })).toBeVisible();
+
+      const iframeBox = await iframe.boundingBox();
+      expect(iframeBox).not.toBeNull();
+      await page.mouse.click(iframeBox!.x + iframeBox!.width / 2, iframeBox!.y + iframeBox!.height / 2);
+      await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("IFRAME");
+
       await embedActions.getByRole("button", { name: "Lock embed" }).click();
       await expect(embedActions.getByRole("button", { name: "Interact with embed" })).toBeVisible();
 

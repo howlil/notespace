@@ -224,6 +224,30 @@
   }
 }
 
+.notespace-code-theme .hljs-comment,
+.notespace-code-theme .hljs-quote { color: var(--code-comment); }
+.notespace-code-theme .hljs-keyword,
+.notespace-code-theme .hljs-selector-tag,
+.notespace-code-theme .hljs-literal { color: var(--code-keyword); }
+.notespace-code-theme .hljs-string,
+.notespace-code-theme .hljs-regexp,
+.notespace-code-theme .hljs-addition { color: var(--code-string); }
+.notespace-code-theme .hljs-number,
+.notespace-code-theme .hljs-symbol,
+.notespace-code-theme .hljs-bullet { color: var(--code-number); }
+.notespace-code-theme .hljs-title,
+.notespace-code-theme .hljs-section,
+.notespace-code-theme .hljs-function { color: var(--code-function); }
+.notespace-code-theme .hljs-type,
+.notespace-code-theme .hljs-built_in,
+.notespace-code-theme .hljs-class { color: var(--code-type); }
+.notespace-code-theme .hljs-attr,
+.notespace-code-theme .hljs-attribute,
+.notespace-code-theme .hljs-property { color: var(--code-property); }
+.notespace-code-theme .hljs-variable,
+.notespace-code-theme .hljs-template-variable { color: var(--code-variable); }
+.notespace-code-theme .hljs-deletion { color: var(--code-deletion); }
+
 .notespace-canvas-surface .excalidraw,
 .notespace-canvas-surface .excalidraw button,
 .notespace-canvas-surface .excalidraw input,

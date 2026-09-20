@@ -59,7 +59,7 @@ import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-i
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
-import { createDocumentDocumentSlashCommands, type DocumentDocumentSlashCommand } from "./document-slash-commands";
+import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";
 import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
 
 type FocusRequest = { id: string; request: number } | null;
@@ -331,7 +331,7 @@ export default function DocumentEditor({
     }
   }
 
-  const slashCommands = createDocumentDocumentSlashCommands(() => imageInputRef.current?.click());
+  const slashCommands = createDocumentSlashCommands(() => imageInputRef.current?.click());
 
   const editor = useEditor({
     extensions: [

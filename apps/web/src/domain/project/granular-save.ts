@@ -1,9 +1,9 @@
 import { BlockingAutosaveError } from "./autosave";
 import { reconcileCanvasConflict } from "./canvas-conflict-retry";
 import { publishGranularConflict } from "./conflict-recovery";
-import { APIError, getProject } from "./http";
-import { updateWorkspaceCanvas, updateWorkspaceNote } from "./api";
-import type { Note, Project, Snapshot } from "./project";
+import { APIError } from "./http";
+import { getWorkspaceCanvas, updateWorkspaceCanvas, updateWorkspaceNote } from "./api";
+import type { Note, Snapshot } from "./project";
 
 export class GranularConflictError extends BlockingAutosaveError {
   constructor(resource: "note" | "canvas") {
@@ -46,7 +46,7 @@ export async function saveWorkspaceCanvas(
 ) {
   let candidate = canvas;
   let candidateVersion = version;
-  let latest: Project | undefined;
+  let latest: Awaited<ReturnType<typeof getWorkspaceCanvas>> | undefined;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
@@ -54,8 +54,11 @@ export async function saveWorkspaceCanvas(
     } catch (error) {
       if (!(error instanceof APIError) || error.status !== 409) throw error;
 
-      latest = await getProject(workspaceId);
-      const resolution = reconcileCanvasConflict(candidate, latest);
+      latest = await getWorkspaceCanvas(workspaceId);
+      const resolution = reconcileCanvasConflict(candidate, {
+        canvas: latest.canvas,
+        canvasVersion: latest.version,
+      });
       candidate = resolution.canvas;
       candidateVersion = resolution.version;
 
@@ -65,7 +68,7 @@ export async function saveWorkspaceCanvas(
       if (resolution.converged) {
         return {
           canvas: latest.canvas,
-          version: latest.canvasVersion,
+          version: latest.version,
           updatedAt: latest.updatedAt,
         };
       }
@@ -77,7 +80,7 @@ export async function saveWorkspaceCanvas(
     workspaceId,
     local: candidate,
     latest: latest?.canvas,
-    latestVersion: latest?.canvasVersion,
+    latestVersion: latest?.version,
   });
   throw new GranularConflictError("canvas");
 }

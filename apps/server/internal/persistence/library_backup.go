@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 	"github.com/howlil/notespace/apps/server/migrations"
@@ -19,6 +20,7 @@ const libraryBackupVersion = 1
 
 type workspaceEnvelope struct {
 	Project project.Project           `json:"project"`
+	Plan    planning.Plan             `json:"plan,omitempty"`
 	History []project.HistorySnapshot `json:"history"`
 	Assets  []asset.Stored            `json:"assets"`
 }
@@ -69,7 +71,11 @@ func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnve
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	return workspaceEnvelope{Project: workspace, History: history, Assets: assets}, nil
+	plan, err := s.GetPlan(ctx, id)
+	if err != nil {
+		return workspaceEnvelope{}, err
+	}
+	return workspaceEnvelope{Project: workspace, Plan: plan, History: history, Assets: assets}, nil
 }
 
 func (s *Store) TrashWorkspace(ctx context.Context, id string) error {
@@ -166,6 +172,13 @@ func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) er
 			return project.ErrInvalid
 		}
 	}
+	plan := envelope.Plan
+	if plan.WorkspaceID == "" {
+		plan.WorkspaceID = workspace.ID
+	}
+	if err := planning.ValidatePlan(plan, workspace.ID); err != nil {
+		return project.ErrInvalid
+	}
 	return nil
 }
 
@@ -187,6 +200,9 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 		return err
 	}
 	if err := insertGranularStateTx(ctx, tx, workspace); err != nil {
+		return err
+	}
+	if err := restorePlanTx(ctx, tx, envelope.Plan, workspace.ID); err != nil {
 		return err
 	}
 	for _, checkpoint := range envelope.History {
@@ -389,6 +405,8 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		`DELETE FROM workspace_history_payload`,
 		`DELETE FROM workspace_history`,
 		`DELETE FROM workspace_assets`,
+		`DELETE FROM workspace_tasks`,
+		`DELETE FROM workspace_milestones`,
 		`DELETE FROM workspace_notes`,
 		`DELETE FROM workspace_canvas`,
 		`DELETE FROM projects`,

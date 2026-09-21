@@ -34,7 +34,7 @@ func run() error {
 	}
 	defer store.Close()
 	projects := persistence.NewIndexedProjectStore(store)
-	deps := httpapi.Dependencies{Projects: projects, Study: store, Assets: store, Health: store.Healthy}
+	deps := httpapi.Dependencies{Projects: projects, Planning: store, Study: store, Assets: store, Health: store.Healthy}
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
 	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
 		stats := store.Stats()

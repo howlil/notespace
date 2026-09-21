@@ -13,12 +13,13 @@ import (
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 )
 
 const libraryArchiveVersion = 2
-const libraryArchiveSchemaVersion = 11
+const libraryArchiveSchemaVersion = 12
 const archiveManifestPath = "manifest.json"
 const maxArchiveManifestBytes = 16 << 20
 
@@ -39,6 +40,7 @@ type archiveAsset struct {
 
 type archiveWorkspaceEnvelope struct {
 	Project project.Project           `json:"project"`
+	Plan    planning.Plan             `json:"plan,omitempty"`
 	History []project.HistorySnapshot `json:"history"`
 	Assets  []archiveAsset            `json:"assets"`
 }
@@ -79,7 +81,7 @@ func archiveEnvelope(value workspaceEnvelope, blobs map[string][]byte, catalog m
 		}
 		assets = append(assets, archiveAsset{ID: stored.ID, MimeType: stored.MimeType, CreatedAt: stored.CreatedAt, Blob: path, SHA256: hash, Size: int64(len(stored.Data))})
 	}
-	return archiveWorkspaceEnvelope{Project: value.Project, History: value.History, Assets: assets}
+	return archiveWorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}
 }
 
 func (s *Store) ExportBackupArchiveAtomic(ctx context.Context) ([]byte, error) {
@@ -183,7 +185,7 @@ func restoreArchiveEnvelope(value archiveWorkspaceEnvelope, blobData map[string]
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	return workspaceEnvelope{Project: value.Project, History: value.History, Assets: assets}, nil
+	return workspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}, nil
 }
 
 func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {

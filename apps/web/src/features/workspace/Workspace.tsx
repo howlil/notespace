@@ -20,6 +20,7 @@ import { writeLocalStorage } from "../../browser/local-storage";
 import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
+import { WorkspacePlan } from "../plan/WorkspacePlan";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -112,6 +113,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [workspaceTitle, setWorkspaceTitle] = useState(project.title);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState(project.title);
   const [workspaceRenamePending, setWorkspaceRenamePending] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
@@ -135,6 +137,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setWorkspaceTitle(project.title);
     setWorkspaceTitleDraft(project.title);
     setRenamingWorkspace(false);
+    setPlanOpen(false);
   }, [project.id, project.title]);
   useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {
@@ -326,10 +329,17 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const activeViewMode = workspaceViewMode(layout);
 
   function selectWorkspaceView(mode: WorkspaceViewMode) {
+    setPlanOpen(false);
     const preferredNoteId = activePane?.kind === "note" ? activePane.noteId : current.current.notes[0]?.id;
     const next = layoutForViewMode(layout, mode, preferredNoteId);
     setLayout(next);
     setActivePaneId(leaves(next).find((pane) => mode === "canvas" ? pane.kind === "canvas" : pane.kind === "note")?.id ?? leaves(next)[0]?.id ?? "");
+    setMaximizedPaneId(null);
+    setMaximizedSplitId(null);
+  }
+
+  function openPlan() {
+    setPlanOpen(true);
     setMaximizedPaneId(null);
     setMaximizedSplitId(null);
   }
@@ -458,7 +468,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   }
 
   const maximizedSplit = maximizedSplitId ? findSplit(layout, maximizedSplitId) : undefined;
-  const visible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
+  const authoringVisible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
+  const visible = planOpen ? <WorkspacePlan workspaceId={project.id} /> : authoringVisible;
   const saveFailed = status.state === "error" || status.state === "conflict";
   const saveLabel = status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "conflict" ? "Conflict" : status.state === "error" ? "Not saved" : "Unsaved";
 
@@ -508,11 +519,11 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
               </ContextMenu>
             </div>
           </div>
-          <WorkspaceViewSwitcher activeViewMode={activeViewMode} onSelect={selectWorkspaceView} />
+          <WorkspaceViewSwitcher activeViewMode={activeViewMode} planActive={planOpen} onSelect={selectWorkspaceView} onPlanSelect={openPlan} />
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
             <StudyIndicator study={study} />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
-            <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>
+            {!planOpen && <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>}
             <WorkspaceGuide />
           </div>
         </header>

@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 )
 
 type API struct {
 	service     project.Service
+	planning    planning.Service
 	study       study.Service
 	assets      asset.Store
 	health      func(context.Context) error
@@ -25,6 +27,7 @@ type API struct {
 
 type Dependencies struct {
 	Projects project.Store
+	Planning planning.Store
 	Study    study.Store
 	Assets   asset.Store
 	Health   func(context.Context) error
@@ -33,6 +36,9 @@ type Dependencies struct {
 func New(deps Dependencies) http.Handler {
 	if deps.Projects == nil {
 		panic("httpapi: project store is required")
+	}
+	if deps.Planning == nil {
+		panic("httpapi: planning store is required")
 	}
 	if deps.Study == nil {
 		panic("httpapi: study store is required")
@@ -43,7 +49,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: project.Service{Store: deps.Projects}, study: study.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, study: study.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -71,6 +77,13 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("DELETE /api/workspaces/{id}/notes/{noteId}", a.deleteNote)
 	mux.HandleFunc("GET /api/workspaces/{id}/canvas", a.getCanvas)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/canvas", a.updateCanvas)
+	mux.HandleFunc("GET /api/workspaces/{id}/plan", a.workspacePlan)
+	mux.HandleFunc("POST /api/workspaces/{id}/milestones", a.createMilestone)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/milestones/{milestoneId}", a.updateMilestone)
+	mux.HandleFunc("DELETE /api/workspaces/{id}/milestones/{milestoneId}", a.deleteMilestone)
+	mux.HandleFunc("POST /api/workspaces/{id}/tasks", a.createTask)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/tasks/{taskId}", a.updateTask)
+	mux.HandleFunc("DELETE /api/workspaces/{id}/tasks/{taskId}", a.deleteTask)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/title", a.rename)
 	mux.HandleFunc("PATCH /api/projects/{id}/category", a.move)
@@ -147,6 +160,12 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 409, map[string]string{"error": "This workspace changed in another tab. Your edits remain here; reload only after preserving them.", "code": "workspace_conflict"})
 	case errors.Is(err, project.ErrNotEmpty):
 		send(w, 409, map[string]string{"error": "Delete or move the workspaces in this category first."})
+	case errors.Is(err, planning.ErrNotFound):
+		send(w, 404, map[string]string{"error": "Planning item not found"})
+	case errors.Is(err, planning.ErrInvalid):
+		send(w, 400, map[string]string{"error": "Invalid milestone or task"})
+	case errors.Is(err, planning.ErrConflict):
+		send(w, 409, map[string]string{"error": "This planning item changed in another tab. Reload the plan and retry.", "code": "planning_conflict"})
 	case errors.Is(err, asset.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Image asset not found"})
 	case errors.Is(err, asset.ErrInvalid):

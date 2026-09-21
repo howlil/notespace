@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 )
@@ -127,6 +128,14 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if _, err := store.UpsertSession(ctx, study.Session{ID: "study-1", WorkspaceID: workspace.ID, WorkspaceTitleSnapshot: workspace.Title, ActivityDate: "2026-09-06", StartedAt: "2026-09-06T01:00:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-06T01:10:00Z"}); err != nil {
 		t.Fatal(err)
 	}
+	planningService := planning.Service{Store: store}
+	milestone, err := planningService.CreateMilestone(ctx, workspace.ID, "Ship persistence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := planningService.CreateTask(ctx, workspace.ID, &milestone.ID, "Verify backup round trip"); err != nil {
+		t.Fatal(err)
+	}
 
 	backup, err := store.ExportBackupArchiveAtomic(ctx)
 	if err != nil {
@@ -161,6 +170,16 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	stats, err := store.WorkspaceStats(ctx, workspace.ID, "2026-09-06")
 	if err != nil || stats.TotalSeconds != 600 {
 		t.Fatalf("restored study stats = %+v err=%v", stats, err)
+	}
+	restoredPlan, err := planningService.GetPlan(ctx, workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(restoredPlan.Milestones) != 1 || restoredPlan.Milestones[0].Title != "Ship persistence" {
+		t.Fatalf("restored plan milestones = %+v", restoredPlan.Milestones)
+	}
+	if len(restoredPlan.Tasks) != 1 || restoredPlan.Tasks[0].Title != "Verify backup round trip" || restoredPlan.Tasks[0].MilestoneID == nil {
+		t.Fatalf("restored plan tasks = %+v", restoredPlan.Tasks)
 	}
 }
 

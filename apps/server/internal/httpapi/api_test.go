@@ -33,6 +33,7 @@ func call(t *testing.T, api http.Handler, method, path string, body any) *httpte
 func newAPI(store *persistence.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
 		Projects: store,
+		Planning: store,
 		Study:    store,
 		Assets:   store,
 		Health:   store.Healthy,
@@ -42,6 +43,7 @@ func newAPI(store *persistence.Store) http.Handler {
 func newLibraryAPI(store *persistence.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
+		Planning: store,
 		Study:    store,
 		Assets:   store,
 		Health:   store.Healthy,
@@ -454,6 +456,7 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 	workspace := decodeWorkspace(t, call(t, newAPI(store), "POST", "/api/workspaces", map[string]string{"title": "Protected workspace"}))
 	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
+		Planning: store,
 		Study:    store,
 		Assets:   store,
 		Health:   store.Healthy,

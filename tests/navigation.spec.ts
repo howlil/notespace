@@ -36,9 +36,12 @@ test.describe("Production-Safe Navigation & Reload", () => {
     const assertWorkspaceLoaded = async () => {
       await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
       await expect(page.locator(".workspace-header")).toBeVisible();
-      const switcher = page.getByRole("combobox", { name: "Switch workspace" });
-      await expect(switcher).toHaveValue(workspace.id);
-      await expect(switcher.locator("option:checked")).toHaveText(title);
+      const switcher = page.locator('summary[aria-label="Switch workspace"]');
+      await expect(switcher).toContainText(title);
+      await switcher.click();
+      const options = page.getByRole("listbox", { name: "Workspaces in this category" });
+      await expect(options.getByRole("option", { selected: true })).toHaveText(title);
+      await switcher.click();
     };
 
     try {

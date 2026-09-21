@@ -45,7 +45,7 @@ A category detail page exists for scale. Prefer dense rows, search/filter/sort, 
 
 ### Workspace
 
-The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are views of the same workspace, not separate top-level products. Focus mode may hide workspace chrome, but must remain immediately reversible.
+The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are authored views of the same workspace, not separate top-level products. Plan is a workspace-owned secondary execution surface for milestones and concrete tasks; it is not a pane, dashboard, kanban board, or replacement for authored content. Keep Plan outline-first, compact, and progressively disclosed. Focus mode may hide workspace chrome, but must remain immediately reversible.
 
 ## Visual direction
 

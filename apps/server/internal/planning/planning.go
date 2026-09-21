@@ -330,6 +330,9 @@ func applyTaskPatch(current Task, patch TaskPatch, now string) (Task, error) {
 		if err != nil {
 			return Task{}, err
 		}
+		if current.WorkspaceID == nil && value == nil {
+			return Task{}, ErrInvalid
+		}
 		current.PlannedFor = value
 	}
 	if patch.Completed != nil {
@@ -437,7 +440,7 @@ func ValidateTask(task Task) error {
 }
 
 func ValidateStandaloneTask(task Task) error {
-	if task.WorkspaceID != nil || task.MilestoneID != nil {
+	if task.WorkspaceID != nil || task.MilestoneID != nil || task.PlannedFor == nil {
 		return ErrInvalid
 	}
 	return ValidateTask(task)

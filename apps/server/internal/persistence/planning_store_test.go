@@ -106,7 +106,6 @@ func TestPlanningRejectsStaleTaskUpdate(t *testing.T) {
 
 func boolPointer(value bool) *bool { return &value }
 
-
 func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "today.db"))

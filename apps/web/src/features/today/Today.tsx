@@ -129,14 +129,16 @@ function TodayTaskRow({
         >
           <Pencil size={13} />
         </IconButton>
-        <IconButton
-          className="!size-7 text-muted hover:text-accent"
-          aria-label={`Remove ${task.title} from Today`}
-          title="Remove from Today"
-          onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === date ? "" : date })}
-        >
-          <CalendarX2 size={13} />
-        </IconButton>
+        {task.workspaceId && (
+          <IconButton
+            className="!size-7 text-muted hover:text-accent"
+            aria-label={`Remove ${task.title} from Today`}
+            title="Remove from Today"
+            onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === date ? "" : date })}
+          >
+            <CalendarX2 size={13} />
+          </IconButton>
+        )}
         {!task.workspaceId && (
           <IconButton
             className="!size-7 text-muted hover:text-danger"

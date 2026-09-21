@@ -192,6 +192,7 @@ export function Today({
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
+  const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
 
   const openTasks = useMemo(
     () => projection.tasks.filter((task) => !task.completedAt),
@@ -201,17 +202,23 @@ export function Today({
     () => projection.tasks.filter((task) => Boolean(task.completedAt)),
     [projection.tasks],
   );
+  const handoffTask = useMemo(
+    () => handoffTaskId
+      ? projection.tasks.find((task) => task.id === handoffTaskId && !task.completedAt) ?? null
+      : null,
+    [handoffTaskId, projection.tasks],
+  );
 
   function startStandaloneActivity(event: FormEvent) {
     event.preventDefault();
     const next = activityTitle.trim();
-    if (!next || !activity.canStart) return;
+    if (!next || !activity.canStart || handoffTask) return;
     activity.start({ title: next, activityType });
     setActivityTitle("");
   }
 
   function startTaskActivity(task: TodayTask) {
-    if (!activity.canStart) return;
+    if (!activity.canStart || handoffTask) return;
     activity.start({
       title: task.title,
       activityType,
@@ -220,6 +227,37 @@ export function Today({
       ...(task.workspaceId ? { workspaceId: task.workspaceId } : {}),
       ...(task.workspaceTitle ? { workspaceTitleSnapshot: task.workspaceTitle } : {}),
     });
+  }
+
+  function endActivity() {
+    const taskId = activity.activeContext?.taskId;
+    const task = taskId
+      ? projection.tasks.find((item) => item.id === taskId && !item.completedAt)
+      : undefined;
+    activity.end();
+    setHandoffTaskId(task?.id ?? null);
+  }
+
+  async function completeHandoffTask() {
+    if (!handoffTask) return;
+    const target = handoffTask;
+    try {
+      const updated = await updateAnyTask(target.id, {
+        completed: true,
+        version: target.version,
+      });
+      setProjection((current) => ({
+        ...current,
+        tasks: current.tasks.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item),
+      }));
+      setHandoffTaskId(null);
+    } catch (error) {
+      showToast({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not complete task.",
+      });
+    }
   }
 
   async function addTask(event: FormEvent) {
@@ -364,14 +402,14 @@ export function Today({
                   aria-label="Quick activity"
                   placeholder="What are you doing?"
                   value={activityTitle}
-                  disabled={!activity.ready || !activity.canStart}
+                  disabled={!activity.ready || !activity.canStart || Boolean(handoffTask)}
                   onChange={(event) => setActivityTitle(event.target.value)}
                 />
                 <select
                   className="min-h-8 rounded-md border border-line bg-surface px-2 text-[10px] text-ink focus-visible:outline-2 focus-visible:outline-accent"
                   aria-label="Activity type"
                   value={activityType}
-                  disabled={!activity.ready || !activity.canStart}
+                  disabled={!activity.ready || !activity.canStart || Boolean(handoffTask)}
                   onChange={(event) => setActivityType(event.target.value as ActivityType)}
                 >
                   <option value="other">Other</option>
@@ -384,7 +422,7 @@ export function Today({
                 <Button
                   size="sm"
                   className="!min-h-8 px-3 text-[10px]"
-                  disabled={!activityTitle.trim() || !activity.canStart}
+                  disabled={!activityTitle.trim() || !activity.canStart || Boolean(handoffTask)}
                 >
                   Start
                 </Button>
@@ -412,10 +450,35 @@ export function Today({
                   className="!size-8 text-muted hover:text-danger"
                   aria-label="End activity"
                   title="End activity"
-                  onClick={activity.end}
+                  onClick={endActivity}
                 >
                   <Square size={14} />
                 </IconButton>
+              </div>
+            )}
+
+            {handoffTask && activity.status === "idle" && (
+              <div className="mt-3 flex items-center gap-2 border-t border-line pt-3" role="status" aria-label="Task completion handoff">
+                <span className="min-w-0 flex-1 truncate text-[10px] text-muted">
+                  Finished activity for <strong className="font-medium text-ink">{handoffTask.title}</strong>. Mark task done?
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="!min-h-7 px-2.5 text-[10px]"
+                  onClick={() => void completeHandoffTask()}
+                >
+                  Mark done
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="!min-h-7 px-2 text-[10px] text-muted"
+                  onClick={() => setHandoffTaskId(null)}
+                >
+                  Keep open
+                </Button>
               </div>
             )}
           </section>
@@ -456,7 +519,7 @@ export function Today({
                     key={task.id}
                     task={task}
                     date={projection.date}
-                    activityBusy={activity.status !== "idle" || !activity.canStart}
+                    activityBusy={activity.status !== "idle" || !activity.canStart || Boolean(handoffTask)}
                     onStart={startTaskActivity}
                     onUpdate={patchTask}
                     onDelete={setDeleteTarget}
@@ -488,7 +551,7 @@ export function Today({
                   key={task.id}
                   task={task}
                   date={projection.date}
-                  activityBusy={activity.status !== "idle" || !activity.canStart}
+                  activityBusy={activity.status !== "idle" || !activity.canStart || Boolean(handoffTask)}
                   onStart={startTaskActivity}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}

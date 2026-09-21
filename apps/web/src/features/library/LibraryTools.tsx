@@ -146,7 +146,7 @@ export function LibraryTools() {
 
           <div className="mt-4 grid gap-0 border-y border-line">
             <section className="flex items-center justify-between gap-4 border-b border-line py-3">
-              <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and study sessions.</p></div>
+              <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and activity sessions.</p></div>
               <div className="flex shrink-0 gap-1.5">
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
@@ -190,7 +190,7 @@ export function LibraryTools() {
       <ConfirmDialog
         open={permanentTarget !== null}
         title="Delete permanently?"
-        description={permanentTarget ? `${permanentTarget.title} and its recoverable authored history/images will be permanently removed. Study history remains as historical activity.` : ""}
+        description={permanentTarget ? `${permanentTarget.title} and its recoverable authored history/images will be permanently removed. Activity history remains available as historical activity.` : ""}
         confirmLabel="Delete permanently"
         onOpenChange={(next) => { if (!next) setPermanentTarget(null); }}
         onConfirm={() => void permanentlyDelete()}

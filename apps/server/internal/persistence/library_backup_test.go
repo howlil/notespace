@@ -128,6 +128,13 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if _, err := store.UpsertSession(ctx, study.Session{ID: "study-1", WorkspaceID: workspace.ID, WorkspaceTitleSnapshot: workspace.Title, ActivityDate: "2026-09-06", StartedAt: "2026-09-06T01:00:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-06T01:10:00Z"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.UpsertSession(ctx, study.Session{
+		ID: "read-1", Title: "Read database paper", ActivityType: "read",
+		ActivityDate: "2026-09-06", StartedAt: "2026-09-06T02:00:00Z",
+		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-06T02:05:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	planningService := planning.Service{Store: store}
 	milestone, err := planningService.CreateMilestone(ctx, workspace.ID, "Ship persistence")
 	if err != nil {
@@ -173,7 +180,24 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}
 	stats, err := store.WorkspaceStats(ctx, workspace.ID, "2026-09-06")
 	if err != nil || stats.TotalSeconds != 600 {
-		t.Fatalf("restored study stats = %+v err=%v", stats, err)
+		t.Fatalf("restored workspace activity stats = %+v err=%v", stats, err)
+	}
+	globalStats, err := store.GlobalStats(ctx, "2026-09-06")
+	if err != nil || globalStats.TotalSeconds != 900 {
+		t.Fatalf("restored global activity stats = %+v err=%v", globalStats, err)
+	}
+	activities, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundRead := false
+	for _, session := range activities {
+		if session.Title == "Read database paper" && session.ActivityType == "read" && session.WorkspaceID == "" {
+			foundRead = true
+		}
+	}
+	if !foundRead {
+		t.Fatalf("standalone activity missing after archive restore: %+v", activities)
 	}
 	restoredPlan, err := planningService.GetPlan(ctx, workspace.ID)
 	if err != nil {
@@ -306,6 +330,51 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 	}
 	if _, err := store.Get(ctx, workspace.ID); err != nil {
 		t.Fatalf("existing library changed after invalid restore: %v", err)
+	}
+}
+
+func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-activity-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep activity library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpsertSession(ctx, study.Session{
+		ID: "activity-1", Title: "Read paper", ActivityType: "read",
+		ActivityDate: "2026-09-21", StartedAt: "2026-09-21T01:00:00Z",
+		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-21T01:05:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := store.ExportBackupJSONAtomic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup libraryBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	if len(backup.Study) != 1 {
+		t.Fatalf("backup activities = %d, want 1", len(backup.Study))
+	}
+	backup.Study[0].ActivityType = "focus"
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, project.ErrInvalid) {
+		t.Fatalf("invalid activity restore error = %v, want invalid", err)
+	}
+	if _, err := store.Get(ctx, workspace.ID); err != nil {
+		t.Fatalf("existing library changed after invalid activity restore: %v", err)
 	}
 }
 

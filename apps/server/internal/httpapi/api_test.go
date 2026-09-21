@@ -542,6 +542,87 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	}
 }
 
+func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
+	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "WhoBack"}))
+	taskResponse := call(t, api, "POST", "/api/workspaces/"+workspace.ID+"/tasks", map[string]string{"title": "Ship extension release"})
+	expect(t, taskResponse, http.StatusCreated)
+	var task struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(taskResponse.Body.Bytes(), &task); err != nil {
+		t.Fatal(err)
+	}
+
+	taskActivity := call(t, api, "PUT", "/api/activity/sessions/task-session:2026-09-21", map[string]any{
+		"activityDate":  "2026-09-21",
+		"activeSeconds": 900,
+		"finish":        true,
+		"title":         "",
+		"activityType":  "build",
+		"taskId":        task.ID,
+	})
+	expect(t, taskActivity, http.StatusOK)
+	var taskSession struct {
+		WorkspaceID  string `json:"workspaceId"`
+		TaskID       string `json:"taskId"`
+		Title        string `json:"title"`
+		ActivityType string `json:"activityType"`
+	}
+	if err := json.Unmarshal(taskActivity.Body.Bytes(), &taskSession); err != nil {
+		t.Fatal(err)
+	}
+	if taskSession.WorkspaceID != workspace.ID || taskSession.TaskID != task.ID || taskSession.Title != "Ship extension release" || taskSession.ActivityType != "build" {
+		t.Fatalf("task activity context = %+v", taskSession)
+	}
+
+	standalone := call(t, api, "PUT", "/api/activity/sessions/read-session:2026-09-21", map[string]any{
+		"activityDate":  "2026-09-21",
+		"activeSeconds": 300,
+		"finish":        true,
+		"title":         "Read database paper",
+		"activityType":  "read",
+	})
+	expect(t, standalone, http.StatusOK)
+
+	stats := call(t, api, "GET", "/api/activity/stats?date=2026-09-21", nil)
+	expect(t, stats, http.StatusOK)
+	var totals struct {
+		TodaySeconds int64 `json:"todaySeconds"`
+		TotalSeconds int64 `json:"totalSeconds"`
+	}
+	if err := json.Unmarshal(stats.Body.Bytes(), &totals); err != nil {
+		t.Fatal(err)
+	}
+	if totals.TodaySeconds != 1200 || totals.TotalSeconds != 1200 {
+		t.Fatalf("activity totals = %+v, want 1200/1200", totals)
+	}
+
+	history := call(t, api, "GET", "/api/activity/sessions?limit=10", nil)
+	expect(t, history, http.StatusOK)
+	var sessions []struct {
+		ID           string `json:"id"`
+		WorkspaceID  string `json:"workspaceId"`
+		TaskID       string `json:"taskId"`
+		ActivityType string `json:"activityType"`
+	}
+	if err := json.Unmarshal(history.Body.Bytes(), &sessions); err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("activity sessions = %+v, want 2 logical sessions", sessions)
+	}
+
+	expect(t, call(t, api, "DELETE", "/api/activity/sessions/read-session", nil), http.StatusNoContent)
+	expect(t, call(t, api, "DELETE", "/api/activity/sessions/read-session", nil), http.StatusNotFound)
+}
+
 func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
 	if err != nil {

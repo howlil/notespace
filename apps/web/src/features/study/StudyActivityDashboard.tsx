@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn } from "../../components/ui";
-import { getStudyActivity, getStudyDayDetail } from "../../domain/project/api";
-import type { StudyActivity, StudyDayDetail } from "../../domain/project/api";
+import { getActivityDayDetail, getActivitySummary } from "../../domain/activity/api";
+import type { ActivityDayDetail, ActivitySummary } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
 import { formatDay, formatDuration, localDate } from "./study-timer";
 
@@ -23,8 +23,8 @@ function level(seconds: number) {
 
 function ActivitySkeleton() {
   return (
-    <div className="grid gap-3" role="status" aria-label="Loading learning activity">
-      <span className="sr-only">Loading learning activity…</span>
+    <div className="grid gap-3" role="status" aria-label="Loading activity">
+      <span className="sr-only">Loading activity…</span>
       <div className="grid w-max min-w-full grid-cols-[repeat(52,12px)] grid-rows-[repeat(7,12px)] gap-[3px] overflow-hidden" aria-hidden="true">
         {Array.from({ length: 364 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
       </div>
@@ -45,9 +45,9 @@ const heatmapLevels = [
 
 export function StudyActivityDashboard({ compact = true }: { compact?: boolean }) {
   const { showToast } = useToast();
-  const [activity, setActivity] = useState<StudyActivity | null>(null);
+  const [activity, setActivity] = useState<ActivitySummary | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [detail, setDetail] = useState<StudyDayDetail | null>(null);
+  const [detail, setDetail] = useState<ActivityDayDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -61,7 +61,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    void getStudyActivity(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) { setActivity(null); setLoadError(err instanceof Error ? err.message : "Could not load study activity."); showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load study activity." }); } }).finally(() => { if (!cancelled) setLoading(false); });
+    void getActivitySummary(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) { setActivity(null); setLoadError(err instanceof Error ? err.message : "Could not load activity."); showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load activity." }); } }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [from, to, showToast]);
 
@@ -72,7 +72,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
-    void getStudyDayDetail(date)
+    void getActivityDayDetail(date)
       .then((result) => { if (detailRequest.current === requestId) setDetail(result); })
       .catch((err) => {
         if (detailRequest.current !== requestId) return;
@@ -103,18 +103,17 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mb-0")} aria-labelledby="study-activity-title">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:pb-2">
         <div>
-          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Learning activity</h2>
-          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your study rhythm over the last year</p>}
+          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Activity</h2>
+          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your activity rhythm over the last year</p>}
         </div>
         {compact ? (
-          <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today · ${activity?.currentStreak ?? 0}d streak`}</span>
+          <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today`}</span>
         ) : <span className="pt-0.5 text-[10px] text-muted max-[560px]:hidden">Last 365 days</span>}
       </div>
       {!compact && (
-        <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
+        <div className="grid grid-cols-2 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
           <div className="flex flex-col gap-1 border-r border-line"><span className="text-[10px] text-muted">Today</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-14" /> : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-1 border-r border-line pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">Streak</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-20" /> : `${activity?.currentStreak ?? 0} days`}</strong></div>
+          <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
         </div>
       )}
       {!compact && (
@@ -125,8 +124,8 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       )}
       {compact ? (
         loading ? (
-          <div className="px-4 py-4" role="status" aria-label="Loading learning activity">
-            <span className="sr-only">Loading learning activity…</span>
+          <div className="px-4 py-4" role="status" aria-label="Loading activity">
+            <span className="sr-only">Loading activity…</span>
             <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-hidden="true">
               {Array.from({ length: 84 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
             </div>
@@ -136,7 +135,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
         ) : (
           <div className="px-4 pt-4 pb-3">
             <div className="overflow-x-auto overflow-y-hidden pb-1">
-              <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-label="Recent learning activity">
+              <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-label="Recent activity">
                 {recentDays.map((day) => (
                   <button
                     key={day.date}
@@ -159,7 +158,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       ) : (
         <div className={cn("px-4 pt-4 pb-3", mobileHeatmapVisibility)}>
           <div className="overflow-x-auto overflow-y-hidden pb-[3px]">
-            <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Learning activity heatmap">
+            <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Activity heatmap">
               {(activity?.days ?? []).map((day) => {
                 const spot = position(day.date);
                 return (
@@ -186,7 +185,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       {selectedDate && (
         <div className="border-t border-line px-4 pt-[13px] pb-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : detailError ? "Unavailable" : `${formatDuration(detail?.activeSeconds ?? 0)} studied`}</strong></div>
+            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : detailError ? "Unavailable" : `${formatDuration(detail?.activeSeconds ?? 0)} recorded`}</strong></div>
             <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-[3px] py-[3px] text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => { setSelectedDate(null); setDetail(null); }}>Close</Button>
           </div>
           {detailLoading ? (
@@ -199,13 +198,13 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
           ) : detail?.workspaces.length ? (
             <div className="mt-[13px] grid gap-2">
               {detail.workspaces.map((workspace) => (
-                <div key={workspace.workspaceId} className="flex justify-between gap-3 text-[11px] text-ink">
+                <div key={`${workspace.workspaceId ?? "standalone"}:${workspace.title}`} className="flex justify-between gap-3 text-[11px] text-ink">
                   <span>{workspace.title}{workspace.deleted && <em className="text-[9px] not-italic text-muted"> deleted</em>}</span>
                   <strong className="font-normal text-muted">{formatDuration(workspace.activeSeconds)}</strong>
                 </div>
               ))}
             </div>
-          ) : <p className="mt-[13px] mb-0 text-[10px] text-muted">No recorded study time on this day.</p>}
+          ) : <p className="mt-[13px] mb-0 text-[10px] text-muted">No recorded activity on this day.</p>}
         </div>
       )}
     </section>

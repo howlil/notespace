@@ -14,10 +14,10 @@
 }
 
 .workspace-header > div:last-child > button > svg,
-.workspace-header [aria-label="Start study session"] svg,
-.workspace-header [aria-label="Pause study session"] svg,
-.workspace-header [aria-label="Resume study session"] svg,
-.workspace-header [aria-label="End study session"] svg {
+.workspace-header [aria-label="Start activity"] svg,
+.workspace-header [aria-label="Pause activity"] svg,
+.workspace-header [aria-label="Resume activity"] svg,
+.workspace-header [aria-label="End activity"] svg {
   width: 18px !important;
   height: 18px !important;
   stroke-width: 2;

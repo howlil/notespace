@@ -109,6 +109,12 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/workspaces/{id}/study", a.workspaceStudy)
 	mux.HandleFunc("GET /api/study/activity", a.activity)
 	mux.HandleFunc("GET /api/study/activity/{date}", a.dayDetail)
+	mux.HandleFunc("GET /api/activity/sessions", a.activitySessions)
+	mux.HandleFunc("PUT /api/activity/sessions/{sessionId}", a.activityHeartbeat)
+	mux.HandleFunc("DELETE /api/activity/sessions/{sessionId}", a.deleteActivitySession)
+	mux.HandleFunc("GET /api/activity/stats", a.activityStats)
+	mux.HandleFunc("GET /api/activity", a.activity)
+	mux.HandleFunc("GET /api/activity/{date}", a.dayDetail)
 	mux.HandleFunc("GET /api/search", a.search)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { send(w, 404, map[string]string{"error": "Not found"}) })
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,9 +181,9 @@ func fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, asset.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid image asset"})
 	case errors.Is(err, study.ErrNotFound):
-		send(w, 404, map[string]string{"error": "Study session not found"})
+		send(w, 404, map[string]string{"error": "Activity session not found"})
 	case errors.Is(err, study.ErrInvalid):
-		send(w, 400, map[string]string{"error": "Invalid study activity"})
+		send(w, 400, map[string]string{"error": "Invalid activity"})
 	default:
 		slog.Error("workspace operation failed", "error", err)
 		send(w, 500, map[string]string{"error": "Unable to access workspace storage. Please retry."})

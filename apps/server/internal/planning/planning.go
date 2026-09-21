@@ -145,6 +145,13 @@ func (s Service) GetPlan(ctx context.Context, workspaceID string) (Plan, error) 
 	return s.Store.GetPlan(ctx, workspaceID)
 }
 
+func (s Service) GetTask(ctx context.Context, taskID string) (Task, error) {
+	if strings.TrimSpace(taskID) == "" {
+		return Task{}, ErrInvalid
+	}
+	return s.Store.GetTask(ctx, taskID)
+}
+
 func (s Service) Today(ctx context.Context, date string) (Today, error) {
 	if !validDateKey(date) {
 		return Today{}, ErrInvalid

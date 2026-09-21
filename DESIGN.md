@@ -31,13 +31,15 @@ Priority order:
 2. recent workspaces;
 3. category summaries;
 4. progressively disclosed category contents;
-5. secondary learning activity.
+5. secondary activity history.
 
 Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
 
 ### Today
 
 Today is a lightweight execution projection, not a second workspace system. It combines tasks explicitly chosen for the local calendar day, whether they belong to a Workspace Plan or are standalone. Keep it list-first and context-preserving: workspace-owned tasks retain a visible path back to their workspace, while standalone tasks remain clearly distinguishable.
+
+Activity sessions are observed time, separate from task planning. A session may link to a Today task and Workspace or remain standalone. Starting an activity must not require creating or organizing a task first. Activity type is deliberately coarse: Build, Learn, Read, Write, Exercise, or Other. Keep the timer global: at most one browser-owned activity may run at a time.
 
 Today must not become a calendar, backlog dashboard, habit tracker, kanban board, priority matrix, or productivity score. Choosing a task for Today is planning intent, not a due date. Unfinished work planned on an earlier day remains visible as carried forward until it is completed, explicitly removed from Today when workspace-owned, or deleted when standalone. Removing a workspace task from Today must not delete the underlying task.
 

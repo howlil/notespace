@@ -521,7 +521,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
           </div>
           <WorkspaceViewSwitcher activeViewMode={activeViewMode} planActive={planOpen} onSelect={selectWorkspaceView} onPlanSelect={openPlan} />
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
-            <StudyIndicator study={study} />
+            <StudyIndicator study={study} workspaceTitle={current.current.title} />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
             {!planOpen && <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>}
             <WorkspaceGuide />

@@ -333,8 +333,6 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 	}
 }
 
-
-
 func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-activity-backup.db"))

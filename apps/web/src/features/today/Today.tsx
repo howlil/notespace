@@ -274,18 +274,22 @@ export function Today({
       }));
       setHandoffTaskId(null);
     } catch (error) {
+      let completionConfirmed = false;
       try {
         const latest = await getToday(projection.date);
         setProjection(latest);
         const task = latest.tasks.find((item) => item.id === target.id) ?? null;
+        completionConfirmed = Boolean(task?.completedAt);
         setHandoffTaskId(task && !task.completedAt ? task.id : null);
       } catch {
         // Keep the current projection so the user can retry the handoff.
       }
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not complete task.",
-      });
+      if (!completionConfirmed) {
+        showToast({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not complete task.",
+        });
+      }
     } finally {
       setHandoffBusy(false);
     }

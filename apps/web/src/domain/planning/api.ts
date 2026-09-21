@@ -1,5 +1,5 @@
 import { json, request } from "../project/http";
-import type { PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "./planning";
+import type { InboxProjection, PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "./planning";
 
 const workspacePath = (workspaceId: string) => `/api/workspaces/${encodeURIComponent(workspaceId)}`;
 
@@ -51,10 +51,13 @@ export const deleteTask = (workspaceId: string, taskId: string, version: number)
 export const getToday = (date: string) =>
   request<TodayProjection>(`/api/tasks/today?date=${encodeURIComponent(date)}`);
 
-export const createStandaloneTask = (title: string, plannedFor: string) =>
+export const getInbox = () =>
+  request<InboxProjection>("/api/tasks/inbox");
+
+export const createStandaloneTask = (title: string, plannedFor?: string) =>
   request<PlanningTask>("/api/tasks", {
     method: "POST",
-    ...json({ title, plannedFor }),
+    ...json({ title, ...(plannedFor ? { plannedFor } : {}) }),
   });
 
 export const updateAnyTask = (

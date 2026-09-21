@@ -208,10 +208,10 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
                       type="button"
                       className="!size-6 shrink-0 text-muted hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] hover:text-danger"
                       aria-label={`Delete activity ${session.title}`}
-                      title={study.status === "idle" && study.canStart
+                      title={study.status === "idle" && !study.blockedByOtherTab
                         ? "Delete session"
                         : "End the active activity before deleting history"}
-                      disabled={study.status !== "idle" || !study.canStart || deletingSessionId === session.id}
+                      disabled={study.status !== "idle" || study.blockedByOtherTab || deletingSessionId === session.id}
                       onClick={() => void removeSession(session)}
                     >
                       <Trash2 size={13} />

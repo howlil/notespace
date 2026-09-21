@@ -42,6 +42,7 @@ export type StudySessionState = {
   pause: () => void;
   resume: () => void;
   end: () => void;
+  adoptLegacyWorkspace: (context: ActivityStart) => void;
   deleteSession: (sessionId: string) => Promise<void>;
 };
 
@@ -359,6 +360,37 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     });
   }
 
+  const adoptLegacyWorkspace = useCallback((context: ActivityStart) => {
+    if (
+      !ready
+      || !context.workspaceId
+      || sessionRef.current
+      || leaseRef.current
+      || acquiringLease.current
+    ) return;
+    if (!readLocalStorage(legacyStorageKey(context.workspaceId))) return;
+
+    acquiringLease.current = true;
+    void acquireActivityLease().then((lease) => {
+      acquiringLease.current = false;
+      if (!lease || !mountedRef.current) {
+        lease?.release();
+        setBlockedByOtherTab(!lease);
+        return;
+      }
+      leaseRef.current = lease;
+      setBlockedByOtherTab(false);
+
+      const now = Date.now();
+      const stored = readStoredSession(context);
+      if (!stored) {
+        releaseLease();
+        return;
+      }
+      adoptStoredSession(stored, now);
+    });
+  }, [adoptStoredSession, ready, releaseLease]);
+
   function pause() {
     const current = sessionRef.current;
     if (!current || current.status !== "running") return;
@@ -456,6 +488,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     pause,
     resume,
     end,
+    adoptLegacyWorkspace,
     deleteSession,
   };
 }

@@ -11,7 +11,6 @@ import {
   updateAnyTask,
 } from "../../domain/planning/api";
 import type {
-  PlanningTask,
   TodayProjection,
   TodayTask,
 } from "../../domain/planning/planning";

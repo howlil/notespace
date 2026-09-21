@@ -40,7 +40,24 @@ func scanStudySession(row scanner) (study.Session, error) {
 	return session, nil
 }
 
+func normalizeActivitySession(session study.Session) study.Session {
+	if session.ActivityType == "" {
+		session.ActivityType = "learn"
+	}
+	if session.Title == "" {
+		session.Title = session.WorkspaceTitleSnapshot
+	}
+	if session.Title == "" {
+		session.Title = session.TaskTitleSnapshot
+	}
+	if session.Title == "" {
+		session.Title = "Activity"
+	}
+	return session
+}
+
 func (s *Store) UpsertSession(ctx context.Context, session study.Session) (study.Session, error) {
+	session = normalizeActivitySession(session)
 	var endedAt any
 	if session.EndedAt != nil {
 		endedAt = *session.EndedAt

@@ -4,6 +4,7 @@ import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../components
 import {
   listActivitySessions,
   type ActivitySession,
+  type ActivityType,
 } from "../../domain/activity/api";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import { useToast } from "../../providers/toast-provider";
@@ -11,6 +12,15 @@ import type { StudySessionState } from "./use-study-session";
 import { formatDay, formatDuration } from "./study-timer";
 
 const timerActionClass = "!size-10 !min-h-10 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
+
+const workspaceActivityTypes: Array<{ value: ActivityType; label: string }> = [
+  { value: "build", label: "Build" },
+  { value: "learn", label: "Learn" },
+  { value: "read", label: "Read" },
+  { value: "write", label: "Write" },
+  { value: "exercise", label: "Exercise" },
+  { value: "other", label: "Other" },
+];
 
 function sessionTime(value: string) {
   const date = new Date(value);
@@ -21,16 +31,26 @@ function sessionTime(value: string) {
   }).format(date);
 }
 
-export function StudyIndicator({ study }: { study: StudySessionState }) {
+export function StudyIndicator({
+  study,
+  workspaceTitle,
+}: {
+  study: StudySessionState;
+  workspaceTitle: string;
+}) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
-  const dismiss = useCallback(() => setOpen(false), []);
-  useDismissablePopup(indicatorRef, open, dismiss);
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    setStartOpen(false);
+  }, []);
+  useDismissablePopup(indicatorRef, open || startOpen, dismiss);
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +101,10 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Activity, today ${formatDuration(study.todaySeconds)}`}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          setStartOpen(false);
+          setOpen((value) => !value);
+        }}
       >
         <span className={cn(
           "text-[10px] leading-none not-italic",
@@ -97,8 +120,13 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
           className={timerActionClass}
           disabled={!study.ready || !study.canStart}
           aria-label="Start activity"
+          aria-haspopup="menu"
+          aria-expanded={startOpen}
           title={study.blockedByOtherTab ? "Retry activity lock" : "Start activity"}
-          onClick={() => study.start()}
+          onClick={() => {
+            setOpen(false);
+            setStartOpen((value) => !value);
+          }}
         >
           <Play size={24} strokeWidth={2.25} />
         </Button>
@@ -127,6 +155,38 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
             <Square size={24} strokeWidth={2.25} />
           </Button>
         </>
+      )}
+
+      {startOpen && study.status === "idle" && (
+        <PopupSurface
+          className="absolute top-[calc(100%+8px)] right-0 z-25 w-[176px] p-1.5"
+          role="menu"
+          aria-label="Choose activity type"
+        >
+          <div className="px-2 py-1.5 text-[9px] font-medium uppercase tracking-[.08em] text-muted">
+            Activity type
+          </div>
+          {workspaceActivityTypes.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              role="menuitem"
+              className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+              onClick={() => {
+                setStartOpen(false);
+                study.start({
+                  title: workspaceTitle,
+                  activityType: item.value,
+                  workspaceId: study.workspaceId,
+                  workspaceTitleSnapshot: workspaceTitle,
+                });
+              }}
+            >
+              <Play size={13} className="text-muted" aria-hidden="true" />
+              {item.label}
+            </button>
+          ))}
+        </PopupSurface>
       )}
 
       {open && (

@@ -1,7 +1,17 @@
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
 
+export type ActivitySessionContext = {
+  title: string;
+  activityType: "build" | "learn" | "read" | "write" | "exercise" | "other";
+  workspaceId?: string;
+  workspaceTitleSnapshot?: string;
+  taskId?: string;
+  taskTitleSnapshot?: string;
+};
+
 export type ManualStudySession = {
   logicalSessionId: string;
+  context?: ActivitySessionContext;
   segmentId: string;
   activityDate: string;
   status: "running" | "paused";

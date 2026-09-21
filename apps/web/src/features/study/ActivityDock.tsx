@@ -31,7 +31,7 @@ export function ActivityDock() {
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <div className="text-[9px] font-medium uppercase tracking-[.08em] text-muted">Activity ended</div>
-            <div className="mt-0.5 truncate text-[11px] font-medium text-ink">{activity.handoffTask.title}</div>
+            <div className="mt-0.5 truncate text-[11px] font-medium text-ink">{activity.handoffTask.title}</div>\n            <div className="mt-0.5 text-[9px] text-muted">Mark task done?</div>
           </div>
           <Button
             type="button"
@@ -78,7 +78,7 @@ export function ActivityDock() {
         <IconButton
           type="button"
           className="!size-8 text-muted hover:text-accent"
-          aria-label={activity.status === "running" ? "Pause current activity" : "Resume current activity"}
+          aria-label={activity.status === "running" ? "Pause activity" : "Resume activity"}
           title={activity.status === "running" ? "Pause" : "Resume"}
           onClick={activity.status === "running" ? activity.pause : activity.resume}
         >
@@ -87,7 +87,7 @@ export function ActivityDock() {
         <IconButton
           type="button"
           className="!size-8 text-muted hover:text-danger"
-          aria-label="End current activity"
+          aria-label="End activity"
           title="End activity"
           onClick={activity.end}
         >

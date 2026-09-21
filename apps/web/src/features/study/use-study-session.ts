@@ -37,6 +37,7 @@ export type StudySessionState = {
   status: "idle" | "running" | "paused";
   ready: boolean;
   canStart: boolean;
+  blockedByOtherTab: boolean;
   start: (context?: ActivityStart) => void;
   pause: () => void;
   resume: () => void;
@@ -312,7 +313,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
   }, [reconcile, sendSegment, sessionStatus]);
 
   function start(contextOverride?: ActivityStart) {
-    if (!ready || sessionRef.current || leaseRef.current || acquiringLease.current || blockedByOtherTab) return;
+    if (!ready || sessionRef.current || leaseRef.current || acquiringLease.current) return;
     const context = contextOverride ?? defaultContextRef.current;
     if (!context?.title.trim()) return;
 
@@ -325,6 +326,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
         return;
       }
       leaseRef.current = lease;
+      setBlockedByOtherTab(false);
       const now = Date.now();
       const stored = readStoredSession(defaultContextRef.current);
       if (stored) {
@@ -448,7 +450,8 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     totalSeconds: totals.totalSeconds,
     status: sessionStatus,
     ready,
-    canStart: ready && !blockedByOtherTab && !session,
+    canStart: ready && !session,
+    blockedByOtherTab,
     start,
     pause,
     resume,

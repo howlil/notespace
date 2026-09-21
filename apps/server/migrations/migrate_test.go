@@ -168,3 +168,80 @@ func TestUnifiedPlanningTaskMigrationPreservesWorkspaceTasks(t *testing.T) {
 		t.Fatal("workspace_tasks table still exists after unified task migration")
 	}
 }
+
+
+func TestActivityMigrationPreservesStudyHistory(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "activity-v18.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys=ON`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+
+	names, err := fs.Glob(files, "*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if strings.Compare(name, "0019_activity_sessions.sql") >= 0 {
+			break
+		}
+		contents, err := files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, string(contents)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, checksum(contents), "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO study_sessions(
+			id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,
+			active_seconds,last_heartbeat_at,logical_session_id
+		)
+		VALUES (
+			'legacy-session:2026-09-20','workspace-legacy','Distributed Systems',
+			'2026-09-20','2026-09-20T01:00:00Z','2026-09-20T01:30:00Z',
+			1800,'2026-09-20T01:30:00Z','legacy-session'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Run(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	var workspaceID, title, activityType, logicalID string
+	var seconds int64
+	if err := db.QueryRowContext(ctx, `
+		SELECT workspace_id,activity_title,activity_type,logical_session_id,active_seconds
+		FROM activity_sessions
+		WHERE id='legacy-session:2026-09-20'
+	`).Scan(&workspaceID, &title, &activityType, &logicalID, &seconds); err != nil {
+		t.Fatal(err)
+	}
+	if workspaceID != "workspace-legacy" || title != "Distributed Systems" || activityType != "learn" || logicalID != "legacy-session" || seconds != 1800 {
+		t.Fatalf("migrated activity = workspace:%q title:%q type:%q logical:%q seconds:%d", workspaceID, title, activityType, logicalID, seconds)
+	}
+
+	var oldTable int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='study_sessions'`).Scan(&oldTable); err != nil {
+		t.Fatal(err)
+	}
+	if oldTable != 0 {
+		t.Fatal("study_sessions table still exists after activity migration")
+	}
+}

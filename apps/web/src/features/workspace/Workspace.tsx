@@ -392,10 +392,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       setActivityHandoffTask(null);
       setPlanRevision((value) => value + 1);
     } catch (error) {
+      let completionConfirmed = false;
       try {
         const plan = await getWorkspacePlan(project.id);
         const latest = plan.tasks.find((item) => item.id === target.id) ?? null;
-        if (latest?.completedAt) {
+        completionConfirmed = Boolean(latest?.completedAt);
+        if (completionConfirmed) {
           setActivityHandoffTask(null);
           setPlanRevision((value) => value + 1);
         } else if (latest) {
@@ -406,10 +408,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       } catch {
         // Preserve the existing handoff so the user can retry.
       }
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not complete task.",
-      });
+      if (!completionConfirmed) {
+        showToast({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not complete task.",
+        });
+      }
     } finally {
       setActivityHandoffBusy(false);
     }

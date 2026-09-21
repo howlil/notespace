@@ -1,11 +1,13 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/planning"
+	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 )
 
@@ -88,32 +90,44 @@ func (a API) activityHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 	if body.TaskID != "" {
 		task, err := a.planning.GetTask(r.Context(), body.TaskID)
-		if err != nil {
+		switch {
+		case err == nil:
+			body.TaskTitleSnapshot = task.Title
+			if task.WorkspaceID != nil {
+				if body.WorkspaceID != "" && body.WorkspaceID != *task.WorkspaceID {
+					fail(w, planning.ErrInvalid)
+					return
+				}
+				body.WorkspaceID = *task.WorkspaceID
+			}
+			if strings.TrimSpace(body.Title) == "" {
+				body.Title = task.Title
+			}
+		case errors.Is(err, planning.ErrNotFound) && strings.TrimSpace(body.TaskTitleSnapshot) != "":
+			if strings.TrimSpace(body.Title) == "" {
+				body.Title = body.TaskTitleSnapshot
+			}
+		default:
 			fail(w, err)
 			return
-		}
-		body.TaskTitleSnapshot = task.Title
-		if task.WorkspaceID != nil {
-			if body.WorkspaceID != "" && body.WorkspaceID != *task.WorkspaceID {
-				fail(w, planning.ErrInvalid)
-				return
-			}
-			body.WorkspaceID = *task.WorkspaceID
-		}
-		if strings.TrimSpace(body.Title) == "" {
-			body.Title = task.Title
 		}
 	}
 
 	if body.WorkspaceID != "" {
 		workspace, err := a.service.Get(r.Context(), body.WorkspaceID)
-		if err != nil {
+		switch {
+		case err == nil:
+			body.WorkspaceTitleSnapshot = workspace.Title
+			if strings.TrimSpace(body.Title) == "" {
+				body.Title = workspace.Title
+			}
+		case errors.Is(err, project.ErrNotFound) && strings.TrimSpace(body.WorkspaceTitleSnapshot) != "":
+			if strings.TrimSpace(body.Title) == "" {
+				body.Title = body.WorkspaceTitleSnapshot
+			}
+		default:
 			fail(w, err)
 			return
-		}
-		body.WorkspaceTitleSnapshot = workspace.Title
-		if strings.TrimSpace(body.Title) == "" {
-			body.Title = workspace.Title
 		}
 	}
 

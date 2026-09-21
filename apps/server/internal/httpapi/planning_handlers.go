@@ -98,7 +98,6 @@ func (a API) deleteTask(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusNoContent, nil)
 }
 
-
 func (a API) todayTasks(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
 	today, err := a.planning.Today(r.Context(), date)

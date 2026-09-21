@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarX2, CheckCircle2, Circle, Pause, Pencil, Play, Plus, Search, Square, Trash2 } from "lucide-react";
+import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pause, Pencil, Play, Plus, Search, Square, Trash2 } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
@@ -155,6 +155,16 @@ function TodayTaskRow({
             onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === date ? "" : date })}
           >
             <CalendarX2 size={13} />
+          </IconButton>
+        )}
+        {!task.workspaceId && !task.completedAt && (
+          <IconButton
+            className="!size-7 text-muted hover:text-accent"
+            aria-label={`Move ${task.title} to Inbox`}
+            title="Move to Inbox"
+            onClick={() => void onUpdate(task, { plannedFor: "" })}
+          >
+            <InboxIcon size={13} />
           </IconButton>
         )}
         {!task.workspaceId && (

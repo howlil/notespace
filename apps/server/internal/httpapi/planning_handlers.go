@@ -108,6 +108,15 @@ func (a API) todayTasks(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusOK, today)
 }
 
+func (a API) inboxTasks(w http.ResponseWriter, r *http.Request) {
+	inbox, err := a.planning.Inbox(r.Context())
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, inbox)
+}
+
 func (a API) createStandaloneTask(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title      string `json:"title"`

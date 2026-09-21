@@ -120,7 +120,7 @@ func validTitle(value string) bool {
 	return value != "" && utf8.RuneCountInString(value) <= 160
 }
 
-func validActivityType(value string) bool {
+func ValidActivityType(value string) bool {
 	return validActivityTypes[strings.TrimSpace(value)]
 }
 
@@ -141,7 +141,7 @@ func (s Service) RecordActivity(ctx context.Context, sessionID string, input Act
 	input.WorkspaceTitleSnapshot = strings.TrimSpace(input.WorkspaceTitleSnapshot)
 	input.TaskID = strings.TrimSpace(input.TaskID)
 	input.TaskTitleSnapshot = strings.TrimSpace(input.TaskTitleSnapshot)
-	if strings.TrimSpace(sessionID) == "" || !validTitle(input.Title) || !validActivityType(input.ActivityType) || !ValidDate(input.ActivityDate) || input.ActiveSeconds < 0 {
+	if strings.TrimSpace(sessionID) == "" || !validTitle(input.Title) || !ValidActivityType(input.ActivityType) || !ValidDate(input.ActivityDate) || input.ActiveSeconds < 0 {
 		return Session{}, ErrInvalid
 	}
 	if input.WorkspaceID != "" && input.WorkspaceTitleSnapshot == "" {

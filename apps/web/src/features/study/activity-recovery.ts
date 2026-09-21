@@ -13,6 +13,7 @@ export type ActivityRecoveryState = {
 };
 
 const recoveryStorageKey = "notespace.activity-recovery:v1";
+export const ACTIVITY_RECOVERY_PENDING_EVENT = "notespace:activity-recovery-pending";
 
 const emptyRecovery = (): ActivityRecoveryState => ({
   finalizations: [],
@@ -90,7 +91,11 @@ export function enqueueActivityFinalization(finalization: PendingActivityFinaliz
   const current = readActivityRecovery();
   const finalizations = current.finalizations.filter((item) => item.sessionId !== finalization.sessionId);
   finalizations.push(finalization);
-  return writeActivityRecovery({ ...current, finalizations });
+  const written = writeActivityRecovery({ ...current, finalizations });
+  if (written && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(ACTIVITY_RECOVERY_PENDING_EVENT));
+  }
+  return written;
 }
 
 export function acknowledgeActivityFinalization(sessionId: string, handoffTaskId?: string) {

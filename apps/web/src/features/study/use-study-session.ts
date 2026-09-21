@@ -228,7 +228,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     const result = advanceStudySession(value, now);
     if (result.completed.length > 0) {
       result.completed.forEach((item) =>
-        sendSegment(value.context, item.id, item.date, item.activeSeconds, true));
+        finalizeSegmentBestEffort(value.context, item.id, item.date, item.activeSeconds));
       commitSession(result.session);
       if (result.session.status === "running") {
         sendSegment(

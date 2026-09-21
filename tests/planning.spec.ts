@@ -25,7 +25,7 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
 
     const planResponse = await request.get(`/api/workspaces/${workspace.id}/plan`);
     expect(planResponse.ok()).toBe(true);
-    const plan = await planResponse.json() as { tasks: Array<{ id: string; title: string }> };
+    const plan = await planResponse.json() as { tasks: Array<{ id: string; title: string; version: number }> };
     const planningTask = plan.tasks.find((item) => item.title === "Finish planning flow");
     if (!planningTask) throw new Error("Created planning task was not returned by the plan API.");
 
@@ -34,10 +34,18 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
     await expect(activityMenu).toBeVisible();
     await activityMenu.getByRole("menuitem", { name: "Write" }).click();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
+
+    const refreshedTaskTitle = "Finish refreshed planning flow";
+    const renameResponse = await request.patch(
+      `/api/workspaces/${workspace.id}/tasks/${planningTask.id}`,
+      { data: { title: refreshedTaskTitle, version: planningTask.version } },
+    );
+    expect(renameResponse.status()).toBe(200);
+
     await page.getByRole("button", { name: "End activity" }).click();
 
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
-    await expect(handoff).toContainText("Finish planning flow");
+    await expect(handoff).toContainText(refreshedTaskTitle);
     await expect(page.getByRole("button", { name: "Start activity", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Start activity for Finish planning flow" })).toBeDisabled();
 
@@ -60,15 +68,32 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
       taskId: planningTask.id,
     });
 
+    const completionUrl = `**/api/workspaces/${workspace.id}/tasks/${planningTask.id}`;
+    await page.route(completionUrl, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic response failure after commit" }),
+      });
+    });
+
     await handoff.getByRole("button", { name: "Mark done" }).click();
     await expect(handoff).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Mark Finish planning flow incomplete" })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Mark ${refreshedTaskTitle} incomplete` })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.unroute(completionUrl);
     await expect(page.getByRole("button", { name: "Start activity", exact: true })).toBeEnabled();
 
     await page.reload();
     await page.getByRole("button", { name: "Plan" }).click();
     await expect(page.getByText("Ship MVP", { exact: true })).toBeVisible();
-    await expect(page.getByText("Finish planning flow", { exact: true })).toBeVisible();
+    await expect(page.getByText(refreshedTaskTitle, { exact: true })).toBeVisible();
     await expect(page.getByText("1/1", { exact: true })).toBeVisible();
   } finally {
     const sessionsResponse = await request.get("/api/activity/sessions?limit=100");

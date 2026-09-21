@@ -138,7 +138,7 @@ function TaskRow({
           onChange={(event) => setTitle(event.target.value)}
           onBlur={() => void commitTitle()}
           onKeyDown={(event) => {
-            if (event.key === "Enter") void commitTitle();
+            if (event.key === "Enter") event.currentTarget.blur();
             if (event.key === "Escape") { setTitle(task.title); setEditing(false); }
           }}
         />
@@ -330,7 +330,7 @@ export function WorkspacePlan({ workspaceId }: { workspaceId: string }) {
                     onChange={(event) => setMilestoneTitle(event.target.value)}
                     onBlur={() => void commitMilestoneRename(milestone)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") void commitMilestoneRename(milestone);
+                      if (event.key === "Enter") event.currentTarget.blur();
                       if (event.key === "Escape") setEditingMilestoneId(null);
                     }}
                   />

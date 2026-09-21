@@ -402,9 +402,6 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		activeTaskIDs[task.ID] = true
 	}
 	trashIDs := map[string]bool{}
-	if err := restoreStandaloneTasksTx(ctx, tx, backup.Tasks); err != nil {
-		return err
-	}
 	for _, record := range backup.Trash {
 		if record.ID == "" || trashIDs[record.ID] || record.Payload.Project.ID != record.ID || workspaceIDs[record.ID] {
 			return project.ErrInvalid
@@ -448,6 +445,9 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		if err := restoreWorkspaceTx(ctx, tx, envelope, envelope.Project.CategoryID); err != nil {
 			return err
 		}
+	}
+	if err := restoreStandaloneTasksTx(ctx, tx, backup.Tasks); err != nil {
+		return err
 	}
 	for _, record := range backup.Trash {
 		payload, err := encodeTrashEnvelope(record.Payload)

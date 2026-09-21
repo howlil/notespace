@@ -135,6 +135,10 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	carryover, err := service.CreateStandaloneTask(ctx, "Carry unfinished work", "2026-09-20")
+	if err != nil {
+		t.Fatal(err)
+	}
 	clearStandalone := ""
 	if _, err := service.UpdateAnyTask(ctx, standalone.ID, planning.TaskPatch{
 		PlannedFor: &clearStandalone,
@@ -150,20 +154,22 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(today.Tasks) != 2 {
-		t.Fatalf("today tasks = %d, want 2: %#v", len(today.Tasks), today.Tasks)
+	if len(today.Tasks) != 3 {
+		t.Fatalf("today tasks = %d, want 3: %#v", len(today.Tasks), today.Tasks)
 	}
-	var sawWorkspace, sawStandalone bool
+	var sawWorkspace, sawStandalone, sawCarryover bool
 	for _, task := range today.Tasks {
 		switch task.ID {
 		case workspaceTask.ID:
 			sawWorkspace = task.WorkspaceID != nil && task.WorkspaceTitle != nil && *task.WorkspaceTitle == "Today workspace"
 		case standalone.ID:
 			sawStandalone = task.WorkspaceID == nil && task.WorkspaceTitle == nil
+		case carryover.ID:
+			sawCarryover = task.PlannedFor != nil && *task.PlannedFor == "2026-09-20"
 		}
 	}
-	if !sawWorkspace || !sawStandalone {
-		t.Fatalf("projection lost task ownership: %#v", today.Tasks)
+	if !sawWorkspace || !sawStandalone || !sawCarryover {
+		t.Fatalf("projection lost task ownership or carryover: %#v", today.Tasks)
 	}
 
 	clear := ""
@@ -181,7 +187,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(today.Tasks) != 1 || today.Tasks[0].ID != standalone.ID {
+	if len(today.Tasks) != 2 {
 		t.Fatalf("today after removal = %#v", today.Tasks)
 	}
 }

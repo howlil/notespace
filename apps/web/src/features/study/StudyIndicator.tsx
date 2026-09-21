@@ -4,23 +4,14 @@ import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../components
 import {
   listActivitySessions,
   type ActivitySession,
-  type ActivityType,
 } from "../../domain/activity/api";
 import { useDismissablePopup } from "../../components/ui/dismissable";
 import { useToast } from "../../providers/toast-provider";
 import type { StudySessionState } from "./use-study-session";
 import { formatDay, formatDuration } from "./study-timer";
+import { ActivityTypeMenu } from "./ActivityTypeMenu";
 
 const timerActionClass = "!size-10 !min-h-10 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
-
-const workspaceActivityTypes: Array<{ value: ActivityType; label: string }> = [
-  { value: "build", label: "Build" },
-  { value: "learn", label: "Learn" },
-  { value: "read", label: "Read" },
-  { value: "write", label: "Write" },
-  { value: "exercise", label: "Exercise" },
-  { value: "other", label: "Other" },
-];
 
 function sessionTime(value: string) {
   const date = new Date(value);
@@ -158,35 +149,18 @@ export function StudyIndicator({
       )}
 
       {startOpen && study.status === "idle" && (
-        <PopupSurface
-          className="absolute top-[calc(100%+8px)] right-0 z-25 w-[176px] p-1.5"
-          role="menu"
-          aria-label="Choose activity type"
-        >
-          <div className="px-2 py-1.5 text-[9px] font-medium uppercase tracking-[.08em] text-muted">
-            Activity type
-          </div>
-          {workspaceActivityTypes.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              role="menuitem"
-              className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-              onClick={() => {
-                setStartOpen(false);
-                study.start({
-                  title: workspaceTitle,
-                  activityType: item.value,
-                  workspaceId: study.workspaceId,
-                  workspaceTitleSnapshot: workspaceTitle,
-                });
-              }}
-            >
-              <Play size={13} className="text-muted" aria-hidden="true" />
-              {item.label}
-            </button>
-          ))}
-        </PopupSurface>
+        <ActivityTypeMenu
+          className="absolute top-[calc(100%+8px)] right-0"
+          onSelect={(activityType) => {
+            setStartOpen(false);
+            study.start({
+              title: workspaceTitle,
+              activityType,
+              workspaceId: study.workspaceId,
+              workspaceTitleSnapshot: workspaceTitle,
+            });
+          }}
+        />
       )}
 
       {open && (

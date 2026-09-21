@@ -1,3 +1,4 @@
+import { forwardRef, type CSSProperties } from "react";
 import { Play } from "lucide-react";
 import { PopupSurface, cn } from "../../components/ui";
 import type { ActivityType } from "../../domain/activity/api";
@@ -11,16 +12,16 @@ export const activityTypeOptions: Array<{ value: ActivityType; label: string }> 
   { value: "other", label: "Other" },
 ];
 
-export function ActivityTypeMenu({
-  className,
-  onSelect,
-}: {
+export const ActivityTypeMenu = forwardRef<HTMLDivElement, {
   className?: string;
+  style?: CSSProperties;
   onSelect: (activityType: ActivityType) => void;
-}) {
+}>(function ActivityTypeMenu({ className, style, onSelect }, ref) {
   return (
     <PopupSurface
+      ref={ref}
       className={cn("z-25 w-[176px] p-1.5", className)}
+      style={style}
       role="menu"
       aria-label="Choose activity type"
     >
@@ -41,4 +42,4 @@ export function ActivityTypeMenu({
       ))}
     </PopupSurface>
   );
-}
+});

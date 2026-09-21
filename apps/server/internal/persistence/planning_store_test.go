@@ -126,7 +126,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	date := "2026-09-21"
 	workspaceTask, err = service.UpdateTask(ctx, workspace.ID, workspaceTask.ID, planning.TaskPatch{
 		PlannedFor: &date,
-		Version: workspaceTask.Version,
+		Version:    workspaceTask.Version,
 	})
 	if err != nil {
 		t.Fatal(err)

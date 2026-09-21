@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -23,6 +23,7 @@ import {
   updateTask,
 } from "../../domain/planning/api";
 import {
+  localDateKey,
   milestoneProgress,
   tasksForMilestone,
   type PlanningMilestone,
@@ -94,7 +95,7 @@ function TaskRow({
   onDelete,
 }: {
   task: PlanningTask;
-  onUpdate: (task: PlanningTask, patch: { title?: string; completed?: boolean }) => Promise<void>;
+  onUpdate: (task: PlanningTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: PlanningTask) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -153,6 +154,14 @@ function TaskRow({
         </button>
       )}
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <IconButton
+          className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
+          aria-label={task.plannedFor === localDateKey() ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
+          title={task.plannedFor === localDateKey() ? "Remove from Today" : "Add to Today"}
+          onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === localDateKey() ? "" : localDateKey() })}
+        >
+          {task.plannedFor === localDateKey() ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
+        </IconButton>
         <IconButton className="!size-7 text-muted hover:text-accent" aria-label={`Rename ${task.title}`} title="Rename task" onClick={() => setEditing(true)}>
           <Pencil size={13} />
         </IconButton>
@@ -226,7 +235,7 @@ export function WorkspacePlan({ workspaceId }: { workspaceId: string }) {
     }
   }
 
-  async function patchTask(item: PlanningTask, patch: { title?: string; completed?: boolean }) {
+  async function patchTask(item: PlanningTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) {
     try {
       const updated = await updateTask(workspaceId, item.id, { ...patch, version: item.version });
       setPlan((current) => ({ ...current, tasks: current.tasks.map((value) => value.id === updated.id ? updated : value) }));

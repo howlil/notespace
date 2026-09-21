@@ -169,7 +169,9 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
       title: context.title,
       activityType: context.activityType,
       ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+      ...(context.workspaceTitleSnapshot ? { workspaceTitleSnapshot: context.workspaceTitleSnapshot } : {}),
       ...(context.taskId ? { taskId: context.taskId } : {}),
+      ...(context.taskTitleSnapshot ? { taskTitleSnapshot: context.taskTitleSnapshot } : {}),
     }).catch(() => {});
   }, []);
 
@@ -406,8 +408,8 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
   }
 
   async function deleteSession(sessionId: string) {
-    if (sessionRef.current) {
-      throw new Error("End the current activity before deleting session history.");
+    if (sessionRef.current || blockedByOtherTab) {
+      throw new Error("End the active activity before deleting session history.");
     }
     await deleteActivitySession(sessionId);
     const now = Date.now();

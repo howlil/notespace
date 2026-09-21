@@ -60,6 +60,7 @@ function TodayTaskRow({
   }
 
   const context = [task.workspaceTitle, task.milestoneTitle].filter(Boolean).join(" / ");
+  const carriedForward = Boolean(task.plannedFor && task.plannedFor < date);
 
   return (
     <div className="group grid min-h-11 grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-line px-1 py-1.5">
@@ -113,10 +114,10 @@ function TodayTaskRow({
             params={{ workspaceId: task.workspaceId }}
             className="mt-0.5 block w-fit max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted hover:text-accent"
           >
-            {context || "Workspace task"}
+            {context || "Workspace task"}{carriedForward ? " · carried forward" : ""}
           </Link>
         ) : (
-          <span className="mt-0.5 block text-[9px] text-muted">Standalone</span>
+          <span className="mt-0.5 block text-[9px] text-muted">Standalone{carriedForward ? " · carried forward" : ""}</span>
         )}
       </div>
 

@@ -52,7 +52,11 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
     await expect(handoff).toContainText(refreshedTaskTitle);
     await expect(handoff).toContainText("Mark task done?");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeDisabled();
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeEnabled();
+
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Task completion handoff" })).toContainText(refreshedTaskTitle);
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeEnabled();
 
     await expect.poll(async () => {
       const activityResponse = await request.get("/api/activity/sessions?limit=20");

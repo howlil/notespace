@@ -10,6 +10,7 @@ import { createCategory, createProject, deleteCategory, deleteProject, listCateg
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
+import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 import { NotespaceLogo } from "../brand/NotespaceLogo";
 
 export function Brand() {
@@ -118,16 +119,17 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory, onCh
   }
 
   async function saveWorkspace(workspace: ProjectSummary, value: string) {
-    if (!value.trim() || value.trim() === workspace.title) {
+    const nextTitle = workspaceRenameTitle(value, workspace.title);
+    if (!nextTitle) {
       setEditingWorkspace(null);
       return;
     }
     try {
-      await renameProject(workspace.id, value.trim());
+      await renameProject(workspace.id, nextTitle);
       setEditingWorkspace(null);
       signalLibraryChanged();
     } catch (err) {
-      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
+      showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") });
     }
   }
 

@@ -10,6 +10,7 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/t
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
+import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
 import type { Snapshot } from "../../domain/project/project";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {
@@ -64,12 +65,9 @@ const EXCALIDRAW_LIBRARY_STORAGE_KEY = "notespace.excalidraw.library.v1";
 declare global {
   interface Window { EXCALIDRAW_ASSET_PATH: string; }
 }
-window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
-
 function readStoredLibraryItems(): LibraryItems {
-  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(EXCALIDRAW_LIBRARY_STORAGE_KEY);
+    const raw = readLocalStorage(EXCALIDRAW_LIBRARY_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? parsed as LibraryItems : [];
@@ -111,6 +109,9 @@ function codeElementContainsClientPoint(
 
 export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
   const { showToast } = useToast();
+  useEffect(() => {
+    if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
+  }, []);
   const [initialData] = useState(() => {
     const data = { ...initial.data };
     delete data.files;
@@ -222,10 +223,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   }, []);
 
   const persistLibraryItems = useCallback((items: LibraryItems) => {
-    try {
-      window.localStorage.setItem(EXCALIDRAW_LIBRARY_STORAGE_KEY, JSON.stringify(items));
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not persist the Excalidraw library in this browser." });
+    if (!writeLocalStorage(EXCALIDRAW_LIBRARY_STORAGE_KEY, JSON.stringify(items))) {
+      showToast({ kind: "error", message: "Could not persist the Excalidraw library in this browser." });
     }
   }, [showToast]);
 

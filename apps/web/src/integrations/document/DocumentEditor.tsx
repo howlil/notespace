@@ -52,13 +52,13 @@ import {
   cn,
 } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
-import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
 import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";
 import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
 import { createNoteCodeBlockExtension } from "./NoteCodeBlockNode";
+import { useDocumentImageActions } from "./use-document-image-actions";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
@@ -296,26 +296,10 @@ export default function DocumentEditor({
     setSelectionMenu(position);
   }
 
-  async function insertImages(files: File[], position?: number) {
-    const currentEditor = editorRef.current;
-    if (!currentEditor) return;
-    try {
-      let at = position;
-      for (const file of files) {
-        const assetId = createLocalAssetId();
-        await storeImageAsset(workspaceId, assetId, file);
-        const node = { type: "image", attrs: { assetId, src: `notespace-asset://${assetId}`, alt: file.name || "Pasted image" } };
-        if (typeof at === "number") {
-          currentEditor.chain().focus().insertContentAt(at, node).run();
-          at += 1;
-        } else {
-          currentEditor.chain().focus().insertContent(node).run();
-        }
-      }
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this image." });
-    }
-  }
+  const reportImageError = useCallback((message: string) => {
+    showToast({ kind: "error", message });
+  }, [showToast]);
+  const insertImages = useDocumentImageActions(editorRef, workspaceId, reportImageError);
 
   const slashCommands = createDocumentSlashCommands(() => imageInputRef.current?.click());
 

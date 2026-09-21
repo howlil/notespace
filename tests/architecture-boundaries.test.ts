@@ -47,6 +47,28 @@ test("document integration consumes Canvas frame links through the domain bounda
   assert.doesNotMatch(frameNode, /features\/workspace\/canvas-frame-link/);
 });
 
+test("diagram feature does not depend on Canvas integration internals", () => {
+  const diagramRoot = join(WEB_SRC, "features", "diagram");
+  for (const file of collect(diagramRoot)) {
+    for (const dependency of localImports(file)) {
+      const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      assert.doesNotMatch(path, /^integrations\//, `${relative(WEB_SRC, file)} depends on ${path}`);
+    }
+  }
+});
+
+test("browser event and asset initialization stay behind explicit boundaries", () => {
+  const dashboard = source("features/dashboard/Dashboard.tsx");
+  const quickOpen = source("features/search/QuickOpen.tsx");
+  const canvas = source("integrations/canvas/CanvasEditor.tsx");
+  assert.match(dashboard, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.match(quickOpen, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.doesNotMatch(dashboard, /new Event\("open-quick-search"\)/);
+  assert.doesNotMatch(quickOpen, /addEventListener\("open-quick-search"/);
+  assert.doesNotMatch(canvas, /^window\.EXCALIDRAW_ASSET_PATH/m);
+  assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
+});
+
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
   const workspace = source("features/workspace/Workspace.tsx");
   const session = source("features/workspace/use-workspace-session.ts");

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type { AppState, ExcalidrawImperativeAPI, ToolType } from "@excalidraw/excalidraw/types";
 import { IconButton, cn } from "../../components/ui";
-import { useCanvasPanelDismiss, useCanvasPanelPosition } from "./CanvasPanelPosition";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
 import { nativeActionIcon } from "./CanvasNativeActions";
 import {
   NativeArrowIcon,
@@ -172,8 +172,8 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClos
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 176, 144);
-  useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
+  const position = useAnchoredPanelPosition(anchorRef, panelRef, open, 176, 144);
+  useAnchoredPanelDismiss(open, panelRef, anchorRef, onClose, { insideSelector: "[data-canvas-menu-trigger]" });
   if (typeof document === "undefined") return null;
   const availableTools = supportedTools(api);
   const tools = secondaryTools.filter(({ type }) => availableTools.has(type));

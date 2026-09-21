@@ -35,6 +35,10 @@ Priority order:
 
 Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
 
+### Workspace cards
+
+Workspace cards retain the compact square paper-stack composition used by the library. The card background is the blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
+
 ### Category detail
 
 A category detail page exists for scale. Prefer dense rows, search/filter/sort, bounded pagination, and predictable actions over a large collection of decorative cards.
@@ -55,7 +59,7 @@ Default direction:
 - subtle motion only when it explains state or continuity;
 - light and dark modes must remain coherent.
 
-Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe.
+Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained blue thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
 
 ## Design tokens
 
@@ -80,12 +84,12 @@ The application uses semantic colors so the same component can remain coherent i
 | --- | --- | --- | --- |
 | `--bg` | `#F7F8FA` | `#18191D` | Application background and page canvas outside contained surfaces |
 | `--surface` | `#FFFFFF` | `#202126` | Cards, panels, popups, inputs, and editor chrome |
-| `--sidebar` | `#F1F2F6` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
+| `--sidebar` | `#FFFFFF` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
 | `--canvas` | `#F8F9FC` | `#1D1E24` | Drawing surface behind Excalidraw content |
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
 | `--muted` | `#787B8A` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#4F7396` | `#7FA6C9` | Focus, selected controls, links, active icons, and primary emphasis |
+| `--accent` | `#4F7396` | `#7FA6C9` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
 | `--tint` | `#E8EEF6` | `#1B2636` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
@@ -114,11 +118,11 @@ Use `--tint` for a state that needs to be noticed without becoming a new visual 
 
 ### Typography tokens
 
-Notespace uses Geist throughout the application. The available local weights are 400, 500, and 600.
+Notespace uses Open Sans throughout the application. The available local weights are 400, 500, and 600.
 
 | Token / usage | Value | Guidance |
 | --- | --- | --- |
-| `--font-sans` | `Geist, system-ui, sans-serif` | Default for body, controls, editor chrome, and Excalidraw UI |
+| `--font-sans` | `Open Sans, system-ui, sans-serif` | Default for body, controls, editor chrome, and Excalidraw UI |
 | Body | `14px` | Default document and application text |
 | Display / page title | `25–30px` | Use sparingly for Home or focused entry points |
 | Section title | `12–14px`, weight 500–600 | Titles for contained sections and panels |

@@ -21,6 +21,7 @@ const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
 const CANVAS_FRAME_LINK = join(WEB_SRC, "domain", "workspace", "canvas-frame-link.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "integrations", "document", "DocumentEditor.tsx");
+const DOCUMENT_IMAGE_ACTIONS = join(WEB_SRC, "integrations", "document", "use-document-image-actions.ts");
 const DOCUMENT_SLASH_COMMANDS = join(WEB_SRC, "integrations", "document", "document-slash-commands.ts");
 const CANVAS_FRAME_LINK_NODE = join(WEB_SRC, "integrations", "document", "CanvasFrameLinkNode.tsx");
 const CANVAS = join(WEB_SRC, "integrations", "canvas", "CanvasEditor.tsx");
@@ -29,7 +30,7 @@ const IMAGE_ASSET_URL = join(WEB_SRC, "integrations", "assets", "use-image-asset
 const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
 const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasNativeActions.ts");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
-const CANVAS_PANEL_POSITION = join(WEB_SRC, "integrations", "canvas", "CanvasPanelPosition.ts");
+const ANCHORED_PANEL = join(WEB_SRC, "components", "ui", "anchored-panel.ts");
 const CANVAS_PEER_CHANNEL = join(WEB_SRC, "integrations", "canvas", "use-canvas-peer-channel.ts");
 const CANVAS_CODE_BLOCK = join(WEB_SRC, "integrations", "canvas", "canvas-code-block.ts");
 const CANVAS_CODE_BLOCK_LAYER = join(WEB_SRC, "integrations", "canvas", "CanvasCodeBlockLayer.tsx");
@@ -72,7 +73,7 @@ test("design token contract: DESIGN.md documents the runtime semantic tokens", (
   const design = source(DESIGN); const globals = source(GLOBALS);
   for (const token of ["--bg", "--surface", "--sidebar", "--canvas", "--ink", "--muted", "--line", "--accent", "--tint", "--button", "--button-text", "--danger", "--success"]) assert.match(design, new RegExp(token));
   assert.match(design, /--font-sans/); assert.match(design, /Motion tokens/); assert.match(design, /prefers-reduced-motion/); assert.match(design, /z-1000/);
-  assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--font-sans/);
+  assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--font-sans:\s*"Open Sans"/);
 });
 
 test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-first setup", () => {
@@ -93,7 +94,7 @@ test("frontend styling contract: shared app styles stay limited to globals and c
 test("frontend styling contract: globals owns tokens and document defaults, not feature selectors", () => {
   const globals = source(GLOBALS);
   const documentDefaults = globals.replace(/\/\* Excalidraw adapter:[\s\S]*?\.Toast\s*\{[\s\S]*?\n\}/, "");
-  assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--accent:\s*#7fa6c9/i); assert.match(globals, /--tint:\s*#1b2636/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
+  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--accent:\s*#7fa6c9/i); assert.match(globals, /--tint:\s*#1b2636/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(documentDefaults, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
@@ -193,8 +194,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(chrome, /Browse library/);
   assert.match(chrome, /toggleSidebar/);
   assert.match(chrome, /tab === "library"/);
-  assert.match(chrome, /useCanvasPanelPosition/);
-  assert.match(chrome, /useCanvasPanelDismiss/);
+  assert.match(chrome, /useAnchoredPanelPosition/);
+  assert.match(chrome, /useAnchoredPanelDismiss/);
   assert.match(chrome, /createPortal/);
   assert.match(chrome, /motion\.aside/);
   assert.match(chrome, /import \{ nativeActionIcon \} from "\.\/CanvasNativeActions"/);
@@ -238,8 +239,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   for (const action of ["group", "ungroup", "bringToFront", "sendToBack", "alignLeft", "distributeHorizontally", "flipHorizontal", "toggleElementLock", "wrapSelectionInFrame", "addToLibrary"]) assert.match(selection, new RegExp(action));
 
   const diagram = source(DIAGRAM_PALETTE);
-  assert.match(diagram, /useCanvasPanelPosition/);
-  assert.match(diagram, /useCanvasPanelDismiss/);
+  assert.match(diagram, /useAnchoredPanelPosition/);
+  assert.match(diagram, /useAnchoredPanelDismiss/);
   assert.match(diagram, /aria-label="Close diagram tools"/);
   assert.match(diagram, /draggable/);
   assert.doesNotMatch(diagram, /All Categories<\/div>/);
@@ -247,10 +248,10 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(diagram, /fixed z-\[1000\]/);
   assert.match(diagram, /const showResults = hasSearch \|\| category !== "all"/);
   assert.match(diagram, /showResults &&/);
-  assert.match(source(CANVAS_PANEL_POSITION), /belowSpace < height/);
-  assert.match(source(CANVAS_PANEL_POSITION), /aboveSpace > belowSpace/);
-  assert.match(source(CANVAS_PANEL_POSITION), /requestAnimationFrame/);
-  assert.match(source(CANVAS_PANEL_POSITION), /ResizeObserver/);
+  assert.match(source(ANCHORED_PANEL), /belowSpace < height/);
+  assert.match(source(ANCHORED_PANEL), /aboveSpace > belowSpace/);
+  assert.match(source(ANCHORED_PANEL), /requestAnimationFrame/);
+  assert.match(source(ANCHORED_PANEL), /ResizeObserver/);
   assert.match(diagram, /AnimatePresence/);
   assert.match(diagram, /motion\.aside/);
   assert.match(diagram, /height: "auto"/);
@@ -268,7 +269,8 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(STUDY_ACTIVITY), /<Button/); assert.match(source(STUDY_INDICATOR), /<Button/);
   assert.match(source(DASHBOARD), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /open-quick-search/); assert.match(source(QUICK_OPEN), /open-quick-search/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /min-h-20/); assert.doesNotMatch(source(DASHBOARD), /Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /aspect-square/); assert.match(source(DASHBOARD), /article className="[^"]*bg-accent/); assert.match(source(DASHBOARD), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(DASHBOARD), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(DASHBOARD), /after:bg-accent/);
   assert.match(source(DASHBOARD), /<ContextMenu>/); assert.match(source(DASHBOARD), /Edit title/); assert.match(source(DASHBOARD), /deleteProject/); assert.match(source(DASHBOARD), /<ConfirmDialog/);
   assert.match(source(STUDY_ACTIVITY), /rounded-lg border border-line bg-surface/); assert.match(source(STUDY_ACTIVITY), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
@@ -311,8 +313,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
   assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/);
-  assert.match(workspace,/data-testid="workspace-view-switcher"/);
-  assert.match(workspace,/bg-tint text-accent ring-1 ring-accent\/15/);
+  const viewSwitcher = source(join(WEB_SRC, "features", "workspace", "WorkspaceViewSwitcher.tsx"));
+  const renameField = source(join(WEB_SRC, "features", "workspace", "WorkspaceRenameField.tsx"));
+  assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
+  assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
   assert.match(workspace,/renameProject/);
   assert.match(workspace,/Rename workspace/);
   assert.match(workspace,/onDoubleClick=\{\(event\) =>/);
@@ -320,8 +324,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(workspace,/workspace-switcher/);
   assert.match(workspace,/role="listbox"/);
   assert.doesNotMatch(workspace,/<select /);
-  assert.match(workspace,/aria-label="Workspace title"/);
-  for (const mode of ["Canvas", "Note", "Split"]) assert.match(workspace, new RegExp(`"${mode}"`));
+  assert.match(renameField,/aria-label="Workspace title"/);
+  for (const mode of ["Canvas", "Note", "Split"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspace,/>Close pane<\/Button>/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.match(content,/references:\s*\[\]/);
@@ -354,13 +358,13 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {
-  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), assets=source(IMAGE_ASSETS), packageJson=source(WEB_PACKAGE);
-  assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(editor,/storeImageAsset\(workspaceId, assetId/);
+  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), imageActions=source(DOCUMENT_IMAGE_ACTIONS), assets=source(IMAGE_ASSETS), packageJson=source(WEB_PACKAGE);
+  assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(imageActions,/storeImageAsset\(workspaceId, assetId/);
   assert.match(assets,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(assets,/method:\s*"PUT"/); assert.match(assets,/loadRemoteAsset/); assert.match(assets,/Read-through migration/); assert.match(assets,/indexedDB\.open\(DATABASE_NAME/); assert.match(assets,/inFlightAssetLoads/);
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/window\.dispatchEvent\(new Event\("open-quick-search"\)\)/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#4f7396/); });

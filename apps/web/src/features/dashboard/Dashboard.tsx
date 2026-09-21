@@ -10,6 +10,8 @@ import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../domain/project/api";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../library/library-sync-store";
+import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
+import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
 import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
 import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
@@ -19,7 +21,7 @@ function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { m
 type Props = { categories: CategorySummary[]; recentWorkspaces: ProjectSummary[]; initialSelectedCategoryId?: string; initialCategoryPage?: WorkspacePage };
 type LibraryView = "recent" | "all" | "category";
 
-const tabClass = "border-0 border-b-2 border-b-transparent bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-ink focus-visible:bg-tint";
+const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
 const showLearningActivity = false;
 
 type WorkspaceFolderCardProps = {
@@ -64,23 +66,23 @@ function WorkspaceFolderCard({
 
   const cardLinkClass = "group block w-full min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   const cardBody = (
-    <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-accent transition-[transform,border-color] duration-200 group-hover:-translate-y-1 group-hover:border-accent">
+    <article className="relative aspect-square overflow-hidden rounded-[18px] border border-accent/40 bg-accent transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-1 group-hover:border-accent group-hover:shadow-md">
       <motion.span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%]" {...paperMotion(0.04)}>
-        <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
+        <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-background p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
           <span className="block h-1 w-[82%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
           <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
         </span>
       </motion.span>
       <motion.span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%]" {...paperMotion(0.065)}>
-        <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
+        <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-background p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
           <span className="block h-1 w-[84%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
           <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
         </span>
       </motion.span>
       <motion.span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%]" {...paperMotion(0.09)}>
-        <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
+        <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-background p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
           <span className="block h-1 w-[86%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
           <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
@@ -88,7 +90,7 @@ function WorkspaceFolderCard({
         </span>
       </motion.span>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-tint/95 backdrop-blur-sm">
+      <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-white/50 bg-surface/75 backdrop-blur-lg">
         <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1">
             {editing ? (
@@ -110,7 +112,7 @@ function WorkspaceFolderCard({
             )}
             <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
           </div>
-          <time className="shrink-0 rounded-full border border-line bg-surface/80 px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+          <time className="shrink-0 rounded-full border border-line bg-background px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
         </div>
       </div>
     </article>
@@ -168,8 +170,8 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
             className="group absolute inset-0 block w-full rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             aria-label="New workspace"
           >
-            <article className="relative flex size-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-dashed border-line bg-surface transition-[border-color,background-color] duration-200 group-hover:border-accent group-hover:bg-tint">
-              <span className="grid size-10 place-items-center rounded-full border border-line bg-surface/80 text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
+            <article className="relative flex size-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-dashed border-line bg-surface transition-[border-color,background-color] duration-200 group-hover:border-accent group-hover:bg-background">
+              <span className="grid size-10 place-items-center rounded-full border border-line bg-background text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
                 <Plus size={18} aria-hidden="true" />
               </span>
               <span className="text-[11px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
@@ -186,7 +188,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
             transition={{ duration: 0.16, ease: "easeOut" }}
             className="absolute inset-0 rounded-[18px]"
           >
-            <article className="relative flex size-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-accent bg-tint px-4">
+            <article className="relative flex size-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-accent bg-background px-4">
               <form onSubmit={onSubmit} className="grid w-full gap-2">
                 <Input
                   autoFocus
@@ -310,8 +312,8 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       workspaceRenameCancelled.current = false;
       return;
     }
-    const value = workspaceTitleDraft.trim();
-    if (!value || value === workspace.title) {
+    const value = workspaceRenameTitle(workspaceTitleDraft, workspace.title);
+    if (!value) {
       cancelWorkspaceRename();
       return;
     }
@@ -326,7 +328,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       notifyLibraryChanged();
       showToast({ kind: "success", message: "Workspace renamed." });
     } catch (err) {
-      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." });
+      showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") });
     } finally {
       workspaceRenameSubmitting.current = false;
       setSavingWorkspaceId(null);
@@ -349,7 +351,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
       notifyLibraryChanged();
       showToast({ kind: "success", message: "Workspace deleted." });
     } catch (err) {
-      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." });
+      showToast({ kind: "error", message: workspaceMutationError(err, "Could not delete workspace.") });
     }
   }
 
@@ -420,7 +422,6 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
 
   const items = view === "recent" ? recentItems : (page?.items ?? []);
   const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
-  const description = view === "recent" ? "Pick up where you left off." : view === "all" ? "Browse the complete workspace library in bounded pages." : `${page?.total ?? selectedCategory?.workspaceCount ?? 0} workspace${(page?.total ?? selectedCategory?.workspaceCount ?? 0) === 1 ? "" : "s"}`;
 
   return (
     <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
@@ -436,7 +437,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
             type="button"
             className="flex min-h-9 w-[min(320px,42vw)] min-w-[190px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-ink/70 transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-[560px]:min-h-8 max-[560px]:w-full max-[560px]:min-w-0"
             aria-label="Search Notespace with Control K or Command K"
-            onClick={() => window.dispatchEvent(new Event("open-quick-search"))}
+            onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}
           >
             <Search size={15} className="shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">Search Notespace</span>
@@ -444,14 +445,11 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px] [&>button]:text-ink max-[560px]:[&>button]:size-[32px]"><WorkspaceGuide /><ThemeToggle /></div>
         </header>
-        <div className="w-full px-8 pt-8 pb-12 max-[800px]:px-5 max-[800px]:pt-7 max-[800px]:pb-9 max-[560px]:p-4 max-[560px]:pt-5">
-          <div className="mb-7 flex items-end justify-between gap-5 max-[560px]:mb-4 max-[560px]:items-start max-[560px]:gap-3">
-            <div className="min-w-0"><h1 id="library-list-title" className="mt-2 mb-0 text-[30px] font-medium leading-none tracking-[-.8px] text-ink max-[560px]:text-[25px]">{heading}</h1><p className="mt-2 mb-0 text-xs text-ink/70 max-[560px]:text-[11px]">{description}</p></div>
-          </div>
-          <nav className="mb-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
-            <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "border-b-accent bg-tint text-accent")} onClick={() => setView("recent")}>Recent</Button>
-            <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "border-b-accent bg-tint text-accent")} onClick={() => void openAll()}>All workspaces</Button>
-            {selectedCategory && <Button variant="ghost" size="sm" aria-current={view === "category" ? "page" : undefined} className={cn(tabClass, view === "category" && "border-b-accent bg-tint text-accent")} onClick={() => void selectCategory(selectedCategory.id)}>{selectedCategory.title}</Button>}
+        <div className="mx-auto w-full max-w-[1240px] px-6 pt-5 pb-8 max-[800px]:px-5 max-[800px]:pt-5 max-[800px]:pb-7 max-[560px]:p-4 max-[560px]:pt-4">
+          <h1 id="library-list-title" className="sr-only">{heading}</h1>
+          <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
+            <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={() => setView("recent")}>Recent</Button>
+            <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
           </nav>
           <section className="min-w-0" aria-labelledby="library-list-title">
             {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
@@ -483,7 +481,7 @@ export function Dashboard({ categories, recentWorkspaces, initialSelectedCategor
                 />
               </div>
             ) : (
-              <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-[18px] border border-line bg-surface p-8 text-center">
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
                 <div>
                   <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent mx-auto"><Folder size={20} /></span>
                   <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>

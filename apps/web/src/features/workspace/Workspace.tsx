@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, Circle, Columns2, FileText, Highlighter, LayoutGrid, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Circle, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../components/ui";
 import { useExclusivePopup } from "../../components/ui/dismissable";
 import { useTheme } from "../../providers/theme-provider";
@@ -16,6 +16,10 @@ import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
 import { useWorkspaceSession } from "./use-workspace-session";
+import { writeLocalStorage } from "../../browser/local-storage";
+import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
+import { WorkspaceRenameField } from "./WorkspaceRenameField";
+import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -139,7 +143,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     document.addEventListener("mousedown", keepPaneMenuClicksLocal, true);
     return () => document.removeEventListener("mousedown", keepPaneMenuClicksLocal, true);
   }, []);
-  useEffect(() => { localStorage.setItem(`notespace.workspace-layout:${project.id}`, JSON.stringify(layout)); }, [layout, project.id]);
+  useEffect(() => { writeLocalStorage(`notespace.workspace-layout:${project.id}`, JSON.stringify(layout)); }, [layout, project.id]);
   useEffect(() => { if (renamingNote) { noteRenameInput.current?.focus(); noteRenameInput.current?.select(); } }, [renamingNote]);
   useEffect(() => { if (renamingWorkspace) { workspaceRenameInput.current?.focus(); workspaceRenameInput.current?.select(); } }, [renamingWorkspace]);
   useEffect(() => {
@@ -256,8 +260,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   }
   async function commitRenameWorkspace() {
     if (workspaceRenameSubmitting.current) return;
-    const value = workspaceTitleDraft.trim();
-    if (!value || value === workspaceTitle) {
+    const value = workspaceRenameTitle(workspaceTitleDraft, workspaceTitle);
+    if (!value) {
       cancelRenameWorkspace();
       return;
     }
@@ -270,7 +274,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
       setRenamingWorkspace(false);
       showToast({ kind: "success", message: "Workspace renamed." });
     } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not rename workspace." });
+      showToast({ kind: "error", message: workspaceMutationError(error, "Could not rename workspace.") });
     } finally {
       workspaceRenameSubmitting.current = false;
       setWorkspaceRenamePending(false);
@@ -468,7 +472,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             <div className="flex min-w-0 max-w-[min(32vw,360px)] flex-1 items-center gap-0.5 max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
               <ContextMenu>
                 {renamingWorkspace ? (
-                  <Input ref={workspaceRenameInput} className="h-7 w-full rounded-none border-0 bg-transparent px-1.5 text-[12px] font-medium focus:border-transparent focus:ring-0" aria-label="Workspace title" value={workspaceTitleDraft} disabled={workspaceRenamePending} onChange={(event) => setWorkspaceTitleDraft(event.target.value)} onBlur={() => void commitRenameWorkspace()} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void commitRenameWorkspace(); } if (event.key === "Escape") { event.preventDefault(); cancelRenameWorkspace(); } }} />
+                  <WorkspaceRenameField inputRef={workspaceRenameInput} value={workspaceTitleDraft} disabled={workspaceRenamePending} onChange={setWorkspaceTitleDraft} onCommit={commitRenameWorkspace} onCancel={cancelRenameWorkspace} />
                 ) : (
                   <details className="workspace-switcher relative min-w-0 flex-1 [&>summary::-webkit-details-marker]:hidden">
                     <ContextMenuTrigger asChild>
@@ -504,14 +508,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
               </ContextMenu>
             </div>
           </div>
-          <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 bg-transparent max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-2 max-[560px]:justify-self-start max-[560px]:self-center max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
-            {(["canvas", "note", "split"] as const).map((mode) => {
-              const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
-              const selected = activeViewMode === mode;
-              const icon = mode === "canvas" ? <LayoutGrid size={22} strokeWidth={2.1} /> : mode === "note" ? <FileText size={22} strokeWidth={2.1} /> : <Columns2 size={22} strokeWidth={2.1} />;
-              return <Button key={mode} type="button" variant="ghost" size="sm" className={cn("relative !size-9 !min-h-9 rounded-[5px] p-0 text-muted", selected && "bg-tint text-accent ring-1 ring-accent/15 hover:bg-tint hover:text-accent")} aria-label={label} title={label} aria-pressed={selected} onClick={() => selectWorkspaceView(mode)}>{icon}</Button>;
-            })}
-          </div>
+          <WorkspaceViewSwitcher activeViewMode={activeViewMode} onSelect={selectWorkspaceView} />
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
             <StudyIndicator study={study} />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>

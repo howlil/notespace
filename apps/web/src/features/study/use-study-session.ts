@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteStudySession, getWorkspaceStudy, recordStudyHeartbeat } from "../../domain/project/api";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../browser/local-storage";
 import {
   advanceStudySession,
   combineStudyStats,
@@ -34,7 +35,7 @@ function storageKey(workspaceId: string) {
 
 function readStoredSession(workspaceId: string): ManualStudySession | null {
   try {
-    const raw = window.localStorage.getItem(storageKey(workspaceId));
+    const raw = readLocalStorage(storageKey(workspaceId));
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<ManualStudySession>;
     if (
@@ -107,8 +108,8 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   const commitSession = useCallback((next: ManualStudySession | null) => {
     sessionRef.current = next;
     setSession(next);
-    if (next) window.localStorage.setItem(storageKey(workspaceId), JSON.stringify(next));
-    else window.localStorage.removeItem(storageKey(workspaceId));
+    if (next) writeLocalStorage(storageKey(workspaceId), JSON.stringify(next));
+    else removeLocalStorage(storageKey(workspaceId));
   }, [workspaceId]);
 
   const sendSegment = useCallback((id: string, date: string, activeSeconds: number, finish: boolean) => {

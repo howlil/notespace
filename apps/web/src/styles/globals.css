@@ -1,11 +1,11 @@
-@import "@fontsource/geist/latin-400.css";
-@import "@fontsource/geist/latin-500.css";
-@import "@fontsource/geist/latin-600.css";
+@import "@fontsource/open-sans/latin-400.css";
+@import "@fontsource/open-sans/latin-500.css";
+@import "@fontsource/open-sans/latin-600.css";
 @import "tailwindcss";
 
 /* Tailwind entrypoint, design tokens, shared utilities, and document-level defaults. */
 @theme {
-  --font-sans: "Geist", system-ui, sans-serif;
+  --font-sans: "Open Sans", system-ui, sans-serif;
   --color-background: var(--bg);
   --color-surface: var(--surface);
   --color-sidebar: var(--sidebar);
@@ -341,7 +341,7 @@
   color-scheme: light;
   --bg: #f7f8fa;
   --surface: #fff;
-  --sidebar: #f1f2f6;
+  --sidebar: #fff;
   --ink: #252630;
   --muted: #787b8a;
   --line: #e4e5ec;

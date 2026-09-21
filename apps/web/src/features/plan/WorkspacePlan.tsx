@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
-import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -32,8 +31,7 @@ import {
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
 import { useToast } from "../../providers/toast-provider";
-import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
-import { ActivityTypeMenu } from "../study/ActivityTypeMenu";
+import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
 import type { ActivityType } from "../../domain/activity/api";
 
 type DeleteTarget =
@@ -109,16 +107,8 @@ function TaskRow({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [saving, setSaving] = useState(false);
-  const [startOpen, setStartOpen] = useState(false);
-  const startRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuPosition = useAnchoredPanelPosition(startRef, menuRef, startOpen, 176, 232);
 
-  useAnchoredPanelDismiss(startOpen, menuRef, startRef, () => setStartOpen(false));
   useEffect(() => setTitle(task.title), [task.title]);
-  useEffect(() => {
-    if (activityBusy) setStartOpen(false);
-  }, [activityBusy]);
 
   async function commitTitle() {
     const next = title.trim();
@@ -171,33 +161,11 @@ function TaskRow({
       )}
       <div className="flex shrink-0 items-center gap-0.5">
         {!task.completedAt && (
-          <div ref={startRef} className="relative">
-            <IconButton
-              className="!size-7 text-muted hover:text-accent"
-              aria-label={`Start activity for ${task.title}`}
-              aria-haspopup="menu"
-              aria-expanded={startOpen}
-              title={activityBusy ? "End the active activity first" : "Start activity"}
-              disabled={activityBusy}
-              onClick={() => setStartOpen((value) => !value)}
-            >
-              <Play size={13} />
-            </IconButton>
-            {startOpen && typeof document !== "undefined" && createPortal(
-              <ActivityTypeMenu
-                ref={menuRef}
-                className="fixed"
-                style={menuPosition
-                  ? { top: menuPosition.top, left: menuPosition.left }
-                  : { visibility: "hidden" }}
-                onSelect={(activityType) => {
-                  setStartOpen(false);
-                  onStartActivity(task, activityType);
-                }}
-              />,
-              document.body,
-            )}
-          </div>
+          <ActivityTypeTrigger
+            ariaLabel={`Start activity for ${task.title}`}
+            disabled={activityBusy}
+            onSelect={(activityType) => onStartActivity(task, activityType)}
+          />
         )}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <IconButton

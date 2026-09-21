@@ -35,6 +35,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
     { data: { plannedFor: date, version: task.version } },
   );
   expect(plannedResponse.status()).toBe(200);
+  const plannedTask = await plannedResponse.json() as { version: number };
 
   const standaloneTitle = `Read systems paper ${suffix}`;
 
@@ -84,15 +85,22 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(activityType).toHaveValue("read");
     await expect(page.getByText(task.title, { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
+
+    const renamedTaskTitle = `Ship refreshed activity slice ${suffix}`;
+    const renameResponse = await request.patch(`/api/tasks/${task.id}`, {
+      data: { title: renamedTaskTitle, version: plannedTask.version },
+    });
+    expect(renameResponse.status()).toBe(200);
+
     await page.getByRole("button", { name: "End activity" }).click();
 
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
-    await expect(handoff).toContainText(task.title);
+    await expect(handoff).toContainText(renamedTaskTitle);
     await expect(handoff).toContainText("Mark task done?");
     await expect(quickActivity).toBeDisabled();
-    await expect(page.getByRole("button", { name: `Start activity for ${task.title}` })).toBeDisabled();
+    await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeDisabled();
     await handoff.getByRole("button", { name: "Mark done" }).click();
-    await expect(page.getByRole("button", { name: `Mark ${task.title} incomplete` })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Mark ${renamedTaskTitle} incomplete` })).toBeVisible();
     await expect(handoff).toHaveCount(0);
     await expect(quickActivity).toBeEnabled();
 

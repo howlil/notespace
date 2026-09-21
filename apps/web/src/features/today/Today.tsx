@@ -21,6 +21,7 @@ import { useActivitySession } from "../study/use-study-session";
 import { formatDuration } from "../study/study-timer";
 import type { ActivityType } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
+import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -41,7 +42,7 @@ function TodayTaskRow({
   task: TodayTask;
   date: string;
   activityBusy: boolean;
-  onStart: (task: TodayTask) => void;
+  onStart: (task: TodayTask, activityType: ActivityType) => void;
   onUpdate: (task: TodayTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: TodayTask) => void;
 }) {
@@ -130,15 +131,11 @@ function TodayTaskRow({
 
       <div className="flex items-center gap-0.5">
         {!task.completedAt && (
-          <IconButton
-            className="!size-7 text-muted hover:text-accent"
-            aria-label={`Start activity for ${task.title}`}
-            title={activityBusy ? "End the active activity first" : "Start activity"}
+          <ActivityTypeTrigger
+            ariaLabel={`Start activity for ${task.title}`}
             disabled={activityBusy}
-            onClick={() => onStart(task)}
-          >
-            <Play size={13} />
-          </IconButton>
+            onSelect={(nextActivityType) => onStart(task, nextActivityType)}
+          />
         )}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <IconButton
@@ -217,11 +214,11 @@ export function Today({
     setActivityTitle("");
   }
 
-  function startTaskActivity(task: TodayTask) {
+  function startTaskActivity(task: TodayTask, taskActivityType: ActivityType) {
     if (!activity.canStart || handoffTask) return;
     activity.start({
       title: task.title,
-      activityType,
+      activityType: taskActivityType,
       taskId: task.id,
       taskTitleSnapshot: task.title,
       ...(task.workspaceId ? { workspaceId: task.workspaceId } : {}),

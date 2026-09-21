@@ -128,6 +128,13 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if _, err := store.UpsertSession(ctx, study.Session{ID: "study-1", WorkspaceID: workspace.ID, WorkspaceTitleSnapshot: workspace.Title, ActivityDate: "2026-09-06", StartedAt: "2026-09-06T01:00:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-06T01:10:00Z"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.UpsertSession(ctx, study.Session{
+		ID: "read-1", Title: "Read database paper", ActivityType: "read",
+		ActivityDate: "2026-09-06", StartedAt: "2026-09-06T02:00:00Z",
+		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-06T02:05:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	planningService := planning.Service{Store: store}
 	milestone, err := planningService.CreateMilestone(ctx, workspace.ID, "Ship persistence")
 	if err != nil {
@@ -173,7 +180,24 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}
 	stats, err := store.WorkspaceStats(ctx, workspace.ID, "2026-09-06")
 	if err != nil || stats.TotalSeconds != 600 {
-		t.Fatalf("restored study stats = %+v err=%v", stats, err)
+		t.Fatalf("restored workspace activity stats = %+v err=%v", stats, err)
+	}
+	globalStats, err := store.GlobalStats(ctx, "2026-09-06")
+	if err != nil || globalStats.TotalSeconds != 900 {
+		t.Fatalf("restored global activity stats = %+v err=%v", globalStats, err)
+	}
+	activities, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundRead := false
+	for _, session := range activities {
+		if session.Title == "Read database paper" && session.ActivityType == "read" && session.WorkspaceID == "" {
+			foundRead = true
+		}
+	}
+	if !foundRead {
+		t.Fatalf("standalone activity missing after archive restore: %+v", activities)
 	}
 	restoredPlan, err := planningService.GetPlan(ctx, workspace.ID)
 	if err != nil {

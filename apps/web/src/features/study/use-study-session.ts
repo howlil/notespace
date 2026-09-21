@@ -3,9 +3,15 @@ import {
   deleteActivitySession,
   getActivityStats,
   recordActivityHeartbeat,
+  type ActivityHeartbeat,
   type ActivityType,
 } from "../../domain/activity/api";
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../browser/local-storage";
+import {
+  acknowledgeActivityFinalization,
+  enqueueActivityFinalization,
+  type PendingActivityFinalization,
+} from "./activity-recovery";
 import {
   advanceStudySession,
   combineStudyStats,
@@ -41,7 +47,7 @@ export type StudySessionState = {
   start: (context?: ActivityStart) => void;
   pause: () => void;
   resume: () => void;
-  end: () => void;
+  end: () => PendingActivityFinalization | null;
   adoptLegacyWorkspace: (context: ActivityStart) => void;
   deleteSession: (sessionId: string) => Promise<void>;
 };
@@ -99,6 +105,25 @@ function readStoredSession(defaultContext?: ActivityStart): ManualStudySession |
   } catch {
     return null;
   }
+}
+
+function heartbeatFor(
+  context: ActivitySessionContext,
+  date: string,
+  activeSeconds: number,
+  finish: boolean,
+): ActivityHeartbeat {
+  return {
+    activityDate: date,
+    activeSeconds,
+    finish,
+    title: context.title,
+    activityType: context.activityType,
+    ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    ...(context.workspaceTitleSnapshot ? { workspaceTitleSnapshot: context.workspaceTitleSnapshot } : {}),
+    ...(context.taskId ? { taskId: context.taskId } : {}),
+    ...(context.taskTitleSnapshot ? { taskTitleSnapshot: context.taskTitleSnapshot } : {}),
+  };
 }
 
 function acquireActivityLease(): Promise<ActivityLease | null> {
@@ -164,18 +189,40 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     finish: boolean,
   ) => {
     if (!context) return;
-    void recordActivityHeartbeat(id, {
-      activityDate: date,
-      activeSeconds,
-      finish,
-      title: context.title,
-      activityType: context.activityType,
-      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-      ...(context.workspaceTitleSnapshot ? { workspaceTitleSnapshot: context.workspaceTitleSnapshot } : {}),
-      ...(context.taskId ? { taskId: context.taskId } : {}),
-      ...(context.taskTitleSnapshot ? { taskTitleSnapshot: context.taskTitleSnapshot } : {}),
-    }).catch(() => {});
+    void recordActivityHeartbeat(id, heartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
   }, []);
+
+  const queueFinalization = useCallback((
+    context: ActivitySessionContext | undefined,
+    id: string,
+    date: string,
+    activeSeconds: number,
+    handoffTaskId?: string,
+  ) => {
+    if (!context) return null;
+    const finalization: PendingActivityFinalization = {
+      sessionId: id,
+      heartbeat: heartbeatFor(context, date, activeSeconds, true),
+      ...(handoffTaskId ? { handoffTaskId } : {}),
+    };
+    enqueueActivityFinalization(finalization);
+    return finalization;
+  }, []);
+
+  const finalizeSegmentBestEffort = useCallback((
+    context: ActivitySessionContext | undefined,
+    id: string,
+    date: string,
+    activeSeconds: number,
+  ) => {
+    const finalization = queueFinalization(context, id, date, activeSeconds);
+    if (!finalization) return;
+    void recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat)
+      .then(() => {
+        acknowledgeActivityFinalization(finalization.sessionId);
+      })
+      .catch(() => {});
+  }, [queueFinalization]);
 
   const reconcile = useCallback((value: ManualStudySession, now: number) => {
     const result = advanceStudySession(value, now);
@@ -194,12 +241,12 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
       }
     }
     return result.session;
-  }, [commitSession, sendSegment]);
+  }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   const adoptStoredSession = useCallback((stored: ManualStudySession, now: number) => {
     const result = advanceStudySession(stored, now);
     result.completed.forEach((item) =>
-      sendSegment(stored.context, item.id, item.date, item.activeSeconds, true));
+      finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
     commitSession(result.session);
     setBaseline({
       todaySeconds: result.session.baselineTodaySeconds,
@@ -217,7 +264,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
         false,
       );
     }
-  }, [commitSession, sendSegment]);
+  }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -415,18 +462,18 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
 
   function end() {
     const current = sessionRef.current;
-    if (!current) return;
+    if (!current) return null;
     const now = Date.now();
     const reconciled = reconcile(current, now);
     const finished = reconciled.status === "running"
       ? materializeStudySession(reconciled, now)
       : reconciled;
-    sendSegment(
+    const finalization = queueFinalization(
       finished.context,
       finished.segmentId,
       finished.activityDate,
       finished.segmentAccumulatedSeconds,
-      true,
+      finished.context?.taskId,
     );
     const nextBaseline = {
       todaySeconds: Math.max(0, finished.baselineTodaySeconds)
@@ -439,6 +486,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     setClock(now);
     commitSession(null);
     releaseLease();
+    return finalization;
   }
 
   async function deleteSession(sessionId: string) {

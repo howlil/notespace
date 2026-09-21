@@ -54,6 +54,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(quickActivity).toBeVisible();
+    await expect(page.getByRole("status", { name: "Task completion handoff" })).toHaveCount(0);
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=20");
@@ -80,6 +81,13 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(page.getByText(task.title, { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
+
+    const handoff = page.getByRole("status", { name: "Task completion handoff" });
+    await expect(handoff).toContainText(task.title);
+    await expect(handoff).toContainText("Mark task done?");
+    await handoff.getByRole("button", { name: "Mark done" }).click();
+    await expect(page.getByRole("button", { name: `Mark ${task.title} incomplete` })).toBeVisible();
+    await expect(handoff).toHaveCount(0);
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=20");

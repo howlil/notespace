@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+type ActivitySessionRecord = {
+  id: string;
+  title: string;
+  activityType: string;
+  workspaceId?: string;
+  taskId?: string;
+};
+
 function localDateKey(value = new Date()) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -51,7 +59,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
       const response = await request.get("/api/activity/sessions?limit=20");
       if (!response.ok()) return null;
       const sessions = await response.json();
-      const session = sessions.find((item: any) => item.title === standaloneTitle);
+      const session = (sessions as ActivitySessionRecord[]).find((item) => item.title === standaloneTitle);
       if (!session) return null;
       return {
         title: session.title,
@@ -77,7 +85,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
       const response = await request.get("/api/activity/sessions?limit=20");
       if (!response.ok()) return null;
       const sessions = await response.json();
-      return sessions.find((session: any) => session.taskId === task.id) ?? null;
+      return (sessions as ActivitySessionRecord[]).find((session) => session.taskId === task.id) ?? null;
     }).toMatchObject({
       title: task.title,
       activityType: "build",

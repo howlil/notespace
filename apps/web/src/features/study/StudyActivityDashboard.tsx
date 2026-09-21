@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn } from "../../components/ui";
-import { getStudyActivity, getStudyDayDetail } from "../../domain/project/api";
-import type { StudyActivity, StudyDayDetail } from "../../domain/project/api";
+import { getActivityDayDetail, getActivitySummary } from "../../domain/activity/api";
+import type { ActivityDayDetail, ActivitySummary } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
 import { formatDay, formatDuration, localDate } from "./study-timer";
 
@@ -23,8 +23,8 @@ function level(seconds: number) {
 
 function ActivitySkeleton() {
   return (
-    <div className="grid gap-3" role="status" aria-label="Loading learning activity">
-      <span className="sr-only">Loading learning activity…</span>
+    <div className="grid gap-3" role="status" aria-label="Loading activity">
+      <span className="sr-only">Loading activity…</span>
       <div className="grid w-max min-w-full grid-cols-[repeat(52,12px)] grid-rows-[repeat(7,12px)] gap-[3px] overflow-hidden" aria-hidden="true">
         {Array.from({ length: 364 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
       </div>
@@ -43,11 +43,11 @@ const heatmapLevels = [
   "bg-accent",
 ] as const;
 
-export function StudyActivityDashboard({ compact = true }: { compact?: boolean }) {
+export function ActivitySummaryDashboard({ compact = true }: { compact?: boolean }) {
   const { showToast } = useToast();
-  const [activity, setActivity] = useState<StudyActivity | null>(null);
+  const [activity, setActivity] = useState<ActivitySummary | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [detail, setDetail] = useState<StudyDayDetail | null>(null);
+  const [detail, setDetail] = useState<ActivityDayDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -61,7 +61,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    void getStudyActivity(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) { setActivity(null); setLoadError(err instanceof Error ? err.message : "Could not load study activity."); showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load study activity." }); } }).finally(() => { if (!cancelled) setLoading(false); });
+    void getActivitySummary(from, to).then((data) => { if (!cancelled) setActivity(data); }).catch((err) => { if (!cancelled) { setActivity(null); setLoadError(err instanceof Error ? err.message : "Could not load activity."); showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load activity." }); } }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [from, to, showToast]);
 
@@ -72,7 +72,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
-    void getStudyDayDetail(date)
+    void getActivityDayDetail(date)
       .then((result) => { if (detailRequest.current === requestId) setDetail(result); })
       .catch((err) => {
         if (detailRequest.current !== requestId) return;
@@ -103,8 +103,8 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
     <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mb-0")} aria-labelledby="study-activity-title">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:pb-2">
         <div>
-          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Learning activity</h2>
-          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your study rhythm over the last year</p>}
+          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Activity</h2>
+          {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your activity rhythm over the last year</p>}
         </div>
         {compact ? (
           <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today · ${activity?.currentStreak ?? 0}d streak`}</span>
@@ -125,8 +125,8 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       )}
       {compact ? (
         loading ? (
-          <div className="px-4 py-4" role="status" aria-label="Loading learning activity">
-            <span className="sr-only">Loading learning activity…</span>
+          <div className="px-4 py-4" role="status" aria-label="Loading activity">
+            <span className="sr-only">Loading activity…</span>
             <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-hidden="true">
               {Array.from({ length: 84 }, (_, index) => <Skeleton key={index} className="size-3 rounded-[2px] opacity-70" />)}
             </div>
@@ -136,7 +136,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
         ) : (
           <div className="px-4 pt-4 pb-3">
             <div className="overflow-x-auto overflow-y-hidden pb-1">
-              <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-label="Recent learning activity">
+              <div className="grid w-max grid-flow-col grid-rows-[repeat(7,12px)] auto-cols-[12px] gap-[3px]" aria-label="Recent activity">
                 {recentDays.map((day) => (
                   <button
                     key={day.date}
@@ -159,7 +159,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
       ) : (
         <div className={cn("px-4 pt-4 pb-3", mobileHeatmapVisibility)}>
           <div className="overflow-x-auto overflow-y-hidden pb-[3px]">
-            <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Learning activity heatmap">
+            <div className="grid w-max min-w-full auto-cols-[12px] grid-rows-[repeat(7,12px)] gap-[3px]" aria-label="Activity heatmap">
               {(activity?.days ?? []).map((day) => {
                 const spot = position(day.date);
                 return (

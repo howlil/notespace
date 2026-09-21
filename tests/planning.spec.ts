@@ -42,12 +42,17 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
     );
     expect(renameResponse.status()).toBe(200);
 
+    await page.getByRole("link", { name: "Back to library" }).click();
+    await page.getByRole("link", { name: "Today", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText("Finish planning flow");
+
     await page.getByRole("button", { name: "End activity" }).click();
 
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
     await expect(handoff).toContainText(refreshedTaskTitle);
-    await expect(page.getByRole("button", { name: "Start activity", exact: true })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Start activity for Finish planning flow" })).toBeDisabled();
+    await expect(handoff).toContainText("Mark task done?");
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeDisabled();
 
     await expect.poll(async () => {
       const activityResponse = await request.get("/api/activity/sessions?limit=20");
@@ -68,7 +73,7 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
       taskId: planningTask.id,
     });
 
-    const completionUrl = `**/api/workspaces/${workspace.id}/tasks/${planningTask.id}`;
+    const completionUrl = `**/api/tasks/${planningTask.id}`;
     await page.route(completionUrl, async (route) => {
       if (route.request().method() !== "PATCH") {
         await route.continue();
@@ -85,12 +90,18 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
 
     await handoff.getByRole("button", { name: "Mark done" }).click();
     await expect(handoff).toHaveCount(0);
-    await expect(page.getByRole("button", { name: `Mark ${refreshedTaskTitle} incomplete` })).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await page.unroute(completionUrl);
-    await expect(page.getByRole("button", { name: "Start activity", exact: true })).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeEnabled();
 
-    await page.reload();
+    await expect.poll(async () => {
+      const response = await request.get(`/api/tasks/${planningTask.id}`);
+      if (!response.ok()) return false;
+      const task = await response.json() as { completedAt?: string };
+      return Boolean(task.completedAt);
+    }).toBe(true);
+
+    await page.goto(`/workspaces/${workspace.id}`);
     await page.getByRole("button", { name: "Plan" }).click();
     await expect(page.getByText("Ship MVP", { exact: true })).toBeVisible();
     await expect(page.getByText(refreshedTaskTitle, { exact: true })).toBeVisible();

@@ -85,9 +85,12 @@ test("Activity starts standalone or from a Today task with context preserved", a
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
     await expect(handoff).toContainText(task.title);
     await expect(handoff).toContainText("Mark task done?");
+    await expect(quickActivity).toBeDisabled();
+    await expect(page.getByRole("button", { name: `Start activity for ${task.title}` })).toBeDisabled();
     await handoff.getByRole("button", { name: "Mark done" }).click();
     await expect(page.getByRole("button", { name: `Mark ${task.title} incomplete` })).toBeVisible();
     await expect(handoff).toHaveCount(0);
+    await expect(quickActivity).toBeEnabled();
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=20");

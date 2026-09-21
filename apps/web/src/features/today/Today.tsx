@@ -488,6 +488,8 @@ export function Today({
                   key={task.id}
                   task={task}
                   date={projection.date}
+                  activityBusy={activity.status !== "idle" || !activity.canStart}
+                  onStart={startTaskActivity}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}
                 />

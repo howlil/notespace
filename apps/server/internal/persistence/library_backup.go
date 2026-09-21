@@ -303,25 +303,36 @@ func (s *Store) trashRecords(ctx context.Context) ([]trashRecord, error) {
 }
 
 func (s *Store) studySessions(ctx context.Context) ([]study.Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at FROM study_sessions ORDER BY started_at,id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	sessions := []study.Session{}
 	for rows.Next() {
-		var session study.Session
-		var endedAt sql.NullString
-		if err := rows.Scan(&session.ID, &session.WorkspaceID, &session.WorkspaceTitleSnapshot, &session.ActivityDate, &session.StartedAt, &endedAt, &session.ActiveSeconds, &session.LastHeartbeatAt); err != nil {
+		session, err := scanStudySession(rows)
+		if err != nil {
 			return nil, err
-		}
-		if endedAt.Valid {
-			value := endedAt.String
-			session.EndedAt = &value
 		}
 		sessions = append(sessions, session)
 	}
 	return sessions, rows.Err()
+}
+
+func normalizeBackupActivitySession(session study.Session) study.Session {
+	if session.ActivityType == "" {
+		session.ActivityType = "learn"
+	}
+	if session.Title == "" {
+		session.Title = session.WorkspaceTitleSnapshot
+	}
+	if session.Title == "" {
+		session.Title = session.TaskTitleSnapshot
+	}
+	if session.Title == "" {
+		session.Title = "Activity"
+	}
+	return session
 }
 
 func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
@@ -429,7 +440,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		`DELETE FROM workspace_canvas`,
 		`DELETE FROM projects`,
 		`DELETE FROM workspace_trash`,
-		`DELETE FROM study_sessions`,
+		`DELETE FROM activity_sessions`,
 		`DELETE FROM categories`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -458,8 +469,18 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 			return err
 		}
 	}
-	for _, session := range backup.Study {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO study_sessions(id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at) VALUES (?,?,?,?,?,?,?,?)`, session.ID, session.WorkspaceID, session.WorkspaceTitleSnapshot, session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
+	for _, raw := range backup.Study {
+		session := normalizeBackupActivitySession(raw)
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO activity_sessions(
+				id,logical_session_id,workspace_id,workspace_title_snapshot,
+				task_id,task_title_snapshot,activity_title,activity_type,
+				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at
+			)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		`, session.ID, "", session.WorkspaceID, session.WorkspaceTitleSnapshot,
+			session.TaskID, session.TaskTitleSnapshot, session.Title, session.ActivityType,
+			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
 			return err
 		}
 	}

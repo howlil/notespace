@@ -129,6 +129,7 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
   function end() {
     const finalization = activity.end();
     if (finalization) void reconcileRecovery();
+    return finalization;
   }
 
   async function completeHandoffTask() {

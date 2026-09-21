@@ -338,6 +338,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(TODAY), /What are you doing\?/);
   assert.match(source(TODAY), /Activity type/);
   assert.match(source(TODAY), /Start activity for/);
+  assert.match(source(TODAY), /Mark task done\?/);
+  assert.match(source(TODAY), /Keep open/);
   assert.match(source(TODAY), /useActivitySession/);
   assert.doesNotMatch(source(TODAY), /priority|kanban|habit|streak|productivity score/i);
   assert.match(source(STUDY_INDICATOR), /aria-label="Start activity"/);

@@ -222,10 +222,12 @@ function TaskRow({
 
 export function WorkspacePlan({
   workspaceId,
+  refreshKey = 0,
   activityBusy,
   onStartActivity,
 }: {
   workspaceId: string;
+  refreshKey?: number;
   activityBusy: boolean;
   onStartActivity: (task: PlanningTask, activityType: ActivityType) => void;
 }) {
@@ -254,7 +256,7 @@ export function WorkspacePlan({
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [showToast, workspaceId]);
+  }, [refreshKey, showToast, workspaceId]);
 
   const milestones = useMemo(
     () => [...plan.milestones].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),

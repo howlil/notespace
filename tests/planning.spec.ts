@@ -36,6 +36,11 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
 
+    const handoff = page.getByRole("status", { name: "Task completion handoff" });
+    await expect(handoff).toContainText("Finish planning flow");
+    await expect(page.getByRole("button", { name: "Start activity" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Start activity for Finish planning flow" })).toBeDisabled();
+
     await expect.poll(async () => {
       const activityResponse = await request.get("/api/activity/sessions?limit=20");
       if (!activityResponse.ok()) return null;
@@ -55,8 +60,10 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
       taskId: planningTask.id,
     });
 
-    await page.getByRole("button", { name: "Complete Finish planning flow" }).click();
+    await handoff.getByRole("button", { name: "Mark done" }).click();
+    await expect(handoff).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Mark Finish planning flow incomplete" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start activity" })).toBeEnabled();
 
     await page.reload();
     await page.getByRole("button", { name: "Plan" }).click();

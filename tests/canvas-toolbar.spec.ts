@@ -287,7 +287,10 @@ test.describe("Canvas chrome", () => {
         canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
       };
       const beforeCount = before.canvas.data.elements.filter((element) => !element.isDeleted).length;
-      await editor.press("Alt+ArrowRight");
+      // Keep focus inside the contextual actions while sending the shortcut.
+      // Focusing the editor would intentionally dismiss this popup via
+      // useDismissablePopup before the keyboard event is delivered.
+      await page.keyboard.press("Alt+ArrowRight");
       await page.waitForTimeout(200);
       const after = await (await request.get(`/api/workspaces/${id}`)).json() as {
         canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
@@ -295,6 +298,7 @@ test.describe("Canvas chrome", () => {
       expect(after.canvas.data.elements.filter((element) => !element.isDeleted)).toHaveLength(beforeCount);
 
       await actions.getByRole("button", { name: "Drawing properties" }).click();
+      await expect(page.getByRole("dialog", { name: "properties properties" })).toHaveCount(0);
       await expect(addRight).toBeVisible();
     } finally {
       await cleanup(request, id);

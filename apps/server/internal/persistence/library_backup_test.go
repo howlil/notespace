@@ -136,6 +136,10 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if _, err := planningService.CreateTask(ctx, workspace.ID, &milestone.ID, "Verify backup round trip"); err != nil {
 		t.Fatal(err)
 	}
+	standalone, err := planningService.CreateStandaloneTask(ctx, "Personal follow-up", "2026-09-21")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	backup, err := store.ExportBackupArchiveAtomic(ctx)
 	if err != nil {
@@ -180,6 +184,19 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}
 	if len(restoredPlan.Tasks) != 1 || restoredPlan.Tasks[0].Title != "Verify backup round trip" || restoredPlan.Tasks[0].MilestoneID == nil {
 		t.Fatalf("restored plan tasks = %+v", restoredPlan.Tasks)
+	}
+	restoredStandalone, err := planningService.Today(ctx, "2026-09-21")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundStandalone := false
+	for _, task := range restoredStandalone.Tasks {
+		if task.ID == standalone.ID && task.WorkspaceID == nil && task.Title == "Personal follow-up" {
+			foundStandalone = true
+		}
+	}
+	if !foundStandalone {
+		t.Fatalf("standalone task missing after archive restore: %+v", restoredStandalone.Tasks)
 	}
 }
 

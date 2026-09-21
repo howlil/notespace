@@ -105,3 +105,89 @@ func TestPlanningRejectsStaleTaskUpdate(t *testing.T) {
 }
 
 func boolPointer(value bool) *bool { return &value }
+
+func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "today.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace, err := (project.Service{Store: store}).Create(ctx, "Today workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := planning.Service{Store: store}
+	workspaceTask, err := service.CreateTask(ctx, workspace.ID, nil, "Workspace action")
+	if err != nil {
+		t.Fatal(err)
+	}
+	date := "2026-09-21"
+	workspaceTask, err = service.UpdateTask(ctx, workspace.ID, workspaceTask.ID, planning.TaskPatch{
+		PlannedFor: &date,
+		Version:    workspaceTask.Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	standalone, err := service.CreateStandaloneTask(ctx, "Standalone action", date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	carryover, err := service.CreateStandaloneTask(ctx, "Carry unfinished work", "2026-09-20")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clearStandalone := ""
+	if _, err := service.UpdateAnyTask(ctx, standalone.ID, planning.TaskPatch{
+		PlannedFor: &clearStandalone,
+		Version:    standalone.Version,
+	}); !errors.Is(err, planning.ErrInvalid) {
+		t.Fatalf("clearing standalone plannedFor error = %v, want invalid", err)
+	}
+	if err := service.DeleteAnyTask(ctx, workspaceTask.ID, workspaceTask.Version); !errors.Is(err, planning.ErrInvalid) {
+		t.Fatalf("global delete workspace task error = %v, want invalid", err)
+	}
+
+	today, err := service.Today(ctx, date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(today.Tasks) != 3 {
+		t.Fatalf("today tasks = %d, want 3: %#v", len(today.Tasks), today.Tasks)
+	}
+	var sawWorkspace, sawStandalone, sawCarryover bool
+	for _, task := range today.Tasks {
+		switch task.ID {
+		case workspaceTask.ID:
+			sawWorkspace = task.WorkspaceID != nil && task.WorkspaceTitle != nil && *task.WorkspaceTitle == "Today workspace"
+		case standalone.ID:
+			sawStandalone = task.WorkspaceID == nil && task.WorkspaceTitle == nil
+		case carryover.ID:
+			sawCarryover = task.PlannedFor != nil && *task.PlannedFor == "2026-09-20"
+		}
+	}
+	if !sawWorkspace || !sawStandalone || !sawCarryover {
+		t.Fatalf("projection lost task ownership or carryover: %#v", today.Tasks)
+	}
+
+	clear := ""
+	updated, err := service.UpdateAnyTask(ctx, workspaceTask.ID, planning.TaskPatch{
+		PlannedFor: &clear,
+		Version:    workspaceTask.Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.PlannedFor != nil {
+		t.Fatalf("plannedFor = %#v, want nil", updated.PlannedFor)
+	}
+	today, err = service.Today(ctx, date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(today.Tasks) != 2 {
+		t.Fatalf("today after removal = %#v", today.Tasks)
+	}
+}

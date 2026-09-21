@@ -3,9 +3,13 @@ package migrations
 import (
 	"context"
 	"database/sql"
-	_ "modernc.org/sqlite"
+	"io/fs"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestFailedMigrationIsNotRecorded(t *testing.T) {
@@ -94,5 +98,73 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 	}
 	if granularNotes != 1 || granularCanvas != 1 {
 		t.Fatalf("granular backfill = notes:%d canvas:%d, want 1/1", granularNotes, granularCanvas)
+	}
+}
+
+func TestUnifiedPlanningTaskMigrationPreservesWorkspaceTasks(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "planning-v17.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys=ON`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+
+	names, err := fs.Glob(files, "*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if strings.Compare(name, "0018_unified_planning_tasks.sql") >= 0 {
+			break
+		}
+		contents, err := files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, string(contents)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, checksum(contents), "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO categories(id,title,created_at,updated_at) VALUES ('legacy','Uncategorized','created','updated') ON CONFLICT(id) DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO projects(id,category_id,title,references_state,split_ratio,created_at,updated_at,version) VALUES ('workspace-1','legacy','Workspace','[]',0.5,'created','updated',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspace_tasks(id,workspace_id,milestone_id,title,description,position,completed_at,created_at,updated_at,version) VALUES ('task-1','workspace-1',NULL,'Keep me','',0,NULL,'created','updated',3)`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Run(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	var workspaceID, title string
+	var version int
+	var plannedFor sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT workspace_id,title,planned_for,version FROM planning_tasks WHERE id='task-1'`).Scan(&workspaceID, &title, &plannedFor, &version); err != nil {
+		t.Fatal(err)
+	}
+	if workspaceID != "workspace-1" || title != "Keep me" || plannedFor.Valid || version != 3 {
+		t.Fatalf("migrated task = workspace:%q title:%q planned:%v version:%d", workspaceID, title, plannedFor, version)
+	}
+	var oldTable int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='workspace_tasks'`).Scan(&oldTable); err != nil {
+		t.Fatal(err)
+	}
+	if oldTable != 0 {
+		t.Fatal("workspace_tasks table still exists after unified task migration")
 	}
 }

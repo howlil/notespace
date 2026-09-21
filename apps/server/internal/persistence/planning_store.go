@@ -3,12 +3,43 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/howlil/notespace/apps/server/internal/planning"
 )
 
 type planningQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func scanTask(scanner interface{ Scan(...any) error }) (planning.Task, error) {
+	var item planning.Task
+	var workspaceID, milestoneID, plannedFor, completed sql.NullString
+	err := scanner.Scan(
+		&item.ID, &workspaceID, &milestoneID, &item.Title, &item.Description, &item.Position,
+		&plannedFor, &completed, &item.CreatedAt, &item.UpdatedAt, &item.Version,
+	)
+	if err != nil {
+		return planning.Task{}, err
+	}
+	if workspaceID.Valid {
+		value := workspaceID.String
+		item.WorkspaceID = &value
+	}
+	if milestoneID.Valid {
+		value := milestoneID.String
+		item.MilestoneID = &value
+	}
+	if plannedFor.Valid {
+		value := plannedFor.String
+		item.PlannedFor = &value
+	}
+	if completed.Valid {
+		value := completed.String
+		item.CompletedAt = &value
+	}
+	return item, nil
 }
 
 func readPlan(ctx context.Context, q planningQueryer, workspaceID string) (planning.Plan, error) {
@@ -36,25 +67,21 @@ func readPlan(ctx context.Context, q planningQueryer, workspaceID string) (plann
 	}
 	milestoneRows.Close()
 
-	taskRows, err := q.QueryContext(ctx, `SELECT id,workspace_id,milestone_id,title,description,position,completed_at,created_at,updated_at,version FROM workspace_tasks WHERE workspace_id=? ORDER BY CASE WHEN milestone_id IS NULL THEN 1 ELSE 0 END,milestone_id,position,id`, workspaceID)
+	taskRows, err := q.QueryContext(ctx, `
+		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version
+		FROM planning_tasks
+		WHERE workspace_id=?
+		ORDER BY CASE WHEN milestone_id IS NULL THEN 1 ELSE 0 END,milestone_id,position,id
+	`, workspaceID)
 	if err != nil {
 		return planning.Plan{}, err
 	}
 	defer taskRows.Close()
 	tasks := []planning.Task{}
 	for taskRows.Next() {
-		var item planning.Task
-		var milestoneID, completed sql.NullString
-		if err := taskRows.Scan(&item.ID, &item.WorkspaceID, &milestoneID, &item.Title, &item.Description, &item.Position, &completed, &item.CreatedAt, &item.UpdatedAt, &item.Version); err != nil {
+		item, err := scanTask(taskRows)
+		if err != nil {
 			return planning.Plan{}, err
-		}
-		if milestoneID.Valid {
-			value := milestoneID.String
-			item.MilestoneID = &value
-		}
-		if completed.Valid {
-			value := completed.String
-			item.CompletedAt = &value
 		}
 		tasks = append(tasks, item)
 	}
@@ -70,6 +97,116 @@ func planTx(ctx context.Context, tx *sql.Tx, workspaceID string) (planning.Plan,
 
 func (s *Store) GetPlan(ctx context.Context, workspaceID string) (planning.Plan, error) {
 	return readPlan(ctx, s.db, workspaceID)
+}
+
+func (s *Store) GetTask(ctx context.Context, taskID string) (planning.Task, error) {
+	item, err := scanTask(s.db.QueryRowContext(ctx, `
+		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version
+		FROM planning_tasks WHERE id=?
+	`, taskID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return planning.Task{}, planning.ErrNotFound
+	}
+	return item, err
+}
+
+func (s *Store) ListToday(ctx context.Context, date string) ([]planning.TodayTask, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT
+			t.id,t.workspace_id,t.milestone_id,t.title,t.description,t.position,t.planned_for,t.completed_at,t.created_at,t.updated_at,t.version,
+			p.title,m.title
+		FROM planning_tasks t
+		LEFT JOIN projects p ON p.id=t.workspace_id
+		LEFT JOIN workspace_milestones m ON m.id=t.milestone_id
+		WHERE t.planned_for=? OR (t.planned_for<? AND t.completed_at IS NULL)
+		ORDER BY CASE WHEN t.completed_at IS NULL THEN 0 ELSE 1 END,t.planned_for,t.position,t.created_at,t.id
+	`, date, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []planning.TodayTask{}
+	for rows.Next() {
+		var item planning.Task
+		var workspaceID, milestoneID, plannedFor, completed, workspaceTitle, milestoneTitle sql.NullString
+		if err := rows.Scan(
+			&item.ID, &workspaceID, &milestoneID, &item.Title, &item.Description, &item.Position,
+			&plannedFor, &completed, &item.CreatedAt, &item.UpdatedAt, &item.Version,
+			&workspaceTitle, &milestoneTitle,
+		); err != nil {
+			return nil, err
+		}
+		if workspaceID.Valid {
+			value := workspaceID.String
+			item.WorkspaceID = &value
+		}
+		if milestoneID.Valid {
+			value := milestoneID.String
+			item.MilestoneID = &value
+		}
+		if plannedFor.Valid {
+			value := plannedFor.String
+			item.PlannedFor = &value
+		}
+		if completed.Valid {
+			value := completed.String
+			item.CompletedAt = &value
+		}
+		projected := planning.TodayTask{Task: item}
+		if workspaceTitle.Valid {
+			value := workspaceTitle.String
+			projected.WorkspaceTitle = &value
+		}
+		if milestoneTitle.Valid {
+			value := milestoneTitle.String
+			projected.MilestoneTitle = &value
+		}
+		items = append(items, projected)
+	}
+	return items, rows.Err()
+}
+
+func readStandaloneTasks(ctx context.Context, q planningQueryer) ([]planning.Task, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version
+		FROM planning_tasks WHERE workspace_id IS NULL ORDER BY created_at,id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []planning.Task{}
+	for rows.Next() {
+		item, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func standaloneTasksTx(ctx context.Context, tx *sql.Tx) ([]planning.Task, error) {
+	return readStandaloneTasks(ctx, tx)
+}
+
+func (s *Store) standaloneTasks(ctx context.Context) ([]planning.Task, error) {
+	return readStandaloneTasks(ctx, s.db)
+}
+
+func restoreStandaloneTasksTx(ctx context.Context, tx *sql.Tx, tasks []planning.Task) error {
+	for _, task := range tasks {
+		if err := planning.ValidateStandaloneTask(task); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO planning_tasks(id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?)
+		`, task.ID, nil, nil, task.Title, task.Description, task.Position, task.PlannedFor, task.CompletedAt, task.CreatedAt, task.UpdatedAt, task.Version); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) CreateMilestone(ctx context.Context, item planning.Milestone) (planning.Milestone, error) {
@@ -118,14 +255,19 @@ func (s *Store) DeleteMilestone(ctx context.Context, workspaceID, milestoneID st
 }
 
 func (s *Store) CreateTask(ctx context.Context, item planning.Task) (planning.Task, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO workspace_tasks(id,workspace_id,milestone_id,title,description,position,completed_at,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-		item.ID, item.WorkspaceID, item.MilestoneID, item.Title, item.Description, item.Position, item.CompletedAt, item.CreatedAt, item.UpdatedAt, item.Version)
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO planning_tasks(id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)
+	`, item.ID, item.WorkspaceID, item.MilestoneID, item.Title, item.Description, item.Position, item.PlannedFor, item.CompletedAt, item.CreatedAt, item.UpdatedAt, item.Version)
 	return item, err
 }
 
 func (s *Store) UpdateTask(ctx context.Context, item planning.Task) (planning.Task, error) {
-	result, err := s.db.ExecContext(ctx, `UPDATE workspace_tasks SET title=?,description=?,completed_at=?,updated_at=?,version=version+1 WHERE workspace_id=? AND id=? AND version=?`,
-		item.Title, item.Description, item.CompletedAt, item.UpdatedAt, item.WorkspaceID, item.ID, item.Version)
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE planning_tasks
+		SET title=?,description=?,planned_for=?,completed_at=?,updated_at=?,version=version+1
+		WHERE id=? AND version=?
+	`, item.Title, item.Description, item.PlannedFor, item.CompletedAt, item.UpdatedAt, item.ID, item.Version)
 	if err != nil {
 		return planning.Task{}, err
 	}
@@ -140,8 +282,8 @@ func (s *Store) UpdateTask(ctx context.Context, item planning.Task) (planning.Ta
 	return item, nil
 }
 
-func (s *Store) DeleteTask(ctx context.Context, workspaceID, taskID string, version int) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM workspace_tasks WHERE workspace_id=? AND id=? AND version=?`, workspaceID, taskID, version)
+func (s *Store) DeleteTask(ctx context.Context, taskID string, version int) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM planning_tasks WHERE id=? AND version=?`, taskID, version)
 	if err != nil {
 		return err
 	}
@@ -151,7 +293,7 @@ func (s *Store) DeleteTask(ctx context.Context, workspaceID, taskID string, vers
 	}
 	if count == 0 {
 		var exists int
-		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM workspace_tasks WHERE workspace_id=? AND id=?)`, workspaceID, taskID).Scan(&exists); err != nil {
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM planning_tasks WHERE id=?)`, taskID).Scan(&exists); err != nil {
 			return err
 		}
 		if exists == 0 {
@@ -176,8 +318,10 @@ func restorePlanTx(ctx context.Context, tx *sql.Tx, plan planning.Plan, workspac
 		}
 	}
 	for _, task := range plan.Tasks {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_tasks(id,workspace_id,milestone_id,title,description,position,completed_at,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			task.ID, workspaceID, task.MilestoneID, task.Title, task.Description, task.Position, task.CompletedAt, task.CreatedAt, task.UpdatedAt, task.Version); err != nil {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO planning_tasks(id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?)
+		`, task.ID, workspaceID, task.MilestoneID, task.Title, task.Description, task.Position, task.PlannedFor, task.CompletedAt, task.CreatedAt, task.UpdatedAt, task.Version); err != nil {
 			return err
 		}
 	}

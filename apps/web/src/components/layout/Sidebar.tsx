@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck2, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../ui";
 import { useToast } from "../../providers/toast-provider";
@@ -17,12 +17,12 @@ export function Brand() {
   return <NotespaceLogo />;
 }
 
-type Props = { categories: CategorySummary[]; selectedCategoryId?: string; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
+type Props = { categories: CategorySummary[]; selectedCategoryId?: string; todayActive?: boolean; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
 type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
-export function Sidebar({ categories, selectedCategoryId, onSelectCategory, onChanged }: Props) {
+export function Sidebar({ categories, selectedCategoryId, todayActive = false, onSelectCategory, onChanged }: Props) {
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
@@ -200,6 +200,17 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory, onCh
         <QuickCapture />
         <LibraryTools />
       </div>
+      <Link
+        to="/today"
+        className={cn(
+          "flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent",
+          todayActive && "bg-tint text-accent",
+        )}
+        aria-current={todayActive ? "page" : undefined}
+      >
+        <CalendarCheck2 size={15} />
+        <span>Today</span>
+      </Link>
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
       </AnimatePresence>

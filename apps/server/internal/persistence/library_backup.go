@@ -46,6 +46,7 @@ type libraryBackup struct {
 	GeneratedAt string                    `json:"generatedAt"`
 	Categories  []project.CategorySummary `json:"categories"`
 	Workspaces  []workspaceEnvelope       `json:"workspaces"`
+	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord             `json:"trash"`
 	Study       []study.Session           `json:"studySessions"`
 }
@@ -348,10 +349,14 @@ func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	tasks, err := s.standaloneTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Trash: trash, Study: sessions,
+		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Study: sessions,
 	})
 }
 
@@ -377,11 +382,24 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		return project.ErrInvalid
 	}
 	workspaceIDs := map[string]bool{}
+	activeTaskIDs := map[string]bool{}
 	for _, envelope := range backup.Workspaces {
 		if envelope.Project.ID == "" || workspaceIDs[envelope.Project.ID] || !categoryIDs[envelope.Project.CategoryID] {
 			return project.ErrInvalid
 		}
 		workspaceIDs[envelope.Project.ID] = true
+		for _, task := range envelope.Plan.Tasks {
+			if activeTaskIDs[task.ID] {
+				return project.ErrInvalid
+			}
+			activeTaskIDs[task.ID] = true
+		}
+	}
+	for _, task := range backup.Tasks {
+		if planning.ValidateStandaloneTask(task) != nil || activeTaskIDs[task.ID] {
+			return project.ErrInvalid
+		}
+		activeTaskIDs[task.ID] = true
 	}
 	trashIDs := map[string]bool{}
 	for _, record := range backup.Trash {
@@ -405,7 +423,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		`DELETE FROM workspace_history_payload`,
 		`DELETE FROM workspace_history`,
 		`DELETE FROM workspace_assets`,
-		`DELETE FROM workspace_tasks`,
+		`DELETE FROM planning_tasks`,
 		`DELETE FROM workspace_milestones`,
 		`DELETE FROM workspace_notes`,
 		`DELETE FROM workspace_canvas`,
@@ -427,6 +445,9 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		if err := restoreWorkspaceTx(ctx, tx, envelope, envelope.Project.CategoryID); err != nil {
 			return err
 		}
+	}
+	if err := restoreStandaloneTasksTx(ctx, tx, backup.Tasks); err != nil {
+		return err
 	}
 	for _, record := range backup.Trash {
 		payload, err := encodeTrashEnvelope(record.Payload)

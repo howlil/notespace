@@ -5,6 +5,9 @@ A free, self-hosted knowledge workspace for structured notes, spatial thinking, 
 The user-facing model is:
 
 ```text
+Today
+└── Tasks[]  ← projection of explicitly planned work
+
 Category
 └── Workspace
     ├── Notes[]
@@ -23,12 +26,13 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Category → Workspace library with recent-first Home and scalable category browsing.
 - Multiple durable Tiptap Notes plus one Excalidraw Canvas per Workspace.
 - Workspace Plan with lightweight milestones and tasks; tasks may belong to a milestone or remain loose.
+- Today projection for workspace tasks explicitly chosen for the day plus standalone tasks that do not need a Workspace.
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
 - Durable image assets.
 - Recoverable Workspace Trash with explicit permanent deletion.
-- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Workspace Plans, Trash, images, study sessions, and legacy history data when present.
+- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Workspace Plans, standalone tasks, Trash, images, study sessions, and legacy history data when present.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
 - Explicit Start / Pause / Resume / End study sessions.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.

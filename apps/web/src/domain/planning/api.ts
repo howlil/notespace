@@ -1,5 +1,5 @@
 import { json, request } from "../project/http";
-import type { PlanningMilestone, PlanningTask, WorkspacePlan } from "./planning";
+import type { PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "./planning";
 
 const workspacePath = (workspaceId: string) => `/api/workspaces/${encodeURIComponent(workspaceId)}`;
 
@@ -36,7 +36,7 @@ export const createTask = (workspaceId: string, title: string, milestoneId?: str
 export const updateTask = (
   workspaceId: string,
   taskId: string,
-  input: { title?: string; description?: string; completed?: boolean; version: number },
+  input: { title?: string; description?: string; completed?: boolean; plannedFor?: string; version: number },
 ) => request<PlanningTask>(
   `${workspacePath(workspaceId)}/tasks/${encodeURIComponent(taskId)}`,
   { method: "PATCH", ...json(input) },
@@ -44,6 +44,29 @@ export const updateTask = (
 
 export const deleteTask = (workspaceId: string, taskId: string, version: number) =>
   request<void>(`${workspacePath(workspaceId)}/tasks/${encodeURIComponent(taskId)}`, {
+    method: "DELETE",
+    headers: { "If-Match": `"${version}"` },
+  });
+
+export const getToday = (date: string) =>
+  request<TodayProjection>(`/api/tasks/today?date=${encodeURIComponent(date)}`);
+
+export const createStandaloneTask = (title: string, plannedFor: string) =>
+  request<PlanningTask>("/api/tasks", {
+    method: "POST",
+    ...json({ title, plannedFor }),
+  });
+
+export const updateAnyTask = (
+  taskId: string,
+  input: { title?: string; description?: string; completed?: boolean; plannedFor?: string; version: number },
+) => request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`, {
+  method: "PATCH",
+  ...json(input),
+});
+
+export const deleteAnyTask = (taskId: string, version: number) =>
+  request<void>(`/api/tasks/${encodeURIComponent(taskId)}`, {
     method: "DELETE",
     headers: { "If-Match": `"${version}"` },
   });

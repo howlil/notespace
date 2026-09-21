@@ -1,0 +1,24 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { listCategories } from "../domain/project/api";
+import { getToday } from "../domain/planning/api";
+import { localDateKey } from "../domain/planning/planning";
+import { RoutePending } from "../components/feedback/RoutePending";
+import { Today } from "../features/today/Today";
+
+export const Route = createFileRoute("/today")({
+  ssr: false,
+  loader: async () => {
+    const date = localDateKey();
+    const [categories, initial] = await Promise.all([
+      listCategories(),
+      getToday(date),
+    ]);
+    return { categories, initial };
+  },
+  pendingComponent: RoutePending,
+  component: TodayRoute,
+});
+
+function TodayRoute() {
+  return <Today {...Route.useLoaderData()} />;
+}

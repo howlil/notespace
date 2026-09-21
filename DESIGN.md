@@ -35,6 +35,12 @@ Priority order:
 
 Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
 
+### Today
+
+Today is a lightweight execution projection, not a second workspace system. It combines tasks explicitly chosen for the local calendar day, whether they belong to a Workspace Plan or are standalone. Keep it list-first and context-preserving: workspace-owned tasks retain a visible path back to their workspace, while standalone tasks remain clearly distinguishable.
+
+Today must not become a calendar, backlog dashboard, habit tracker, kanban board, priority matrix, or productivity score. Choosing a task for Today is planning intent, not a due date. Unfinished work planned on an earlier day remains visible as carried forward until it is completed, explicitly removed from Today when workspace-owned, or deleted when standalone. Removing a workspace task from Today must not delete the underlying task.
+
 ### Workspace cards
 
 Workspace cards retain the compact square paper-stack composition used by the library. The card background is the blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.

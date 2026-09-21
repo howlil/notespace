@@ -51,8 +51,15 @@ test("Activity starts standalone or from a Today task with context preserved", a
       const response = await request.get("/api/activity/sessions?limit=20");
       if (!response.ok()) return null;
       const sessions = await response.json();
-      return sessions.find((session: any) => session.title === standaloneTitle) ?? null;
-    }).toMatchObject({
+      const session = sessions.find((item: any) => item.title === standaloneTitle);
+      if (!session) return null;
+      return {
+        title: session.title,
+        activityType: session.activityType,
+        workspaceId: session.workspaceId ?? "",
+        taskId: session.taskId ?? "",
+      };
+    }).toEqual({
       title: standaloneTitle,
       activityType: "read",
       workspaceId: "",

@@ -408,14 +408,11 @@ export function Today({
               <div className="flex min-h-10 items-center gap-2">
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-medium text-ink">
-                    {activity.activeContext?.title ?? "Activity"}
-                  </div>
-                  <div className="mt-0.5 text-[9px] capitalize text-muted">
-                    {activity.activeContext?.activityType ?? "other"} · {formatDuration(activity.currentSeconds)}
+                  <div className="text-[11px] font-medium text-ink">Activity in progress</div>
+                  <div className="mt-0.5 text-[9px] text-muted">
+                    {formatDuration(activity.currentSeconds)} · Controls stay available in the activity dock.
                   </div>
                 </div>
-                <span className="text-[9px] text-muted">Controls stay available in the activity dock.</span>
               </div>
             )}
           </section>

@@ -169,7 +169,6 @@ func TestUnifiedPlanningTaskMigrationPreservesWorkspaceTasks(t *testing.T) {
 	}
 }
 
-
 func TestActivityMigrationPreservesStudyHistory(t *testing.T) {
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "activity-v18.db"))
 	if err != nil {

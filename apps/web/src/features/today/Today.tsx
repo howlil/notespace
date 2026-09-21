@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarX2, CheckCircle2, Circle, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CalendarX2, CheckCircle2, Circle, Pause, Pencil, Play, Plus, Search, Square, Trash2 } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
@@ -17,6 +17,9 @@ import type {
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
 import { ThemeToggle } from "../../providers/theme-provider";
+import { useActivitySession } from "../study/use-study-session";
+import { formatDuration } from "../study/study-timer";
+import type { ActivityType } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
 
 function displayDate(date: string) {
@@ -30,11 +33,15 @@ function displayDate(date: string) {
 function TodayTaskRow({
   task,
   date,
+  activityBusy,
+  onStart,
   onUpdate,
   onDelete,
 }: {
   task: TodayTask;
   date: string;
+  activityBusy: boolean;
+  onStart: (task: TodayTask) => void;
   onUpdate: (task: TodayTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: TodayTask) => void;
 }) {
@@ -121,7 +128,19 @@ function TodayTaskRow({
         )}
       </div>
 
-      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="flex items-center gap-0.5">
+        {!task.completedAt && (
+          <IconButton
+            className="!size-7 text-muted hover:text-accent"
+            aria-label={`Start activity for ${task.title}`}
+            title={activityBusy ? "End the active activity first" : "Start activity"}
+            disabled={activityBusy}
+            onClick={() => onStart(task)}
+          >
+            <Play size={13} />
+          </IconButton>
+        )}
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <IconButton
           className="!size-7 text-muted hover:text-accent"
           aria-label={`Rename ${task.title}`}
@@ -150,6 +169,7 @@ function TodayTaskRow({
             <Trash2 size={13} />
           </IconButton>
         )}
+        </div>
       </div>
     </div>
   );
@@ -166,6 +186,9 @@ export function Today({
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [categoryItems, setCategoryItems] = useState(categories);
+  const activity = useActivitySession();
+  const [activityTitle, setActivityTitle] = useState("");
+  const [activityType, setActivityType] = useState<ActivityType>("other");
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
@@ -178,6 +201,26 @@ export function Today({
     () => projection.tasks.filter((task) => Boolean(task.completedAt)),
     [projection.tasks],
   );
+
+  function startStandaloneActivity(event: FormEvent) {
+    event.preventDefault();
+    const next = activityTitle.trim();
+    if (!next || !activity.canStart) return;
+    activity.start({ title: next, activityType });
+    setActivityTitle("");
+  }
+
+  function startTaskActivity(task: TodayTask) {
+    if (!activity.canStart) return;
+    activity.start({
+      title: task.title,
+      activityType,
+      taskId: task.id,
+      taskTitleSnapshot: task.title,
+      ...(task.workspaceId ? { workspaceId: task.workspaceId } : {}),
+      ...(task.workspaceTitle ? { workspaceTitleSnapshot: task.workspaceTitle } : {}),
+    });
+  }
 
   async function addTask(event: FormEvent) {
     event.preventDefault();
@@ -302,6 +345,81 @@ export function Today({
             </p>
           </header>
 
+          <section className="mb-6 border-b border-line pb-4" aria-labelledby="today-activity-title">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <h2 id="today-activity-title" className="m-0 text-[11px] font-semibold text-ink">Activity</h2>
+                <p className="mt-0.5 mb-0 text-[9px] text-muted">Start first. Context is optional.</p>
+              </div>
+              <span className="text-[10px] tabular-nums text-muted">
+                {formatDuration(activity.todaySeconds)} today
+              </span>
+            </div>
+
+            {activity.status === "idle" ? (
+              <form className="flex items-center gap-2" onSubmit={startStandaloneActivity}>
+                <Play size={15} className="shrink-0 text-muted" aria-hidden="true" />
+                <Input
+                  className="min-h-9 flex-1 rounded-none border-0 bg-transparent px-0 text-[12px] focus:border-transparent"
+                  aria-label="Quick activity"
+                  placeholder="What are you doing?"
+                  value={activityTitle}
+                  disabled={!activity.ready || !activity.canStart}
+                  onChange={(event) => setActivityTitle(event.target.value)}
+                />
+                <select
+                  className="min-h-8 rounded-md border border-line bg-surface px-2 text-[10px] text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  aria-label="Activity type"
+                  value={activityType}
+                  disabled={!activity.ready || !activity.canStart}
+                  onChange={(event) => setActivityType(event.target.value as ActivityType)}
+                >
+                  <option value="other">Other</option>
+                  <option value="build">Build</option>
+                  <option value="learn">Learn</option>
+                  <option value="read">Read</option>
+                  <option value="write">Write</option>
+                  <option value="exercise">Exercise</option>
+                </select>
+                <Button
+                  size="sm"
+                  className="!min-h-8 px-3 text-[10px]"
+                  disabled={!activityTitle.trim() || !activity.canStart}
+                >
+                  Start
+                </Button>
+              </form>
+            ) : (
+              <div className="flex min-h-10 items-center gap-2">
+                <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-medium text-ink">
+                    {activity.activeContext?.title ?? "Activity"}
+                  </div>
+                  <div className="mt-0.5 text-[9px] capitalize text-muted">
+                    {activity.activeContext?.activityType ?? "other"} · {formatDuration(activity.currentSeconds)}
+                  </div>
+                </div>
+                <IconButton
+                  className="!size-8 text-muted hover:text-accent"
+                  aria-label={activity.status === "running" ? "Pause activity" : "Resume activity"}
+                  title={activity.status === "running" ? "Pause" : "Resume"}
+                  onClick={activity.status === "running" ? activity.pause : activity.resume}
+                >
+                  {activity.status === "running" ? <Pause size={15} /> : <Play size={15} />}
+                </IconButton>
+                <IconButton
+                  className="!size-8 text-muted hover:text-danger"
+                  aria-label="End activity"
+                  title="End activity"
+                  onClick={activity.end}
+                >
+                  <Square size={14} />
+                </IconButton>
+              </div>
+            )}
+          </section>
+
           <form
             className="mb-6 flex items-center gap-2 border-b border-line pb-4"
             onSubmit={addTask}
@@ -338,6 +456,8 @@ export function Today({
                     key={task.id}
                     task={task}
                     date={projection.date}
+                    activityBusy={activity.status !== "idle" || !activity.canStart}
+                    onStart={startTaskActivity}
                     onUpdate={patchTask}
                     onDelete={setDeleteTarget}
                   />

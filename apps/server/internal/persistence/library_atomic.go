@@ -178,7 +178,7 @@ func trashRecordsTx(ctx context.Context, tx *sql.Tx) ([]trashRecord, error) {
 }
 
 func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]study.Session, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at FROM study_sessions ORDER BY started_at,id`)
+	rows, err := tx.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}

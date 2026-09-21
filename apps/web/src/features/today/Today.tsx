@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarX2, CheckCircle2, Circle, Pause, Pencil, Play, Plus, Search, Square, Trash2 } from "lucide-react";
+import { CalendarX2, CheckCircle2, Circle, Pencil, Play, Plus, Search, Trash2 } from "lucide-react";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
@@ -18,7 +18,7 @@ import type {
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
 import { ThemeToggle } from "../../providers/theme-provider";
-import { useActivitySession } from "../study/use-study-session";
+import { useActivityRuntime } from "../study/activity-runtime-provider";
 import { formatDuration } from "../study/study-timer";
 import type { ActivityType } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
@@ -184,15 +184,12 @@ export function Today({
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [categoryItems, setCategoryItems] = useState(categories);
-  const activity = useActivitySession();
+  const activity = useActivityRuntime();
   const [activityTitle, setActivityTitle] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>("other");
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
-  const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
-  const [handoffResolving, setHandoffResolving] = useState(false);
-  const [handoffBusy, setHandoffBusy] = useState(false);
 
   const openTasks = useMemo(
     () => projection.tasks.filter((task) => !task.completedAt),
@@ -202,25 +199,34 @@ export function Today({
     () => projection.tasks.filter((task) => Boolean(task.completedAt)),
     [projection.tasks],
   );
-  const handoffTask = useMemo(
-    () => handoffTaskId
-      ? projection.tasks.find((task) => task.id === handoffTaskId && !task.completedAt) ?? null
-      : null,
-    [handoffTaskId, projection.tasks],
-  );
-
-  const activityStartBlocked = handoffResolving || Boolean(handoffTask);
+  useEffect(() => {
+    if (activity.taskRevision === 0) return;
+    let cancelled = false;
+    void getToday(projection.date)
+      .then((latest) => {
+        if (!cancelled) setProjection(latest);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          showToast({
+            kind: "error",
+            message: error instanceof Error ? error.message : "Could not refresh Today.",
+          });
+        }
+      });
+    return () => { cancelled = true; };
+  }, [activity.taskRevision, projection.date, showToast]);
 
   function startStandaloneActivity(event: FormEvent) {
     event.preventDefault();
     const next = activityTitle.trim();
-    if (!next || !activity.canStart || activityStartBlocked) return;
+    if (!next || !activity.canStart) return;
     activity.start({ title: next, activityType });
     setActivityTitle("");
   }
 
   function startTaskActivity(task: TodayTask, taskActivityType: ActivityType) {
-    if (!activity.canStart || activityStartBlocked) return;
+    if (!activity.canStart) return;
     activity.start({
       title: task.title,
       activityType: taskActivityType,
@@ -229,70 +235,6 @@ export function Today({
       ...(task.workspaceId ? { workspaceId: task.workspaceId } : {}),
       ...(task.workspaceTitle ? { workspaceTitleSnapshot: task.workspaceTitle } : {}),
     });
-  }
-
-  function endActivity() {
-    const taskId = activity.activeContext?.taskId;
-    activity.end();
-    if (!taskId) {
-      setHandoffTaskId(null);
-      return;
-    }
-
-    setHandoffResolving(true);
-    void getToday(projection.date)
-      .then((latest) => {
-        setProjection(latest);
-        const task = latest.tasks.find((item) => item.id === taskId && !item.completedAt) ?? null;
-        setHandoffTaskId(task?.id ?? null);
-      })
-      .catch((error) => {
-        setHandoffTaskId(null);
-        showToast({
-          kind: "error",
-          message: error instanceof Error
-            ? `Activity ended, but task status could not be refreshed: ${error.message}`
-            : "Activity ended, but task status could not be refreshed.",
-        });
-      })
-      .finally(() => setHandoffResolving(false));
-  }
-
-  async function completeHandoffTask() {
-    if (!handoffTask || handoffBusy) return;
-    const target = handoffTask;
-    setHandoffBusy(true);
-    try {
-      const updated = await updateAnyTask(target.id, {
-        completed: true,
-        version: target.version,
-      });
-      setProjection((current) => ({
-        ...current,
-        tasks: current.tasks.map((item) =>
-          item.id === updated.id ? { ...item, ...updated } : item),
-      }));
-      setHandoffTaskId(null);
-    } catch (error) {
-      let completionConfirmed = false;
-      try {
-        const latest = await getToday(projection.date);
-        setProjection(latest);
-        const task = latest.tasks.find((item) => item.id === target.id) ?? null;
-        completionConfirmed = Boolean(task?.completedAt);
-        setHandoffTaskId(task && !task.completedAt ? task.id : null);
-      } catch {
-        // Keep the current projection so the user can retry the handoff.
-      }
-      if (!completionConfirmed) {
-        showToast({
-          kind: "error",
-          message: error instanceof Error ? error.message : "Could not complete task.",
-        });
-      }
-    } finally {
-      setHandoffBusy(false);
-    }
   }
 
   async function addTask(event: FormEvent) {
@@ -437,14 +379,14 @@ export function Today({
                   aria-label="Quick activity"
                   placeholder="What are you doing?"
                   value={activityTitle}
-                  disabled={!activity.ready || !activity.canStart || activityStartBlocked}
+                  disabled={!activity.ready || !activity.canStart}
                   onChange={(event) => setActivityTitle(event.target.value)}
                 />
                 <select
                   className="min-h-8 rounded-md border border-line bg-surface px-2 text-[10px] text-ink focus-visible:outline-2 focus-visible:outline-accent"
                   aria-label="Activity type"
                   value={activityType}
-                  disabled={!activity.ready || !activity.canStart || activityStartBlocked}
+                  disabled={!activity.ready || !activity.canStart}
                   onChange={(event) => setActivityType(event.target.value as ActivityType)}
                 >
                   <option value="other">Other</option>
@@ -457,7 +399,7 @@ export function Today({
                 <Button
                   size="sm"
                   className="!min-h-8 px-3 text-[10px]"
-                  disabled={!activityTitle.trim() || !activity.canStart || activityStartBlocked}
+                  disabled={!activityTitle.trim() || !activity.canStart}
                 >
                   Start
                 </Button>
@@ -473,49 +415,7 @@ export function Today({
                     {activity.activeContext?.activityType ?? "other"} · {formatDuration(activity.currentSeconds)}
                   </div>
                 </div>
-                <IconButton
-                  className="!size-8 text-muted hover:text-accent"
-                  aria-label={activity.status === "running" ? "Pause activity" : "Resume activity"}
-                  title={activity.status === "running" ? "Pause" : "Resume"}
-                  onClick={activity.status === "running" ? activity.pause : activity.resume}
-                >
-                  {activity.status === "running" ? <Pause size={15} /> : <Play size={15} />}
-                </IconButton>
-                <IconButton
-                  className="!size-8 text-muted hover:text-danger"
-                  aria-label="End activity"
-                  title="End activity"
-                  onClick={endActivity}
-                >
-                  <Square size={14} />
-                </IconButton>
-              </div>
-            )}
-
-            {handoffTask && activity.status === "idle" && (
-              <div className="mt-3 flex items-center gap-2 border-t border-line pt-3" role="status" aria-label="Task completion handoff">
-                <span className="min-w-0 flex-1 truncate text-[10px] text-muted">
-                  Finished activity for <strong className="font-medium text-ink">{handoffTask.title}</strong>. Mark task done?
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="!min-h-7 px-2.5 text-[10px]"
-                  disabled={handoffBusy}
-                  onClick={() => void completeHandoffTask()}
-                >
-                  Mark done
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="!min-h-7 px-2 text-[10px] text-muted"
-                  disabled={handoffBusy}
-                  onClick={() => setHandoffTaskId(null)}
-                >
-                  Keep open
-                </Button>
+                <span className="text-[9px] text-muted">Controls stay available in the activity dock.</span>
               </div>
             )}
           </section>
@@ -556,7 +456,7 @@ export function Today({
                     key={task.id}
                     task={task}
                     date={projection.date}
-                    activityBusy={activity.status !== "idle" || !activity.canStart || activityStartBlocked}
+                    activityBusy={activity.status !== "idle" || !activity.canStart}
                     onStart={startTaskActivity}
                     onUpdate={patchTask}
                     onDelete={setDeleteTarget}
@@ -588,7 +488,7 @@ export function Today({
                   key={task.id}
                   task={task}
                   date={projection.date}
-                  activityBusy={activity.status !== "idle" || !activity.canStart || activityStartBlocked}
+                  activityBusy={activity.status !== "idle" || !activity.canStart}
                   onStart={startTaskActivity}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}

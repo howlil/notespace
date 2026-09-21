@@ -101,7 +101,6 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 	}
 }
 
-
 func TestUnifiedPlanningTaskMigrationPreservesWorkspaceTasks(t *testing.T) {
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "planning-v17.db"))
 	if err != nil {

@@ -135,6 +135,16 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	clearStandalone := ""
+	if _, err := service.UpdateAnyTask(ctx, standalone.ID, planning.TaskPatch{
+		PlannedFor: &clearStandalone,
+		Version:    standalone.Version,
+	}); !errors.Is(err, planning.ErrInvalid) {
+		t.Fatalf("clearing standalone plannedFor error = %v, want invalid", err)
+	}
+	if err := service.DeleteAnyTask(ctx, workspaceTask.ID, workspaceTask.Version); !errors.Is(err, planning.ErrInvalid) {
+		t.Fatalf("global delete workspace task error = %v, want invalid", err)
+	}
 
 	today, err := service.Today(ctx, date)
 	if err != nil {

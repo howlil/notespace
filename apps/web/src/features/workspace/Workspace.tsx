@@ -144,6 +144,10 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setWorkspaceTitleDraft(project.title);
     setRenamingWorkspace(false);
     setPlanOpen(false);
+    setActivityHandoffTask(null);
+    setActivityHandoffResolving(false);
+    setActivityHandoffBusy(false);
+    setPlanRevision(0);
   }, [project.id, project.title]);
   useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {

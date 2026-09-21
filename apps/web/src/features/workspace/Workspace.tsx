@@ -120,15 +120,17 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const study = useActivityRuntime();
+  const { adoptLegacyWorkspace } = study;
+  const currentWorkspaceTitle = current.current.title;
 
   useEffect(() => {
-    study.adoptLegacyWorkspace({
-      title: current.current.title,
+    adoptLegacyWorkspace({
+      title: currentWorkspaceTitle,
       activityType: "learn",
       workspaceId: project.id,
-      workspaceTitleSnapshot: current.current.title,
+      workspaceTitleSnapshot: currentWorkspaceTitle,
     });
-  }, [current.current.title, project.id, study.adoptLegacyWorkspace]);
+  }, [adoptLegacyWorkspace, currentWorkspaceTitle, project.id]);
   useEffect(() => {
     if (!normalized.changed) return;
     for (const note of current.current.notes) scheduleNote(note);

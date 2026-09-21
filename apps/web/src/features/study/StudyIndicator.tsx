@@ -97,7 +97,7 @@ export function StudyIndicator({ study }: { study: StudySessionState }) {
           className={timerActionClass}
           disabled={!study.ready || !study.canStart}
           aria-label="Start activity"
-          title={study.canStart ? "Start activity" : "Another tab owns the active activity"}
+          title={study.blockedByOtherTab ? "Retry activity lock" : "Start activity"}
           onClick={() => study.start()}
         >
           <Play size={24} strokeWidth={2.25} />

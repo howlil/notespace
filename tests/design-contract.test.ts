@@ -343,6 +343,13 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(TODAY), /useActivitySession/);
   assert.doesNotMatch(source(TODAY), /priority|kanban|habit|streak|productivity score/i);
   assert.match(source(STUDY_INDICATOR), /aria-label="Start activity"/);
+  assert.match(source(STUDY_INDICATOR), /Choose activity type/);
+  assert.match(source(STUDY_INDICATOR), /Build/);
+  assert.match(source(STUDY_INDICATOR), /Learn/);
+  assert.match(source(STUDY_INDICATOR), /Read/);
+  assert.match(source(STUDY_INDICATOR), /Write/);
+  assert.match(source(STUDY_INDICATOR), /Exercise/);
+  assert.match(source(STUDY_INDICATOR), /Other/);
   assert.match(source(STUDY_ACTIVITY), />Activity<\/h2>/);
   assert.doesNotMatch(source(STUDY_ACTIVITY), /Streak|currentStreak/);
   assert.match(workspace,/>Close pane<\/Button>/);

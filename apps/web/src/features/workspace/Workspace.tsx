@@ -469,7 +469,20 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
 
   const maximizedSplit = maximizedSplitId ? findSplit(layout, maximizedSplitId) : undefined;
   const authoringVisible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
-  const visible = planOpen ? <WorkspacePlan workspaceId={project.id} /> : authoringVisible;
+  const visible = planOpen ? (
+    <WorkspacePlan
+      workspaceId={project.id}
+      activityBusy={study.status !== "idle" || !study.canStart}
+      onStartActivity={(task, activityType) => study.start({
+        title: task.title,
+        activityType,
+        taskId: task.id,
+        taskTitleSnapshot: task.title,
+        workspaceId: project.id,
+        workspaceTitleSnapshot: current.current.title,
+      })}
+    />
+  ) : authoringVisible;
   const saveFailed = status.state === "error" || status.state === "conflict";
   const saveLabel = status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "conflict" ? "Conflict" : status.state === "error" ? "Not saved" : "Unsaved";
 

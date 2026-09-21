@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -31,6 +32,9 @@ import {
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
 import { useToast } from "../../providers/toast-provider";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
+import { ActivityTypeMenu } from "../study/ActivityTypeMenu";
+import type { ActivityType } from "../../domain/activity/api";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }
@@ -91,18 +95,30 @@ function InlineCreate({
 
 function TaskRow({
   task,
+  activityBusy,
+  onStartActivity,
   onUpdate,
   onDelete,
 }: {
   task: PlanningTask;
+  activityBusy: boolean;
+  onStartActivity: (task: PlanningTask, activityType: ActivityType) => void;
   onUpdate: (task: PlanningTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: PlanningTask) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [saving, setSaving] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
+  const startRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuPosition = useAnchoredPanelPosition(startRef, menuRef, startOpen, 176, 232);
 
+  useAnchoredPanelDismiss(startOpen, menuRef, startRef, () => setStartOpen(false));
   useEffect(() => setTitle(task.title), [task.title]);
+  useEffect(() => {
+    if (activityBusy) setStartOpen(false);
+  }, [activityBusy]);
 
   async function commitTitle() {
     const next = title.trim();
@@ -153,27 +169,66 @@ function TaskRow({
           {task.title}
         </button>
       )}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <IconButton
-          className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
-          aria-label={task.plannedFor === localDateKey() ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
-          title={task.plannedFor === localDateKey() ? "Remove from Today" : "Add to Today"}
-          onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === localDateKey() ? "" : localDateKey() })}
-        >
-          {task.plannedFor === localDateKey() ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
-        </IconButton>
-        <IconButton className="!size-7 text-muted hover:text-accent" aria-label={`Rename ${task.title}`} title="Rename task" onClick={() => setEditing(true)}>
-          <Pencil size={13} />
-        </IconButton>
-        <IconButton className="!size-7 text-muted hover:text-danger" aria-label={`Delete ${task.title}`} title="Delete task" onClick={() => onDelete(task)}>
-          <Trash2 size={13} />
-        </IconButton>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {!task.completedAt && (
+          <div ref={startRef} className="relative">
+            <IconButton
+              className="!size-7 text-muted hover:text-accent"
+              aria-label={`Start activity for ${task.title}`}
+              aria-haspopup="menu"
+              aria-expanded={startOpen}
+              title={activityBusy ? "End the active activity first" : "Start activity"}
+              disabled={activityBusy}
+              onClick={() => setStartOpen((value) => !value)}
+            >
+              <Play size={13} />
+            </IconButton>
+            {startOpen && typeof document !== "undefined" && createPortal(
+              <ActivityTypeMenu
+                ref={menuRef}
+                className="fixed"
+                style={menuPosition
+                  ? { top: menuPosition.top, left: menuPosition.left }
+                  : { visibility: "hidden" }}
+                onSelect={(activityType) => {
+                  setStartOpen(false);
+                  onStartActivity(task, activityType);
+                }}
+              />,
+              document.body,
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <IconButton
+            className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
+            aria-label={task.plannedFor === localDateKey() ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
+            title={task.plannedFor === localDateKey() ? "Remove from Today" : "Add to Today"}
+            onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === localDateKey() ? "" : localDateKey() })}
+          >
+            {task.plannedFor === localDateKey() ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
+          </IconButton>
+          <IconButton className="!size-7 text-muted hover:text-accent" aria-label={`Rename ${task.title}`} title="Rename task" onClick={() => setEditing(true)}>
+            <Pencil size={13} />
+          </IconButton>
+          <IconButton className="!size-7 text-muted hover:text-danger" aria-label={`Delete ${task.title}`} title="Delete task" onClick={() => onDelete(task)}>
+            <Trash2 size={13} />
+          </IconButton>
+        </div>
       </div>
     </div>
   );
 }
 
-export function WorkspacePlan({ workspaceId }: { workspaceId: string }) {
+export function WorkspacePlan({
+  workspaceId,
+  activityBusy,
+  onStartActivity,
+}: {
+  workspaceId: string;
+  activityBusy: boolean;
+  onStartActivity: (task: PlanningTask, activityType: ActivityType) => void;
+}) {
   const { showToast } = useToast();
   const [plan, setPlan] = useState<WorkspacePlanModel>(() => emptyPlan(workspaceId));
   const [loading, setLoading] = useState(true);
@@ -355,7 +410,7 @@ export function WorkspacePlan({ workspaceId }: { workspaceId: string }) {
                 </div>
               </header>
               <div className="pt-1.5">
-                {tasks.map((task) => <TaskRow key={task.id} task={task} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
+                {tasks.map((task) => <TaskRow key={task.id} task={task} activityBusy={activityBusy} onStartActivity={onStartActivity} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
                   <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title, milestone.id)} onCancel={() => setTaskTarget(null)} />
                 ) : (
@@ -380,7 +435,7 @@ export function WorkspacePlan({ workspaceId }: { workspaceId: string }) {
             </div>
           </header>
           <div className="pt-1.5">
-            {looseTasks.map((task) => <TaskRow key={task.id} task={task} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
+            {looseTasks.map((task) => <TaskRow key={task.id} task={task} activityBusy={activityBusy} onStartActivity={onStartActivity} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
               <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title)} onCancel={() => setTaskTarget(null)} />
             ) : (

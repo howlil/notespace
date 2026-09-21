@@ -25,9 +25,20 @@ function sessionTime(value: string) {
 export function StudyIndicator({
   study,
   workspaceTitle,
+  startBlocked = false,
+  onEnd,
+  taskHandoff,
 }: {
   study: StudySessionState;
   workspaceTitle: string;
+  startBlocked?: boolean;
+  onEnd?: () => void;
+  taskHandoff?: {
+    title: string;
+    busy?: boolean;
+    onComplete: () => void;
+    onKeepOpen: () => void;
+  };
 }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -42,6 +53,12 @@ export function StudyIndicator({
     setStartOpen(false);
   }, []);
   useDismissablePopup(indicatorRef, open || startOpen, dismiss);
+
+  useEffect(() => {
+    if (!taskHandoff) return;
+    setOpen(false);
+    setStartOpen(false);
+  }, [taskHandoff]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,12 +126,17 @@ export function StudyIndicator({
           variant="secondary"
           size="sm"
           className={timerActionClass}
-          disabled={!study.ready || !study.canStart}
+          disabled={!study.ready || !study.canStart || startBlocked}
           aria-label="Start activity"
           aria-haspopup="menu"
           aria-expanded={startOpen}
-          title={study.blockedByOtherTab ? "Retry activity lock" : "Start activity"}
+          title={startBlocked
+            ? "Resolve the task handoff first"
+            : study.blockedByOtherTab
+              ? "Retry activity lock"
+              : "Start activity"}
           onClick={() => {
+            if (startBlocked) return;
             setOpen(false);
             setStartOpen((value) => !value);
           }}
@@ -141,14 +163,14 @@ export function StudyIndicator({
             className={timerActionClass}
             aria-label="End activity"
             title="End"
-            onClick={study.end}
+            onClick={onEnd ?? study.end}
           >
             <Square size={24} strokeWidth={2.25} />
           </Button>
         </>
       )}
 
-      {startOpen && study.status === "idle" && (
+      {startOpen && study.status === "idle" && !startBlocked && (
         <ActivityTypeMenu
           className="absolute top-[calc(100%+8px)] right-0"
           onSelect={(activityType) => {
@@ -161,6 +183,38 @@ export function StudyIndicator({
             });
           }}
         />
+      )}
+
+      {taskHandoff && study.status === "idle" && (
+        <PopupSurface
+          className="absolute top-[calc(100%+8px)] right-0 z-30 w-[292px] p-3 max-[520px]:right-[-8px] max-[520px]:w-[min(292px,calc(100vw_-_24px))]"
+          role="status"
+          aria-label="Task completion handoff"
+        >
+          <div className="text-[10px] text-muted">Activity ended</div>
+          <div className="mt-1 truncate text-[11px] font-medium text-ink">{taskHandoff.title}</div>
+          <div className="mt-3 flex items-center justify-end gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              className="!min-h-7 px-2.5 text-[10px]"
+              disabled={taskHandoff.busy}
+              onClick={taskHandoff.onComplete}
+            >
+              Mark done
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="!min-h-7 px-2 text-[10px] text-muted"
+              disabled={taskHandoff.busy}
+              onClick={taskHandoff.onKeepOpen}
+            >
+              Keep open
+            </Button>
+          </div>
+        </PopupSurface>
       )}
 
       {open && (

@@ -358,6 +358,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(STUDY_INDICATOR), /Keep open/);
   assert.match(workspace, /getWorkspacePlan/);
   assert.match(workspace, /activityHandoffResolving/);
+  assert.match(workspace, /completionConfirmed/);
   assert.match(workspace, /refreshKey=\{planRevision\}/);
   assert.match(source(STUDY_INDICATOR), /ActivityTypeMenu/);
   assert.match(source(ACTIVITY_TYPE_TRIGGER), /useAnchoredPanelPosition/);

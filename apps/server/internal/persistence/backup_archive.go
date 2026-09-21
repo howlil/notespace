@@ -19,7 +19,7 @@ import (
 )
 
 const libraryArchiveVersion = 2
-const libraryArchiveSchemaVersion = 13
+const libraryArchiveSchemaVersion = 14
 const archiveManifestPath = "manifest.json"
 const maxArchiveManifestBytes = 16 << 20
 

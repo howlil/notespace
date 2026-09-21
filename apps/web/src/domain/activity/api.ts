@@ -52,7 +52,9 @@ export type ActivityHeartbeat = {
   title: string;
   activityType: ActivityType;
   workspaceId?: string;
+  workspaceTitleSnapshot?: string;
   taskId?: string;
+  taskTitleSnapshot?: string;
 };
 
 export const recordActivityHeartbeat = (

@@ -43,7 +43,7 @@ const heatmapLevels = [
   "bg-accent",
 ] as const;
 
-export function ActivitySummaryDashboard({ compact = true }: { compact?: boolean }) {
+export function StudyActivityDashboard({ compact = true }: { compact?: boolean }) {
   const { showToast } = useToast();
   const [activity, setActivity] = useState<ActivitySummary | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -107,14 +107,13 @@ export function ActivitySummaryDashboard({ compact = true }: { compact?: boolean
           {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your activity rhythm over the last year</p>}
         </div>
         {compact ? (
-          <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today · ${activity?.currentStreak ?? 0}d streak`}</span>
+          <span className="pt-0.5 text-right text-[9px] leading-tight text-muted">{loading ? "Loading…" : `${formatDuration(activity?.todaySeconds ?? 0)} today`}</span>
         ) : <span className="pt-0.5 text-[10px] text-muted max-[560px]:hidden">Last 365 days</span>}
       </div>
       {!compact && (
-        <div className="grid grid-cols-3 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
+        <div className="grid grid-cols-2 border-b border-line px-4 py-3 max-[520px]:gap-3 max-[560px]:pt-2">
           <div className="flex flex-col gap-1 border-r border-line"><span className="text-[10px] text-muted">Today</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-14" /> : formatDuration(activity?.todaySeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-1 border-r border-line pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
-          <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">Streak</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-20" /> : `${activity?.currentStreak ?? 0} days`}</strong></div>
+          <div className="flex flex-col gap-1 pl-4 max-[520px]:pl-0"><span className="text-[10px] text-muted">This week</span><strong className="text-base font-medium tracking-[-.3px] text-ink max-[520px]:text-[14px]">{loading ? <Skeleton className="h-5 w-16" /> : formatDuration(activity?.weekSeconds ?? 0)}</strong></div>
         </div>
       )}
       {!compact && (
@@ -186,7 +185,7 @@ export function ActivitySummaryDashboard({ compact = true }: { compact?: boolean
       {selectedDate && (
         <div className="border-t border-line px-4 pt-[13px] pb-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : detailError ? "Unavailable" : `${formatDuration(detail?.activeSeconds ?? 0)} studied`}</strong></div>
+            <div className="flex flex-col gap-[5px]"><span className="text-[10px] text-muted">{formatDay(selectedDate)}</span><strong className="text-[13px] font-medium text-ink">{detailLoading ? <Skeleton className="h-4 w-24" /> : detailError ? "Unavailable" : `${formatDuration(detail?.activeSeconds ?? 0)} recorded`}</strong></div>
             <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-[3px] py-[3px] text-[10px] text-muted hover:text-ink focus-visible:text-ink" onClick={() => { setSelectedDate(null); setDetail(null); }}>Close</Button>
           </div>
           {detailLoading ? (
@@ -205,7 +204,7 @@ export function ActivitySummaryDashboard({ compact = true }: { compact?: boolean
                 </div>
               ))}
             </div>
-          ) : <p className="mt-[13px] mb-0 text-[10px] text-muted">No recorded study time on this day.</p>}
+          ) : <p className="mt-[13px] mb-0 text-[10px] text-muted">No recorded activity on this day.</p>}
         </div>
       )}
     </section>

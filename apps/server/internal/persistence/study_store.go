@@ -156,10 +156,10 @@ func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, 
 		return study.Activity{}, err
 	}
 	return study.Activity{
-		TodaySeconds: todaySeconds,
-		WeekSeconds: weekSeconds,
+		TodaySeconds:  todaySeconds,
+		WeekSeconds:   weekSeconds,
 		CurrentStreak: study.CalculateStreak(days, to),
-		Days: days,
+		Days:          days,
 	}, nil
 }
 

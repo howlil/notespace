@@ -27,7 +27,7 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
     expect(planResponse.ok()).toBe(true);
     const plan = await planResponse.json() as { tasks: Array<{ id: string; title: string }> };
     const planningTask = plan.tasks.find((item) => item.title === "Finish planning flow");
-    expect(planningTask).toBeTruthy();
+    if (!planningTask) throw new Error("Created planning task was not returned by the plan API.");
 
     await page.getByRole("button", { name: "Start activity for Finish planning flow" }).click();
     const activityMenu = page.getByRole("menu", { name: "Choose activity type" });
@@ -47,12 +47,12 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
       }>;
       return sessions.find((session) =>
         session.workspaceId === workspace.id
-        && session.taskId === planningTask?.id) ?? null;
+        && session.taskId === planningTask.id) ?? null;
     }).toMatchObject({
       title: "Finish planning flow",
       activityType: "write",
       workspaceId: workspace.id,
-      taskId: planningTask?.id,
+      taskId: planningTask.id,
     });
 
     await page.getByRole("button", { name: "Complete Finish planning flow" }).click();

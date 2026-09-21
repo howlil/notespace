@@ -1,6 +1,6 @@
 CREATE TABLE activity_sessions (
   id TEXT PRIMARY KEY,
-  logical_session_id TEXT NOT NULL,
+  logical_session_id TEXT NOT NULL DEFAULT '',
   workspace_id TEXT NOT NULL DEFAULT '',
   workspace_title_snapshot TEXT NOT NULL DEFAULT '',
   task_id TEXT NOT NULL DEFAULT '',

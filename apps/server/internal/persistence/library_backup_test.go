@@ -147,6 +147,10 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	inboxTask, err := planningService.CreateStandaloneTask(ctx, "Unscheduled follow-up", "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	backup, err := store.ExportBackupArchiveAtomic(ctx)
 	if err != nil {
@@ -221,6 +225,19 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}
 	if !foundStandalone {
 		t.Fatalf("standalone task missing after archive restore: %+v", restoredStandalone.Tasks)
+	}
+	restoredInbox, err := planningService.Inbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundInbox := false
+	for _, task := range restoredInbox.Tasks {
+		if task.ID == inboxTask.ID && task.WorkspaceID == nil && task.PlannedFor == nil && task.Title == "Unscheduled follow-up" {
+			foundInbox = true
+		}
+	}
+	if !foundInbox {
+		t.Fatalf("inbox task missing after archive restore: %+v", restoredInbox.Tasks)
 	}
 }
 

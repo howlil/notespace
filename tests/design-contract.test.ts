@@ -347,6 +347,12 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(TODAY), /useActivitySession/);
   assert.doesNotMatch(source(TODAY), /priority|kanban|habit|streak|productivity score/i);
   assert.match(source(STUDY_INDICATOR), /aria-label="Start activity"/);
+  assert.match(source(STUDY_INDICATOR), /Task completion handoff/);
+  assert.match(source(STUDY_INDICATOR), /Mark done/);
+  assert.match(source(STUDY_INDICATOR), /Keep open/);
+  assert.match(workspace, /getWorkspacePlan/);
+  assert.match(workspace, /activityHandoffResolving/);
+  assert.match(workspace, /refreshKey=\{planRevision\}/);
   assert.match(source(STUDY_INDICATOR), /ActivityTypeMenu/);
   assert.match(source(ACTIVITY_TYPE_MENU), /Choose activity type/);
   for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {

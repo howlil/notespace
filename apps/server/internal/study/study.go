@@ -36,8 +36,8 @@ type Session struct {
 	ActivityDate            string  `json:"activityDate"`
 	StartedAt               string  `json:"startedAt"`
 	EndedAt                 *string `json:"endedAt"`
-	ActiveSeconds          int64   `json:"activeSeconds"`
-	LastHeartbeatAt        string  `json:"lastHeartbeatAt"`
+	ActiveSeconds           int64   `json:"activeSeconds"`
+	LastHeartbeatAt         string  `json:"lastHeartbeatAt"`
 }
 
 type Heartbeat struct {
@@ -48,12 +48,12 @@ type Heartbeat struct {
 
 type ActivityHeartbeat struct {
 	Heartbeat
-	Title                   string `json:"title"`
-	ActivityType            string `json:"activityType"`
-	WorkspaceID             string `json:"workspaceId,omitempty"`
-	WorkspaceTitleSnapshot  string `json:"workspaceTitleSnapshot,omitempty"`
-	TaskID                  string `json:"taskId,omitempty"`
-	TaskTitleSnapshot       string `json:"taskTitleSnapshot,omitempty"`
+	Title                  string `json:"title"`
+	ActivityType           string `json:"activityType"`
+	WorkspaceID            string `json:"workspaceId,omitempty"`
+	WorkspaceTitleSnapshot string `json:"workspaceTitleSnapshot,omitempty"`
+	TaskID                 string `json:"taskId,omitempty"`
+	TaskTitleSnapshot      string `json:"taskTitleSnapshot,omitempty"`
 }
 
 type WorkspaceStats struct {
@@ -156,18 +156,18 @@ func (s Service) RecordActivity(ctx context.Context, sessionID string, input Act
 		endedAt = &now
 	}
 	return s.Store.UpsertSession(ctx, Session{
-		ID: sessionID,
-		WorkspaceID: input.WorkspaceID,
+		ID:                     sessionID,
+		WorkspaceID:            input.WorkspaceID,
 		WorkspaceTitleSnapshot: input.WorkspaceTitleSnapshot,
-		TaskID: input.TaskID,
-		TaskTitleSnapshot: input.TaskTitleSnapshot,
-		Title: input.Title,
-		ActivityType: input.ActivityType,
-		ActivityDate: input.ActivityDate,
-		StartedAt: now,
-		EndedAt: endedAt,
-		ActiveSeconds: input.ActiveSeconds,
-		LastHeartbeatAt: now,
+		TaskID:                 input.TaskID,
+		TaskTitleSnapshot:      input.TaskTitleSnapshot,
+		Title:                  input.Title,
+		ActivityType:           input.ActivityType,
+		ActivityDate:           input.ActivityDate,
+		StartedAt:              now,
+		EndedAt:                endedAt,
+		ActiveSeconds:          input.ActiveSeconds,
+		LastHeartbeatAt:        now,
 	})
 }
 

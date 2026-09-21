@@ -563,7 +563,7 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 	taskActivity := call(t, api, "PUT", "/api/activity/sessions/task-session:2026-09-21", map[string]any{
 		"activityDate":  "2026-09-21",
 		"activeSeconds": 900,
-		"finish":        true,
+		"finish":        false,
 		"title":         "",
 		"activityType":  "build",
 		"taskId":        task.ID,
@@ -581,6 +581,22 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 	if taskSession.WorkspaceID != workspace.ID || taskSession.TaskID != task.ID || taskSession.Title != "Ship extension release" || taskSession.ActivityType != "build" {
 		t.Fatalf("task activity context = %+v", taskSession)
 	}
+
+	// An active timer must keep accepting heartbeats after its source context
+	// disappears. The client carries snapshots specifically for this case.
+	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), http.StatusNoContent)
+	finishedTaskActivity := call(t, api, "PUT", "/api/activity/sessions/task-session:2026-09-21", map[string]any{
+		"activityDate":           "2026-09-21",
+		"activeSeconds":          1200,
+		"finish":                 true,
+		"title":                  "Ship extension release",
+		"activityType":           "build",
+		"workspaceId":            workspace.ID,
+		"workspaceTitleSnapshot": workspace.Title,
+		"taskId":                 task.ID,
+		"taskTitleSnapshot":      "Ship extension release",
+	})
+	expect(t, finishedTaskActivity, http.StatusOK)
 
 	standalone := call(t, api, "PUT", "/api/activity/sessions/read-session:2026-09-21", map[string]any{
 		"activityDate":  "2026-09-21",
@@ -600,8 +616,8 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 	if err := json.Unmarshal(stats.Body.Bytes(), &totals); err != nil {
 		t.Fatal(err)
 	}
-	if totals.TodaySeconds != 1200 || totals.TotalSeconds != 1200 {
-		t.Fatalf("activity totals = %+v, want 1200/1200", totals)
+	if totals.TodaySeconds != 1500 || totals.TotalSeconds != 1500 {
+		t.Fatalf("activity totals = %+v, want 1500/1500", totals)
 	}
 
 	history := call(t, api, "GET", "/api/activity/sessions?limit=10", nil)

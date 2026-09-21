@@ -35,6 +35,10 @@ Priority order:
 
 Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
 
+### Inbox
+
+Inbox is the zero-organization capture surface for standalone tasks. A task in Inbox has no Workspace and no `plannedFor` date. Keep Inbox deliberately temporary and low-ceremony: capture, rename, delete, or move to Today. Do not add milestones, priority, due dates, recurrence, timers, analytics, or a second backlog hierarchy here. Workspace-owned work remains in Workspace Plan and must not be duplicated into Inbox.
+
 ### Today
 
 Today is a lightweight execution projection, not a second workspace system. It combines tasks explicitly chosen for the local calendar day, whether they belong to a Workspace Plan or are standalone. Keep it list-first and context-preserving: workspace-owned tasks retain a visible path back to their workspace, while standalone tasks remain clearly distinguishable.

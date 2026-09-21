@@ -3,12 +3,13 @@ package migrations
 import (
 	"context"
 	"database/sql"
-	_ "modernc.org/sqlite"
 	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestFailedMigrationIsNotRecorded(t *testing.T) {

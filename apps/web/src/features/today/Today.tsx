@@ -5,6 +5,7 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { Button, IconButton, Input, cn } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
+import { listCategories } from "../../domain/project/api";
 import {
   createStandaloneTask,
   deleteAnyTask,
@@ -161,6 +162,7 @@ export function Today({
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
+  const [categoryItems, setCategoryItems] = useState(categories);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
@@ -245,8 +247,16 @@ export function Today({
   return (
     <div className="grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] bg-background max-[560px]:grid-cols-[minmax(0,1fr)]">
       <Sidebar
-        categories={categories}
+        categories={categoryItems}
         todayActive
+        onChanged={() => {
+          void listCategories()
+            .then(setCategoryItems)
+            .catch((error) => showToast({
+              kind: "error",
+              message: error instanceof Error ? error.message : "Could not refresh categories.",
+            }));
+        }}
         onSelectCategory={(categoryId) => {
           void navigate({
             to: "/categories/$categoryId",

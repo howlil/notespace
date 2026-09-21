@@ -118,9 +118,9 @@ func (s *Store) ListToday(ctx context.Context, date string) ([]planning.TodayTas
 		FROM planning_tasks t
 		LEFT JOIN projects p ON p.id=t.workspace_id
 		LEFT JOIN workspace_milestones m ON m.id=t.milestone_id
-		WHERE t.planned_for=?
-		ORDER BY CASE WHEN t.completed_at IS NULL THEN 0 ELSE 1 END,t.position,t.created_at,t.id
-	`, date)
+		WHERE t.planned_for=? OR (t.planned_for<? AND t.completed_at IS NULL)
+		ORDER BY CASE WHEN t.completed_at IS NULL THEN 0 ELSE 1 END,t.planned_for,t.position,t.created_at,t.id
+	`, date, date)
 	if err != nil {
 		return nil, err
 	}

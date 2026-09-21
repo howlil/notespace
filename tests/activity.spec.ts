@@ -99,8 +99,26 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(handoff).toContainText("Mark task done?");
     await expect(quickActivity).toBeDisabled();
     await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeDisabled();
+
+    const completionUrl = `**/api/tasks/${task.id}`;
+    await page.route(completionUrl, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic response failure after commit" }),
+      });
+    });
+
     await handoff.getByRole("button", { name: "Mark done" }).click();
     await expect(page.getByRole("button", { name: `Mark ${renamedTaskTitle} incomplete` })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.unroute(completionUrl);
     await expect(handoff).toHaveCount(0);
     await expect(quickActivity).toBeEnabled();
 

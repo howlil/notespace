@@ -51,6 +51,9 @@ export const deleteTask = (workspaceId: string, taskId: string, version: number)
 export const getToday = (date: string) =>
   request<TodayProjection>(`/api/tasks/today?date=${encodeURIComponent(date)}`);
 
+export const getAnyTask = (taskId: string) =>
+  request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`);
+
 export const createStandaloneTask = (title: string, plannedFor: string) =>
   request<PlanningTask>("/api/tasks", {
     method: "POST",

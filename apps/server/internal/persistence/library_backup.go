@@ -396,6 +396,13 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		}
 		activeTaskIDs[task.ID] = true
 	}
+	for _, raw := range backup.Study {
+		session := normalizeActivitySession(raw)
+		if !study.ValidActivityType(session.ActivityType) {
+			return project.ErrInvalid
+		}
+	}
+
 	trashIDs := map[string]bool{}
 	for _, record := range backup.Trash {
 		if record.ID == "" || trashIDs[record.ID] || record.Payload.Project.ID != record.ID || workspaceIDs[record.ID] {

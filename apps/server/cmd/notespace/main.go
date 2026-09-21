@@ -70,7 +70,7 @@ func run() error {
 
 // isClientNavigationRoute defines the authoritative single source of truth for SPA client routes.
 func isClientNavigationRoute(clean string) bool {
-	if clean == "/" {
+	if clean == "/" || clean == "/today" {
 		return true
 	}
 	prefixes := []string{"/categories/", "/workspaces/", "/projects/"}

@@ -175,7 +175,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	clear := ""
 	updated, err := service.UpdateAnyTask(ctx, workspaceTask.ID, planning.TaskPatch{
 		PlannedFor: &clear,
-		Version: workspaceTask.Version,
+		Version:    workspaceTask.Version,
 	})
 	if err != nil {
 		t.Fatal(err)

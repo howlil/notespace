@@ -414,6 +414,9 @@ func (s Service) DeleteAnyTask(ctx context.Context, taskID string, version int) 
 	if err != nil {
 		return err
 	}
+	if current.WorkspaceID != nil {
+		return ErrInvalid
+	}
 	if current.Version != version {
 		return ErrConflict
 	}

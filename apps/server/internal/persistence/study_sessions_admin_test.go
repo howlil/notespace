@@ -45,12 +45,23 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 		}
 	}
 
+	renamed := segments[0]
+	renamed.WorkspaceTitleSnapshot = "Distributed Systems Renamed"
+	renamed.ActiveSeconds = 12 * 60
+	renamed.LastHeartbeatAt = "2026-09-11T00:02:00Z"
+	if _, err := store.UpsertSession(ctx, renamed); err != nil {
+		t.Fatal(err)
+	}
+
 	sessions, err := store.ListStudySessions(ctx, "workspace-1", 8)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sessions) != 1 || sessions[0].ID != "session-1" || sessions[0].ActiveSeconds != 25*60 {
-		t.Fatalf("sessions = %#v, want one 25 minute logical session", sessions)
+	if len(sessions) != 1 || sessions[0].ID != "session-1" || sessions[0].ActiveSeconds != 27*60 {
+		t.Fatalf("sessions = %#v, want one 27 minute logical session", sessions)
+	}
+	if sessions[0].WorkspaceTitleSnapshot != "Distributed Systems Renamed" {
+		t.Fatalf("workspace snapshot = %q, want renamed value", sessions[0].WorkspaceTitleSnapshot)
 	}
 
 	if err := store.DeleteStudySession(ctx, "workspace-1", "session-1"); err != nil {

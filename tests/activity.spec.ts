@@ -109,3 +109,49 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+
+test("blocked tab can retry the global activity lease after the owner ends", async ({ page, context, request }) => {
+  const suffix = Date.now();
+  const firstTitle = `Owner activity ${suffix}`;
+  const secondTitle = `Retry activity ${suffix}`;
+  const secondPage = await context.newPage();
+
+  try {
+    await page.goto("/today");
+    const firstInput = page.getByRole("textbox", { name: "Quick activity" });
+    await firstInput.fill(firstTitle);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
+
+    await secondPage.goto("/today");
+    const secondInput = secondPage.getByRole("textbox", { name: "Quick activity" });
+    await expect(secondInput).toBeEnabled();
+
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(firstInput).toBeVisible();
+
+    await secondInput.fill(secondTitle);
+    await secondPage.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(secondPage.getByText(secondTitle, { exact: true })).toBeVisible();
+    await secondPage.getByRole("button", { name: "End activity" }).click();
+
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return false;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.some((session) => session.title === secondTitle);
+    }).toBe(true);
+  } finally {
+    await secondPage.close().catch(() => undefined);
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const session of sessions) {
+        if (session.title === firstTitle || session.title === secondTitle) {
+          await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
+        }
+      }
+    }
+  }
+});

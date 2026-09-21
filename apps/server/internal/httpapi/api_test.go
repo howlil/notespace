@@ -570,9 +570,9 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 	})
 	expect(t, taskActivity, http.StatusOK)
 	var taskSession struct {
-		WorkspaceID string `json:"workspaceId"`
-		TaskID      string `json:"taskId"`
-		Title       string `json:"title"`
+		WorkspaceID  string `json:"workspaceId"`
+		TaskID       string `json:"taskId"`
+		Title        string `json:"title"`
 		ActivityType string `json:"activityType"`
 	}
 	if err := json.Unmarshal(taskActivity.Body.Bytes(), &taskSession); err != nil {

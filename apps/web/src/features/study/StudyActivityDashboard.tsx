@@ -198,7 +198,7 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
           ) : detail?.workspaces.length ? (
             <div className="mt-[13px] grid gap-2">
               {detail.workspaces.map((workspace) => (
-                <div key={workspace.workspaceId} className="flex justify-between gap-3 text-[11px] text-ink">
+                <div key={`${workspace.workspaceId ?? "standalone"}:${workspace.title}`} className="flex justify-between gap-3 text-[11px] text-ink">
                   <span>{workspace.title}{workspace.deleted && <em className="text-[9px] not-italic text-muted"> deleted</em>}</span>
                   <strong className="font-normal text-muted">{formatDuration(workspace.activeSeconds)}</strong>
                 </div>

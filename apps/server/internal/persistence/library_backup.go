@@ -319,22 +319,6 @@ func (s *Store) studySessions(ctx context.Context) ([]study.Session, error) {
 	return sessions, rows.Err()
 }
 
-func normalizeBackupActivitySession(session study.Session) study.Session {
-	if session.ActivityType == "" {
-		session.ActivityType = "learn"
-	}
-	if session.Title == "" {
-		session.Title = session.WorkspaceTitleSnapshot
-	}
-	if session.Title == "" {
-		session.Title = session.TaskTitleSnapshot
-	}
-	if session.Title == "" {
-		session.Title = "Activity"
-	}
-	return session
-}
-
 func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
 	categories, err := s.ListCategories(ctx)
 	if err != nil {
@@ -470,7 +454,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		}
 	}
 	for _, raw := range backup.Study {
-		session := normalizeBackupActivitySession(raw)
+		session := normalizeActivitySession(raw)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO activity_sessions(
 				id,logical_session_id,workspace_id,workspace_title_snapshot,

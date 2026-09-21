@@ -75,9 +75,13 @@ test("Activity starts standalone or from a Today task with context preserved", a
       taskId: "",
     });
 
-    await activityType.selectOption("build");
+    await expect(activityType).toHaveValue("read");
     await page.getByRole("button", { name: `Start activity for ${task.title}` }).click();
+    const taskActivityMenu = page.getByRole("menu", { name: "Choose activity type" });
+    await expect(taskActivityMenu).toBeVisible();
+    await taskActivityMenu.getByRole("menuitem", { name: "Build" }).click();
 
+    await expect(activityType).toHaveValue("read");
     await expect(page.getByText(task.title, { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();

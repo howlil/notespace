@@ -33,6 +33,10 @@ export interface TodayProjection {
   tasks: TodayTask[];
 }
 
+export interface InboxProjection {
+  tasks: PlanningTask[];
+}
+
 export interface WorkspacePlan {
   workspaceId: string;
   milestones: PlanningMilestone[];

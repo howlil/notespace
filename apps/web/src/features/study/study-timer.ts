@@ -1,8 +1,10 @@
+import type { ActivityType } from "../../domain/activity/api";
+
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
 
 export type ActivitySessionContext = {
   title: string;
-  activityType: "build" | "learn" | "read" | "write" | "exercise" | "other";
+  activityType: ActivityType;
   workspaceId?: string;
   workspaceTitleSnapshot?: string;
   taskId?: string;

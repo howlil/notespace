@@ -29,15 +29,15 @@ type Session struct {
 	ID                     string  `json:"id"`
 	WorkspaceID            string  `json:"workspaceId,omitempty"`
 	WorkspaceTitleSnapshot string  `json:"workspaceTitleSnapshot,omitempty"`
-	TaskID                  string  `json:"taskId,omitempty"`
-	TaskTitleSnapshot       string  `json:"taskTitleSnapshot,omitempty"`
-	Title                   string  `json:"title"`
-	ActivityType            string  `json:"activityType"`
-	ActivityDate            string  `json:"activityDate"`
-	StartedAt               string  `json:"startedAt"`
-	EndedAt                 *string `json:"endedAt"`
-	ActiveSeconds           int64   `json:"activeSeconds"`
-	LastHeartbeatAt         string  `json:"lastHeartbeatAt"`
+	TaskID                 string  `json:"taskId,omitempty"`
+	TaskTitleSnapshot      string  `json:"taskTitleSnapshot,omitempty"`
+	Title                  string  `json:"title"`
+	ActivityType           string  `json:"activityType"`
+	ActivityDate           string  `json:"activityDate"`
+	StartedAt              string  `json:"startedAt"`
+	EndedAt                *string `json:"endedAt"`
+	ActiveSeconds          int64   `json:"activeSeconds"`
+	LastHeartbeatAt        string  `json:"lastHeartbeatAt"`
 }
 
 type Heartbeat struct {

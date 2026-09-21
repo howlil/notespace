@@ -333,6 +333,53 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 	}
 }
 
+
+
+func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-activity-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep activity library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpsertSession(ctx, study.Session{
+		ID: "activity-1", Title: "Read paper", ActivityType: "read",
+		ActivityDate: "2026-09-21", StartedAt: "2026-09-21T01:00:00Z",
+		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-21T01:05:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := store.ExportBackupJSONAtomic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup libraryBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	if len(backup.Study) != 1 {
+		t.Fatalf("backup activities = %d, want 1", len(backup.Study))
+	}
+	backup.Study[0].ActivityType = "focus"
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, project.ErrInvalid) {
+		t.Fatalf("invalid activity restore error = %v, want invalid", err)
+	}
+	if _, err := store.Get(ctx, workspace.ID); err != nil {
+		t.Fatalf("existing library changed after invalid activity restore: %v", err)
+	}
+}
+
 func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-domain-backup.db"))

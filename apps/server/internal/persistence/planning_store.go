@@ -166,8 +166,8 @@ func (s *Store) ListToday(ctx context.Context, date string) ([]planning.TodayTas
 	return items, rows.Err()
 }
 
-func standaloneTasksTx(ctx context.Context, tx *sql.Tx) ([]planning.Task, error) {
-	rows, err := tx.QueryContext(ctx, `
+func readStandaloneTasks(ctx context.Context, q planningQueryer) ([]planning.Task, error) {
+	rows, err := q.QueryContext(ctx, `
 		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version
 		FROM planning_tasks WHERE workspace_id IS NULL ORDER BY created_at,id
 	`)
@@ -184,6 +184,14 @@ func standaloneTasksTx(ctx context.Context, tx *sql.Tx) ([]planning.Task, error)
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func standaloneTasksTx(ctx context.Context, tx *sql.Tx) ([]planning.Task, error) {
+	return readStandaloneTasks(ctx, tx)
+}
+
+func (s *Store) standaloneTasks(ctx context.Context) ([]planning.Task, error) {
+	return readStandaloneTasks(ctx, s.db)
 }
 
 func restoreStandaloneTasksTx(ctx context.Context, tx *sql.Tx, tasks []planning.Task) error {

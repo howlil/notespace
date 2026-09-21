@@ -65,10 +65,12 @@ func (s *Store) UpsertSession(ctx context.Context, session study.Session) (study
 	_, err := s.db.ExecContext(ctx, `INSERT INTO activity_sessions(`+studyColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
-  last_heartbeat_at=MAX(activity_sessions.last_heartbeat_at,excluded.last_heartbeat_at)
+  last_heartbeat_at=MAX(activity_sessions.last_heartbeat_at,excluded.last_heartbeat_at),
+  activity_title=excluded.activity_title,
+  workspace_title_snapshot=excluded.workspace_title_snapshot,
+  task_title_snapshot=excluded.task_title_snapshot
 WHERE activity_sessions.workspace_id=excluded.workspace_id
   AND activity_sessions.task_id=excluded.task_id
-  AND activity_sessions.activity_title=excluded.activity_title
   AND activity_sessions.activity_type=excluded.activity_type`,
 		session.ID,
 		session.WorkspaceID,

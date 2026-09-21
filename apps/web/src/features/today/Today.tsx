@@ -212,13 +212,13 @@ export function Today({
   function startStandaloneActivity(event: FormEvent) {
     event.preventDefault();
     const next = activityTitle.trim();
-    if (!next || !activity.canStart) return;
+    if (!next || !activity.canStart || handoffTask) return;
     activity.start({ title: next, activityType });
     setActivityTitle("");
   }
 
   function startTaskActivity(task: TodayTask) {
-    if (!activity.canStart) return;
+    if (!activity.canStart || handoffTask) return;
     activity.start({
       title: task.title,
       activityType,
@@ -402,14 +402,14 @@ export function Today({
                   aria-label="Quick activity"
                   placeholder="What are you doing?"
                   value={activityTitle}
-                  disabled={!activity.ready || !activity.canStart}
+                  disabled={!activity.ready || !activity.canStart || Boolean(handoffTask)}
                   onChange={(event) => setActivityTitle(event.target.value)}
                 />
                 <select
                   className="min-h-8 rounded-md border border-line bg-surface px-2 text-[10px] text-ink focus-visible:outline-2 focus-visible:outline-accent"
                   aria-label="Activity type"
                   value={activityType}
-                  disabled={!activity.ready || !activity.canStart}
+                  disabled={!activity.ready || !activity.canStart || Boolean(handoffTask)}
                   onChange={(event) => setActivityType(event.target.value as ActivityType)}
                 >
                   <option value="other">Other</option>
@@ -422,7 +422,7 @@ export function Today({
                 <Button
                   size="sm"
                   className="!min-h-8 px-3 text-[10px]"
-                  disabled={!activityTitle.trim() || !activity.canStart}
+                  disabled={!activityTitle.trim() || !activity.canStart || Boolean(handoffTask)}
                 >
                   Start
                 </Button>
@@ -519,7 +519,7 @@ export function Today({
                     key={task.id}
                     task={task}
                     date={projection.date}
-                    activityBusy={activity.status !== "idle" || !activity.canStart}
+                    activityBusy={activity.status !== "idle" || !activity.canStart || Boolean(handoffTask)}
                     onStart={startTaskActivity}
                     onUpdate={patchTask}
                     onDelete={setDeleteTarget}
@@ -551,7 +551,7 @@ export function Today({
                   key={task.id}
                   task={task}
                   date={projection.date}
-                  activityBusy={activity.status !== "idle" || !activity.canStart}
+                  activityBusy={activity.status !== "idle" || !activity.canStart || Boolean(handoffTask)}
                   onStart={startTaskActivity}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}

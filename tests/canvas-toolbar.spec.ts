@@ -25,7 +25,7 @@ test.describe("Canvas chrome", () => {
 
     try {
       const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
-      for (const label of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Image", "Eraser", "Code block", "Diagram", "More tools"]) {
+      for (const label of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Image", "Eraser", "Code block", "Link note", "Diagram", "More tools"]) {
         await expect(toolbar.getByRole("button", { name: label, exact: true })).toBeVisible();
       }
       await expect(toolbar.getByRole("button", { name: "Colors", exact: true })).toHaveCount(0);
@@ -43,6 +43,102 @@ test.describe("Canvas chrome", () => {
       await expect(view.getByRole("button", { name: "Zoom in" })).toBeVisible();
       await expect(view.getByRole("button", { name: "Zoom out" })).toBeVisible();
       await expect(view.getByRole("button", { name: "More canvas view controls" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
+  test("links a workspace note as a live Canvas artifact and opens it without losing Canvas context", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas note link ${Date.now()}`);
+
+    try {
+      const workspace = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        notes: Array<{ id: string; title: string }>;
+        canvas: { data: { elements: Array<{ id?: string; isDeleted?: boolean; customData?: Record<string, unknown> }> } };
+      };
+      const note = workspace.notes[0];
+      expect(note).toBeDefined();
+
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      await toolbar.getByRole("button", { name: "Link note", exact: true }).click();
+
+      const picker = page.getByRole("dialog", { name: "Link note to canvas" });
+      await expect(picker).toBeVisible();
+      await picker.getByRole("button").filter({ hasText: note!.title }).first().click();
+
+      const artifact = page.locator("[data-canvas-note-artifact]").first();
+      await expect(artifact).toBeVisible();
+
+      const box = await artifact.boundingBox();
+      expect(box).not.toBeNull();
+      const centerX = box!.x + box!.width / 2;
+      const centerY = box!.y + box!.height / 2;
+      await page.mouse.click(centerX, centerY);
+      await expect(page.getByRole("toolbar", { name: "Linked note actions" })).toBeVisible();
+
+      await expect.poll(async () => {
+        const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+          canvas: { data: { elements: Array<{ isDeleted?: boolean; customData?: Record<string, unknown> }> } };
+        };
+        const linked = stored.canvas.data.elements.find((element) => {
+          const metadata = element.customData?.notespaceNoteArtifact as { noteId?: string } | undefined;
+          return !element.isDeleted && metadata?.noteId === note!.id;
+        });
+        return linked?.customData?.notespaceNoteArtifact;
+      }).toEqual({ version: 1, noteId: note!.id, displayMode: "preview" });
+
+      await page.mouse.dblclick(centerX, centerY);
+
+      await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+      await expect(page.getByLabel("Canvas pane")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Show linked note on Canvas" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
+  test("linked note picker toggles cleanly and multi-selection uses generic actions", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas note selection ${Date.now()}`);
+
+    try {
+      const workspace = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        notes: Array<{ id: string; title: string }>;
+      };
+      const note = workspace.notes[0];
+      expect(note).toBeDefined();
+
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      const linkNote = toolbar.getByRole("button", { name: "Link note", exact: true });
+      const picker = page.getByRole("dialog", { name: "Link note to canvas" });
+
+      await linkNote.click();
+      await expect(picker).toBeVisible();
+      await linkNote.click();
+      await expect(picker).toHaveCount(0);
+
+      await linkNote.click();
+      await picker.getByRole("button").filter({ hasText: note!.title }).first().click();
+
+      const artifact = page.locator("[data-canvas-note-artifact]").first();
+      await expect(artifact).toBeVisible();
+
+      const canvas = page.locator(".excalidraw__canvas.interactive");
+      const bounds = await canvas.boundingBox();
+      if (!bounds) throw new Error("Canvas did not render");
+
+      await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
+      await page.mouse.move(bounds.x + 120, bounds.y + 120);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 220, bounds.y + 190, { steps: 5 });
+      await page.mouse.up();
+
+      await toolbar.getByRole("button", { name: "Select", exact: true }).click();
+      const editor = page.locator(".excalidraw").first();
+      await editor.click({ position: { x: 640, y: 420 } });
+      await editor.press("Control+A");
+
+      await expect(page.getByRole("toolbar", { name: "Linked note actions" })).toHaveCount(0);
+      await expect(page.getByRole("toolbar", { name: "Selected shape actions" })).toBeVisible();
     } finally {
       await cleanup(request, id);
     }

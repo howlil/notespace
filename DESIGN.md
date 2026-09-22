@@ -59,6 +59,20 @@ A category detail page exists for scale. Prefer dense rows, search/filter/sort, 
 
 The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are authored views of the same workspace, not separate top-level products. Plan is a workspace-owned secondary execution surface for milestones and concrete tasks; it is not a pane, dashboard, kanban board, or replacement for authored content. Keep Plan outline-first, compact, and progressively disclosed. Focus mode may hide workspace chrome, but must remain immediately reversible.
 
+### Linked Note artifacts on Canvas
+
+Canvas may reference Notes from the same Workspace as live linked artifacts. The Note remains the source of truth; Canvas stores only the Note identity plus presentation state such as compact versus preview mode. Do not copy Note title or document content into Canvas persistence.
+
+A linked Note artifact must preserve spatial context:
+- single click selects the Canvas object;
+- double click or the artifact action opens the linked Note while keeping Canvas visible when possible;
+- preview content is derived from the current Note state;
+- deleting the Canvas artifact never deletes the Note;
+- deleting the Note leaves an explicit unavailable reference rather than silently retargeting it;
+- a Note that is linked on Canvas exposes a path back to the Canvas object.
+
+Use the existing Canvas persistence boundary and Excalidraw element custom data for this relationship. Do not revive the legacy workspace `references` wire field for linked Note artifacts.
+
 ## Visual direction
 
 Default direction:

@@ -11,7 +11,7 @@ import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/ty
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
-import type { Snapshot } from "../../domain/project/project";
+import type { Note, Snapshot } from "../../domain/project/project";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {
   DIAGRAM_DATA_KEY,
@@ -27,6 +27,10 @@ import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } fro
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./CanvasCodeBlockLayer";
+import { CanvasNoteArtifactActions } from "./CanvasNoteArtifactActions";
+import { CanvasNoteArtifactLayer } from "./CanvasNoteArtifactLayer";
+import { CanvasNotePicker } from "./CanvasNotePicker";
+import { canvasNoteArtifactElements, readCanvasNoteArtifact, withCanvasNoteArtifact, type CanvasNoteArtifactData } from "./canvas-note-artifact";
 import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./canvas-code-block-layout";
 import { CanvasBottomChrome, CanvasToolRail, CanvasViewControls } from "./CanvasChrome";
@@ -107,7 +111,7 @@ function codeElementContainsClientPoint(
   return localX >= 0 && localX <= width && localY >= 0 && localY <= height;
 }
 
-export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string }) {
+export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId, notes, onOpenNote }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string; notes: readonly Note[]; onOpenNote: (noteId: string) => void }) {
   const { showToast } = useToast();
   useEffect(() => {
     if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
@@ -124,8 +128,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   });
   const initialElements = Array.isArray(initial.data.elements) ? initial.data.elements as OrderedExcalidrawElement[] : [];
   const initialCodeElements = codeOverlayElements(initialElements);
+  const initialNoteElements = canvasNoteArtifactElements(initialElements);
   const [hasElements, setHasElements] = useState(() => initialElements.some((element) => !element.isDeleted));
   const [overlayElements, setOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialCodeElements);
+  const [noteOverlayElements, setNoteOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialNoteElements);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState({ zoom: 1, scrollX: 0, scrollY: 0 });
@@ -134,6 +140,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const expectedAutoFitHeightRef = useRef(new Map<string, number>());
   const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, dark ? "#1d1e24" : "#f8f9fc"));
   const [diagramOpen, setDiagramOpen] = useState(false);
+  const [notePickerOpen, setNotePickerOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [diagrams, setDiagrams] = useState(() => readStructuredDiagrams(initial.data));
   const diagramsRef = useRef(diagrams);
@@ -163,6 +170,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const closeCanvasPopovers = useCallback(() => {
     setMoreOpen(false);
+    setNotePickerOpen(false);
   }, []);
 
   const reportCanvasAssetError = useCallback((message: string) => {
@@ -203,7 +211,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     focusEditor: focusCanvasEditor,
   } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
 
-  const canvasOverlayInteractionActive = contextualInteractionActive || diagramOpen || moreOpen || editingCodeBlockId !== null;
+  const canvasOverlayInteractionActive = contextualInteractionActive || diagramOpen || notePickerOpen || moreOpen || editingCodeBlockId !== null;
 
   useEffect(() => {
     if (canvasOverlayInteractionActive) cancelNativeFlowchartPreview();
@@ -265,6 +273,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     codeGeometryRef.current = codeGeometryMap(nextCodeElements);
     expectedAutoFitHeightRef.current.clear();
     setOverlayElements(nextCodeElements);
+    setNoteOverlayElements(canvasNoteArtifactElements(mergedElements));
 
     value.updateScene({
       elements: mergedElements,
@@ -305,6 +314,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     codeGeometryRef.current = codeGeometryMap(nextCodeElements);
     expectedAutoFitHeightRef.current.clear();
     setOverlayElements(nextCodeElements);
+    setNoteOverlayElements(canvasNoteArtifactElements(elements));
     api.current.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
     lastExternalScene.current = signature;
   }, [initial, updateDiagramState]);
@@ -352,6 +362,8 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     for (const elementId of acknowledgedAutoFitIds) expectedAutoFitHeightRef.current.delete(elementId);
     codeGeometryRef.current = codeGeometry;
     setOverlayElements((current) => sameElementVersions(current, nextCodeElements) ? current : nextCodeElements);
+    const nextNoteElements = canvasNoteArtifactElements(authoredElements);
+    setNoteOverlayElements((current) => sameElementVersions(current, nextNoteElements) ? current : nextNoteElements);
     if (normalizedManualResize) {
       api.current?.updateScene({ elements: authoredElements, captureUpdate: CaptureUpdateAction.NEVER });
     }
@@ -411,6 +423,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     const nextCodeElements = codeOverlayElements(initializedElements);
     codeGeometryRef.current = codeGeometryMap(nextCodeElements);
     setOverlayElements(nextCodeElements);
+    setNoteOverlayElements(canvasNoteArtifactElements(initializedElements));
     setGridModeEnabled(state.gridModeEnabled);
     setObjectsSnapModeEnabled(state.objectsSnapModeEnabled);
     void restoreLocalFiles(value);
@@ -517,6 +530,65 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setHasElements(true);
   }, [dark]);
 
+  const insertNoteArtifact = useCallback((noteId: string) => {
+    const value = api.current;
+    if (!value || !notes.some((note) => note.id === noteId)) return;
+    const state = value.getAppState();
+    const bounds = surfaceRef.current?.getBoundingClientRect();
+    const viewportWidth = bounds?.width ?? 900;
+    const viewportHeight = bounds?.height ?? 600;
+    const width = 260;
+    const height = 136;
+    const x = viewportWidth / (2 * state.zoom.value) - state.scrollX - width / 2;
+    const y = viewportHeight / (2 * state.zoom.value) - state.scrollY - height / 2;
+    const artifact: CanvasNoteArtifactData = { version: 1, noteId, displayMode: "preview" };
+    const skeleton: ExcalidrawElementSkeleton = {
+      type: "rectangle",
+      x,
+      y,
+      width,
+      height,
+      strokeColor: dark ? "#34353e" : "#e4e5ec",
+      backgroundColor: dark ? "#202126" : "#ffffff",
+      fillStyle: "solid",
+      strokeWidth: 1,
+      roughness: 0,
+      roundness: { type: 3 },
+      customData: withCanvasNoteArtifact(undefined, artifact),
+    };
+    const created = convertToExcalidrawElements([skeleton]) as OrderedExcalidrawElement[];
+    const noteElement = created[0];
+    if (!noteElement) return;
+    const elements = [...value.getSceneElementsIncludingDeleted(), ...created] as OrderedExcalidrawElement[];
+    value.updateScene({
+      elements,
+      appState: { selectedElementIds: { [noteElement.id]: true } },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    value.setActiveTool({ type: "selection" }, { keepSelection: true });
+    setSelectedElementId(noteElement.id);
+    setNoteOverlayElements(canvasNoteArtifactElements(elements));
+    setHasElements(true);
+    setNotePickerOpen(false);
+  }, [dark, notes]);
+
+  const updateNoteArtifact = useCallback((elementId: string, artifact: CanvasNoteArtifactData) => {
+    const value = api.current;
+    if (!value) return;
+    const elements = value.getSceneElementsIncludingDeleted().map((element) => {
+      if (element.id !== elementId) return element;
+      const current = readCanvasNoteArtifact(element);
+      if (!current) return element;
+      const nextHeight = artifact.displayMode === "compact" ? 68 : Math.max(136, element.height);
+      return newElementWith(element, {
+        height: nextHeight,
+        customData: withCanvasNoteArtifact(element.customData, artifact),
+      });
+    }) as OrderedExcalidrawElement[];
+    value.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+    setNoteOverlayElements(canvasNoteArtifactElements(elements));
+  }, []);
+
   const {
     activeDiagram,
     selectedNodeLabel,
@@ -618,7 +690,16 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           .map(([id]) => id);
         if (selectedIds.length !== 1) return;
         const element = value.getSceneElementsIncludingDeleted().find((candidate) => candidate.id === selectedIds[0] && !candidate.isDeleted);
-        if (!element || !readCanvasCodeBlock(element)) return;
+        if (!element) return;
+        const noteArtifact = readCanvasNoteArtifact(element);
+        if (noteArtifact) {
+          if (!codeElementContainsClientPoint(element, canvasViewport, rect, event.clientX, event.clientY)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenNote(noteArtifact.noteId);
+          return;
+        }
+        if (!readCanvasCodeBlock(element)) return;
         if (!codeElementContainsClientPoint(element, canvasViewport, rect, event.clientX, event.clientY)) return;
         event.preventDefault();
         event.stopPropagation();
@@ -626,6 +707,12 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         setEditingCodeBlockId(element.id);
       }}
     >
+      <CanvasNoteArtifactLayer
+        elements={noteOverlayElements}
+        viewport={canvasViewport}
+        notes={notes}
+        selectedElementId={selectedElementId}
+      />
       <CanvasCodeBlockLayer
         elements={overlayElements}
         viewport={canvasViewport}
@@ -640,8 +727,26 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         onAutoFit={autoFitCodeBlock}
       />
       <CanvasViewControls api={canvasApi} zoom={zoom} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} />
+      {notePickerOpen && <CanvasNotePicker notes={notes} onSelect={insertNoteArtifact} onClose={() => setNotePickerOpen(false)} />}
       <CanvasBottomChrome
         contextual={(() => {
+          const selectedNoteElement = selectedElementCount === 1
+            ? noteOverlayElements.find((element) => element.id === selectedElementId && !element.isDeleted)
+            : undefined;
+          const selectedNoteArtifact = readCanvasNoteArtifact(selectedNoteElement);
+          if (selectedNoteElement && selectedNoteArtifact) {
+            return (
+              <CanvasNoteArtifactActions
+                artifact={selectedNoteArtifact}
+                onOpen={() => onOpenNote(selectedNoteArtifact.noteId)}
+                onToggleDisplayMode={() => updateNoteArtifact(selectedNoteElement.id, {
+                  ...selectedNoteArtifact,
+                  displayMode: selectedNoteArtifact.displayMode === "compact" ? "preview" : "compact",
+                })}
+                onDelete={() => runCanvasAction("deleteSelectedElements")}
+              />
+            );
+          }
           const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
           const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
           if (selectedCodeElement && selectedCodeBlock) {
@@ -679,9 +784,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           activeTool={activeTool}
           backgroundColor={backgroundColor}
           diagramOpen={diagramOpen}
+          noteOpen={notePickerOpen}
           moreOpen={moreOpen}
-          onDiagramToggle={() => { setMoreOpen(false); setDiagramOpen((open) => !open); }}
-          onMoreToggle={() => { setMoreOpen((open) => !open); }}
+          onDiagramToggle={() => { setNotePickerOpen(false); setMoreOpen(false); setDiagramOpen((open) => !open); }}
+          onNoteToggle={() => { setDiagramOpen(false); setMoreOpen(false); setNotePickerOpen((open) => !open); }}
+          onMoreToggle={() => { setNotePickerOpen(false); setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
           onInsertCodeBlock={insertCodeBlock}
           onBackgroundChange={setCanvasBackground}

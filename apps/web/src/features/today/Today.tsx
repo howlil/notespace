@@ -195,6 +195,10 @@ export function Today({
   const [projection, setProjection] = useState(initial);
   const [categoryItems, setCategoryItems] = useState(categories);
   const activity = useActivityRuntime();
+
+  useEffect(() => {
+    setProjection(initial);
+  }, [initial]);
   const [activityTitle, setActivityTitle] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>("other");
   const [title, setTitle] = useState("");

@@ -97,6 +97,53 @@ test.describe("Canvas chrome", () => {
     }
   });
 
+  test("linked note picker toggles cleanly and multi-selection uses generic actions", async ({ page, request }) => {
+    const id = await openCanvasWorkspace(page, request, `Canvas note selection ${Date.now()}`);
+
+    try {
+      const workspace = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        notes: Array<{ id: string; title: string }>;
+      };
+      const note = workspace.notes[0];
+      expect(note).toBeDefined();
+
+      const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
+      const linkNote = toolbar.getByRole("button", { name: "Link note", exact: true });
+      const picker = page.getByRole("dialog", { name: "Link note to canvas" });
+
+      await linkNote.click();
+      await expect(picker).toBeVisible();
+      await linkNote.click();
+      await expect(picker).toHaveCount(0);
+
+      await linkNote.click();
+      await picker.getByRole("button").filter({ hasText: note!.title }).first().click();
+
+      const artifact = page.locator("[data-canvas-note-artifact]").first();
+      await expect(artifact).toBeVisible();
+
+      const canvas = page.locator(".excalidraw__canvas.interactive");
+      const bounds = await canvas.boundingBox();
+      if (!bounds) throw new Error("Canvas did not render");
+
+      await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
+      await page.mouse.move(bounds.x + 120, bounds.y + 120);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + 220, bounds.y + 190, { steps: 5 });
+      await page.mouse.up();
+
+      await toolbar.getByRole("button", { name: "Select", exact: true }).click();
+      const editor = page.locator(".excalidraw").first();
+      await editor.click({ position: { x: 640, y: 420 } });
+      await editor.press("Control+A");
+
+      await expect(page.getByRole("toolbar", { name: "Linked note actions" })).toHaveCount(0);
+      await expect(page.getByRole("toolbar", { name: "Selected shape actions" })).toBeVisible();
+    } finally {
+      await cleanup(request, id);
+    }
+  });
+
   test("creates arbitrary HTTPS embeds through the UI without a whitelist toast", async ({ page, request }) => {
     const id = await openCanvasWorkspace(page, request, `Canvas embed ${Date.now()}`);
 

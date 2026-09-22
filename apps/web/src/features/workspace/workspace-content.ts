@@ -47,8 +47,8 @@ export function normalizeProjectContent(content: ProjectContent) {
     ...content,
     document: document.snapshot,
     notes,
-    // Cross-surface Send/Link was removed from the product. Keep the legacy
-    // wire field empty until the compatibility schema can be retired safely.
+    // Keep the retired block-to-canvas reference wire field empty. Linked
+    // Note artifacts are owned by the Canvas snapshot via Excalidraw customData.
     references: [],
   };
   return { content: normalized, changed };

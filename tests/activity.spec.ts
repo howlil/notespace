@@ -236,7 +236,10 @@ test("activity End reconciles when server commits but the response is lost", asy
         await route.continue();
         return;
       }
-      const response = await route.fetch();
+      const target = new URL(route.request().url());
+      const response = await request.put(`${target.pathname}${target.search}`, {
+        data: route.request().postDataJSON(),
+      });
       expect(response.ok()).toBe(true);
       await route.fulfill({
         status: 503,

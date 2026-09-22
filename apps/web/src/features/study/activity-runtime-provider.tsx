@@ -39,10 +39,15 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
   );
   const [taskRevision, setTaskRevision] = useState(0);
   const recoverySyncing = useRef(false);
+  const recoveryDirty = useRef(false);
 
-  const reconcileRecovery = useCallback(async () => {
-    if (recoverySyncing.current) return;
+  const reconcileRecovery = useCallback(async function reconcileActivityRecovery() {
+    if (recoverySyncing.current) {
+      recoveryDirty.current = true;
+      return;
+    }
     recoverySyncing.current = true;
+    recoveryDirty.current = false;
 
     try {
       let recovery = readActivityRecovery();
@@ -101,6 +106,10 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
     } finally {
       setHandoffResolving(false);
       recoverySyncing.current = false;
+      if (recoveryDirty.current) {
+        recoveryDirty.current = false;
+        void reconcileActivityRecovery();
+      }
     }
   }, [showToast]);
 

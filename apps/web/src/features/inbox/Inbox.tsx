@@ -124,6 +124,10 @@ export function Inbox({
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [categoryItems, setCategoryItems] = useState(categories);
+
+  useEffect(() => {
+    setProjection(initial);
+  }, [initial]);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PlanningTask | null>(null);

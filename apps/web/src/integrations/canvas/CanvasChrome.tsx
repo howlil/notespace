@@ -1,4 +1,4 @@
-import { Code2, Network } from "lucide-react";
+import { Code2, FileText, Network } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
@@ -302,9 +302,11 @@ export function CanvasToolRail(props: {
   activeTool: AppState["activeTool"]["type"];
   panelAnchorRef: { current: HTMLDivElement | null };
   diagramOpen: boolean;
+  noteOpen: boolean;
   moreOpen: boolean;
   backgroundColor: string;
   onDiagramToggle: () => void;
+  onNoteToggle: () => void;
   onMoreToggle: () => void;
   onCoreToolSelect: () => void;
   onInsertCodeBlock: () => void;
@@ -312,7 +314,7 @@ export function CanvasToolRail(props: {
   onAction: (name: CanvasActionName) => void;
   diagramPanel: ReactNode;
 }) {
-  const { api, activeTool, panelAnchorRef, diagramOpen, moreOpen, onDiagramToggle, onMoreToggle, onCoreToolSelect, onInsertCodeBlock, diagramPanel } = props;
+  const { api, activeTool, panelAnchorRef, diagramOpen, noteOpen, moreOpen, onDiagramToggle, onNoteToggle, onMoreToggle, onCoreToolSelect, onInsertCodeBlock, diagramPanel } = props;
   const availableTools = supportedTools(api);
   const selectTool = (type: ToolbarTool) => {
     if (!api || !availableTools.has(type)) return;
@@ -344,6 +346,7 @@ export function CanvasToolRail(props: {
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
         <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
+        <ToolButton icon={<FileText className={controlGlyphClass} strokeWidth={1.5} />} label="Link note" active={noteOpen} onClick={onNoteToggle} />
       </div>
       <span className="mx-0.5 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
       <div data-canvas-menu-trigger="true" className="group relative flex shrink-0">

@@ -730,7 +730,9 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       {notePickerOpen && <CanvasNotePicker notes={notes} onSelect={insertNoteArtifact} onClose={() => setNotePickerOpen(false)} />}
       <CanvasBottomChrome
         contextual={(() => {
-          const selectedNoteElement = noteOverlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
+          const selectedNoteElement = selectedElementCount === 1
+            ? noteOverlayElements.find((element) => element.id === selectedElementId && !element.isDeleted)
+            : undefined;
           const selectedNoteArtifact = readCanvasNoteArtifact(selectedNoteElement);
           if (selectedNoteElement && selectedNoteArtifact) {
             return (
@@ -785,7 +787,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           noteOpen={notePickerOpen}
           moreOpen={moreOpen}
           onDiagramToggle={() => { setNotePickerOpen(false); setMoreOpen(false); setDiagramOpen((open) => !open); }}
-          onNoteToggle={() => { setDiagramOpen(false); setMoreOpen(false); setNotePickerOpen((open) => !open); }}
+          onNoteToggle={() => { setDiagramOpen(false); setMoreOpen(false); setNotePickerOpen(!notePickerOpen); }}
           onMoreToggle={() => { setNotePickerOpen(false); setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
           onInsertCodeBlock={insertCodeBlock}

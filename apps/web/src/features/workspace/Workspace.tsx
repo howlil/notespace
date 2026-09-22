@@ -10,7 +10,7 @@ import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
 import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../domain/project/api";
 import { StudyIndicator } from "../study/StudyIndicator";
-import { useStudySession } from "../study/use-study-session";
+import { useActivityRuntime } from "../study/activity-runtime-provider";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { blankDocument, normalizeProjectContent } from "./workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
@@ -21,8 +21,6 @@ import { workspaceMutationError, workspaceRenameTitle } from "../library/workspa
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 import { WorkspacePlan } from "../plan/WorkspacePlan";
-import { getWorkspacePlan, updateTask } from "../../domain/planning/api";
-import type { PlanningTask } from "../../domain/planning/planning";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -116,17 +114,23 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState(project.title);
   const [workspaceRenamePending, setWorkspaceRenamePending] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
-  const [activityHandoffTask, setActivityHandoffTask] = useState<PlanningTask | null>(null);
-  const [activityHandoffResolving, setActivityHandoffResolving] = useState(false);
-  const [activityHandoffBusy, setActivityHandoffBusy] = useState(false);
-  const [planRevision, setPlanRevision] = useState(0);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
   const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
-  const study = useStudySession(project.id, current.current.title);
+  const study = useActivityRuntime();
+  const { adoptLegacyWorkspace } = study;
+  const currentWorkspaceTitle = current.current.title;
 
+  useEffect(() => {
+    adoptLegacyWorkspace({
+      title: currentWorkspaceTitle,
+      activityType: "learn",
+      workspaceId: project.id,
+      workspaceTitleSnapshot: currentWorkspaceTitle,
+    });
+  }, [adoptLegacyWorkspace, currentWorkspaceTitle, project.id]);
   useEffect(() => {
     if (!normalized.changed) return;
     for (const note of current.current.notes) scheduleNote(note);
@@ -144,10 +148,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setWorkspaceTitleDraft(project.title);
     setRenamingWorkspace(false);
     setPlanOpen(false);
-    setActivityHandoffTask(null);
-    setActivityHandoffResolving(false);
-    setActivityHandoffBusy(false);
-    setPlanRevision(0);
   }, [project.id, project.title]);
   useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {
@@ -354,67 +354,6 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setMaximizedSplitId(null);
   }
 
-  function endWorkspaceActivity() {
-    const context = study.activeContext;
-    const shouldResolveTask = Boolean(
-      context?.taskId
-      && context.workspaceId === project.id,
-    );
-    if (shouldResolveTask) setActivityHandoffResolving(true);
-    study.end();
-    if (!shouldResolveTask || !context?.taskId) return;
-
-    void getWorkspacePlan(project.id)
-      .then((plan) => {
-        const task = plan.tasks.find((item) => item.id === context.taskId && !item.completedAt) ?? null;
-        setActivityHandoffTask(task);
-      })
-      .catch((error) => {
-        showToast({
-          kind: "error",
-          message: error instanceof Error
-            ? `Activity ended, but task status could not be loaded: ${error.message}`
-            : "Activity ended, but task status could not be loaded.",
-        });
-      })
-      .finally(() => setActivityHandoffResolving(false));
-  }
-
-  async function completeActivityHandoffTask() {
-    if (!activityHandoffTask || activityHandoffBusy) return;
-    const target = activityHandoffTask;
-    setActivityHandoffBusy(true);
-    try {
-      await updateTask(project.id, target.id, {
-        completed: true,
-        version: target.version,
-      });
-      setActivityHandoffTask(null);
-      setPlanRevision((value) => value + 1);
-    } catch (error) {
-      try {
-        const plan = await getWorkspacePlan(project.id);
-        const latest = plan.tasks.find((item) => item.id === target.id) ?? null;
-        if (latest?.completedAt) {
-          setActivityHandoffTask(null);
-          setPlanRevision((value) => value + 1);
-        } else if (latest) {
-          setActivityHandoffTask(latest);
-        } else {
-          setActivityHandoffTask(null);
-        }
-      } catch {
-        // Preserve the existing handoff so the user can retry.
-      }
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not complete task.",
-      });
-    } finally {
-      setActivityHandoffBusy(false);
-    }
-  }
-
   function openCanvasFrame(frameId: string) {
     const existingCanvasPane = leaves(layout).find((pane) => pane.kind === "canvas");
     if (existingCanvasPane) {
@@ -540,14 +479,12 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
 
   const maximizedSplit = maximizedSplitId ? findSplit(layout, maximizedSplitId) : undefined;
   const authoringVisible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
-  const activityStartBlocked = activityHandoffResolving || Boolean(activityHandoffTask);
   const visible = planOpen ? (
     <WorkspacePlan
       workspaceId={project.id}
-      refreshKey={planRevision}
-      activityBusy={study.status !== "idle" || !study.canStart || activityStartBlocked}
+      refreshKey={study.taskRevision}
+      activityBusy={study.status !== "idle" || !study.canStart}
       onStartActivity={(task, activityType) => {
-        if (activityStartBlocked) return;
         study.start({
           title: task.title,
           activityType,
@@ -612,15 +549,8 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
             <StudyIndicator
               study={study}
+              workspaceId={project.id}
               workspaceTitle={current.current.title}
-              startBlocked={activityStartBlocked}
-              onEnd={endWorkspaceActivity}
-              taskHandoff={activityHandoffTask ? {
-                title: activityHandoffTask.title,
-                busy: activityHandoffBusy,
-                onComplete: () => void completeActivityHandoffTask(),
-                onKeepOpen: () => setActivityHandoffTask(null),
-              } : undefined}
             />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
             {!planOpen && <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>}

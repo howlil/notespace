@@ -54,6 +54,9 @@ export const getToday = (date: string) =>
 export const getInbox = () =>
   request<InboxProjection>("/api/tasks/inbox");
 
+export const getAnyTask = (taskId: string) =>
+  request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`);
+
 export const createStandaloneTask = (title: string, plannedFor?: string) =>
   request<PlanningTask>("/api/tasks", {
     method: "POST",

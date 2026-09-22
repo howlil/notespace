@@ -6,6 +6,8 @@ type ActivitySessionRecord = {
   activityType: string;
   workspaceId?: string;
   taskId?: string;
+  endedAt?: string | null;
+  activeSeconds?: number;
 };
 
 function localDateKey(value = new Date()) {
@@ -97,10 +99,32 @@ test("Activity starts standalone or from a Today task with context preserved", a
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
     await expect(handoff).toContainText(renamedTaskTitle);
     await expect(handoff).toContainText("Mark task done?");
-    await expect(quickActivity).toBeDisabled();
-    await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeDisabled();
+    await expect(quickActivity).toBeEnabled();
+    await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeEnabled();
+
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Task completion handoff" })).toContainText(renamedTaskTitle);
+    await expect(quickActivity).toBeEnabled();
+
+    const completionUrl = `**/api/tasks/${task.id}`;
+    await page.route(completionUrl, async (route) => {
+      if (route.request().method() !== "PATCH") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic response failure after commit" }),
+      });
+    });
+
     await handoff.getByRole("button", { name: "Mark done" }).click();
     await expect(page.getByRole("button", { name: `Mark ${renamedTaskTitle} incomplete` })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.unroute(completionUrl);
     await expect(handoff).toHaveCount(0);
     await expect(quickActivity).toBeEnabled();
 
@@ -130,6 +154,131 @@ test("Activity starts standalone or from a Today task with context preserved", a
     }
     await request.delete(`/api/workspaces/${workspace.id}`).catch(() => undefined);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
+
+test("activity End retries after the final heartbeat fails before server commit", async ({ page, request }) => {
+  const suffix = Date.now();
+  const title = `Recover uncommitted activity ${suffix}`;
+  const heartbeatUrl = "**/api/activity/sessions/*";
+
+  try {
+    await page.goto("/today");
+    const input = page.getByRole("textbox", { name: "Quick activity" });
+    await input.fill(title);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() !== "PUT") {
+        await route.continue();
+        return;
+      }
+      const body = route.request().postDataJSON() as { finish?: boolean };
+      if (!body.finish) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic final heartbeat failure before commit" }),
+      });
+    });
+
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Activity sync" })).toBeVisible();
+    await page.unroute(heartbeatUrl);
+
+    await page.reload();
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      const session = sessions.find((item) => item.title === title);
+      return session?.endedAt ?? null;
+    }).not.toBeNull();
+    await expect(page.getByRole("status", { name: "Activity sync" })).toHaveCount(0);
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const session of sessions) {
+        if (session.title === title) {
+          await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
+        }
+      }
+    }
+  }
+});
+
+test("activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
+  const suffix = Date.now();
+  const title = `Recover committed activity ${suffix}`;
+  const heartbeatUrl = "**/api/activity/sessions/*";
+
+  try {
+    await page.goto("/today");
+    const input = page.getByRole("textbox", { name: "Quick activity" });
+    await input.fill(title);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() !== "PUT") {
+        await route.continue();
+        return;
+      }
+      const body = route.request().postDataJSON() as { finish?: boolean };
+      if (!body.finish) {
+        await route.continue();
+        return;
+      }
+      const target = new URL(route.request().url());
+      const response = await request.put(`${target.pathname}${target.search}`, {
+        data: route.request().postDataJSON(),
+      });
+      expect(response.ok()).toBe(true);
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Synthetic response loss after final heartbeat commit" }),
+      });
+    });
+
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Activity sync" })).toBeVisible();
+
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+
+    await page.unroute(heartbeatUrl);
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Activity sync" })).toHaveCount(0);
+
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return -1;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.filter((item) => item.title === title && item.endedAt).length;
+    }).toBe(1);
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const session of sessions) {
+        if (session.title === title) {
+          await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
+        }
+      }
+    }
   }
 });
 

@@ -86,6 +86,7 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("DELETE /api/workspaces/{id}/tasks/{taskId}", a.deleteTask)
 	mux.HandleFunc("GET /api/tasks/today", a.todayTasks)
 	mux.HandleFunc("GET /api/tasks/inbox", a.inboxTasks)
+	mux.HandleFunc("GET /api/tasks/{taskId}", a.getAnyTask)
 	mux.HandleFunc("POST /api/tasks", a.createStandaloneTask)
 	mux.HandleFunc("PATCH /api/tasks/{taskId}", a.updateAnyTask)
 	mux.HandleFunc("DELETE /api/tasks/{taskId}", a.deleteAnyTask)

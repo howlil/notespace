@@ -1,8 +1,15 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { recordActivityHeartbeat } from "../../domain/activity/api";
 import { APIError } from "../../domain/project/http";
 import { getAnyTask, updateAnyTask } from "../../domain/planning/api";
 import type { PlanningTask } from "../../domain/planning/planning";
 import { useToast } from "../../providers/toast-provider";
+import {
+  ACTIVITY_RECOVERY_PENDING_EVENT,
+  acknowledgeActivityFinalization,
+  readActivityRecovery,
+  removeActivityHandoff,
+} from "./activity-recovery";
 import {
   useActivitySession,
   type ActivityStart,
@@ -13,6 +20,7 @@ export type ActivityRuntimeState = StudySessionState & {
   handoffTask: PlanningTask | null;
   handoffResolving: boolean;
   handoffBusy: boolean;
+  finalizingCount: number;
   taskRevision: number;
   completeHandoffTask: () => Promise<void>;
   keepHandoffTaskOpen: () => void;
@@ -26,41 +34,111 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
   const [handoffTask, setHandoffTask] = useState<PlanningTask | null>(null);
   const [handoffResolving, setHandoffResolving] = useState(false);
   const [handoffBusy, setHandoffBusy] = useState(false);
+  const [finalizingCount, setFinalizingCount] = useState(
+    () => readActivityRecovery().finalizations.length,
+  );
   const [taskRevision, setTaskRevision] = useState(0);
+  const recoverySyncing = useRef(false);
+  const recoveryDirty = useRef(false);
 
-  const handoffBlocksStart = handoffResolving || Boolean(handoffTask) || handoffBusy;
-  const canStart = activity.canStart && !handoffBlocksStart;
+  const reconcileRecovery = useCallback(async function reconcileActivityRecovery() {
+    if (recoverySyncing.current) {
+      recoveryDirty.current = true;
+      return;
+    }
+    recoverySyncing.current = true;
+    recoveryDirty.current = false;
+
+    try {
+      let recovery = readActivityRecovery();
+      setFinalizingCount(recovery.finalizations.length);
+
+      for (const finalization of recovery.finalizations) {
+        try {
+          await recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat);
+          acknowledgeActivityFinalization(
+            finalization.sessionId,
+            finalization.handoffTaskId,
+          );
+        } catch {
+          // The durable outbox keeps the user intent for the next retry trigger.
+        }
+      }
+
+      recovery = readActivityRecovery();
+      setFinalizingCount(recovery.finalizations.length);
+
+      if (recovery.handoffTaskIds.length === 0) {
+        setHandoffTask(null);
+        setHandoffResolving(false);
+        return;
+      }
+
+      setHandoffResolving(true);
+      for (const taskId of recovery.handoffTaskIds) {
+        try {
+          const task = await getAnyTask(taskId);
+          setTaskRevision((value) => value + 1);
+          if (task.completedAt) {
+            removeActivityHandoff(taskId);
+            continue;
+          }
+          setHandoffTask(task);
+          return;
+        } catch (error) {
+          if (error instanceof APIError && error.status === 404) {
+            removeActivityHandoff(taskId);
+            setTaskRevision((value) => value + 1);
+            continue;
+          }
+          setHandoffTask(null);
+          showToast({
+            kind: "error",
+            message: error instanceof Error
+              ? `Activity ended, but task status could not be loaded: ${error.message}`
+              : "Activity ended, but task status could not be loaded.",
+          });
+          return;
+        }
+      }
+
+      setHandoffTask(null);
+    } finally {
+      setHandoffResolving(false);
+      recoverySyncing.current = false;
+      if (recoveryDirty.current) {
+        recoveryDirty.current = false;
+        void reconcileActivityRecovery();
+      }
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    const retry = () => { void reconcileRecovery(); };
+    const retryWhenVisible = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+
+    retry();
+    window.addEventListener("online", retry);
+    window.addEventListener(ACTIVITY_RECOVERY_PENDING_EVENT, retry);
+    document.addEventListener("visibilitychange", retryWhenVisible);
+    return () => {
+      window.removeEventListener("online", retry);
+      window.removeEventListener(ACTIVITY_RECOVERY_PENDING_EVENT, retry);
+      document.removeEventListener("visibilitychange", retryWhenVisible);
+    };
+  }, [reconcileRecovery]);
 
   function start(context?: ActivityStart) {
-    if (!canStart) return;
+    if (!activity.canStart) return;
     activity.start(context);
   }
 
   function end() {
-    const taskId = activity.activeContext?.taskId;
-    activity.end();
-    if (!taskId) return;
-
-    setHandoffResolving(true);
-    void getAnyTask(taskId)
-      .then((task) => {
-        setTaskRevision((value) => value + 1);
-        setHandoffTask(task.completedAt ? null : task);
-      })
-      .catch((error) => {
-        if (error instanceof APIError && error.status === 404) {
-          setHandoffTask(null);
-          setTaskRevision((value) => value + 1);
-          return;
-        }
-        showToast({
-          kind: "error",
-          message: error instanceof Error
-            ? `Activity ended, but task status could not be loaded: ${error.message}`
-            : "Activity ended, but task status could not be loaded.",
-        });
-      })
-      .finally(() => setHandoffResolving(false));
+    const finalization = activity.end();
+    if (finalization) void reconcileRecovery();
+    return finalization;
   }
 
   async function completeHandoffTask() {
@@ -72,6 +150,7 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
         completed: true,
         version: target.version,
       });
+      removeActivityHandoff(target.id);
       setHandoffTask(null);
       setTaskRevision((value) => value + 1);
     } catch (error) {
@@ -80,11 +159,17 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
       try {
         const latest = await getAnyTask(target.id);
         completionConfirmed = Boolean(latest.completedAt);
-        setHandoffTask(completionConfirmed ? null : latest);
+        if (completionConfirmed) {
+          removeActivityHandoff(target.id);
+          setHandoffTask(null);
+        } else {
+          setHandoffTask(latest);
+        }
         setTaskRevision((value) => value + 1);
       } catch (refreshError) {
         if (refreshError instanceof APIError && refreshError.status === 404) {
           taskRemoved = true;
+          removeActivityHandoff(target.id);
           setHandoffTask(null);
           setTaskRevision((value) => value + 1);
         }
@@ -97,20 +182,29 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setHandoffBusy(false);
+      void reconcileRecovery();
     }
+  }
+
+  function keepHandoffTaskOpen() {
+    if (!handoffTask) return;
+    removeActivityHandoff(handoffTask.id);
+    setHandoffTask(null);
+    void reconcileRecovery();
   }
 
   const value: ActivityRuntimeState = {
     ...activity,
-    canStart,
+    canStart: activity.canStart,
     start,
     end,
     handoffTask,
     handoffResolving,
     handoffBusy,
+    finalizingCount,
     taskRevision,
     completeHandoffTask,
-    keepHandoffTaskOpen: () => setHandoffTask(null),
+    keepHandoffTaskOpen,
   };
 
   return (

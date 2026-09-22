@@ -51,6 +51,10 @@ type Today struct {
 	Tasks []TodayTask `json:"tasks"`
 }
 
+type Inbox struct {
+	Tasks []Task `json:"tasks"`
+}
+
 type Plan struct {
 	WorkspaceID string      `json:"workspaceId"`
 	Milestones  []Milestone `json:"milestones"`
@@ -76,6 +80,7 @@ type Store interface {
 	GetPlan(context.Context, string) (Plan, error)
 	GetTask(context.Context, string) (Task, error)
 	ListToday(context.Context, string) ([]TodayTask, error)
+	ListInbox(context.Context) ([]Task, error)
 	CreateMilestone(context.Context, Milestone) (Milestone, error)
 	UpdateMilestone(context.Context, Milestone) (Milestone, error)
 	DeleteMilestone(context.Context, string, string, int) error
@@ -161,6 +166,14 @@ func (s Service) Today(ctx context.Context, date string) (Today, error) {
 		return Today{}, err
 	}
 	return Today{Date: date, Tasks: tasks}, nil
+}
+
+func (s Service) Inbox(ctx context.Context) (Inbox, error) {
+	tasks, err := s.Store.ListInbox(ctx)
+	if err != nil {
+		return Inbox{}, err
+	}
+	return Inbox{Tasks: tasks}, nil
 }
 
 func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string) (Milestone, error) {
@@ -295,17 +308,29 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 		return Task{}, ErrInvalid
 	}
 	date, err := normalizePlannedFor(plannedFor)
-	if err != nil || date == nil {
-		return Task{}, ErrInvalid
-	}
-	today, err := s.Store.ListToday(ctx, *date)
 	if err != nil {
 		return Task{}, err
 	}
 	position := 0
-	for _, item := range today {
-		if item.WorkspaceID == nil && item.Position >= position {
-			position = item.Position + 1
+	if date != nil {
+		today, err := s.Store.ListToday(ctx, *date)
+		if err != nil {
+			return Task{}, err
+		}
+		for _, item := range today {
+			if item.WorkspaceID == nil && item.Position >= position {
+				position = item.Position + 1
+			}
+		}
+	} else {
+		inbox, err := s.Store.ListInbox(ctx)
+		if err != nil {
+			return Task{}, err
+		}
+		for _, item := range inbox {
+			if item.Position >= position {
+				position = item.Position + 1
+			}
 		}
 	}
 	now := s.now().Format(time.RFC3339Nano)
@@ -336,9 +361,6 @@ func applyTaskPatch(current Task, patch TaskPatch, now string) (Task, error) {
 		value, err := normalizePlannedFor(*patch.PlannedFor)
 		if err != nil {
 			return Task{}, err
-		}
-		if current.WorkspaceID == nil && value == nil {
-			return Task{}, ErrInvalid
 		}
 		current.PlannedFor = value
 	}
@@ -447,7 +469,7 @@ func ValidateTask(task Task) error {
 }
 
 func ValidateStandaloneTask(task Task) error {
-	if task.WorkspaceID != nil || task.MilestoneID != nil || task.PlannedFor == nil {
+	if task.WorkspaceID != nil || task.MilestoneID != nil {
 		return ErrInvalid
 	}
 	return ValidateTask(task)

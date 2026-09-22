@@ -139,12 +139,12 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clearStandalone := ""
-	if _, err := service.UpdateAnyTask(ctx, standalone.ID, planning.TaskPatch{
-		PlannedFor: &clearStandalone,
-		Version:    standalone.Version,
-	}); !errors.Is(err, planning.ErrInvalid) {
-		t.Fatalf("clearing standalone plannedFor error = %v, want invalid", err)
+	inboxTask, err := service.CreateStandaloneTask(ctx, "Capture without scheduling", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inboxTask.PlannedFor != nil {
+		t.Fatalf("inbox task plannedFor = %#v, want nil", inboxTask.PlannedFor)
 	}
 	if err := service.DeleteAnyTask(ctx, workspaceTask.ID, workspaceTask.Version); !errors.Is(err, planning.ErrInvalid) {
 		t.Fatalf("global delete workspace task error = %v, want invalid", err)
@@ -172,6 +172,40 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 		t.Fatalf("projection lost task ownership or carryover: %#v", today.Tasks)
 	}
 
+	inbox, err := service.Inbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inbox.Tasks) != 1 || inbox.Tasks[0].ID != inboxTask.ID {
+		t.Fatalf("initial inbox = %#v, want only unplanned standalone task", inbox.Tasks)
+	}
+
+	clearStandalone := ""
+	standalone, err = service.UpdateAnyTask(ctx, standalone.ID, planning.TaskPatch{
+		PlannedFor: &clearStandalone,
+		Version:    standalone.Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if standalone.PlannedFor != nil {
+		t.Fatalf("cleared standalone plannedFor = %#v, want nil", standalone.PlannedFor)
+	}
+	inbox, err = service.Inbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inbox.Tasks) != 2 {
+		t.Fatalf("inbox after unscheduling = %#v, want 2 tasks", inbox.Tasks)
+	}
+	today, err = service.Today(ctx, date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(today.Tasks) != 2 {
+		t.Fatalf("today after standalone moved to inbox = %#v, want 2 tasks", today.Tasks)
+	}
+
 	clear := ""
 	updated, err := service.UpdateAnyTask(ctx, workspaceTask.ID, planning.TaskPatch{
 		PlannedFor: &clear,
@@ -187,7 +221,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(today.Tasks) != 2 {
+	if len(today.Tasks) != 1 {
 		t.Fatalf("today after removal = %#v", today.Tasks)
 	}
 }

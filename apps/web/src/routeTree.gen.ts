@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as CategoriesCategoryIdRouteImport } from './routes/categories.$categoryId'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as WorkspacesWorkspaceIdRouteImport } from './routes/workspaces.$workspaceId'
@@ -17,6 +18,11 @@ import { Route as WorkspacesWorkspaceIdRouteImport } from './routes/workspaces.$
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CategoriesCategoryIdRoute = CategoriesCategoryIdRouteImport.update({
@@ -37,12 +43,14 @@ const WorkspacesWorkspaceIdRoute = WorkspacesWorkspaceIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/inbox': typeof InboxRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/inbox': typeof InboxRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
@@ -50,6 +58,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/inbox': typeof InboxRoute
   '/categories/$categoryId': typeof CategoriesCategoryIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
@@ -58,18 +67,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/inbox'
     | '/categories/$categoryId'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/inbox'
     | '/categories/$categoryId'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
   id:
     | '__root__'
     | '/'
+    | '/inbox'
     | '/categories/$categoryId'
     | '/projects/$projectId'
     | '/workspaces/$workspaceId'
@@ -77,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InboxRoute: typeof InboxRoute
   CategoriesCategoryIdRoute: typeof CategoriesCategoryIdRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   WorkspacesWorkspaceIdRoute: typeof WorkspacesWorkspaceIdRoute
@@ -89,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/categories/$categoryId': {
@@ -117,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InboxRoute: InboxRoute,
   CategoriesCategoryIdRoute: CategoriesCategoryIdRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   WorkspacesWorkspaceIdRoute: WorkspacesWorkspaceIdRoute,

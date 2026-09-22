@@ -166,6 +166,28 @@ func (s *Store) ListToday(ctx context.Context, date string) ([]planning.TodayTas
 	return items, rows.Err()
 }
 
+func (s *Store) ListInbox(ctx context.Context) ([]planning.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version
+		FROM planning_tasks
+		WHERE workspace_id IS NULL AND planned_for IS NULL AND completed_at IS NULL
+		ORDER BY position,created_at,id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []planning.Task{}
+	for rows.Next() {
+		item, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func readStandaloneTasks(ctx context.Context, q planningQueryer) ([]planning.Task, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version

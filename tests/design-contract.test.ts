@@ -18,6 +18,7 @@ const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
 const WORKSPACE_PLAN = join(WEB_SRC, "features", "plan", "WorkspacePlan.tsx");
+const INBOX = join(WEB_SRC, "features", "inbox", "Inbox.tsx");
 const TODAY = join(WEB_SRC, "features", "today", "Today.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace", "workspace-content.ts");
@@ -285,7 +286,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, TODAY, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX, TODAY, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -339,10 +340,16 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(WORKSPACE_PLAN), /ActivityTypeTrigger/);
   assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
+  assert.match(source(SIDEBAR), /to="\/inbox"/);
   assert.match(source(SIDEBAR), /to="\/today"/);
+  assert.match(source(INBOX), /Capture first\. Decide when to do it later\./);
+  assert.match(source(INBOX), /New inbox task/);
+  assert.match(source(INBOX), /Move .* to Today/);
+  assert.doesNotMatch(source(INBOX), /priority|kanban|milestone|recurrence|productivity score/i);
   assert.match(source(WORKSPACE_PLAN), /Add .* to Today/);
   assert.match(source(TODAY), /One place for the work you explicitly chose to do today/);
   assert.match(source(TODAY), /Standalone/);
+  assert.match(source(TODAY), /Move .* to Inbox/);
   assert.match(source(TODAY), /What are you doing\?/);
   assert.match(source(TODAY), /Activity type/);
   assert.match(source(TODAY), /Start activity for/);

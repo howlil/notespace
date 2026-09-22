@@ -787,7 +787,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
           noteOpen={notePickerOpen}
           moreOpen={moreOpen}
           onDiagramToggle={() => { setNotePickerOpen(false); setMoreOpen(false); setDiagramOpen((open) => !open); }}
-          onNoteToggle={() => { setDiagramOpen(false); setMoreOpen(false); setNotePickerOpen(!notePickerOpen); }}
+          onNoteToggle={() => { setDiagramOpen(false); setMoreOpen(false); setNotePickerOpen((open) => !open); }}
           onMoreToggle={() => { setNotePickerOpen(false); setMoreOpen((open) => !open); }}
           onCoreToolSelect={closeCanvasPopovers}
           onInsertCodeBlock={insertCodeBlock}

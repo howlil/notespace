@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, Circle, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Circle, ExternalLink, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../components/ui";
 import { useExclusivePopup } from "../../components/ui/dismissable";
 import { useTheme } from "../../providers/theme-provider";
@@ -21,6 +21,7 @@ import { workspaceMutationError, workspaceRenameTitle } from "../library/workspa
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 import { WorkspacePlan } from "../plan/WorkspacePlan";
+import { findCanvasNoteArtifactId } from "../../integrations/canvas/canvas-note-artifact";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
@@ -354,7 +355,32 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     setMaximizedSplitId(null);
   }
 
+  function openNoteFromCanvas(noteId: string) {
+    const linkedNote = current.current.notes.find((note) => note.id === noteId);
+    if (!linkedNote) {
+      showToast({ kind: "error", message: "This linked note no longer exists." });
+      return;
+    }
+    setPlanOpen(false);
+    const existingNotePane = leaves(layout).find((pane) => pane.kind === "note" && pane.noteId === noteId);
+    if (existingNotePane) {
+      setActivePaneId(existingNotePane.id);
+    } else {
+      const reusableNotePane = leaves(layout).find((pane) => pane.kind === "note");
+      if (reusableNotePane) {
+        switchPaneNote(reusableNotePane.id, noteId);
+      } else {
+        const next = layoutForViewMode(layout, "split", noteId);
+        setLayout(next);
+        setActivePaneId(leaves(next).find((pane) => pane.kind === "note" && pane.noteId === noteId)?.id ?? leaves(next)[0]?.id ?? "");
+      }
+    }
+    setMaximizedPaneId(null);
+    setMaximizedSplitId(null);
+  }
+
   function openCanvasFrame(frameId: string) {
+    setPlanOpen(false);
     const existingCanvasPane = leaves(layout).find((pane) => pane.kind === "canvas");
     if (existingCanvasPane) {
       setActivePaneId(existingCanvasPane.id);
@@ -388,6 +414,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
 
   function renderPane(pane: Pane) {
     const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined;
+    const linkedCanvasElementId = note ? findCanvasNoteArtifactId(current.current.canvas, note.id) : null;
     const isActive = pane.id === activePaneId;
     const interaction = interactionState();
     const paneCapacityTitle = interaction.paneLimitReached ? "Maximum 4 panes per workspace." : undefined;
@@ -421,6 +448,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
             </div>
           </details>
           <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New note" title="New note" onClick={() => createNote(pane.id)}><Plus size={14} /></IconButton>
+          {linkedCanvasElementId && <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="Show linked note on Canvas" title="Show on Canvas" onClick={() => openCanvasFrame(linkedCanvasElementId)}><ExternalLink size={13} /></IconButton>}
         </div>
       )
     );
@@ -429,7 +457,7 @@ export function Workspace({ project, categoryTitle, categoryWorkspaces }: { proj
     const surface = pane.kind === "note" && note ? (
       <EditorBoundary><Suspense fallback={<EditorLoading label="Opening note…" />}><DocumentEditor key={`${pane.id}:${note.id}`} workspaceId={project.id} initial={note.document} onChange={(document) => updateDocument(pane.id, document)} onDirtyChange={(value) => setPaneSnapshotDirty(pane.id, value)} registerSnapshotFlush={(flush) => registerPaneSnapshotFlush(pane.id, flush)} onBlockSelect={(_, hasTextSelection) => setSelectedTextPaneId(hasTextSelection ? pane.id : null)} highlightRequest={highlightRequest?.paneId === pane.id ? highlightRequest.request : null} focusRequest={documentFocus} toolbarTargetId={toolbarTargetId} articleMode={articleMode} getCanvasSnapshot={() => current.current.canvas} onOpenCanvasFrame={openCanvasFrame} /></Suspense></EditorBoundary>
     ) : (
-      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} focusRequest={canvasFocus} dark={dark} /></Suspense></EditorBoundary>
+      <EditorBoundary><Suspense fallback={<EditorLoading label="Opening Canvas…" />}><CanvasEditor workspaceId={project.id} initial={current.current.canvas} onChange={updateCanvas} focusRequest={canvasFocus} dark={dark} notes={current.current.notes} onOpenNote={openNoteFromCanvas} /></Suspense></EditorBoundary>
     );
 
     return (

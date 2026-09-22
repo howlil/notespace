@@ -22,7 +22,9 @@ export function CanvasNotePicker({
 
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      if (panelRef.current?.contains(event.target as Node)) return;
+      const target = event.target;
+      if (panelRef.current?.contains(target as Node)) return;
+      if (target instanceof Element && target.closest("[data-note-picker-trigger]")) return;
       onClose();
     };
     const escape = (event: KeyboardEvent) => {

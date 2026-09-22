@@ -38,20 +38,21 @@ EXISTS(SELECT 1 FROM workspace_asset_tombstones WHERE workspace_id=? AND id=?)`,
 	if referenced != 0 {
 		staged = 0
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_assets(workspace_id,id,mime_type,data,created_at,staged)
+	err = tx.QueryRowContext(ctx, `INSERT INTO workspace_assets(workspace_id,id,mime_type,data,created_at,staged)
 VALUES (?,?,?,?,?,?)
 ON CONFLICT(workspace_id,id) DO UPDATE SET
   mime_type=excluded.mime_type,
   data=excluded.data,
-  staged=excluded.staged`,
-		value.WorkspaceID, value.ID, value.MimeType, value.Data, value.CreatedAt, staged)
+  staged=excluded.staged
+RETURNING created_at`,
+		value.WorkspaceID, value.ID, value.MimeType, value.Data, value.CreatedAt, staged).Scan(&value.CreatedAt)
 	if err != nil {
 		return asset.Stored{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return asset.Stored{}, err
 	}
-	return s.GetAsset(ctx, value.WorkspaceID, value.ID)
+	return value, nil
 }
 
 func (s *Store) GetAsset(ctx context.Context, workspaceID, id string) (asset.Stored, error) {

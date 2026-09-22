@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestEraserIconGatewayFetchesValidatesAndCachesSVG(t *testing.T) {
@@ -60,5 +63,49 @@ func TestEraserIconGatewayRejectsInvalidOrUnsafeSVG(t *testing.T) {
 	}
 	if !validSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><use href="#shape"/></svg>`)) {
 		t.Fatal("safe local SVG reference rejected")
+	}
+}
+
+func TestEraserIconGatewayDedupesConcurrentCacheMisses(t *testing.T) {
+	var requests atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		w.Header().Set("Content-Type", "image/svg+xml")
+		_, _ = io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`)
+	}))
+	defer upstream.Close()
+
+	gateway := newEraserIconGateway(&http.Client{Timeout: time.Second}, upstream.URL)
+	var wg sync.WaitGroup
+	statuses := make(chan int, 2)
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			request := httptest.NewRequest(http.MethodGet, "/api/icons/eraser/aws-lambda", nil)
+			request.SetPathValue("slug", "aws-lambda")
+			response := httptest.NewRecorder()
+			gateway.serve(response, request)
+			statuses <- response.Code
+		}()
+	}
+	<-started
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(statuses)
+
+	for status := range statuses {
+		if status != http.StatusOK {
+			t.Fatalf("status = %d, want 200", status)
+		}
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("upstream requests = %d, want 1", got)
 	}
 }

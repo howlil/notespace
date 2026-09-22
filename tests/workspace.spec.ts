@@ -305,6 +305,59 @@ test("single Note view uses a centered article-width writing column", async ({ p
   }
 });
 
+test("Note code blocks auto-detect JavaScript and run with ephemeral output", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Note code ${Date.now()}`);
+
+  try {
+    await selectView(page, "Note");
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
+    await editor.fill("/code");
+
+    const insertMenu = page.getByRole("listbox", { name: "Insert block" });
+    await expect(insertMenu).toBeVisible();
+    await insertMenu.getByRole("option", { name: /Code block/ }).click();
+
+    const block = page.locator("[data-note-code-block]").first();
+    await expect(block).toBeVisible();
+    const source = block.getByLabel("Edit code block");
+    const code = 'const answer = 40 + 2; console.log("note-ok"); return answer;';
+    await source.fill(code);
+
+    const language = block.getByRole("combobox", { name: "Code language" });
+    await expect(language).toHaveValue("auto");
+    await expect(language.locator("option:checked")).toHaveText("Auto · JavaScript");
+
+    const theme = block.getByRole("button", { name: /Theme: Auto/ });
+    await expect(theme).toBeVisible();
+    await theme.click();
+    await expect(block.getByRole("button", { name: "Theme: JetBrains Darcula" })).toBeVisible();
+    await expect(block).toHaveCSS("background-color", "rgb(43, 43, 43)");
+    const keyword = source.locator(".hljs-keyword").first();
+    await expect(keyword).toBeVisible();
+    await expect(keyword).toHaveCSS("color", "rgb(204, 120, 50)");
+
+    await block.getByRole("button", { name: "Run JavaScript" }).click();
+    const output = block.getByLabel("Code output", { exact: true });
+    await expect(output).toContainText("note-ok");
+    await expect(output).toContainText("42");
+    await expect(output).toContainText(/Done/);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+    const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+      notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { theme?: string }; content?: Array<{ text?: string }> }> } } }>;
+    };
+    const codeNode = stored.notes[0]?.document.data.content?.find((node) => node.type === "codeBlock");
+    expect(codeNode?.content?.map((item) => item.text ?? "").join("")).toBe(code);
+    expect(codeNode?.attrs?.theme).toBe("dark");
+    const storedDocument = JSON.stringify(stored.notes[0]?.document.data);
+    expect(storedDocument).not.toContain('"stdout"');
+    expect(storedDocument).not.toContain('"stderr"');
+    expect(storedDocument).not.toContain('"durationMs"');
+  } finally {
+    await cleanup(request, id);
+  }
+});
+
 test("Note can embed Canvas frames by slash command or pasted Excalidraw frame and open the live frame", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Frame link ${Date.now()}`);
 
@@ -350,15 +403,14 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     const reloadedEditor = page.getByRole("textbox", { name: "Workspace document" });
     await reloadedEditor.click();
 
-    const noteSaveRoute = `**/api/workspaces/${id}/notes/*`;
-    let noteSaveAttempt = 0;
-    await page.route(noteSaveRoute, async (route) => {
+    let notePatchCount = 0;
+    await page.route(`**/api/workspaces/${id}/notes/*`, async (route) => {
       if (route.request().method() !== "PATCH") {
         await route.continue();
         return;
       }
-      noteSaveAttempt += 1;
-      await new Promise((resolve) => setTimeout(resolve, noteSaveAttempt === 1 ? 500 : 900));
+      notePatchCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, notePatchCount === 1 ? 500 : 900));
       await route.continue();
     });
 
@@ -374,21 +426,22 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     await expect(linkedFrames).toHaveCount(2);
     await expect(page.getByText("Saving…", { exact: true })).toBeVisible();
 
-    // Delete while the previous two-frame snapshot is still in flight. Its later
-    // acknowledgement must not restore the deleted node into the editor.
-    await page.getByRole("button", { name: "Remove canvas frame link" }).first().click({ force: true });
+    // Delete while the older two-frame snapshot is still in flight. The stale
+    // acknowledgement must never replace the newer local one-frame document.
+    await page.getByRole("button", { name: "Remove canvas frame link" }).first().click();
     await expect(linkedFrames).toHaveCount(1);
     await page.waitForTimeout(650);
     await expect(linkedFrames).toHaveCount(1);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
-    await page.unroute(noteSaveRoute);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    expect(notePatchCount).toBeGreaterThanOrEqual(2);
+    await page.unroute(`**/api/workspaces/${id}/notes/*`);
 
     const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
       notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { frameId?: string } }> } } }>;
     };
     const frameNodes = stored.notes[0]?.document.data.content?.filter((node) => node.type === "canvasFrameLink") ?? [];
     expect(frameNodes).toHaveLength(1);
-    expect(frameNodes.every((node) => node.attrs?.frameId === "frame-architecture")).toBe(true);
+    expect(frameNodes[0]?.attrs?.frameId).toBe("frame-architecture");
   } finally {
     await cleanup(request, id);
   }

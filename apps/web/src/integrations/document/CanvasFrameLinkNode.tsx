@@ -1,11 +1,34 @@
 import { mergeAttributes, Node as TiptapNode } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Frame, ImageOff, Trash2 } from "lucide-react";
 import { IconButton, cn } from "../../components/ui";
-import { loadImageAsset } from "../../domain/assets/local-image-assets";
-import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../features/workspace/canvas-frame-link";
+import { useImageAssetUrl } from "../assets/use-image-asset-url";
+import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../domain/workspace/canvas-frame-link";
+
+function usePreviewVisibility() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || visible) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      setVisible(true);
+      observer.disconnect();
+    }, { rootMargin: "240px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  return { ref, visible };
+}
 
 function imageTransform(element: CanvasFramePreviewElement) {
   const centerX = element.x + element.width / 2;
@@ -26,30 +49,7 @@ function CanvasFramePreviewImage({
   element: CanvasFramePreviewElement;
   workspaceId: string;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!element.fileId) {
-      setSrc(null);
-      return;
-    }
-    let active = true;
-    let objectUrl: string | null = null;
-    setSrc(null);
-    void loadImageAsset(workspaceId, element.fileId)
-      .then((asset) => {
-        if (!active || !asset) return;
-        objectUrl = URL.createObjectURL(asset.blob);
-        setSrc(objectUrl);
-      })
-      .catch(() => {
-        if (active) setSrc(null);
-      });
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [element.fileId, workspaceId]);
+  const src = useImageAssetUrl(workspaceId, element.fileId ?? null);
 
   if (!src) {
     return (
@@ -149,6 +149,8 @@ export function CanvasFramePreview({
   onDelete?: () => void;
   workspaceId: string;
 }) {
+  const { ref: previewRef, visible: previewVisible } = usePreviewVisibility();
+
   return (
     <div className={cn("group relative my-4 overflow-hidden rounded-lg border border-line bg-background", selected && "ring-2 ring-accent/35")}>
       <button
@@ -166,17 +168,21 @@ export function CanvasFramePreview({
           </div>
           <ArrowUpRight size={13} className="shrink-0 text-muted" aria-hidden="true" />
         </div>
-        <div className="h-[180px] w-full bg-[color-mix(in_srgb,var(--background)_90%,var(--tint))] p-3">
-          <svg
-            className="h-full w-full"
-            viewBox={`0 0 ${preview.width} ${preview.height}`}
-            preserveAspectRatio="xMidYMid meet"
-            role="img"
-            aria-label={`Preview of ${preview.label}`}
-          >
-            <rect x="0" y="0" width={preview.width} height={preview.height} fill="transparent" stroke="var(--line)" strokeWidth={Math.max(1, Math.min(preview.width, preview.height) / 180)} />
-            {preview.elements.map((element) => shapeElement(element, workspaceId))}
-          </svg>
+        <div ref={previewRef} className="h-[180px] w-full bg-[color-mix(in_srgb,var(--background)_90%,var(--tint))] p-3">
+          {previewVisible ? (
+            <svg
+              className="h-full w-full"
+              viewBox={`0 0 ${preview.width} ${preview.height}`}
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label={`Preview of ${preview.label}`}
+            >
+              <rect x="0" y="0" width={preview.width} height={preview.height} fill="transparent" stroke="var(--line)" strokeWidth={Math.max(1, Math.min(preview.width, preview.height) / 180)} />
+              {preview.elements.map((element) => shapeElement(element, workspaceId))}
+            </svg>
+          ) : (
+            <div className="h-full w-full" aria-hidden="true" data-canvas-frame-preview-deferred />
+          )}
         </div>
       </button>
       {onDelete && (

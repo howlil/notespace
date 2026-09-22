@@ -8,6 +8,7 @@ import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
+import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
@@ -45,8 +46,8 @@ export function CategoryDetail({ category, initialPage }: { category: CategorySu
   }
   async function saveCategory() { if (!categoryTitle.trim() || categoryTitle === category.title) { setEditingCategory(false); return; } try { await updateCategory(category.id, categoryTitle.trim()); setEditingCategory(false); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." }); } }
   function beginWorkspaceRename(workspace: ProjectSummary) { setEditingWorkspace(workspace.id); setWorkspaceTitle(workspace.title); }
-  async function saveWorkspace() { if (!editingWorkspace || !workspaceTitle.trim()) return; try { await renameProject(editingWorkspace, workspaceTitle.trim()); setEditingWorkspace(null); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename workspace." }); } }
-  async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteProject(workspace.id, workspace.version); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not delete workspace." }); } }
+  async function saveWorkspace() { const nextTitle = workspaceRenameTitle(workspaceTitle); if (!editingWorkspace || !nextTitle) return; try { await renameProject(editingWorkspace, nextTitle); setEditingWorkspace(null); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") }); } }
+  async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteProject(workspace.id, workspace.version); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not delete workspace.") }); } }
 
   return (
     <div className="min-h-dvh bg-background">

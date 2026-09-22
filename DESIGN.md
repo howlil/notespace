@@ -31,9 +31,25 @@ Priority order:
 2. recent workspaces;
 3. category summaries;
 4. progressively disclosed category contents;
-5. secondary learning activity.
+5. secondary activity history.
 
 Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
+
+### Inbox
+
+Inbox is the zero-organization capture surface for standalone tasks. A task in Inbox has no Workspace and no `plannedFor` date. Keep Inbox deliberately temporary and low-ceremony: capture, rename, delete, or move to Today. Do not add milestones, priority, due dates, recurrence, timers, analytics, or a second backlog hierarchy here. Workspace-owned work remains in Workspace Plan and must not be duplicated into Inbox.
+
+### Today
+
+Today is a lightweight execution projection, not a second workspace system. It combines tasks explicitly chosen for the local calendar day, whether they belong to a Workspace Plan or are standalone. Keep it list-first and context-preserving: workspace-owned tasks retain a visible path back to their workspace, while standalone tasks remain clearly distinguishable.
+
+Activity sessions are observed time, separate from task planning. A session may link to a task and Workspace or remain standalone. Workspace Plan tasks may start an Activity directly; Today is an optional execution projection, not a prerequisite for doing planned work. Starting an activity must not require creating or organizing a task first. Activity type is deliberately coarse: Build, Learn, Read, Write, Exercise, or Other. Starting from a Workspace must ask for that coarse type instead of silently classifying all Workspace time as Learn; the Workspace supplies context, not activity meaning. Starting from a task in Today or Workspace Plan must also choose its own type explicitly; a standalone Quick Activity selection must never leak into task classification. Keep the timer global: at most one browser-owned activity may run at a time. Ending a task-linked Activity may offer an explicit task-completion handoff, but must never auto-complete the task; one task may require multiple sessions. Task-completion handoff in both Workspace and Today must resolve the current task state/version before offering completion so stale session or projection context cannot overwrite a newer task edit. While that handoff is pending or being resolved, a new Activity must not start or replace the unresolved decision.
+
+Today must not become a calendar, backlog dashboard, habit tracker, kanban board, priority matrix, or productivity score. Choosing a task for Today is planning intent, not a due date. Unfinished work planned on an earlier day remains visible as carried forward until it is completed, explicitly removed from Today when workspace-owned, or deleted when standalone. Removing a workspace task from Today must not delete the underlying task.
+
+### Workspace cards
+
+Workspace cards retain the compact square paper-stack composition used by the library. The card background is the blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
 
 ### Category detail
 
@@ -41,7 +57,7 @@ A category detail page exists for scale. Prefer dense rows, search/filter/sort, 
 
 ### Workspace
 
-The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are views of the same workspace, not separate top-level products. Focus mode may hide workspace chrome, but must remain immediately reversible.
+The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are authored views of the same workspace, not separate top-level products. Plan is a workspace-owned secondary execution surface for milestones and concrete tasks; it is not a pane, dashboard, kanban board, or replacement for authored content. Keep Plan outline-first, compact, and progressively disclosed. Focus mode may hide workspace chrome, but must remain immediately reversible.
 
 ## Visual direction
 
@@ -55,7 +71,7 @@ Default direction:
 - subtle motion only when it explains state or continuity;
 - light and dark modes must remain coherent.
 
-Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe.
+Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained blue thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
 
 ## Design tokens
 
@@ -80,12 +96,12 @@ The application uses semantic colors so the same component can remain coherent i
 | --- | --- | --- | --- |
 | `--bg` | `#F7F8FA` | `#18191D` | Application background and page canvas outside contained surfaces |
 | `--surface` | `#FFFFFF` | `#202126` | Cards, panels, popups, inputs, and editor chrome |
-| `--sidebar` | `#F1F2F6` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
+| `--sidebar` | `#FFFFFF` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
 | `--canvas` | `#F8F9FC` | `#1D1E24` | Drawing surface behind Excalidraw content |
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
 | `--muted` | `#787B8A` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#4F7396` | `#7FA6C9` | Focus, selected controls, links, active icons, and primary emphasis |
+| `--accent` | `#4F7396` | `#7FA6C9` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
 | `--tint` | `#E8EEF6` | `#1B2636` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
@@ -114,11 +130,11 @@ Use `--tint` for a state that needs to be noticed without becoming a new visual 
 
 ### Typography tokens
 
-Notespace uses Geist throughout the application. The available local weights are 400, 500, and 600.
+Notespace uses Open Sans throughout the application. The available local weights are 400, 500, and 600.
 
 | Token / usage | Value | Guidance |
 | --- | --- | --- |
-| `--font-sans` | `Geist, system-ui, sans-serif` | Default for body, controls, editor chrome, and Excalidraw UI |
+| `--font-sans` | `Open Sans, system-ui, sans-serif` | Default for body, controls, editor chrome, and Excalidraw UI |
 | Body | `14px` | Default document and application text |
 | Display / page title | `25–30px` | Use sparingly for Home or focused entry points |
 | Section title | `12–14px`, weight 500–600 | Titles for contained sections and panels |

@@ -1,4 +1,4 @@
-import { sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
@@ -19,17 +19,29 @@ import type { CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 
 type FlowchartAppState = AppState & { editingLinearElement?: unknown };
 
+type FlowchartSemanticPreview = {
+  sourceId: string;
+  beforeIds: Set<string>;
+  targetId?: string;
+};
+
 export function useCanvasFlowchart({
   apiRef,
   surfaceRef,
+  decorateTarget,
 }: {
   apiRef: RefObject<ExcalidrawImperativeAPI | null>;
   surfaceRef: RefObject<HTMLDivElement | null>;
+  decorateTarget?: (
+    source: OrderedExcalidrawElement,
+    target: OrderedExcalidrawElement,
+  ) => OrderedExcalidrawElement;
 }) {
   const [anchor, setAnchor] = useState<CanvasFlowchartAnchor | null>(null);
   const [previewDirection, setPreviewDirection] =
     useState<DirectionalSpawnDirection | null>(null);
   const previewRef = useRef<DirectionalSpawnDirection | null>(null);
+  const semanticPreviewRef = useRef<FlowchartSemanticPreview | null>(null);
 
   const focusEditor = useCallback(() => {
     const editor = surfaceRef.current?.querySelector(".excalidraw");
@@ -49,6 +61,7 @@ export function useCanvasFlowchart({
       );
     }
     previewRef.current = null;
+    semanticPreviewRef.current = null;
     setPreviewDirection(null);
   }, [apiRef]);
 
@@ -78,6 +91,7 @@ export function useCanvasFlowchart({
             element.id === selectedIds[0] && !element.isDeleted,
         );
       if (!source || !isNativeFlowchartShapeType(source.type)) return false;
+      const beforeIds = new Set(api.getSceneElementsIncludingDeleted().map((element) => element.id));
 
       if (previewRef.current && previewRef.current !== direction) {
         api.app.flowchart.handleKeyEvent(
@@ -100,11 +114,41 @@ export function useCanvasFlowchart({
       );
       if (!handled || !api.app.flowchart.isCreatingChart) return false;
 
+      const semanticPreview: FlowchartSemanticPreview = {
+        sourceId: source.id,
+        beforeIds,
+      };
+      if (decorateTarget) {
+        let decorated = false;
+        const elements = api.getSceneElementsIncludingDeleted().map((element) => {
+          if (
+            decorated
+            || beforeIds.has(element.id)
+            || element.isDeleted
+            || !isNativeFlowchartShapeType(element.type)
+          ) {
+            return element;
+          }
+          const next = decorateTarget(source, element);
+          if (next === element) return element;
+          decorated = true;
+          semanticPreview.targetId = element.id;
+          return next;
+        });
+        if (decorated) {
+          api.updateScene({
+            elements,
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+        }
+      }
+      semanticPreviewRef.current = semanticPreview;
+
       previewRef.current = direction;
       setPreviewDirection(direction);
       return true;
     },
-    [apiRef],
+    [apiRef, decorateTarget],
   );
 
   const commitPreview = useCallback(
@@ -121,6 +165,7 @@ export function useCanvasFlowchart({
       const activeDirection = previewRef.current;
       if (!api || !activeDirection) return;
 
+      const semanticPreview = semanticPreviewRef.current;
       api.app.flowchart.handleKeyEvent(
         new KeyboardEvent("keyup", {
           key: keyFromDirection(activeDirection),
@@ -131,11 +176,58 @@ export function useCanvasFlowchart({
           cancelable: true,
         }),
       );
+
+      const decorateCommittedTarget = () => {
+        if (!decorateTarget || !semanticPreview) return false;
+        const current = api.getSceneElementsIncludingDeleted();
+        const source = current.find(
+          (element) => element.id === semanticPreview.sourceId && !element.isDeleted,
+        );
+        if (!source) return false;
+
+        const rememberedTargetId =
+          semanticPreview.targetId
+          && current.some(
+            (element) =>
+              element.id === semanticPreview.targetId
+              && !element.isDeleted
+              && isNativeFlowchartShapeType(element.type),
+          )
+            ? semanticPreview.targetId
+            : undefined;
+
+        let decorated = false;
+        const elements = current.map((element) => {
+          const isTarget = rememberedTargetId
+            ? element.id === rememberedTargetId
+            : !semanticPreview.beforeIds.has(element.id)
+              && !element.isDeleted
+              && isNativeFlowchartShapeType(element.type);
+          if (!isTarget || decorated || element.isDeleted) return element;
+          const next = decorateTarget(source, element);
+          if (next === element) return element;
+          decorated = true;
+          semanticPreview.targetId = element.id;
+          return next;
+        });
+        if (!decorated) return false;
+        api.updateScene({
+          elements,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        return true;
+      };
+
+      const decoratedSynchronously = decorateCommittedTarget();
       previewRef.current = null;
+      semanticPreviewRef.current = null;
       setPreviewDirection(null);
-      requestAnimationFrame(focusEditor);
+      requestAnimationFrame(() => {
+        if (!decoratedSynchronously) decorateCommittedTarget();
+        focusEditor();
+      });
     },
-    [apiRef, beginPreview, focusEditor],
+    [apiRef, beginPreview, decorateTarget, focusEditor],
   );
 
   const syncSelection = useCallback(
@@ -186,6 +278,7 @@ export function useCanvasFlowchart({
       setAnchor(null);
       if (previewRef.current) {
         previewRef.current = null;
+        semanticPreviewRef.current = null;
         setPreviewDirection(null);
       }
     },

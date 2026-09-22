@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 	"github.com/howlil/notespace/apps/server/migrations"
@@ -19,6 +20,7 @@ const libraryBackupVersion = 1
 
 type workspaceEnvelope struct {
 	Project project.Project           `json:"project"`
+	Plan    planning.Plan             `json:"plan,omitempty"`
 	History []project.HistorySnapshot `json:"history"`
 	Assets  []asset.Stored            `json:"assets"`
 }
@@ -44,6 +46,7 @@ type libraryBackup struct {
 	GeneratedAt string                    `json:"generatedAt"`
 	Categories  []project.CategorySummary `json:"categories"`
 	Workspaces  []workspaceEnvelope       `json:"workspaces"`
+	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord             `json:"trash"`
 	Study       []study.Session           `json:"studySessions"`
 }
@@ -69,7 +72,11 @@ func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnve
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	return workspaceEnvelope{Project: workspace, History: history, Assets: assets}, nil
+	plan, err := s.GetPlan(ctx, id)
+	if err != nil {
+		return workspaceEnvelope{}, err
+	}
+	return workspaceEnvelope{Project: workspace, Plan: plan, History: history, Assets: assets}, nil
 }
 
 func (s *Store) TrashWorkspace(ctx context.Context, id string) error {
@@ -166,6 +173,13 @@ func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) er
 			return project.ErrInvalid
 		}
 	}
+	plan := envelope.Plan
+	if plan.WorkspaceID == "" {
+		plan.WorkspaceID = workspace.ID
+	}
+	if err := planning.ValidatePlan(plan, workspace.ID); err != nil {
+		return project.ErrInvalid
+	}
 	return nil
 }
 
@@ -187,6 +201,9 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 		return err
 	}
 	if err := insertGranularStateTx(ctx, tx, workspace); err != nil {
+		return err
+	}
+	if err := restorePlanTx(ctx, tx, envelope.Plan, workspace.ID); err != nil {
 		return err
 	}
 	for _, checkpoint := range envelope.History {
@@ -286,21 +303,16 @@ func (s *Store) trashRecords(ctx context.Context) ([]trashRecord, error) {
 }
 
 func (s *Store) studySessions(ctx context.Context) ([]study.Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at FROM study_sessions ORDER BY started_at,id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	sessions := []study.Session{}
 	for rows.Next() {
-		var session study.Session
-		var endedAt sql.NullString
-		if err := rows.Scan(&session.ID, &session.WorkspaceID, &session.WorkspaceTitleSnapshot, &session.ActivityDate, &session.StartedAt, &endedAt, &session.ActiveSeconds, &session.LastHeartbeatAt); err != nil {
+		session, err := scanStudySession(rows)
+		if err != nil {
 			return nil, err
-		}
-		if endedAt.Valid {
-			value := endedAt.String
-			session.EndedAt = &value
 		}
 		sessions = append(sessions, session)
 	}
@@ -332,10 +344,14 @@ func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	tasks, err := s.standaloneTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Trash: trash, Study: sessions,
+		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Study: sessions,
 	})
 }
 
@@ -361,12 +377,32 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		return project.ErrInvalid
 	}
 	workspaceIDs := map[string]bool{}
+	activeTaskIDs := map[string]bool{}
 	for _, envelope := range backup.Workspaces {
 		if envelope.Project.ID == "" || workspaceIDs[envelope.Project.ID] || !categoryIDs[envelope.Project.CategoryID] {
 			return project.ErrInvalid
 		}
 		workspaceIDs[envelope.Project.ID] = true
+		for _, task := range envelope.Plan.Tasks {
+			if activeTaskIDs[task.ID] {
+				return project.ErrInvalid
+			}
+			activeTaskIDs[task.ID] = true
+		}
 	}
+	for _, task := range backup.Tasks {
+		if planning.ValidateStandaloneTask(task) != nil || activeTaskIDs[task.ID] {
+			return project.ErrInvalid
+		}
+		activeTaskIDs[task.ID] = true
+	}
+	for _, raw := range backup.Study {
+		session := normalizeActivitySession(raw)
+		if !study.ValidActivityType(session.ActivityType) {
+			return project.ErrInvalid
+		}
+	}
+
 	trashIDs := map[string]bool{}
 	for _, record := range backup.Trash {
 		if record.ID == "" || trashIDs[record.ID] || record.Payload.Project.ID != record.ID || workspaceIDs[record.ID] {
@@ -389,11 +425,13 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		`DELETE FROM workspace_history_payload`,
 		`DELETE FROM workspace_history`,
 		`DELETE FROM workspace_assets`,
+		`DELETE FROM planning_tasks`,
+		`DELETE FROM workspace_milestones`,
 		`DELETE FROM workspace_notes`,
 		`DELETE FROM workspace_canvas`,
 		`DELETE FROM projects`,
 		`DELETE FROM workspace_trash`,
-		`DELETE FROM study_sessions`,
+		`DELETE FROM activity_sessions`,
 		`DELETE FROM categories`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -410,6 +448,9 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 			return err
 		}
 	}
+	if err := restoreStandaloneTasksTx(ctx, tx, backup.Tasks); err != nil {
+		return err
+	}
 	for _, record := range backup.Trash {
 		payload, err := encodeTrashEnvelope(record.Payload)
 		if err != nil {
@@ -419,8 +460,18 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 			return err
 		}
 	}
-	for _, session := range backup.Study {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO study_sessions(id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at) VALUES (?,?,?,?,?,?,?,?)`, session.ID, session.WorkspaceID, session.WorkspaceTitleSnapshot, session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
+	for _, raw := range backup.Study {
+		session := normalizeActivitySession(raw)
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO activity_sessions(
+				id,logical_session_id,workspace_id,workspace_title_snapshot,
+				task_id,task_title_snapshot,activity_title,activity_type,
+				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at
+			)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		`, session.ID, "", session.WorkspaceID, session.WorkspaceTitleSnapshot,
+			session.TaskID, session.TaskTitleSnapshot, session.Title, session.ActivityType,
+			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
 			return err
 		}
 	}

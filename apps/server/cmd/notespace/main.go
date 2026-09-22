@@ -34,8 +34,18 @@ func run() error {
 	}
 	defer store.Close()
 	projects := persistence.NewIndexedProjectStore(store)
-	deps := httpapi.Dependencies{Projects: projects, Study: store, Assets: store, Health: store.Healthy}
+	deps := httpapi.Dependencies{Projects: projects, Planning: store, Study: store, Assets: store, Health: store.Healthy}
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
+	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
+		stats := store.Stats()
+		return httpapi.DatabaseStats{
+			OpenConnections: stats.OpenConnections,
+			InUse:           stats.InUse,
+			Idle:            stats.Idle,
+			WaitCount:       stats.WaitCount,
+			WaitDuration:    stats.WaitDuration,
+		}
+	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
@@ -60,7 +70,7 @@ func run() error {
 
 // isClientNavigationRoute defines the authoritative single source of truth for SPA client routes.
 func isClientNavigationRoute(clean string) bool {
-	if clean == "/" {
+	if clean == "/" || clean == "/today" {
 		return true
 	}
 	prefixes := []string{"/categories/", "/workspaces/", "/projects/"}

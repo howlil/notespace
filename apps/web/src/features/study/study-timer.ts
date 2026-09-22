@@ -1,7 +1,19 @@
+import type { ActivityType } from "../../domain/activity/api";
+
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
+
+export type ActivitySessionContext = {
+  title: string;
+  activityType: ActivityType;
+  workspaceId?: string;
+  workspaceTitleSnapshot?: string;
+  taskId?: string;
+  taskTitleSnapshot?: string;
+};
 
 export type ManualStudySession = {
   logicalSessionId: string;
+  context?: ActivitySessionContext;
   segmentId: string;
   activityDate: string;
   status: "running" | "paused";

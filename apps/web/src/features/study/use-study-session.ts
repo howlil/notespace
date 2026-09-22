@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteStudySession, getWorkspaceStudy, recordStudyHeartbeat } from "../../domain/project/api";
+import {
+  deleteActivitySession,
+  getActivityStats,
+  recordActivityHeartbeat,
+  type ActivityHeartbeat,
+  type ActivityType,
+} from "../../domain/activity/api";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../browser/local-storage";
+import {
+  acknowledgeActivityFinalization,
+  enqueueActivityFinalization,
+  type PendingActivityFinalization,
+} from "./activity-recovery";
 import {
   advanceStudySession,
   combineStudyStats,
@@ -9,64 +21,119 @@ import {
   materializeStudySession,
   resumeStudySession,
   studySegmentId,
+  type ActivitySessionContext,
+  type ManualStudySession,
 } from "./study-timer";
-import type { ManualStudySession } from "./study-timer";
+
+export type ActivityStart = {
+  title: string;
+  activityType: ActivityType;
+  workspaceId?: string;
+  workspaceTitleSnapshot?: string;
+  taskId?: string;
+  taskTitleSnapshot?: string;
+};
 
 export type StudySessionState = {
   workspaceId: string;
+  activeContext?: ActivitySessionContext;
   currentSeconds: number;
   todaySeconds: number;
   totalSeconds: number;
   status: "idle" | "running" | "paused";
   ready: boolean;
-  start: () => void;
+  canStart: boolean;
+  blockedByOtherTab: boolean;
+  start: (context?: ActivityStart) => void;
   pause: () => void;
   resume: () => void;
-  end: () => void;
+  end: () => PendingActivityFinalization | null;
+  adoptLegacyWorkspace: (context: ActivityStart) => void;
   deleteSession: (sessionId: string) => Promise<void>;
 };
 
-type StudyLease = { release: () => void };
+type ActivityLease = { release: () => void };
 
-function storageKey(workspaceId: string) {
+const activityStorageKey = "notespace.activity-session";
+
+function legacyStorageKey(workspaceId: string) {
   return `notespace.study-session:${workspaceId}`;
 }
 
-function readStoredSession(workspaceId: string): ManualStudySession | null {
+function validStoredSession(value: Partial<ManualStudySession>) {
+  return (
+    typeof value.segmentId === "string"
+    && typeof value.activityDate === "string"
+    && (value.status === "running" || value.status === "paused")
+    && typeof value.sessionAccumulatedSeconds === "number"
+    && typeof value.segmentAccumulatedSeconds === "number"
+    && (value.runningSince === null || typeof value.runningSince === "number")
+    && typeof value.baselineTodaySeconds === "number"
+    && typeof value.baselineTotalSeconds === "number"
+  );
+}
+
+function readStoredSession(defaultContext?: ActivityStart): ManualStudySession | null {
   try {
-    const raw = window.localStorage.getItem(storageKey(workspaceId));
+    const current = readLocalStorage(activityStorageKey);
+    if (current) {
+      const value = JSON.parse(current) as Partial<ManualStudySession>;
+      if (!validStoredSession(value) || !value.context?.title || !value.context?.activityType) return null;
+      const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
+        ? value.logicalSessionId
+        : value.segmentId!.split(":", 1)[0] || value.segmentId!;
+      return { ...value, logicalSessionId } as ManualStudySession;
+    }
+
+    if (!defaultContext?.workspaceId) return null;
+    const legacyKey = legacyStorageKey(defaultContext.workspaceId);
+    const raw = readLocalStorage(legacyKey);
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<ManualStudySession>;
-    if (
-      typeof value.segmentId !== "string"
-      || typeof value.activityDate !== "string"
-      || (value.status !== "running" && value.status !== "paused")
-      || typeof value.sessionAccumulatedSeconds !== "number"
-      || typeof value.segmentAccumulatedSeconds !== "number"
-      || (value.runningSince !== null && typeof value.runningSince !== "number")
-      || typeof value.baselineTodaySeconds !== "number"
-      || typeof value.baselineTotalSeconds !== "number"
-    ) return null;
+    if (!validStoredSession(value)) return null;
     const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
       ? value.logicalSessionId
-      : value.segmentId.split(":", 1)[0] || value.segmentId;
-    return { ...value, logicalSessionId } as ManualStudySession;
+      : value.segmentId!.split(":", 1)[0] || value.segmentId!;
+    const migrated = {
+      ...value,
+      logicalSessionId,
+      context: defaultContext,
+    } as ManualStudySession;
+    writeLocalStorage(activityStorageKey, JSON.stringify(migrated));
+    removeLocalStorage(legacyKey);
+    return migrated;
   } catch {
     return null;
   }
 }
 
-function acquireStudyLease(workspaceId: string): Promise<StudyLease | null> {
+function heartbeatFor(
+  context: ActivitySessionContext,
+  date: string,
+  activeSeconds: number,
+  finish: boolean,
+): ActivityHeartbeat {
+  return {
+    activityDate: date,
+    activeSeconds,
+    finish,
+    title: context.title,
+    activityType: context.activityType,
+    ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    ...(context.workspaceTitleSnapshot ? { workspaceTitleSnapshot: context.workspaceTitleSnapshot } : {}),
+    ...(context.taskId ? { taskId: context.taskId } : {}),
+    ...(context.taskTitleSnapshot ? { taskTitleSnapshot: context.taskTitleSnapshot } : {}),
+  };
+}
+
+function acquireActivityLease(): Promise<ActivityLease | null> {
   if (typeof navigator === "undefined" || !("locks" in navigator)) {
-    // Older browsers keep the existing single-tab behavior. Modern browsers
-    // use Web Locks so only one tab can own a workspace timer at a time.
     return Promise.resolve({ release: () => {} });
   }
-
   return new Promise((resolve) => {
     let resolved = false;
     void navigator.locks.request(
-      `notespace.study:${workspaceId}`,
+      "notespace.activity",
       { mode: "exclusive", ifAvailable: true },
       async (lock) => {
         if (!lock) {
@@ -86,13 +153,16 @@ function acquireStudyLease(workspaceId: string): Promise<StudyLease | null> {
   });
 }
 
-export function useStudySession(workspaceId: string, workspaceTitle: string): StudySessionState {
-  void workspaceTitle;
+export function useActivitySession(defaultContext?: ActivityStart): StudySessionState {
+  const defaultContextRef = useRef(defaultContext);
+  defaultContextRef.current = defaultContext;
+
   const [session, setSession] = useState<ManualStudySession | null>(null);
   const sessionRef = useRef<ManualStudySession | null>(null);
-  const leaseRef = useRef<StudyLease | null>(null);
+  const leaseRef = useRef<ActivityLease | null>(null);
   const acquiringLease = useRef(false);
   const mountedRef = useRef(true);
+  const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
   const [baseline, setBaseline] = useState({ todaySeconds: 0, totalSeconds: 0 });
   const [baselineDate, setBaselineDate] = useState(localDate());
   const [clock, setClock] = useState(Date.now());
@@ -107,50 +177,107 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
   const commitSession = useCallback((next: ManualStudySession | null) => {
     sessionRef.current = next;
     setSession(next);
-    if (next) window.localStorage.setItem(storageKey(workspaceId), JSON.stringify(next));
-    else window.localStorage.removeItem(storageKey(workspaceId));
-  }, [workspaceId]);
+    if (next) writeLocalStorage(activityStorageKey, JSON.stringify(next));
+    else removeLocalStorage(activityStorageKey);
+  }, []);
 
-  const sendSegment = useCallback((id: string, date: string, activeSeconds: number, finish: boolean) => {
-    void recordStudyHeartbeat(workspaceId, id, { activityDate: date, activeSeconds, finish }).catch(() => {});
-  }, [workspaceId]);
+  const sendSegment = useCallback((
+    context: ActivitySessionContext | undefined,
+    id: string,
+    date: string,
+    activeSeconds: number,
+    finish: boolean,
+  ) => {
+    if (!context) return;
+    void recordActivityHeartbeat(id, heartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
+  }, []);
+
+  const queueFinalization = useCallback((
+    context: ActivitySessionContext | undefined,
+    id: string,
+    date: string,
+    activeSeconds: number,
+    handoffTaskId?: string,
+  ) => {
+    if (!context) return null;
+    const finalization: PendingActivityFinalization = {
+      sessionId: id,
+      heartbeat: heartbeatFor(context, date, activeSeconds, true),
+      ...(handoffTaskId ? { handoffTaskId } : {}),
+    };
+    return enqueueActivityFinalization(finalization) ? finalization : null;
+  }, []);
+
+  const finalizeSegmentBestEffort = useCallback((
+    context: ActivitySessionContext | undefined,
+    id: string,
+    date: string,
+    activeSeconds: number,
+  ) => {
+    const finalization = queueFinalization(context, id, date, activeSeconds);
+    if (!finalization) return false;
+    void recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat)
+      .then(() => {
+        acknowledgeActivityFinalization(finalization.sessionId);
+      })
+      .catch(() => {});
+    return true;
+  }, [queueFinalization]);
 
   const reconcile = useCallback((value: ManualStudySession, now: number) => {
     const result = advanceStudySession(value, now);
     if (result.completed.length > 0) {
-      result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
+      const queued = result.completed.every((item) =>
+        finalizeSegmentBestEffort(value.context, item.id, item.date, item.activeSeconds));
+      if (!queued) return value;
       commitSession(result.session);
       if (result.session.status === "running") {
-        sendSegment(result.session.segmentId, result.session.activityDate, currentSegmentSeconds(result.session, now), false);
+        sendSegment(
+          result.session.context,
+          result.session.segmentId,
+          result.session.activityDate,
+          currentSegmentSeconds(result.session, now),
+          false,
+        );
       }
     }
     return result.session;
-  }, [commitSession, sendSegment]);
+  }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   const adoptStoredSession = useCallback((stored: ManualStudySession, now: number) => {
     const result = advanceStudySession(stored, now);
-    result.completed.forEach((item) => sendSegment(item.id, item.date, item.activeSeconds, true));
-    commitSession(result.session);
+    const queued = result.completed.every((item) =>
+      finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
+    const adopted = queued ? result.session : stored;
+    commitSession(adopted);
     setBaseline({
-      todaySeconds: result.session.baselineTodaySeconds,
-      totalSeconds: result.session.baselineTotalSeconds,
+      todaySeconds: adopted.baselineTodaySeconds,
+      totalSeconds: adopted.baselineTotalSeconds,
     });
-    setBaselineDate(result.session.activityDate);
+    setBaselineDate(adopted.activityDate);
     setClock(now);
-    if (result.session.status === "running") {
-      sendSegment(result.session.segmentId, result.session.activityDate, currentSegmentSeconds(result.session, now), false);
+    setBlockedByOtherTab(false);
+    if (adopted.status === "running") {
+      sendSegment(
+        adopted.context,
+        adopted.segmentId,
+        adopted.activityDate,
+        currentSegmentSeconds(adopted, now),
+        false,
+      );
     }
-  }, [commitSession, sendSegment]);
+  }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   useEffect(() => {
     mountedRef.current = true;
     let cancelled = false;
     setReady(false);
+    setBlockedByOtherTab(false);
     const now = Date.now();
-    const restored = readStoredSession(workspaceId);
+    const restored = readStoredSession(defaultContextRef.current);
 
     if (restored) {
-      void acquireStudyLease(workspaceId).then((lease) => {
+      void acquireActivityLease().then((lease) => {
         if (cancelled || !mountedRef.current) {
           lease?.release();
           return;
@@ -161,9 +288,8 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
           setReady(true);
           return;
         }
-        // Another tab owns the active/paused session. This tab remains an idle
-        // observer instead of creating a second logical study session.
-        void getWorkspaceStudy(workspaceId, localDate(new Date(now)))
+        setBlockedByOtherTab(true);
+        void getActivityStats(localDate(new Date(now)))
           .then((stats) => {
             if (cancelled) return;
             setBaseline(stats);
@@ -179,7 +305,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       };
     }
 
-    void getWorkspaceStudy(workspaceId, localDate(new Date(now)))
+    void getActivityStats(localDate(new Date(now)))
       .then((stats) => {
         if (cancelled) return;
         setBaseline(stats);
@@ -192,7 +318,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       mountedRef.current = false;
       releaseLease();
     };
-  }, [adoptStoredSession, releaseLease, workspaceId]);
+  }, [adoptStoredSession, releaseLease]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -212,30 +338,47 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
       if (!current || current.status !== "running") return;
       const now = Date.now();
       const next = reconcile(current, now);
-      sendSegment(next.segmentId, next.activityDate, currentSegmentSeconds(next, now), false);
+      sendSegment(
+        next.context,
+        next.segmentId,
+        next.activityDate,
+        currentSegmentSeconds(next, now),
+        false,
+      );
     }, 30_000);
     return () => {
       window.clearInterval(heartbeat);
       const current = sessionRef.current;
       if (current?.status === "running") {
         const now = Date.now();
-        sendSegment(current.segmentId, current.activityDate, currentSegmentSeconds(current, now), false);
+        sendSegment(
+          current.context,
+          current.segmentId,
+          current.activityDate,
+          currentSegmentSeconds(current, now),
+          false,
+        );
       }
     };
   }, [reconcile, sendSegment, sessionStatus]);
 
-  function start() {
+  function start(contextOverride?: ActivityStart) {
     if (!ready || sessionRef.current || leaseRef.current || acquiringLease.current) return;
+    const context = contextOverride ?? defaultContextRef.current;
+    if (!context?.title.trim()) return;
+
     acquiringLease.current = true;
-    void acquireStudyLease(workspaceId).then((lease) => {
+    void acquireActivityLease().then((lease) => {
       acquiringLease.current = false;
       if (!lease || !mountedRef.current) {
         lease?.release();
+        setBlockedByOtherTab(!lease);
         return;
       }
       leaseRef.current = lease;
+      setBlockedByOtherTab(false);
       const now = Date.now();
-      const stored = readStoredSession(workspaceId);
+      const stored = readStoredSession(defaultContextRef.current);
       if (stored) {
         adoptStoredSession(stored, now);
         return;
@@ -256,14 +399,46 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
         runningSince: now,
         baselineTodaySeconds: effectiveBaseline.todaySeconds,
         baselineTotalSeconds: effectiveBaseline.totalSeconds,
+        context,
       };
       setBaseline(effectiveBaseline);
       setBaselineDate(date);
       setClock(now);
       commitSession(next);
-      sendSegment(next.segmentId, next.activityDate, 0, false);
+      sendSegment(next.context, next.segmentId, next.activityDate, 0, false);
     });
   }
+
+  const adoptLegacyWorkspace = useCallback((context: ActivityStart) => {
+    if (
+      !ready
+      || !context.workspaceId
+      || sessionRef.current
+      || leaseRef.current
+      || acquiringLease.current
+    ) return;
+    if (!readLocalStorage(legacyStorageKey(context.workspaceId))) return;
+
+    acquiringLease.current = true;
+    void acquireActivityLease().then((lease) => {
+      acquiringLease.current = false;
+      if (!lease || !mountedRef.current) {
+        lease?.release();
+        setBlockedByOtherTab(!lease);
+        return;
+      }
+      leaseRef.current = lease;
+      setBlockedByOtherTab(false);
+
+      const now = Date.now();
+      const stored = readStoredSession(context);
+      if (!stored) {
+        releaseLease();
+        return;
+      }
+      adoptStoredSession(stored, now);
+    });
+  }, [adoptStoredSession, ready, releaseLease]);
 
   function pause() {
     const current = sessionRef.current;
@@ -273,7 +448,7 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     const next = materializeStudySession(reconciled, now);
     commitSession(next);
     setClock(now);
-    sendSegment(next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
+    sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
   }
 
   function resume() {
@@ -284,33 +459,51 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
     const next = resumeStudySession(reconciled, now);
     commitSession(next);
     setClock(now);
-    sendSegment(next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
+    sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
   }
 
   function end() {
     const current = sessionRef.current;
-    if (!current) return;
+    if (!current) return null;
     const now = Date.now();
     const reconciled = reconcile(current, now);
-    const finished = reconciled.status === "running" ? materializeStudySession(reconciled, now) : reconciled;
-    sendSegment(finished.segmentId, finished.activityDate, finished.segmentAccumulatedSeconds, true);
+    const finished = reconciled.status === "running"
+      ? materializeStudySession(reconciled, now)
+      : reconciled;
+    const finalization = queueFinalization(
+      finished.context,
+      finished.segmentId,
+      finished.activityDate,
+      finished.segmentAccumulatedSeconds,
+      finished.context?.taskId,
+    );
+    if (!finalization) {
+      commitSession(finished);
+      setClock(now);
+      return null;
+    }
     const nextBaseline = {
-      todaySeconds: Math.max(0, finished.baselineTodaySeconds) + Math.max(0, finished.segmentAccumulatedSeconds),
-      totalSeconds: Math.max(0, finished.baselineTotalSeconds) + Math.max(0, finished.sessionAccumulatedSeconds),
+      todaySeconds: Math.max(0, finished.baselineTodaySeconds)
+        + Math.max(0, finished.segmentAccumulatedSeconds),
+      totalSeconds: Math.max(0, finished.baselineTotalSeconds)
+        + Math.max(0, finished.sessionAccumulatedSeconds),
     };
     setBaseline(nextBaseline);
     setBaselineDate(finished.activityDate);
     setClock(now);
     commitSession(null);
     releaseLease();
+    return finalization;
   }
 
   async function deleteSession(sessionId: string) {
-    if (sessionRef.current) throw new Error("End the current study session before deleting session history.");
-    await deleteStudySession(workspaceId, sessionId);
+    if (sessionRef.current || blockedByOtherTab) {
+      throw new Error("End the active activity before deleting session history.");
+    }
+    await deleteActivitySession(sessionId);
     const now = Date.now();
     const date = localDate(new Date(now));
-    const stats = await getWorkspaceStudy(workspaceId, date);
+    const stats = await getActivityStats(date);
     setBaseline(stats);
     setBaselineDate(date);
     setClock(now);
@@ -318,23 +511,48 @@ export function useStudySession(workspaceId: string, workspaceTitle: string): St
 
   const date = localDate(new Date(clock));
   const currentSeconds = session ? currentSessionSeconds(session, clock) : 0;
-  const todayCurrentSeconds = session && session.activityDate === date ? currentSegmentSeconds(session, clock) : 0;
+  const todayCurrentSeconds = session && session.activityDate === date
+    ? currentSegmentSeconds(session, clock)
+    : 0;
   const displayBaseline = session
-    ? { todaySeconds: session.baselineTodaySeconds, totalSeconds: session.baselineTotalSeconds }
-    : { todaySeconds: baselineDate === date ? baseline.todaySeconds : 0, totalSeconds: baseline.totalSeconds };
-  const totals = combineStudyStats(displayBaseline, session ? todayCurrentSeconds : 0, currentSeconds);
+    ? {
+        todaySeconds: session.baselineTodaySeconds,
+        totalSeconds: session.baselineTotalSeconds,
+      }
+    : {
+        todaySeconds: baselineDate === date ? baseline.todaySeconds : 0,
+        totalSeconds: baseline.totalSeconds,
+      };
+  const totals = combineStudyStats(
+    displayBaseline,
+    session ? todayCurrentSeconds : 0,
+    currentSeconds,
+  );
 
   return {
-    workspaceId,
+    workspaceId: session?.context?.workspaceId ?? defaultContext?.workspaceId ?? "",
+    activeContext: session?.context,
     currentSeconds,
     todaySeconds: totals.todaySeconds,
     totalSeconds: totals.totalSeconds,
     status: sessionStatus,
     ready,
+    canStart: ready && !session,
+    blockedByOtherTab,
     start,
     pause,
     resume,
     end,
+    adoptLegacyWorkspace,
     deleteSession,
   };
+}
+
+export function useStudySession(workspaceId: string, workspaceTitle: string): StudySessionState {
+  return useActivitySession({
+    title: workspaceTitle,
+    activityType: "learn",
+    workspaceId,
+    workspaceTitleSnapshot: workspaceTitle,
+  });
 }

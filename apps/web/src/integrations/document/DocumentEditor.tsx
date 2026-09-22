@@ -1,9 +1,6 @@
 import type { Editor, JSONContent } from "@tiptap/core";
-import { mergeAttributes, Node as TiptapNode } from "@tiptap/core";
-import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
-import type { NodeViewProps } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import FindAndReplace from "@tiptap/extension-find-and-replace";
 import Highlight from "@tiptap/extension-highlight";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -11,7 +8,6 @@ import { Mathematics } from "@tiptap/extension-mathematics";
 import { TableKit } from "@tiptap/extension-table";
 import UniqueID from "@tiptap/extension-unique-id";
 import "katex/dist/katex.min.css";
-import { common, createLowlight } from "lowlight";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
@@ -27,29 +23,21 @@ import {
   Copy,
   ExternalLink,
   Frame,
-  Heading2,
   Highlighter,
-  ImagePlus,
   Italic,
   Link2,
   List,
   ListOrdered,
   ListTree,
-  Minus,
   Plus,
-  Quote,
   Search,
-  Sigma,
   Strikethrough,
-  Table2,
   Trash2,
   Unlink,
-  WrapText,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { Snapshot } from "../../domain/project/project";
-import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../features/workspace/canvas-frame-link";
+import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../domain/workspace/canvas-frame-link";
 import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
 import { looksLikeMarkdown, markdownToSnapshot } from "../../domain/document/markdown";
 import {
@@ -64,9 +52,13 @@ import {
   cn,
 } from "../../components/ui";
 import { useDismissablePopup } from "../../components/ui/dismissable";
-import { createLocalAssetId, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { useToast } from "../../providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
+import { createLocalImageExtension } from "./LocalImageNode";
+import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";
+import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
+import { createNoteCodeBlockExtension } from "./NoteCodeBlockNode";
+import { useDocumentImageActions } from "./use-document-image-actions";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
@@ -87,7 +79,6 @@ type FindStorage = {
   currentIndex: number | null;
 };
 
-const lowlight = createLowlight(common);
 
 function hasStructuredClipboardHtml(html: string) {
   return /<(?:table|thead|tbody|tr|th|td|h[1-6]|blockquote|ul|ol)\b/i.test(html);
@@ -141,106 +132,6 @@ function outlineItems(editor: Editor): OutlineItem[] {
   return items;
 }
 
-function activeCodeText(editor: Editor) {
-  const { $from } = editor.state.selection;
-  for (let depth = $from.depth; depth >= 0; depth -= 1) {
-    const node = $from.node(depth);
-    if (node.type.name === "codeBlock") return node.textContent;
-  }
-  return "";
-}
-
-type SlashCommand = {
-  label: string;
-  description: string;
-  keywords: string;
-  icon: LucideIcon;
-  kind?: "canvas-frame";
-  run?: (editor: Editor) => void;
-};
-
-function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selected }: NodeViewProps & { workspaceId: string }) {
-  const assetId = typeof node.attrs.assetId === "string" ? node.attrs.assetId : "";
-  const fallbackSrc = typeof node.attrs.src === "string" && !node.attrs.src.startsWith("notespace-asset:") ? node.attrs.src : null;
-  const [src, setSrc] = useState<string | null>(fallbackSrc);
-  const [editingAlt, setEditingAlt] = useState(false);
-  const [alt, setAlt] = useState(typeof node.attrs.alt === "string" ? node.attrs.alt : "");
-
-  useEffect(() => {
-    if (!assetId) { setSrc(fallbackSrc); return; }
-    let active = true;
-    let objectUrl: string | null = null;
-    setSrc(null);
-    void loadImageAsset(workspaceId, assetId).then((asset) => {
-      if (!active || !asset) return;
-      objectUrl = URL.createObjectURL(asset.blob);
-      setSrc(objectUrl);
-    });
-    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [assetId, fallbackSrc, workspaceId]);
-
-  function commitAlt() {
-    updateAttributes({ alt: alt.trim() || "Pasted image" });
-    setEditingAlt(false);
-  }
-
-  return (
-    <NodeViewWrapper className="group relative my-3.5 block max-w-full">
-      <motion.div layout className={cn("relative inline-block max-w-full rounded-lg", selected && "ring-2 ring-accent/40")}>
-        {src ? (
-          <img className="block h-auto max-w-full rounded-lg border border-line" src={src} alt={node.attrs.alt || "Pasted image"} draggable={false} />
-        ) : (
-          <span className="block rounded-lg border border-dashed border-line p-3 text-[11px] text-muted">Image could not be loaded.</span>
-        )}
-        <div className="absolute right-2 top-2 flex gap-1 rounded-md border border-line bg-surface/92 p-1 opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button type="button" variant="ghost" size="sm" className="!min-h-6 px-2 py-1 text-[10px]" onClick={() => setEditingAlt(true)}>Alt</Button>
-          <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-danger" aria-label="Remove image" onClick={deleteNode}><Trash2 size={12} /></IconButton>
-        </div>
-      </motion.div>
-      <AnimatePresence initial={false}>
-        {editingAlt && (
-          <motion.form
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="mt-2 flex max-w-sm gap-1.5"
-            onSubmit={(event) => { event.preventDefault(); commitAlt(); }}
-          >
-            <Input value={alt} onChange={(event) => setAlt(event.target.value)} className="min-h-0 min-w-0 flex-1 px-2 py-1 text-[11px]" aria-label="Image alt text" autoFocus />
-            <Button type="submit" size="sm">Save</Button>
-          </motion.form>
-        )}
-      </AnimatePresence>
-    </NodeViewWrapper>
-  );
-}
-
-function createLocalImageExtension(workspaceId: string) {
-  return TiptapNode.create({
-    name: "image",
-    group: "block",
-    atom: true,
-    draggable: true,
-    selectable: true,
-    addAttributes() {
-      return {
-        assetId: { default: null },
-        src: { default: null },
-        alt: { default: "Pasted image" },
-      };
-    },
-    parseHTML() { return [{ tag: "img[src]" }]; },
-    renderHTML({ HTMLAttributes }) {
-      const attributes = { ...HTMLAttributes };
-      delete attributes.assetId;
-      return ["img", mergeAttributes(attributes)];
-    },
-    addNodeView() {
-      return ReactNodeViewRenderer((props) => <LocalImageView {...props} workspaceId={workspaceId} />);
-    },
-  });
-}
-
 function MenuButton({
   active = false,
   label,
@@ -268,6 +159,8 @@ function MenuButton({
 export default function DocumentEditor({
   initial,
   onChange,
+  onDirtyChange,
+  registerSnapshotFlush,
   onBlockSelect,
   focusRequest,
   highlightRequest = null,
@@ -279,6 +172,8 @@ export default function DocumentEditor({
 }: {
   initial: Snapshot;
   onChange: (snapshot: Snapshot) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  registerSnapshotFlush?: (flush: (() => void) | null) => void;
   onBlockSelect?: (blockId: string | null, hasTextSelection: boolean) => void;
   focusRequest?: FocusRequest;
   highlightRequest?: HighlightRequest;
@@ -295,6 +190,7 @@ export default function DocumentEditor({
   const selectedCommandRef = useRef(0);
   const openCanvasFrameRef = useRef(onOpenCanvasFrame);
   openCanvasFrameRef.current = onOpenCanvasFrame;
+  const outlineOpenRef = useRef(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
 
@@ -303,6 +199,7 @@ export default function DocumentEditor({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  outlineOpenRef.current = outlineOpen;
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setOutlineRevision] = useState(0);
   const [, setFindRevision] = useState(0);
@@ -311,9 +208,14 @@ export default function DocumentEditor({
   const [replaceTerm, setReplaceTerm] = useState("");
   const [linkEditing, setLinkEditing] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
-  const [codeWrap, setCodeWrap] = useState(false);
   const [mathEdit, setMathEdit] = useState<MathEdit>(null);
   const [mathValue, setMathValue] = useState("");
+  const { schedule: scheduleSnapshot, flush: emitPendingSnapshot, hasPending: hasPendingSnapshot } = useDocumentSnapshotSession({
+    editorRef,
+    onChange,
+    onDirtyChange,
+    registerSnapshotFlush,
+  });
 
   const dismissSlashMenu = useCallback(() => {
     slashMenuRef.current = null;
@@ -394,46 +296,17 @@ export default function DocumentEditor({
     setSelectionMenu(position);
   }
 
-  async function insertImages(files: File[], position?: number) {
-    const currentEditor = editorRef.current;
-    if (!currentEditor) return;
-    try {
-      let at = position;
-      for (const file of files) {
-        const assetId = createLocalAssetId();
-        await storeImageAsset(workspaceId, assetId, file);
-        const node = { type: "image", attrs: { assetId, src: `notespace-asset://${assetId}`, alt: file.name || "Pasted image" } };
-        if (typeof at === "number") {
-          currentEditor.chain().focus().insertContentAt(at, node).run();
-          at += 1;
-        } else {
-          currentEditor.chain().focus().insertContent(node).run();
-        }
-      }
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not store this image." });
-    }
-  }
+  const reportImageError = useCallback((message: string) => {
+    showToast({ kind: "error", message });
+  }, [showToast]);
+  const insertImages = useDocumentImageActions(editorRef, workspaceId, reportImageError);
 
-  const slashCommands: SlashCommand[] = [
-    { label: "Heading", description: "Large section heading", keywords: "heading h2", icon: Heading2, run: (editor) => { editor.chain().focus().toggleHeading({ level: 2 }).run(); } },
-    { label: "Bullet list", description: "Turn this into a list", keywords: "bullet list ul", icon: List, run: (editor) => { editor.chain().focus().toggleBulletList().run(); } },
-    { label: "Numbered list", description: "Create an ordered list", keywords: "numbered ordered list ol", icon: ListOrdered, run: (editor) => { editor.chain().focus().toggleOrderedList().run(); } },
-    { label: "Checklist", description: "Interactive task list", keywords: "task todo checkbox checklist", icon: CheckSquare, run: (editor) => { editor.chain().focus().toggleTaskList().run(); } },
-    { label: "Table", description: "Insert a 3 × 3 comparison table", keywords: "table grid compare", icon: Table2, run: (editor) => { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); } },
-    { label: "Quote", description: "Highlight a passage", keywords: "quote blockquote", icon: Quote, run: (editor) => { editor.chain().focus().toggleBlockquote().run(); } },
-    { label: "Code block", description: "Syntax-highlighted code", keywords: "code pre source", icon: Code2, run: (editor) => { editor.chain().focus().toggleCodeBlock().run(); } },
-    { label: "Link canvas", description: "Embed a Canvas frame preview", keywords: "link canvas frame embed preview", icon: Frame, kind: "canvas-frame" },
-    { label: "Inline math", description: "Insert a compact equation", keywords: "math equation latex inline", icon: Sigma, run: (editor) => { editor.chain().focus().insertInlineMath({ latex: "x^2" }).run(); } },
-    { label: "Math block", description: "Insert a display equation", keywords: "math equation latex block", icon: Sigma, run: (editor) => { editor.chain().focus().insertBlockMath({ latex: "\\\\frac{a}{b}" }).run(); } },
-    { label: "Image", description: "Choose an image from this device", keywords: "image photo upload", icon: ImagePlus, run: () => { imageInputRef.current?.click(); } },
-    { label: "Divider", description: "Add a horizontal rule", keywords: "divider rule line", icon: Minus, run: (editor) => { editor.chain().focus().setHorizontalRule().run(); } },
-  ];
+  const slashCommands = createDocumentSlashCommands(() => imageInputRef.current?.click());
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false }, codeBlock: false }),
-      CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true, tabSize: 2 }),
+      createNoteCodeBlockExtension(),
       createLocalImageExtension(workspaceId),
       createCanvasFrameLinkExtension(workspaceId, (frameId) => openCanvasFrameRef.current?.(frameId)),
       TaskList,
@@ -471,7 +344,7 @@ export default function DocumentEditor({
         role: "textbox",
         "aria-multiline": "true",
         spellcheck: "false",
-        class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+        class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]"),
       },
       handlePaste: (_view, event) => {
         const clipboard = event.clipboardData;
@@ -561,18 +434,21 @@ export default function DocumentEditor({
         if (event.key === "Escape") { event.preventDefault(); dismissSlashMenu(); return true; }
         if (event.key === "Enter" && filtered.length) {
           event.preventDefault();
-          runSlashCommand(filtered[Math.min(selectedCommandRef.current, filtered.length - 1)]);
+          runDocumentSlashCommand(filtered[Math.min(selectedCommandRef.current, filtered.length - 1)]);
           return true;
         }
         return false;
       },
     },
     onUpdate: ({ editor: changed }) => {
-      onChange({ format: "tiptap", version: 1, data: changed.getJSON() });
+      scheduleSnapshot();
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
       syncSelectionMenu(changed);
-      setOutlineRevision((value) => value + 1);
+      if (outlineOpenRef.current) setOutlineRevision((value) => value + 1);
+    },
+    onBlur: () => {
+      emitPendingSnapshot();
     },
     onSelectionUpdate: ({ editor: changed }) => {
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
@@ -584,14 +460,14 @@ export default function DocumentEditor({
   editorRef.current = editor;
 
   useEffect(() => {
-    if (!editor || !initial.data) return;
+    if (!editor || !initial.data || hasPendingSnapshot()) return;
     const currentJson = editor.getJSON();
     if (JSON.stringify(currentJson) !== JSON.stringify(initial.data)) {
       if (!editor.isFocused) {
         editor.commands.setContent(initial.data, { emitUpdate: false });
       }
     }
-  }, [editor, initial.data]);
+  }, [editor, hasPendingSnapshot, initial.data]);
 
   useEffect(() => {
     if (!editor || !findOpen) return;
@@ -607,13 +483,13 @@ export default function DocumentEditor({
         ...editor.options.editorProps,
         attributes: {
           ...editor.options.editorProps.attributes,
-          class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]", codeWrap && "[&_pre]:whitespace-pre-wrap [&_pre]:break-words"),
+          class: cn(editorClassName, articleMode && "mx-auto w-full max-w-[760px]"),
         },
       },
     });
-  }, [articleMode, codeWrap, editor]);
+  }, [articleMode, editor]);
 
-  function runSlashCommand(command: SlashCommand) {
+  function runDocumentSlashCommand(command: DocumentSlashCommand) {
     const menu = slashMenuRef.current;
     const currentEditor = editorRef.current;
     if (!menu || !currentEditor) return;
@@ -718,11 +594,18 @@ export default function DocumentEditor({
   const findTotal = findStorage.results.length;
   const findCurrent = findStorage.currentIndex === null ? 0 : findStorage.currentIndex + 1;
   const tableActive = editor.isActive("table");
-  const codeActive = editor.isActive("codeBlock");
-  const codeLanguage = typeof editor.getAttributes("codeBlock").language === "string" ? editor.getAttributes("codeBlock").language : "";
-  const codeLanguages = lowlight.listLanguages().sort();
+  const codeBlockActive = editor.isActive("codeBlock");
 
   const toolbarButtons = <>
+    <IconButton
+      type="button"
+      aria-pressed={codeBlockActive || undefined}
+      className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
+      aria-label="Code block"
+      onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+    >
+      <Code2 size={14} aria-hidden="true" />
+    </IconButton>
     <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Find in note" aria-expanded={findOpen} onClick={() => { dismissSlashMenu(); setFindOpen((value) => !value); }}>
       <Search size={14} aria-hidden="true" />
     </IconButton>
@@ -868,6 +751,7 @@ export default function DocumentEditor({
                   <MenuButton label="Bullet list" active={editor.isActive("bulletList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}><List size={14} /></MenuButton>
                   <MenuButton label="Numbered list" active={editor.isActive("orderedList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}><ListOrdered size={14} /></MenuButton>
                   <MenuButton label="Checklist" active={editor.isActive("taskList")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}><CheckSquare size={14} /></MenuButton>
+                  <MenuButton label="Code block" active={editor.isActive("codeBlock")} onMouseDown={(event) => { event.preventDefault(); editor.chain().focus().toggleCodeBlock().run(); }}><Code2 size={14} /></MenuButton>
                 </div>
               </div>
             ) : (
@@ -920,7 +804,7 @@ export default function DocumentEditor({
                 aria-selected={index === selectedCommand}
                 className="!min-h-0 !flex w-full !items-center !justify-start !gap-3 rounded-md border-0 px-2.5 py-2.5 text-left text-ink aria-selected:bg-tint"
                 onMouseDown={(event: ReactMouseEvent<HTMLButtonElement>) => event.preventDefault()}
-                onClick={() => runSlashCommand(command)}
+                onClick={() => runDocumentSlashCommand(command)}
               >
                 <span className="grid size-5 shrink-0 place-items-center text-accent"><command.icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-4"><span className="text-[11px] font-medium">{command.label}</span><span className="text-[10px] text-muted">{command.description}</span></span>
@@ -968,40 +852,22 @@ export default function DocumentEditor({
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
-        {(tableActive || codeActive) && (
+        {tableActive && (
           <motion.div
-            key={tableActive ? "table-tools" : "code-tools"}
+            key="table-tools"
             initial={{ opacity: 0, y: 6, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.985 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
             className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface/95 p-1 shadow-[0_10px_28px_#0002] backdrop-blur"
-            aria-label={tableActive ? "Table tools" : "Code block tools"}
+            aria-label="Table tools"
           >
-            {tableActive ? (
-              <>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} />Column</Button>
-                <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</Button>
-                <span className="h-4 w-px bg-line" />
-                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></IconButton>
-              </>
-            ) : (
-              <>
-                <select
-                  value={codeLanguage}
-                  onChange={(event) => editor.chain().focus().updateAttributes("codeBlock", { language: event.target.value || null }).run()}
-                  className="max-w-32 rounded border border-line bg-surface px-2 py-1 text-[10px] text-ink outline-none focus:border-accent"
-                  aria-label="Code language"
-                >
-                  <option value="">Auto detect</option>
-                  {codeLanguages.map((language) => <option key={language} value={language}>{language}</option>)}
-                </select>
-                <IconButton type="button" aria-pressed={codeWrap} className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Toggle code wrapping" onClick={() => setCodeWrap((value) => !value)}><WrapText size={13} /></IconButton>
-                <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Copy code block" onClick={() => void copyText(activeCodeText(editor), "Code copied.")}><Copy size={13} /></IconButton>
-              </>
-            )}
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteRow().run()}>− Row</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addColumnAfter().run()}><Plus size={11} />Column</Button>
+            <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</Button>
+            <span className="h-4 w-px bg-line" />
+            <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-danger" aria-label="Delete table" onClick={() => editor.chain().focus().deleteTable().run()}><Trash2 size={13} /></IconButton>
           </motion.div>
         )}
       </AnimatePresence>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
-import { contentOf } from "../../domain/project/project";
 import type { CategorySummary } from "../../domain/project/project";
 import {
   createProject,
@@ -15,24 +14,11 @@ import {
   restoreTrashedWorkspace,
 } from "../../domain/project/api";
 import type { TrashWorkspace } from "../../domain/project/api";
-import { saveProject } from "../../domain/project/save-project";
 import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { saveProject } from "../../domain/project/save-project";
 import { useToast } from "../../providers/toast-provider";
-import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import";
 import { notifyLibraryChanged } from "./library-sync-store";
-
-function filePath(file: File) {
-  return normalizeVaultPath(file.webkitRelativePath || file.name);
-}
-
-function findVaultFile(files: Map<string, File>, sourcePath: string) {
-  const direct = files.get(sourcePath);
-  if (direct) return direct;
-  const basename = sourcePath.split("/").pop();
-  if (!basename) return null;
-  const matches = [...files.entries()].filter(([path]) => path.split("/").pop() === basename);
-  return matches.length === 1 ? matches[0][1] : null;
-}
+import { importVaultFiles } from "./vault-import-workflow";
 
 export function LibraryTools() {
   const { showToast } = useToast();
@@ -113,63 +99,20 @@ export function LibraryTools() {
   async function importVault(fileList: FileList | null) {
     if (!fileList || !categoryId) return;
     const selected = Array.from(fileList);
-    const markdownFiles = selected.filter((file) => /\.(?:md|markdown)$/i.test(file.name));
-    const filesByPath = new Map(selected.map((file) => [filePath(file), file]));
-    if (!markdownFiles.length) {
+    if (!selected.some((file) => /\.(?:md|markdown)$/i.test(file.name))) {
       showToast({ kind: "error", message: "No Markdown files were found in this selection." });
       return;
     }
 
     setLoading(true);
-    let imported = 0;
-    let failed = 0;
-    let cleanupFailed = 0;
-    for (const markdownFile of markdownFiles) {
-      let createdWorkspaceId: string | null = null;
-      try {
-        const path = filePath(markdownFile);
-        const markdown = await markdownFile.text();
-        const plannedAssets = new Map<string, { id: string; file: File }>();
-        const document = markdownWithVaultImages(markdown, (source) => {
-          const resolvedPath = resolveVaultReference(path, source);
-          if (!resolvedPath) return null;
-          const imageFile = findVaultFile(filesByPath, resolvedPath);
-          if (!imageFile || !imageFile.type.startsWith("image/")) return null;
-          let planned = plannedAssets.get(resolvedPath);
-          if (!planned) {
-            planned = { id: createLocalAssetId(), file: imageFile };
-            plannedAssets.set(resolvedPath, planned);
-          }
-          return { assetId: planned.id, src: `notespace-asset://${planned.id}` };
-        });
-        const title = importedDocumentTitle(path, markdown);
-        const workspace = await createProject(title, categoryId);
-        createdWorkspaceId = workspace.id;
-        for (const asset of plannedAssets.values()) {
-          await storeImageAsset(workspace.id, asset.id, asset.file);
-        }
-        const content = contentOf(workspace);
-        const now = new Date().toISOString();
-        const seedNote = content.notes[0];
-        await saveProject(workspace.id, {
-          ...content,
-          title,
-          document,
-          notes: [{ ...seedNote, title, document, updatedAt: now }],
-        }, workspace.version);
-        imported += 1;
-      } catch {
-        failed += 1;
-        if (createdWorkspaceId) {
-          try {
-            await deleteProject(createdWorkspaceId);
-            await deleteTrashedWorkspace(createdWorkspaceId);
-          } catch {
-            cleanupFailed += 1;
-          }
-        }
-      }
-    }
+    const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
+      createProject,
+      deleteProject,
+      deleteTrashedWorkspace,
+      saveProject,
+      createLocalAssetId,
+      storeImageAsset,
+    });
     setLoading(false);
     if (vaultInput.current) vaultInput.current.value = "";
     showToast({
@@ -203,7 +146,7 @@ export function LibraryTools() {
 
           <div className="mt-4 grid gap-0 border-y border-line">
             <section className="flex items-center justify-between gap-4 border-b border-line py-3">
-              <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and study sessions.</p></div>
+              <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and activity sessions.</p></div>
               <div className="flex shrink-0 gap-1.5">
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
@@ -247,7 +190,7 @@ export function LibraryTools() {
       <ConfirmDialog
         open={permanentTarget !== null}
         title="Delete permanently?"
-        description={permanentTarget ? `${permanentTarget.title} and its recoverable authored history/images will be permanently removed. Study history remains as historical activity.` : ""}
+        description={permanentTarget ? `${permanentTarget.title} and its recoverable authored history/images will be permanently removed. Activity history remains available as historical activity.` : ""}
         confirmLabel="Delete permanently"
         onOpenChange={(next) => { if (!next) setPermanentTarget(null); }}
         onConfirm={() => void permanentlyDelete()}

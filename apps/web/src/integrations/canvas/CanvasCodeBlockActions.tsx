@@ -3,25 +3,14 @@ import { useState, type ReactNode } from "react";
 import { cn } from "../../components/ui";
 import {
   codeLanguageOptions,
+  codeThemeTitle,
   detectCodeLanguage,
+  nextCodeTheme,
   resolveCodeTheme,
   type CanvasCodeBlockData,
-  type CodeBlockTheme,
 } from "./canvas-code-block";
 import { canRunCanvasCode } from "./canvas-code-runner";
 import type { CodeRunView } from "./use-canvas-code-runner";
-
-function nextTheme(theme: CodeBlockTheme): CodeBlockTheme {
-  if (theme === "auto") return "dark";
-  if (theme === "dark") return "light";
-  return "auto";
-}
-
-function themeTitle(theme: CodeBlockTheme) {
-  if (theme === "auto") return "Theme follows Notespace";
-  if (theme === "dark") return "JetBrains Darcula";
-  return "IntelliJ Light";
-}
 
 function ActionButton({
   label,
@@ -79,7 +68,7 @@ export function CanvasCodeBlockActions({
 
   return (
     <div
-      className="notespace-selection-actions pointer-events-auto absolute bottom-2 left-1/2 z-[90] flex h-10 max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&~_.excalidraw_.mobile-shape-actions]:!hidden"
+      className="notespace-selection-actions pointer-events-auto relative z-[1] flex h-10 max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar"
       aria-label="Code block actions"
       onPointerDown={(event) => event.stopPropagation()}
@@ -108,8 +97,8 @@ export function CanvasCodeBlockActions({
       )}
 
       <ActionButton
-        label={themeTitle(block.theme)}
-        onClick={() => onUpdate({ ...block, theme: nextTheme(block.theme) })}
+        label={codeThemeTitle(block.theme, appDark)}
+        onClick={() => onUpdate({ ...block, theme: nextCodeTheme(block.theme) })}
       >
         {resolvedTheme === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
       </ActionButton>

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type { AppState, ExcalidrawImperativeAPI, ToolType } from "@excalidraw/excalidraw/types";
 import { IconButton, cn } from "../../components/ui";
-import { useCanvasPanelDismiss, useCanvasPanelPosition } from "./CanvasPanelPosition";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
 import { nativeActionIcon } from "./CanvasNativeActions";
 import {
   NativeArrowIcon,
@@ -172,8 +172,8 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClos
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 176, 144);
-  useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
+  const position = useAnchoredPanelPosition(anchorRef, panelRef, open, 176, 144);
+  useAnchoredPanelDismiss(open, panelRef, anchorRef, onClose, { insideSelector: "[data-canvas-menu-trigger]" });
   if (typeof document === "undefined") return null;
   const availableTools = supportedTools(api);
   const tools = secondaryTools.filter(({ type }) => availableTools.has(type));
@@ -340,12 +340,12 @@ export function CanvasToolRail(props: {
   }, [diagramOpen, onDiagramToggle]);
 
   return (
-    <motion.div initial={{ opacity: 0, x: -3 }} animate={{ opacity: 1, x: 0 }} transition={motionTransition} className="pointer-events-auto relative flex max-h-[calc(100dvh-16px)] flex-col items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
-      <div className="flex min-h-0 max-h-[calc(100dvh-104px)] flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto relative flex max-w-[calc(100vw-16px)] items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
+      <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
         <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
       </div>
-      <span className="h-px w-5 shrink-0 bg-line" aria-hidden="true" />
+      <span className="mx-0.5 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
       <div data-canvas-menu-trigger="true" className="group relative flex shrink-0">
         <ToolButton icon={<Network className={controlGlyphClass} strokeWidth={1.5} />} label="Diagram" shortcut="/" active={diagramOpen} onClick={onDiagramToggle} />
         {diagramPanel}
@@ -355,6 +355,15 @@ export function CanvasToolRail(props: {
         <MoreToolsPanel open={moreOpen} anchorRef={panelAnchorRef} api={api} activeTool={activeTool} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
       </div>
     </motion.div>
+  );
+}
+
+export function CanvasBottomChrome({ contextual, tools }: { contextual: ReactNode; tools: ReactNode }) {
+  return (
+    <div className="notespace-canvas-bottom-chrome pointer-events-none absolute bottom-2 left-1/2 z-[90] flex max-w-[calc(100%-16px)] -translate-x-1/2 flex-col items-center gap-2">
+      {contextual}
+      {tools}
+    </div>
   );
 }
 

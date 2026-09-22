@@ -10,7 +10,7 @@ interface PanelPosition {
 const viewportGap = 8;
 const anchorGap = 8;
 
-export function useCanvasPanelPosition(
+export function useAnchoredPanelPosition(
   anchorRef: RefObject<HTMLElement | null>,
   panelRef: RefObject<HTMLElement | null>,
   open: boolean,
@@ -76,9 +76,16 @@ export function useCanvasPanelPosition(
   return position;
 }
 
-export function useCanvasPanelDismiss(open: boolean, panelRef: RefObject<HTMLElement | null>, anchorRef: RefObject<HTMLElement | null>, onClose: () => void) {
+export function useAnchoredPanelDismiss(
+  open: boolean,
+  panelRef: RefObject<HTMLElement | null>,
+  anchorRef: RefObject<HTMLElement | null>,
+  onClose: () => void,
+  options: { insideSelector?: string } = {},
+) {
   const closeTimer = useRef<number | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const insideSelector = options.insideSelector;
 
   useEffect(() => {
     if (!open || typeof document === "undefined") {
@@ -100,7 +107,7 @@ export function useCanvasPanelDismiss(open: boolean, panelRef: RefObject<HTMLEle
       return Boolean(node && (
         panelRef.current?.contains(node)
         || anchorRef.current?.contains(node)
-        || element?.closest("[data-canvas-menu-trigger]")
+        || (insideSelector && element?.closest(insideSelector))
       ));
     };
     const handlePointerMove = (event: PointerEvent) => {
@@ -147,5 +154,5 @@ export function useCanvasPanelDismiss(open: boolean, panelRef: RefObject<HTMLEle
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [anchorRef, onClose, open, panelRef]);
+  }, [anchorRef, insideSelector, onClose, open, panelRef]);
 }

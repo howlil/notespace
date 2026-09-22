@@ -2,8 +2,48 @@ package project
 
 import (
 	"context"
+	"errors"
 	"strings"
 )
+
+type workspaceRecordStore interface {
+	GetWorkspaceRecord(context.Context, string) (Project, error)
+}
+
+type workspaceExistenceStore interface {
+	WorkspaceExists(context.Context, string) (bool, error)
+}
+
+// WorkspaceExists answers ownership checks without hydrating Note/Canvas state
+// when the persistence adapter supports the lightweight capability.
+func (s Service) WorkspaceExists(ctx context.Context, id string) (bool, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return false, ErrInvalid
+	}
+	if store, ok := s.Store.(workspaceExistenceStore); ok {
+		return store.WorkspaceExists(ctx, id)
+	}
+	_, err := s.Store.Get(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// GetCanvasState exposes the granular Canvas read boundary for conflict
+// recovery without loading every Note in the Workspace.
+func (s Service) GetCanvasState(ctx context.Context, id string) (CanvasState, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return CanvasState{}, ErrInvalid
+	}
+	store, ok := s.granularStore()
+	if !ok {
+		return CanvasState{}, ErrInvalid
+	}
+	return store.GetCanvasState(ctx, id)
+}
 
 // Get returns one authored workspace through the application boundary.
 // Transport adapters should not reach through Service to the persistence port.
@@ -12,7 +52,13 @@ func (s Service) Get(ctx context.Context, id string) (Project, error) {
 	if id == "" {
 		return Project{}, ErrInvalid
 	}
-	value, err := s.Store.Get(ctx, id)
+	var value Project
+	var err error
+	if store, ok := s.Store.(workspaceRecordStore); ok {
+		value, err = store.GetWorkspaceRecord(ctx, id)
+	} else {
+		value, err = s.Store.Get(ctx, id)
+	}
 	if err != nil {
 		return Project{}, err
 	}

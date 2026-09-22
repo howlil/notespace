@@ -5,12 +5,18 @@ A free, self-hosted knowledge workspace for structured notes, spatial thinking, 
 The user-facing model is:
 
 ```text
+Today
+└── Tasks[]  ← projection of explicitly planned work
+
 Category
 └── Workspace
     ├── Notes[]
     ├── Canvas
+    ├── Plan
+    │   ├── Milestones[]
+    │   └── Tasks[]
     ├── durable image assets
-    └── study activity
+    └── activity history
 ```
 
 Notespace is intentionally not a generic Notion clone, collaboration platform, AI wrapper, or gamified productivity dashboard.
@@ -19,14 +25,17 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 
 - Category → Workspace library with recent-first Home and scalable category browsing.
 - Multiple durable Tiptap Notes plus one Excalidraw Canvas per Workspace.
+- Workspace Plan with lightweight milestones and tasks; tasks may belong to a milestone or remain loose.
+- Today projection for workspace tasks explicitly chosen for the day plus standalone tasks that do not need a Workspace.
+- Global Activity sessions for Build, Learn, Read, Write, Exercise, or Other work; a session may link to a Today task/Workspace or remain standalone.
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
 - Durable image assets.
 - Recoverable Workspace Trash with explicit permanent deletion.
-- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Trash, images, study sessions, and legacy history data when present.
+- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Workspace Plans, standalone tasks, Trash, images, activity sessions, and legacy history data when present.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
-- Explicit Start / Pause / Resume / End study sessions.
+- Explicit Start / Pause / Resume / End activity sessions, optionally linked to a Workspace or Today task.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
 
 ## Self-host with Docker
@@ -145,7 +154,7 @@ Study tracking is manual: Start, Pause/Resume, and End are explicit user actions
 
 ## Search behavior
 
-SQLite authored Workspace state remains authoritative. Successful Workspace create/update/move operations attempt to refresh only that Workspace's FTS projection. If derived indexing fails after the authored write has already committed, Notespace logs the projection error and the next search repairs stale rows lazily rather than falsely reporting that the authored save failed.
+SQLite authored Workspace state remains authoritative. High-frequency granular Note autosaves acknowledge after the authored transaction commits and deliberately leave FTS repair to the next search. Lower-frequency create/move operations may refresh their projection eagerly. Search compares projection metadata with authored revisions and repairs stale rows lazily, so derived indexing never turns a successfully committed Note autosave into a failed save.
 
 ## API compatibility
 

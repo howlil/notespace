@@ -1,11 +1,11 @@
-@import "@fontsource/geist/latin-400.css";
-@import "@fontsource/geist/latin-500.css";
-@import "@fontsource/geist/latin-600.css";
+@import "@fontsource/open-sans/latin-400.css";
+@import "@fontsource/open-sans/latin-500.css";
+@import "@fontsource/open-sans/latin-600.css";
 @import "tailwindcss";
 
 /* Tailwind entrypoint, design tokens, shared utilities, and document-level defaults. */
 @theme {
-  --font-sans: "Geist", system-ui, sans-serif;
+  --font-sans: "Open Sans", system-ui, sans-serif;
   --color-background: var(--bg);
   --color-surface: var(--surface);
   --color-sidebar: var(--sidebar);
@@ -147,6 +147,8 @@
 .notespace-canvas-surface .excalidraw .App-toolbar,
 .notespace-canvas-surface .excalidraw .App-toolbar-container,
 .notespace-canvas-surface .excalidraw .mobile-toolbar,
+.notespace-canvas-surface .excalidraw .mobile-shape-actions,
+.notespace-canvas-surface .mobile-shape-actions,
 .notespace-canvas-surface .excalidraw .App-menu_top,
 .notespace-canvas-surface .excalidraw .App-menu_bottom,
 .notespace-canvas-surface .excalidraw .undo-redo-buttons {
@@ -164,20 +166,14 @@
     display: none !important;
   }
 
-  .notespace-canvas-surface > div:has(> [aria-label="Canvas tools"]) {
-    top: auto !important;
-    right: auto !important;
-    bottom: 8px !important;
-    left: 50% !important;
+  .notespace-canvas-surface .notespace-canvas-bottom-chrome {
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
     width: calc(100% - 16px);
-    max-width: 520px;
-    transform: translateX(-50%) !important;
   }
 
   .notespace-canvas-surface [aria-label="Canvas tools"] {
     width: 100%;
     max-height: 40px;
-    flex-direction: row;
     gap: 2px;
     overflow: hidden;
     padding: 3px;
@@ -185,9 +181,7 @@
 
   .notespace-canvas-surface [aria-label="Canvas tools"] > div:first-child {
     min-width: 0;
-    max-height: none;
     flex: 1;
-    flex-direction: row;
     gap: 2px;
     overflow-x: auto;
     overflow-y: hidden;
@@ -196,11 +190,6 @@
 
   .notespace-canvas-surface [aria-label="Canvas tools"] > div:first-child::-webkit-scrollbar {
     display: none;
-  }
-
-  .notespace-canvas-surface [aria-label="Canvas tools"] > span {
-    width: 1px;
-    height: 18px;
   }
 
   .notespace-canvas-surface [aria-label="Canvas tools"] button {
@@ -213,9 +202,8 @@
   }
 
   .notespace-canvas-surface .notespace-selection-actions {
-    bottom: 50px !important;
     width: max-content !important;
-    max-width: calc(100% - 16px) !important;
+    max-width: 100% !important;
   }
 
   .notespace-canvas-surface [aria-label="Canvas view controls"] {
@@ -223,6 +211,30 @@
     max-width: calc(100% - 16px);
   }
 }
+
+.notespace-code-theme .hljs-comment,
+.notespace-code-theme .hljs-quote { color: var(--code-comment); }
+.notespace-code-theme .hljs-keyword,
+.notespace-code-theme .hljs-selector-tag,
+.notespace-code-theme .hljs-literal { color: var(--code-keyword); }
+.notespace-code-theme .hljs-string,
+.notespace-code-theme .hljs-regexp,
+.notespace-code-theme .hljs-addition { color: var(--code-string); }
+.notespace-code-theme .hljs-number,
+.notespace-code-theme .hljs-symbol,
+.notespace-code-theme .hljs-bullet { color: var(--code-number); }
+.notespace-code-theme .hljs-title,
+.notespace-code-theme .hljs-section,
+.notespace-code-theme .hljs-function { color: var(--code-function); }
+.notespace-code-theme .hljs-type,
+.notespace-code-theme .hljs-built_in,
+.notespace-code-theme .hljs-class { color: var(--code-type); }
+.notespace-code-theme .hljs-attr,
+.notespace-code-theme .hljs-attribute,
+.notespace-code-theme .hljs-property { color: var(--code-property); }
+.notespace-code-theme .hljs-variable,
+.notespace-code-theme .hljs-template-variable { color: var(--code-variable); }
+.notespace-code-theme .hljs-deletion { color: var(--code-deletion); }
 
 .notespace-canvas-surface .excalidraw,
 .notespace-canvas-surface .excalidraw button,
@@ -329,7 +341,7 @@
   color-scheme: light;
   --bg: #f7f8fa;
   --surface: #fff;
-  --sidebar: #f1f2f6;
+  --sidebar: #fff;
   --ink: #252630;
   --muted: #787b8a;
   --line: #e4e5ec;

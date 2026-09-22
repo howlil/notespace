@@ -5,6 +5,7 @@ import type { CategorySummary, ProjectSummary } from "../../domain/project/proje
 import { createWorkspaceNote, getProject, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../providers/toast-provider";
+import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
 import { notifyLibraryChanged } from "../library/library-sync-store";
 import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";
@@ -46,7 +47,7 @@ export function QuickCapture() {
     void Promise.all([listRecentWorkspaces(recentWorkspaceLimit), listCategories()])
       .then(async ([recentWorkspaces, nextCategories]) => {
         if (!active) return;
-        const preferred = localStorage.getItem(lastWorkspaceKey);
+        const preferred = readLocalStorage(lastWorkspaceKey);
         let nextWorkspaces = recentWorkspaces;
         if (preferred && !recentWorkspaces.some((item) => item.id === preferred)) {
           try {
@@ -109,7 +110,7 @@ export function QuickCapture() {
         title: captureTitle(value),
         document,
       });
-      localStorage.setItem(lastWorkspaceKey, workspace.id);
+      writeLocalStorage(lastWorkspaceKey, workspace.id);
       setWorkspaceId(workspace.id);
       setBody("");
       setOpen(false);

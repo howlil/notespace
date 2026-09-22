@@ -13,12 +13,13 @@ import (
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/study"
 )
 
 const libraryArchiveVersion = 2
-const libraryArchiveSchemaVersion = 11
+const libraryArchiveSchemaVersion = 14
 const archiveManifestPath = "manifest.json"
 const maxArchiveManifestBytes = 16 << 20
 
@@ -39,6 +40,7 @@ type archiveAsset struct {
 
 type archiveWorkspaceEnvelope struct {
 	Project project.Project           `json:"project"`
+	Plan    planning.Plan             `json:"plan,omitempty"`
 	History []project.HistorySnapshot `json:"history"`
 	Assets  []archiveAsset            `json:"assets"`
 }
@@ -58,6 +60,7 @@ type libraryArchiveManifest struct {
 	GeneratedAt   string                     `json:"generatedAt"`
 	Categories    []project.CategorySummary  `json:"categories"`
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
+	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
 	Trash         []archiveTrashRecord       `json:"trash"`
 	Study         []study.Session            `json:"studySessions"`
 	Blobs         []archiveBlob              `json:"blobs"`
@@ -79,7 +82,7 @@ func archiveEnvelope(value workspaceEnvelope, blobs map[string][]byte, catalog m
 		}
 		assets = append(assets, archiveAsset{ID: stored.ID, MimeType: stored.MimeType, CreatedAt: stored.CreatedAt, Blob: path, SHA256: hash, Size: int64(len(stored.Data))})
 	}
-	return archiveWorkspaceEnvelope{Project: value.Project, History: value.History, Assets: assets}
+	return archiveWorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}
 }
 
 func (s *Store) ExportBackupArchiveAtomic(ctx context.Context) ([]byte, error) {
@@ -91,7 +94,7 @@ func (s *Store) ExportBackupArchiveAtomic(ctx context.Context) ([]byte, error) {
 	catalog := map[string]archiveBlob{}
 	manifest := libraryArchiveManifest{
 		Format: libraryBackupFormat, Version: libraryArchiveVersion, SchemaVersion: libraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Study: backup.Study,
+		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Study: backup.Study, Tasks: backup.Tasks,
 		Workspaces: make([]archiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:      make([]archiveTrashRecord, 0, len(backup.Trash)),
 	}
@@ -183,7 +186,7 @@ func restoreArchiveEnvelope(value archiveWorkspaceEnvelope, blobData map[string]
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	return workspaceEnvelope{Project: value.Project, History: value.History, Assets: assets}, nil
+	return workspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}, nil
 }
 
 func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
@@ -247,7 +250,7 @@ func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
 
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Study: manifest.Study,
+		Categories: manifest.Categories, Study: manifest.Study, Tasks: manifest.Tasks,
 		Workspaces: make([]workspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:      make([]trashRecord, 0, len(manifest.Trash)),
 	}

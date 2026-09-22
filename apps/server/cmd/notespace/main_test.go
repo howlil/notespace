@@ -25,6 +25,7 @@ func TestProductionRoutes(t *testing.T) {
 		status       int
 	}{
 		{"GET", "/", 200},
+		{"GET", "/today", 200},
 		{"GET", "/categories/test", 200},
 		{"GET", "/workspaces/test", 200},
 		{"GET", "/projects/example", 200},

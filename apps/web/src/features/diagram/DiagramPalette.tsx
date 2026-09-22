@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, IconButton, Input } from "../../components/ui";
-import { useCanvasPanelDismiss, useCanvasPanelPosition } from "../../integrations/canvas/CanvasPanelPosition";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
 import {
   diagramPickerIconCount,
   searchEraserCatalog,
@@ -137,8 +137,8 @@ export function DiagramPalette({
   const panelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const draggingItemRef = useRef<string | null>(null);
-  const position = useCanvasPanelPosition(anchorRef, panelRef, open, 320, 620);
-  useCanvasPanelDismiss(open, panelRef, anchorRef, onClose);
+  const position = useAnchoredPanelPosition(anchorRef, panelRef, open, 320, 620);
+  useAnchoredPanelDismiss(open, panelRef, anchorRef, onClose);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BrowseCategory>("all");
   const [cloudOpen, setCloudOpen] = useState(false);

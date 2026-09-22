@@ -19,9 +19,9 @@ const steps = [
     description: "Keep explanations and examples in Notes, then use Canvas to make the structure visible.",
   },
   {
-    eyebrow: "Study session",
+    eyebrow: "Activity session",
     title: "A workspace can span many sessions.",
-    description: "Start, pause, resume, and end each study session manually. The workspace stays as the long-lived topic container.",
+    description: "Start, pause, resume, and end each activity session manually. The workspace stays as the long-lived topic container.",
   },
   {
     eyebrow: "Know when to split",
@@ -91,7 +91,7 @@ export function WorkspaceGuide() {
             <header className="flex shrink-0 items-start justify-between gap-5 border-b border-line px-6 py-4 max-[640px]:px-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[13px] font-semibold"><BookOpen size={16} className="text-accent" /> How Notespace works</div>
-                <p className="mt-1 mb-0 text-[11px] leading-5 text-muted">A short visual guide to keeping study sessions focused.</p>
+                <p className="mt-1 mb-0 text-[11px] leading-5 text-muted">A short visual guide to keeping activity sessions focused.</p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <div className="hidden text-right min-[440px]:block">

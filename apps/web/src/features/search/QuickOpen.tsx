@@ -7,6 +7,7 @@ import { getProject, listCategories, listRecentWorkspaces, searchNotespace } fro
 import type { SearchResult } from "../../domain/project/api";
 import { useToast } from "../../providers/toast-provider";
 import { RecallMode } from "../study/RecallMode";
+import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 
 type Destination = { key: string; title: string; context: string; href: string; kind: "category" | "workspace" | "note" | "block" };
 
@@ -41,6 +42,10 @@ export function QuickOpen() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        const activeElement = document.activeElement;
+        const canvasOwnsShortcut = activeElement instanceof Element
+          && Boolean(activeElement.closest(".notespace-canvas-surface"));
+        if (canvasOwnsShortcut) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         setOpen(true);
@@ -49,11 +54,11 @@ export function QuickOpen() {
     const customHandler = () => setOpen(true);
 
     window.addEventListener("keydown", handler, true);
-    window.addEventListener("open-quick-search", customHandler);
+    window.addEventListener(OPEN_QUICK_SEARCH_EVENT, customHandler);
 
     return () => {
       window.removeEventListener("keydown", handler, true);
-      window.removeEventListener("open-quick-search", customHandler);
+      window.removeEventListener(OPEN_QUICK_SEARCH_EVENT, customHandler);
     };
   }, []);
 

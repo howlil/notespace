@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import { IconButton } from "../components/ui";
+import { readLocalStorage, writeLocalStorage } from "../browser/local-storage";
 
 const Theme = createContext<{ dark: boolean; toggle: () => void }>({
   dark: false,
@@ -10,12 +11,7 @@ const Theme = createContext<{ dark: boolean; toggle: () => void }>({
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false);
   useEffect(() => {
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem("notespace-theme");
-    } catch {
-      /* Browser storage may be disabled. */
-    }
+    const saved = readLocalStorage("notespace-theme");
     setDark(
       saved
         ? saved === "dark"
@@ -31,14 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         dark,
         toggle: () =>
           setDark((current) => {
-            try {
-              localStorage.setItem(
-                "notespace-theme",
-                current ? "light" : "dark",
-              );
-            } catch {
-              /* Theme still works for this session. */
-            }
+            writeLocalStorage("notespace-theme", current ? "light" : "dark");
             return !current;
           }),
       }}

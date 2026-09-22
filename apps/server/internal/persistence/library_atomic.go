@@ -22,6 +22,10 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceE
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
+	plan, err := planTx(ctx, tx, id)
+	if err != nil {
+		return workspaceEnvelope{}, err
+	}
 
 	historyRows, err := tx.QueryContext(ctx, `SELECT h.id,h.workspace_id,h.version,h.title,h.document_state,h.notes_state,h.canvas_state,h.references_state,h.split_ratio,h.created_at,p.codec,p.payload FROM workspace_history h LEFT JOIN workspace_history_payload p ON p.history_id=h.id WHERE h.workspace_id=? ORDER BY h.created_at DESC,h.rowid DESC LIMIT 50`, id)
 	if err != nil {
@@ -86,7 +90,7 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceE
 		return workspaceEnvelope{}, err
 	}
 	assetRows.Close()
-	return workspaceEnvelope{Project: workspace, History: history, Assets: assets}, nil
+	return workspaceEnvelope{Project: workspace, Plan: plan, History: history, Assets: assets}, nil
 }
 
 // TrashWorkspaceAtomic owns the complete save-point. Compatibility callers that
@@ -174,7 +178,7 @@ func trashRecordsTx(ctx context.Context, tx *sql.Tx) ([]trashRecord, error) {
 }
 
 func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]study.Session, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at FROM study_sessions ORDER BY started_at,id`)
+	rows, err := tx.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -234,10 +238,14 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) 
 	if err != nil {
 		return libraryBackup{}, err
 	}
+	tasks, err := standaloneTasksTx(ctx, tx)
+	if err != nil {
+		return libraryBackup{}, err
+	}
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Trash: trash, Study: sessions,
+		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Study: sessions,
 	}
 	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 		return libraryBackup{}, err

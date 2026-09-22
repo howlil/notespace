@@ -1,3 +1,5 @@
+import { readLocalStorage } from "../../browser/local-storage.ts";
+
 export const MAX_WORKSPACE_PANES = 4;
 
 export type Pane = { id: string; kind: "note" | "canvas"; noteId?: string };
@@ -185,7 +187,7 @@ export function defaultLayout(noteId: string): PaneNode {
 
 export function restoreLayout(key: string, noteIds: Set<string>): PaneNode {
   try {
-    const stored = JSON.parse(localStorage.getItem(key) ?? "null") as PaneNode | null;
+    const stored = JSON.parse(readLocalStorage(key) ?? "null") as PaneNode | null;
     let canvasAvailable = true;
     const clean = (node: PaneNode): PaneNode | null => {
       if (!node || (node.kind !== "leaf" && node.kind !== "split")) return null;

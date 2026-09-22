@@ -205,8 +205,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
       heartbeat: heartbeatFor(context, date, activeSeconds, true),
       ...(handoffTaskId ? { handoffTaskId } : {}),
     };
-    enqueueActivityFinalization(finalization);
-    return finalization;
+    return enqueueActivityFinalization(finalization) ? finalization : null;
   }, []);
 
   const finalizeSegmentBestEffort = useCallback((
@@ -216,19 +215,21 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     activeSeconds: number,
   ) => {
     const finalization = queueFinalization(context, id, date, activeSeconds);
-    if (!finalization) return;
+    if (!finalization) return false;
     void recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat)
       .then(() => {
         acknowledgeActivityFinalization(finalization.sessionId);
       })
       .catch(() => {});
+    return true;
   }, [queueFinalization]);
 
   const reconcile = useCallback((value: ManualStudySession, now: number) => {
     const result = advanceStudySession(value, now);
     if (result.completed.length > 0) {
-      result.completed.forEach((item) =>
+      const queued = result.completed.every((item) =>
         finalizeSegmentBestEffort(value.context, item.id, item.date, item.activeSeconds));
+      if (!queued) return value;
       commitSession(result.session);
       if (result.session.status === "running") {
         sendSegment(
@@ -245,22 +246,23 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
 
   const adoptStoredSession = useCallback((stored: ManualStudySession, now: number) => {
     const result = advanceStudySession(stored, now);
-    result.completed.forEach((item) =>
+    const queued = result.completed.every((item) =>
       finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
-    commitSession(result.session);
+    const adopted = queued ? result.session : stored;
+    commitSession(adopted);
     setBaseline({
-      todaySeconds: result.session.baselineTodaySeconds,
-      totalSeconds: result.session.baselineTotalSeconds,
+      todaySeconds: adopted.baselineTodaySeconds,
+      totalSeconds: adopted.baselineTotalSeconds,
     });
-    setBaselineDate(result.session.activityDate);
+    setBaselineDate(adopted.activityDate);
     setClock(now);
     setBlockedByOtherTab(false);
-    if (result.session.status === "running") {
+    if (adopted.status === "running") {
       sendSegment(
-        result.session.context,
-        result.session.segmentId,
-        result.session.activityDate,
-        currentSegmentSeconds(result.session, now),
+        adopted.context,
+        adopted.segmentId,
+        adopted.activityDate,
+        currentSegmentSeconds(adopted, now),
         false,
       );
     }
@@ -475,6 +477,11 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
       finished.segmentAccumulatedSeconds,
       finished.context?.taskId,
     );
+    if (!finalization) {
+      commitSession(finished);
+      setClock(now);
+      return null;
+    }
     const nextBaseline = {
       todaySeconds: Math.max(0, finished.baselineTodaySeconds)
         + Math.max(0, finished.segmentAccumulatedSeconds),

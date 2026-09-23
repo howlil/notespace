@@ -49,7 +49,7 @@ type libraryBackup struct {
 	Workspaces  []workspaceEnvelope       `json:"workspaces"`
 	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord             `json:"trash"`
-	Study       []activity.Session           `json:"studySessions"`
+	Study       []activity.Session           `json:"activitySessions"`
 }
 
 func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnvelope, error) {
@@ -303,15 +303,15 @@ func (s *Store) trashRecords(ctx context.Context) ([]trashRecord, error) {
 	return records, rows.Err()
 }
 
-func (s *Store) studySessions(ctx context.Context) ([]activity.Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
+func (s *Store) activitySessions(ctx context.Context) ([]activity.Session, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	sessions := []activity.Session{}
 	for rows.Next() {
-		session, err := scanStudySession(rows)
+		session, err := scanActivitySession(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -341,7 +341,7 @@ func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sessions, err := s.studySessions(ctx)
+	sessions, err := s.activitySessions(ctx)
 	if err != nil {
 		return nil, err
 	}

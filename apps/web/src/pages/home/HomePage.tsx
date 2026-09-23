@@ -9,11 +9,13 @@ import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
 import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
-import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
-import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
+import { notifyLibraryChanged } from "../../adapters/browser/library-change";
+import { useLibraryRevision } from "../../features/library/use-library-revision";
+import { workspaceRenameTitle } from "../../domain/workspace/naming";
+import { errorMessage } from "../../shared/lib/error-message";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { StudyActivityDashboard } from "../../features/study/StudyActivityDashboard";
-import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
+import { WorkspaceGuide } from "../../features/workspace-authoring/ui/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
@@ -232,7 +234,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
 export function HomePage({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const libraryRevision = useLibrarySyncStore((state) => state.revision);
+  const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
@@ -328,7 +330,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
       notifyLibraryChanged();
       showToast({ kind: "success", message: "Workspace renamed." });
     } catch (err) {
-      showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") });
+      showToast({ kind: "error", message: errorMessage(err, "Could not rename workspace.") });
     } finally {
       workspaceRenameSubmitting.current = false;
       setSavingWorkspaceId(null);
@@ -351,7 +353,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
       notifyLibraryChanged();
       showToast({ kind: "success", message: "Workspace deleted." });
     } catch (err) {
-      showToast({ kind: "error", message: workspaceMutationError(err, "Could not delete workspace.") });
+      showToast({ kind: "error", message: errorMessage(err, "Could not delete workspace.") });
     }
   }
 

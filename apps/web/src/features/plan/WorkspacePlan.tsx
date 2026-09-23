@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
@@ -31,8 +31,6 @@ import {
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
 import { useToast } from "../../app/providers/toast-provider";
-import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
-import type { ActivityType } from "../../adapters/http/activity-api";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }
@@ -93,14 +91,12 @@ function InlineCreate({
 
 function TaskRow({
   task,
-  activityBusy,
-  onStartActivity,
+  renderTaskAction,
   onUpdate,
   onDelete,
 }: {
   task: PlanningTask;
-  activityBusy: boolean;
-  onStartActivity: (task: PlanningTask, activityType: ActivityType) => void;
+  renderTaskAction?: (task: PlanningTask) => ReactNode;
   onUpdate: (task: PlanningTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: PlanningTask) => void;
 }) {
@@ -160,13 +156,7 @@ function TaskRow({
         </button>
       )}
       <div className="flex shrink-0 items-center gap-0.5">
-        {!task.completedAt && (
-          <ActivityTypeTrigger
-            ariaLabel={`Start activity for ${task.title}`}
-            disabled={activityBusy}
-            onSelect={(activityType) => onStartActivity(task, activityType)}
-          />
-        )}
+        {!task.completedAt && renderTaskAction?.(task)}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <IconButton
             className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
@@ -191,13 +181,11 @@ function TaskRow({
 export function WorkspacePlan({
   workspaceId,
   refreshKey = 0,
-  activityBusy,
-  onStartActivity,
+  renderTaskAction,
 }: {
   workspaceId: string;
   refreshKey?: number;
-  activityBusy: boolean;
-  onStartActivity: (task: PlanningTask, activityType: ActivityType) => void;
+  renderTaskAction?: (task: PlanningTask) => ReactNode;
 }) {
   const { showToast } = useToast();
   const [plan, setPlan] = useState<WorkspacePlanModel>(() => emptyPlan(workspaceId));
@@ -380,7 +368,7 @@ export function WorkspacePlan({
                 </div>
               </header>
               <div className="pt-1.5">
-                {tasks.map((task) => <TaskRow key={task.id} task={task} activityBusy={activityBusy} onStartActivity={onStartActivity} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
+                {tasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
                   <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title, milestone.id)} onCancel={() => setTaskTarget(null)} />
                 ) : (
@@ -405,7 +393,7 @@ export function WorkspacePlan({
             </div>
           </header>
           <div className="pt-1.5">
-            {looseTasks.map((task) => <TaskRow key={task.id} task={task} activityBusy={activityBusy} onStartActivity={onStartActivity} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
+            {looseTasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
               <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title)} onCancel={() => setTaskTarget(null)} />
             ) : (

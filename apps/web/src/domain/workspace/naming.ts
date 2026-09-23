@@ -3,7 +3,3 @@ export function workspaceRenameTitle(rawTitle: string, currentTitle?: string): s
   if (!title || (currentTitle !== undefined && title === currentTitle.trim())) return null;
   return title;
 }
-
-export function workspaceMutationError(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}

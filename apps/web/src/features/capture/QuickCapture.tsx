@@ -6,7 +6,7 @@ import { createWorkspaceNote, getWorkspace, listAllWorkspaces, listCategories, l
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../app/providers/toast-provider";
 import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
-import { notifyLibraryChanged } from "../library/library-sync-store";
+import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 

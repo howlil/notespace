@@ -9,8 +9,10 @@ import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/w
 import { createCategory, createWorkspace, deleteCategory, deleteWorkspace, listCategoryWorkspaces, moveWorkspace, renameWorkspace, updateCategory } from "../../adapters/http/workspace-api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
-import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
-import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
+import { notifyLibraryChanged } from "../../adapters/browser/library-change";
+import { useLibraryRevision } from "../../features/library/use-library-revision";
+import { workspaceRenameTitle } from "../../domain/workspace/naming";
+import { errorMessage } from "../../shared/lib/error-message";
 import { NotespaceLogo } from "../brand/NotespaceLogo";
 
 export function Brand() {
@@ -24,7 +26,7 @@ const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transp
 
 export function Sidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
   const { showToast } = useToast();
-  const libraryRevision = useLibrarySyncStore((state) => state.revision);
+  const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
@@ -129,7 +131,7 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
       setEditingWorkspace(null);
       signalLibraryChanged();
     } catch (err) {
-      showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") });
+      showToast({ kind: "error", message: errorMessage(err, "Could not rename workspace.") });
     }
   }
 

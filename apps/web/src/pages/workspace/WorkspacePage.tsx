@@ -17,10 +17,12 @@ import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarge
 import type { Pane, PaneNode, WorkspaceViewMode } from "../../features/workspace-authoring/model/pane-layout";
 import { useWorkspaceSession } from "../../features/workspace-authoring/model/use-workspace-session";
 import { writeLocalStorage } from "../../adapters/browser/local-storage";
-import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
+import { workspaceRenameTitle } from "../../domain/workspace/naming";
+import { errorMessage } from "../../shared/lib/error-message";
 import { WorkspaceRenameField } from "../../features/workspace-authoring/ui/WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "../../features/workspace-authoring/ui/WorkspaceViewSwitcher";
 import { WorkspacePlan } from "../../features/plan/WorkspacePlan";
+import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
 import { findCanvasNoteArtifactId } from "../../features/workspace-authoring/canvas/canvas-note-artifact";
 
 const DocumentEditor = lazy(() => import("../../features/workspace-authoring/document/DocumentEditor"));
@@ -288,7 +290,7 @@ export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { 
       setRenamingWorkspace(false);
       showToast({ kind: "success", message: "Workspace renamed." });
     } catch (error) {
-      showToast({ kind: "error", message: workspaceMutationError(error, "Could not rename workspace.") });
+      showToast({ kind: "error", message: errorMessage(error, "Could not rename workspace.") });
     } finally {
       workspaceRenameSubmitting.current = false;
       setWorkspaceRenamePending(false);
@@ -511,17 +513,22 @@ export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { 
     <WorkspacePlan
       workspaceId={project.id}
       refreshKey={study.taskRevision}
-      activityBusy={study.status !== "idle" || !study.canStart}
-      onStartActivity={(task, activityType) => {
-        study.start({
-          title: task.title,
-          activityType,
-          taskId: task.id,
-          taskTitleSnapshot: task.title,
-          workspaceId: project.id,
-          workspaceTitleSnapshot: current.current.title,
-        });
-      }}
+      renderTaskAction={(task) => (
+        <ActivityTypeTrigger
+          ariaLabel={`Start activity for ${task.title}`}
+          disabled={study.status !== "idle" || !study.canStart}
+          onSelect={(activityType) => {
+            study.start({
+              title: task.title,
+              activityType,
+              taskId: task.id,
+              taskTitleSnapshot: task.title,
+              workspaceId: project.id,
+              workspaceTitleSnapshot: current.current.title,
+            });
+          }}
+        />
+      )}
     />
   ) : authoringVisible;
   const saveFailed = status.state === "error" || status.state === "conflict";

@@ -6,7 +6,7 @@ import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../d
 import { getWorkspace, listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
 import type { SearchResult } from "../../adapters/http/workspace-api";
 import { useToast } from "../../app/providers/toast-provider";
-import { RecallMode } from "../study/RecallMode";
+import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 
 type Destination = { key: string; title: string; context: string; href: string; kind: "category" | "workspace" | "note" | "block" };

@@ -64,6 +64,25 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
+});
+
+test("features do not depend on sibling feature implementations", () => {
+  const root = join(WEB_SRC, "features");
+  for (const file of collect(root)) {
+    const owner = relative(root, file).replaceAll("\\", "/").split("/")[0];
+    for (const dependency of localImports(file)) {
+      const target = relative(root, dependency).replaceAll("\\", "/");
+      if (target.startsWith("../")) continue;
+      const targetOwner = target.split("/")[0];
+      assert.equal(
+        targetOwner,
+        owner,
+        `${relative(WEB_SRC, file)} crosses feature boundary into ${target}`,
+      );
+    }
+  }
 });
 
 test("routes compose pages instead of routed screens in features", () => {

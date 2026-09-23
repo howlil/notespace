@@ -39,4 +39,3 @@ type Store interface {
 	SearchStore
 	HistoryStore
 }
-

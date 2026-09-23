@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/library"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 // Backup restore/export is still assembled in memory by the persistence adapter.
@@ -36,7 +36,7 @@ func expectedVersion(r *http.Request) (*int, error) {
 	raw = strings.Trim(raw, `"`)
 	value, err := strconv.Atoi(raw)
 	if err != nil || value < 1 {
-		return nil, project.ErrInvalid
+		return nil, workspace.ErrInvalid
 	}
 	return &value, nil
 }

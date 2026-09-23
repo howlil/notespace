@@ -156,13 +156,13 @@ func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {
 }
 
 func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) error {
-	workspace := envelope.Project
-	workspace.CategoryID = categoryID
-	if err := workspace.ValidateWorkspace(workspace); err != nil {
+	authored := envelope.Project
+	authored.CategoryID = categoryID
+	if err := workspace.ValidateWorkspace(authored); err != nil {
 		return err
 	}
 	for _, checkpoint := range envelope.History {
-		if checkpoint.WorkspaceID != workspace.ID {
+		if checkpoint.WorkspaceID != authored.ID {
 			return workspace.ErrInvalid
 		}
 		if err := workspace.ValidateHistorySnapshot(checkpoint); err != nil {
@@ -170,15 +170,15 @@ func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) er
 		}
 	}
 	for _, stored := range envelope.Assets {
-		if stored.ID == "" || stored.WorkspaceID != workspace.ID || stored.MimeType == "" || len(stored.Data) == 0 {
+		if stored.ID == "" || stored.WorkspaceID != authored.ID || stored.MimeType == "" || len(stored.Data) == 0 {
 			return workspace.ErrInvalid
 		}
 	}
 	plan := envelope.Plan
 	if plan.WorkspaceID == "" {
-		plan.WorkspaceID = workspace.ID
+		plan.WorkspaceID = authored.ID
 	}
-	if err := planning.ValidatePlan(plan, workspace.ID); err != nil {
+	if err := planning.ValidatePlan(plan, authored.ID); err != nil {
 		return workspace.ErrInvalid
 	}
 	return nil

@@ -45,4 +45,3 @@ func send(w http.ResponseWriter, status int, value any) {
 		_ = json.NewEncoder(w).Encode(value)
 	}
 }
-

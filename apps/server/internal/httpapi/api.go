@@ -17,35 +17,31 @@ import (
 )
 
 type API struct {
-	service     workspace.Service
-	planning    planning.Service
-	activities  activity.Service
+	service     *workspace.Service
+	planning    *planning.Service
+	activities  *activity.Service
 	assets      asset.Store
 	health      func(context.Context) error
 	eraserIcons *eraserIconGateway
 }
 
 type Dependencies struct {
-	Projects           workspace.Store
-	Planning           planning.Store
-	Activity           activity.Store
-	ActivityReferences activity.ReferenceLookup
-	Assets             asset.Store
-	Health             func(context.Context) error
+	Workspace *workspace.Service
+	Planning  *planning.Service
+	Activity  *activity.Service
+	Assets    asset.Store
+	Health    func(context.Context) error
 }
 
 func New(deps Dependencies) http.Handler {
-	if deps.Projects == nil {
-		panic("httpapi: project store is required")
+	if deps.Workspace == nil {
+		panic("httpapi: workspace service is required")
 	}
 	if deps.Planning == nil {
-		panic("httpapi: planning store is required")
+		panic("httpapi: planning service is required")
 	}
 	if deps.Activity == nil {
-		panic("httpapi: activity store is required")
-	}
-	if deps.ActivityReferences == nil {
-		panic("httpapi: activity reference lookup is required")
+		panic("httpapi: activity service is required")
 	}
 	if deps.Assets == nil {
 		panic("httpapi: asset store is required")
@@ -53,7 +49,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: workspace.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, activities: activity.NewService(deps.Activity, deps.ActivityReferences, nil), assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {

@@ -188,6 +188,13 @@ Adapters implement infrastructure concerns; they do not own product behavior.
 
 Adapter facades may orchestrate narrower infrastructure responsibilities, but keep transport, browser cache, and media normalization separate when they have independent failure modes. Preserve a stable facade when splitting those internals prevents consumer churn.
 
+### CSS ownership
+
+- Keep generic tokens, document defaults, and framework entry styles in `shared/styles`.
+- Keep product-specific selectors with the feature that owns them; Workspace authoring CSS belongs under `features/workspace-authoring`.
+- Root route may import feature-owned global CSS once to preserve deterministic cascade order.
+- Do not recreate a generic top-level `src/styles` bucket.
+
 ## 9. Shared code
 
 `shared/` is for code that is genuinely reusable without knowing Notespace product semantics.

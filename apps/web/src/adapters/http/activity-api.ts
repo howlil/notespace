@@ -1,5 +1,5 @@
 import { json, request } from "./client";
-import type { ActivityType, ActivitySession, ActivityStats, ActivityDay, ActivitySummary, ActivityDayDetail, ActivityHeartbeat } from "../../domain/activity/activity";
+import type { ActivitySession, ActivityStats, ActivitySummary, ActivityDayDetail, ActivityHeartbeat } from "../../domain/activity/activity";
 export type { ActivityType, ActivitySession, ActivityStats, ActivityDay, ActivitySummary, ActivityDayDetail, ActivityHeartbeat } from "../../domain/activity/activity";
 
 export const recordActivityHeartbeat = (

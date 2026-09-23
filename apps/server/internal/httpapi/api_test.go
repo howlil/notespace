@@ -221,10 +221,12 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 		t.Fatalf("workspace title = %q, want %q", got, "Golang")
 	}
 
-	// Category deletion must not cascade into authored workspace data.
+	// Category deletion must not cascade into active or recoverable workspace data.
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
 	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), 204)
+	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
+	expect(t, call(t, api, "DELETE", "/api/trash/"+workspace.ID, nil), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
 	for _, listed := range decodeCategories(t, call(t, api, "GET", "/api/categories", nil)) {
 		if listed.ID == category.ID {

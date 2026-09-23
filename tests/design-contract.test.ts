@@ -335,9 +335,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(renameField,/aria-label="Workspace title"/);
   for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspace, /<WorkspacePlan/);
-  assert.match(workspace, /onStartActivity=/);
-  assert.match(source(WORKSPACE_PLAN), /Start activity for/);
-  assert.match(source(WORKSPACE_PLAN), /ActivityTypeTrigger/);
+  assert.match(workspace, /renderTaskAction=/);
+  assert.match(workspace, /Start activity for/);
+  assert.match(workspace, /ActivityTypeTrigger/);
   assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
   assert.match(source(SIDEBAR), /to="\/inbox"/);

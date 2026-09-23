@@ -6,7 +6,7 @@ import {
   canvasFrameLinkFromClipboard,
   canvasFrameLinkFromSnapshot,
   listCanvasFrameLinks,
-} from "./canvas-frame-link";
+} from "./canvas-frame-link.ts";
 
 function canvas(): Snapshot {
   return {

@@ -5,7 +5,7 @@ import {
   createWorkspaceHttpClient,
   request,
   type HttpTransport,
-} from "./client";
+} from "./client.ts";
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,

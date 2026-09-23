@@ -154,12 +154,16 @@ test("document integration consumes Canvas frame links through the domain bounda
   assert.doesNotMatch(frameNode, /features\/workspace\/canvas-frame-link/);
 });
 
-test("diagram feature does not depend on Canvas integration internals", () => {
-  const diagramRoot = join(WEB_SRC, "features", "diagram");
+test("diagram domain does not depend on workspace authoring internals", () => {
+  const diagramRoot = join(WEB_SRC, "domain", "diagram");
   for (const file of collect(diagramRoot)) {
     for (const dependency of localImports(file)) {
       const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(path, /^integrations\//, `${relative(WEB_SRC, file)} depends on ${path}`);
+      assert.doesNotMatch(
+        path,
+        /^features\/workspace-authoring\//,
+        `${relative(WEB_SRC, file)} depends on ${path}`,
+      );
     }
   }
 });

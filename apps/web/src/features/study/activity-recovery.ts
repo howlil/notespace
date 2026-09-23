@@ -1,5 +1,5 @@
 import type { ActivityHeartbeat } from "../../adapters/http/activity-api";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage.ts";
 
 export type PendingActivityFinalization = {
   sessionId: string;

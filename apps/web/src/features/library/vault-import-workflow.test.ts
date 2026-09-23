@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Workspace } from "../../domain/workspace/workspace";
-import { importVaultFiles, type VaultImportOperations } from "./vault-import-workflow";
+import { importVaultFiles, type VaultImportOperations } from "./vault-import-workflow.ts";
 
 test("vault import workflow can run with injected operations", async () => {
   const snapshot = { format: "tiptap", version: 1, data: { type: "doc", content: [] } };

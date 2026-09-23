@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import type { WorkspaceContent } from "../../../domain/workspace/workspace";
-import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content";
+import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content.ts";
 
 function content(document = blankDocument("existing-block")): WorkspaceContent {
   return {

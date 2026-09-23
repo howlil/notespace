@@ -1,4 +1,4 @@
-import { readLocalStorage } from "../../../adapters/browser/local-storage";
+import { readLocalStorage } from "../../../adapters/browser/local-storage.ts";
 
 export const MAX_WORKSPACE_PANES = 4;
 

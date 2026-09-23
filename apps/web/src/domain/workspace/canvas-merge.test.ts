@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasSnapshots, mergeWorkspaceContent, rebaseLocalWorkspaceContent } from "./canvas-merge";
+import { mergeCanvasSnapshots, mergeWorkspaceContent, rebaseLocalWorkspaceContent } from "./canvas-merge.ts";
 import type { WorkspaceContent, Snapshot } from "./workspace";
 
 function canvas(elements: Array<Record<string, unknown>>, extra: Record<string, unknown> = {}): Snapshot {

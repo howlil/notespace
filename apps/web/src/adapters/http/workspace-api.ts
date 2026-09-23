@@ -13,9 +13,9 @@ import {
   json,
   request,
   type HttpTransport,
-} from "./client";
+} from "./client.ts";
 
-export { APIError } from "./client";
+export { APIError } from "./client.ts";
 
 export interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;

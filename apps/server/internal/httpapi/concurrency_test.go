@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
@@ -20,12 +20,12 @@ func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	workspace, err := service.Create(ctx, "Initial")
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.Update(ctx, workspace.ID, project.Update{
+	updated, err := service.Update(ctx, workspace.ID, workspace.Update{
 		Title:      "Newer",
 		Document:   workspace.Document,
 		Notes:      workspace.Notes,

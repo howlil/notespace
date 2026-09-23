@@ -321,8 +321,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
   assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/);
-  const viewSwitcher = source(join(WEB_SRC, "features", "workspace", "WorkspaceViewSwitcher.tsx"));
-  const renameField = source(join(WEB_SRC, "features", "workspace", "WorkspaceRenameField.tsx"));
+  const viewSwitcher = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceViewSwitcher.tsx"));
+  const renameField = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRenameField.tsx"));
   assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
   assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
   assert.match(workspace,/renameWorkspace/);

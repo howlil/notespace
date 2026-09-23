@@ -19,7 +19,7 @@ var (
 )
 
 const (
-	StudyDayThreshold = int64(10 * 60)
+	ActivityDayThreshold = int64(10 * 60)
 	DateLayout        = "2006-01-02"
 )
 
@@ -105,9 +105,9 @@ type ReferenceLookup interface {
 
 type Store interface {
 	UpsertSession(context.Context, Session) (Session, error)
-	ListStudySessions(context.Context, string, int) ([]Session, error)
+	ListWorkspaceSessions(context.Context, string, int) ([]Session, error)
 	ListActivitySessions(context.Context, int) ([]Session, error)
-	DeleteStudySession(context.Context, string, string) error
+	DeleteWorkspaceSession(context.Context, string, string) error
 	DeleteActivitySession(context.Context, string) error
 	WorkspaceStats(context.Context, string, string) (WorkspaceStats, error)
 	GlobalStats(context.Context, string) (WorkspaceStats, error)
@@ -292,7 +292,7 @@ func (s Service) ListSessions(ctx context.Context, workspaceID string, limit int
 	if strings.TrimSpace(workspaceID) == "" || limit < 1 || limit > 50 {
 		return nil, ErrInvalid
 	}
-	return s.Store.ListStudySessions(ctx, workspaceID, limit)
+	return s.Store.ListWorkspaceSessions(ctx, workspaceID, limit)
 }
 
 func (s Service) ListActivities(ctx context.Context, limit int) ([]Session, error) {
@@ -306,7 +306,7 @@ func (s Service) DeleteSession(ctx context.Context, workspaceID, sessionID strin
 	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(sessionID) == "" {
 		return ErrInvalid
 	}
-	return s.Store.DeleteStudySession(ctx, workspaceID, sessionID)
+	return s.Store.DeleteWorkspaceSession(ctx, workspaceID, sessionID)
 }
 
 func (s Service) DeleteActivity(ctx context.Context, sessionID string) error {
@@ -363,11 +363,11 @@ func CalculateStreak(days []DayActivity, endDate string) int {
 		}
 	}
 	date, _ := time.Parse(DateLayout, endDate)
-	if byDate[endDate] < StudyDayThreshold {
+	if byDate[endDate] < ActivityDayThreshold {
 		date = date.AddDate(0, 0, -1)
 	}
 	streak := 0
-	for byDate[date.Format(DateLayout)] >= StudyDayThreshold {
+	for byDate[date.Format(DateLayout)] >= ActivityDayThreshold {
 		streak++
 		date = date.AddDate(0, 0, -1)
 	}

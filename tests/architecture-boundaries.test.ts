@@ -119,6 +119,10 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "plan")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "study")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "planning")), true);
+  assert.equal(existsSync(join(WEB_SRC, "features", "activity")), true);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
 });
@@ -244,7 +248,7 @@ test("workspace page is a composition boundary for authoring, planning, and acti
   const page = source("pages/workspace/WorkspacePage.tsx");
   assert.match(page, /WorkspaceAuthoring/);
   assert.match(page, /WorkspacePlan/);
-  assert.match(page, /StudyIndicator/);
+  assert.match(page, /ActivityIndicator/);
   assert.doesNotMatch(page, /useWorkspaceSession/);
 });
 

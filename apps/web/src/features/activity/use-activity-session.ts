@@ -13,17 +13,17 @@ import {
   type PendingActivityFinalization,
 } from "./activity-recovery";
 import {
-  advanceStudySession,
-  combineStudyStats,
+  advanceActivitySession,
+  combineActivityStats,
   currentSegmentSeconds,
   currentSessionSeconds,
   localDate,
-  materializeStudySession,
-  resumeStudySession,
-  studySegmentId,
+  materializeActivitySession,
+  resumeActivitySession,
+  activitySegmentId,
   type ActivitySessionContext,
-  type ManualStudySession,
-} from "./study-timer";
+  type ManualActivitySession,
+} from "./activity-timer";
 
 export type ActivityStart = {
   title: string;
@@ -34,7 +34,7 @@ export type ActivityStart = {
   taskTitleSnapshot?: string;
 };
 
-export type StudySessionState = {
+export type ActivitySessionState = {
   workspaceId: string;
   activeContext?: ActivitySessionContext;
   currentSeconds: number;
@@ -60,7 +60,7 @@ function legacyStorageKey(workspaceId: string) {
   return `notespace.study-session:${workspaceId}`;
 }
 
-function validStoredSession(value: Partial<ManualStudySession>) {
+function validStoredSession(value: Partial<ManualActivitySession>) {
   return (
     typeof value.segmentId === "string"
     && typeof value.activityDate === "string"
@@ -73,23 +73,23 @@ function validStoredSession(value: Partial<ManualStudySession>) {
   );
 }
 
-function readStoredSession(defaultContext?: ActivityStart): ManualStudySession | null {
+function readStoredSession(defaultContext?: ActivityStart): ManualActivitySession | null {
   try {
     const current = readLocalStorage(activityStorageKey);
     if (current) {
-      const value = JSON.parse(current) as Partial<ManualStudySession>;
+      const value = JSON.parse(current) as Partial<ManualActivitySession>;
       if (!validStoredSession(value) || !value.context?.title || !value.context?.activityType) return null;
       const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
         ? value.logicalSessionId
         : value.segmentId!.split(":", 1)[0] || value.segmentId!;
-      return { ...value, logicalSessionId } as ManualStudySession;
+      return { ...value, logicalSessionId } as ManualActivitySession;
     }
 
     if (!defaultContext?.workspaceId) return null;
     const legacyKey = legacyStorageKey(defaultContext.workspaceId);
     const raw = readLocalStorage(legacyKey);
     if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<ManualStudySession>;
+    const value = JSON.parse(raw) as Partial<ManualActivitySession>;
     if (!validStoredSession(value)) return null;
     const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
       ? value.logicalSessionId
@@ -98,7 +98,7 @@ function readStoredSession(defaultContext?: ActivityStart): ManualStudySession |
       ...value,
       logicalSessionId,
       context: defaultContext,
-    } as ManualStudySession;
+    } as ManualActivitySession;
     writeLocalStorage(activityStorageKey, JSON.stringify(migrated));
     removeLocalStorage(legacyKey);
     return migrated;
@@ -153,12 +153,12 @@ function acquireActivityLease(): Promise<ActivityLease | null> {
   });
 }
 
-export function useActivitySession(defaultContext?: ActivityStart): StudySessionState {
+export function useActivitySession(defaultContext?: ActivityStart): ActivitySessionState {
   const defaultContextRef = useRef(defaultContext);
   defaultContextRef.current = defaultContext;
 
-  const [session, setSession] = useState<ManualStudySession | null>(null);
-  const sessionRef = useRef<ManualStudySession | null>(null);
+  const [session, setSession] = useState<ManualActivitySession | null>(null);
+  const sessionRef = useRef<ManualActivitySession | null>(null);
   const leaseRef = useRef<ActivityLease | null>(null);
   const acquiringLease = useRef(false);
   const mountedRef = useRef(true);
@@ -174,7 +174,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     leaseRef.current = null;
   }, []);
 
-  const commitSession = useCallback((next: ManualStudySession | null) => {
+  const commitSession = useCallback((next: ManualActivitySession | null) => {
     sessionRef.current = next;
     setSession(next);
     if (next) writeLocalStorage(activityStorageKey, JSON.stringify(next));
@@ -224,8 +224,8 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     return true;
   }, [queueFinalization]);
 
-  const reconcile = useCallback((value: ManualStudySession, now: number) => {
-    const result = advanceStudySession(value, now);
+  const reconcile = useCallback((value: ManualActivitySession, now: number) => {
+    const result = advanceActivitySession(value, now);
     if (result.completed.length > 0) {
       const queued = result.completed.every((item) =>
         finalizeSegmentBestEffort(value.context, item.id, item.date, item.activeSeconds));
@@ -244,8 +244,8 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     return result.session;
   }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
-  const adoptStoredSession = useCallback((stored: ManualStudySession, now: number) => {
-    const result = advanceStudySession(stored, now);
+  const adoptStoredSession = useCallback((stored: ManualActivitySession, now: number) => {
+    const result = advanceActivitySession(stored, now);
     const queued = result.completed.every((item) =>
       finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
     const adopted = queued ? result.session : stored;
@@ -389,9 +389,9 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
         totalSeconds: baseline.totalSeconds,
       };
       const logicalSessionId = crypto.randomUUID();
-      const next: ManualStudySession = {
+      const next: ManualActivitySession = {
         logicalSessionId,
-        segmentId: studySegmentId(logicalSessionId, date),
+        segmentId: activitySegmentId(logicalSessionId, date),
         activityDate: date,
         status: "running",
         sessionAccumulatedSeconds: 0,
@@ -445,7 +445,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     if (!current || current.status !== "running") return;
     const now = Date.now();
     const reconciled = reconcile(current, now);
-    const next = materializeStudySession(reconciled, now);
+    const next = materializeActivitySession(reconciled, now);
     commitSession(next);
     setClock(now);
     sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
@@ -456,7 +456,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     if (!current || current.status !== "paused") return;
     const now = Date.now();
     const reconciled = reconcile(current, now);
-    const next = resumeStudySession(reconciled, now);
+    const next = resumeActivitySession(reconciled, now);
     commitSession(next);
     setClock(now);
     sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
@@ -468,7 +468,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
     const now = Date.now();
     const reconciled = reconcile(current, now);
     const finished = reconciled.status === "running"
-      ? materializeStudySession(reconciled, now)
+      ? materializeActivitySession(reconciled, now)
       : reconciled;
     const finalization = queueFinalization(
       finished.context,
@@ -523,7 +523,7 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
         todaySeconds: baselineDate === date ? baseline.todaySeconds : 0,
         totalSeconds: baseline.totalSeconds,
       };
-  const totals = combineStudyStats(
+  const totals = combineActivityStats(
     displayBaseline,
     session ? todayCurrentSeconds : 0,
     currentSeconds,
@@ -548,11 +548,3 @@ export function useActivitySession(defaultContext?: ActivityStart): StudySession
   };
 }
 
-export function useStudySession(workspaceId: string, workspaceTitle: string): StudySessionState {
-  return useActivitySession({
-    title: workspaceTitle,
-    activityType: "learn",
-    workspaceId,
-    workspaceTitleSnapshot: workspaceTitle,
-  });
-}

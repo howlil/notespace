@@ -18,11 +18,11 @@ import type {
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../shared/ui/theme-provider";
-import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
-import { formatDuration } from "../../features/study/study-timer";
+import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
+import { formatDuration } from "../../features/activity/activity-timer";
 import type { ActivityType } from "../../adapters/http/activity-api";
 import { useToast } from "../../shared/ui/toast-provider";
-import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
+import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {

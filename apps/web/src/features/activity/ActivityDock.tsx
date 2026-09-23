@@ -1,6 +1,6 @@
 import { Loader2, Pause, Play, Square } from "lucide-react";
 import { Button, IconButton, cn } from "../../shared/ui";
-import { formatDuration } from "./study-timer";
+import { formatDuration } from "./activity-timer";
 import { useActivityRuntime } from "./activity-runtime-provider";
 
 const dockClass = "fixed right-1/2 bottom-[max(16px,env(safe-area-inset-bottom))] z-[180] w-[min(520px,calc(100vw_-_32px))] translate-x-1/2 rounded-lg border border-line bg-surface px-3 py-2.5 shadow-[0_12px_32px_#0002] max-[560px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[560px]:w-[calc(100vw_-_24px)]";

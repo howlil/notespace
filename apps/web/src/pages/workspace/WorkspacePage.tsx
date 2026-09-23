@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
-import { WorkspacePlan } from "../../features/plan/WorkspacePlan";
-import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
-import { StudyIndicator } from "../../features/study/StudyIndicator";
-import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
+import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
+import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
+import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
+import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { WorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 
 type Props = {
@@ -13,8 +13,8 @@ type Props = {
 };
 
 export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: Props) {
-  const study = useActivityRuntime();
-  const { adoptLegacyWorkspace } = study;
+  const activity = useActivityRuntime();
+  const { adoptLegacyWorkspace } = activity;
 
   const onWorkspaceActive = useCallback(({ workspaceId, workspaceTitle }: { workspaceId: string; workspaceTitle: string }) => {
     adoptLegacyWorkspace({
@@ -34,13 +34,13 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
       renderPlan={({ workspaceId, workspaceTitle }) => (
         <WorkspacePlan
           workspaceId={workspaceId}
-          refreshKey={study.taskRevision}
+          refreshKey={activity.taskRevision}
           renderTaskAction={(task) => (
             <ActivityTypeTrigger
               ariaLabel={`Start activity for ${task.title}`}
-              disabled={study.status !== "idle" || !study.canStart}
+              disabled={activity.status !== "idle" || !activity.canStart}
               onSelect={(activityType) => {
-                study.start({
+                activity.start({
                   title: task.title,
                   activityType,
                   taskId: task.id,
@@ -54,7 +54,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
         />
       )}
       renderActivityIndicator={({ workspaceId, workspaceTitle }) => (
-        <StudyIndicator study={study} workspaceId={workspaceId} workspaceTitle={workspaceTitle} />
+        <ActivityIndicator activity={activity} workspaceId={workspaceId} workspaceTitle={workspaceTitle} />
       )}
     />
   );

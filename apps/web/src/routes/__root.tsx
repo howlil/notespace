@@ -15,8 +15,8 @@ import { ToastProvider } from "../shared/ui/toast-provider";
 import { NativePopupManager } from "../shared/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
-import { ActivityRuntimeProvider } from "../features/study/activity-runtime-provider";
-import { ActivityDock } from "../features/study/ActivityDock";
+import { ActivityRuntimeProvider } from "../features/activity/activity-runtime-provider";
+import { ActivityDock } from "../features/activity/ActivityDock";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 

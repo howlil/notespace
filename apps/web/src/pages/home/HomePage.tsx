@@ -14,7 +14,7 @@ import { useLibraryRevision } from "../../features/library/use-library-revision"
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
-import { StudyActivityDashboard } from "../../features/study/StudyActivityDashboard";
+import { ActivityDashboard } from "../../features/activity/ActivityDashboard";
 import { WorkspaceGuide } from "../../features/workspace-authoring/ui/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 
@@ -24,7 +24,7 @@ type Props = { categories: CategorySummary[]; recentWorkspaces: WorkspaceSummary
 type LibraryView = "recent" | "all" | "category";
 
 const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
-const showLearningActivity = false;
+const showActivityDashboard = false;
 
 type WorkspaceFolderCardProps = {
   workspace: WorkspaceSummary;
@@ -508,7 +508,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
               <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => void openAll(page.nextOffset ?? page.offset)}>Next</Button>
             </nav>
           )}
-          {showLearningActivity && <StudyActivityDashboard />}
+          {showActivityDashboard && <ActivityDashboard />}
         </div>
       </main>
       <ConfirmDialog

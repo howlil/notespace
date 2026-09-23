@@ -20,40 +20,110 @@ function collect(dir: string): string[] {
   return out;
 }
 
+function localImportSpecifiers(text: string) {
+  const specifiers = new Set<string>();
+  const patterns = [
+    /\bfrom\s+["']([^"']+)["']/g,
+    /\bimport\s+["']([^"']+)["']/g,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const value = match[1];
+      if (!value.startsWith(".") || /\.(css|scss|sass|less)$/.test(value)) continue;
+      specifiers.add(value);
+    }
+  }
+
+  return [...specifiers];
+}
+
 function localImports(file: string) {
-  const text = readFileSync(file, "utf8");
-  return [...text.matchAll(/from\s+["']([^"']+)["']/g)]
-    .map((match) => match[1])
-    .filter((value) => value.startsWith("."))
+  return localImportSpecifiers(readFileSync(file, "utf8"))
     .map((value) => resolve(dirname(file), value));
 }
+
+const layers = ["routes", "pages", "app", "features", "adapters", "domain", "shared"] as const;
+type Layer = (typeof layers)[number];
+
+const allowedDependencies: Record<Layer, ReadonlySet<Layer>> = {
+  routes: new Set(["routes", "pages", "features", "adapters", "domain", "shared"]),
+  pages: new Set(["pages", "features", "adapters", "domain", "shared"]),
+  app: new Set(["app", "features", "adapters", "domain", "shared"]),
+  features: new Set(["features", "adapters", "domain", "shared"]),
+  adapters: new Set(["adapters", "domain", "shared"]),
+  domain: new Set(["domain"]),
+  shared: new Set(["shared"]),
+};
 
 function topLevelLayer(file: string) {
   return relative(WEB_SRC, file).replaceAll("\\", "/").split("/")[0] ?? "";
 }
 
-function assertLayerExcludes(layer: string, forbidden: readonly string[]) {
-  const root = join(WEB_SRC, layer);
-  if (!existsSync(root)) return;
-  for (const file of collect(root)) {
-    for (const dependency of localImports(file)) {
-      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      const targetLayer = topLevelLayer(dependency);
-      assert.ok(
-        !forbidden.includes(targetLayer),
-        `${relative(WEB_SRC, file)} in ${layer} depends on forbidden layer ${target}`,
-      );
+function isLayer(value: string): value is Layer {
+  return (layers as readonly string[]).includes(value);
+}
+
+function legacyAppDependencyAllowed(sourceFile: string, target: string) {
+  const sourceLayer = topLevelLayer(sourceFile);
+
+  // Transitional W0 exceptions. W1 removes src/app entirely.
+  if (target.startsWith("app/providers/")) {
+    return sourceLayer === "routes" || sourceLayer === "pages" || sourceLayer === "features" || sourceLayer === "app";
+  }
+  if (target === "app/shell/Sidebar") return sourceLayer === "pages";
+  if (target === "app/feedback/RoutePending") return sourceLayer === "routes";
+  if (target === "app/brand/NotespaceLogo") return sourceLayer === "app";
+  return false;
+}
+
+function assertAllowedDependencyGraph() {
+  for (const sourceLayer of layers) {
+    const root = join(WEB_SRC, sourceLayer);
+    if (!existsSync(root)) continue;
+
+    for (const file of collect(root)) {
+      for (const dependency of localImports(file)) {
+        const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+        const targetLayer = topLevelLayer(dependency);
+
+        if (targetLayer === "app" && legacyAppDependencyAllowed(file, target)) continue;
+
+        assert.ok(
+          isLayer(targetLayer) && allowedDependencies[sourceLayer].has(targetLayer),
+          `${relative(WEB_SRC, file)} in ${sourceLayer} depends on disallowed boundary ${target}`,
+        );
+      }
     }
   }
 }
 
-test("new web layers preserve downward dependency direction", () => {
-  assertLayerExcludes("domain", ["routes", "pages", "features", "integrations", "components", "providers", "browser", "adapters", "shared"]);
-  assertLayerExcludes("app", ["routes", "pages"]);
-  assertLayerExcludes("pages", ["routes"]);
-  assertLayerExcludes("features", ["routes", "pages"]);
-  assertLayerExcludes("adapters", ["routes", "pages", "features"]);
-  assertLayerExcludes("shared", ["routes", "pages", "features", "adapters", "domain"]);
+test("architecture parser sees static, side-effect, and dynamic local imports", () => {
+  assert.deepEqual(
+    localImportSpecifiers(`
+      import { staticValue } from "./static";
+      import "./side-effect";
+      const Lazy = lazy(() => import("./dynamic"));
+      import React from "react";
+      import "./styles.css";
+    `),
+    ["./static", "./side-effect", "./dynamic"],
+  );
+});
+
+test("web layers follow the explicit dependency allowlist", () => {
+  assertAllowedDependencyGraph();
+});
+
+test("top-level source directories are intentional architecture boundaries", () => {
+  const allowedTopLevel = new Set<string>([...layers, "styles"]);
+  const directories = readdirSync(WEB_SRC)
+    .filter((name) => statSync(join(WEB_SRC, name)).isDirectory());
+
+  for (const directory of directories) {
+    assert.ok(allowedTopLevel.has(directory), `Unexpected top-level src boundary: ${directory}`);
+  }
 });
 
 test("legacy generic web buckets are removed after ownership migration", () => {

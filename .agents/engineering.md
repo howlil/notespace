@@ -67,6 +67,17 @@ Important constraints:
 
 These rules should be enforced through automated architecture tests when practical.
 
+Architecture enforcement rules:
+- prefer an explicit dependency allowlist over a forbidden-import denylist;
+- architecture checks must inspect both static local imports and dynamic `import(...)` edges;
+- sibling feature implementations must not depend on each other;
+- every `*.test.ts` and `*.test.tsx` under `apps/web/src` and `tests` must be discovered automatically by the Node test runner.
+
+Temporary migration exception:
+- `src/app` remains only until the next web-boundary migration wave;
+- do not add new `app` sub-boundaries or new dependency shapes around it;
+- existing provider consumers, page-level Sidebar composition, and route pending UI are tolerated only as explicit transitional edges.
+
 ## 4. Routes
 
 `routes/` is the URL boundary.

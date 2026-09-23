@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type scaleEvidence struct {
@@ -36,7 +36,7 @@ func percentile(values []time.Duration, fraction float64) time.Duration {
 	return ordered[index]
 }
 
-func scaleDocument(iteration, size int) project.Snapshot {
+func scaleDocument(iteration, size int) workspace.Snapshot {
 	text := fmt.Sprintf("needle-%d ", iteration) + strings.Repeat("x", size)
 	body, _ := json.Marshal(map[string]any{
 		"type": "doc",
@@ -46,7 +46,7 @@ func scaleDocument(iteration, size int) project.Snapshot {
 			"content": []any{map[string]any{"type": "text", "text": text}},
 		}},
 	})
-	return project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(body)}
+	return workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(body)}
 }
 
 func fileSize(path string) int64 {
@@ -68,7 +68,7 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := project.Service{Store: NewIndexedProjectStore(store)}
+	service := workspace.Service{Store: NewIndexedProjectStore(store)}
 	workspace, err := service.Create(ctx, "Scale evidence")
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		document := scaleDocument(i, documentBytes)
 		started := time.Now()
-		note, err = service.UpdateNote(ctx, workspace.ID, note.ID, project.NoteUpdate{
+		note, err = service.UpdateNote(ctx, workspace.ID, note.ID, workspace.NoteUpdate{
 			Title: note.Title, Document: document, Version: note.Version,
 		})
 		if err != nil {

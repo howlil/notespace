@@ -6,13 +6,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 const studyColumns = `id,workspace_id,workspace_title_snapshot,task_id,task_title_snapshot,activity_title,activity_type,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at`
 
-func scanStudySession(row scanner) (study.Session, error) {
-	var session study.Session
+func scanStudySession(row scanner) (activity.Session, error) {
+	var session activity.Session
 	var endedAt sql.NullString
 	err := row.Scan(
 		&session.ID,
@@ -29,7 +29,7 @@ func scanStudySession(row scanner) (study.Session, error) {
 		&session.LastHeartbeatAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return session, study.ErrNotFound
+		return session, activity.ErrNotFound
 	}
 	if err != nil {
 		return session, err
@@ -40,7 +40,7 @@ func scanStudySession(row scanner) (study.Session, error) {
 	return session, nil
 }
 
-func normalizeActivitySession(session study.Session) study.Session {
+func normalizeActivitySession(session activity.Session) activity.Session {
 	if session.ActivityType == "" {
 		session.ActivityType = "learn"
 	}
@@ -56,7 +56,7 @@ func normalizeActivitySession(session study.Session) study.Session {
 	return session
 }
 
-func (s *Store) UpsertSession(ctx context.Context, session study.Session) (study.Session, error) {
+func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (activity.Session, error) {
 	session = normalizeActivitySession(session)
 	var endedAt any
 	if session.EndedAt != nil {
@@ -86,13 +86,13 @@ WHERE activity_sessions.workspace_id=excluded.workspace_id
 		session.LastHeartbeatAt,
 	)
 	if err != nil {
-		return study.Session{}, err
+		return activity.Session{}, err
 	}
 	return scanStudySession(s.db.QueryRowContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions WHERE id=?`, session.ID))
 }
 
-func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (study.WorkspaceStats, error) {
-	var stats study.WorkspaceStats
+func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (activity.WorkspaceStats, error) {
+	var stats activity.WorkspaceStats
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
 			COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0),
@@ -103,8 +103,8 @@ func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate st
 	return stats, err
 }
 
-func (s *Store) GlobalStats(ctx context.Context, activityDate string) (study.WorkspaceStats, error) {
-	var stats study.WorkspaceStats
+func (s *Store) GlobalStats(ctx context.Context, activityDate string) (activity.WorkspaceStats, error) {
+	var stats activity.WorkspaceStats
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
 			COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0),
@@ -114,7 +114,7 @@ func (s *Store) GlobalStats(ctx context.Context, activityDate string) (study.Wor
 	return stats, err
 }
 
-func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, error) {
+func (s *Store) Activity(ctx context.Context, from, to string) (activity.Activity, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT activity_date,COALESCE(SUM(active_seconds),0)
 		FROM activity_sessions
@@ -123,7 +123,7 @@ func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, 
 		ORDER BY activity_date
 	`, from, to)
 	if err != nil {
-		return study.Activity{}, err
+		return activity.Activity{}, err
 	}
 	defer rows.Close()
 	byDate := map[string]int64{}
@@ -131,19 +131,19 @@ func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, 
 		var date string
 		var seconds int64
 		if err := rows.Scan(&date, &seconds); err != nil {
-			return study.Activity{}, err
+			return activity.Activity{}, err
 		}
 		byDate[date] = seconds
 	}
 	if err := rows.Err(); err != nil {
-		return study.Activity{}, err
+		return activity.Activity{}, err
 	}
-	start, _ := time.Parse(study.DateLayout, from)
-	end, _ := time.Parse(study.DateLayout, to)
-	days := make([]study.DayActivity, 0)
+	start, _ := time.Parse(activity.DateLayout, from)
+	end, _ := time.Parse(activity.DateLayout, to)
+	days := make([]activity.DayActivity, 0)
 	for date := start; !date.After(end); date = date.AddDate(0, 0, 1) {
-		key := date.Format(study.DateLayout)
-		days = append(days, study.DayActivity{Date: key, ActiveSeconds: byDate[key]})
+		key := date.Format(activity.DateLayout)
+		days = append(days, activity.DayActivity{Date: key, ActiveSeconds: byDate[key]})
 	}
 	weekStart := end.AddDate(0, 0, -((int(end.Weekday()) + 6) % 7))
 	var weekSeconds, todaySeconds int64
@@ -153,19 +153,19 @@ func (s *Store) Activity(ctx context.Context, from, to string) (study.Activity, 
 			COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0)
 		FROM activity_sessions
 		WHERE activity_date BETWEEN ? AND ?
-	`, weekStart.Format(study.DateLayout), to, to, from, to).Scan(&weekSeconds, &todaySeconds)
+	`, weekStart.Format(activity.DateLayout), to, to, from, to).Scan(&weekSeconds, &todaySeconds)
 	if err != nil {
-		return study.Activity{}, err
+		return activity.Activity{}, err
 	}
-	return study.Activity{
+	return activity.Activity{
 		TodaySeconds:  todaySeconds,
 		WeekSeconds:   weekSeconds,
-		CurrentStreak: study.CalculateStreak(days, to),
+		CurrentStreak: activity.CalculateStreak(days, to),
 		Days:          days,
 	}, nil
 }
 
-func (s *Store) DayDetail(ctx context.Context, date string) (study.DayDetail, error) {
+func (s *Store) DayDetail(ctx context.Context, date string) (activity.DayDetail, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT
 			s.workspace_id,
@@ -185,15 +185,15 @@ func (s *Store) DayDetail(ctx context.Context, date string) (study.DayDetail, er
 		ORDER BY SUM(s.active_seconds) DESC,s.workspace_id
 	`, date)
 	if err != nil {
-		return study.DayDetail{}, err
+		return activity.DayDetail{}, err
 	}
 	defer rows.Close()
-	detail := study.DayDetail{Date: date, Workspaces: []study.WorkspaceBreakdown{}}
+	detail := activity.DayDetail{Date: date, Workspaces: []activity.WorkspaceBreakdown{}}
 	for rows.Next() {
-		var item study.WorkspaceBreakdown
+		var item activity.WorkspaceBreakdown
 		var deleted int
 		if err := rows.Scan(&item.WorkspaceID, &item.Title, &deleted, &item.ActiveSeconds); err != nil {
-			return study.DayDetail{}, err
+			return activity.DayDetail{}, err
 		}
 		item.Deleted = deleted == 1
 		detail.ActiveSeconds += item.ActiveSeconds

@@ -1,7 +1,7 @@
 import { forwardRef, type CSSProperties } from "react";
 import { Play } from "lucide-react";
-import { PopupSurface, cn } from "../../components/ui";
-import type { ActivityType } from "../../domain/activity/api";
+import { PopupSurface, cn } from "../../shared/ui";
+import type { ActivityType } from "../../adapters/http/activity-api";
 
 export const activityTypeOptions: Array<{ value: ActivityType; label: string }> = [
   { value: "build", label: "Build" },

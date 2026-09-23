@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Snapshot } from "../../domain/project/project.ts";
+import type { Snapshot } from "./workspace";
 import {
   MAX_FRAME_PREVIEW_ELEMENTS,
   canvasFrameLinkFromClipboard,

@@ -1,4 +1,4 @@
-import type { Snapshot } from "../project/project";
+import type { Snapshot } from "../workspace/workspace";
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 type JsonNode = {

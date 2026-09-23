@@ -1,4 +1,4 @@
-import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
+import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
 
 export type CaptureWorkspaceOption = {
   id: string;
@@ -7,7 +7,7 @@ export type CaptureWorkspaceOption = {
   categoryTitle?: string;
 };
 
-export function workspaceOptions(workspaces: ProjectSummary[], categories: CategorySummary[]): CaptureWorkspaceOption[] {
+export function workspaceOptions(workspaces: WorkspaceSummary[], categories: CategorySummary[]): CaptureWorkspaceOption[] {
   const categoryById = new Map(categories.map((category) => [category.id, category.title]));
   return workspaces.map((workspace) => ({
     id: workspace.id,

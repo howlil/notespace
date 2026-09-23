@@ -1,4 +1,4 @@
-import type { ActivityType } from "../../domain/activity/api";
+import type { ActivityType } from "../../adapters/http/activity-api";
 
 export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
 

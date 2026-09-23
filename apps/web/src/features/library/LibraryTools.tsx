@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
-import type { CategorySummary } from "../../domain/project/project";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
+import type { CategorySummary } from "../../domain/workspace/workspace";
 import {
-  createProject,
-  deleteProject,
+  createWorkspace,
+  deleteWorkspace,
   deleteTrashedWorkspace,
   exportLibraryBackup,
   listCategories,
   listTrash,
   restoreLibraryBackup,
   restoreTrashedWorkspace,
-} from "../../domain/project/api";
-import type { TrashWorkspace } from "../../domain/project/api";
-import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
-import { saveProject } from "../../domain/project/save-project";
-import { useToast } from "../../providers/toast-provider";
-import { notifyLibraryChanged } from "./library-sync-store";
+} from "../../adapters/http/workspace-api";
+import type { TrashWorkspace } from "../../adapters/http/workspace-api";
+import { createLocalAssetId, storeImageAsset } from "../../adapters/assets/image-store";
+import { saveWorkspace } from "./save-workspace";
+import { useToast } from "../../app/providers/toast-provider";
+import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { importVaultFiles } from "./vault-import-workflow";
 
 export function LibraryTools() {
@@ -106,10 +106,10 @@ export function LibraryTools() {
 
     setLoading(true);
     const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
-      createProject,
-      deleteProject,
+      createWorkspace,
+      deleteWorkspace,
       deleteTrashedWorkspace,
-      saveProject,
+      saveWorkspace,
       createLocalAssetId,
       storeImageAsset,
     });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 const ROOT = process.cwd();
@@ -28,6 +28,77 @@ function localImports(file: string) {
     .map((value) => resolve(dirname(file), value));
 }
 
+function topLevelLayer(file: string) {
+  return relative(WEB_SRC, file).replaceAll("\\", "/").split("/")[0] ?? "";
+}
+
+function assertLayerExcludes(layer: string, forbidden: readonly string[]) {
+  const root = join(WEB_SRC, layer);
+  if (!existsSync(root)) return;
+  for (const file of collect(root)) {
+    for (const dependency of localImports(file)) {
+      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      const targetLayer = topLevelLayer(dependency);
+      assert.ok(
+        !forbidden.includes(targetLayer),
+        `${relative(WEB_SRC, file)} in ${layer} depends on forbidden layer ${target}`,
+      );
+    }
+  }
+}
+
+test("new web layers preserve downward dependency direction", () => {
+  assertLayerExcludes("domain", ["routes", "pages", "features", "integrations", "components", "providers", "browser", "adapters", "shared"]);
+  assertLayerExcludes("app", ["routes", "pages"]);
+  assertLayerExcludes("pages", ["routes"]);
+  assertLayerExcludes("features", ["routes", "pages"]);
+  assertLayerExcludes("adapters", ["routes", "pages", "features"]);
+  assertLayerExcludes("shared", ["routes", "pages", "features", "adapters", "domain"]);
+});
+
+test("legacy generic web buckets are removed after ownership migration", () => {
+  assert.equal(existsSync(join(WEB_SRC, "components")), false);
+  assert.equal(existsSync(join(WEB_SRC, "providers")), false);
+  assert.equal(existsSync(join(WEB_SRC, "browser")), false);
+  assert.equal(existsSync(join(WEB_SRC, "domain", "project")), false);
+  assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
+});
+
+test("features do not depend on sibling feature implementations", () => {
+  const root = join(WEB_SRC, "features");
+  for (const file of collect(root)) {
+    const owner = relative(root, file).replaceAll("\\", "/").split("/")[0];
+    for (const dependency of localImports(file)) {
+      const target = relative(root, dependency).replaceAll("\\", "/");
+      if (target.startsWith("../")) continue;
+      const targetOwner = target.split("/")[0];
+      assert.equal(
+        targetOwner,
+        owner,
+        `${relative(WEB_SRC, file)} crosses feature boundary into ${target}`,
+      );
+    }
+  }
+});
+
+test("routes compose pages instead of routed screens in features", () => {
+  const routeRoot = join(WEB_SRC, "routes");
+  for (const file of collect(routeRoot)) {
+    for (const dependency of localImports(file)) {
+      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      assert.doesNotMatch(
+        target,
+        /^features\/(dashboard|category|workspace|today|inbox)\//,
+        `${relative(WEB_SRC, file)} imports a routed screen from features: ${target}`,
+      );
+    }
+  }
+});
+
 test("domain modules do not depend on feature or integration implementation", () => {
   const domainRoot = join(WEB_SRC, "domain");
   for (const file of collect(domainRoot)) {
@@ -38,29 +109,69 @@ test("domain modules do not depend on feature or integration implementation", ()
   }
 });
 
+test("domain modules stay independent from browser and transport runtime", () => {
+  const domainRoot = join(WEB_SRC, "domain");
+  for (const file of collect(domainRoot)) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      text,
+      /\bwindow\b|\bindexedDB\b|\blocalStorage\b|\bglobalThis\.fetch\b|\bfetch\s*\(/,
+      `${relative(WEB_SRC, file)} contains browser or transport runtime behavior`,
+    );
+  }
+  for (const legacyPath of [
+    "domain/project/http.ts",
+    "domain/project/api.ts",
+    "domain/planning/api.ts",
+    "domain/activity/api.ts",
+    "domain/assets/local-image-assets.ts",
+    "domain/project/granular-save.ts",
+    "domain/project/save-project.ts",
+    "domain/project/conflict-recovery.ts",
+  ]) {
+    assert.equal(existsSync(join(WEB_SRC, legacyPath)), false, `${legacyPath} should be migrated out of domain`);
+  }
+});
+
+test("web code uses canonical Workspace domain imports", () => {
+  for (const file of collect(WEB_SRC)) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      text,
+      /domain\/project\//,
+      `${relative(WEB_SRC, file)} still imports the legacy project domain`,
+    );
+  }
+  assert.equal(existsSync(join(WEB_SRC, "domain", "workspace", "workspace.ts")), true);
+});
+
 test("document integration consumes Canvas frame links through the domain boundary", () => {
-  const editor = source("integrations/document/DocumentEditor.tsx");
-  const frameNode = source("integrations/document/CanvasFrameLinkNode.tsx");
+  const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
+  const frameNode = source("features/workspace-authoring/document/CanvasFrameLinkNode.tsx");
   assert.match(editor, /\.\.\/\.\.\/domain\/workspace\/canvas-frame-link/);
   assert.match(frameNode, /\.\.\/\.\.\/domain\/workspace\/canvas-frame-link/);
   assert.doesNotMatch(editor, /features\/workspace\/canvas-frame-link/);
   assert.doesNotMatch(frameNode, /features\/workspace\/canvas-frame-link/);
 });
 
-test("diagram feature does not depend on Canvas integration internals", () => {
-  const diagramRoot = join(WEB_SRC, "features", "diagram");
+test("diagram domain does not depend on workspace authoring internals", () => {
+  const diagramRoot = join(WEB_SRC, "domain", "diagram");
   for (const file of collect(diagramRoot)) {
     for (const dependency of localImports(file)) {
       const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(path, /^integrations\//, `${relative(WEB_SRC, file)} depends on ${path}`);
+      assert.doesNotMatch(
+        path,
+        /^features\/workspace-authoring\//,
+        `${relative(WEB_SRC, file)} depends on ${path}`,
+      );
     }
   }
 });
 
 test("browser event and asset initialization stay behind explicit boundaries", () => {
-  const dashboard = source("features/dashboard/Dashboard.tsx");
+  const dashboard = source("pages/home/HomePage.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");
-  const canvas = source("integrations/canvas/CanvasEditor.tsx");
+  const canvas = source("features/workspace-authoring/canvas/CanvasEditor.tsx");
   assert.match(dashboard, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(quickOpen, /OPEN_QUICK_SEARCH_EVENT/);
   assert.doesNotMatch(dashboard, /new Event\("open-quick-search"\)/);
@@ -69,9 +180,17 @@ test("browser event and asset initialization stay behind explicit boundaries", (
   assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
 });
 
+test("workspace page is a composition boundary for authoring, planning, and activity", () => {
+  const page = source("pages/workspace/WorkspacePage.tsx");
+  assert.match(page, /WorkspaceAuthoring/);
+  assert.match(page, /WorkspacePlan/);
+  assert.match(page, /StudyIndicator/);
+  assert.doesNotMatch(page, /useWorkspaceSession/);
+});
+
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
-  const workspace = source("features/workspace/Workspace.tsx");
-  const session = source("features/workspace/use-workspace-session.ts");
+  const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
+  const session = source("features/workspace-authoring/model/use-workspace-session.ts");
   assert.match(workspace, /useWorkspaceSession/);
   assert.doesNotMatch(workspace, /useGranularWorkspaceAutosave/);
   assert.match(session, /useGranularWorkspaceAutosave/);
@@ -80,10 +199,10 @@ test("workspace delegates authored state and autosave ownership to its session b
 });
 
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {
-  const editor = source("integrations/document/DocumentEditor.tsx");
-  const localImage = source("integrations/document/LocalImageNode.tsx");
-  const frameNode = source("integrations/document/CanvasFrameLinkNode.tsx");
-  const canvas = source("integrations/canvas/CanvasEditor.tsx");
+  const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
+  const localImage = source("features/workspace-authoring/document/LocalImageNode.tsx");
+  const frameNode = source("features/workspace-authoring/document/CanvasFrameLinkNode.tsx");
+  const canvas = source("features/workspace-authoring/canvas/CanvasEditor.tsx");
 
   assert.match(editor, /useDocumentSnapshotSession/);
   assert.match(localImage, /useImageAssetUrl/);

@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories } from "../domain/project/api";
-import { getToday } from "../domain/planning/api";
+import { listCategories } from "../adapters/http/workspace-api";
+import { getToday } from "../adapters/http/planning-api";
 import { localDateKey } from "../domain/planning/planning";
-import { RoutePending } from "../components/feedback/RoutePending";
-import { Today } from "../features/today/Today";
+import { RoutePending } from "../app/feedback/RoutePending";
+import { TodayPage } from "../pages/today/TodayPage";
 
 export const Route = createFileRoute("/today")({
   ssr: false,
@@ -20,5 +20,5 @@ export const Route = createFileRoute("/today")({
 });
 
 function TodayRoute() {
-  return <Today {...Route.useLoaderData()} />;
+  return <TodayPage {...Route.useLoaderData()} />;
 }

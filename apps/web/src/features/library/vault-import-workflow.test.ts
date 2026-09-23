@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Project } from "../../domain/project/project.ts";
+import type { Workspace } from "../../domain/workspace/workspace";
 import { importVaultFiles, type VaultImportOperations } from "./vault-import-workflow.ts";
 
 test("vault import workflow can run with injected operations", async () => {
@@ -18,13 +18,13 @@ test("vault import workflow can run with injected operations", async () => {
     canvasVersion: 1,
     references: [],
     splitRatio: 0.5,
-  } satisfies Project;
+  } satisfies Workspace;
   const saved: string[] = [];
   const operations: VaultImportOperations = {
-    createProject: async () => project,
-    deleteProject: async () => {},
+    createWorkspace: async () => project,
+    deleteWorkspace: async () => {},
     deleteTrashedWorkspace: async () => {},
-    saveProject: async (_id, content) => { saved.push(content.title); },
+    saveWorkspace: async (_id, content) => { saved.push(content.title); },
     createLocalAssetId: () => "asset-1",
     storeImageAsset: async () => {},
   };

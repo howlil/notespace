@@ -1,5 +1,5 @@
 import { Loader2, Pause, Play, Square } from "lucide-react";
-import { Button, IconButton, cn } from "../../components/ui";
+import { Button, IconButton, cn } from "../../shared/ui";
 import { formatDuration } from "./study-timer";
 import { useActivityRuntime } from "./activity-runtime-provider";
 

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Folder, Search } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../components/ui";
-import type { CategorySummary, Note, Project, ProjectSummary } from "../../domain/project/project";
-import { getProject, listCategories, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
-import type { SearchResult } from "../../domain/project/api";
-import { useToast } from "../../providers/toast-provider";
-import { RecallMode } from "../study/RecallMode";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../shared/ui";
+import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { getWorkspace, listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
+import type { SearchResult } from "../../adapters/http/workspace-api";
+import { useToast } from "../../app/providers/toast-provider";
+import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 
 type Destination = { key: string; title: string; context: string; href: string; kind: "category" | "workspace" | "note" | "block" };
@@ -32,10 +32,10 @@ export function QuickOpen() {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [recent, setRecent] = useState<ProjectSummary[]>([]);
+  const [recent, setRecent] = useState<WorkspaceSummary[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [selected, setSelected] = useState(0);
   const [recallNote, setRecallNote] = useState<Note | null>(null);
 
@@ -69,7 +69,7 @@ export function QuickOpen() {
     setSelected(0);
     let active = true;
     const workspaceMatch = pathname.match(/^\/(?:workspaces|projects)\/([^/]+)$/);
-    const current = workspaceMatch ? getProject(decodeURIComponent(workspaceMatch[1])).catch(() => null) : Promise.resolve(null);
+    const current = workspaceMatch ? getWorkspace(decodeURIComponent(workspaceMatch[1])).catch(() => null) : Promise.resolve(null);
     void Promise.all([listRecentWorkspaces(8), listCategories(), current])
       .then(([nextRecent, nextCategories, workspace]) => {
         if (!active) return;

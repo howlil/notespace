@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Play } from "lucide-react";
-import { IconButton } from "../../components/ui";
-import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
-import type { ActivityType } from "../../domain/activity/api";
+import { IconButton } from "../../shared/ui";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../shared/ui/anchored-panel";
+import type { ActivityType } from "../../adapters/http/activity-api";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";
 
 export function ActivityTypeTrigger({

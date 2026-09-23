@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../components/ui";
-import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createWorkspaceNote, getProject, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../domain/project/api";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";
+import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { createWorkspaceNote, getWorkspace, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../adapters/http/workspace-api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
-import { useToast } from "../../providers/toast-provider";
-import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
-import { notifyLibraryChanged } from "../library/library-sync-store";
+import { useToast } from "../../app/providers/toast-provider";
+import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
+import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 
@@ -20,7 +20,7 @@ export function QuickCapture() {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [workspaces, setWorkspaces] = useState<ProjectSummary[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [searchWorkspaces, setSearchWorkspaces] = useState<CaptureWorkspaceOption[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
@@ -51,7 +51,7 @@ export function QuickCapture() {
         let nextWorkspaces = recentWorkspaces;
         if (preferred && !recentWorkspaces.some((item) => item.id === preferred)) {
           try {
-            const remembered = await getProject(preferred);
+            const remembered = await getWorkspace(preferred);
             nextWorkspaces = [remembered, ...recentWorkspaces];
           } catch {
             // The remembered workspace may have been deleted; fall back to recents.
@@ -103,7 +103,7 @@ export function QuickCapture() {
     if (!value || !effectiveWorkspaceId || saving) return;
     setSaving(true);
     try {
-      const workspace = await getProject(effectiveWorkspaceId);
+      const workspace = await getWorkspace(effectiveWorkspaceId);
       const document = markdownToSnapshot(value);
       await createWorkspaceNote(workspace.id, {
         id: crypto.randomUUID(),

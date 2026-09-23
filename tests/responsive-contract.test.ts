@@ -5,14 +5,14 @@ import { join } from "node:path";
 
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
-const WORKSPACE = join(WEB_SRC, "features", "workspace", "Workspace.tsx");
-const DASHBOARD = join(WEB_SRC, "features", "dashboard", "Dashboard.tsx");
-const SIDEBAR = join(WEB_SRC, "components", "layout", "Sidebar.tsx");
+const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
+const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const SIDEBAR = join(WEB_SRC, "app", "shell", "Sidebar.tsx");
 const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
-const DIALOG = join(WEB_SRC, "components", "ui", "dialog.tsx");
+const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
-const CANVAS_CHROME = join(WEB_SRC, "integrations", "canvas", "CanvasChrome.tsx");
-const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "integrations", "canvas", "CanvasSelectionActions.tsx");
+const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
+const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasSelectionActions.tsx");
 
 function source(path: string) { return readFileSync(path, "utf8"); }
 

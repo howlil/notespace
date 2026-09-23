@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories, listRecentWorkspaces } from "../domain/project/api";
-import { Dashboard } from "../features/dashboard/Dashboard";
-import { RoutePending } from "../components/feedback/RoutePending";
+import { listCategories, listRecentWorkspaces } from "../adapters/http/workspace-api";
+import { HomePage } from "../pages/home/HomePage";
+import { RoutePending } from "../app/feedback/RoutePending";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardRoute() {
-  return <Dashboard {...Route.useLoaderData()} />;
+  return <HomePage {...Route.useLoaderData()} />;
 }

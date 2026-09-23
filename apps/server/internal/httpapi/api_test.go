@@ -166,8 +166,8 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	expect(t, page, 200)
 	var result struct {
 		Items      []workspacepkg.Summary `json:"items"`
-		Total      int               `json:"total"`
-		NextOffset *int              `json:"nextOffset"`
+		Total      int                    `json:"total"`
+		NextOffset *int                   `json:"nextOffset"`
 	}
 	if err := json.Unmarshal(page.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)

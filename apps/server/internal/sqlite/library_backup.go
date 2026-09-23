@@ -49,7 +49,7 @@ type libraryBackup struct {
 	Workspaces  []workspaceEnvelope       `json:"workspaces"`
 	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord             `json:"trash"`
-	Study       []activity.Session           `json:"activitySessions"`
+	Activity       []activity.Session           `json:"studySessions"`
 }
 
 func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnvelope, error) {
@@ -352,7 +352,7 @@ func (s *Store) ExportBackupJSON(ctx context.Context) ([]byte, error) {
 	return json.Marshal(libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Study: sessions,
+		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions,
 	})
 }
 
@@ -397,7 +397,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		}
 		activeTaskIDs[task.ID] = true
 	}
-	for _, raw := range backup.Study {
+	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
 		if !activity.ValidActivityType(session.ActivityType) {
 			return workspace.ErrInvalid
@@ -461,7 +461,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 			return err
 		}
 	}
-	for _, raw := range backup.Study {
+	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO activity_sessions(

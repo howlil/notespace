@@ -51,12 +51,8 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 	if json.Valid(storedPayload) {
 		t.Fatal("new trash payload is JSON/Base64; want binary compressed envelope")
 	}
-	trashJSON, err := store.ListTrashJSON(ctx)
+	trash, err := store.ListTrash(ctx)
 	if err != nil {
-		t.Fatal(err)
-	}
-	var trash []trashSummary
-	if err := json.Unmarshal(trashJSON, &trash); err != nil {
 		t.Fatal(err)
 	}
 	if len(trash) != 1 || trash[0].ID != workspace.ID {

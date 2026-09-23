@@ -331,7 +331,292 @@ This is migration guidance, not permission for an unrelated full-repository rewr
 
 Whenever current code and this target differ, prefer the smallest coherent migration that improves the dependency graph while keeping behavior stable.
 
-## 17. Stop rule
+## 17. Server architecture
+
+These rules apply to `apps/server`.
+
+Use package boundaries to express ownership. Do not reorganize the server into generic technical layers such as `controllers/`, `services/`, `repositories/`, and `models/`.
+
+Preferred dependency graph:
+
+```text
+cmd/notespace
+    ├── wires → httpapi
+    └── wires → sqlite
+
+httpapi
+    ├── → workspace
+    ├── → planning
+    ├── → activity
+    ├── → library
+    └── → asset
+
+sqlite
+    ├── implements → workspace ports
+    ├── implements → planning ports
+    ├── implements → activity ports
+    ├── implements → library ports
+    └── implements → asset ports
+```
+
+Forbidden dependency direction:
+
+```text
+workspace / planning / activity / library / asset ─X→ httpapi
+workspace / planning / activity / library / asset ─X→ sqlite
+httpapi                                      ─X→ sqlite concrete implementation
+```
+
+`cmd/notespace` is the composition root. It is the normal place where concrete adapters are selected and wired to application/domain packages.
+
+Prefer interfaces owned by the package that consumes the capability. A domain/application package defines the smallest port it needs; the SQLite adapter satisfies that port.
+
+## 18. Server responsibility ownership
+
+Canonical responsibility boundaries:
+
+```text
+workspace
+  owns Workspace, Note, Canvas, category, history,
+  authored-state invariants, and workspace use-cases
+
+planning
+  owns Milestone, Task, Today/Inbox planning behavior,
+  planning validation, and planning concurrency semantics
+
+activity
+  owns ActivitySession, heartbeats, duration/statistics,
+  and activity-specific validation
+
+asset
+  owns durable binary asset semantics
+
+library
+  owns recovery and portability use-cases:
+  Trash, restore, backup, and full-library restore
+
+httpapi
+  owns HTTP transport only:
+  routes, request decoding, transport validation,
+  status/error mapping, headers, and middleware
+
+sqlite
+  owns SQLite implementation details:
+  SQL, scanning, transactions, projection maintenance,
+  connection configuration, and persistence-specific codecs
+
+cmd/notespace
+  owns process bootstrap and concrete dependency wiring
+```
+
+A responsibility should have one obvious owner. Do not put product orchestration in `httpapi` merely because an HTTP request triggered it.
+
+If one use-case needs information from multiple domains, place the orchestration with the use-case owner and depend on narrow ports.
+
+Example:
+
+```text
+HTTP activity heartbeat
+  ↓
+activity application service
+  ├── read linked Task through a narrow planning-facing port
+  ├── read linked Workspace through a narrow workspace-facing port
+  └── persist ActivitySession
+```
+
+Do not make the HTTP handler the application service.
+
+## 19. Server package and file structure
+
+The target shape is capability-oriented:
+
+```text
+apps/server/
+├── cmd/
+│   └── notespace/
+├── internal/
+│   ├── workspace/
+│   ├── planning/
+│   ├── activity/
+│   ├── asset/
+│   ├── library/
+│   ├── httpapi/
+│   └── sqlite/
+└── migrations/
+```
+
+This is a responsibility map, not a requirement for symmetrical folders.
+
+Inside a capability package, keep model, invariants, service/use-case code, and consumer-owned ports together while they remain cohesive. Split files when they have different reasons to change, not because they cross an arbitrary line count.
+
+Good examples:
+
+```text
+workspace/
+├── model.go
+├── service.go
+├── store.go
+├── note.go
+├── canvas.go
+└── history.go
+
+httpapi/
+├── router.go
+├── errors.go
+├── middleware.go
+├── workspace.go
+├── planning.go
+├── activity.go
+├── library.go
+└── assets.go
+
+sqlite/
+├── db.go
+├── workspace.go
+├── workspace_state.go
+├── workspace_history.go
+├── workspace_search.go
+├── planning.go
+├── activity.go
+├── assets.go
+├── library.go
+└── archive.go
+```
+
+Do not introduce nested packages unless an independent contract, lifecycle, state owner, or dependency boundary justifies them.
+
+## 20. SQLite and transaction boundaries
+
+SQLite is one adapter and one transactional ownership boundary for this single-owner application.
+
+Do not split `sqlite` into one package per domain merely for folder symmetry. Cross-domain SQL inside the adapter is valid when one product invariant requires one atomic transaction.
+
+Important atomic flows include:
+
+```text
+Trash Workspace
+  ↓
+snapshot Workspace + Plan + History + Assets
+  ↓
+write Trash record
+  ↓
+remove active Workspace
+  ↓
+COMMIT
+```
+
+and:
+
+```text
+Full-library restore
+  ↓
+validate complete input
+  ↓
+replace canonical state
+  ↓
+validate resulting database
+  ↓
+COMMIT or ROLLBACK
+```
+
+The application/domain layer owns the required atomic outcome. The SQLite adapter owns how that transaction is executed.
+
+Derived state such as FTS/search projection must not become authoritative. Canonical authored state remains the source of truth.
+
+## 21. HTTP boundary
+
+HTTP handlers should normally follow:
+
+```text
+request
+  ↓
+parse/decode transport input
+  ↓
+call one application use-case
+  ↓
+map known error/result
+  ↓
+response
+```
+
+Handlers may own HTTP-specific concerns such as:
+- path/query/header parsing;
+- request-size limits;
+- content type;
+- status codes;
+- deprecation headers;
+- same-origin policy;
+- cache/security headers.
+
+Handlers should not own:
+- cross-domain enrichment;
+- persistence transactions;
+- domain invariants;
+- authoritative state transitions;
+- SQLite-specific behavior.
+
+Keep compatibility behavior at the transport edge when possible. New server code should use canonical `Workspace` terminology. Keep `Project` naming only where legacy API/schema compatibility still requires it.
+
+## 22. Server naming and migration direction
+
+Current server terminology contains compatibility debt.
+
+Move incrementally toward:
+
+```text
+internal/persistence → internal/sqlite
+internal/study       → internal/activity
+internal/project     → internal/workspace
+```
+
+Order for the current architecture cleanup:
+
+```text
+1. add/enforce server dependency-boundary checks
+2. persistence → sqlite
+3. study → activity
+4. move cross-domain activity orchestration out of HTTP
+5. extract library ownership for Trash / Backup / Restore
+6. project → workspace
+```
+
+Do one ownership boundary at a time and keep behavior stable.
+
+Do not rename database tables such as `projects` merely to match package terminology. Schema renames require their own concrete payoff and migration justification.
+
+Do not expand legacy `Project` terminology into new APIs, domain types, or packages.
+
+## 23. Server verification
+
+Structural server changes should prove dependency direction and preserve runtime behavior.
+
+At minimum, choose the relevant subset of:
+
+- `gofmt`;
+- `go vet`;
+- focused package tests;
+- `go test -race` where concurrency semantics are touched;
+- migration/integrity tests when SQL or schema behavior changes;
+- HTTP integration tests when transport contracts move;
+- deterministic architecture-boundary checks when package imports or ownership rules change;
+- server build when package topology changes.
+
+Architecture tests should enforce meaningful dependency rules rather than exact incidental filenames.
+
+For architecture migration:
+
+```text
+define one target boundary
+→ add/strengthen the boundary proof
+→ move that owner
+→ update wiring/imports
+→ run focused verification
+→ continue
+```
+
+Avoid a big-bang server rewrite.
+
+## 24. Stop rule
 
 A refactor is complete when:
 - ownership is clearer;

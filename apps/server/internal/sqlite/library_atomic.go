@@ -10,7 +10,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/project"
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceEnvelope, error) {
@@ -177,13 +177,13 @@ func trashRecordsTx(ctx context.Context, tx *sql.Tx) ([]trashRecord, error) {
 	return records, rows.Err()
 }
 
-func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]study.Session, error) {
+func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]activity.Session, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	sessions := []study.Session{}
+	sessions := []activity.Session{}
 	for rows.Next() {
 		session, err := scanStudySession(rows)
 		if err != nil {

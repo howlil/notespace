@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 )
 
@@ -98,17 +97,6 @@ func planTx(ctx context.Context, tx *sql.Tx, workspaceID string) (planning.Plan,
 
 func (s *Store) GetPlan(ctx context.Context, workspaceID string) (planning.Plan, error) {
 	return readPlan(ctx, s.db, workspaceID)
-}
-
-func (s *Store) LookupTask(ctx context.Context, taskID string) (activity.TaskRef, bool, error) {
-	task, err := s.GetTask(ctx, taskID)
-	if errors.Is(err, planning.ErrNotFound) {
-		return activity.TaskRef{}, false, nil
-	}
-	if err != nil {
-		return activity.TaskRef{}, false, err
-	}
-	return activity.TaskRef{Title: task.Title, WorkspaceID: task.WorkspaceID}, true, nil
 }
 
 func (s *Store) GetTask(ctx context.Context, taskID string) (planning.Task, error) {

@@ -8,11 +8,11 @@ import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
-import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
+import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
-export function CategoryDetail({ category, initialPage }: { category: CategorySummary; initialPage: WorkspacePage }) {
+export function CategoryPage({ category, initialPage }: { category: CategorySummary; initialPage: WorkspacePage }) {
   const { showToast } = useToast();
   const [page, setPage] = useState(initialPage);
   const [query, setQuery] = useState("");

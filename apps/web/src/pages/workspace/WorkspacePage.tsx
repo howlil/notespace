@@ -9,18 +9,18 @@ import { useToast } from "../../providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
 import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../domain/project/api";
-import { StudyIndicator } from "../study/StudyIndicator";
-import { useActivityRuntime } from "../study/activity-runtime-provider";
-import { WorkspaceGuide } from "./WorkspaceGuide";
-import { blankDocument, normalizeProjectContent } from "./workspace-content";
-import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "./pane-layout";
-import type { Pane, PaneNode, WorkspaceViewMode } from "./pane-layout";
-import { useWorkspaceSession } from "./use-workspace-session";
+import { StudyIndicator } from "../../features/study/StudyIndicator";
+import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
+import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
+import { blankDocument, normalizeProjectContent } from "../../features/workspace/workspace-content";
+import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../../features/workspace/pane-layout";
+import type { Pane, PaneNode, WorkspaceViewMode } from "../../features/workspace/pane-layout";
+import { useWorkspaceSession } from "../../features/workspace/use-workspace-session";
 import { writeLocalStorage } from "../../browser/local-storage";
-import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
-import { WorkspaceRenameField } from "./WorkspaceRenameField";
-import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
-import { WorkspacePlan } from "../plan/WorkspacePlan";
+import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
+import { WorkspaceRenameField } from "../../features/workspace/WorkspaceRenameField";
+import { WorkspaceViewSwitcher } from "../../features/workspace/WorkspaceViewSwitcher";
+import { WorkspacePlan } from "../../features/plan/WorkspacePlan";
 import { findCanvasNoteArtifactId } from "../../integrations/canvas/canvas-note-artifact";
 
 const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
@@ -73,7 +73,7 @@ class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 }
 
-export function Workspace({ project, categoryTitle, categoryWorkspaces }: { project: Project; categoryTitle: string; categoryWorkspaces: ProjectSummary[] }) {
+export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { project: Project; categoryTitle: string; categoryWorkspaces: ProjectSummary[] }) {
   const { dark } = useTheme();
   const navigate = useNavigate();
   const { showToast } = useToast();

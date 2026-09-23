@@ -16,7 +16,7 @@ import {
   type InboxProjection,
   type PlanningTask,
 } from "../../domain/planning/planning";
-import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
+import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 
@@ -113,7 +113,7 @@ function InboxTaskRow({
   );
 }
 
-export function Inbox({
+export function InboxPage({
   categories,
   initial,
 }: {

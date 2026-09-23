@@ -9,11 +9,11 @@ import { ThemeToggle } from "../../providers/theme-provider";
 import { useToast } from "../../providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../domain/project/api";
-import { notifyLibraryChanged, useLibrarySyncStore } from "../library/library-sync-store";
-import { workspaceMutationError, workspaceRenameTitle } from "../library/workspace-mutation-policy";
-import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
-import { StudyActivityDashboard } from "../study/StudyActivityDashboard";
-import { WorkspaceGuide } from "../workspace/WorkspaceGuide";
+import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
+import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
+import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
+import { StudyActivityDashboard } from "../../features/study/StudyActivityDashboard";
+import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
 import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
@@ -229,7 +229,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
   );
 }
 
-export function Dashboard({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
+export function HomePage({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: Props) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const libraryRevision = useLibrarySyncStore((state) => state.revision);

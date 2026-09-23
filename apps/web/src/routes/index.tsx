@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCategories, listRecentWorkspaces } from "../domain/project/api";
-import { Dashboard } from "../features/dashboard/Dashboard";
+import { HomePage } from "../pages/home/HomePage";
 import { RoutePending } from "../components/feedback/RoutePending";
 
 export const Route = createFileRoute("/")({
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardRoute() {
-  return <Dashboard {...Route.useLoaderData()} />;
+  return <HomePage {...Route.useLoaderData()} />;
 }

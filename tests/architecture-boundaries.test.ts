@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 const ROOT = process.cwd();
@@ -27,6 +27,47 @@ function localImports(file: string) {
     .filter((value) => value.startsWith("."))
     .map((value) => resolve(dirname(file), value));
 }
+
+function topLevelLayer(file: string) {
+  return relative(WEB_SRC, file).replaceAll("\\", "/").split("/")[0] ?? "";
+}
+
+function assertLayerExcludes(layer: string, forbidden: readonly string[]) {
+  const root = join(WEB_SRC, layer);
+  if (!existsSync(root)) return;
+  for (const file of collect(root)) {
+    for (const dependency of localImports(file)) {
+      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      const targetLayer = topLevelLayer(dependency);
+      assert.ok(
+        !forbidden.includes(targetLayer),
+        `${relative(WEB_SRC, file)} in ${layer} depends on forbidden layer ${target}`,
+      );
+    }
+  }
+}
+
+test("new web layers preserve downward dependency direction", () => {
+  assertLayerExcludes("domain", ["routes", "pages", "features", "integrations", "components", "providers", "browser", "adapters", "shared"]);
+  assertLayerExcludes("pages", ["routes"]);
+  assertLayerExcludes("features", ["routes", "pages"]);
+  assertLayerExcludes("adapters", ["routes", "pages", "features"]);
+  assertLayerExcludes("shared", ["routes", "pages", "features", "adapters", "domain"]);
+});
+
+test("routes compose pages instead of routed screens in features", () => {
+  const routeRoot = join(WEB_SRC, "routes");
+  for (const file of collect(routeRoot)) {
+    for (const dependency of localImports(file)) {
+      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      assert.doesNotMatch(
+        target,
+        /^features\/(dashboard|category|workspace|today|inbox)\//,
+        `${relative(WEB_SRC, file)} imports a routed screen from features: ${target}`,
+      );
+    }
+  }
+});
 
 test("domain modules do not depend on feature or integration implementation", () => {
   const domainRoot = join(WEB_SRC, "domain");
@@ -58,7 +99,7 @@ test("diagram feature does not depend on Canvas integration internals", () => {
 });
 
 test("browser event and asset initialization stay behind explicit boundaries", () => {
-  const dashboard = source("features/dashboard/Dashboard.tsx");
+  const dashboard = source("pages/home/HomePage.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");
   const canvas = source("integrations/canvas/CanvasEditor.tsx");
   assert.match(dashboard, /OPEN_QUICK_SEARCH_EVENT/);
@@ -70,7 +111,7 @@ test("browser event and asset initialization stay behind explicit boundaries", (
 });
 
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
-  const workspace = source("features/workspace/Workspace.tsx");
+  const workspace = source("pages/workspace/WorkspacePage.tsx");
   const session = source("features/workspace/use-workspace-session.ts");
   assert.match(workspace, /useWorkspaceSession/);
   assert.doesNotMatch(workspace, /useGranularWorkspaceAutosave/);

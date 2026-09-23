@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getProject, listCategoryWorkspaces, listCategories } from "../domain/project/api";
-import { Workspace } from "../features/workspace/Workspace";
+import { WorkspacePage } from "../pages/workspace/WorkspacePage";
 import { RoutePending } from "../components/feedback/RoutePending";
 
 export const Route = createFileRoute("/workspaces/$workspaceId")({
@@ -25,5 +25,5 @@ export const Route = createFileRoute("/workspaces/$workspaceId")({
 
 function WorkspaceRoute() {
   const data = Route.useLoaderData();
-  return <Workspace key={data.project.id} {...data} />;
+  return <WorkspacePage key={data.project.id} {...data} />;
 }

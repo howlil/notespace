@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { listCategories } from "../domain/project/api";
 import { getInbox } from "../domain/planning/api";
 import { RoutePending } from "../components/feedback/RoutePending";
-import { Inbox } from "../features/inbox/Inbox";
+import { InboxPage } from "../pages/inbox/InboxPage";
 
 export const Route = createFileRoute("/inbox")({
   ssr: false,
@@ -18,5 +18,5 @@ export const Route = createFileRoute("/inbox")({
 });
 
 function InboxRoute() {
-  return <Inbox {...Route.useLoaderData()} />;
+  return <InboxPage {...Route.useLoaderData()} />;
 }

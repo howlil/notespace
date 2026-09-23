@@ -16,13 +16,13 @@ import type {
   TodayProjection,
   TodayTask,
 } from "../../domain/planning/planning";
-import { OPEN_QUICK_SEARCH_EVENT } from "../search/quick-search-events";
+import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../providers/theme-provider";
-import { useActivityRuntime } from "../study/activity-runtime-provider";
-import { formatDuration } from "../study/study-timer";
+import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
+import { formatDuration } from "../../features/study/study-timer";
 import type { ActivityType } from "../../domain/activity/api";
 import { useToast } from "../../providers/toast-provider";
-import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
+import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -183,7 +183,7 @@ function TodayTaskRow({
   );
 }
 
-export function Today({
+export function TodayPage({
   categories,
   initial,
 }: {

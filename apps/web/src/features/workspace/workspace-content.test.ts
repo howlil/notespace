@@ -40,7 +40,7 @@ test("normalization assigns missing block identity and removes legacy relationsh
 });
 
 test("workspace note panes remount on note switch and expose non-destructive pane close", () => {
-  const workspace = readFileSync(join(process.cwd(), "apps/web/src/features/workspace/Workspace.tsx"), "utf8");
+  const workspace = readFileSync(join(process.cwd(), "apps/web/src/pages/workspace/WorkspacePage.tsx"), "utf8");
   assert.match(workspace, /DocumentEditor key=\{`\$\{pane\.id\}:\$\{note\.id\}`\}/);
   assert.match(workspace, /function closePane\(paneId: string\)/);
   assert.match(workspace, /removeNode\(layout, paneId\)/);

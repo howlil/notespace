@@ -63,4 +63,3 @@ func workspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuer
 		Limit:      limit,
 	}, nil
 }
-

@@ -20,12 +20,5 @@ if (result.status !== 0) {
 const files = result.stdout.trim();
 if (files) {
   console.error(`gofmt required for:\n${files}`);
-  const diff = spawnSync("gofmt", ["-d", "."], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
-  if (diff.stdout) {
-    process.stderr.write(diff.stdout);
-  }
   process.exit(1);
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
@@ -41,16 +42,18 @@ func run() error {
 	workspaceService := workspace.NewService(workspaceStore)
 	planningService := planning.NewService(store, store, nil)
 	activityService := activity.NewService(store, store, nil)
+	assetService := asset.NewService(store, store)
 	libraryService := library.NewService(store)
 
 	deps := httpapi.Dependencies{
 		Workspace: &workspaceService,
 		Planning:  &planningService,
 		Activity:  &activityService,
-		Assets:    store,
+		Assets:    &assetService,
+		Library:   &libraryService,
 		Health:    store.Healthy,
 	}
-	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), libraryService))
+	api := httpapi.WithSameOriginMutations(httpapi.New(deps))
 	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
 		stats := store.Stats()
 		return httpapi.DatabaseStats{

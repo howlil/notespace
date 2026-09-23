@@ -34,7 +34,8 @@ func newAPI(store *sqlite.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Planning: store,
-		Study:    store,
+		Activity: store,
+		ActivityReferences: store,
 		Assets:   store,
 		Health:   store.Healthy,
 	}))
@@ -44,7 +45,8 @@ func newLibraryAPI(store *sqlite.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Planning: store,
-		Study:    store,
+		Activity: store,
+		ActivityReferences: store,
 		Assets:   store,
 		Health:   store.Healthy,
 	}), store))
@@ -457,7 +459,8 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Planning: store,
-		Study:    store,
+		Activity: store,
+		ActivityReferences: store,
 		Assets:   store,
 		Health:   store.Healthy,
 	}), store))

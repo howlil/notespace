@@ -9,13 +9,12 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 )
 
 const (
-	DefaultEraserOrigin      = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
+	DefaultEraserOrigin    = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
 	maxEraserIconBytes    = 1 << 20
 	maxEraserCacheBytes   = 64 << 20
 	maxEraserCacheEntries = 512
@@ -29,6 +28,10 @@ var (
 type Entry struct {
 	Data        []byte
 	ContentType string
+}
+
+type Source interface {
+	Fetch(context.Context, string) (Entry, error)
 }
 
 type cachedEraserIcon struct {
@@ -57,7 +60,10 @@ func NewEraserSource(client *http.Client, baseURL string) *EraserSource {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &eraserIconGateway{
+	if strings.TrimSpace(baseURL) == "" {
+		baseURL = DefaultEraserOrigin
+	}
+	return &EraserSource{
 		client:     client,
 		baseURL:    strings.TrimRight(baseURL, "/") + "/",
 		cache:      make(map[string]*list.Element),

@@ -1,6 +1,6 @@
-import { workspaceContentOf } from "../../domain/workspace/workspace";
-import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace";
-import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import";
+import { workspaceContentOf } from "../../domain/workspace/workspace.ts";
+import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace.ts";
+import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import.ts";
 
 export type VaultImportOperations = {
   createWorkspace: (title: string, categoryId?: string) => Promise<Workspace>;

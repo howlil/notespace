@@ -1,4 +1,4 @@
-import { mergeCanvasSnapshots } from "./canvas-merge";
+import { mergeCanvasSnapshots } from "./canvas-merge.ts";
 import type { Snapshot } from "./workspace";
 
 export type CanvasConflictLatest = {

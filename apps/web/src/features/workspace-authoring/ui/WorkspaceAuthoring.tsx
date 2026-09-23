@@ -8,15 +8,14 @@ import { useTheme } from "../../../shared/ui/theme-provider";
 import { useToast } from "../../../shared/ui/toast-provider";
 import { workspaceContentOf } from "../../../domain/workspace/workspace";
 import type { Note, Workspace, WorkspaceSummary, Snapshot } from "../../../domain/workspace/workspace";
-import { createWorkspaceNote, deleteWorkspaceNote, renameWorkspace } from "../../../adapters/http/workspace-api";
 import { WorkspaceGuide } from "./WorkspaceGuide";
-import { blankDocument, normalizeWorkspaceContent } from "../model/workspace-content";
+import { normalizeWorkspaceContent } from "../model/workspace-content";
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../model/pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "../model/pane-layout";
 import { useWorkspaceSession } from "../model/use-workspace-session";
+import { useWorkspaceCommands } from "../model/use-workspace-commands";
 import { writeLocalStorage } from "../../../shared/browser/local-storage";
 import { workspaceRenameTitle } from "../../../domain/workspace/naming";
-import { errorMessage } from "../../../shared/lib/error-message";
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 import { findCanvasNoteArtifactId } from "../canvas/canvas-note-artifact";
@@ -107,6 +106,14 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     updateNoteDocument,
     updateCanvas,
   } = session;
+  const commands = useWorkspaceCommands({
+    workspaceId: workspace.id,
+    current,
+    touchContent,
+    scheduleNote,
+    flushNote,
+    forgetNote,
+  });
   const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${workspace.id}`, new Set(initial.notes.map((note) => note.id))));
   const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
   const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
@@ -245,20 +252,8 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     setHighlightRequest((request) => request?.paneId === paneId ? null : request);
   }
   async function createNote(paneId: string) {
-    const id = newId();
-    const document = blankDocument();
-    try {
-      const note = await createWorkspaceNote(workspace.id, { id, title: "Untitled", document });
-      current.current = {
-        ...current.current,
-        notes: [...current.current.notes, note],
-        document: note.document,
-      };
-      touchContent();
-      switchPaneNote(paneId, note.id);
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not create note." });
-    }
+    const note = await commands.createNote();
+    if (note) switchPaneNote(paneId, note.id);
   }
   function beginRenameNote(pane: Pane, noteId = pane.noteId) {
     if (!noteId) return;
@@ -286,13 +281,12 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     workspaceRenameSubmitting.current = true;
     setWorkspaceRenamePending(true);
     try {
-      const renamed = await renameWorkspace(workspace.id, value);
-      setWorkspaceTitle(renamed.title);
-      setWorkspaceTitleDraft(renamed.title);
-      setRenamingWorkspace(false);
-      showToast({ kind: "success", message: "Workspace renamed." });
-    } catch (error) {
-      showToast({ kind: "error", message: errorMessage(error, "Could not rename workspace.") });
+      const renamedTitle = await commands.renameWorkspace(value);
+      if (renamedTitle) {
+        setWorkspaceTitle(renamedTitle);
+        setWorkspaceTitleDraft(renamedTitle);
+        setRenamingWorkspace(false);
+      }
     } finally {
       workspaceRenameSubmitting.current = false;
       setWorkspaceRenamePending(false);
@@ -302,15 +296,7 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     const value = noteTitle.trim();
     const noteId = renamingNote?.paneId === pane.id ? renamingNote.noteId : pane.noteId;
     if (!noteId || !value) { setRenamingNote(null); return; }
-    const existing = current.current.notes.find((note) => note.id === noteId);
-    if (!existing) { setRenamingNote(null); return; }
-    const nextNote: Note = { ...existing, title: value, updatedAt: new Date().toISOString() };
-    current.current = {
-      ...current.current,
-      notes: current.current.notes.map((note) => note.id === noteId ? nextNote : note),
-    };
-    touchContent();
-    scheduleNote(nextNote);
+    commands.renameNote(noteId, value);
     setRenamingNote(null);
   }
   function highlightSelectedText() {
@@ -319,22 +305,11 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
   }
   async function removeNote() {
     if (!deletingNote || current.current.notes.length <= 1) return;
-    try {
-      await flushNote(deletingNote.id);
-      const persisted = current.current.notes.find((note) => note.id === deletingNote.id);
-      if (!persisted) return;
-      await deleteWorkspaceNote(workspace.id, persisted.id, persisted.version);
-      const notes = current.current.notes.filter((note) => note.id !== persisted.id);
-      const target = leaves(layout).find((pane) => pane.noteId === persisted.id);
-      const replacement = notes[0];
-      current.current = { ...current.current, notes, document: replacement.document };
-      forgetNote(persisted.id);
-      touchContent();
-      if (target) switchPaneNote(target.id, replacement.id);
-      setDeletingNote(null);
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not delete note." });
-    }
+    const result = await commands.deleteNote(deletingNote.id);
+    if (!result) return;
+    const target = leaves(layout).find((pane) => pane.noteId === result.deletedId);
+    if (target) switchPaneNote(target.id, result.replacementId);
+    setDeletingNote(null);
   }
   const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];

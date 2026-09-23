@@ -294,6 +294,21 @@ test("workspace delegates authored state and autosave ownership to its session b
   assert.match(session, /updateCanvas/);
 });
 
+test("workspace authoring delegates mutations to its command boundary", () => {
+  const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
+  const commands = source("features/workspace-authoring/model/use-workspace-commands.ts");
+
+  assert.match(workspace, /useWorkspaceCommands/);
+  assert.doesNotMatch(workspace, /adapters\/http\/workspace-api/);
+  assert.doesNotMatch(workspace, /createWorkspaceNote|deleteWorkspaceNote/);
+
+  assert.match(commands, /createWorkspaceNote/);
+  assert.match(commands, /deleteWorkspaceNote/);
+  assert.match(commands, /renameWorkspaceRequest/);
+  assert.match(commands, /scheduleNote/);
+  assert.match(commands, /flushNote/);
+});
+
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {
   const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
   const localImage = source("features/workspace-authoring/document/LocalImageNode.tsx");

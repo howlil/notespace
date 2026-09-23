@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type rowsQueryer interface {
@@ -23,16 +23,16 @@ type granularQueryer interface {
 	rowQueryer
 }
 
-func listGranularNotes(ctx context.Context, q rowsQueryer, workspaceID string) ([]project.Note, error) {
+func listGranularNotes(ctx context.Context, q rowsQueryer, workspaceID string) ([]workspace.Note, error) {
 	rows, err := q.QueryContext(ctx, `SELECT id,title,document_state,created_at,updated_at,version
 FROM workspace_notes WHERE workspace_id=? ORDER BY created_at,id`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	notes := []project.Note{}
+	notes := []workspace.Note{}
 	for rows.Next() {
-		var note project.Note
+		var note workspace.Note
 		var document string
 		if err := rows.Scan(&note.ID, &note.Title, &document, &note.CreatedAt, &note.UpdatedAt, &note.Version); err != nil {
 			return nil, err
@@ -45,23 +45,23 @@ FROM workspace_notes WHERE workspace_id=? ORDER BY created_at,id`, workspaceID)
 	return notes, rows.Err()
 }
 
-func (s *Store) ListNotes(ctx context.Context, workspaceID string) ([]project.Note, error) {
+func (s *Store) ListNotes(ctx context.Context, workspaceID string) ([]workspace.Note, error) {
 	var exists int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, workspaceID).Scan(&exists); err != nil {
 		return nil, err
 	}
 	if exists == 0 {
-		return nil, project.ErrNotFound
+		return nil, workspace.ErrNotFound
 	}
 	return listGranularNotes(ctx, s.db, workspaceID)
 }
 
-func canvasStateFromRow(row scanner) (project.CanvasState, error) {
-	var value project.CanvasState
+func canvasStateFromRow(row scanner) (workspace.CanvasState, error) {
+	var value workspace.CanvasState
 	var encoded string
 	err := row.Scan(&encoded, &value.Version, &value.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return value, project.ErrNotFound
+		return value, workspace.ErrNotFound
 	}
 	if err != nil {
 		return value, err
@@ -72,17 +72,17 @@ func canvasStateFromRow(row scanner) (project.CanvasState, error) {
 	return value, nil
 }
 
-func (s *Store) GetCanvasState(ctx context.Context, workspaceID string) (project.CanvasState, error) {
+func (s *Store) GetCanvasState(ctx context.Context, workspaceID string) (workspace.CanvasState, error) {
 	return canvasStateFromRow(s.db.QueryRowContext(ctx,
 		`SELECT canvas_state,version,updated_at FROM workspace_canvas WHERE workspace_id=?`,
 		workspaceID,
 	))
 }
 
-func hydrateGranularProject(ctx context.Context, q granularQueryer, value project.Project) (project.Project, error) {
+func hydrateGranularProject(ctx context.Context, q granularQueryer, value workspace.Workspace) (workspace.Workspace, error) {
 	notes, err := listGranularNotes(ctx, q, value.ID)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if len(notes) > 0 {
 		value.Notes = notes
@@ -93,14 +93,14 @@ func hydrateGranularProject(ctx context.Context, q granularQueryer, value projec
 		value.ID,
 	))
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	value.Canvas = canvas.Canvas
 	value.CanvasVersion = canvas.Version
 	return value, nil
 }
 
-func canvasElementCount(canvas project.Snapshot) (int, error) {
+func canvasElementCount(canvas workspace.Snapshot) (int, error) {
 	var scene struct {
 		Elements []json.RawMessage `json:"elements"`
 	}
@@ -110,7 +110,7 @@ func canvasElementCount(canvas project.Snapshot) (int, error) {
 	return len(scene.Elements), nil
 }
 
-func insertGranularStateTx(ctx context.Context, tx *sql.Tx, workspace project.Project) error {
+func insertGranularStateTx(ctx context.Context, tx *sql.Tx, workspace workspace.Workspace) error {
 	for _, note := range workspace.Notes {
 		document, err := json.Marshal(note.Document)
 		if err != nil {
@@ -142,7 +142,7 @@ VALUES (?,?,?,?,?)`, workspace.ID, canvas, canvasVersion, workspace.UpdatedAt, e
 	return err
 }
 
-func reconcileGranularStateTx(ctx context.Context, tx *sql.Tx, workspaceID string, notes []project.Note, canvas project.Snapshot, updatedAt string) error {
+func reconcileGranularStateTx(ctx context.Context, tx *sql.Tx, workspaceID string, notes []workspace.Note, canvas workspace.Snapshot, updatedAt string) error {
 	incoming := make(map[string]struct{}, len(notes))
 	for _, note := range notes {
 		incoming[note.ID] = struct{}{}
@@ -217,61 +217,61 @@ ON CONFLICT(workspace_id) DO UPDATE SET
 	return err
 }
 
-func (s *Store) CreateNote(ctx context.Context, workspaceID string, input project.NoteCreate) (project.Note, error) {
+func (s *Store) CreateNote(ctx context.Context, workspaceID string, input workspace.NoteCreate) (workspace.Note, error) {
 	document, err := json.Marshal(input.Document)
 	if err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	defer tx.Rollback()
 
 	var workspaceExists int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, workspaceID).Scan(&workspaceExists); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if workspaceExists == 0 {
-		return project.Note{}, project.ErrNotFound
+		return workspace.Note{}, workspace.ErrNotFound
 	}
 	var existing int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, input.ID).Scan(&existing); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if existing != 0 {
-		return project.Note{}, project.ErrConflict
+		return workspace.Note{}, workspace.ErrConflict
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_notes(workspace_id,id,title,document_state,created_at,updated_at,version)
 VALUES (?,?,?,?,?,?,1)`, workspaceID, input.ID, input.Title, document, now, now); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
-	return project.Note{
+	return workspace.Note{
 		ID: input.ID, Title: input.Title, Document: input.Document,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	}, nil
 }
 
-func (s *Store) UpdateNote(ctx context.Context, workspaceID, noteID string, update project.NoteUpdate) (project.Note, error) {
+func (s *Store) UpdateNote(ctx context.Context, workspaceID, noteID string, update workspace.NoteUpdate) (workspace.Note, error) {
 	document, err := json.Marshal(update.Document)
 	if err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	defer tx.Rollback()
 
-	var note project.Note
+	var note workspace.Note
 	var encoded string
 	err = tx.QueryRowContext(ctx, `UPDATE workspace_notes
 SET title=?,document_state=?,updated_at=?,version=version+1
@@ -282,25 +282,25 @@ RETURNING id,title,document_state,created_at,updated_at,version`,
 	if errors.Is(err, sql.ErrNoRows) {
 		var count int
 		if countErr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID).Scan(&count); countErr != nil {
-			return project.Note{}, countErr
+			return workspace.Note{}, countErr
 		}
 		if count == 0 {
-			return project.Note{}, project.ErrNotFound
+			return workspace.Note{}, workspace.ErrNotFound
 		}
-		return project.Note{}, project.ErrConflict
+		return workspace.Note{}, workspace.ErrConflict
 	}
 	if err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if err := json.Unmarshal([]byte(encoded), &note.Document); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 
 	if _, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1,notes_revision=notes_revision+1 WHERE id=?`, now, workspaceID); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return project.Note{}, err
+		return workspace.Note{}, err
 	}
 	return note, nil
 }
@@ -318,21 +318,21 @@ func (s *Store) DeleteNote(ctx context.Context, workspaceID, noteID string, vers
 		return err
 	}
 	if total == 0 {
-		return project.ErrNotFound
+		return workspace.ErrNotFound
 	}
 	if total <= 1 {
-		return project.ErrInvalid
+		return workspace.ErrInvalid
 	}
 	var currentVersion int
 	err = tx.QueryRowContext(ctx, `SELECT version FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID).Scan(&currentVersion)
 	if errors.Is(err, sql.ErrNoRows) {
-		return project.ErrNotFound
+		return workspace.ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
 	if currentVersion != version {
-		return project.ErrConflict
+		return workspace.ErrConflict
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID); err != nil {
 		return err
@@ -343,23 +343,23 @@ func (s *Store) DeleteNote(ctx context.Context, workspaceID, noteID string, vers
 	return tx.Commit()
 }
 
-func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update project.CanvasUpdate) (project.CanvasState, error) {
+func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update workspace.CanvasUpdate) (workspace.CanvasState, error) {
 	encoded, err := json.Marshal(update.Canvas)
 	if err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	elementCount, err := canvasElementCount(update.Canvas)
 	if err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	defer tx.Rollback()
 
-	var state project.CanvasState
+	var state workspace.CanvasState
 	var stored string
 	err = tx.QueryRowContext(ctx, `UPDATE workspace_canvas
 SET canvas_state=?,updated_at=?,version=version+1,element_count=?
@@ -370,26 +370,26 @@ RETURNING canvas_state,version,updated_at`,
 	if errors.Is(err, sql.ErrNoRows) {
 		var count int
 		if countErr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id=?`, workspaceID).Scan(&count); countErr != nil {
-			return project.CanvasState{}, countErr
+			return workspace.CanvasState{}, countErr
 		}
 		if count == 0 {
-			return project.CanvasState{}, project.ErrNotFound
+			return workspace.CanvasState{}, workspace.ErrNotFound
 		}
-		return project.CanvasState{}, project.ErrConflict
+		return workspace.CanvasState{}, workspace.ErrConflict
 	}
 	if err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	if err := json.Unmarshal([]byte(stored), &state.Canvas); err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 
 	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1 WHERE id=?`, now, workspaceID)
 	if err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		return project.CanvasState{}, project.ErrNotFound
+		return workspace.CanvasState{}, workspace.ErrNotFound
 	}
 	// Canvas content is not searchable, so advance only the aggregate revision
 	// recorded by an existing FTS projection. Title/category/notes_revision
@@ -397,10 +397,10 @@ RETURNING canvas_state,version,updated_at`,
 	if _, err := tx.ExecContext(ctx, `UPDATE workspace_search_meta
 SET version=(SELECT version FROM projects WHERE id=?)
 WHERE workspace_id=?`, workspaceID, workspaceID); err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return project.CanvasState{}, err
+		return workspace.CanvasState{}, err
 	}
 	return state, nil
 }

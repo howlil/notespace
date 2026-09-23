@@ -40,9 +40,9 @@ type archiveAsset struct {
 
 type archiveWorkspaceEnvelope struct {
 	Project workspacepkg.Workspace         `json:"project"`
-	Plan    planning.Plan                `json:"plan,omitempty"`
+	Plan    planning.Plan                  `json:"plan,omitempty"`
 	History []workspacepkg.HistorySnapshot `json:"history"`
-	Assets  []archiveAsset               `json:"assets"`
+	Assets  []archiveAsset                 `json:"assets"`
 }
 
 type archiveTrashRecord struct {

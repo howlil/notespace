@@ -10,4 +10,3 @@ func (a API) search(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 200, data)
 }
-

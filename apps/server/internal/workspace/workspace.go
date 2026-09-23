@@ -191,10 +191,10 @@ func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
 
-// ValidateProject is the domain boundary for complete aggregate snapshots.
+// ValidateWorkspace is the domain boundary for complete aggregate snapshots.
 // Persistence imports and other adapters must use the same rules as ordinary
 // updates before accepting externally supplied workspace data.
-func ValidateProject(p Workspace) error {
+func ValidateWorkspace(p Workspace) error {
 	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 || p.SplitRatio < .25 || p.SplitRatio > .7 || !validDocument(p.Document) || !validCanvas(p.Canvas) || !validReferences(p.References) || !validNotes(p.Notes) {
 		return ErrInvalid
 	}

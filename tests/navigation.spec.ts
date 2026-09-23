@@ -22,7 +22,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
     }
   });
 
-  test("direct navigation and reload on workspace (/workspaces/:id)", async ({
+  test("direct navigation, sibling switching, and reload on workspace (/workspaces/:id)", async ({
     page,
     request,
   }) => {
@@ -32,6 +32,13 @@ test.describe("Production-Safe Navigation & Reload", () => {
     });
     expect(res.status()).toBe(201);
     const workspace = await res.json();
+
+    const siblingTitle = `Workspace Sibling ${Date.now()}`;
+    const siblingRes = await request.post("/api/workspaces", {
+      data: { title: siblingTitle, categoryId: workspace.categoryId },
+    });
+    expect(siblingRes.status()).toBe(201);
+    const sibling = await siblingRes.json();
 
     const assertWorkspaceLoaded = async () => {
       await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
@@ -48,6 +55,16 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await page.goto(`/workspaces/${workspace.id}`);
       await assertWorkspaceLoaded();
 
+      const switcher = page.locator('summary[aria-label="Switch workspace"]');
+      await switcher.click();
+      const options = page.getByRole("listbox", { name: "Workspaces in this category" });
+      const siblingOption = options.getByRole("option", { name: siblingTitle, exact: true });
+      await expect(siblingOption).toBeVisible();
+      await siblingOption.click();
+      await expect(page).toHaveURL(new RegExp(`/workspaces/${sibling.id}$`));
+      await expect(page.locator('summary[aria-label="Switch workspace"]')).toContainText(siblingTitle);
+
+      await page.goto(`/workspaces/${workspace.id}`);
       await page.reload();
       await assertWorkspaceLoaded();
 
@@ -56,8 +73,10 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}$`));
       await assertWorkspaceLoaded();
     } finally {
-      await request.delete(`/api/workspaces/${workspace.id}`);
-      await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+      for (const item of [workspace, sibling]) {
+        await request.delete(`/api/workspaces/${item.id}`);
+        await request.delete(`/api/trash/${item.id}`).catch(() => undefined);
+      }
     }
   });
 });

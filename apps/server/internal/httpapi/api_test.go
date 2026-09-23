@@ -463,14 +463,10 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 	defer store.Close()
 
 	workspace := decodeWorkspace(t, call(t, newAPI(store), "POST", "/api/workspaces", map[string]string{"title": "Protected workspace"}))
-	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Activity: store,
-		ActivityReferences: store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}), store))
+	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(
+		httpapi.New(apiDependencies(store)),
+		library.NewService(store),
+	))
 	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+workspace.ID, nil)
 	req.Header.Set("Origin", "https://untrusted.example")
 	res := httptest.NewRecorder()

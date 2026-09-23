@@ -8,7 +8,7 @@ const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
-const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
+const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
 const GLOBALS = join(WEB_SRC, "styles", "globals.css");
 const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
@@ -47,11 +47,11 @@ test("responsive contract: mobile library keeps persistent navigation without a 
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
   assert.match(sidebar, /return <NotespaceLogo \/>/);
   assert.match(sidebar, /<Brand \/>/);
-  assert.ok(dashboard.indexOf("<StudyActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
+  assert.ok(dashboard.indexOf("<ActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
 });
 
 test("responsive contract: mobile learning activity is summary-first", () => {
-  const study = source(STUDY);
+  const study = source(ACTIVITY);
   assert.match(study, /mobileExpanded/);
   assert.match(study, /View heatmap/);
   assert.match(study, /Hide heatmap/);

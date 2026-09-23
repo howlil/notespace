@@ -18,7 +18,7 @@ const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
-const WORKSPACE_PLAN = join(WEB_SRC, "features", "plan", "WorkspacePlan.tsx");
+const WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
 const INBOX = join(WEB_SRC, "pages", "inbox", "InboxPage.tsx");
 const TODAY = join(WEB_SRC, "pages", "today", "TodayPage.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace-authoring", "model", "pane-layout.ts");
@@ -49,13 +49,13 @@ const CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "code"
 const NOTE_CODE_BLOCK = join(WEB_SRC, "features", "workspace-authoring", "document", "NoteCodeBlockNode.tsx");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "workspace-authoring", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "shared", "ui", "toast-provider.tsx");
-const STUDY_ACTIVITY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");
-const STUDY_INDICATOR = join(WEB_SRC, "features", "study", "StudyIndicator.tsx");
-const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "study", "activity-runtime-provider.tsx");
-const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "study", "activity-recovery.ts");
-const ACTIVITY_DOCK = join(WEB_SRC, "features", "study", "ActivityDock.tsx");
-const ACTIVITY_TYPE_MENU = join(WEB_SRC, "features", "study", "ActivityTypeMenu.tsx");
-const ACTIVITY_TYPE_TRIGGER = join(WEB_SRC, "features", "study", "ActivityTypeTrigger.tsx");
+const ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
+const ACTIVITY_INDICATOR = join(WEB_SRC, "features", "activity", "ActivityIndicator.tsx");
+const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "activity", "activity-runtime-provider.tsx");
+const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "activity", "activity-recovery.ts");
+const ACTIVITY_DOCK = join(WEB_SRC, "features", "activity", "ActivityDock.tsx");
+const ACTIVITY_TYPE_MENU = join(WEB_SRC, "features", "activity", "ActivityTypeMenu.tsx");
+const ACTIVITY_TYPE_TRIGGER = join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx");
 const SKELETON = join(WEB_SRC, "shared", "ui", "skeleton.tsx");
 const WORKSPACE_LIST_SKELETON = join(WEB_SRC, "features", "library", "WorkspaceListSkeleton.tsx");
 const DISMISSABLE_POPUP = join(WEB_SRC, "shared", "ui", "dismissable.tsx");
@@ -275,19 +275,19 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(QUICK_CAPTURE), /<Input/); assert.match(source(QUICK_OPEN), /<Input/);
   assert.match(source(WORKSPACE), /<Button/); assert.match(source(WORKSPACE), /<IconButton/);
   assert.match(source(TOAST_PROVIDER), /<Button/); assert.match(source(TOAST_PROVIDER), /<IconButton/);
-  assert.match(source(STUDY_ACTIVITY), /<Button/); assert.match(source(STUDY_INDICATOR), /<Button/);
+  assert.match(source(ACTIVITY_DASHBOARD), /<Button/); assert.match(source(ACTIVITY_INDICATOR), /<Button/);
   assert.match(source(DASHBOARD), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /aspect-square/); assert.match(source(DASHBOARD), /article className="[^"]*bg-accent/); assert.match(source(DASHBOARD), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(DASHBOARD), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /aspect-square/); assert.match(source(DASHBOARD), /article className="[^"]*bg-accent/); assert.match(source(DASHBOARD), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(DASHBOARD), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.match(source(DASHBOARD), /after:bg-accent/);
   assert.match(source(DASHBOARD), /<ContextMenu>/); assert.match(source(DASHBOARD), /Edit title/); assert.match(source(DASHBOARD), /deleteWorkspace/); assert.match(source(DASHBOARD), /<ConfirmDialog/);
-  assert.match(source(STUDY_ACTIVITY), /rounded-lg border border-line bg-surface/); assert.match(source(STUDY_ACTIVITY), /auto-cols-\[12px\]/);
+  assert.match(source(ACTIVITY_DASHBOARD), /rounded-lg border border-line bg-surface/); assert.match(source(ACTIVITY_DASHBOARD), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
   assert.match(source(DASHBOARD), /<WorkspaceListSkeleton/);
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX, TODAY, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, STUDY_ACTIVITY, STUDY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX, TODAY, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -362,9 +362,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(TODAY), /taskRevision/);
   assert.doesNotMatch(source(TODAY), /useActivitySession|handoffResolving|completionConfirmed|activityStartBlocked/);
   assert.doesNotMatch(source(TODAY), /priority|kanban|habit|streak|productivity score/i);
-  assert.match(source(STUDY_INDICATOR), /aria-label="Start activity"/);
-  assert.match(source(STUDY_INDICATOR), /ActivityTypeMenu/);
-  assert.doesNotMatch(source(STUDY_INDICATOR), /taskHandoff|onEnd|study\.pause|study\.resume|study\.end/);
+  assert.match(source(ACTIVITY_INDICATOR), /aria-label="Start activity"/);
+  assert.match(source(ACTIVITY_INDICATOR), /ActivityTypeMenu/);
+  assert.doesNotMatch(source(ACTIVITY_INDICATOR), /taskHandoff|onEnd|study\.pause|study\.resume|study\.end/);
   assert.match(source(WORKSPACE_PAGE), /useActivityRuntime/);
   assert.match(source(WORKSPACE_PAGE), /adoptLegacyWorkspace/);
   assert.match(source(WORKSPACE_PAGE), /refreshKey=\{study\.taskRevision\}/);
@@ -399,8 +399,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {
     assert.match(source(ACTIVITY_TYPE_MENU), new RegExp(type));
   }
-  assert.match(source(STUDY_ACTIVITY), />Activity<\/h2>/);
-  assert.doesNotMatch(source(STUDY_ACTIVITY), /Streak|currentStreak/);
+  assert.match(source(ACTIVITY_DASHBOARD), />Activity<\/h2>/);
+  assert.doesNotMatch(source(ACTIVITY_DASHBOARD), /Streak|currentStreak/);
   assert.match(workspace,/>Close pane<\/Button>/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.match(content,/references:\s*\[\]/);
@@ -439,7 +439,7 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(STUDY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#4f7396/); });

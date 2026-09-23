@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getCategory, listCategoryWorkspaces } from "../domain/project/api";
+import { getCategory, listCategoryWorkspaces } from "../adapters/http/workspace-api";
 import { CategoryPage } from "../pages/category/CategoryPage";
 import { RoutePending } from "../app/feedback/RoutePending";
 

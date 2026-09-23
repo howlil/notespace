@@ -5,7 +5,7 @@ import {
   createProjectHttpClient,
   request,
   type HttpTransport,
-} from "./http.ts";
+} from "./client";
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,

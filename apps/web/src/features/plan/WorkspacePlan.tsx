@@ -21,7 +21,7 @@ import {
   getWorkspacePlan,
   updateMilestone,
   updateTask,
-} from "../../domain/planning/api";
+} from "../../adapters/http/planning-api";
 import {
   localDateKey,
   milestoneProgress,
@@ -32,7 +32,7 @@ import {
 } from "../../domain/planning/planning";
 import { useToast } from "../../app/providers/toast-provider";
 import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
-import type { ActivityType } from "../../domain/activity/api";
+import type { ActivityType } from "../../adapters/http/activity-api";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }

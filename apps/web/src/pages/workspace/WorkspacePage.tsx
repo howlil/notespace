@@ -8,7 +8,7 @@ import { useTheme } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../domain/project/api";
+import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../adapters/http/workspace-api";
 import { StudyIndicator } from "../../features/study/StudyIndicator";
 import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
 import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
@@ -16,7 +16,7 @@ import { blankDocument, normalizeProjectContent } from "../../features/workspace
 import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../../features/workspace/pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "../../features/workspace/pane-layout";
 import { useWorkspaceSession } from "../../features/workspace/use-workspace-session";
-import { writeLocalStorage } from "../../browser/local-storage";
+import { writeLocalStorage } from "../../adapters/browser/local-storage";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 import { WorkspaceRenameField } from "../../features/workspace/WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "../../features/workspace/WorkspaceViewSwitcher";

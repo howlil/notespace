@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, type RefObject } from "react";
-import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { createLocalAssetId, storeImageAsset } from "../../adapters/assets/image-store";
 
 export function useDocumentImageActions(editorRef: RefObject<Editor | null>, workspaceId: string, onError: (message: string) => void) {
   return useCallback(async (files: File[], position?: number) => {

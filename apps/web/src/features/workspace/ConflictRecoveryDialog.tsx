@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../shared/ui";
 import { snapshotToMarkdown } from "../../domain/document/markdown";
-import { subscribeWorkspaceConflict } from "../../domain/project/conflict-recovery";
-import type { ConflictDraft } from "../../domain/project/conflict-recovery";
+import { subscribeWorkspaceConflict } from "../../adapters/browser/workspace-conflict-events";
+import type { ConflictDraft } from "../../adapters/browser/workspace-conflict-events";
 import { useToast } from "../../app/providers/toast-provider";
 
 function notesMarkdown(draft: ConflictDraft) {

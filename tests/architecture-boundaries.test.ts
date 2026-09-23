@@ -59,6 +59,7 @@ test("new web layers preserve downward dependency direction", () => {
 test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "components")), false);
   assert.equal(existsSync(join(WEB_SRC, "providers")), false);
+  assert.equal(existsSync(join(WEB_SRC, "browser")), false);
 });
 
 test("routes compose pages instead of routed screens in features", () => {
@@ -82,6 +83,30 @@ test("domain modules do not depend on feature or integration implementation", ()
       const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
       assert.doesNotMatch(path, /^(features|integrations)\//, `${relative(WEB_SRC, file)} depends upward on ${path}`);
     }
+  }
+});
+
+test("domain modules stay independent from browser and transport runtime", () => {
+  const domainRoot = join(WEB_SRC, "domain");
+  for (const file of collect(domainRoot)) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      text,
+      /\bwindow\b|\bindexedDB\b|\blocalStorage\b|\bglobalThis\.fetch\b|\bfetch\s*\(/,
+      `${relative(WEB_SRC, file)} contains browser or transport runtime behavior`,
+    );
+  }
+  for (const legacyPath of [
+    "domain/project/http.ts",
+    "domain/project/api.ts",
+    "domain/planning/api.ts",
+    "domain/activity/api.ts",
+    "domain/assets/local-image-assets.ts",
+    "domain/project/granular-save.ts",
+    "domain/project/save-project.ts",
+    "domain/project/conflict-recovery.ts",
+  ]) {
+    assert.equal(existsSync(join(WEB_SRC, legacyPath)), false, `${legacyPath} should be migrated out of domain`);
   }
 });
 

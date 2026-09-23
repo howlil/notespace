@@ -5,11 +5,10 @@ import type {
   ProjectSummary,
   Snapshot,
   WorkspacePage,
-} from "./project";
-import { APIError, json, request } from "./http";
+} from "../../domain/project/project";
+import { APIError, json, request } from "./client";
 
-export { APIError, getProject, updateProjectSnapshot } from "./http";
-export { saveProject } from "./save-project";
+export { APIError, getProject, updateProjectSnapshot } from "./client";
 
 export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
 

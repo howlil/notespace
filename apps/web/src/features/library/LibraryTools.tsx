@@ -12,10 +12,10 @@ import {
   listTrash,
   restoreLibraryBackup,
   restoreTrashedWorkspace,
-} from "../../domain/project/api";
-import type { TrashWorkspace } from "../../domain/project/api";
-import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
-import { saveProject } from "../../domain/project/save-project";
+} from "../../adapters/http/workspace-api";
+import type { TrashWorkspace } from "../../adapters/http/workspace-api";
+import { createLocalAssetId, storeImageAsset } from "../../adapters/assets/image-store";
+import { saveProject } from "./save-workspace";
 import { useToast } from "../../app/providers/toast-provider";
 import { notifyLibraryChanged } from "./library-sync-store";
 import { importVaultFiles } from "./vault-import-workflow";

@@ -6,7 +6,7 @@ import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useToast } from "../providers/toast-provider";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../domain/project/api";
+import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../adapters/http/workspace-api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";

@@ -5,13 +5,13 @@ import { Sidebar } from "../../app/shell/Sidebar";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
-import { listCategories } from "../../domain/project/api";
+import { listCategories } from "../../adapters/http/workspace-api";
 import {
   createStandaloneTask,
   deleteAnyTask,
   getToday,
   updateAnyTask,
-} from "../../domain/planning/api";
+} from "../../adapters/http/planning-api";
 import type {
   TodayProjection,
   TodayTask,
@@ -20,7 +20,7 @@ import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-even
 import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
 import { formatDuration } from "../../features/study/study-timer";
-import type { ActivityType } from "../../domain/activity/api";
+import type { ActivityType } from "../../adapters/http/activity-api";
 import { useToast } from "../../app/providers/toast-provider";
 import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
 

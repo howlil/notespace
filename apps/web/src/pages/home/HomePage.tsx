@@ -8,7 +8,7 @@ import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../domain/project/api";
+import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";

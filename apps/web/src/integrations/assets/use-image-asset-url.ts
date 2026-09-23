@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadImageAsset } from "../../domain/assets/local-image-assets";
+import { loadImageAsset } from "../../adapters/assets/image-store";
 
 export function useImageAssetUrl(workspaceId: string, assetId: string | null | undefined, fallbackSrc: string | null = null) {
   const [src, setSrc] = useState<string | null>(fallbackSrc);

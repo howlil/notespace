@@ -4,7 +4,7 @@ import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../shared/ui"
 import {
   listActivitySessions,
   type ActivitySession,
-} from "../../domain/activity/api";
+} from "../../adapters/http/activity-api";
 import { useDismissablePopup } from "../../shared/ui/dismissable";
 import { useToast } from "../../app/providers/toast-provider";
 import type { StudySessionState } from "./use-study-session";

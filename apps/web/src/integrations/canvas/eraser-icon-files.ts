@@ -1,5 +1,5 @@
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { blobToDataUrl, loadImageAsset, storeImageAsset } from "../../domain/assets/local-image-assets";
+import { blobToDataUrl, loadImageAsset, storeImageAsset } from "../../adapters/assets/image-store";
 import type { StructuredDiagram } from "../../features/diagram/diagram-model";
 import { eraserIconFileId, eraserIconName, eraserIconUrl } from "../../features/diagram/eraser-icons";
 

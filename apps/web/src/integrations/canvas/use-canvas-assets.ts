@@ -10,7 +10,7 @@ import {
   blobToDataUrl,
   loadImageAsset,
   storeImageAsset,
-} from "../../domain/assets/local-image-assets";
+} from "../../adapters/assets/image-store";
 
 function readCanvasFiles(data: Record<string, unknown>) {
   const files = data.files;

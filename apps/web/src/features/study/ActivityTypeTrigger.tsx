@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Play } from "lucide-react";
 import { IconButton } from "../../shared/ui";
 import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../shared/ui/anchored-panel";
-import type { ActivityType } from "../../domain/activity/api";
+import type { ActivityType } from "../../adapters/http/activity-api";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";
 
 export function ActivityTypeTrigger({

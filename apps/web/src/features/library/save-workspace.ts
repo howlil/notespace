@@ -1,10 +1,10 @@
-import { pruneLocalImageCache } from "../assets/local-image-assets";
-import { BlockingAutosaveError } from "./autosave";
-import { mergeCanvasSnapshots, mergeProjectContent, sameNonCanvasContent, sameProjectContent } from "./canvas-merge";
-import { publishWorkspaceConflict } from "./conflict-recovery";
-import { APIError, getProject, updateProjectSnapshot } from "./http";
-import { contentOf } from "./project";
-import type { Project, ProjectContent } from "./project";
+import { pruneLocalImageCache } from "../../adapters/assets/image-store";
+import { BlockingAutosaveError } from "../../domain/project/autosave";
+import { mergeCanvasSnapshots, mergeProjectContent, sameNonCanvasContent, sameProjectContent } from "../../domain/project/canvas-merge";
+import { publishWorkspaceConflict } from "../../adapters/browser/workspace-conflict-events";
+import { APIError, getProject, updateProjectSnapshot } from "../../adapters/http/client";
+import { contentOf } from "../../domain/project/project";
+import type { Project, ProjectContent } from "../../domain/project/project";
 
 export class WorkspaceConflictError extends BlockingAutosaveError {
   readonly latest: Project;

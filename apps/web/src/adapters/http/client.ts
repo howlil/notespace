@@ -1,4 +1,4 @@
-import type { Project, ProjectContent } from "./project";
+import type { Project, ProjectContent } from "../../domain/project/project";
 
 export interface HttpTransport {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;

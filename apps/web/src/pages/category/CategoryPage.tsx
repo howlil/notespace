@@ -6,7 +6,7 @@ import { Button, Input, PopupSurface } from "../../shared/ui";
 import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
+import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../adapters/http/workspace-api";
 import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 

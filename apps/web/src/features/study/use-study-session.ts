@@ -5,8 +5,8 @@ import {
   recordActivityHeartbeat,
   type ActivityHeartbeat,
   type ActivityType,
-} from "../../domain/activity/api";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../browser/local-storage";
+} from "../../adapters/http/activity-api";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
 import {
   acknowledgeActivityFinalization,
   enqueueActivityFinalization,

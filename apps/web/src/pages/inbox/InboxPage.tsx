@@ -5,12 +5,12 @@ import { Sidebar } from "../../app/shell/Sidebar";
 import { Button, IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
-import { listCategories } from "../../domain/project/api";
+import { listCategories } from "../../adapters/http/workspace-api";
 import {
   createStandaloneTask,
   deleteAnyTask,
   updateAnyTask,
-} from "../../domain/planning/api";
+} from "../../adapters/http/planning-api";
 import {
   localDateKey,
   type InboxProjection,

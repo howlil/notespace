@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { recordActivityHeartbeat } from "../../domain/activity/api";
-import { APIError } from "../../domain/project/http";
-import { getAnyTask, updateAnyTask } from "../../domain/planning/api";
+import { recordActivityHeartbeat } from "../../adapters/http/activity-api";
+import { APIError } from "../../adapters/http/client";
+import { getAnyTask, updateAnyTask } from "../../adapters/http/planning-api";
 import type { PlanningTask } from "../../domain/planning/planning";
 import { useToast } from "../../app/providers/toast-provider";
 import {

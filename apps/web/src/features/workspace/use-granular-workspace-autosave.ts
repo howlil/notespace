@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Autosave } from "../../domain/project/autosave";
 import type { SaveStatus } from "../../domain/project/autosave";
-import { saveWorkspaceCanvas, saveWorkspaceNote } from "../../domain/project/granular-save";
-import type { CanvasState } from "../../domain/project/api";
+import { saveWorkspaceCanvas, saveWorkspaceNote } from "../workspace-authoring/model/granular-save";
+import type { CanvasState } from "../../adapters/http/workspace-api";
 import type { Note, Snapshot } from "../../domain/project/project";
 
 type NoteDraft = Pick<Note, "title" | "document">;

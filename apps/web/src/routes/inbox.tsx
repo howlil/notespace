@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories } from "../domain/project/api";
-import { getInbox } from "../domain/planning/api";
+import { listCategories } from "../adapters/http/workspace-api";
+import { getInbox } from "../adapters/http/planning-api";
 import { RoutePending } from "../app/feedback/RoutePending";
 import { InboxPage } from "../pages/inbox/InboxPage";
 

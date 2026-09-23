@@ -10,7 +10,7 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/t
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
-import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
+import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
 import type { Note, Snapshot } from "../../domain/project/project";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {

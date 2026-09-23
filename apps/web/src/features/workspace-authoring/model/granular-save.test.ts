@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { reconcileCanvasConflict } from "./canvas-conflict-retry.ts";
-import type { Snapshot } from "./project.ts";
+import { reconcileCanvasConflict } from "../../../domain/project/canvas-conflict-retry";
+import type { Snapshot } from "../../../domain/project/project";
 
 function canvas(elements: Array<Record<string, unknown>>): Snapshot {
   return {

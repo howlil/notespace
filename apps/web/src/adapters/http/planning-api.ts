@@ -1,5 +1,5 @@
-import { json, request } from "../project/http";
-import type { InboxProjection, PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "./planning";
+import { json, request } from "./client";
+import type { InboxProjection, PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "../../domain/planning/planning";
 
 const workspacePath = (workspaceId: string) => `/api/workspaces/${encodeURIComponent(workspaceId)}`;
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn } from "../../shared/ui";
-import { getActivityDayDetail, getActivitySummary } from "../../domain/activity/api";
-import type { ActivityDayDetail, ActivitySummary } from "../../domain/activity/api";
+import { getActivityDayDetail, getActivitySummary } from "../../adapters/http/activity-api";
+import type { ActivityDayDetail, ActivitySummary } from "../../adapters/http/activity-api";
 import { useToast } from "../../app/providers/toast-provider";
 import { formatDay, formatDuration, localDate } from "./study-timer";
 

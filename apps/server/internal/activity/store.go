@@ -18,4 +18,3 @@ type Store interface {
 	Activity(context.Context, string, string) (Activity, error)
 	DayDetail(context.Context, string) (DayDetail, error)
 }
-

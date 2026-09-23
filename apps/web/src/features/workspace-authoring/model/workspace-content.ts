@@ -35,7 +35,7 @@ function normalizeDocument(snapshot: Snapshot) {
   return { snapshot: changed ? { ...snapshot, data } : snapshot, changed };
 }
 
-export function normalizeProjectContent(content: WorkspaceContent) {
+export function normalizeWorkspaceContent(content: WorkspaceContent) {
   const document = normalizeDocument(content.document);
   let changed = document.changed || content.references.length > 0;
   const notes = content.notes.map((note) => {

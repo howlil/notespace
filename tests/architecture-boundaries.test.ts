@@ -180,8 +180,16 @@ test("browser event and asset initialization stay behind explicit boundaries", (
   assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
 });
 
+test("workspace page is a composition boundary for authoring, planning, and activity", () => {
+  const page = source("pages/workspace/WorkspacePage.tsx");
+  assert.match(page, /WorkspaceAuthoring/);
+  assert.match(page, /WorkspacePlan/);
+  assert.match(page, /StudyIndicator/);
+  assert.doesNotMatch(page, /useWorkspaceSession/);
+});
+
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
-  const workspace = source("pages/workspace/WorkspacePage.tsx");
+  const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
   const session = source("features/workspace-authoring/model/use-workspace-session.ts");
   assert.match(workspace, /useWorkspaceSession/);
   assert.doesNotMatch(workspace, /useGranularWorkspaceAutosave/);

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import type { WorkspaceContent } from "../../../domain/workspace/workspace";
-import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content.ts";
+import { blankDocument, documentText, normalizeWorkspaceContent } from "./workspace-content.ts";
 
 function content(document = blankDocument("existing-block")): WorkspaceContent {
   return {
@@ -18,7 +18,7 @@ function content(document = blankDocument("existing-block")): WorkspaceContent {
 
 test("normalization preserves already valid stable block identity", () => {
   const source = content();
-  const normalized = normalizeProjectContent(source);
+  const normalized = normalizeWorkspaceContent(source);
   assert.equal(normalized.changed, false);
   assert.equal(normalized.content.document, source.document);
   assert.equal(normalized.content.notes[0]?.document, source.notes[0]?.document);
@@ -29,7 +29,7 @@ test("normalization assigns missing block identity and removes legacy relationsh
   const source = content(document);
   source.references = [{ id: "legacy", blockId: "block", elementId: "element" }];
 
-  const normalized = normalizeProjectContent(source);
+  const normalized = normalizeWorkspaceContent(source);
   assert.equal(normalized.changed, true);
   assert.deepEqual(normalized.content.references, []);
 
@@ -40,7 +40,7 @@ test("normalization assigns missing block identity and removes legacy relationsh
 });
 
 test("workspace note panes remount on note switch and expose non-destructive pane close", () => {
-  const workspace = readFileSync(join(process.cwd(), "apps/web/src/pages/workspace/WorkspacePage.tsx"), "utf8");
+  const workspace = readFileSync(join(process.cwd(), "apps/web/src/features/workspace-authoring/ui/WorkspaceAuthoring.tsx"), "utf8");
   assert.match(workspace, /DocumentEditor key=\{`\$\{pane\.id\}:\$\{note\.id\}`\}/);
   assert.match(workspace, /function closePane\(paneId: string\)/);
   assert.match(workspace, /removeNode\(layout, paneId\)/);
@@ -55,7 +55,7 @@ test("Canvas frame links remain authored Note nodes and contribute their label t
       content: [{ type: "canvasFrameLink", attrs: { frameId: "frame-1", label: "Architecture", preview: { frameId: "frame-1" } } }],
     },
   };
-  const normalized = normalizeProjectContent(content(document));
+  const normalized = normalizeWorkspaceContent(content(document));
   const root = normalized.content.document.data as { content?: Array<{ type?: string; attrs?: Record<string, unknown> }> };
   assert.equal(root.content?.[0]?.type, "canvasFrameLink");
   assert.equal(root.content?.[0]?.attrs?.frameId, "frame-1");

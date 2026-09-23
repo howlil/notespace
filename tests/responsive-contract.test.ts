@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
-const WORKSPACE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
+const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const SIDEBAR = join(WEB_SRC, "app", "shell", "Sidebar.tsx");
 const STUDY = join(WEB_SRC, "features", "study", "StudyActivityDashboard.tsx");

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 )
 
@@ -35,7 +36,8 @@ func run() error {
 	defer store.Close()
 	projects := sqlite.NewIndexedProjectStore(store)
 	deps := httpapi.Dependencies{Projects: projects, Planning: store, Activity: store, ActivityReferences: store, Assets: store, Health: store.Healthy}
-	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
+	libraryService := library.NewService(store)
+	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), libraryService))
 	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
 		stats := store.Stats()
 		return httpapi.DatabaseStats{

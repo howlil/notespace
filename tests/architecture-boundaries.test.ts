@@ -244,6 +244,32 @@ test("browser event and asset initialization stay behind explicit boundaries", (
   assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
 });
 
+test("routed pages compose features instead of calling HTTP adapters directly", () => {
+  const pagesRoot = join(WEB_SRC, "pages");
+  for (const file of collect(pagesRoot)) {
+    for (const dependency of localImports(file)) {
+      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
+      assert.doesNotMatch(
+        target,
+        /^adapters\/http\//,
+        `${relative(WEB_SRC, file)} calls HTTP adapter directly through ${target}`,
+      );
+    }
+  }
+
+  const home = source("pages/home/HomePage.tsx");
+  const category = source("pages/category/CategoryPage.tsx");
+  const inbox = source("pages/inbox/InboxPage.tsx");
+  const today = source("pages/today/TodayPage.tsx");
+  assert.match(home, /WorkspaceLibrary/);
+  assert.match(category, /CategoryLibrary/);
+  assert.match(inbox, /InboxPlanning/);
+  assert.match(today, /TodayPlanning/);
+  for (const page of [home, category, inbox, today]) {
+    assert.doesNotMatch(page, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
+  }
+});
+
 test("workspace page is a composition boundary for authoring, planning, and activity", () => {
   const page = source("pages/workspace/WorkspacePage.tsx");
   assert.match(page, /WorkspaceAuthoring/);

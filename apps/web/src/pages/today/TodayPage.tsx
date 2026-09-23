@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
+import type { ActivityType } from "../../adapters/http/activity-api";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../shared/ui/theme-provider";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
@@ -22,9 +23,7 @@ export function TodayPage({
   const { categories: categoryItems, refreshCategories } = useLibraryCategories(categories);
   const activity = useActivityRuntime();
 
-  function startTaskActivity(task: TodayTask, activityType: Parameters<typeof activity.start>[0] extends infer T
-    ? T extends { activityType: infer A } ? A : never
-    : never) {
+  function startTaskActivity(task: TodayTask, activityType: ActivityType) {
     if (!activity.canStart) return;
     activity.start({
       title: task.title,

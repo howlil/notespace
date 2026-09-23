@@ -27,4 +27,3 @@ func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, http.StatusOK, canvas)
 }
-

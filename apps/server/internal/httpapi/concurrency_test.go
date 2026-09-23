@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/howlil/notespace/apps/server/internal/persistence"
+	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
 func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "stale-delete-http.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "stale-delete-http.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -374,10 +374,10 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 	if err := json.Unmarshal(data, &backup); err != nil {
 		t.Fatal(err)
 	}
-	if len(backup.Study) != 1 {
-		t.Fatalf("backup activities = %d, want 1", len(backup.Study))
+	if len(backup.Activity) != 1 {
+		t.Fatalf("backup activities = %d, want 1", len(backup.Activity))
 	}
-	backup.Study[0].ActivityType = "focus"
+	backup.Activity[0].ActivityType = "focus"
 	data, err = json.Marshal(backup)
 	if err != nil {
 		t.Fatal(err)

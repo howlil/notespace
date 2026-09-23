@@ -13,9 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func env(key, fallback string) string {
@@ -34,9 +37,19 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	projects := sqlite.NewIndexedWorkspaceStore(store)
-	deps := httpapi.Dependencies{Projects: projects, Planning: store, Activity: store, ActivityReferences: store, Assets: store, Health: store.Healthy}
+	workspaceStore := sqlite.NewIndexedWorkspaceStore(store)
+	workspaceService := workspace.NewService(workspaceStore)
+	planningService := planning.NewService(store, store, nil)
+	activityService := activity.NewService(store, store, nil)
 	libraryService := library.NewService(store)
+
+	deps := httpapi.Dependencies{
+		Workspace: &workspaceService,
+		Planning:  &planningService,
+		Activity:  &activityService,
+		Assets:    store,
+		Health:    store.Healthy,
+	}
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), libraryService))
 	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {
 		stats := store.Stats()

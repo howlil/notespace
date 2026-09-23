@@ -11,7 +11,7 @@ const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
 const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
-const GLOBALS = join(WEB_SRC, "styles", "globals.css");
+const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasSelectionActions.tsx");
 
@@ -61,16 +61,16 @@ test("responsive contract: mobile activity is summary-first", () => {
 });
 
 test("responsive contract: canvas chrome is compact, distinct, and touch-safe", () => {
-  const globals = source(GLOBALS);
+  const authoringStyles = source(AUTHORING_STYLES);
   const chrome = source(CANVAS_CHROME);
   const selection = source(CANVAS_SELECTION_ACTIONS);
-  assert.match(globals, /@media \(max-width: 560px\)/);
-  assert.match(globals, /\.main-menu-trigger/);
-  assert.match(globals, /\[data-testid="main-menu-trigger"\]/);
-  assert.match(globals, /\.undo-redo-buttons/);
-  assert.match(globals, /\.notespace-canvas-bottom-chrome[\s\S]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important/);
-  assert.doesNotMatch(globals, /\.notespace-selection-actions[\s\S]*bottom: calc\(50px/);
-  assert.match(globals, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
+  assert.match(authoringStyles, /@media \(max-width: 560px\)/);
+  assert.match(authoringStyles, /\.main-menu-trigger/);
+  assert.match(authoringStyles, /\[data-testid="main-menu-trigger"\]/);
+  assert.match(authoringStyles, /\.undo-redo-buttons/);
+  assert.match(authoringStyles, /\.notespace-canvas-bottom-chrome[\s\S]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important/);
+  assert.doesNotMatch(authoringStyles, /\.notespace-selection-actions[\s\S]*bottom: calc\(50px/);
+  assert.match(authoringStyles, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
   assert.match(chrome, /nativeActionIcon/);
   assert.match(chrome, /secondaryToolGroups/);
   assert.match(chrome, /event\.pointerType === "mouse"/);

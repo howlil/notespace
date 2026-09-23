@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
@@ -24,7 +24,7 @@ type API struct {
 	assets      *asset.Service
 	library     *library.Service
 	health      func(context.Context) error
-	eraserIcons *eraserIconGateway
+	eraserIcons icon.Source
 }
 
 type Dependencies struct {
@@ -33,6 +33,7 @@ type Dependencies struct {
 	Activity  *activity.Service
 	Assets    *asset.Service
 	Library   *library.Service
+	Icons     icon.Source
 	Health    func(context.Context) error
 }
 
@@ -52,10 +53,13 @@ func New(deps Dependencies) http.Handler {
 	if deps.Library == nil {
 		panic("httpapi: library service is required")
 	}
+	if deps.Icons == nil {
+		panic("httpapi: icon source is required")
+	}
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: deps.Icons}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -64,7 +68,7 @@ func New(deps Dependencies) http.Handler {
 		}
 		send(w, 200, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("GET /api/icons/eraser/{slug}", a.eraserIcons.serve)
+	mux.HandleFunc("GET /api/icons/eraser/{slug}", a.serveEraserIcon)
 	mux.HandleFunc("GET /api/projects", a.list)
 	mux.HandleFunc("GET /api/workspaces", a.listWorkspaces)
 	mux.HandleFunc("POST /api/projects", a.create)

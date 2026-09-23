@@ -32,10 +32,10 @@ type historyPayload struct {
 }
 
 type authoredHistoryPayload struct {
-	Title      string              `json:"title"`
-	Document   workspace.Snapshot  `json:"document"`
-	Notes      []workspace.Note    `json:"notes"`
-	Canvas     workspace.Snapshot  `json:"canvas"`
+	Title      string                `json:"title"`
+	Document   workspace.Snapshot    `json:"document"`
+	Notes      []workspace.Note      `json:"notes"`
+	Canvas     workspace.Snapshot    `json:"canvas"`
 	References []workspace.Reference `json:"references"`
 }
 

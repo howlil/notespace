@@ -3,7 +3,7 @@ package sqlite
 import (
 	"context"
 
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 const logicalActivitySelect = `
@@ -23,7 +23,7 @@ SELECT
 FROM activity_sessions
 `
 
-func (s *Store) ListStudySessions(ctx context.Context, workspaceID string, limit int) ([]study.Session, error) {
+func (s *Store) ListStudySessions(ctx context.Context, workspaceID string, limit int) ([]activity.Session, error) {
 	rows, err := s.db.QueryContext(ctx, logicalActivitySelect+`
 WHERE workspace_id=?
 GROUP BY logical_session_id,workspace_id,task_id
@@ -36,7 +36,7 @@ LIMIT ?`, workspaceID, limit)
 	return scanLogicalActivityRows(rows)
 }
 
-func (s *Store) ListActivitySessions(ctx context.Context, limit int) ([]study.Session, error) {
+func (s *Store) ListActivitySessions(ctx context.Context, limit int) ([]activity.Session, error) {
 	rows, err := s.db.QueryContext(ctx, logicalActivitySelect+`
 GROUP BY logical_session_id,workspace_id,task_id
 ORDER BY MAX(last_heartbeat_at) DESC, logical_session_id DESC
@@ -52,8 +52,8 @@ func scanLogicalActivityRows(rows interface {
 	Next() bool
 	Err() error
 	Scan(...any) error
-}) ([]study.Session, error) {
-	sessions := make([]study.Session, 0)
+}) ([]activity.Session, error) {
+	sessions := make([]activity.Session, 0)
 	for rows.Next() {
 		session, err := scanStudySession(rows)
 		if err != nil {
@@ -74,7 +74,7 @@ func (s *Store) DeleteStudySession(ctx context.Context, workspaceID, sessionID s
 		return err
 	}
 	if count == 0 {
-		return study.ErrNotFound
+		return activity.ErrNotFound
 	}
 	return nil
 }
@@ -89,7 +89,7 @@ func (s *Store) DeleteActivitySession(ctx context.Context, sessionID string) err
 		return err
 	}
 	if count == 0 {
-		return study.ErrNotFound
+		return activity.ErrNotFound
 	}
 	return nil
 }

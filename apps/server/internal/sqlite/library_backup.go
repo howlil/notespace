@@ -11,7 +11,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/migrations"
 )
 
@@ -48,7 +48,7 @@ type libraryBackup struct {
 	Workspaces  []workspaceEnvelope       `json:"workspaces"`
 	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord             `json:"trash"`
-	Study       []study.Session           `json:"studySessions"`
+	Study       []activity.Session           `json:"studySessions"`
 }
 
 func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnvelope, error) {
@@ -302,13 +302,13 @@ func (s *Store) trashRecords(ctx context.Context) ([]trashRecord, error) {
 	return records, rows.Err()
 }
 
-func (s *Store) studySessions(ctx context.Context) ([]study.Session, error) {
+func (s *Store) studySessions(ctx context.Context) ([]activity.Session, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	sessions := []study.Session{}
+	sessions := []activity.Session{}
 	for rows.Next() {
 		session, err := scanStudySession(rows)
 		if err != nil {
@@ -398,7 +398,7 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 	}
 	for _, raw := range backup.Study {
 		session := normalizeActivitySession(raw)
-		if !study.ValidActivityType(session.ActivityType) {
+		if !activity.ValidActivityType(session.ActivityType) {
 			return project.ErrInvalid
 		}
 	}

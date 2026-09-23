@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
-	"github.com/howlil/notespace/apps/server/internal/persistence"
+	"github.com/howlil/notespace/apps/server/internal/sqlite"
 )
 
 func env(key, fallback string) string {
@@ -28,12 +28,12 @@ func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	store, err := persistence.Open(ctx, env("NOTESPACE_DB", "data/notespace.db"))
+	store, err := sqlite.Open(ctx, env("NOTESPACE_DB", "data/notespace.db"))
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	projects := persistence.NewIndexedProjectStore(store)
+	projects := sqlite.NewIndexedProjectStore(store)
 	deps := httpapi.Dependencies{Projects: projects, Planning: store, Study: store, Assets: store, Health: store.Healthy}
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), store))
 	api = httpapi.WithRequestObservability(api, func() httpapi.DatabaseStats {

@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func (a API) search(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	data.References = []project.Reference{}
+	data.References = []workspace.Reference{}
 	send(w, 200, data)
 }
 

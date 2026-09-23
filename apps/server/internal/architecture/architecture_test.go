@@ -83,7 +83,6 @@ func forbiddenDependency(source, target string) bool {
 	return false
 }
 
-
 func TestLegacyServerPackagesRemoved(t *testing.T) {
 	internalRoot := filepath.Clean("..")
 	for _, name := range []string{"project", "study", "persistence"} {

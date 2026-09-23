@@ -77,7 +77,13 @@ export async function readLocalImageCache(workspaceId: string, id: string) {
         resolve(null);
         return;
       }
-      const { key: _key, ...record } = stored;
+      const record: LocalImageAsset = {
+        id: stored.id,
+        workspaceId: stored.workspaceId,
+        blob: stored.blob,
+        mimeType: stored.mimeType,
+        createdAt: stored.createdAt,
+      };
       memoryAssets.set(key, record);
       resolve(record);
     };

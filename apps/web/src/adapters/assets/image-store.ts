@@ -1,7 +1,6 @@
 import {
   getMemoryImageAsset,
   imageCacheKey,
-  pruneLocalImageCache,
   putLocalImageCache,
   readLocalImageCache,
   removeLocalImageCache,

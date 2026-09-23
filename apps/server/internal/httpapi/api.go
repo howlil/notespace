@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 type API struct {

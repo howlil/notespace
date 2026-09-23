@@ -14,7 +14,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
@@ -25,7 +25,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	category, err := service.CreateCategory(ctx, "Distributed Systems")
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 	if err := store.TrashWorkspaceAtomic(ctx, workspace.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, project.ErrNotFound) {
+	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspace.ErrNotFound) {
 		t.Fatalf("trashed workspace get error = %v, want not found", err)
 	}
 	var storedPayload []byte
@@ -108,7 +108,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	category, err := service.CreateCategory(ctx, "Backend")
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if err := store.RestoreBackupArchive(ctx, backup); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, extra.ID); !errors.Is(err, project.ErrNotFound) {
+	if _, err := store.Get(ctx, extra.ID); !errors.Is(err, workspace.ErrNotFound) {
 		t.Fatalf("temporary workspace survived restore: %v", err)
 	}
 	restored, err := store.Get(ctx, workspace.ID)
@@ -285,7 +285,7 @@ func TestArchiveRestoreRejectsTamperedAsset(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Checksum")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Checksum")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestArchiveRestoreRejectsTamperedAsset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RestoreBackupArchive(ctx, tamperFirstBlob(t, backup)); !errors.Is(err, project.ErrInvalid) {
+	if err := store.RestoreBackupArchive(ctx, tamperFirstBlob(t, backup)); !errors.Is(err, workspace.ErrInvalid) {
 		t.Fatalf("tampered restore error = %v, want invalid", err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); err != nil {
@@ -311,7 +311,7 @@ func TestLegacyJSONBackupStillRestores(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Legacy JSON")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Legacy JSON")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,11 +334,11 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep me")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Keep me")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RestoreBackupJSON(ctx, []byte(`{"format":"other","version":1,"categories":[]}`)); !errors.Is(err, project.ErrInvalid) {
+	if err := store.RestoreBackupJSON(ctx, []byte(`{"format":"other","version":1,"categories":[]}`)); !errors.Is(err, workspace.ErrInvalid) {
 		t.Fatalf("restore error = %v, want invalid", err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); err != nil {
@@ -354,7 +354,7 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 	}
 	defer store.Close()
 
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep activity library")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Keep activity library")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +383,7 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, project.ErrInvalid) {
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, workspace.ErrInvalid) {
 		t.Fatalf("invalid activity restore error = %v, want invalid", err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); err != nil {
@@ -398,7 +398,7 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Keep me")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Keep me")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 		t.Fatal(err)
 	}
 
-	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, project.ErrInvalid) {
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, workspace.ErrInvalid) {
 		t.Fatalf("domain-invalid restore error = %v, want invalid", err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); err != nil {

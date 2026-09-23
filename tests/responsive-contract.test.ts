@@ -7,6 +7,7 @@ const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
 const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
@@ -30,24 +31,25 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
 test("responsive contract: mobile library keeps persistent navigation without a drawer toggle", () => {
   const dashboard = source(DASHBOARD);
   const sidebar = source(SIDEBAR);
+  const library = source(WORKSPACE_LIBRARY);
   assert.doesNotMatch(dashboard, /mobileLibraryOpen/);
   assert.doesNotMatch(dashboard, /Open library navigation/);
   assert.doesNotMatch(dashboard, /Close library navigation/);
   assert.doesNotMatch(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /aria-label="Search Notespace with Control K or Command K"/);
   assert.match(dashboard, /w-\[min\(320px,42vw\)\]/);
-  assert.match(dashboard, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
-  assert.match(dashboard, /overflow-x-auto overscroll-x-contain/);
-  assert.match(dashboard, /function WorkspaceFolderCard/);
-  assert.match(dashboard, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
-  assert.match(dashboard, /max-\[560px\]:grid-cols-\[repeat\(auto-fill,minmax\(156px,180px\)\)\]/);
-  assert.match(dashboard, /<WorkspaceListSkeleton variant="cards" \/>/);
+  assert.match(library, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
+  assert.match(library, /overflow-x-auto overscroll-x-contain/);
+  assert.match(library, /function WorkspaceFolderCard/);
+  assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
+  assert.match(library, /max-\[560px\]:grid-cols-\[repeat\(auto-fill,minmax\(156px,180px\)\)\]/);
+  assert.match(library, /<WorkspaceListSkeleton variant="cards" \/>/);
   assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
   assert.match(sidebar, /return <NotespaceLogo \/>/);
   assert.match(sidebar, /<Brand \/>/);
-  assert.ok(dashboard.indexOf("<ActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
+  assert.match(dashboard, /renderAfterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
 });
 
 test("responsive contract: mobile activity is summary-first", () => {

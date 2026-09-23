@@ -639,3 +639,11 @@ A refactor is complete when:
 - no unnecessary abstraction was introduced.
 
 Do not continue reorganizing code merely to make the tree look symmetrical.
+
+
+### Routed page ownership
+
+- Routed pages are composition boundaries, not feature implementations.
+- Pages may compose multiple features and domain types, but must not call HTTP adapters directly.
+- CRUD state, mutation flows, and reusable screen behavior belong to the owning feature.
+- When two sibling features meet on one screen, compose them in the page through props or render slots instead of importing one feature from the other.

@@ -4,7 +4,7 @@ export interface Snapshot {
   data: Record<string, unknown>;
 }
 
-export interface ProjectSummary {
+export interface WorkspaceSummary {
   id: string;
   categoryId: string;
   title: string;
@@ -16,7 +16,7 @@ export interface ProjectSummary {
 }
 
 export interface WorkspacePage {
-  items: ProjectSummary[];
+  items: WorkspaceSummary[];
   total: number;
   offset: number;
   limit: number;
@@ -40,28 +40,28 @@ export interface Note {
   version: number;
 }
 
-export interface Project extends ProjectSummary {
+export interface Workspace extends WorkspaceSummary {
   document: Snapshot;
   notes: Note[];
   canvas: Snapshot;
   canvasVersion: number;
-  references: ProjectReference[];
+  references: WorkspaceReference[];
   splitRatio: number;
 }
 
-export interface ProjectReference {
+export interface WorkspaceReference {
   id: string;
   noteId?: string;
   blockId: string;
   elementId: string;
 }
 
-export type ProjectContent = Pick<
-  Project,
+export type WorkspaceContent = Pick<
+  Workspace,
   "title" | "document" | "notes" | "canvas" | "references" | "splitRatio"
 >;
 
-export function contentOf(project: Project): ProjectContent {
+export function workspaceContentOf(project: Workspace): WorkspaceContent {
   return {
     title: project.title,
     document: project.document,

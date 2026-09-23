@@ -1,6 +1,6 @@
-import type { Note, ProjectContent, Snapshot } from "../../domain/project/project";
+import type { Note, WorkspaceContent, Snapshot } from "../../domain/workspace/workspace";
 
-export function acknowledgeNoteVersion(content: ProjectContent, saved: Note): ProjectContent {
+export function acknowledgeNoteVersion(content: WorkspaceContent, saved: Note): WorkspaceContent {
   return {
     ...content,
     notes: content.notes.map((note) => note.id === saved.id ? { ...note, version: saved.version } : note),
@@ -8,11 +8,11 @@ export function acknowledgeNoteVersion(content: ProjectContent, saved: Note): Pr
 }
 
 export function applyNoteDocument(
-  content: ProjectContent,
+  content: WorkspaceContent,
   noteId: string,
   document: Snapshot,
   updatedAt: string,
-): { content: ProjectContent; note: Note } | null {
+): { content: WorkspaceContent; note: Note } | null {
   const existing = content.notes.find((note) => note.id === noteId);
   if (!existing) return null;
 
@@ -27,6 +27,6 @@ export function applyNoteDocument(
   };
 }
 
-export function applyCanvasSnapshot(content: ProjectContent, canvas: Snapshot): ProjectContent {
+export function applyCanvasSnapshot(content: WorkspaceContent, canvas: Snapshot): WorkspaceContent {
   return { ...content, canvas };
 }

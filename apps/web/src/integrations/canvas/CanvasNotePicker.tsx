@@ -1,6 +1,6 @@
 import { FileText, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Note } from "../../domain/project/project";
+import type { Note } from "../../domain/workspace/workspace";
 import { notePreviewText } from "./canvas-note-artifact";
 
 export function CanvasNotePicker({

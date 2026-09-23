@@ -1,9 +1,9 @@
-import type { Note, Project, ProjectContent, Snapshot } from "./project";
+import type { Note, Workspace, WorkspaceContent, Snapshot } from "./workspace";
 
 export type WorkspaceConflictDraft = {
   workspaceId: string;
-  local: ProjectContent;
-  latest: Project;
+  local: WorkspaceContent;
+  latest: Workspace;
 };
 
 export type GranularConflictDraft =

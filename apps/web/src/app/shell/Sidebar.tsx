@@ -5,8 +5,8 @@ import { CalendarCheck2, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, In
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useToast } from "../providers/toast-provider";
-import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
-import { createCategory, createProject, deleteCategory, deleteProject, listCategoryWorkspaces, moveProject, renameProject, updateCategory } from "../../adapters/http/workspace-api";
+import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { createCategory, createWorkspace, deleteCategory, deleteWorkspace, listCategoryWorkspaces, moveWorkspace, renameWorkspace, updateCategory } from "../../adapters/http/workspace-api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
@@ -18,7 +18,7 @@ export function Brand() {
 }
 
 type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inboxActive?: boolean; todayActive?: boolean; onSelectCategory: (categoryId: string) => void; onChanged?: () => void };
-type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: ProjectSummary };
+type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: WorkspaceSummary };
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
@@ -27,7 +27,7 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
   const libraryRevision = useLibrarySyncStore((state) => state.revision);
   const handledLibraryRevision = useRef(libraryRevision);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [children, setChildren] = useState<Record<string, ProjectSummary[]>>({});
+  const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
     try {
       const target = creating;
       if (target.kind === "category") await createCategory(next);
-      else await createProject(next, target.categoryId);
+      else await createWorkspace(next, target.categoryId);
       setTitle("");
       setCreating(null);
       if (target.kind === "workspace" && target.categoryId) {
@@ -118,14 +118,14 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
     }
   }
 
-  async function saveWorkspace(workspace: ProjectSummary, value: string) {
+  async function saveWorkspace(workspace: WorkspaceSummary, value: string) {
     const nextTitle = workspaceRenameTitle(value, workspace.title);
     if (!nextTitle) {
       setEditingWorkspace(null);
       return;
     }
     try {
-      await renameProject(workspace.id, nextTitle);
+      await renameWorkspace(workspace.id, nextTitle);
       setEditingWorkspace(null);
       signalLibraryChanged();
     } catch (err) {
@@ -151,7 +151,7 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
           return next;
         });
       } else {
-        await deleteProject(target.item.id, target.item.version);
+        await deleteWorkspace(target.item.id, target.item.version);
         setChildren((current) => Object.fromEntries(
           Object.entries(current).map(([categoryId, workspaces]) => [
             categoryId,
@@ -170,7 +170,7 @@ export function Sidebar({ categories, selectedCategoryId, inboxActive = false, t
     const workspaceId = event.dataTransfer.getData("text/notespace-workspace");
     if (!workspaceId) return;
     try {
-      await moveProject(workspaceId, categoryId);
+      await moveWorkspace(workspaceId, categoryId);
       setChildren({});
       signalLibraryChanged();
     } catch (err) {

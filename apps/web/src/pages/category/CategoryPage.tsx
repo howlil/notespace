@@ -5,8 +5,8 @@ import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, Input, PopupSurface } from "../../shared/ui";
 import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
-import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../adapters/http/workspace-api";
+import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
+import { createWorkspace, deleteWorkspace, listCategoryWorkspaces, renameWorkspace, updateCategory } from "../../adapters/http/workspace-api";
 import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 
@@ -27,7 +27,7 @@ export function CategoryPage({ category, initialPage }: { category: CategorySumm
   const [categoryTitle, setCategoryTitle] = useState(category.title);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [workspaceTitle, setWorkspaceTitle] = useState("");
-  const [deletingWorkspace, setDeletingWorkspace] = useState<ProjectSummary | null>(null);
+  const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceSummary | null>(null);
   const navigate = useNavigate(); const router = useRouter();
 
   useEffect(() => {
@@ -40,14 +40,14 @@ export function CategoryPage({ category, initialPage }: { category: CategorySumm
   async function create(event: React.FormEvent) {
     event.preventDefault(); if (!title.trim() || creating) return;
     setCreating(true);
-    try { const workspace = await createProject(title.trim(), category.id); setTitle(""); await router.invalidate(); await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } }); }
+    try { const workspace = await createWorkspace(title.trim(), category.id); setTitle(""); await router.invalidate(); await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } }); }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." }); }
     finally { setCreating(false); }
   }
   async function saveCategory() { if (!categoryTitle.trim() || categoryTitle === category.title) { setEditingCategory(false); return; } try { await updateCategory(category.id, categoryTitle.trim()); setEditingCategory(false); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not rename category." }); } }
-  function beginWorkspaceRename(workspace: ProjectSummary) { setEditingWorkspace(workspace.id); setWorkspaceTitle(workspace.title); }
-  async function saveWorkspace() { const nextTitle = workspaceRenameTitle(workspaceTitle); if (!editingWorkspace || !nextTitle) return; try { await renameProject(editingWorkspace, nextTitle); setEditingWorkspace(null); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") }); } }
-  async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteProject(workspace.id, workspace.version); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not delete workspace.") }); } }
+  function beginWorkspaceRename(workspace: WorkspaceSummary) { setEditingWorkspace(workspace.id); setWorkspaceTitle(workspace.title); }
+  async function saveWorkspace() { const nextTitle = workspaceRenameTitle(workspaceTitle); if (!editingWorkspace || !nextTitle) return; try { await renameWorkspace(editingWorkspace, nextTitle); setEditingWorkspace(null); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not rename workspace.") }); } }
+  async function removeWorkspace() { if (!deletingWorkspace) return; const workspace = deletingWorkspace; setDeletingWorkspace(null); try { await deleteWorkspace(workspace.id, workspace.version); await router.invalidate(); } catch (err) { showToast({ kind: "error", message: workspaceMutationError(err, "Could not delete workspace.") }); } }
 
   return (
     <div className="min-h-dvh bg-background">

@@ -36,7 +36,7 @@ import {
   Unlink,
   X,
 } from "lucide-react";
-import type { Snapshot } from "../../domain/project/project";
+import type { Snapshot } from "../../domain/workspace/workspace";
 import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../domain/workspace/canvas-frame-link";
 import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
 import { looksLikeMarkdown, markdownToSnapshot } from "../../domain/document/markdown";

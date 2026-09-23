@@ -1,7 +1,7 @@
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { FileText } from "lucide-react";
 import { useMemo } from "react";
-import type { Note } from "../../domain/project/project";
+import type { Note } from "../../domain/workspace/workspace";
 import { notePreviewText, readCanvasNoteArtifact } from "./canvas-note-artifact";
 
 type CanvasViewport = {

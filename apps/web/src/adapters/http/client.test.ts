@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   APIError,
-  createProjectHttpClient,
+  createWorkspaceHttpClient,
   request,
   type HttpTransport,
 } from "./client";
@@ -21,10 +21,10 @@ test("uses an injected transport while preserving project request methods", asyn
       return jsonResponse(project);
     },
   };
-  const client = createProjectHttpClient(transport);
+  const client = createWorkspaceHttpClient(transport);
 
-  assert.deepEqual(await client.getProject("workspace/1"), project);
-  await client.updateProjectSnapshot("workspace/1", {
+  assert.deepEqual(await client.getWorkspace("workspace/1"), project);
+  await client.updateWorkspaceSnapshot("workspace/1", {
     title: "Notes",
     document: { format: "tiptap", version: 1, data: {} },
     notes: [],

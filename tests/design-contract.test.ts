@@ -279,7 +279,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
   assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<StudyActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<StudyActivityDashboard compact \/>/); assert.match(source(DASHBOARD), /aspect-square/); assert.match(source(DASHBOARD), /article className="[^"]*bg-accent/); assert.match(source(DASHBOARD), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(DASHBOARD), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.match(source(DASHBOARD), /after:bg-accent/);
-  assert.match(source(DASHBOARD), /<ContextMenu>/); assert.match(source(DASHBOARD), /Edit title/); assert.match(source(DASHBOARD), /deleteProject/); assert.match(source(DASHBOARD), /<ConfirmDialog/);
+  assert.match(source(DASHBOARD), /<ContextMenu>/); assert.match(source(DASHBOARD), /Edit title/); assert.match(source(DASHBOARD), /deleteWorkspace/); assert.match(source(DASHBOARD), /<ConfirmDialog/);
   assert.match(source(STUDY_ACTIVITY), /rounded-lg border border-line bg-surface/); assert.match(source(STUDY_ACTIVITY), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
   assert.match(source(DASHBOARD), /<WorkspaceListSkeleton/);
@@ -325,7 +325,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   const renameField = source(join(WEB_SRC, "features", "workspace", "WorkspaceRenameField.tsx"));
   assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
   assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
-  assert.match(workspace,/renameProject/);
+  assert.match(workspace,/renameWorkspace/);
   assert.match(workspace,/Rename workspace/);
   assert.match(workspace,/onDoubleClick=\{\(event\) =>/);
   assert.doesNotMatch(workspace,/aria-label="Rename workspace"/);

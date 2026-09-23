@@ -4,7 +4,7 @@ import { CalendarPlus, Inbox as InboxIcon, Pencil, Plus, Search, Trash2 } from "
 import { Sidebar } from "../../app/shell/Sidebar";
 import { Button, IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import type { CategorySummary } from "../../domain/project/project";
+import type { CategorySummary } from "../../domain/workspace/workspace";
 import { listCategories } from "../../adapters/http/workspace-api";
 import {
   createStandaloneTask,

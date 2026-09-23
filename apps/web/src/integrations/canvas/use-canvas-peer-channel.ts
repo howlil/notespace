@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Snapshot } from "../../domain/project/project";
+import type { Snapshot } from "../../domain/workspace/workspace";
 
 type CanvasPeerMessage = {
   source: string;

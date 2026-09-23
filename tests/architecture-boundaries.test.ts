@@ -60,6 +60,7 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "components")), false);
   assert.equal(existsSync(join(WEB_SRC, "providers")), false);
   assert.equal(existsSync(join(WEB_SRC, "browser")), false);
+  assert.equal(existsSync(join(WEB_SRC, "domain", "project")), false);
 });
 
 test("routes compose pages instead of routed screens in features", () => {
@@ -108,6 +109,18 @@ test("domain modules stay independent from browser and transport runtime", () =>
   ]) {
     assert.equal(existsSync(join(WEB_SRC, legacyPath)), false, `${legacyPath} should be migrated out of domain`);
   }
+});
+
+test("web code uses canonical Workspace domain imports", () => {
+  for (const file of collect(WEB_SRC)) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      text,
+      /domain\/project\//,
+      `${relative(WEB_SRC, file)} still imports the legacy project domain`,
+    );
+  }
+  assert.equal(existsSync(join(WEB_SRC, "domain", "workspace", "workspace.ts")), true);
 });
 
 test("document integration consumes Canvas frame links through the domain boundary", () => {

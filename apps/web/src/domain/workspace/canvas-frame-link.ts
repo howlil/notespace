@@ -1,4 +1,4 @@
-import type { Snapshot } from "../../domain/project/project";
+import type { Snapshot } from "./workspace";
 
 export const MAX_FRAME_PREVIEW_ELEMENTS = 160;
 

@@ -5,7 +5,7 @@ import {
   BlockingAutosaveError,
   transitionSaveStatus,
   type SaveStatus,
-} from "./autosave.ts";
+} from "./autosave";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

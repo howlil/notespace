@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Eye, X } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../shared/ui";
-import type { Note } from "../../domain/project/project";
+import type { Note } from "../../domain/workspace/workspace";
 import { snapshotToMarkdown } from "../../domain/document/markdown";
 
 export function RecallMode({ note, open, onOpenChange }: { note: Note | null; open: boolean; onOpenChange: (open: boolean) => void }) {

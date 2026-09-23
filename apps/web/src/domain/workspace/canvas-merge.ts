@@ -1,4 +1,4 @@
-import type { Project, ProjectContent, Snapshot } from "./project";
+import type { Workspace, WorkspaceContent, Snapshot } from "./workspace";
 
 type CanvasElement = Record<string, unknown> & {
   id: string;
@@ -125,7 +125,7 @@ function mergeField<T>(base: T, local: T, remote: T, same: (left: T, right: T) =
  * adopted automatically, local-only fields are preserved, and true concurrent
  * edits to the same non-Canvas field still surface as a conflict.
  */
-export function mergeProjectContent(base: ProjectContent, local: ProjectContent, remote: ProjectContent): ProjectContent | null {
+export function mergeWorkspaceContent(base: WorkspaceContent, local: WorkspaceContent, remote: WorkspaceContent): WorkspaceContent | null {
   const title = mergeField(base.title.trim(), local.title.trim(), remote.title.trim(), (left, right) => left === right);
   const document = mergeField(base.document, local.document, remote.document, sameJSON);
   const notes = mergeField(base.notes, local.notes, remote.notes, sameJSON);
@@ -154,7 +154,7 @@ export function mergeProjectContent(base: ProjectContent, local: ProjectContent,
  * Fields untouched since `base` adopt the acknowledged value. Newer local
  * edits stay local; Canvas edits are merged so a slow save cannot erase them.
  */
-export function rebaseLocalProjectContent(base: ProjectContent, local: ProjectContent, remote: ProjectContent): ProjectContent {
+export function rebaseLocalWorkspaceContent(base: WorkspaceContent, local: WorkspaceContent, remote: WorkspaceContent): WorkspaceContent {
   const localTitleChanged = local.title.trim() !== base.title.trim();
   const localDocumentChanged = !sameJSON(local.document, base.document);
   const localNotesChanged = !sameJSON(local.notes, base.notes);
@@ -172,7 +172,7 @@ export function rebaseLocalProjectContent(base: ProjectContent, local: ProjectCo
   };
 }
 
-export function sameNonCanvasContent(content: ProjectContent, latest: Project) {
+export function sameNonCanvasContent(content: WorkspaceContent, latest: Workspace) {
   return content.title.trim() === latest.title
     && content.splitRatio === latest.splitRatio
     && sameJSON(content.document, latest.document)
@@ -180,7 +180,7 @@ export function sameNonCanvasContent(content: ProjectContent, latest: Project) {
     && sameJSON(content.references, latest.references);
 }
 
-export function sameProjectContent(content: ProjectContent, latest: Project) {
+export function sameWorkspaceContent(content: WorkspaceContent, latest: Workspace) {
   return sameNonCanvasContent(content, latest)
     && sameJSON(content.canvas, latest.canvas);
 }

@@ -1,5 +1,5 @@
-import type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/project/conflict";
-export type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/project/conflict";
+import type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/workspace/conflict";
+export type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/workspace/conflict";
 
 const conflictEvent = "notespace:workspace-conflict";
 

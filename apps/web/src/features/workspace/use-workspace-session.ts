@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { Note, ProjectContent, Snapshot } from "../../domain/project/project";
+import type { Note, WorkspaceContent, Snapshot } from "../../domain/workspace/workspace";
 import { acknowledgeNoteVersion, applyCanvasSnapshot, applyNoteDocument } from "./workspace-session-state";
 import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 
@@ -10,9 +10,9 @@ export function useWorkspaceSession({
 }: {
   workspaceId: string;
   canvasVersion: number;
-  initial: ProjectContent;
+  initial: WorkspaceContent;
 }) {
-  const current = useRef<ProjectContent>(initial);
+  const current = useRef<WorkspaceContent>(initial);
   const [, setRevision] = useState(0);
   const snapshotFlushers = useRef(new Map<string, () => void>());
   const [unsnapshottedPanes, setUnsnapshottedPanes] = useState<Set<string>>(() => new Set());

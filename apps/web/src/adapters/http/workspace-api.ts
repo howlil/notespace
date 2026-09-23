@@ -1,14 +1,14 @@
 import type {
   CategorySummary,
   Note,
-  Project,
-  ProjectSummary,
+  Workspace,
+  WorkspaceSummary,
   Snapshot,
   WorkspacePage,
-} from "../../domain/project/project";
+} from "../../domain/workspace/workspace";
 import { APIError, json, request } from "./client";
 
-export { APIError, getProject, updateProjectSnapshot } from "./client";
+export { APIError, getWorkspace, updateWorkspaceSnapshot } from "./client";
 
 export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
 
@@ -66,7 +66,7 @@ export const listCategoryWorkspaces = (categoryId: string, params: { query?: str
   return request<WorkspacePage>(`/api/categories/${encodeURIComponent(categoryId)}/workspaces?${search}`);
 };
 export async function listAllCategoryWorkspaces(categoryId: string) {
-  const items: ProjectSummary[] = [];
+  const items: WorkspaceSummary[] = [];
   let offset = 0;
   while (true) {
     const page = await listCategoryWorkspaces(categoryId, { sort: "name", offset, limit: 100 });
@@ -75,21 +75,21 @@ export async function listAllCategoryWorkspaces(categoryId: string) {
     offset = page.nextOffset;
   }
 }
-export const createProject = (title: string, categoryId?: string) => request<Project>("/api/workspaces", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
+export const createWorkspace = (title: string, categoryId?: string) => request<Workspace>("/api/workspaces", { method: "POST", ...json({ title, ...(categoryId ? { categoryId } : {}) }) });
 export const createCategory = (title: string) => request<CategorySummary>("/api/categories", { method: "POST", ...json({ title }) });
 export const updateCategory = (id: string, title: string) => request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, { method: "PATCH", ...json({ title }) });
 export const deleteCategory = (id: string) => request<void>(`/api/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
-export const renameProject = (id: string, title: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
-export const deleteProject = (id: string, expectedVersion?: number) => request<void>(`/api/workspaces/${encodeURIComponent(id)}`, {
+export const renameWorkspace = (id: string, title: string) => request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/title`, { method: "PATCH", ...json({ title }) });
+export const deleteWorkspace = (id: string, expectedVersion?: number) => request<void>(`/api/workspaces/${encodeURIComponent(id)}`, {
   method: "DELETE",
   ...(expectedVersion === undefined ? {} : { headers: { "If-Match": `"${expectedVersion}"` } }),
 });
-export const moveProject = (id: string, categoryId: string) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
+export const moveWorkspace = (id: string, categoryId: string) => request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/category`, { method: "PATCH", ...json({ categoryId }) });
 export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
 export const searchNotespace = (query: string) => request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`);
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
 export const listTrash = () => request<TrashWorkspace[]>("/api/trash");
-export const restoreTrashedWorkspace = (id: string) => request<Project>(`/api/trash/${encodeURIComponent(id)}`, { method: "POST" });
+export const restoreTrashedWorkspace = (id: string) => request<Workspace>(`/api/trash/${encodeURIComponent(id)}`, { method: "POST" });
 export const deleteTrashedWorkspace = (id: string) => request<void>(`/api/trash/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const exportLibraryBackup = () => "/api/backup";
 export const restoreLibraryBackup = (file: File) => request<void>("/api/backup/restore", {

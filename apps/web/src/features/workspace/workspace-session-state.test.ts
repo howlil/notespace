@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Note, ProjectContent, Snapshot } from "../../domain/project/project.ts";
-import { acknowledgeNoteVersion, applyCanvasSnapshot, applyNoteDocument } from "./workspace-session-state.ts";
+import type { Note, WorkspaceContent, Snapshot } from "../../domain/workspace/workspace";
+import { acknowledgeNoteVersion, applyCanvasSnapshot, applyNoteDocument } from "./workspace-session-state";
 
 const documentA: Snapshot = { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }] } };
 const documentB: Snapshot = { format: "tiptap", version: 1, data: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "B" }] }] } };
 const canvasA: Snapshot = { format: "excalidraw", version: 1, data: { elements: [], appState: {}, files: {} } };
 const canvasB: Snapshot = { format: "excalidraw", version: 1, data: { elements: [{ id: "shape-1" }], appState: {}, files: {} } };
 
-function content(): ProjectContent {
+function content(): WorkspaceContent {
   const note: Note = {
     id: "note-1",
     title: "Draft",

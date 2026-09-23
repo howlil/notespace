@@ -6,9 +6,9 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTr
 import { useExclusivePopup } from "../../shared/ui/dismissable";
 import { useTheme } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
-import { contentOf } from "../../domain/project/project";
-import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
-import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../adapters/http/workspace-api";
+import { workspaceContentOf } from "../../domain/workspace/workspace";
+import type { Note, Workspace, WorkspaceSummary, Snapshot } from "../../domain/workspace/workspace";
+import { createWorkspaceNote, deleteWorkspaceNote, renameWorkspace } from "../../adapters/http/workspace-api";
 import { StudyIndicator } from "../../features/study/StudyIndicator";
 import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
 import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
@@ -73,12 +73,12 @@ class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 }
 
-export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { project: Project; categoryTitle: string; categoryWorkspaces: ProjectSummary[] }) {
+export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { project: Workspace; categoryTitle: string; categoryWorkspaces: WorkspaceSummary[] }) {
   const { dark } = useTheme();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const compactPanes = useCompactPaneLayout();
-  const [normalized] = useState(() => normalizeProjectContent(contentOf(project)));
+  const [normalized] = useState(() => normalizeProjectContent(workspaceContentOf(project)));
   const initial = normalized.content;
   const session = useWorkspaceSession({
     workspaceId: project.id,
@@ -282,7 +282,7 @@ export function WorkspacePage({ project, categoryTitle, categoryWorkspaces }: { 
     workspaceRenameSubmitting.current = true;
     setWorkspaceRenamePending(true);
     try {
-      const renamed = await renameProject(project.id, value);
+      const renamed = await renameWorkspace(project.id, value);
       setWorkspaceTitle(renamed.title);
       setWorkspaceTitleDraft(renamed.title);
       setRenamingWorkspace(false);

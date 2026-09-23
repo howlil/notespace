@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import type { ProjectContent } from "../../domain/project/project.ts";
-import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content.ts";
+import type { WorkspaceContent } from "../../domain/workspace/workspace";
+import { blankDocument, documentText, normalizeProjectContent } from "./workspace-content";
 
-function content(document = blankDocument("existing-block")): ProjectContent {
+function content(document = blankDocument("existing-block")): WorkspaceContent {
   return {
     title: "Workspace",
     document,

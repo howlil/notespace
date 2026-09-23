@@ -1,9 +1,9 @@
-import { BlockingAutosaveError } from "../../../domain/project/autosave";
-import { reconcileCanvasConflict } from "../../../domain/project/canvas-conflict-retry";
+import { BlockingAutosaveError } from "../../../domain/workspace/autosave";
+import { reconcileCanvasConflict } from "../../../domain/workspace/canvas-conflict-retry";
 import { publishGranularConflict } from "../../../adapters/browser/workspace-conflict-events";
 import { APIError } from "../../../adapters/http/client";
 import { getWorkspaceCanvas, updateWorkspaceCanvas, updateWorkspaceNote } from "../../../adapters/http/workspace-api";
-import type { Note, Snapshot } from "../../../domain/project/project";
+import type { Note, Snapshot } from "../../../domain/workspace/workspace";
 
 export class GranularConflictError extends BlockingAutosaveError {
   constructor(resource: "note" | "canvas") {

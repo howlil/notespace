@@ -4,7 +4,7 @@ import type {
   BinaryFiles,
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
-import type { Snapshot } from "../../domain/project/project";
+import type { Snapshot } from "../../domain/workspace/workspace";
 import {
   blobFromDataUrl,
   blobToDataUrl,

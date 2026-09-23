@@ -4,7 +4,7 @@ import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Play, Plu
 import { Sidebar } from "../../app/shell/Sidebar";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import type { CategorySummary } from "../../domain/project/project";
+import type { CategorySummary } from "../../domain/workspace/workspace";
 import { listCategories } from "../../adapters/http/workspace-api";
 import {
   createStandaloneTask,

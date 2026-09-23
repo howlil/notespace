@@ -11,7 +11,7 @@ import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/ty
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
-import type { Note, Snapshot } from "../../domain/project/project";
+import type { Note, Snapshot } from "../../domain/workspace/workspace";
 import { DiagramPalette } from "../../features/diagram/DiagramPalette";
 import {
   DIAGRAM_DATA_KEY,

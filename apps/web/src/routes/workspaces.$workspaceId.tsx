@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getProject, listCategoryWorkspaces, listCategories } from "../adapters/http/workspace-api";
+import { getWorkspace, listCategoryWorkspaces, listCategories } from "../adapters/http/workspace-api";
 import { WorkspacePage } from "../pages/workspace/WorkspacePage";
 import { RoutePending } from "../app/feedback/RoutePending";
 
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/workspaces/$workspaceId")({
   ssr: false,
   loader: async ({ params }) => {
     const [project, categories] = await Promise.all([
-      getProject(params.workspaceId),
+      getWorkspace(params.workspaceId),
       listCategories(),
     ]);
     const categoryPage = await listCategoryWorkspaces(project.categoryId, { sort: "name", limit: 20 });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasSnapshots, mergeProjectContent, rebaseLocalProjectContent } from "./canvas-merge.ts";
-import type { ProjectContent, Snapshot } from "./project.ts";
+import { mergeCanvasSnapshots, mergeWorkspaceContent, rebaseLocalWorkspaceContent } from "./canvas-merge";
+import type { WorkspaceContent, Snapshot } from "./workspace";
 
 function canvas(elements: Array<Record<string, unknown>>, extra: Record<string, unknown> = {}): Snapshot {
   return {
@@ -25,7 +25,7 @@ function document(text = ""): Snapshot {
   };
 }
 
-function content(overrides: Partial<ProjectContent> = {}): ProjectContent {
+function content(overrides: Partial<WorkspaceContent> = {}): WorkspaceContent {
   const doc = document();
   return {
     title: "Workspace",
@@ -102,7 +102,7 @@ test("three-way merge adopts unrelated remote fields while keeping local canvas 
   });
   const remote = content({ title: "Renamed elsewhere" });
 
-  const merged = mergeProjectContent(base, local, remote);
+  const merged = mergeWorkspaceContent(base, local, remote);
   assert.ok(merged);
   assert.equal(merged.title, "Renamed elsewhere");
   assert.deepEqual(
@@ -116,7 +116,7 @@ test("three-way merge rejects concurrent edits to the same non-canvas field", ()
   const local = content({ title: "Local title" });
   const remote = content({ title: "Remote title" });
 
-  assert.equal(mergeProjectContent(base, local, remote), null);
+  assert.equal(mergeWorkspaceContent(base, local, remote), null);
 });
 
 test("ack rebase keeps edits made during save and adopts acknowledged remote fields", () => {
@@ -129,7 +129,7 @@ test("ack rebase keeps edits made during save and adopts acknowledged remote fie
     canvas: canvas([{ id: "saved-remote", version: 1, versionNonce: 3, index: "a1" }]),
   });
 
-  const rebased = rebaseLocalProjectContent(sent, live, acknowledged);
+  const rebased = rebaseLocalWorkspaceContent(sent, live, acknowledged);
   assert.equal(rebased.title, "Remote title");
   assert.deepEqual(
     (rebased.canvas.data.elements as Array<{ id: string }>).map((element) => element.id),

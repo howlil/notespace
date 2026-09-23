@@ -1,12 +1,12 @@
-import { contentOf } from "../../domain/project/project.ts";
-import type { Project, ProjectContent } from "../../domain/project/project.ts";
-import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import.ts";
+import { workspaceContentOf } from "../../domain/workspace/workspace";
+import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace";
+import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import";
 
 export type VaultImportOperations = {
-  createProject: (title: string, categoryId?: string) => Promise<Project>;
-  deleteProject: (id: string) => Promise<void>;
+  createWorkspace: (title: string, categoryId?: string) => Promise<Workspace>;
+  deleteWorkspace: (id: string) => Promise<void>;
   deleteTrashedWorkspace: (id: string) => Promise<void>;
-  saveProject: (id: string, content: ProjectContent, version: number) => Promise<unknown>;
+  saveWorkspace: (id: string, content: WorkspaceContent, version: number) => Promise<unknown>;
   createLocalAssetId: () => string;
   storeImageAsset: (workspaceId: string, id: string, source: Blob) => Promise<unknown>;
 };
@@ -52,15 +52,15 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
         return { assetId: planned.id, src: `notespace-asset://${planned.id}` };
       });
       const title = importedDocumentTitle(path, markdown);
-      const workspace = await operations.createProject(title, categoryId);
+      const workspace = await operations.createWorkspace(title, categoryId);
       createdWorkspaceId = workspace.id;
       for (const asset of plannedAssets.values()) {
         await operations.storeImageAsset(workspace.id, asset.id, asset.file);
       }
-      const content = contentOf(workspace);
+      const content = workspaceContentOf(workspace);
       const now = new Date().toISOString();
       const seedNote = content.notes[0];
-      await operations.saveProject(workspace.id, {
+      await operations.saveWorkspace(workspace.id, {
         ...content,
         title,
         document,
@@ -71,7 +71,7 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
       failed += 1;
       if (createdWorkspaceId) {
         try {
-          await operations.deleteProject(createdWorkspaceId);
+          await operations.deleteWorkspace(createdWorkspaceId);
           await operations.deleteTrashedWorkspace(createdWorkspaceId);
         } catch {
           cleanupFailed += 1;

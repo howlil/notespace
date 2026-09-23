@@ -1,13 +1,13 @@
-import type { Project, ProjectContent } from "../../domain/project/project";
+import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace";
 
 export interface HttpTransport {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
-export interface ProjectHttpClient {
+export interface WorkspaceHttpClient {
   request<T>(url: string, init?: RequestInit): Promise<T>;
-  getProject(id: string): Promise<Project>;
-  updateProjectSnapshot(id: string, content: ProjectContent, version: number): Promise<Project>;
+  getWorkspace(id: string): Promise<Workspace>;
+  updateWorkspaceSnapshot(id: string, content: WorkspaceContent, version: number): Promise<Workspace>;
 }
 
 export class APIError extends Error {
@@ -46,21 +46,21 @@ export const json = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 
-export function createProjectHttpClient(transport: HttpTransport = fetchTransport): ProjectHttpClient {
+export function createWorkspaceHttpClient(transport: HttpTransport = fetchTransport): WorkspaceHttpClient {
   const request = <T>(url: string, init?: RequestInit) => requestWithTransport<T>(transport, url, init);
   return {
     request,
-    getProject: (id) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`),
-    updateProjectSnapshot: (id, content, version) => request<Project>(`/api/workspaces/${encodeURIComponent(id)}`, {
+    getWorkspace: (id) => request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}`),
+    updateWorkspaceSnapshot: (id, content, version) => request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}`, {
       method: "PATCH",
       ...json({ ...content, version }),
     }),
   };
 }
 
-const defaultClient = createProjectHttpClient();
+const defaultClient = createWorkspaceHttpClient();
 
 export const request = <T>(url: string, init?: RequestInit, transport: HttpTransport = fetchTransport) =>
   requestWithTransport<T>(transport, url, init);
-export const getProject = defaultClient.getProject;
-export const updateProjectSnapshot = defaultClient.updateProjectSnapshot;
+export const getWorkspace = defaultClient.getWorkspace;
+export const updateWorkspaceSnapshot = defaultClient.updateWorkspaceSnapshot;

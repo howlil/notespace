@@ -7,8 +7,8 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTr
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useToast } from "../../app/providers/toast-provider";
-import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
-import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../adapters/http/workspace-api";
+import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
+import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
@@ -18,14 +18,14 @@ import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkele
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 
-type Props = { categories: CategorySummary[]; recentWorkspaces: ProjectSummary[]; initialSelectedCategoryId?: string; initialCategoryPage?: WorkspacePage };
+type Props = { categories: CategorySummary[]; recentWorkspaces: WorkspaceSummary[]; initialSelectedCategoryId?: string; initialCategoryPage?: WorkspacePage };
 type LibraryView = "recent" | "all" | "category";
 
 const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
 const showLearningActivity = false;
 
 type WorkspaceFolderCardProps = {
-  workspace: ProjectSummary;
+  workspace: WorkspaceSummary;
   categoryTitle?: string;
   entering?: boolean;
   editing?: boolean;
@@ -249,7 +249,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");
   const [savingWorkspaceId, setSavingWorkspaceId] = useState<string | null>(null);
-  const [deletingWorkspace, setDeletingWorkspace] = useState<ProjectSummary | null>(null);
+  const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceSummary | null>(null);
   const workspaceRenameSubmitting = useRef(false);
   const workspaceRenameCancelled = useRef(false);
 
@@ -264,7 +264,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
     if (!title) return;
     setCreateLoading(true);
     try {
-      const workspace = await createProject(title, newWorkspaceCategoryId);
+      const workspace = await createWorkspace(title, newWorkspaceCategoryId);
       setRecentlyCreatedWorkspaceId(workspace.id);
 
       if (view === "recent") {
@@ -287,7 +287,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
     }
   }
 
-  function beginWorkspaceRename(workspace: ProjectSummary) {
+  function beginWorkspaceRename(workspace: WorkspaceSummary) {
     workspaceRenameCancelled.current = false;
     setEditingWorkspaceId(workspace.id);
     setWorkspaceTitleDraft(workspace.title);
@@ -300,13 +300,13 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
     setWorkspaceTitleDraft("");
   }
 
-  function replaceWorkspaceInLists(updated: ProjectSummary) {
-    const replace = (workspace: ProjectSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
+  function replaceWorkspaceInLists(updated: WorkspaceSummary) {
+    const replace = (workspace: WorkspaceSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
     setRecentItems((current) => current.map(replace));
     setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
   }
 
-  async function saveWorkspaceTitle(workspace: ProjectSummary) {
+  async function saveWorkspaceTitle(workspace: WorkspaceSummary) {
     if (workspaceRenameSubmitting.current) return;
     if (workspaceRenameCancelled.current) {
       workspaceRenameCancelled.current = false;
@@ -320,7 +320,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
     workspaceRenameSubmitting.current = true;
     setSavingWorkspaceId(workspace.id);
     try {
-      const renamed = await renameProject(workspace.id, value);
+      const renamed = await renameWorkspace(workspace.id, value);
       replaceWorkspaceInLists(renamed);
       setEditingWorkspaceId(null);
       setWorkspaceTitleDraft("");
@@ -340,7 +340,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
     const target = deletingWorkspace;
     setDeletingWorkspace(null);
     try {
-      await deleteProject(target.id, target.version);
+      await deleteWorkspace(target.id, target.version);
       setRecentItems((current) => current.filter((workspace) => workspace.id !== target.id));
       setPage((current) => {
         if (!current) return current;

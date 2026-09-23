@@ -1,4 +1,4 @@
-import type { Note, Snapshot } from "../../domain/project/project";
+import type { Note, Snapshot } from "../../domain/workspace/workspace";
 
 export const CANVAS_NOTE_ARTIFACT_DATA_KEY = "notespaceNoteArtifact";
 

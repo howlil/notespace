@@ -1,5 +1,5 @@
-import type { Snapshot } from "../../domain/project/project";
-import { markdownToSnapshot } from "../../domain/document/markdown.ts";
+import type { Snapshot } from "../../domain/workspace/workspace";
+import { markdownToSnapshot } from "../../domain/document/markdown";
 
 export type ResolvedVaultImage = { assetId: string; src: string };
 export type VaultImageResolver = (source: string) => ResolvedVaultImage | null;
@@ -23,7 +23,7 @@ export function resolveVaultReference(markdownPath: string, source: string) {
   return normalizeVaultPath(base ? `${base}/${cleanSource}` : cleanSource);
 }
 
-function contentOf(snapshot: Snapshot) {
+function workspaceContentOf(snapshot: Snapshot) {
   const root = snapshot.data as JsonNode;
   return Array.isArray(root.content) ? root.content : [];
 }
@@ -39,7 +39,7 @@ export function markdownWithVaultImages(markdown: string, resolveImage: VaultIma
     const value = chunk.join("\n").trim();
     chunk = [];
     if (!value) return;
-    content.push(...contentOf(markdownToSnapshot(value)));
+    content.push(...workspaceContentOf(markdownToSnapshot(value)));
   };
 
   for (const line of lines) {

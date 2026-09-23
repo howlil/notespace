@@ -1,4 +1,4 @@
-import type { ProjectContent, Snapshot } from "../../domain/project/project";
+import type { WorkspaceContent, Snapshot } from "../../domain/workspace/workspace";
 
 const BLOCK_TYPES_WITH_IDENTITY = new Set(["paragraph", "heading", "codeBlock", "listItem", "taskItem"]);
 
@@ -35,7 +35,7 @@ function normalizeDocument(snapshot: Snapshot) {
   return { snapshot: changed ? { ...snapshot, data } : snapshot, changed };
 }
 
-export function normalizeProjectContent(content: ProjectContent) {
+export function normalizeProjectContent(content: WorkspaceContent) {
   const document = normalizeDocument(content.document);
   let changed = document.changed || content.references.length > 0;
   const notes = content.notes.map((note) => {
@@ -43,7 +43,7 @@ export function normalizeProjectContent(content: ProjectContent) {
     changed ||= result.changed;
     return result.changed ? { ...note, document: result.snapshot } : note;
   });
-  const normalized: ProjectContent = {
+  const normalized: WorkspaceContent = {
     ...content,
     document: document.snapshot,
     notes,

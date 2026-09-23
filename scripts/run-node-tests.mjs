@@ -1,3 +1,4 @@
+import process from "node:process";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";

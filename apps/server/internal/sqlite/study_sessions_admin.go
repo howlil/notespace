@@ -23,7 +23,7 @@ SELECT
 FROM activity_sessions
 `
 
-func (s *Store) ListStudySessions(ctx context.Context, workspaceID string, limit int) ([]activity.Session, error) {
+func (s *Store) ListWorkspaceSessions(ctx context.Context, workspaceID string, limit int) ([]activity.Session, error) {
 	rows, err := s.db.QueryContext(ctx, logicalActivitySelect+`
 WHERE workspace_id=?
 GROUP BY logical_session_id,workspace_id,task_id
@@ -55,7 +55,7 @@ func scanLogicalActivityRows(rows interface {
 }) ([]activity.Session, error) {
 	sessions := make([]activity.Session, 0)
 	for rows.Next() {
-		session, err := scanStudySession(rows)
+		session, err := scanActivitySession(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +64,7 @@ func scanLogicalActivityRows(rows interface {
 	return sessions, rows.Err()
 }
 
-func (s *Store) DeleteStudySession(ctx context.Context, workspaceID, sessionID string) error {
+func (s *Store) DeleteWorkspaceSession(ctx context.Context, workspaceID, sessionID string) error {
 	result, err := s.db.ExecContext(ctx, `DELETE FROM activity_sessions WHERE workspace_id=? AND logical_session_id=?`, workspaceID, sessionID)
 	if err != nil {
 		return err

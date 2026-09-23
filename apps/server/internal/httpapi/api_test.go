@@ -63,6 +63,7 @@ func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 		t.Fatalf("status %d, want %d: %s", res.Code, status, res.Body.String())
 	}
 }
+
 func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) workspacepkg.Workspace {
 	t.Helper()
 	var p workspacepkg.Workspace

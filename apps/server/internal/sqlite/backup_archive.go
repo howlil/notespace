@@ -62,7 +62,7 @@ type libraryArchiveManifest struct {
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
 	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
 	Trash         []archiveTrashRecord       `json:"trash"`
-	Study         []activity.Session            `json:"studySessions"`
+	Study         []activity.Session            `json:"activitySessions"`
 	Blobs         []archiveBlob              `json:"blobs"`
 }
 

@@ -228,4 +228,3 @@ func (s Service) GetDayDetail(ctx context.Context, date string) (DayDetail, erro
 	}
 	return s.Store.DayDetail(ctx, date)
 }
-

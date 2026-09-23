@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-func (s *Store) Create(ctx context.Context, p project.Project) error {
+func (s *Store) Create(ctx context.Context, p workspace.Workspace) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -35,8 +35,8 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 	}
 	// Retain one creation baseline only for legacy backup/restore compatibility.
 	// Normal autosave no longer produces periodic history checkpoints.
-	if err := createHistory(ctx, tx, project.HistorySnapshot{
-		HistoryEntry: project.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: p.CreatedAt},
+	if err := createHistory(ctx, tx, workspace.HistorySnapshot{
+		HistoryEntry: workspace.HistoryEntry{ID: rand.Text(), WorkspaceID: p.ID, Version: p.Version, Title: p.Title, CreatedAt: p.CreatedAt},
 		Document:     p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio,
 	}); err != nil {
 		return err
@@ -44,7 +44,7 @@ func (s *Store) Create(ctx context.Context, p project.Project) error {
 	return tx.Commit()
 }
 
-func (s *Store) List(ctx context.Context) ([]project.Summary, error) {
+func (s *Store) List(ctx context.Context) ([]workspace.Summary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,
 (SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id),
 (EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))
@@ -53,9 +53,9 @@ FROM projects p ORDER BY p.updated_at DESC,p.id`)
 		return nil, err
 	}
 	defer rows.Close()
-	out := []project.Summary{}
+	out := []workspace.Summary{}
 	for rows.Next() {
-		var p project.Summary
+		var p workspace.Summary
 		if err := rows.Scan(
 			&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version, &p.NoteCount, &p.HasCanvas,
 		); err != nil {
@@ -66,7 +66,7 @@ FROM projects p ORDER BY p.updated_at DESC,p.id`)
 	return out, rows.Err()
 }
 
-func (s *Store) ListRecent(ctx context.Context, limit int) ([]project.Summary, error) {
+func (s *Store) ListRecent(ctx context.Context, limit int) ([]workspace.Summary, error) {
 	if limit < 1 || limit > 100 {
 		limit = 12
 	}
@@ -78,9 +78,9 @@ FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 		return nil, err
 	}
 	defer rows.Close()
-	out := []project.Summary{}
+	out := []workspace.Summary{}
 	for rows.Next() {
-		var p project.Summary
+		var p workspace.Summary
 		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version, &p.NoteCount, &p.HasCanvas); err != nil {
 			return nil, err
 		}
@@ -89,7 +89,7 @@ FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 	return out, rows.Err()
 }
 
-func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, sortBy, hasCanvas, hasNotes string, offset, limit int) (project.WorkspacePage, error) {
+func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, sortBy, hasCanvas, hasNotes string, offset, limit int) (workspace.WorkspacePage, error) {
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
@@ -129,25 +129,25 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	where := strings.Join(conditions, " AND ")
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects p WHERE `+where, args...).Scan(&total); err != nil {
-		return project.WorkspacePage{}, err
+		return workspace.WorkspacePage{}, err
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,`+noteCount+`,`+hasCanvasExpr+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, append(args, limit, offset)...)
 	if err != nil {
-		return project.WorkspacePage{}, err
+		return workspace.WorkspacePage{}, err
 	}
 	defer rows.Close()
-	items := make([]project.Summary, 0)
+	items := make([]workspace.Summary, 0)
 	for rows.Next() {
-		var item project.Summary
+		var item workspace.Summary
 		if err := rows.Scan(&item.ID, &item.CategoryID, &item.Title, &item.CreatedAt, &item.UpdatedAt, &item.Version, &item.NoteCount, &item.HasCanvas); err != nil {
-			return project.WorkspacePage{}, err
+			return workspace.WorkspacePage{}, err
 		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return project.WorkspacePage{}, err
+		return workspace.WorkspacePage{}, err
 	}
-	page := project.WorkspacePage{Items: items, Total: total, Offset: offset, Limit: limit}
+	page := workspace.WorkspacePage{Items: items, Total: total, Offset: offset, Limit: limit}
 	if offset+len(items) < total {
 		next := offset + len(items)
 		page.NextOffset = &next
@@ -155,45 +155,45 @@ func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID, query, s
 	return page, nil
 }
 
-func (s *Store) Move(ctx context.Context, id, categoryID string) (project.Project, error) {
+func (s *Store) Move(ctx context.Context, id, categoryID string) (workspace.Workspace, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	defer tx.Rollback()
 	var categoryExists int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, categoryID).Scan(&categoryExists); err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if categoryExists == 0 {
-		return project.Project{}, project.ErrNotFound
+		return workspace.Workspace{}, workspace.ErrNotFound
 	}
 	moved, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET category_id=?,updated_at=? WHERE id=? RETURNING `+columns,
 		categoryID, time.Now().UTC().Format(time.RFC3339Nano), id))
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	moved, err = hydrateGranularProject(ctx, tx, moved)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	return moved, nil
 }
 
 type scanner interface{ Scan(...any) error }
 
-func readProject(row scanner) (project.Project, error) {
-	var p project.Project
+func readProject(row scanner) (workspace.Workspace, error) {
+	var p workspace.Workspace
 	var references string
 	err := row.Scan(
 		&p.ID, &p.CategoryID, &p.Title, &references,
 		&p.SplitRatio, &p.CreatedAt, &p.UpdatedAt, &p.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return p, project.ErrNotFound
+		return p, workspace.ErrNotFound
 	}
 	if err != nil {
 		return p, err
@@ -206,7 +206,7 @@ func readProject(row scanner) (project.Project, error) {
 
 const columns = `id,category_id,title,references_state,split_ratio,created_at,updated_at,version`
 
-func (s *Store) GetWorkspaceRecord(ctx context.Context, id string) (project.Project, error) {
+func (s *Store) GetWorkspaceRecord(ctx context.Context, id string) (workspace.Workspace, error) {
 	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
 }
 
@@ -230,56 +230,56 @@ func (s *Store) WorkspaceExists(ctx context.Context, id string) (bool, error) {
 	return exists != 0, nil
 }
 
-func (s *Store) Get(ctx context.Context, id string) (project.Project, error) {
+func (s *Store) Get(ctx context.Context, id string) (workspace.Workspace, error) {
 	value, err := s.GetWorkspaceRecord(ctx, id)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	return hydrateGranularProject(ctx, s.db, value)
 }
 
-func (s *Store) Update(ctx context.Context, id string, u project.Update) (project.Project, error) {
+func (s *Store) Update(ctx context.Context, id string, u workspace.Update) (workspace.Workspace, error) {
 	references, _ := json.Marshal(u.References)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	defer tx.Rollback()
 
 	result, err := tx.ExecContext(ctx, `UPDATE projects SET title=?,references_state=?,split_ratio=?,updated_at=?,version=version+1 WHERE id=? AND version=?`,
 		u.Title, string(references), u.SplitRatio, now, id, u.Version)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if affected == 0 {
 		var exists int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, id).Scan(&exists); err != nil {
-			return project.Project{}, err
+			return workspace.Workspace{}, err
 		}
 		if exists == 0 {
-			return project.Project{}, project.ErrNotFound
+			return workspace.Workspace{}, workspace.ErrNotFound
 		}
-		return project.Project{}, project.ErrConflict
+		return workspace.Workspace{}, workspace.ErrConflict
 	}
 	if err := reconcileGranularStateTx(ctx, tx, id, u.Notes, u.Canvas, now); err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	p, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	p, err = hydrateGranularProject(ctx, tx, p)
 	if err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return project.Project{}, err
+		return workspace.Workspace{}, err
 	}
 	return p, nil
 }
@@ -302,7 +302,7 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	if count == 0 {
-		return project.ErrNotFound
+		return workspace.ErrNotFound
 	}
 	return tx.Commit()
 }

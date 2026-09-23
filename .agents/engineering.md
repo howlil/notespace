@@ -124,7 +124,7 @@ Examples:
 - planning;
 - capture;
 - search;
-- activity/study;
+- activity;
 - library management.
 
 A feature may contain local UI, hooks, orchestration, state, and feature-specific helpers.
@@ -337,6 +337,8 @@ integrations/document     → workspace-authoring/document
 integrations/canvas       → workspace-authoring/canvas
 
 shared diagram rules      → domain/diagram
+features/plan             → features/planning
+features/study            → features/activity
 ```
 
 This is migration guidance, not permission for an unrelated full-repository rewrite.

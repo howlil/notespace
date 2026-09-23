@@ -7,7 +7,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
-func (a API) studySessions(w http.ResponseWriter, r *http.Request) {
+func (a API) workspaceActivitySessions(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseIntQuery(r, "limit", 8)
 	if err != nil {
 		fail(w, activity.ErrInvalid)
@@ -21,7 +21,7 @@ func (a API) studySessions(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, sessions)
 }
 
-func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
+func (a API) workspaceActivityHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var body activity.Heartbeat
 	if !decode(w, r, &body) {
 		return
@@ -34,7 +34,7 @@ func (a API) studyHeartbeat(w http.ResponseWriter, r *http.Request) {
 	send(w, 200, session)
 }
 
-func (a API) deleteStudySession(w http.ResponseWriter, r *http.Request) {
+func (a API) deleteWorkspaceActivitySession(w http.ResponseWriter, r *http.Request) {
 	if err := a.activities.DeleteSession(r.Context(), r.PathValue("id"), r.PathValue("sessionId")); err != nil {
 		fail(w, err)
 		return
@@ -42,7 +42,7 @@ func (a API) deleteStudySession(w http.ResponseWriter, r *http.Request) {
 	send(w, 204, nil)
 }
 
-func (a API) workspaceStudy(w http.ResponseWriter, r *http.Request) {
+func (a API) workspaceActivityStats(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
 	if date == "" {
 		date = time.Now().Format(activity.DateLayout)

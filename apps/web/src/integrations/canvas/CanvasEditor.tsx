@@ -22,7 +22,7 @@ import {
   type DiagramSelection,
   type StructuredDiagram,
 } from "../../features/diagram/diagram-model";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";

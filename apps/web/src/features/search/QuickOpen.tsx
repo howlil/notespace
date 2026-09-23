@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Folder, Search } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../shared/ui";
 import type { CategorySummary, Note, Project, ProjectSummary } from "../../domain/project/project";
 import { getProject, listCategories, listRecentWorkspaces, searchNotespace } from "../../domain/project/api";
 import type { SearchResult } from "../../domain/project/api";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { RecallMode } from "../study/RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 

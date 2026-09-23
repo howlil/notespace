@@ -18,7 +18,7 @@ import {
   resolveCodeTheme,
   type CodeBlockTheme,
 } from "../../domain/code/code-theme";
-import { useTheme } from "../../providers/theme-provider";
+import { useTheme } from "../../app/providers/theme-provider";
 import { canRunCode } from "../code/code-runner";
 import { useCodeRunner, type CodeRunView } from "../code/use-code-runner";
 

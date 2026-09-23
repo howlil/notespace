@@ -1,4 +1,4 @@
-import { Skeleton } from "../ui";
+import { Skeleton } from "../../shared/ui";
 
 export function WorkspaceListSkeleton({ rows = 5, variant = "list" }: { rows?: number; variant?: "list" | "cards" }) {
   if (variant === "cards") {

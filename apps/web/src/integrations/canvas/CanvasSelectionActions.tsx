@@ -12,8 +12,8 @@ import type {
 } from "@excalidraw/excalidraw/element/types";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { cn } from "../../components/ui";
-import { useDismissablePopup } from "../../components/ui/dismissable";
+import { cn } from "../../shared/ui";
+import { useDismissablePopup } from "../../shared/ui/dismissable";
 import { executeNativeAction, nativeActionIcon } from "./CanvasNativeActions";
 import {
   NativeAdjustmentsIcon,

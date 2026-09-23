@@ -1,5 +1,5 @@
 import { Columns2, FileText, LayoutGrid, ListTodo } from "lucide-react";
-import { Button, cn } from "../../components/ui";
+import { Button, cn } from "../../shared/ui";
 import type { WorkspaceViewMode } from "./pane-layout";
 
 export function WorkspaceViewSwitcher({

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Eye, X } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../shared/ui";
 import type { Note } from "../../domain/project/project";
 import { snapshotToMarkdown } from "../../domain/document/markdown";
 

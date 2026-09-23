@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../components/ui";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
-import { ThemeToggle } from "../../providers/theme-provider";
-import { useToast } from "../../providers/toast-provider";
+import { Sidebar } from "../../app/shell/Sidebar";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
+import { ThemeToggle } from "../../app/providers/theme-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameProject } from "../../domain/project/api";
 import { notifyLibraryChanged, useLibrarySyncStore } from "../../features/library/library-sync-store";
@@ -14,7 +14,7 @@ import { workspaceMutationError, workspaceRenameTitle } from "../../features/lib
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { StudyActivityDashboard } from "../../features/study/StudyActivityDashboard";
 import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
-import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
+import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
 

@@ -4,7 +4,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import { Button, IconButton, Input, cn } from "../../components/ui";
+import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { useImageAssetUrl } from "../assets/use-image-asset-url";
 
 function LocalImageView({ node, workspaceId, updateAttributes, deleteNode, selected }: NodeViewProps & { workspaceId: string }) {

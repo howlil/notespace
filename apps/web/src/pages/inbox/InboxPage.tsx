@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { CalendarPlus, Inbox as InboxIcon, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, IconButton, Input } from "../../components/ui";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { Sidebar } from "../../app/shell/Sidebar";
+import { Button, IconButton, Input } from "../../shared/ui";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
 import { listCategories } from "../../domain/project/api";
 import {
@@ -17,8 +17,8 @@ import {
   type PlanningTask,
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
-import { ThemeToggle } from "../../providers/theme-provider";
-import { useToast } from "../../providers/toast-provider";
+import { ThemeToggle } from "../../app/providers/theme-provider";
+import { useToast } from "../../app/providers/toast-provider";
 
 function InboxTaskRow({
   task,

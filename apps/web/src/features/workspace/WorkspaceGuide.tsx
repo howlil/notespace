@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, FileText, Layers, Maximize2, MoreHorizontal, Pause, Plus, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, IconButton } from "../../components/ui";
-import { useDismissablePopup } from "../../components/ui/dismissable";
+import { Button, IconButton } from "../../shared/ui";
+import { useDismissablePopup } from "../../shared/ui/dismissable";
 
 const STEP_COUNT = 4;
 const canvasNodeClass = "rounded-md border border-line bg-surface px-2 py-1.5 text-center text-[9px] font-medium text-ink";

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Play, Plus, Search, Trash2 } from "lucide-react";
-import { Sidebar } from "../../components/layout/Sidebar";
-import { Button, IconButton, Input, cn } from "../../components/ui";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { Sidebar } from "../../app/shell/Sidebar";
+import { Button, IconButton, Input, cn } from "../../shared/ui";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
 import { listCategories } from "../../domain/project/api";
 import {
@@ -17,11 +17,11 @@ import type {
   TodayTask,
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
-import { ThemeToggle } from "../../providers/theme-provider";
+import { ThemeToggle } from "../../app/providers/theme-provider";
 import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
 import { formatDuration } from "../../features/study/study-timer";
 import type { ActivityType } from "../../domain/activity/api";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { ActivityTypeTrigger } from "../../features/study/ActivityTypeTrigger";
 
 function displayDate(date: string) {

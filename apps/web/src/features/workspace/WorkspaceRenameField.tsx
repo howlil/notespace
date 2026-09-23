@@ -1,5 +1,5 @@
 import type { Ref } from "react";
-import { Input } from "../../components/ui";
+import { Input } from "../../shared/ui";
 
 export function WorkspaceRenameField({
   inputRef,

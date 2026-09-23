@@ -50,9 +50,9 @@ import {
   IconButton,
   Input,
   cn,
-} from "../../components/ui";
-import { useDismissablePopup } from "../../components/ui/dismissable";
-import { useToast } from "../../providers/toast-provider";
+} from "../../shared/ui";
+import { useDismissablePopup } from "../../shared/ui/dismissable";
+import { useToast } from "../../app/providers/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
 import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";

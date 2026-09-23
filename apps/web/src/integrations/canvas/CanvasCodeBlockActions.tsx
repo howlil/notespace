@@ -1,6 +1,6 @@
 import { Check, Clipboard, Code2, ListOrdered, Maximize2, Moon, Play, Square, Sun, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { cn } from "../../components/ui";
+import { cn } from "../../shared/ui";
 import {
   codeLanguageOptions,
   codeThemeTitle,

@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Button, cn, IconButton } from "../components/ui";
-import { POPUP_OPEN_EVENT, requestExclusivePopup } from "../components/ui/dismissable";
+import { Button, cn, IconButton } from "../../shared/ui";
+import { POPUP_OPEN_EVENT, requestExclusivePopup } from "../../shared/ui/dismissable";
 
 export type ToastKind = "success" | "error" | "info";
 export type ToastAction = { label: string; onClick: () => void };

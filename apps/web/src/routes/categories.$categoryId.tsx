@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getCategory, listCategoryWorkspaces } from "../domain/project/api";
 import { CategoryPage } from "../pages/category/CategoryPage";
-import { RoutePending } from "../components/feedback/RoutePending";
+import { RoutePending } from "../app/feedback/RoutePending";
 
 export const Route = createFileRoute("/categories/$categoryId")({
   ssr: false,

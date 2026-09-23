@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, FileText, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
-import { Button, Input, PopupSurface } from "../../components/ui";
-import { ThemeToggle } from "../../providers/theme-provider";
-import { useToast } from "../../providers/toast-provider";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
+import { Button, Input, PopupSurface } from "../../shared/ui";
+import { ThemeToggle } from "../../app/providers/theme-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import type { CategorySummary, ProjectSummary, WorkspacePage } from "../../domain/project/project";
 import { createProject, deleteProject, listCategoryWorkspaces, renameProject, updateCategory } from "../../domain/project/api";
-import { WorkspaceListSkeleton } from "../../components/feedback/WorkspaceListSkeleton";
+import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }

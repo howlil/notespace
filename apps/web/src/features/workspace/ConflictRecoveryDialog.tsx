@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "../../shared/ui";
 import { snapshotToMarkdown } from "../../domain/document/markdown";
 import { subscribeWorkspaceConflict } from "../../domain/project/conflict-recovery";
 import type { ConflictDraft } from "../../domain/project/conflict-recovery";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 
 function notesMarkdown(draft: ConflictDraft) {
   if (draft.kind === "canvas") return "";

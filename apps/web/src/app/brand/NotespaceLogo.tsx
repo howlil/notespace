@@ -1,5 +1,5 @@
-import { cn } from "../ui";
-import { useTheme } from "../../providers/theme-provider";
+import { cn } from "../../shared/ui";
+import { useTheme } from "../providers/theme-provider";
 
 type LogoSize = "sm" | "md";
 type LogoGap = "sm" | "md";

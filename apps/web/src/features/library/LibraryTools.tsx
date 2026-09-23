@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../components/ui";
-import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
+import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/project/project";
 import {
   createProject,
@@ -16,7 +16,7 @@ import {
 import type { TrashWorkspace } from "../../domain/project/api";
 import { createLocalAssetId, storeImageAsset } from "../../domain/assets/local-image-assets";
 import { saveProject } from "../../domain/project/save-project";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { notifyLibraryChanged } from "./library-sync-store";
 import { importVaultFiles } from "./vault-import-workflow";
 

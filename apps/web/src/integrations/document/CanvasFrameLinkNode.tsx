@@ -3,7 +3,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Frame, ImageOff, Trash2 } from "lucide-react";
-import { IconButton, cn } from "../../components/ui";
+import { IconButton, cn } from "../../shared/ui";
 import { useImageAssetUrl } from "../assets/use-image-asset-url";
 import type { CanvasFrameLinkData, CanvasFramePreviewElement } from "../../domain/workspace/canvas-frame-link";
 

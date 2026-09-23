@@ -1,12 +1,12 @@
 import { Play, Timer, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../components/ui";
+import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../shared/ui";
 import {
   listActivitySessions,
   type ActivitySession,
 } from "../../domain/activity/api";
-import { useDismissablePopup } from "../../components/ui/dismissable";
-import { useToast } from "../../providers/toast-provider";
+import { useDismissablePopup } from "../../shared/ui/dismissable";
+import { useToast } from "../../app/providers/toast-provider";
 import type { StudySessionState } from "./use-study-session";
 import { formatDay, formatDuration } from "./study-timer";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";

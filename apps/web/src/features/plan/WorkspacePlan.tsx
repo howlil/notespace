@@ -12,7 +12,7 @@ import {
   Input,
   Skeleton,
   cn,
-} from "../../components/ui";
+} from "../../shared/ui";
 import {
   createMilestone,
   createTask,
@@ -30,7 +30,7 @@ import {
   type PlanningTask,
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { ActivityTypeTrigger } from "../study/ActivityTypeTrigger";
 import type { ActivityType } from "../../domain/activity/api";
 

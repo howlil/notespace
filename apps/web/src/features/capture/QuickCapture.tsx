@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";
 import type { CategorySummary, ProjectSummary } from "../../domain/project/project";
 import { createWorkspaceNote, getProject, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../domain/project/api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
-import { useToast } from "../../providers/toast-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { readLocalStorage, writeLocalStorage } from "../../browser/local-storage";
 import { notifyLibraryChanged } from "../library/library-sync-store";
 import { workspaceOptions } from "./workspace-options";

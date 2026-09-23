@@ -2,10 +2,10 @@ import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } f
 import type { ReactNode } from "react";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Check, ChevronDown, Circle, ExternalLink, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../components/ui";
-import { useExclusivePopup } from "../../components/ui/dismissable";
-import { useTheme } from "../../providers/theme-provider";
-import { useToast } from "../../providers/toast-provider";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../shared/ui";
+import { useExclusivePopup } from "../../shared/ui/dismissable";
+import { useTheme } from "../../app/providers/theme-provider";
+import { useToast } from "../../app/providers/toast-provider";
 import { contentOf } from "../../domain/project/project";
 import type { Note, Project, ProjectSummary, Snapshot } from "../../domain/project/project";
 import { createWorkspaceNote, deleteWorkspaceNote, renameProject } from "../../domain/project/api";

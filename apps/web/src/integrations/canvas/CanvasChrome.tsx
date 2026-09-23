@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type { AppState, ExcalidrawImperativeAPI, ToolType } from "@excalidraw/excalidraw/types";
-import { IconButton, cn } from "../../components/ui";
-import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
+import { IconButton, cn } from "../../shared/ui";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../shared/ui/anchored-panel";
 import { nativeActionIcon } from "./CanvasNativeActions";
 import {
   NativeArrowIcon,

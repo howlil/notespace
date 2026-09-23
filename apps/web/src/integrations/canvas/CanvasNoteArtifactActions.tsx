@@ -1,6 +1,6 @@
 import { ExternalLink, Rows3, Square, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "../../components/ui";
+import { cn } from "../../shared/ui";
 import type { CanvasNoteArtifactData } from "./canvas-note-artifact";
 
 function ActionButton({

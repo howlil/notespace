@@ -49,10 +49,16 @@ function assertLayerExcludes(layer: string, forbidden: readonly string[]) {
 
 test("new web layers preserve downward dependency direction", () => {
   assertLayerExcludes("domain", ["routes", "pages", "features", "integrations", "components", "providers", "browser", "adapters", "shared"]);
+  assertLayerExcludes("app", ["routes", "pages"]);
   assertLayerExcludes("pages", ["routes"]);
   assertLayerExcludes("features", ["routes", "pages"]);
   assertLayerExcludes("adapters", ["routes", "pages", "features"]);
   assertLayerExcludes("shared", ["routes", "pages", "features", "adapters", "domain"]);
+});
+
+test("legacy generic web buckets are removed after ownership migration", () => {
+  assert.equal(existsSync(join(WEB_SRC, "components")), false);
+  assert.equal(existsSync(join(WEB_SRC, "providers")), false);
 });
 
 test("routes compose pages instead of routed screens in features", () => {

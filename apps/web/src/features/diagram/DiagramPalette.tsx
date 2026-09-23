@@ -15,8 +15,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Button, IconButton, Input } from "../../components/ui";
-import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../components/ui/anchored-panel";
+import { Button, IconButton, Input } from "../../shared/ui";
+import { useAnchoredPanelDismiss, useAnchoredPanelPosition } from "../../shared/ui/anchored-panel";
 import {
   diagramPickerIconCount,
   searchEraserCatalog,

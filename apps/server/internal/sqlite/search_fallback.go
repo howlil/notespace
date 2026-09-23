@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-func (s *Store) Search(ctx context.Context, query string) ([]project.SearchResult, error) {
+func (s *Store) Search(ctx context.Context, query string) ([]workspace.SearchResult, error) {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {
-		return []project.SearchResult{}, nil
+		return []workspace.SearchResult{}, nil
 	}
 	projects, err := s.List(ctx)
 	if err != nil {
@@ -21,10 +21,10 @@ func (s *Store) Search(ctx context.Context, query string) ([]project.SearchResul
 	if err != nil {
 		return nil, err
 	}
-	results := make([]project.SearchResult, 0)
+	results := make([]workspace.SearchResult, 0)
 	for _, category := range categories {
 		if strings.Contains(strings.ToLower(category.Title), query) {
-			results = append(results, project.SearchResult{Type: "category", CategoryID: category.ID, CategoryTitle: category.Title, Excerpt: category.Title})
+			results = append(results, workspace.SearchResult{Type: "category", CategoryID: category.ID, CategoryTitle: category.Title, Excerpt: category.Title})
 		}
 	}
 	for _, summary := range projects {
@@ -40,10 +40,10 @@ func (s *Store) Search(ctx context.Context, query string) ([]project.SearchResul
 			}
 		}
 		if strings.Contains(strings.ToLower(p.Title), query) {
-			results = append(results, project.SearchResult{Type: "workspace", CategoryID: p.CategoryID, CategoryTitle: categoryTitle, WorkspaceID: p.ID, WorkspaceTitle: p.Title, Excerpt: p.Title})
+			results = append(results, workspace.SearchResult{Type: "workspace", CategoryID: p.CategoryID, CategoryTitle: categoryTitle, WorkspaceID: p.ID, WorkspaceTitle: p.Title, Excerpt: p.Title})
 		}
 		for _, note := range p.Notes {
-			base := project.SearchResult{Type: "note", CategoryID: p.CategoryID, CategoryTitle: categoryTitle, WorkspaceID: p.ID, WorkspaceTitle: p.Title, NoteID: note.ID, NoteTitle: note.Title}
+			base := workspace.SearchResult{Type: "note", CategoryID: p.CategoryID, CategoryTitle: categoryTitle, WorkspaceID: p.ID, WorkspaceTitle: p.Title, NoteID: note.ID, NoteTitle: note.Title}
 			if strings.Contains(strings.ToLower(note.Title), query) {
 				base.Excerpt = note.Title
 				results = append(results, base)

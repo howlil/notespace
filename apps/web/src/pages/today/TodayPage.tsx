@@ -1,13 +1,11 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
-import { listCategories } from "../../adapters/http/workspace-api";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../shared/ui/theme-provider";
-import { useToast } from "../../shared/ui/toast-provider";
+import { useLibraryCategories } from "../../features/library/use-library-categories";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { ActivityQuickStart } from "../../features/activity/ActivityQuickStart";
 import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
@@ -21,8 +19,7 @@ export function TodayPage({
   initial: TodayProjection;
 }) {
   const navigate = useNavigate();
-  const { showToast } = useToast();
-  const [categoryItems, setCategoryItems] = useState(categories);
+  const { categories: categoryItems, refreshCategories } = useLibraryCategories(categories);
   const activity = useActivityRuntime();
 
   function startTaskActivity(task: TodayTask, activityType: Parameters<typeof activity.start>[0] extends infer T
@@ -44,14 +41,7 @@ export function TodayPage({
       <LibrarySidebar
         categories={categoryItems}
         todayActive
-        onChanged={() => {
-          void listCategories()
-            .then(setCategoryItems)
-            .catch((error) => showToast({
-              kind: "error",
-              message: error instanceof Error ? error.message : "Could not refresh categories.",
-            }));
-        }}
+        onChanged={refreshCategories}
         onSelectCategory={(categoryId) => {
           void navigate({ to: "/categories/$categoryId", params: { categoryId } });
         }}

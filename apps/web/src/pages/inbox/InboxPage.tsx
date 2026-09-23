@@ -1,14 +1,12 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { InboxProjection } from "../../domain/planning/planning";
-import { listCategories } from "../../adapters/http/workspace-api";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { InboxPlanning } from "../../features/planning/InboxPlanning";
 import { ThemeToggle } from "../../shared/ui/theme-provider";
-import { useToast } from "../../shared/ui/toast-provider";
+import { useLibraryCategories } from "../../features/library/use-library-categories";
 
 export function InboxPage({
   categories,
@@ -18,22 +16,14 @@ export function InboxPage({
   initial: InboxProjection;
 }) {
   const navigate = useNavigate();
-  const { showToast } = useToast();
-  const [categoryItems, setCategoryItems] = useState(categories);
+  const { categories: categoryItems, refreshCategories } = useLibraryCategories(categories);
 
   return (
     <div className="grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] bg-background max-[560px]:grid-cols-[minmax(0,1fr)]">
       <LibrarySidebar
         categories={categoryItems}
         inboxActive
-        onChanged={() => {
-          void listCategories()
-            .then(setCategoryItems)
-            .catch((error) => showToast({
-              kind: "error",
-              message: error instanceof Error ? error.message : "Could not refresh categories.",
-            }));
-        }}
+        onChanged={refreshCategories}
         onSelectCategory={(categoryId) => {
           void navigate({ to: "/categories/$categoryId", params: { categoryId } });
         }}

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
@@ -18,7 +18,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (project.Service{Store: store}).Create(ctx, "Concurrency")
+	p, err := (workspace.Service{Store: store}).Create(ctx, "Concurrency")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 		wg.Add(1)
 		go func(title string) {
 			defer wg.Done()
-			_, err := store.Update(ctx, p.ID, project.Update{Title: title, Document: p.Document, Canvas: p.Canvas, SplitRatio: .5, Version: 1})
+			_, err := store.Update(ctx, p.ID, workspace.Update{Title: title, Document: p.Document, Canvas: p.Canvas, SplitRatio: .5, Version: 1})
 			results <- err
 		}(title)
 	}
@@ -38,7 +38,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 	for err := range results {
 		if err == nil {
 			wins++
-		} else if errors.Is(err, project.ErrConflict) {
+		} else if errors.Is(err, workspace.ErrConflict) {
 			conflicts++
 		} else {
 			t.Fatal(err)
@@ -60,12 +60,12 @@ func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (project.Service{Store: store}).Create(ctx, "History policy")
+	p, err := (workspace.Service{Store: store}).Create(ctx, "History policy")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := store.Update(ctx, p.ID, project.Update{
+	if _, err := store.Update(ctx, p.ID, workspace.Update{
 		Title: p.Title, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas,
 		References: p.References, SplitRatio: .7, Version: p.Version,
 	}); err != nil {
@@ -73,7 +73,7 @@ func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 	}
 	updatedDocument := p.Document
 	updatedDocument.Data = []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"new content"}]}]}`)
-	if _, err := store.Update(ctx, p.ID, project.Update{
+	if _, err := store.Update(ctx, p.ID, workspace.Update{
 		Title: p.Title, Document: updatedDocument, Notes: p.Notes, Canvas: p.Canvas,
 		References: p.References, SplitRatio: .7, Version: p.Version + 1,
 	}); err != nil {
@@ -102,7 +102,7 @@ func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 	}
 	checkpointDocument := updatedDocument
 	checkpointDocument.Data = []byte(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"not checkpointed"}]}]}`)
-	if _, err := store.Update(ctx, p.ID, project.Update{
+	if _, err := store.Update(ctx, p.ID, workspace.Update{
 		Title: p.Title, Document: checkpointDocument, Notes: p.Notes, Canvas: p.Canvas,
 		References: p.References, SplitRatio: .7, Version: p.Version + 2,
 	}); err != nil {
@@ -131,7 +131,7 @@ func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (project.Service{Store: store}).Create(ctx, "Delete history")
+	p, err := (workspace.Service{Store: store}).Create(ctx, "Delete history")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (project.Service{Store: store}).Create(ctx, "Delete failure")
+	p, err := (workspace.Service{Store: store}).Create(ctx, "Delete failure")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestHistoryReadsLegacy0006Rows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (project.Service{Store: store}).Create(ctx, "Legacy history")
+	p, err := (workspace.Service{Store: store}).Create(ctx, "Legacy history")
 	if err != nil {
 		t.Fatal(err)
 	}

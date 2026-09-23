@@ -7,8 +7,8 @@ const ROOT = process.cwd();
 const DESIGN = join(ROOT, "DESIGN.md");
 const WEB = join(ROOT, "apps", "web");
 const WEB_SRC = join(WEB, "src");
-const GLOBALS = join(WEB_SRC, "styles", "globals.css");
-const CONTROLS = join(WEB_SRC, "styles", "controls.css");
+const GLOBALS = join(WEB_SRC, "shared", "styles", "globals.css");
+const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
@@ -98,29 +98,30 @@ test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-firs
   assert.doesNotMatch(globals, /@tailwind\s+(base|components|utilities)/); assert.doesNotMatch(globals, /@config\s+/); assert.equal(existsSync(join(WEB, "tailwind.config.ts")), false);
 });
 
-test("frontend styling contract: shared app styles stay limited to globals and controls", () => {
-  const controls = source(CONTROLS);
-  assert.deepEqual(collectFiles(WEB_SRC, [".css"]), [CONTROLS, GLOBALS]); assert.match(source(ROOT_ROUTE), /import "\.\.\/styles\/globals\.css";/);
-  assert.match(controls, /input\[type="range"\]\[aria-label="Opacity"\][\s\S]*width:\s*62px;[\s\S]*flex:\s*0 0 62px/);
+test("frontend styling contract: shared globals and workspace authoring styles keep distinct owners", () => {
+  const authoringStyles = source(AUTHORING_STYLES);
+  assert.deepEqual(collectFiles(WEB_SRC, [".css"]).sort(), [AUTHORING_STYLES, GLOBALS].sort());
+  assert.match(source(ROOT_ROUTE), /import "\.\.\/shared\/styles\/globals\.css";/);
+  assert.match(source(ROOT_ROUTE), /import "\.\.\/features\/workspace-authoring\/workspace-authoring\.css";/);
+  assert.match(authoringStyles, /input\[type="range"\]\[aria-label="Opacity"\][\s\S]*width:\s*62px;[\s\S]*flex:\s*0 0 62px/);
   for (const file of collectFiles(WEB_SRC, [".ts", ".tsx"])) { if (file === ROOT_ROUTE) continue; assert.doesNotMatch(source(file), /import\s+["']\.\.?\/[^"']+\.css["']/, `feature stylesheet import remains in ${file}`); }
   assert.match(source(CANVAS), /import "@excalidraw\/excalidraw\/index\.css";/);
 });
 
 test("frontend styling contract: globals owns tokens and document defaults, not feature selectors", () => {
   const globals = source(GLOBALS);
-  const documentDefaults = globals.replace(/\/\* Excalidraw adapter:[\s\S]*?\.Toast\s*\{[\s\S]*?\n\}/, "");
   assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--accent:\s*#7fa6c9/i); assert.match(globals, /--tint:\s*#1b2636/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
-  for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(documentDefaults, selector, `feature selector ${selector} leaked into globals.css`);
+  for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(globals, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
 test("canvas contract: tool, contextual, and viewport chrome have distinct ownership", () => {
-  const globals = source(GLOBALS), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS), peerChannel = source(CANVAS_PEER_CHANNEL);
-  assert.match(globals, /\.notespace-canvas-surface \.excalidraw\s*\{/);
-  assert.match(globals, /--color-primary:\s*var\(--accent\)/);
-  assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
-  assert.match(globals, /\.notespace-canvas-surface \.excalidraw \.App-menu_top/);
-  assert.match(globals, /\.notespace-canvas-surface \.mobile-shape-actions,/);
-  assert.match(globals, /display:\s*none\s*!important/);
+  const authoringStyles = source(AUTHORING_STYLES), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS), peerChannel = source(CANVAS_PEER_CHANNEL);
+  assert.match(authoringStyles, /\.notespace-canvas-surface \.excalidraw\s*\{/);
+  assert.match(authoringStyles, /--color-primary:\s*var\(--accent\)/);
+  assert.match(authoringStyles, /\.notespace-canvas-surface \.excalidraw \.App-toolbar/);
+  assert.match(authoringStyles, /\.notespace-canvas-surface \.excalidraw \.App-menu_top/);
+  assert.match(authoringStyles, /\.notespace-canvas-surface \.mobile-shape-actions,/);
+  assert.match(authoringStyles, /display:\s*none\s*!important/);
   assert.match(canvas, /className="notespace-canvas-surface/);
   assert.match(canvas, /<CanvasBottomChrome/);
   assert.match(chrome, /notespace-canvas-bottom-chrome/);
@@ -311,7 +312,7 @@ test("design contract: loading, toast, and editor motion remain accessible", () 
 });
 
 test("design contract: no decorative gradients, neon motifs, or legacy Project copy", () => {
-  const content=collectFiles(WEB_SRC,[".tsx"]).map(source).join("\n"); assert.doesNotMatch(`${source(GLOBALS)}\n${content}`,/linear-gradient|radial-gradient|conic-gradient/i); assert.doesNotMatch(content,/#(00ff00|ff00ff|00ffff|ff0033)/i); assert.doesNotMatch(content,/[\u2728\u{1FA84}]/u); assert.doesNotMatch(content,/ai-powered|magic wand|smart assistant/i);
+  const content=collectFiles(WEB_SRC,[".tsx"]).map(source).join("\n"); assert.doesNotMatch(`${source(GLOBALS)}\n${source(AUTHORING_STYLES)}\n${content}`,/linear-gradient|radial-gradient|conic-gradient/i); assert.doesNotMatch(content,/#(00ff00|ff00ff|00ffff|ff0033)/i); assert.doesNotMatch(content,/[\u2728\u{1FA84}]/u); assert.doesNotMatch(content,/ai-powered|magic wand|smart assistant/i);
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 

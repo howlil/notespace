@@ -101,7 +101,7 @@ test("web layers follow the explicit dependency allowlist", () => {
 });
 
 test("top-level source directories are intentional architecture boundaries", () => {
-  const allowedTopLevel = new Set<string>([...layers, "styles"]);
+  const allowedTopLevel = new Set<string>(layers);
   const directories = readdirSync(WEB_SRC)
     .filter((name) => statSync(join(WEB_SRC, name)).isDirectory());
 
@@ -115,6 +115,7 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "components")), false);
   assert.equal(existsSync(join(WEB_SRC, "providers")), false);
   assert.equal(existsSync(join(WEB_SRC, "browser")), false);
+  assert.equal(existsSync(join(WEB_SRC, "styles")), false);
   assert.equal(existsSync(join(WEB_SRC, "domain", "project")), false);
   assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
@@ -233,6 +234,25 @@ test("diagram domain does not depend on workspace authoring internals", () => {
 test("generic browser storage lives in shared foundation", () => {
   assert.equal(existsSync(join(WEB_SRC, "adapters", "browser", "local-storage.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "local-storage.ts")), true);
+});
+
+test("workspace HTTP adapter does not retain dead study compatibility exports", () => {
+  const workspaceApi = source("adapters/http/workspace-api.ts");
+  for (const legacy of [
+    "StudyStats",
+    "StudySession",
+    "StudyDay",
+    "StudyActivity",
+    "StudyDayDetail",
+    "listStudySessions",
+    "recordStudyHeartbeat",
+    "deleteStudySession",
+    "getWorkspaceStudy",
+    "getStudyActivity",
+    "getStudyDayDetail",
+  ]) {
+    assert.doesNotMatch(workspaceApi, new RegExp(legacy), `${legacy} must stay out of workspace-api`);
+  }
 });
 
 test("HTTP client stays transport-only", () => {

@@ -251,8 +251,8 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	expect(t, all, 200)
 	var page struct {
 		Items      []workspacepkg.Summary `json:"items"`
-		Total      int               `json:"total"`
-		NextOffset *int              `json:"nextOffset"`
+		Total      int                    `json:"total"`
+		NextOffset *int                   `json:"nextOffset"`
 	}
 	if err := json.Unmarshal(all.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)

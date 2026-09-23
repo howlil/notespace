@@ -15,7 +15,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 const libraryArchiveVersion = 2
@@ -62,7 +62,7 @@ type libraryArchiveManifest struct {
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
 	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
 	Trash         []archiveTrashRecord       `json:"trash"`
-	Study         []study.Session            `json:"studySessions"`
+	Study         []activity.Session            `json:"studySessions"`
 	Blobs         []archiveBlob              `json:"blobs"`
 }
 

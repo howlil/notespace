@@ -3,7 +3,7 @@ package library
 import (
 	"context"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type TrashItem struct {
@@ -18,7 +18,7 @@ type TrashItem struct {
 type Store interface {
 	TrashWorkspaceAtomicVersion(context.Context, string, *int) error
 	ListTrash(context.Context) ([]TrashItem, error)
-	RestoreTrashedWorkspaceAtomic(context.Context, string) (project.Project, error)
+	RestoreTrashedWorkspaceAtomic(context.Context, string) (workspace.Workspace, error)
 	DeleteTrashedWorkspace(context.Context, string) error
 	DeleteCategoryAtomic(context.Context, string) error
 	ExportBackupArchiveAtomic(context.Context) ([]byte, error)
@@ -45,7 +45,7 @@ func (s Service) ListTrash(ctx context.Context) ([]TrashItem, error) {
 	return s.store.ListTrash(ctx)
 }
 
-func (s Service) RestoreWorkspace(ctx context.Context, id string) (project.Project, error) {
+func (s Service) RestoreWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
 	return s.store.RestoreTrashedWorkspaceAtomic(ctx, id)
 }
 

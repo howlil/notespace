@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
@@ -49,7 +50,7 @@ func newLibraryAPI(store *sqlite.Store) http.Handler {
 		ActivityReferences: store,
 		Assets:   store,
 		Health:   store.Healthy,
-	}), store))
+	}), library.NewService(store)))
 }
 func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	t.Helper()

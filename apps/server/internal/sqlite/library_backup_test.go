@@ -131,7 +131,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	planningService := planning.Service{Store: store}
+	planningService := planning.Service{Store: store, Workspaces: store}
 	milestone, err := planningService.CreateMilestone(ctx, workspace.ID, "Ship persistence")
 	if err != nil {
 		t.Fatal(err)

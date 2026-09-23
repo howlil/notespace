@@ -12,7 +12,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/workspace"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/migrations"
 )
 
@@ -20,9 +20,9 @@ const libraryBackupFormat = "notespace-backup"
 const libraryBackupVersion = 1
 
 type workspaceEnvelope struct {
-	Project workspace.Workspace         `json:"project"`
+	Project workspacepkg.Workspace         `json:"project"`
 	Plan    planning.Plan                `json:"plan,omitempty"`
-	History []workspace.HistorySnapshot `json:"history"`
+	History []workspacepkg.HistorySnapshot `json:"history"`
 	Assets  []asset.Stored               `json:"assets"`
 }
 
@@ -45,7 +45,7 @@ type libraryBackup struct {
 	Format      string                      `json:"format"`
 	Version     int                         `json:"version"`
 	GeneratedAt string                      `json:"generatedAt"`
-	Categories  []workspace.CategorySummary `json:"categories"`
+	Categories  []workspacepkg.CategorySummary `json:"categories"`
 	Workspaces  []workspaceEnvelope         `json:"workspaces"`
 	Tasks       []planning.Task             `json:"standaloneTasks,omitempty"`
 	Trash       []trashRecord               `json:"trash"`
@@ -61,7 +61,7 @@ func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnve
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	history := make([]workspace.HistorySnapshot, 0, len(entries))
+	history := make([]workspacepkg.HistorySnapshot, 0, len(entries))
 	for _, entry := range entries {
 		snapshot, err := s.GetHistory(ctx, id, entry.ID)
 		if err != nil {
@@ -113,7 +113,7 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string) error {
 		return err
 	}
 	if count == 0 {
-		return workspace.ErrNotFound
+		return workspacepkg.ErrNotFound
 	}
 	return tx.Commit()
 }
@@ -144,7 +144,7 @@ func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT id,category_id,title,deleted_at,payload FROM workspace_trash WHERE id=?`, id).
 		Scan(&record.ID, &record.CategoryID, &record.Title, &record.DeletedAt, &payload)
 	if errors.Is(err, sql.ErrNoRows) {
-		return record, workspace.ErrNotFound
+		return record, workspacepkg.ErrNotFound
 	}
 	if err != nil {
 		return record, err
@@ -158,20 +158,20 @@ func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {
 func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) error {
 	authored := envelope.Project
 	authored.CategoryID = categoryID
-	if err := workspace.ValidateWorkspace(authored); err != nil {
+	if err := workspacepkg.ValidateWorkspace(authored); err != nil {
 		return err
 	}
 	for _, checkpoint := range envelope.History {
 		if checkpoint.WorkspaceID != authored.ID {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
-		if err := workspace.ValidateHistorySnapshot(checkpoint); err != nil {
+		if err := workspacepkg.ValidateHistorySnapshot(checkpoint); err != nil {
 			return err
 		}
 	}
 	for _, stored := range envelope.Assets {
 		if stored.ID == "" || stored.WorkspaceID != authored.ID || stored.MimeType == "" || len(stored.Data) == 0 {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 	}
 	plan := envelope.Plan
@@ -179,7 +179,7 @@ func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) er
 		plan.WorkspaceID = authored.ID
 	}
 	if err := planning.ValidatePlan(plan, authored.ID); err != nil {
-		return workspace.ErrInvalid
+		return workspacepkg.ErrInvalid
 	}
 	return nil
 }
@@ -226,35 +226,35 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 	return nil
 }
 
-func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
+func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (workspacepkg.Workspace, error) {
 	record, err := s.readTrash(ctx, id)
 	if err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	defer tx.Rollback()
 	categoryID := record.CategoryID
 	var categoryCount int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, categoryID).Scan(&categoryCount); err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	if categoryCount == 0 {
-		categoryID = workspace.UncategorizedCategoryID
+		categoryID = workspacepkg.UncategorizedCategoryID
 	}
 	if err := restoreWorkspaceTx(ctx, tx, record.Payload, categoryID); err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_trash WHERE id=?`, id); err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	if err := migrations.Validate(ctx, tx); err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return workspace.Workspace{}, err
+		return workspacepkg.Workspace{}, err
 	}
 	return s.Get(ctx, id)
 }
@@ -269,7 +269,7 @@ func (s *Store) DeleteTrashedWorkspace(ctx context.Context, id string) error {
 		return err
 	}
 	if count == 0 {
-		return workspace.ErrNotFound
+		return workspacepkg.ErrNotFound
 	}
 	return nil
 }
@@ -362,52 +362,52 @@ func (s *Store) RestoreBackupJSON(ctx context.Context, data []byte) error {
 		return fmt.Errorf("decode backup: %w", err)
 	}
 	if backup.Format != libraryBackupFormat || backup.Version != libraryBackupVersion {
-		return workspace.ErrInvalid
+		return workspacepkg.ErrInvalid
 	}
 	if len(backup.Categories) == 0 {
-		return workspace.ErrInvalid
+		return workspacepkg.ErrInvalid
 	}
 	categoryIDs := map[string]bool{}
 	for _, category := range backup.Categories {
 		if category.ID == "" || category.Title == "" || categoryIDs[category.ID] {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 		categoryIDs[category.ID] = true
 	}
-	if !categoryIDs[workspace.UncategorizedCategoryID] {
-		return workspace.ErrInvalid
+	if !categoryIDs[workspacepkg.UncategorizedCategoryID] {
+		return workspacepkg.ErrInvalid
 	}
 	workspaceIDs := map[string]bool{}
 	activeTaskIDs := map[string]bool{}
 	for _, envelope := range backup.Workspaces {
 		if envelope.Project.ID == "" || workspaceIDs[envelope.Project.ID] || !categoryIDs[envelope.Project.CategoryID] {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 		workspaceIDs[envelope.Project.ID] = true
 		for _, task := range envelope.Plan.Tasks {
 			if activeTaskIDs[task.ID] {
-				return workspace.ErrInvalid
+				return workspacepkg.ErrInvalid
 			}
 			activeTaskIDs[task.ID] = true
 		}
 	}
 	for _, task := range backup.Tasks {
 		if planning.ValidateStandaloneTask(task) != nil || activeTaskIDs[task.ID] {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 		activeTaskIDs[task.ID] = true
 	}
 	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
 		if !activity.ValidActivityType(session.ActivityType) {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 	}
 
 	trashIDs := map[string]bool{}
 	for _, record := range backup.Trash {
 		if record.ID == "" || trashIDs[record.ID] || record.Payload.Project.ID != record.ID || workspaceIDs[record.ID] {
-			return workspace.ErrInvalid
+			return workspacepkg.ErrInvalid
 		}
 		trashIDs[record.ID] = true
 		if err := validateWorkspaceEnvelope(record.Payload, record.CategoryID); err != nil {

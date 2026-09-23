@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultEraserOrigin    = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
+	DefaultEraserOrigin   = "https://storage.googleapis.com/eraser-public-assets/canvas-icons/"
 	maxEraserIconBytes    = 1 << 20
 	maxEraserCacheBytes   = 64 << 20
 	maxEraserCacheEntries = 512
@@ -234,4 +234,3 @@ func (g *EraserSource) Fetch(ctx context.Context, slug string) (Entry, error) {
 	g.mu.Unlock()
 	return entry, err
 }
-

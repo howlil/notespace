@@ -13,10 +13,10 @@ import {
 import {
   useActivitySession,
   type ActivityStart,
-  type StudySessionState,
-} from "./use-study-session";
+  type ActivitySessionState,
+} from "./use-activity-session";
 
-export type ActivityRuntimeState = StudySessionState & {
+export type ActivityRuntimeState = ActivitySessionState & {
   handoffTask: PlanningTask | null;
   handoffResolving: boolean;
   handoffBusy: boolean;

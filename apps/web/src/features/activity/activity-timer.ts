@@ -1,6 +1,6 @@
 import type { ActivityType } from "../../adapters/http/activity-api";
 
-export type StudyBaseline = { todaySeconds: number; totalSeconds: number };
+export type ActivityBaseline = { todaySeconds: number; totalSeconds: number };
 
 export type ActivitySessionContext = {
   title: string;
@@ -11,7 +11,7 @@ export type ActivitySessionContext = {
   taskTitleSnapshot?: string;
 };
 
-export type ManualStudySession = {
+export type ManualActivitySession = {
   logicalSessionId: string;
   context?: ActivitySessionContext;
   segmentId: string;
@@ -24,7 +24,7 @@ export type ManualStudySession = {
   baselineTotalSeconds: number;
 };
 
-export type CompletedStudySegment = {
+export type CompletedActivitySegment = {
   id: string;
   date: string;
   activeSeconds: number;
@@ -37,7 +37,7 @@ export function localDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function studySegmentId(logicalSessionId: string, activityDate: string) {
+export function activitySegmentId(logicalSessionId: string, activityDate: string) {
   return `${logicalSessionId}:${activityDate}`;
 }
 
@@ -51,17 +51,17 @@ function elapsedSeconds(from: number | null, to: number) {
   return Math.max(0, Math.floor((to - from) / 1000));
 }
 
-export function currentSessionSeconds(session: ManualStudySession, now = Date.now()) {
+export function currentSessionSeconds(session: ManualActivitySession, now = Date.now()) {
   return Math.max(0, session.sessionAccumulatedSeconds)
     + (session.status === "running" ? elapsedSeconds(session.runningSince, now) : 0);
 }
 
-export function currentSegmentSeconds(session: ManualStudySession, now = Date.now()) {
+export function currentSegmentSeconds(session: ManualActivitySession, now = Date.now()) {
   return Math.max(0, session.segmentAccumulatedSeconds)
     + (session.status === "running" ? elapsedSeconds(session.runningSince, now) : 0);
 }
 
-export function materializeStudySession(session: ManualStudySession, now = Date.now()): ManualStudySession {
+export function materializeActivitySession(session: ManualActivitySession, now = Date.now()): ManualActivitySession {
   if (session.status !== "running") return session;
   const elapsed = elapsedSeconds(session.runningSince, now);
   return {
@@ -73,19 +73,19 @@ export function materializeStudySession(session: ManualStudySession, now = Date.
   };
 }
 
-export function resumeStudySession(session: ManualStudySession, now = Date.now()): ManualStudySession {
+export function resumeActivitySession(session: ManualActivitySession, now = Date.now()): ManualActivitySession {
   if (session.status !== "paused") return session;
   return { ...session, status: "running", runningSince: now };
 }
 
-export function advanceStudySession(
-  session: ManualStudySession,
+export function advanceActivitySession(
+  session: ManualActivitySession,
   now: number,
-): { session: ManualStudySession; completed: CompletedStudySegment[] } {
+): { session: ManualActivitySession; completed: CompletedActivitySegment[] } {
   const targetDate = localDate(new Date(now));
   if (session.activityDate >= targetDate) return { session, completed: [] };
 
-  const completed: CompletedStudySegment[] = [];
+  const completed: CompletedActivitySegment[] = [];
   let current = { ...session };
 
   if (current.status === "paused") {
@@ -94,7 +94,7 @@ export function advanceStudySession(
       completed,
       session: {
         ...current,
-        segmentId: studySegmentId(current.logicalSessionId, targetDate),
+        segmentId: activitySegmentId(current.logicalSessionId, targetDate),
         activityDate: targetDate,
         segmentAccumulatedSeconds: 0,
         baselineTodaySeconds: 0,
@@ -111,7 +111,7 @@ export function advanceStudySession(
     const nextDate = localDate(new Date(boundary));
     current = {
       ...current,
-      segmentId: studySegmentId(current.logicalSessionId, nextDate),
+      segmentId: activitySegmentId(current.logicalSessionId, nextDate),
       activityDate: nextDate,
       sessionAccumulatedSeconds: sessionSeconds,
       segmentAccumulatedSeconds: 0,
@@ -123,7 +123,7 @@ export function advanceStudySession(
   return { session: current, completed };
 }
 
-export function combineStudyStats(baseline: StudyBaseline, todayCurrentSeconds: number, totalCurrentSeconds = todayCurrentSeconds) {
+export function combineActivityStats(baseline: ActivityBaseline, todayCurrentSeconds: number, totalCurrentSeconds = todayCurrentSeconds) {
   return {
     todaySeconds: Math.max(0, baseline.todaySeconds) + Math.max(0, todayCurrentSeconds),
     totalSeconds: Math.max(0, baseline.totalSeconds) + Math.max(0, totalCurrentSeconds),

@@ -152,4 +152,3 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, er
 	}
 	return s.hydrateGranularState(ctx, value)
 }
-

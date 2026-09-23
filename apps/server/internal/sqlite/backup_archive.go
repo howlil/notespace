@@ -14,7 +14,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
@@ -39,9 +39,9 @@ type archiveAsset struct {
 }
 
 type archiveWorkspaceEnvelope struct {
-	Project project.Project           `json:"project"`
+	Project workspace.Workspace           `json:"project"`
 	Plan    planning.Plan             `json:"plan,omitempty"`
-	History []project.HistorySnapshot `json:"history"`
+	History []workspace.HistorySnapshot `json:"history"`
 	Assets  []archiveAsset            `json:"assets"`
 }
 
@@ -58,7 +58,7 @@ type libraryArchiveManifest struct {
 	Version       int                        `json:"version"`
 	SchemaVersion int                        `json:"schemaVersion"`
 	GeneratedAt   string                     `json:"generatedAt"`
-	Categories    []project.CategorySummary  `json:"categories"`
+	Categories    []workspace.CategorySummary  `json:"categories"`
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
 	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
 	Trash         []archiveTrashRecord       `json:"trash"`
@@ -142,7 +142,7 @@ func (s *Store) ExportBackupArchiveAtomic(ctx context.Context) ([]byte, error) {
 }
 
 func invalidArchive(message string) error {
-	return fmt.Errorf("%s: %w", message, project.ErrInvalid)
+	return fmt.Errorf("%s: %w", message, workspace.ErrInvalid)
 }
 
 func readArchiveEntry(file *zip.File, limit uint64) ([]byte, error) {

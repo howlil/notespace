@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestWorkspaceAssetPersistsAcrossReopen(t *testing.T) {
@@ -19,7 +19,7 @@ func TestWorkspaceAssetPersistsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Asset durability")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Asset durability")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,15 +53,15 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 	}
 	defer store.Close()
 	indexed := NewIndexedProjectStore(store)
-	service := project.Service{Store: indexed}
+	service := workspace.Service{Store: indexed}
 	workspace, err := service.Create(ctx, "Search workspace")
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-needle"},"content":[{"type":"text","text":"Raft consensus needle"}]}]}`)}
-	notes := append([]project.Note(nil), workspace.Notes...)
+	document := workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-needle"},"content":[{"type":"text","text":"Raft consensus needle"}]}]}`)}
+	notes := append([]workspace.Note(nil), workspace.Notes...)
 	notes[0].Document = document
-	if _, err := service.Update(ctx, workspace.ID, project.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []project.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
+	if _, err := service.Update(ctx, workspace.ID, workspace.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspace.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -84,15 +84,15 @@ func TestIndexedSearchTreatsQuotesAsPunctuationAndSupportsUnicode(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	workspace, err := service.Create(ctx, "International search")
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"unicode-block"},"content":[{"type":"text","text":"Raft consensus 日本語 knowledge"}]}]}`)}
-	notes := append([]project.Note(nil), workspace.Notes...)
+	document := workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"unicode-block"},"content":[{"type":"text","text":"Raft consensus 日本語 knowledge"}]}]}`)}
+	notes := append([]workspace.Note(nil), workspace.Notes...)
 	notes[0].Document = document
-	if _, err := service.Update(ctx, workspace.ID, project.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []project.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
+	if _, err := service.Update(ctx, workspace.ID, workspace.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspace.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,14 +137,14 @@ func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
 	defer store.Close()
 
 	indexed := NewIndexedProjectStore(store)
-	service := project.Service{Store: indexed}
+	service := workspace.Service{Store: indexed}
 	workspace, err := service.Create(ctx, "Lazy search")
 	if err != nil {
 		t.Fatal(err)
 	}
 	note := workspace.Notes[0]
-	document := project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"lazy-block"},"content":[{"type":"text","text":"deferred projection needle"}]}]}`)}
-	note, err = service.UpdateNote(ctx, workspace.ID, note.ID, project.NoteUpdate{
+	document := workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"lazy-block"},"content":[{"type":"text","text":"deferred projection needle"}]}]}`)}
+	note, err = service.UpdateNote(ctx, workspace.ID, note.ID, workspace.NoteUpdate{
 		Title: note.Title, Document: document, Version: note.Version,
 	})
 	if err != nil {
@@ -191,7 +191,7 @@ func TestWorkspaceExistsAndAssetPutAvoidHydratedReadback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Asset fast path")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Asset fast path")
 	if err != nil {
 		t.Fatal(err)
 	}

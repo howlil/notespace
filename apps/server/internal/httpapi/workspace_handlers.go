@@ -157,11 +157,11 @@ func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
-	if err := a.service.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
+	if err := a.library.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
 		fail(w, err)
 		return
 	}
-	send(w, 204, nil)
+	send(w, http.StatusNoContent, nil)
 }
 
 func (a API) create(w http.ResponseWriter, r *http.Request) {
@@ -299,9 +299,14 @@ func (a API) move(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
-	if err := a.service.Delete(r.Context(), r.PathValue("id")); err != nil {
+	version, err := expectedVersion(r)
+	if err != nil {
 		fail(w, err)
 		return
 	}
-	send(w, 204, nil)
+	if err := a.library.TrashWorkspace(r.Context(), r.PathValue("id"), version); err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusNoContent, nil)
 }

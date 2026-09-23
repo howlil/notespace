@@ -25,4 +25,3 @@ func WithSameOriginMutations(base http.Handler) http.Handler {
 		base.ServeHTTP(w, r)
 	})
 }
-

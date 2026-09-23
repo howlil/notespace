@@ -12,10 +12,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 const libraryArchiveVersion = 2
@@ -39,10 +39,10 @@ type archiveAsset struct {
 }
 
 type archiveWorkspaceEnvelope struct {
-	Project workspace.Workspace           `json:"project"`
-	Plan    planning.Plan             `json:"plan,omitempty"`
+	Project workspace.Workspace         `json:"project"`
+	Plan    planning.Plan                `json:"plan,omitempty"`
 	History []workspace.HistorySnapshot `json:"history"`
-	Assets  []archiveAsset            `json:"assets"`
+	Assets  []archiveAsset               `json:"assets"`
 }
 
 type archiveTrashRecord struct {
@@ -59,11 +59,11 @@ type libraryArchiveManifest struct {
 	SchemaVersion int                        `json:"schemaVersion"`
 	GeneratedAt   string                     `json:"generatedAt"`
 	Categories    []workspace.CategorySummary  `json:"categories"`
-	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
-	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
-	Trash         []archiveTrashRecord       `json:"trash"`
-	Activity         []activity.Session            `json:"studySessions"`
-	Blobs         []archiveBlob              `json:"blobs"`
+	Workspaces    []archiveWorkspaceEnvelope   `json:"workspaces"`
+	Tasks         []planning.Task              `json:"standaloneTasks,omitempty"`
+	Trash         []archiveTrashRecord         `json:"trash"`
+	Activity      []activity.Session           `json:"studySessions"`
+	Blobs         []archiveBlob                `json:"blobs"`
 }
 
 func archiveHash(data []byte) string {

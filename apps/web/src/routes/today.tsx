@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { listCategories } from "../adapters/http/workspace-api";
 import { getToday } from "../adapters/http/planning-api";
 import { localDateKey } from "../domain/planning/planning";
-import { RoutePending } from "../app/feedback/RoutePending";
+import { RoutePending } from "../pages/_shared/RoutePending";
 import { TodayPage } from "../pages/today/TodayPage";
 
 export const Route = createFileRoute("/today")({

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getWorkspace, listCategoryWorkspaces, listCategories } from "../adapters/http/workspace-api";
 import { WorkspacePage } from "../pages/workspace/WorkspacePage";
-import { RoutePending } from "../app/feedback/RoutePending";
+import { RoutePending } from "../pages/_shared/RoutePending";
 
 export const Route = createFileRoute("/workspaces/$workspaceId")({
   ssr: false,

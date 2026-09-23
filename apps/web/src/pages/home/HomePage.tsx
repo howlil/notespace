@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Sidebar } from "../../app/shell/Sidebar";
+import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import { ThemeToggle } from "../../app/providers/theme-provider";
-import { useToast } from "../../app/providers/toast-provider";
+import { ThemeToggle } from "../../shared/ui/theme-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
@@ -427,7 +427,7 @@ export function HomePage({ categories, recentWorkspaces, initialSelectedCategory
 
   return (
     <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
-      <Sidebar
+      <LibrarySidebar
         categories={categoryItems}
         selectedCategoryId={selectedCategoryId}
         onSelectCategory={(id) => { void selectCategory(id); }}

@@ -44,13 +44,12 @@ function localImports(file: string) {
     .map((value) => resolve(dirname(file), value));
 }
 
-const layers = ["routes", "pages", "app", "features", "adapters", "domain", "shared"] as const;
+const layers = ["routes", "pages", "features", "adapters", "domain", "shared"] as const;
 type Layer = (typeof layers)[number];
 
 const allowedDependencies: Record<Layer, ReadonlySet<Layer>> = {
   routes: new Set(["routes", "pages", "features", "adapters", "domain", "shared"]),
   pages: new Set(["pages", "features", "adapters", "domain", "shared"]),
-  app: new Set(["app", "features", "adapters", "domain", "shared"]),
   features: new Set(["features", "adapters", "domain", "shared"]),
   adapters: new Set(["adapters", "domain", "shared"]),
   domain: new Set(["domain"]),
@@ -65,19 +64,6 @@ function isLayer(value: string): value is Layer {
   return (layers as readonly string[]).includes(value);
 }
 
-function legacyAppDependencyAllowed(sourceFile: string, target: string) {
-  const sourceLayer = topLevelLayer(sourceFile);
-
-  // Transitional W0 exceptions. W1 removes src/app entirely.
-  if (target.startsWith("app/providers/")) {
-    return sourceLayer === "routes" || sourceLayer === "pages" || sourceLayer === "features" || sourceLayer === "app";
-  }
-  if (target === "app/shell/Sidebar") return sourceLayer === "pages";
-  if (target === "app/feedback/RoutePending") return sourceLayer === "routes";
-  if (target === "app/brand/NotespaceLogo") return sourceLayer === "app";
-  return false;
-}
-
 function assertAllowedDependencyGraph() {
   for (const sourceLayer of layers) {
     const root = join(WEB_SRC, sourceLayer);
@@ -87,8 +73,6 @@ function assertAllowedDependencyGraph() {
       for (const dependency of localImports(file)) {
         const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
         const targetLayer = topLevelLayer(dependency);
-
-        if (targetLayer === "app" && legacyAppDependencyAllowed(file, target)) continue;
 
         assert.ok(
           isLayer(targetLayer) && allowedDependencies[sourceLayer].has(targetLayer),
@@ -127,6 +111,7 @@ test("top-level source directories are intentional architecture boundaries", () 
 });
 
 test("legacy generic web buckets are removed after ownership migration", () => {
+  assert.equal(existsSync(join(WEB_SRC, "app")), false);
   assert.equal(existsSync(join(WEB_SRC, "components")), false);
   assert.equal(existsSync(join(WEB_SRC, "providers")), false);
   assert.equal(existsSync(join(WEB_SRC, "browser")), false);
@@ -236,6 +221,11 @@ test("diagram domain does not depend on workspace authoring internals", () => {
       );
     }
   }
+});
+
+test("generic browser storage lives in shared foundation", () => {
+  assert.equal(existsSync(join(WEB_SRC, "adapters", "browser", "local-storage.ts")), false);
+  assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "local-storage.ts")), true);
 });
 
 test("browser event and asset initialization stay behind explicit boundaries", () => {

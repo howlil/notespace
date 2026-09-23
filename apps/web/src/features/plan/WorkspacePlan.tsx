@@ -30,7 +30,7 @@ import {
   type PlanningTask,
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }

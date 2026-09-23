@@ -16,7 +16,7 @@ import {
 import type { TrashWorkspace } from "../../adapters/http/workspace-api";
 import { createLocalAssetId, storeImageAsset } from "../../adapters/assets/image-store";
 import { saveWorkspace } from "./save-workspace";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { importVaultFiles } from "./vault-import-workflow";
 

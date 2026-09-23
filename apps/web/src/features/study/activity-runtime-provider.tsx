@@ -3,7 +3,7 @@ import { recordActivityHeartbeat } from "../../adapters/http/activity-api";
 import { APIError } from "../../adapters/http/client";
 import { getAnyTask, updateAnyTask } from "../../adapters/http/planning-api";
 import type { PlanningTask } from "../../domain/planning/planning";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import {
   ACTIVITY_RECOVERY_PENDING_EVENT,
   acknowledgeActivityFinalization,

@@ -4,8 +4,8 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogT
 import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { createWorkspaceNote, getWorkspace, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../adapters/http/workspace-api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
-import { useToast } from "../../app/providers/toast-provider";
-import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
+import { useToast } from "../../shared/ui/toast-provider";
+import { readLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
 import type { CaptureWorkspaceOption } from "./workspace-options";

@@ -10,7 +10,7 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/t
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
-import { readLocalStorage, writeLocalStorage } from "../../../adapters/browser/local-storage";
+import { readLocalStorage, writeLocalStorage } from "../../../shared/browser/local-storage";
 import type { Note, Snapshot } from "../../../domain/workspace/workspace";
 import { DiagramPalette } from "../diagram/DiagramPalette";
 import {
@@ -22,7 +22,7 @@ import {
   type DiagramSelection,
   type StructuredDiagram,
 } from "../../../domain/diagram/diagram";
-import { useToast } from "../../../app/providers/toast-provider";
+import { useToast } from "../../../shared/ui/toast-provider";
 import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./canvas-state";
 import { directionFromKey } from "./CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./CanvasCodeBlockActions";

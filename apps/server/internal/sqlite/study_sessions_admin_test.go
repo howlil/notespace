@@ -53,7 +53,7 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sessions, err := store.ListStudySessions(ctx, "workspace-1", 8)
+	sessions, err := store.ListWorkspaceSessions(ctx, "workspace-1", 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,17 +64,17 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 		t.Fatalf("workspace snapshot = %q, want renamed value", sessions[0].WorkspaceTitleSnapshot)
 	}
 
-	if err := store.DeleteStudySession(ctx, "workspace-1", "session-1"); err != nil {
+	if err := store.DeleteWorkspaceSession(ctx, "workspace-1", "session-1"); err != nil {
 		t.Fatal(err)
 	}
-	sessions, err = store.ListStudySessions(ctx, "workspace-1", 8)
+	sessions, err = store.ListWorkspaceSessions(ctx, "workspace-1", 8)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(sessions) != 0 {
 		t.Fatalf("sessions after delete = %#v, want empty history", sessions)
 	}
-	if err := store.DeleteStudySession(ctx, "workspace-1", "session-1"); !errors.Is(err, activity.ErrNotFound) {
+	if err := store.DeleteWorkspaceSession(ctx, "workspace-1", "session-1"); !errors.Is(err, activity.ErrNotFound) {
 		t.Fatalf("second delete error = %v, want activity.ErrNotFound", err)
 	}
 }

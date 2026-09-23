@@ -18,4 +18,3 @@ type Store interface {
 type WorkspaceLookup interface {
 	WorkspaceExists(context.Context, string) (bool, error)
 }
-

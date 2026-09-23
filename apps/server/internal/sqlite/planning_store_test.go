@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {
@@ -19,7 +19,7 @@ func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Planning durability")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Planning durability")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestPlanningRejectsStaleTaskUpdate(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Planning conflict")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Planning conflict")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Today workspace")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Today workspace")
 	if err != nil {
 		t.Fatal(err)
 	}

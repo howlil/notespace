@@ -15,7 +15,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func call(t *testing.T, api http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -58,18 +58,18 @@ func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 		t.Fatalf("status %d, want %d: %s", res.Code, status, res.Body.String())
 	}
 }
-func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) project.Project {
+func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) workspace.Workspace {
 	t.Helper()
-	var p project.Project
+	var p workspace.Workspace
 	if err := json.Unmarshal(res.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
 
-func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.CategorySummary {
+func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []workspace.CategorySummary {
 	t.Helper()
-	var categories []project.CategorySummary
+	var categories []workspace.CategorySummary
 	if err := json.Unmarshal(res.Body.Bytes(), &categories); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Computer Science"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspace.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -133,8 +133,8 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 	api := newAPI(store)
 
 	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Root workspace"}))
-	if workspace.CategoryID != project.UncategorizedCategoryID {
-		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, project.UncategorizedCategoryID)
+	if workspace.CategoryID != workspace.UncategorizedCategoryID {
+		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, workspace.UncategorizedCategoryID)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspace.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	page := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?q=go&limit=1", nil)
 	expect(t, page, 200)
 	var result struct {
-		Items      []project.Summary `json:"items"`
+		Items      []workspace.Summary `json:"items"`
 		Total      int               `json:"total"`
 		NextOffset *int              `json:"nextOffset"`
 	}
@@ -188,7 +188,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspace.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 
-	var firstCategory, secondCategory project.CategorySummary
+	var firstCategory, secondCategory workspace.CategorySummary
 	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Learning"}).Body.Bytes(), &firstCategory); err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	all := call(t, api, "GET", "/api/workspaces?limit=1", nil)
 	expect(t, all, 200)
 	var page struct {
-		Items      []project.Summary `json:"items"`
+		Items      []workspace.Summary `json:"items"`
 		Total      int               `json:"total"`
 		NextOffset *int              `json:"nextOffset"`
 	}
@@ -272,8 +272,8 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Research"}))
-	second := project.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
-	update := project.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
+	second := workspace.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	update := workspace.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
 	got := decodeWorkspace(t, saved)
@@ -296,23 +296,23 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Note actions"}))
 	note := p.Notes[0]
-	note.Document = project.Snapshot{
+	note.Document = workspace.Snapshot{
 		Format:  "tiptap",
 		Version: 1,
 		Data:    json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"highlight-block"},"content":[{"type":"text","text":"Marked","marks":[{"type":"highlight"}]}]}]}`),
 	}
-	canvas := project.Snapshot{
+	canvas := workspace.Snapshot{
 		Format:  "excalidraw",
 		Version: 1,
 		Data:    json.RawMessage(`{"elements":[{"id":"linked-element","type":"rectangle"}],"appState":{},"files":{}}`),
 	}
-	update := project.Update{
+	update := workspace.Update{
 		Title:      p.Title,
 		Version:    p.Version,
 		Document:   note.Document,
-		Notes:      []project.Note{note},
+		Notes:      []workspace.Note{note},
 		Canvas:     canvas,
-		References: []project.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
+		References: []workspace.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
 		SplitRatio: p.SplitRatio,
 	}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
@@ -325,12 +325,12 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 		t.Fatalf("reference mapping was not persisted: %+v", reloaded.References)
 	}
 
-	second := project.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	second := workspace.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 	deleted := update
 	deleted.Version = reloaded.Version
 	deleted.Document = second.Document
-	deleted.Notes = []project.Note{second}
-	deleted.References = []project.Reference{}
+	deleted.Notes = []workspace.Note{second}
+	deleted.References = []workspace.Reference{}
 	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, deleted), 200)
 	afterDelete := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
 	if len(afterDelete.Notes) != 1 || afterDelete.Notes[0].ID != second.ID || len(afterDelete.References) != 0 {
@@ -355,10 +355,10 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	created := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems"})
 	expect(t, created, 201)
 	p := decodeWorkspace(t, created)
-	update := project.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
-		Document:   project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
-		Canvas:     project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
-		References: []project.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
+	update := workspace.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
+		Document:   workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
+		Canvas:     workspace.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
+		References: []workspace.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
 	}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
@@ -480,7 +480,7 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 	}
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Keep me"}))
-	update := project.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
+	update := workspace.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
 	update.Document.Format = "unknown"
 	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
 	update.Document = p.Document
@@ -651,13 +651,13 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Search workspace"}))
-	p.Document = project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
+	p.Document = workspace.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
 	p.Notes[0].Document = p.Document
-	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspace.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, saved, 200)
 	results := call(t, api, "GET", "/api/search?q=consensus", nil)
 	expect(t, results, 200)
-	var got []project.SearchResult
+	var got []workspace.SearchResult
 	if err := json.Unmarshal(results.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -676,7 +676,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Portable workspace"}))
 	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
-	var entries []project.HistoryEntry
+	var entries []workspace.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
 		t.Fatal(err)
 	}
@@ -696,14 +696,14 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "History"}))
 	first := p.Document
 	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
-	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
+	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspace.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
 	second := saved.Document
 	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
-	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspace.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, updated, 200)
 	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
-	var entries []project.HistoryEntry
+	var entries []workspace.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
 		t.Fatal(err)
 	}
@@ -729,7 +729,7 @@ func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 
 	response := call(t, api, "GET", "/api/workspaces/"+workspace.ID+"/canvas", nil)
 	expect(t, response, http.StatusOK)
-	var state project.CanvasState
+	var state workspace.CanvasState
 	if err := json.Unmarshal(response.Body.Bytes(), &state); err != nil {
 		t.Fatal(err)
 	}

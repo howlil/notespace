@@ -13,13 +13,13 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 type API struct {
 	service     project.Service
 	planning    planning.Service
-	study       study.Service
+	study       activity.Service
 	assets      asset.Store
 	health      func(context.Context) error
 	eraserIcons *eraserIconGateway
@@ -28,7 +28,7 @@ type API struct {
 type Dependencies struct {
 	Projects project.Store
 	Planning planning.Store
-	Study    study.Store
+	Study    activity.Store
 	Assets   asset.Store
 	Health   func(context.Context) error
 }
@@ -49,7 +49,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, study: study.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, study: activity.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -182,9 +182,9 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 404, map[string]string{"error": "Image asset not found"})
 	case errors.Is(err, asset.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid image asset"})
-	case errors.Is(err, study.ErrNotFound):
+	case errors.Is(err, activity.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Activity session not found"})
-	case errors.Is(err, study.ErrInvalid):
+	case errors.Is(err, activity.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid activity"})
 	default:
 		slog.Error("workspace operation failed", "error", err)

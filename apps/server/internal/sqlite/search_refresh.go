@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func (s *Store) refreshWorkspaceSearch(ctx context.Context, workspaceID string) error {
@@ -68,7 +68,7 @@ func (s *Store) refreshNoteSearch(ctx context.Context, workspaceID, noteID strin
 	if err := tx.QueryRowContext(ctx, `SELECT title,document_state FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID).Scan(&noteTitle, &encodedDocument); err != nil {
 		return err
 	}
-	var document project.Snapshot
+	var document workspace.Snapshot
 	if err := json.Unmarshal([]byte(encodedDocument), &document); err != nil {
 		return err
 	}

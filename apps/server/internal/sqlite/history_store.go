@@ -23,12 +23,12 @@ type execContext interface {
 const historyCheckpointInterval = 5 * time.Minute
 
 type historyPayload struct {
-	Title      string              `json:"title"`
-	Document   workspace.Snapshot  `json:"document"`
-	Notes      []workspace.Note    `json:"notes"`
-	Canvas     workspace.Snapshot  `json:"canvas"`
+	Title      string                `json:"title"`
+	Document   workspace.Snapshot    `json:"document"`
+	Notes      []workspace.Note      `json:"notes"`
+	Canvas     workspace.Snapshot    `json:"canvas"`
 	References []workspace.Reference `json:"references"`
-	SplitRatio float64             `json:"splitRatio"`
+	SplitRatio float64               `json:"splitRatio"`
 }
 
 type authoredHistoryPayload struct {

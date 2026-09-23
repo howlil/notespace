@@ -13,7 +13,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type execContext interface {
@@ -24,29 +24,29 @@ const historyCheckpointInterval = 5 * time.Minute
 
 type historyPayload struct {
 	Title      string              `json:"title"`
-	Document   project.Snapshot    `json:"document"`
-	Notes      []project.Note      `json:"notes"`
-	Canvas     project.Snapshot    `json:"canvas"`
-	References []project.Reference `json:"references"`
+	Document   workspace.Snapshot    `json:"document"`
+	Notes      []workspace.Note      `json:"notes"`
+	Canvas     workspace.Snapshot    `json:"canvas"`
+	References []workspace.Reference `json:"references"`
 	SplitRatio float64             `json:"splitRatio"`
 }
 
 type authoredHistoryPayload struct {
 	Title      string              `json:"title"`
-	Document   project.Snapshot    `json:"document"`
-	Notes      []project.Note      `json:"notes"`
-	Canvas     project.Snapshot    `json:"canvas"`
-	References []project.Reference `json:"references"`
+	Document   workspace.Snapshot    `json:"document"`
+	Notes      []workspace.Note      `json:"notes"`
+	Canvas     workspace.Snapshot    `json:"canvas"`
+	References []workspace.Reference `json:"references"`
 }
 
-func makeHistoryPayload(snapshot project.HistorySnapshot) historyPayload {
+func makeHistoryPayload(snapshot workspace.HistorySnapshot) historyPayload {
 	return historyPayload{
 		Title: snapshot.Title, Document: snapshot.Document, Notes: snapshot.Notes,
 		Canvas: snapshot.Canvas, References: snapshot.References, SplitRatio: snapshot.SplitRatio,
 	}
 }
 
-func historyAuthoredHash(snapshot project.HistorySnapshot) (string, error) {
+func historyAuthoredHash(snapshot workspace.HistorySnapshot) (string, error) {
 	raw, err := json.Marshal(authoredHistoryPayload{
 		Title: snapshot.Title, Document: snapshot.Document, Notes: snapshot.Notes,
 		Canvas: snapshot.Canvas, References: snapshot.References,
@@ -58,7 +58,7 @@ func historyAuthoredHash(snapshot project.HistorySnapshot) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func encodeHistoryPayload(snapshot project.HistorySnapshot) ([]byte, string, error) {
+func encodeHistoryPayload(snapshot workspace.HistorySnapshot) ([]byte, string, error) {
 	raw, err := json.Marshal(makeHistoryPayload(snapshot))
 	if err != nil {
 		return nil, "", err
@@ -79,7 +79,7 @@ func encodeHistoryPayload(snapshot project.HistorySnapshot) ([]byte, string, err
 	return compressed.Bytes(), hash, nil
 }
 
-func decodeHistoryPayload(codec string, payload []byte, snapshot *project.HistorySnapshot) error {
+func decodeHistoryPayload(codec string, payload []byte, snapshot *workspace.HistorySnapshot) error {
 	if codec != "zlib-json-v1" {
 		return fmt.Errorf("unsupported history payload codec %q", codec)
 	}
@@ -108,7 +108,7 @@ func decodeHistoryPayload(codec string, payload []byte, snapshot *project.Histor
 	return nil
 }
 
-func createHistory(ctx context.Context, db execContext, snapshot project.HistorySnapshot) error {
+func createHistory(ctx context.Context, db execContext, snapshot workspace.HistorySnapshot) error {
 	payload, hash, err := encodeHistoryPayload(snapshot)
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func createHistory(ctx context.Context, db execContext, snapshot project.History
 	return err
 }
 
-func (s *Store) CreateHistory(ctx context.Context, snapshot project.HistorySnapshot) error {
+func (s *Store) CreateHistory(ctx context.Context, snapshot workspace.HistorySnapshot) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func latestHistoryFor(ctx context.Context, db queryer, workspaceID string) (late
 		latest.Hash = hash.String
 		return latest, true, nil
 	}
-	legacy := project.HistorySnapshot{HistoryEntry: project.HistoryEntry{Title: title}, SplitRatio: splitRatio}
+	legacy := workspace.HistorySnapshot{HistoryEntry: workspace.HistoryEntry{Title: title}, SplitRatio: splitRatio}
 	if err := json.Unmarshal([]byte(document), &legacy.Document); err != nil {
 		return latest, false, err
 	}
@@ -180,7 +180,7 @@ type queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-func shouldCreateHistory(ctx context.Context, db queryer, previous project.HistorySnapshot, now time.Time) (bool, error) {
+func shouldCreateHistory(ctx context.Context, db queryer, previous workspace.HistorySnapshot, now time.Time) (bool, error) {
 	latest, found, err := latestHistoryFor(ctx, db, previous.WorkspaceID)
 	if err != nil {
 		return false, err
@@ -202,15 +202,15 @@ func shouldCreateHistory(ctx context.Context, db queryer, previous project.Histo
 	return true, nil
 }
 
-func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]project.HistoryEntry, error) {
+func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]workspace.HistoryEntry, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id,workspace_id,version,title,created_at FROM workspace_history WHERE workspace_id=? ORDER BY created_at DESC, rowid DESC LIMIT 50`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	entries := []project.HistoryEntry{}
+	entries := []workspace.HistoryEntry{}
 	for rows.Next() {
-		var entry project.HistoryEntry
+		var entry workspace.HistoryEntry
 		if err := rows.Scan(&entry.ID, &entry.WorkspaceID, &entry.Version, &entry.Title, &entry.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -219,14 +219,14 @@ func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]project.
 	return entries, rows.Err()
 }
 
-func (s *Store) GetHistory(ctx context.Context, workspaceID, historyID string) (project.HistorySnapshot, error) {
-	var snapshot project.HistorySnapshot
+func (s *Store) GetHistory(ctx context.Context, workspaceID, historyID string) (workspace.HistorySnapshot, error) {
+	var snapshot workspace.HistorySnapshot
 	var document, notes, canvas, references string
 	var codec sql.NullString
 	var payload []byte
 	err := s.db.QueryRowContext(ctx, `SELECT h.id,h.workspace_id,h.version,h.title,h.document_state,h.notes_state,h.canvas_state,h.references_state,h.split_ratio,h.created_at,p.codec,p.payload FROM workspace_history h LEFT JOIN workspace_history_payload p ON p.history_id=h.id WHERE h.workspace_id=? AND h.id=?`, workspaceID, historyID).Scan(&snapshot.ID, &snapshot.WorkspaceID, &snapshot.Version, &snapshot.Title, &document, &notes, &canvas, &references, &snapshot.SplitRatio, &snapshot.CreatedAt, &codec, &payload)
 	if errors.Is(err, sql.ErrNoRows) {
-		return snapshot, project.ErrNotFound
+		return snapshot, workspace.ErrNotFound
 	}
 	if err != nil {
 		return snapshot, err

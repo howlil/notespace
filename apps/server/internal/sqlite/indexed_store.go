@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 // IndexedProjectStore keeps authored SQLite rows authoritative. Search has its
@@ -22,7 +22,7 @@ func (s *IndexedProjectStore) refresh(ctx context.Context, workspaceID string) {
 	}
 }
 
-func (s *IndexedProjectStore) Create(ctx context.Context, value project.Project) error {
+func (s *IndexedProjectStore) Create(ctx context.Context, value workspace.Workspace) error {
 	if err := s.Store.Create(ctx, value); err != nil {
 		return err
 	}
@@ -30,14 +30,14 @@ func (s *IndexedProjectStore) Create(ctx context.Context, value project.Project)
 	return nil
 }
 
-func (s *IndexedProjectStore) Update(ctx context.Context, id string, update project.Update) (project.Project, error) {
+func (s *IndexedProjectStore) Update(ctx context.Context, id string, update workspace.Update) (workspace.Workspace, error) {
 	// Autosave is the hottest write path. Search compares projection meta with
 	// the authored workspace version and repairs stale entries on demand, so
 	// rebuilding every note/block here only adds latency to the compatibility save response.
 	return s.Store.Update(ctx, id, update)
 }
 
-func (s *IndexedProjectStore) CreateNote(ctx context.Context, workspaceID string, input project.NoteCreate) (project.Note, error) {
+func (s *IndexedProjectStore) CreateNote(ctx context.Context, workspaceID string, input workspace.NoteCreate) (workspace.Note, error) {
 	note, err := s.Store.CreateNote(ctx, workspaceID, input)
 	if err != nil {
 		return note, err
@@ -48,7 +48,7 @@ func (s *IndexedProjectStore) CreateNote(ctx context.Context, workspaceID string
 	return note, nil
 }
 
-func (s *IndexedProjectStore) UpdateNote(ctx context.Context, workspaceID, noteID string, update project.NoteUpdate) (project.Note, error) {
+func (s *IndexedProjectStore) UpdateNote(ctx context.Context, workspaceID, noteID string, update workspace.NoteUpdate) (workspace.Note, error) {
 	// Note autosave is the hottest durable path. Authored rows and projection
 	// metadata advance atomically in Store.UpdateNote; SearchIndexed detects the
 	// stale notes_revision and repairs FTS lazily on the next search.
@@ -63,7 +63,7 @@ func (s *IndexedProjectStore) DeleteNote(ctx context.Context, workspaceID, noteI
 	return nil
 }
 
-func (s *IndexedProjectStore) Move(ctx context.Context, id, categoryID string) (project.Project, error) {
+func (s *IndexedProjectStore) Move(ctx context.Context, id, categoryID string) (workspace.Workspace, error) {
 	value, err := s.Store.Move(ctx, id, categoryID)
 	if err != nil {
 		return value, err
@@ -72,8 +72,8 @@ func (s *IndexedProjectStore) Move(ctx context.Context, id, categoryID string) (
 	return value, nil
 }
 
-// Search keeps the search projection behind the project.Store port. Callers do
+// Search keeps the search projection behind the workspace.Store port. Callers do
 // not need to know whether retrieval is backed by FTS or the base store.
-func (s *IndexedProjectStore) Search(ctx context.Context, query string) ([]project.SearchResult, error) {
+func (s *IndexedProjectStore) Search(ctx context.Context, query string) ([]workspace.SearchResult, error) {
 	return s.Store.SearchIndexed(ctx, query)
 }

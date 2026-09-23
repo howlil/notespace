@@ -319,6 +319,22 @@ test("workspace authoring delegates mutations to its command boundary", () => {
   assert.match(commands, /flushNote/);
 });
 
+test("workspace authoring delegates pane navigation state to its layout controller", () => {
+  const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
+  const controller = source("features/workspace-authoring/model/use-workspace-pane-layout.ts");
+
+  assert.match(workspace, /useWorkspacePaneLayout/);
+  assert.doesNotMatch(workspace, /restoreLayout|mapNode|paneInteractionState|removeNode|updateSplit|writeLocalStorage/);
+
+  assert.match(controller, /restoreLayout/);
+  assert.match(controller, /paneInteractionState/);
+  assert.match(controller, /switchPaneNote/);
+  assert.match(controller, /closePane/);
+  assert.match(controller, /selectView/);
+  assert.match(controller, /focusCanvasFrame/);
+  assert.match(controller, /resizeSplit/);
+});
+
 test("image store stays an orchestration facade over cache, remote I/O, and normalization", () => {
   const store = source("adapters/assets/image-store.ts");
   const cache = source("adapters/assets/image-cache.ts");

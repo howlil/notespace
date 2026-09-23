@@ -10,11 +10,11 @@ import { workspaceContentOf } from "../../../domain/workspace/workspace";
 import type { Note, Workspace, WorkspaceSummary, Snapshot } from "../../../domain/workspace/workspace";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { normalizeWorkspaceContent } from "../model/workspace-content";
-import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../model/pane-layout";
+import { findPane, findSplit, leaves } from "../model/pane-layout";
 import type { Pane, PaneNode, WorkspaceViewMode } from "../model/pane-layout";
 import { useWorkspaceSession } from "../model/use-workspace-session";
 import { useWorkspaceCommands } from "../model/use-workspace-commands";
-import { writeLocalStorage } from "../../../shared/browser/local-storage";
+import { useWorkspacePaneLayout } from "../model/use-workspace-pane-layout";
 import { workspaceRenameTitle } from "../../../domain/workspace/naming";
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
@@ -22,7 +22,6 @@ import { findCanvasNoteArtifactId } from "../canvas/canvas-note-artifact";
 
 const DocumentEditor = lazy(() => import("../document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
-type FocusRequest = { id: string; request: number } | null;
 type WorkspaceRenderContext = { workspaceId: string; workspaceTitle: string };
 
 type WorkspaceAuthoringProps = {
@@ -38,8 +37,6 @@ const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text
 const paneMenuButtonClass = "border-0 bg-transparent px-2 py-[7px] text-left text-[10px] text-ink hover:bg-tint hover:text-accent disabled:opacity-50";
 const iconActionClass = "grid size-9 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
 const popupClass = "absolute z-30 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0";
-
-function newId() { return crypto.randomUUID(); }
 
 function useCompactPaneLayout() {
   const [compact, setCompact] = useState(false);
@@ -114,14 +111,37 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     flushNote,
     forgetNote,
   });
-  const [layout, setLayout] = useState<PaneNode>(() => restoreLayout(`notespace.workspace-layout:${workspace.id}`, new Set(initial.notes.map((note) => note.id))));
-  const [activePaneId, setActivePaneId] = useState(() => leaves(layout)[0]?.id ?? "");
-  const [maximizedPaneId, setMaximizedPaneId] = useState<string | null>(null);
-  const [maximizedSplitId, setMaximizedSplitId] = useState<string | null>(null);
-  const [selectedTextPaneId, setSelectedTextPaneId] = useState<string | null>(null);
-  const [highlightRequest, setHighlightRequest] = useState<{ paneId: string; request: number } | null>(null);
-  const [documentFocus, setDocumentFocus] = useState<FocusRequest>(null);
-  const [canvasFocus, setCanvasFocus] = useState<FocusRequest>(null);
+  const paneLayout = useWorkspacePaneLayout({
+    workspaceId: workspace.id,
+    initialNoteIds: initial.notes.map((note) => note.id),
+    notes: current.current.notes,
+  });
+  const {
+    layout,
+    activePaneId,
+    setActivePaneId,
+    maximizedPaneId,
+    maximizedSplitId,
+    selectedTextPaneId,
+    setSelectedTextPaneId,
+    highlightRequest,
+    documentFocus,
+    canvasFocus,
+    interaction: paneInteraction,
+    focusMode,
+    maximizeLabel,
+    activeViewMode,
+    splitPane,
+    switchPaneNote,
+    closePane,
+    selectView,
+    activateNote,
+    focusCanvasFrame,
+    clearMaximize,
+    toggleActiveMaximize,
+    resizeSplit,
+    highlightSelectedText,
+  } = paneLayout;
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
@@ -133,7 +153,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
-  const navigationRequest = useRef(0);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
   const currentWorkspaceTitle = current.current.title;
 
@@ -168,26 +187,8 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     document.addEventListener("mousedown", keepPaneMenuClicksLocal, true);
     return () => document.removeEventListener("mousedown", keepPaneMenuClicksLocal, true);
   }, []);
-  useEffect(() => { writeLocalStorage(`notespace.workspace-layout:${workspace.id}`, JSON.stringify(layout)); }, [layout, workspace.id]);
   useEffect(() => { if (renamingNote) { noteRenameInput.current?.focus(); noteRenameInput.current?.select(); } }, [renamingNote]);
   useEffect(() => { if (renamingWorkspace) { workspaceRenameInput.current?.focus(); workspaceRenameInput.current?.select(); } }, [renamingWorkspace]);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && (maximizedPaneId || maximizedSplitId)) { setMaximizedPaneId(null); setMaximizedSplitId(null); }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [maximizedPaneId, maximizedSplitId]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const noteId = params.get("note");
-    const blockId = params.get("block");
-    if (noteId) {
-      const pane = leaves(layout).find((item) => item.kind === "note" && item.noteId === noteId);
-      if (pane) setActivePaneId(pane.id);
-    }
-    if (blockId) setDocumentFocus({ id: blockId, request: ++navigationRequest.current });
-  }, [layout, workspace.id]);
   useBlocker({
     shouldBlockFn: async () => {
       if (status.state === "conflict") return true;
@@ -217,40 +218,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     if (!pane?.noteId) return;
     updateNoteDocument(pane.noteId, document);
   }, [layout, updateNoteDocument]);
-  const interactionState = () => paneInteractionState(layout, current.current.notes.map((note) => note.id));
-
-  function splitPane(paneId: string, direction: "row" | "column") {
-    const interaction = interactionState();
-    if (!interaction.canSplitNote || !interaction.nextUnopenedNoteId) return;
-    const source = findPane(layout, paneId);
-    if (!source || source.kind === "canvas") return;
-    const unused = current.current.notes.find((note) => note.id === interaction.nextUnopenedNoteId);
-    if (!unused) return;
-    const next: PaneNode = { kind: "leaf", pane: { id: newId(), kind: "note", noteId: unused.id } };
-    setLayout((value) => mapNode(value, paneId, (node) => ({ kind: "split", id: newId(), direction, ratio: .5, first: node, second: next })));
-    setActivePaneId(next.pane.id);
-  }
-  function maximizePane(paneId: string) { setMaximizedSplitId(null); setMaximizedPaneId(paneId); }
-  function maximizeSplit(splitId: string) { setMaximizedPaneId(null); setMaximizedSplitId(splitId); }
-  function switchPaneNote(paneId: string, noteId: string) {
-    const duplicate = leaves(layout).find((pane) => pane.kind === "note" && pane.noteId === noteId && pane.id !== paneId);
-    if (duplicate) { setActivePaneId(duplicate.id); return; }
-    setLayout((value) => mapNode(value, paneId, (node) => node.kind === "leaf" ? { ...node, pane: { ...node.pane, kind: "note", noteId } } : node));
-    setActivePaneId(paneId);
-    setSelectedTextPaneId(null);
-    setHighlightRequest(null);
-  }
-  function closePane(paneId: string) {
-    if (leaves(layout).length <= 1) return;
-    const next = removeNode(layout, paneId);
-    const remaining = leaves(next);
-    setLayout(next);
-    setActivePaneId((currentActivePaneId) => remaining.some((pane) => pane.id === currentActivePaneId) ? currentActivePaneId : (remaining[0]?.id ?? ""));
-    if (maximizedPaneId === paneId) setMaximizedPaneId(null);
-    if (maximizedSplitId && !findSplit(next, maximizedSplitId)) setMaximizedSplitId(null);
-    setSelectedTextPaneId((selectedPaneId) => selectedPaneId === paneId ? null : selectedPaneId);
-    setHighlightRequest((request) => request?.paneId === paneId ? null : request);
-  }
   async function createNote(paneId: string) {
     const note = await commands.createNote();
     if (note) switchPaneNote(paneId, note.id);
@@ -299,10 +266,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     commands.renameNote(noteId, value);
     setRenamingNote(null);
   }
-  function highlightSelectedText() {
-    if (!selectedTextPaneId) return;
-    setHighlightRequest({ paneId: selectedTextPaneId, request: ++navigationRequest.current });
-  }
   async function removeNote() {
     if (!deletingNote || current.current.notes.length <= 1) return;
     const result = await commands.deleteNote(deletingNote.id);
@@ -311,73 +274,29 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     if (target) switchPaneNote(target.id, result.replacementId);
     setDeletingNote(null);
   }
-  const focusMode = Boolean(maximizedPaneId || maximizedSplitId);
-  const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
-  const activeFocusTarget = activePane ? paneFocusTarget(layout, activePane.id) : undefined;
-  const maximizeLabel = focusMode ? "Restore layout" : activeFocusTarget?.kind === "split" ? "Maximize active split" : "Maximize active pane";
   const workspaceOptions = [{ ...workspace, title: workspaceTitle }, ...categoryWorkspaces.filter((candidate) => candidate.id !== workspace.id)];
-  const activeViewMode = workspaceViewMode(layout);
 
   function selectWorkspaceView(mode: WorkspaceViewMode) {
     setPlanOpen(false);
-    const preferredNoteId = activePane?.kind === "note" ? activePane.noteId : current.current.notes[0]?.id;
-    const next = layoutForViewMode(layout, mode, preferredNoteId);
-    setLayout(next);
-    setActivePaneId(leaves(next).find((pane) => mode === "canvas" ? pane.kind === "canvas" : pane.kind === "note")?.id ?? leaves(next)[0]?.id ?? "");
-    setMaximizedPaneId(null);
-    setMaximizedSplitId(null);
+    selectView(mode);
   }
 
   function openPlan() {
     setPlanOpen(true);
-    setMaximizedPaneId(null);
-    setMaximizedSplitId(null);
+    clearMaximize();
   }
 
   function openNoteFromCanvas(noteId: string) {
-    const linkedNote = current.current.notes.find((note) => note.id === noteId);
-    if (!linkedNote) {
+    if (!activateNote(noteId)) {
       showToast({ kind: "error", message: "This linked note no longer exists." });
       return;
     }
     setPlanOpen(false);
-    const existingNotePane = leaves(layout).find((pane) => pane.kind === "note" && pane.noteId === noteId);
-    if (existingNotePane) {
-      setActivePaneId(existingNotePane.id);
-    } else {
-      const reusableNotePane = leaves(layout).find((pane) => pane.kind === "note");
-      if (reusableNotePane) {
-        switchPaneNote(reusableNotePane.id, noteId);
-      } else {
-        const next = layoutForViewMode(layout, "split", noteId);
-        setLayout(next);
-        setActivePaneId(leaves(next).find((pane) => pane.kind === "note" && pane.noteId === noteId)?.id ?? leaves(next)[0]?.id ?? "");
-      }
-    }
-    setMaximizedPaneId(null);
-    setMaximizedSplitId(null);
   }
 
   function openCanvasFrame(frameId: string) {
     setPlanOpen(false);
-    const existingCanvasPane = leaves(layout).find((pane) => pane.kind === "canvas");
-    if (existingCanvasPane) {
-      setActivePaneId(existingCanvasPane.id);
-    } else {
-      const next = layoutForViewMode(layout, "canvas", current.current.notes[0]?.id);
-      setLayout(next);
-      setActivePaneId(leaves(next).find((pane) => pane.kind === "canvas")?.id ?? leaves(next)[0]?.id ?? "");
-    }
-    setMaximizedPaneId(null);
-    setMaximizedSplitId(null);
-    setCanvasFocus({ id: frameId, request: ++navigationRequest.current });
-  }
-
-  function toggleActiveMaximize() {
-    if (focusMode) { setMaximizedPaneId(null); setMaximizedSplitId(null); return; }
-    if (!activeFocusTarget) return;
-    if (activeFocusTarget.kind === "split") { maximizeSplit(activeFocusTarget.id); return; }
-    maximizePane(activeFocusTarget.id);
+    focusCanvasFrame(frameId);
   }
 
   function selectionContext(pane: Pane, content: ReactNode) {
@@ -395,7 +314,7 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     const note = pane.noteId ? current.current.notes.find((item) => item.id === pane.noteId) : undefined;
     const linkedCanvasElementId = note ? findCanvasNoteArtifactId(current.current.canvas, note.id) : null;
     const isActive = pane.id === activePaneId;
-    const interaction = interactionState();
+    const interaction = paneInteraction;
     const paneCapacityTitle = interaction.paneLimitReached ? "Maximum 4 panes per workspace." : undefined;
     const noUnusedNoteTitle = !interaction.hasUnopenedNote ? "Create another note before opening another note pane." : undefined;
     const noteHeader = pane.kind === "note" && (
@@ -468,13 +387,13 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     return (
       <div className={cn("grid h-full min-h-0 min-w-0 w-full gap-0 [&>div]:grid [&>div]:min-h-0 [&>div]:min-w-0", direction === "column" && "grid-cols-1", node.direction === "row" && "max-[760px]:!grid-cols-1 max-[760px]:!grid-rows-[minmax(0,1fr)_7px_minmax(0,1fr)]")} key={node.id} style={direction === "row" ? { gridTemplateColumns: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` } : { gridTemplateRows: `minmax(0, ${ratio}fr) 7px minmax(0, ${1 - ratio}fr)` }}>
         {renderNode(node.first)}
-        <div className={cn("relative z-5 grid place-items-center bg-transparent after:absolute after:top-1/2 after:left-1/2 after:h-[14px] after:w-[3px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-[color-mix(in_srgb,var(--line)_72%,transparent)] after:opacity-80 after:content-[''] hover:after:h-[18px] hover:after:w-1 hover:after:bg-accent focus-visible:after:h-[18px] focus-visible:after:w-1 focus-visible:after:bg-accent", direction === "row" ? "cursor-col-resize" : "cursor-row-resize after:h-[3px] after:w-[14px] hover:after:h-[3px] hover:after:w-[18px] focus-visible:after:h-[3px] focus-visible:after:w-[18px]")} role="separator" tabIndex={0} aria-label={`Resize ${direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") setLayout((value) => updateSplit(value, node.id, ratio - .05)); if (event.key === "ArrowRight" || event.key === "ArrowDown") setLayout((value) => updateSplit(value, node.id, ratio + .05)); }} onPointerDown={(event) => {
+        <div className={cn("relative z-5 grid place-items-center bg-transparent after:absolute after:top-1/2 after:left-1/2 after:h-[14px] after:w-[3px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-[color-mix(in_srgb,var(--line)_72%,transparent)] after:opacity-80 after:content-[''] hover:after:h-[18px] hover:after:w-1 hover:after:bg-accent focus-visible:after:h-[18px] focus-visible:after:w-1 focus-visible:after:bg-accent", direction === "row" ? "cursor-col-resize" : "cursor-row-resize after:h-[3px] after:w-[14px] hover:after:h-[3px] hover:after:w-[18px] focus-visible:after:h-[3px] focus-visible:after:w-[18px]")} role="separator" tabIndex={0} aria-label={`Resize ${direction === "row" ? "horizontal" : "vertical"} panes`} onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowUp") resizeSplit(node.id, ratio - .05); if (event.key === "ArrowRight" || event.key === "ArrowDown") resizeSplit(node.id, ratio + .05); }} onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           const start = direction === "row" ? event.clientX : event.clientY;
           const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
           if (!bounds) return;
           const size = direction === "row" ? bounds.width : bounds.height;
-          const move = (moveEvent: PointerEvent) => { const position = direction === "row" ? moveEvent.clientX : moveEvent.clientY; setLayout((value) => updateSplit(value, node.id, ratio + (position - start) / size)); };
+          const move = (moveEvent: PointerEvent) => { const position = direction === "row" ? moveEvent.clientX : moveEvent.clientY; resizeSplit(node.id, ratio + (position - start) / size); };
           const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); };
           window.addEventListener("pointermove", move);
           window.addEventListener("pointerup", stop);

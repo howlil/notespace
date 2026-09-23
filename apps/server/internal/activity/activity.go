@@ -1,5 +1,4 @@
-// Package activity owns durable timed activity. The package name remains for
-// compatibility while the product model is now a generic ActivitySession.
+// Package activity owns durable timed activity. ActivitySession is the canonical product model.
 package activity
 
 import (
@@ -11,16 +10,16 @@ import (
 )
 
 var (
-	ErrNotFound             = errors.New("activity session not found")
-	ErrInvalid              = errors.New("invalid activity")
-	ErrTaskNotFound         = errors.New("activity task not found")
-	ErrWorkspaceNotFound    = errors.New("activity workspace not found")
+	ErrNotFound              = errors.New("activity session not found")
+	ErrInvalid               = errors.New("invalid activity")
+	ErrTaskNotFound          = errors.New("activity task not found")
+	ErrWorkspaceNotFound     = errors.New("activity workspace not found")
 	ErrTaskWorkspaceMismatch = errors.New("activity task workspace mismatch")
 )
 
 const (
 	ActivityDayThreshold = int64(10 * 60)
-	DateLayout        = "2006-01-02"
+	DateLayout           = "2006-01-02"
 )
 
 var validActivityTypes = map[string]bool{

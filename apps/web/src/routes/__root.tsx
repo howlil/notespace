@@ -7,8 +7,8 @@ import {
 } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
-import "../styles/globals.css";
-import "../styles/controls.css";
+import "../shared/styles/globals.css";
+import "../features/workspace-authoring/workspace-authoring.css";
 import { Button } from "../shared/ui";
 import { ThemeProvider } from "../shared/ui/theme-provider";
 import { ToastProvider } from "../shared/ui/toast-provider";

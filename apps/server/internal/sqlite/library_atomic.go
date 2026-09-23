@@ -10,7 +10,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
-	"github.com/howlil/notespace/apps/server/internal/workspace"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceEnvelope, error) {
@@ -31,9 +31,9 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceE
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	history := []workspace.HistorySnapshot{}
+	history := []workspacepkg.HistorySnapshot{}
 	for historyRows.Next() {
-		var snapshot workspace.HistorySnapshot
+		var snapshot workspacepkg.HistorySnapshot
 		var document, notes, canvas, references string
 		var codec sql.NullString
 		var payload []byte
@@ -113,7 +113,7 @@ func (s *Store) TrashWorkspaceAtomicVersion(ctx context.Context, id string, expe
 		return err
 	}
 	if expectedVersion != nil && envelope.Project.Version != *expectedVersion {
-		return workspace.ErrConflict
+		return workspacepkg.ErrConflict
 	}
 	payload, err := encodeTrashEnvelope(envelope)
 	if err != nil {
@@ -134,20 +134,20 @@ func (s *Store) TrashWorkspaceAtomicVersion(ctx context.Context, id string, expe
 		return err
 	}
 	if count == 0 {
-		return workspace.ErrNotFound
+		return workspacepkg.ErrNotFound
 	}
 	return tx.Commit()
 }
 
-func categoriesTx(ctx context.Context, tx *sql.Tx) ([]workspace.CategorySummary, error) {
+func categoriesTx(ctx context.Context, tx *sql.Tx) ([]workspacepkg.CategorySummary, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []workspace.CategorySummary{}
+	items := []workspacepkg.CategorySummary{}
 	for rows.Next() {
-		var category workspace.CategorySummary
+		var category workspacepkg.CategorySummary
 		if err := rows.Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt, &category.WorkspaceCount); err != nil {
 			return nil, err
 		}

@@ -9,9 +9,9 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
-const studyColumns = `id,workspace_id,workspace_title_snapshot,task_id,task_title_snapshot,activity_title,activity_type,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at`
+const activityColumns = `id,workspace_id,workspace_title_snapshot,task_id,task_title_snapshot,activity_title,activity_type,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at`
 
-func scanStudySession(row scanner) (activity.Session, error) {
+func scanActivitySession(row scanner) (activity.Session, error) {
 	var session activity.Session
 	var endedAt sql.NullString
 	err := row.Scan(
@@ -62,7 +62,7 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 	if session.EndedAt != nil {
 		endedAt = *session.EndedAt
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO activity_sessions(`+studyColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
   last_heartbeat_at=MAX(activity_sessions.last_heartbeat_at,excluded.last_heartbeat_at),
@@ -88,7 +88,7 @@ WHERE activity_sessions.workspace_id=excluded.workspace_id
 	if err != nil {
 		return activity.Session{}, err
 	}
-	return scanStudySession(s.db.QueryRowContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions WHERE id=?`, session.ID))
+	return scanActivitySession(s.db.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))
 }
 
 func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (activity.WorkspaceStats, error) {

@@ -177,15 +177,15 @@ func trashRecordsTx(ctx context.Context, tx *sql.Tx) ([]trashRecord, error) {
 	return records, rows.Err()
 }
 
-func studySessionsTx(ctx context.Context, tx *sql.Tx) ([]activity.Session, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT `+studyColumns+` FROM activity_sessions ORDER BY started_at,id`)
+func activitySessionsTx(ctx context.Context, tx *sql.Tx) ([]activity.Session, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions ORDER BY started_at,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	sessions := []activity.Session{}
 	for rows.Next() {
-		session, err := scanStudySession(rows)
+		session, err := scanActivitySession(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +234,7 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) 
 	if err != nil {
 		return libraryBackup{}, err
 	}
-	sessions, err := studySessionsTx(ctx, tx)
+	sessions, err := activitySessionsTx(ctx, tx)
 	if err != nil {
 		return libraryBackup{}, err
 	}

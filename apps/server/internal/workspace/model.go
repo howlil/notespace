@@ -133,4 +133,3 @@ type Update struct {
 	SplitRatio float64     `json:"splitRatio"`
 	Version    int         `json:"version"`
 }
-

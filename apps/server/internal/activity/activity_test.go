@@ -31,7 +31,6 @@ func TestCalculateStreakStopsAtMissingDay(t *testing.T) {
 	}
 }
 
-
 type referenceFixture struct {
 	tasks      map[string]TaskRef
 	workspaces map[string]WorkspaceRef

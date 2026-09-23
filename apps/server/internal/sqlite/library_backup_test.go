@@ -15,7 +15,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
@@ -125,10 +125,10 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if _, err := store.PutAsset(ctx, asset.Stored{ID: "schema", WorkspaceID: workspace.ID, MimeType: "image/png", Data: assetBytes}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpsertSession(ctx, study.Session{ID: "study-1", WorkspaceID: workspace.ID, WorkspaceTitleSnapshot: workspace.Title, ActivityDate: "2026-09-06", StartedAt: "2026-09-06T01:00:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-06T01:10:00Z"}); err != nil {
+	if _, err := store.UpsertSession(ctx, activity.Session{ID: "study-1", WorkspaceID: workspace.ID, WorkspaceTitleSnapshot: workspace.Title, ActivityDate: "2026-09-06", StartedAt: "2026-09-06T01:00:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-06T01:10:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpsertSession(ctx, study.Session{
+	if _, err := store.UpsertSession(ctx, activity.Session{
 		ID: "read-1", Title: "Read database paper", ActivityType: "read",
 		ActivityDate: "2026-09-06", StartedAt: "2026-09-06T02:00:00Z",
 		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-06T02:05:00Z",
@@ -362,7 +362,7 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpsertSession(ctx, study.Session{
+	if _, err := store.UpsertSession(ctx, activity.Session{
 		ID: "activity-1", Title: "Read paper", ActivityType: "read",
 		ActivityDate: "2026-09-21", StartedAt: "2026-09-21T01:00:00Z",
 		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-21T01:05:00Z",

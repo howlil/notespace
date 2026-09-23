@@ -139,4 +139,3 @@ func New(deps Dependencies) http.Handler {
 		mux.ServeHTTP(w, r)
 	})
 }
-

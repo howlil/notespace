@@ -76,7 +76,6 @@ type TaskPatch struct {
 }
 
 type Store interface {
-	WorkspaceExists(context.Context, string) (bool, error)
 	GetPlan(context.Context, string) (Plan, error)
 	GetTask(context.Context, string) (Task, error)
 	ListToday(context.Context, string) ([]TodayTask, error)
@@ -89,9 +88,24 @@ type Store interface {
 	DeleteTask(context.Context, string, int) error
 }
 
+type WorkspaceLookup interface {
+	WorkspaceExists(context.Context, string) (bool, error)
+}
+
 type Service struct {
-	Store Store
-	Now   func() time.Time
+	Store      Store
+	Workspaces WorkspaceLookup
+	Now        func() time.Time
+}
+
+func NewService(store Store, workspaces WorkspaceLookup, now func() time.Time) Service {
+	if store == nil {
+		panic("planning: store is required")
+	}
+	if workspaces == nil {
+		panic("planning: workspace lookup is required")
+	}
+	return Service{Store: store, Workspaces: workspaces, Now: now}
 }
 
 func (s Service) now() time.Time {
@@ -133,7 +147,7 @@ func (s Service) requireWorkspace(ctx context.Context, workspaceID string) error
 	if strings.TrimSpace(workspaceID) == "" {
 		return ErrInvalid
 	}
-	exists, err := s.Store.WorkspaceExists(ctx, workspaceID)
+	exists, err := s.Workspaces.WorkspaceExists(ctx, workspaceID)
 	if err != nil {
 		return err
 	}

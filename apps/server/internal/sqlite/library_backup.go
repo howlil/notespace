@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/project"
 	"github.com/howlil/notespace/apps/server/internal/activity"
@@ -117,15 +118,15 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string) error {
 	return tx.Commit()
 }
 
-func (s *Store) ListTrashJSON(ctx context.Context) ([]byte, error) {
+func (s *Store) ListTrash(ctx context.Context) ([]library.TrashItem, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id,category_id,title,deleted_at FROM workspace_trash ORDER BY deleted_at DESC,id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []trashSummary{}
+	items := []library.TrashItem{}
 	for rows.Next() {
-		var item trashSummary
+		var item library.TrashItem
 		if err := rows.Scan(&item.ID, &item.CategoryID, &item.Title, &item.DeletedAt); err != nil {
 			return nil, err
 		}
@@ -134,7 +135,7 @@ func (s *Store) ListTrashJSON(ctx context.Context) ([]byte, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return json.Marshal(items)
+	return items, nil
 }
 
 func (s *Store) readTrash(ctx context.Context, id string) (trashRecord, error) {

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
@@ -17,12 +17,12 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	workspace, err := service.Create(ctx, "Initial")
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.Update(ctx, workspace.ID, project.Update{
+	updated, err := service.Update(ctx, workspace.ID, workspace.Update{
 		Title:      "Newer acknowledged state",
 		Document:   workspace.Document,
 		Notes:      workspace.Notes,
@@ -36,7 +36,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 
 	staleVersion := workspace.Version
-	if err := store.TrashWorkspaceAtomicVersion(ctx, workspace.ID, &staleVersion); !errors.Is(err, project.ErrConflict) {
+	if err := store.TrashWorkspaceAtomicVersion(ctx, workspace.ID, &staleVersion); !errors.Is(err, workspace.ErrConflict) {
 		t.Fatalf("stale delete error = %v, want conflict", err)
 	}
 	current, err := store.Get(ctx, workspace.ID)
@@ -58,7 +58,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	if err := store.TrashWorkspaceAtomicVersion(ctx, workspace.ID, &currentVersion); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, project.ErrNotFound) {
+	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspace.ErrNotFound) {
 		t.Fatalf("current delete get error = %v, want not found", err)
 	}
 }
@@ -71,7 +71,7 @@ func TestDeleteCategoryAtomicRejectsTrashedWorkspace(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := project.Service{Store: store}
+	service := workspace.Service{Store: store}
 	category, err := service.CreateCategory(ctx, "Concurrency")
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestDeleteCategoryAtomicRejectsTrashedWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.DeleteCategoryAtomic(ctx, category.ID); !errors.Is(err, project.ErrNotEmpty) {
+	if err := store.DeleteCategoryAtomic(ctx, category.ID); !errors.Is(err, workspace.ErrNotEmpty) {
 		t.Fatalf("category delete error = %v, want not empty", err)
 	}
 	var count int
@@ -104,7 +104,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (project.Service{Store: store}).Create(ctx, "Race")
+	workspace, err := (workspace.Service{Store: store}).Create(ctx, "Race")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 		case outcome.err == nil:
 			successes++
 			winner = outcome.op
-		case errors.Is(outcome.err, project.ErrNotFound):
+		case errors.Is(outcome.err, workspace.ErrNotFound):
 			misses++
 		default:
 			t.Fatalf("%s error = %v", outcome.op, outcome.err)
@@ -151,7 +151,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	if winner == "restore" && err != nil {
 		t.Fatalf("restored winner workspace missing: %v", err)
 	}
-	if winner == "purge" && !errors.Is(err, project.ErrNotFound) {
+	if winner == "purge" && !errors.Is(err, workspace.ErrNotFound) {
 		t.Fatalf("purged winner workspace error = %v, want not found", err)
 	}
 }

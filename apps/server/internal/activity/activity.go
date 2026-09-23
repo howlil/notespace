@@ -11,8 +11,11 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("activity session not found")
-	ErrInvalid  = errors.New("invalid activity")
+	ErrNotFound             = errors.New("activity session not found")
+	ErrInvalid              = errors.New("invalid activity")
+	ErrTaskNotFound         = errors.New("activity task not found")
+	ErrWorkspaceNotFound    = errors.New("activity workspace not found")
+	ErrTaskWorkspaceMismatch = errors.New("activity task workspace mismatch")
 )
 
 const (
@@ -86,6 +89,20 @@ type DayDetail struct {
 	Workspaces    []WorkspaceBreakdown `json:"workspaces"`
 }
 
+type TaskRef struct {
+	Title       string
+	WorkspaceID *string
+}
+
+type WorkspaceRef struct {
+	Title string
+}
+
+type ReferenceLookup interface {
+	LookupTask(context.Context, string) (TaskRef, bool, error)
+	LookupWorkspace(context.Context, string) (WorkspaceRef, bool, error)
+}
+
 type Store interface {
 	UpsertSession(context.Context, Session) (Session, error)
 	ListStudySessions(context.Context, string, int) ([]Session, error)
@@ -99,8 +116,19 @@ type Store interface {
 }
 
 type Service struct {
-	Store Store
-	Now   func() time.Time
+	Store      Store
+	References ReferenceLookup
+	Now        func() time.Time
+}
+
+func NewService(store Store, references ReferenceLookup, now func() time.Time) Service {
+	if store == nil {
+		panic("activity: store is required")
+	}
+	if references == nil {
+		panic("activity: reference lookup is required")
+	}
+	return Service{Store: store, References: references, Now: now}
 }
 
 func (s Service) now() time.Time {
@@ -124,8 +152,31 @@ func ValidActivityType(value string) bool {
 	return validActivityTypes[strings.TrimSpace(value)]
 }
 
+func (s Service) RecordWorkspaceSession(ctx context.Context, workspaceID, sessionID string, input Heartbeat) (Session, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" || s.References == nil {
+		return Session{}, ErrInvalid
+	}
+	workspace, found, err := s.References.LookupWorkspace(ctx, workspaceID)
+	if err != nil {
+		return Session{}, err
+	}
+	if !found {
+		return Session{}, ErrWorkspaceNotFound
+	}
+	return s.recordActivity(ctx, sessionID, ActivityHeartbeat{
+		Heartbeat:              input,
+		Title:                  workspace.Title,
+		ActivityType:           "learn",
+		WorkspaceID:            workspaceID,
+		WorkspaceTitleSnapshot: workspace.Title,
+	})
+}
+
+// Record remains as a compatibility helper for callers that already resolved a
+// Workspace title. New request flows should use RecordWorkspaceSession.
 func (s Service) Record(ctx context.Context, workspaceID, workspaceTitle, sessionID string, input Heartbeat) (Session, error) {
-	return s.RecordActivity(ctx, sessionID, ActivityHeartbeat{
+	return s.recordActivity(ctx, sessionID, ActivityHeartbeat{
 		Heartbeat:              input,
 		Title:                  workspaceTitle,
 		ActivityType:           "learn",
@@ -135,6 +186,72 @@ func (s Service) Record(ctx context.Context, workspaceID, workspaceTitle, sessio
 }
 
 func (s Service) RecordActivity(ctx context.Context, sessionID string, input ActivityHeartbeat) (Session, error) {
+	if s.References == nil {
+		return Session{}, ErrInvalid
+	}
+	if err := s.resolveReferences(ctx, &input); err != nil {
+		return Session{}, err
+	}
+	return s.recordActivity(ctx, sessionID, input)
+}
+
+func (s Service) resolveReferences(ctx context.Context, input *ActivityHeartbeat) error {
+	input.Title = strings.TrimSpace(input.Title)
+	input.ActivityType = strings.TrimSpace(input.ActivityType)
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.WorkspaceTitleSnapshot = strings.TrimSpace(input.WorkspaceTitleSnapshot)
+	input.TaskID = strings.TrimSpace(input.TaskID)
+	input.TaskTitleSnapshot = strings.TrimSpace(input.TaskTitleSnapshot)
+
+	if input.TaskID != "" {
+		task, found, err := s.References.LookupTask(ctx, input.TaskID)
+		if err != nil {
+			return err
+		}
+		if found {
+			input.TaskTitleSnapshot = task.Title
+			if task.WorkspaceID != nil {
+				if input.WorkspaceID != "" && input.WorkspaceID != *task.WorkspaceID {
+					return ErrTaskWorkspaceMismatch
+				}
+				input.WorkspaceID = *task.WorkspaceID
+			}
+			if input.Title == "" {
+				input.Title = task.Title
+			}
+		} else {
+			if input.TaskTitleSnapshot == "" {
+				return ErrTaskNotFound
+			}
+			if input.Title == "" {
+				input.Title = input.TaskTitleSnapshot
+			}
+		}
+	}
+
+	if input.WorkspaceID != "" {
+		workspace, found, err := s.References.LookupWorkspace(ctx, input.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if found {
+			input.WorkspaceTitleSnapshot = workspace.Title
+			if input.Title == "" {
+				input.Title = workspace.Title
+			}
+		} else {
+			if input.WorkspaceTitleSnapshot == "" {
+				return ErrWorkspaceNotFound
+			}
+			if input.Title == "" {
+				input.Title = input.WorkspaceTitleSnapshot
+			}
+		}
+	}
+	return nil
+}
+
+func (s Service) recordActivity(ctx context.Context, sessionID string, input ActivityHeartbeat) (Session, error) {
 	input.Title = strings.TrimSpace(input.Title)
 	input.ActivityType = strings.TrimSpace(input.ActivityType)
 	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
@@ -200,8 +317,16 @@ func (s Service) DeleteActivity(ctx context.Context, sessionID string) error {
 }
 
 func (s Service) GetWorkspaceStats(ctx context.Context, workspaceID, activityDate string) (WorkspaceStats, error) {
-	if strings.TrimSpace(workspaceID) == "" || !ValidDate(activityDate) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" || !ValidDate(activityDate) || s.References == nil {
 		return WorkspaceStats{}, ErrInvalid
+	}
+	_, found, err := s.References.LookupWorkspace(ctx, workspaceID)
+	if err != nil {
+		return WorkspaceStats{}, err
+	}
+	if !found {
+		return WorkspaceStats{}, ErrWorkspaceNotFound
 	}
 	return s.Store.WorkspaceStats(ctx, workspaceID, activityDate)
 }

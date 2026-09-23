@@ -315,7 +315,7 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
   const activePane = findPane(layout, activePaneId) ?? leaves(layout)[0];
   const activeFocusTarget = activePane ? paneFocusTarget(layout, activePane.id) : undefined;
   const maximizeLabel = focusMode ? "Restore layout" : activeFocusTarget?.kind === "split" ? "Maximize active split" : "Maximize active pane";
-  const workspaceOptions = [{ ...workspace, title: workspaceTitle }, ...categoryWorkspaces.filter((workspace) => workspace.id !== workspace.id)];
+  const workspaceOptions = [{ ...workspace, title: workspaceTitle }, ...categoryWorkspaces.filter((candidate) => candidate.id !== workspace.id)];
   const activeViewMode = workspaceViewMode(layout);
 
   function selectWorkspaceView(mode: WorkspaceViewMode) {
@@ -515,21 +515,21 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
                       <ContextMenuItem onSelect={beginRenameWorkspace}><Pencil size={13} /> Rename workspace</ContextMenuItem>
                     </ContextMenuContent>
                     <div className={cn(popupClass, "top-7 left-0")} role="listbox" aria-label="Workspaces in this category">
-                      {workspaceOptions.map((workspace) => (
+                      {workspaceOptions.map((option) => (
                         <Button
-                          key={workspace.id}
+                          key={option.id}
                           variant="ghost"
                           size="sm"
-                          className={cn("!min-h-0 w-full justify-start whitespace-nowrap", paneMenuButtonClass, workspace.id === workspace.id && "bg-tint text-accent")}
+                          className={cn("!min-h-0 w-full justify-start whitespace-nowrap", paneMenuButtonClass, option.id === workspace.id && "bg-tint text-accent")}
                           role="option"
-                          aria-selected={workspace.id === workspace.id}
+                          aria-selected={option.id === workspace.id}
                           onClick={(event) => {
                             const details = event.currentTarget.closest("details");
                             if (details) details.open = false;
-                            if (workspace.id !== workspace.id) void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } });
+                            if (option.id !== workspace.id) void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: option.id } });
                           }}
                         >
-                          {workspace.title}
+                          {option.title}
                         </Button>
                       ))}
                     </div>

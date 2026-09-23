@@ -55,6 +55,11 @@ export function useWorkspaceCommands({
   const renameWorkspace = useCallback(async (title: string) => {
     try {
       const renamed = await renameWorkspaceRequest(workspaceId, title);
+      current.current = {
+        ...current.current,
+        title: renamed.title,
+      };
+      touchContent();
       showToast({ kind: "success", message: "Workspace renamed." });
       return renamed.title;
     } catch (error) {
@@ -64,7 +69,7 @@ export function useWorkspaceCommands({
       });
       return null;
     }
-  }, [showToast, workspaceId]);
+  }, [current, showToast, touchContent, workspaceId]);
 
   const renameNote = useCallback((noteId: string, title: string) => {
     const existing = current.current.notes.find((note) => note.id === noteId);

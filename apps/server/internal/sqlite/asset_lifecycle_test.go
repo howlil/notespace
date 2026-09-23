@@ -27,7 +27,7 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image-1", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("image-bytes")}); err != nil {
 		t.Fatal(err)
 	}
-	workspace, err = service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspacepkg.Notes, Canvas: workspace.Canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
+	workspace, err = service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspace.Notes, Canvas: workspace.Canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	}
 
 	imageDocument := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"image","attrs":{"assetId":"image-1","src":"notespace-asset://image-1","alt":"diagram"}}]}`)}
-	notes := append([]workspacepkg.Note(nil), workspacepkg.Notes...)
+	notes := append([]workspacepkg.Note(nil), workspace.Notes...)
 	notes[0].Document = imageDocument
 	workspace, err = service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: imageDocument, Notes: notes, Canvas: workspace.Canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
 	if err != nil {
@@ -47,7 +47,7 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	}
 
 	emptyDocument := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[]}`)}
-	notes = append([]workspacepkg.Note(nil), workspacepkg.Notes...)
+	notes = append([]workspacepkg.Note(nil), workspace.Notes...)
 	notes[0].Document = emptyDocument
 	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: emptyDocument, Notes: notes, Canvas: workspace.Canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestCanvasFileIDOwnsAssetBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	canvas := workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"el-1","type":"image","fileId":"file-1"}],"appState":{},"files":{}}`)}
-	workspace, err = service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspacepkg.Notes, Canvas: canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
+	workspace, err = service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspace.Notes, Canvas: canvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestCanvasFileIDOwnsAssetBlob(t *testing.T) {
 	}
 
 	emptyCanvas := workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}
-	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspacepkg.Notes, Canvas: emptyCanvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
+	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: workspace.Document, Notes: workspace.Notes, Canvas: emptyCanvas, References: workspace.References, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.GetAsset(ctx, workspace.ID, "file-1"); !errors.Is(err, asset.ErrNotFound) {

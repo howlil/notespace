@@ -12,12 +12,12 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 type API struct {
-	service     project.Service
+	service     workspace.Service
 	planning    planning.Service
 	activities  activity.Service
 	assets      asset.Store
@@ -26,7 +26,7 @@ type API struct {
 }
 
 type Dependencies struct {
-	Projects           project.Store
+	Projects           workspace.Store
 	Planning           planning.Store
 	Activity           activity.Store
 	ActivityReferences activity.ReferenceLookup
@@ -53,7 +53,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, activities: activity.NewService(deps.Activity, deps.ActivityReferences, nil), assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: workspace.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, activities: activity.NewService(deps.Activity, deps.ActivityReferences, nil), assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -143,7 +143,7 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	if err == nil {
 		var extra any
 		if decoder.Decode(&extra) != io.EOF {
-			err = project.ErrInvalid
+			err = workspace.ErrInvalid
 		}
 	}
 	if err != nil {
@@ -168,13 +168,13 @@ func send(w http.ResponseWriter, status int, value any) {
 
 func fail(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, project.ErrNotFound):
+	case errors.Is(err, workspace.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Workspace not found"})
-	case errors.Is(err, project.ErrInvalid):
+	case errors.Is(err, workspace.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid title, content, version, or split ratio"})
-	case errors.Is(err, project.ErrConflict):
+	case errors.Is(err, workspace.ErrConflict):
 		send(w, 409, map[string]string{"error": "This workspace changed in another tab. Your edits remain here; reload only after preserving them.", "code": "workspace_conflict"})
-	case errors.Is(err, project.ErrNotEmpty):
+	case errors.Is(err, workspace.ErrNotEmpty):
 		send(w, 409, map[string]string{"error": "Delete or move the workspaces in this category first."})
 	case errors.Is(err, planning.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Planning item not found"})

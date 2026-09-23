@@ -365,10 +365,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(STUDY_INDICATOR), /aria-label="Start activity"/);
   assert.match(source(STUDY_INDICATOR), /ActivityTypeMenu/);
   assert.doesNotMatch(source(STUDY_INDICATOR), /taskHandoff|onEnd|study\.pause|study\.resume|study\.end/);
-  assert.match(workspace, /useActivityRuntime/);
-  assert.match(workspace, /adoptLegacyWorkspace/);
-  assert.match(workspace, /refreshKey=\{study\.taskRevision\}/);
-  assert.doesNotMatch(workspace, /activityHandoff|getWorkspacePlan|completeActivityHandoffTask/);
+  assert.match(source(WORKSPACE_PAGE), /useActivityRuntime/);
+  assert.match(source(WORKSPACE_PAGE), /adoptLegacyWorkspace/);
+  assert.match(source(WORKSPACE_PAGE), /refreshKey=\{study\.taskRevision\}/);
+  assert.doesNotMatch(source(WORKSPACE_PAGE), /activityHandoff|getWorkspacePlan|completeActivityHandoffTask/);
   assert.match(source(ROOT_ROUTE), /ActivityRuntimeProvider/);
   assert.match(source(ROOT_ROUTE), /<ActivityDock \/>/);
   assert.match(source(ACTIVITY_RUNTIME), /getAnyTask/);

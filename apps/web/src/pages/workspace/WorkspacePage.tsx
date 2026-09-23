@@ -11,20 +11,20 @@ import type { Note, Workspace, WorkspaceSummary, Snapshot } from "../../domain/w
 import { createWorkspaceNote, deleteWorkspaceNote, renameWorkspace } from "../../adapters/http/workspace-api";
 import { StudyIndicator } from "../../features/study/StudyIndicator";
 import { useActivityRuntime } from "../../features/study/activity-runtime-provider";
-import { WorkspaceGuide } from "../../features/workspace/WorkspaceGuide";
-import { blankDocument, normalizeProjectContent } from "../../features/workspace/workspace-content";
-import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../../features/workspace/pane-layout";
-import type { Pane, PaneNode, WorkspaceViewMode } from "../../features/workspace/pane-layout";
-import { useWorkspaceSession } from "../../features/workspace/use-workspace-session";
+import { WorkspaceGuide } from "../../features/workspace-authoring/ui/WorkspaceGuide";
+import { blankDocument, normalizeProjectContent } from "../../features/workspace-authoring/model/workspace-content";
+import { findPane, findSplit, layoutForViewMode, leaves, mapNode, paneFocusTarget, paneInteractionState, removeNode, restoreLayout, updateSplit, workspaceViewMode } from "../../features/workspace-authoring/model/pane-layout";
+import type { Pane, PaneNode, WorkspaceViewMode } from "../../features/workspace-authoring/model/pane-layout";
+import { useWorkspaceSession } from "../../features/workspace-authoring/model/use-workspace-session";
 import { writeLocalStorage } from "../../adapters/browser/local-storage";
 import { workspaceMutationError, workspaceRenameTitle } from "../../features/library/workspace-mutation-policy";
-import { WorkspaceRenameField } from "../../features/workspace/WorkspaceRenameField";
-import { WorkspaceViewSwitcher } from "../../features/workspace/WorkspaceViewSwitcher";
+import { WorkspaceRenameField } from "../../features/workspace-authoring/ui/WorkspaceRenameField";
+import { WorkspaceViewSwitcher } from "../../features/workspace-authoring/ui/WorkspaceViewSwitcher";
 import { WorkspacePlan } from "../../features/plan/WorkspacePlan";
-import { findCanvasNoteArtifactId } from "../../integrations/canvas/canvas-note-artifact";
+import { findCanvasNoteArtifactId } from "../../features/workspace-authoring/canvas/canvas-note-artifact";
 
-const DocumentEditor = lazy(() => import("../../integrations/document/DocumentEditor"));
-const CanvasEditor = lazy(() => import("../../integrations/canvas/CanvasEditor"));
+const DocumentEditor = lazy(() => import("../../features/workspace-authoring/document/DocumentEditor"));
+const CanvasEditor = lazy(() => import("../../features/workspace-authoring/canvas/CanvasEditor"));
 type FocusRequest = { id: string; request: number } | null;
 
 const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
 const sourceUrl = "https://docs.eraser.io/icons";
-const outputPath = new URL("../apps/web/src/features/diagram/catalog/eraser-icons.generated.json", import.meta.url);
+const outputPath = new URL("../apps/web/src/domain/diagram/catalog/eraser-icons.generated.json", import.meta.url);
 
 const categoryBySection = {
   "aws-icons": "aws",

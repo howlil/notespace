@@ -61,6 +61,9 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "providers")), false);
   assert.equal(existsSync(join(WEB_SRC, "browser")), false);
   assert.equal(existsSync(join(WEB_SRC, "domain", "project")), false);
+  assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
 });
 
 test("routes compose pages instead of routed screens in features", () => {
@@ -124,8 +127,8 @@ test("web code uses canonical Workspace domain imports", () => {
 });
 
 test("document integration consumes Canvas frame links through the domain boundary", () => {
-  const editor = source("integrations/document/DocumentEditor.tsx");
-  const frameNode = source("integrations/document/CanvasFrameLinkNode.tsx");
+  const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
+  const frameNode = source("features/workspace-authoring/document/CanvasFrameLinkNode.tsx");
   assert.match(editor, /\.\.\/\.\.\/domain\/workspace\/canvas-frame-link/);
   assert.match(frameNode, /\.\.\/\.\.\/domain\/workspace\/canvas-frame-link/);
   assert.doesNotMatch(editor, /features\/workspace\/canvas-frame-link/);
@@ -145,7 +148,7 @@ test("diagram feature does not depend on Canvas integration internals", () => {
 test("browser event and asset initialization stay behind explicit boundaries", () => {
   const dashboard = source("pages/home/HomePage.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");
-  const canvas = source("integrations/canvas/CanvasEditor.tsx");
+  const canvas = source("features/workspace-authoring/canvas/CanvasEditor.tsx");
   assert.match(dashboard, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(quickOpen, /OPEN_QUICK_SEARCH_EVENT/);
   assert.doesNotMatch(dashboard, /new Event\("open-quick-search"\)/);
@@ -156,7 +159,7 @@ test("browser event and asset initialization stay behind explicit boundaries", (
 
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
   const workspace = source("pages/workspace/WorkspacePage.tsx");
-  const session = source("features/workspace/use-workspace-session.ts");
+  const session = source("features/workspace-authoring/model/use-workspace-session.ts");
   assert.match(workspace, /useWorkspaceSession/);
   assert.doesNotMatch(workspace, /useGranularWorkspaceAutosave/);
   assert.match(session, /useGranularWorkspaceAutosave/);
@@ -165,10 +168,10 @@ test("workspace delegates authored state and autosave ownership to its session b
 });
 
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {
-  const editor = source("integrations/document/DocumentEditor.tsx");
-  const localImage = source("integrations/document/LocalImageNode.tsx");
-  const frameNode = source("integrations/document/CanvasFrameLinkNode.tsx");
-  const canvas = source("integrations/canvas/CanvasEditor.tsx");
+  const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
+  const localImage = source("features/workspace-authoring/document/LocalImageNode.tsx");
+  const frameNode = source("features/workspace-authoring/document/CanvasFrameLinkNode.tsx");
+  const canvas = source("features/workspace-authoring/canvas/CanvasEditor.tsx");
 
   assert.match(editor, /useDocumentSnapshotSession/);
   assert.match(localImage, /useImageAssetUrl/);

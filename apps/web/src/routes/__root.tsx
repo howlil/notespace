@@ -14,7 +14,7 @@ import { ThemeProvider } from "../app/providers/theme-provider";
 import { ToastProvider } from "../app/providers/toast-provider";
 import { NativePopupManager } from "../shared/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
-import { ConflictRecoveryDialog } from "../features/workspace/ConflictRecoveryDialog";
+import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
 import { ActivityRuntimeProvider } from "../features/study/activity-runtime-provider";
 import { ActivityDock } from "../features/study/ActivityDock";
 

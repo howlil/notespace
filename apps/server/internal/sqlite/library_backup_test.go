@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {

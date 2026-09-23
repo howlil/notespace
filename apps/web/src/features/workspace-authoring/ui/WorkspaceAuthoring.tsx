@@ -276,7 +276,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     setDeletingNote(null);
   }
   const workspaceOptions = [{ ...workspace, title: workspaceTitle }, ...categoryWorkspaces.filter((candidate) => candidate.id !== workspace.id)];
-  const activeViewMode = workspaceViewMode(layout);
 
   function selectWorkspaceView(mode: WorkspaceViewMode) {
     setPlanOpen(false);

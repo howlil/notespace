@@ -5,7 +5,7 @@ import {
   buildFlowchartTemplate,
   diagramCatalog,
   filterDiagramCatalog,
-} from "./diagram";
+} from "./diagram.ts";
 
 test("diagram catalog exposes searchable general, tech, and cloud components", () => {
   assert.ok(diagramCatalog.length >= 12);

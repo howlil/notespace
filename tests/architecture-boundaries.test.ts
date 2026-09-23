@@ -23,15 +23,15 @@ function collect(dir: string): string[] {
 function localImportSpecifiers(text: string) {
   const specifiers = new Set<string>();
   const patterns = [
-    /\\bfrom\\s+["']([^"']+)["']/g,
-    /\\bimport\\s+["']([^"']+)["']/g,
-    /\\bimport\\s*\\(\\s*["']([^"']+)["']\\s*\\)/g,
+    /\bfrom\s+["']([^"']+)["']/g,
+    /\bimport\s+["']([^"']+)["']/g,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
   ];
 
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
       const value = match[1];
-      if (!value.startsWith(".") || /\\.(css|scss|sass|less)$/.test(value)) continue;
+      if (!value.startsWith(".") || /\.(css|scss|sass|less)$/.test(value)) continue;
       specifiers.add(value);
     }
   }

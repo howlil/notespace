@@ -64,4 +64,3 @@ func (a API) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, http.StatusNoContent, nil)
 }
-

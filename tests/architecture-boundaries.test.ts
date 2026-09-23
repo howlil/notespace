@@ -119,6 +119,9 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram.ts")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "DiagramPalette.tsx")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram.test.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "plan")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "study")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "planning")), true);

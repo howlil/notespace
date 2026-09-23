@@ -52,7 +52,7 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	indexed := NewIndexedProjectStore(store)
+	indexed := NewIndexedWorkspaceStore(store)
 	service := workspace.Service{Store: indexed}
 	workspace, err := service.Create(ctx, "Search workspace")
 	if err != nil {
@@ -136,7 +136,7 @@ func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
 	}
 	defer store.Close()
 
-	indexed := NewIndexedProjectStore(store)
+	indexed := NewIndexedWorkspaceStore(store)
 	service := workspace.Service{Store: indexed}
 	workspace, err := service.Create(ctx, "Lazy search")
 	if err != nil {

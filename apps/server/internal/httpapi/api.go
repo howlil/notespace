@@ -19,18 +19,19 @@ import (
 type API struct {
 	service     project.Service
 	planning    planning.Service
-	study       activity.Service
+	activities  activity.Service
 	assets      asset.Store
 	health      func(context.Context) error
 	eraserIcons *eraserIconGateway
 }
 
 type Dependencies struct {
-	Projects project.Store
-	Planning planning.Store
-	Study    activity.Store
-	Assets   asset.Store
-	Health   func(context.Context) error
+	Projects           project.Store
+	Planning           planning.Store
+	Activity           activity.Store
+	ActivityReferences activity.ReferenceLookup
+	Assets             asset.Store
+	Health             func(context.Context) error
 }
 
 func New(deps Dependencies) http.Handler {
@@ -40,8 +41,11 @@ func New(deps Dependencies) http.Handler {
 	if deps.Planning == nil {
 		panic("httpapi: planning store is required")
 	}
-	if deps.Study == nil {
-		panic("httpapi: study store is required")
+	if deps.Activity == nil {
+		panic("httpapi: activity store is required")
+	}
+	if deps.ActivityReferences == nil {
+		panic("httpapi: activity reference lookup is required")
 	}
 	if deps.Assets == nil {
 		panic("httpapi: asset store is required")
@@ -49,7 +53,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, study: activity.Service{Store: deps.Study}, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: project.Service{Store: deps.Projects}, planning: planning.Service{Store: deps.Planning}, activities: activity.NewService(deps.Activity, deps.ActivityReferences, nil), assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -182,6 +186,12 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 404, map[string]string{"error": "Image asset not found"})
 	case errors.Is(err, asset.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid image asset"})
+	case errors.Is(err, activity.ErrTaskNotFound):
+		send(w, 404, map[string]string{"error": "Planning item not found"})
+	case errors.Is(err, activity.ErrWorkspaceNotFound):
+		send(w, 404, map[string]string{"error": "Workspace not found"})
+	case errors.Is(err, activity.ErrTaskWorkspaceMismatch):
+		send(w, 400, map[string]string{"error": "Invalid milestone or task"})
 	case errors.Is(err, activity.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Activity session not found"})
 	case errors.Is(err, activity.ErrInvalid):

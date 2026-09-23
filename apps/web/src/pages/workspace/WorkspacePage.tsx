@@ -14,15 +14,16 @@ type Props = {
 
 export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: Props) {
   const study = useActivityRuntime();
+  const { adoptLegacyWorkspace } = study;
 
   const onWorkspaceActive = useCallback(({ workspaceId, workspaceTitle }: { workspaceId: string; workspaceTitle: string }) => {
-    study.adoptLegacyWorkspace({
+    adoptLegacyWorkspace({
       title: workspaceTitle,
       activityType: "learn",
       workspaceId,
       workspaceTitleSnapshot: workspaceTitle,
     });
-  }, [study.adoptLegacyWorkspace]);
+  }, [adoptLegacyWorkspace]);
 
   return (
     <WorkspaceAuthoring

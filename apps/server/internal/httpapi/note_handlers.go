@@ -44,4 +44,3 @@ func (a API) deleteNote(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, http.StatusNoContent, nil)
 }
-

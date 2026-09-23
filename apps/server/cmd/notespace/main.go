@@ -16,6 +16,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
+	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
@@ -44,6 +45,7 @@ func run() error {
 	activityService := activity.NewService(store, store, nil)
 	assetService := asset.NewService(store, store)
 	libraryService := library.NewService(store)
+	iconSource := icon.NewEraserSource(&http.Client{Timeout: 5 * time.Second}, icon.DefaultEraserOrigin)
 
 	deps := httpapi.Dependencies{
 		Workspace: &workspaceService,
@@ -51,6 +53,7 @@ func run() error {
 		Activity:  &activityService,
 		Assets:    &assetService,
 		Library:   &libraryService,
+		Icons:     iconSource,
 		Health:    store.Healthy,
 	}
 	api := httpapi.WithSameOriginMutations(httpapi.New(deps))

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
@@ -207,6 +208,18 @@ const columns = `id,category_id,title,references_state,split_ratio,created_at,up
 
 func (s *Store) GetWorkspaceRecord(ctx context.Context, id string) (project.Project, error) {
 	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+}
+
+func (s *Store) LookupWorkspace(ctx context.Context, id string) (activity.WorkspaceRef, bool, error) {
+	var ref activity.WorkspaceRef
+	err := s.db.QueryRowContext(ctx, `SELECT title FROM projects WHERE id=?`, id).Scan(&ref.Title)
+	if errors.Is(err, sql.ErrNoRows) {
+		return activity.WorkspaceRef{}, false, nil
+	}
+	if err != nil {
+		return activity.WorkspaceRef{}, false, err
+	}
+	return ref, true, nil
 }
 
 func (s *Store) WorkspaceExists(ctx context.Context, id string) (bool, error) {

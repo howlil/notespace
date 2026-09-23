@@ -67,4 +67,3 @@ type TaskPatch struct {
 	PlannedFor  *string `json:"plannedFor"`
 	Version     int     `json:"version"`
 }
-

@@ -2,13 +2,52 @@ import type {
   CategorySummary,
   Note,
   Workspace,
+  WorkspaceContent,
   WorkspaceSummary,
   Snapshot,
   WorkspacePage,
 } from "../../domain/workspace/workspace";
-import { APIError, json, request } from "./client";
+import {
+  APIError,
+  fetchTransport,
+  json,
+  request,
+  type HttpTransport,
+} from "./client";
 
-export { APIError, getWorkspace, updateWorkspaceSnapshot } from "./client";
+export { APIError } from "./client";
+
+export interface WorkspaceHttpClient {
+  getWorkspace(id: string): Promise<Workspace>;
+  updateWorkspaceSnapshot(id: string, content: WorkspaceContent, version: number): Promise<Workspace>;
+}
+
+export function createWorkspaceHttpClient(
+  transport: HttpTransport = fetchTransport,
+): WorkspaceHttpClient {
+  return {
+    getWorkspace: (id) =>
+      request<Workspace>(
+        `/api/workspaces/${encodeURIComponent(id)}`,
+        undefined,
+        transport,
+      ),
+    updateWorkspaceSnapshot: (id, content, version) =>
+      request<Workspace>(
+        `/api/workspaces/${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          ...json({ ...content, version }),
+        },
+        transport,
+      ),
+  };
+}
+
+const defaultWorkspaceClient = createWorkspaceHttpClient();
+
+export const getWorkspace = defaultWorkspaceClient.getWorkspace;
+export const updateWorkspaceSnapshot = defaultWorkspaceClient.updateWorkspaceSnapshot;
 
 export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
 

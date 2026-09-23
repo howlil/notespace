@@ -235,6 +235,16 @@ test("generic browser storage lives in shared foundation", () => {
   assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "local-storage.ts")), true);
 });
 
+test("HTTP client stays transport-only", () => {
+  const client = source("adapters/http/client.ts");
+  const workspaceApi = source("adapters/http/workspace-api.ts");
+
+  assert.doesNotMatch(client, /domain\/workspace|WorkspaceHttpClient|createWorkspaceHttpClient|getWorkspace|updateWorkspaceSnapshot/);
+  assert.match(workspaceApi, /createWorkspaceHttpClient/);
+  assert.match(workspaceApi, /getWorkspace/);
+  assert.match(workspaceApi, /updateWorkspaceSnapshot/);
+});
+
 test("browser event and asset initialization stay behind explicit boundaries", () => {
   const dashboard = source("pages/home/HomePage.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");

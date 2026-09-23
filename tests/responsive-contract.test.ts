@@ -50,12 +50,12 @@ test("responsive contract: mobile library keeps persistent navigation without a 
   assert.ok(dashboard.indexOf("<ActivityDashboard />") > dashboard.indexOf("<section className=\"min-w-0\""));
 });
 
-test("responsive contract: mobile learning activity is summary-first", () => {
-  const study = source(ACTIVITY);
-  assert.match(study, /mobileExpanded/);
-  assert.match(study, /View heatmap/);
-  assert.match(study, /Hide heatmap/);
-  assert.match(study, /max-\[560px\]:hidden/);
+test("responsive contract: mobile activity is summary-first", () => {
+  const activity = source(ACTIVITY);
+  assert.match(activity, /mobileExpanded/);
+  assert.match(activity, /View heatmap/);
+  assert.match(activity, /Hide heatmap/);
+  assert.match(activity, /max-\[560px\]:hidden/);
 });
 
 test("responsive contract: canvas chrome is compact, distinct, and touch-safe", () => {

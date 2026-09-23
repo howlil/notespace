@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/howlil/notespace/apps/server/internal/study"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
@@ -17,7 +17,7 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	segments := []study.Session{
+	segments := []activity.Session{
 		{
 			ID:                     "session-1:2026-09-10",
 			WorkspaceID:            "workspace-1",
@@ -74,8 +74,8 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 	if len(sessions) != 0 {
 		t.Fatalf("sessions after delete = %#v, want empty history", sessions)
 	}
-	if err := store.DeleteStudySession(ctx, "workspace-1", "session-1"); !errors.Is(err, study.ErrNotFound) {
-		t.Fatalf("second delete error = %v, want study.ErrNotFound", err)
+	if err := store.DeleteStudySession(ctx, "workspace-1", "session-1"); !errors.Is(err, activity.ErrNotFound) {
+		t.Fatalf("second delete error = %v, want activity.ErrNotFound", err)
 	}
 }
 

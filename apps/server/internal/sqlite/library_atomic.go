@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceEnvelope, error) {

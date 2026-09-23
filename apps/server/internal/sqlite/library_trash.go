@@ -41,4 +41,3 @@ func (s *Store) DeleteTrashedWorkspace(ctx context.Context, id string) error {
 	}
 	return nil
 }
-

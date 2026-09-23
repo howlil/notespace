@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
@@ -31,9 +31,9 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (workspaceE
 	if err != nil {
 		return workspaceEnvelope{}, err
 	}
-	history := []project.HistorySnapshot{}
+	history := []workspace.HistorySnapshot{}
 	for historyRows.Next() {
-		var snapshot project.HistorySnapshot
+		var snapshot workspace.HistorySnapshot
 		var document, notes, canvas, references string
 		var codec sql.NullString
 		var payload []byte
@@ -113,7 +113,7 @@ func (s *Store) TrashWorkspaceAtomicVersion(ctx context.Context, id string, expe
 		return err
 	}
 	if expectedVersion != nil && envelope.Project.Version != *expectedVersion {
-		return project.ErrConflict
+		return workspace.ErrConflict
 	}
 	payload, err := encodeTrashEnvelope(envelope)
 	if err != nil {
@@ -134,20 +134,20 @@ func (s *Store) TrashWorkspaceAtomicVersion(ctx context.Context, id string, expe
 		return err
 	}
 	if count == 0 {
-		return project.ErrNotFound
+		return workspace.ErrNotFound
 	}
 	return tx.Commit()
 }
 
-func categoriesTx(ctx context.Context, tx *sql.Tx) ([]project.CategorySummary, error) {
+func categoriesTx(ctx context.Context, tx *sql.Tx) ([]workspace.CategorySummary, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []project.CategorySummary{}
+	items := []workspace.CategorySummary{}
 	for rows.Next() {
-		var category project.CategorySummary
+		var category workspace.CategorySummary
 		if err := rows.Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt, &category.WorkspaceCount); err != nil {
 			return nil, err
 		}

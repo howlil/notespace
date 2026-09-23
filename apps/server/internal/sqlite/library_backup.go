@@ -21,9 +21,9 @@ const libraryBackupVersion = 1
 
 type workspaceEnvelope struct {
 	Project workspacepkg.Workspace         `json:"project"`
-	Plan    planning.Plan                `json:"plan,omitempty"`
+	Plan    planning.Plan                  `json:"plan,omitempty"`
 	History []workspacepkg.HistorySnapshot `json:"history"`
-	Assets  []asset.Stored               `json:"assets"`
+	Assets  []asset.Stored                 `json:"assets"`
 }
 
 type trashRecord struct {

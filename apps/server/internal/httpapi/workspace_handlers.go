@@ -4,14 +4,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func (a API) list(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("limit") != "" {
 		limit, err := parseIntQuery(r, "limit", 0)
 		if err != nil || limit < 1 || limit > 100 {
-			fail(w, project.ErrInvalid)
+			fail(w, workspace.ErrInvalid)
 			return
 		}
 		data, err := a.service.ListRecent(r.Context(), limit)
@@ -37,7 +37,7 @@ func parseIntQuery(r *http.Request, key string, fallback int) (int, error) {
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, project.ErrInvalid
+		return 0, workspace.ErrInvalid
 	}
 	return value, nil
 }
@@ -49,34 +49,34 @@ func parseBoolQuery(r *http.Request, key string) (bool, error) {
 	case "true", "1":
 		return true, nil
 	default:
-		return false, project.ErrInvalid
+		return false, workspace.ErrInvalid
 	}
 }
 
-func workspaceQuery(r *http.Request, categoryID string) (project.WorkspaceQuery, error) {
+func workspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuery, error) {
 	hasCanvas, err := parseBoolQuery(r, "hasCanvas")
 	if err != nil {
-		return project.WorkspaceQuery{}, err
+		return workspace.WorkspaceQuery{}, err
 	}
 	hasNotes, err := parseBoolQuery(r, "hasNotes")
 	if err != nil {
-		return project.WorkspaceQuery{}, err
+		return workspace.WorkspaceQuery{}, err
 	}
 	offset, err := parseIntQuery(r, "offset", 0)
 	if err != nil || offset < 0 {
-		return project.WorkspaceQuery{}, project.ErrInvalid
+		return workspace.WorkspaceQuery{}, workspace.ErrInvalid
 	}
 	limit, err := parseIntQuery(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 100 {
-		return project.WorkspaceQuery{}, project.ErrInvalid
+		return workspace.WorkspaceQuery{}, workspace.ErrInvalid
 	}
 	sortBy := r.URL.Query().Get("sort")
 	switch sortBy {
 	case "", "created", "name", "notes":
 	default:
-		return project.WorkspaceQuery{}, project.ErrInvalid
+		return workspace.WorkspaceQuery{}, workspace.ErrInvalid
 	}
-	return project.WorkspaceQuery{
+	return workspace.WorkspaceQuery{
 		CategoryID: categoryID,
 		Query:      r.URL.Query().Get("q"),
 		Sort:       sortBy,
@@ -195,7 +195,7 @@ func (a API) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) update(w http.ResponseWriter, r *http.Request) {
-	var body project.Update
+	var body workspace.Update
 	if !decode(w, r, &body) {
 		return
 	}
@@ -208,7 +208,7 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) createNote(w http.ResponseWriter, r *http.Request) {
-	var body project.NoteCreate
+	var body workspace.NoteCreate
 	if !decode(w, r, &body) {
 		return
 	}
@@ -221,7 +221,7 @@ func (a API) createNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
-	var body project.NoteUpdate
+	var body workspace.NoteUpdate
 	if !decode(w, r, &body) {
 		return
 	}
@@ -236,7 +236,7 @@ func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
 func (a API) deleteNote(w http.ResponseWriter, r *http.Request) {
 	version, err := expectedVersion(r)
 	if err != nil || version == nil {
-		fail(w, project.ErrInvalid)
+		fail(w, workspace.ErrInvalid)
 		return
 	}
 	if err := a.service.DeleteNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), *version); err != nil {
@@ -256,7 +256,7 @@ func (a API) getCanvas(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {
-	var body project.CanvasUpdate
+	var body workspace.CanvasUpdate
 	if !decode(w, r, &body) {
 		return
 	}

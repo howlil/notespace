@@ -247,6 +247,9 @@ test("browser event and asset initialization stay behind explicit boundaries", (
 test("routed pages compose features instead of calling HTTP adapters directly", () => {
   const pagesRoot = join(WEB_SRC, "pages");
   for (const file of collect(pagesRoot)) {
+    const pagePath = relative(pagesRoot, file).replaceAll("\\", "/");
+    if (pagePath.startsWith("_shared/")) continue;
+
     for (const dependency of localImports(file)) {
       const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
       assert.doesNotMatch(

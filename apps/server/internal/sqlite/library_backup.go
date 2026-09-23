@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
-	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/migrations"
 )
 
@@ -20,10 +20,10 @@ const libraryBackupFormat = "notespace-backup"
 const libraryBackupVersion = 1
 
 type workspaceEnvelope struct {
-	Project workspace.Workspace           `json:"project"`
-	Plan    planning.Plan             `json:"plan,omitempty"`
+	Project workspace.Workspace         `json:"project"`
+	Plan    planning.Plan                `json:"plan,omitempty"`
 	History []workspace.HistorySnapshot `json:"history"`
-	Assets  []asset.Stored            `json:"assets"`
+	Assets  []asset.Stored               `json:"assets"`
 }
 
 type trashRecord struct {
@@ -42,14 +42,14 @@ type trashSummary struct {
 }
 
 type libraryBackup struct {
-	Format      string                    `json:"format"`
-	Version     int                       `json:"version"`
-	GeneratedAt string                    `json:"generatedAt"`
+	Format      string                      `json:"format"`
+	Version     int                         `json:"version"`
+	GeneratedAt string                      `json:"generatedAt"`
 	Categories  []workspace.CategorySummary `json:"categories"`
-	Workspaces  []workspaceEnvelope       `json:"workspaces"`
-	Tasks       []planning.Task           `json:"standaloneTasks,omitempty"`
-	Trash       []trashRecord             `json:"trash"`
-	Activity       []activity.Session           `json:"studySessions"`
+	Workspaces  []workspaceEnvelope         `json:"workspaces"`
+	Tasks       []planning.Task             `json:"standaloneTasks,omitempty"`
+	Trash       []trashRecord               `json:"trash"`
+	Activity    []activity.Session          `json:"studySessions"`
 }
 
 func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnvelope, error) {

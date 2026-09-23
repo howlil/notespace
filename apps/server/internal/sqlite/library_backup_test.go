@@ -59,7 +59,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatalf("trash = %+v", trash)
 	}
 
-	restored, err := store.RestoreTrashedWorkspace(ctx, workspace.ID)
+	restored, err := store.RestoreTrashedWorkspaceAtomic(ctx, workspace.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

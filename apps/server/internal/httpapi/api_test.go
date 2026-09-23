@@ -12,8 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -31,27 +33,30 @@ func call(t *testing.T, api http.Handler, method, path string, body any) *httpte
 	return res
 }
 
+func apiDependencies(store *sqlite.Store) httpapi.Dependencies {
+	workspaceService := workspace.NewService(store)
+	planningService := planning.NewService(store, store, nil)
+	activityService := activity.NewService(store, store, nil)
+	return httpapi.Dependencies{
+		Workspace: &workspaceService,
+		Planning:  &planningService,
+		Activity:  &activityService,
+		Assets:    store,
+		Health:    store.Healthy,
+	}
+}
+
 func newAPI(store *sqlite.Store) http.Handler {
-	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Activity: store,
-		ActivityReferences: store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}))
+	return httpapi.WithSameOriginMutations(httpapi.New(apiDependencies(store)))
 }
 
 func newLibraryAPI(store *sqlite.Store) http.Handler {
-	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Activity: store,
-		ActivityReferences: store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}), library.NewService(store)))
+	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(
+		httpapi.New(apiDependencies(store)),
+		library.NewService(store),
+	))
 }
+
 func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	t.Helper()
 	if res.Code != status {

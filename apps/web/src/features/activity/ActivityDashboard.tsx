@@ -3,7 +3,7 @@ import { Button, Skeleton, cn } from "../../shared/ui";
 import { getActivityDayDetail, getActivitySummary } from "../../adapters/http/activity-api";
 import type { ActivityDayDetail, ActivitySummary } from "../../adapters/http/activity-api";
 import { useToast } from "../../shared/ui/toast-provider";
-import { formatDay, formatDuration, localDate } from "./study-timer";
+import { formatDay, formatDuration, localDate } from "./activity-timer";
 
 function dateWithOffset(days: number) {
   const date = new Date();
@@ -43,7 +43,7 @@ const heatmapLevels = [
   "bg-accent",
 ] as const;
 
-export function StudyActivityDashboard({ compact = true }: { compact?: boolean }) {
+export function ActivityDashboard({ compact = true }: { compact?: boolean }) {
   const { showToast } = useToast();
   const [activity, setActivity] = useState<ActivitySummary | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -100,10 +100,10 @@ export function StudyActivityDashboard({ compact = true }: { compact?: boolean }
   const recentDays = compact ? (activity?.days ?? []).slice(-84) : [];
 
   return (
-    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mb-0")} aria-labelledby="study-activity-title">
+    <section className={cn("mb-6 overflow-hidden rounded-lg border border-line bg-surface max-[560px]:mb-5", compact && "mb-0")} aria-labelledby="activity-title">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 max-[560px]:pb-2">
         <div>
-          <h2 id="study-activity-title" className="m-0 text-[13px] font-medium text-ink">Activity</h2>
+          <h2 id="activity-title" className="m-0 text-[13px] font-medium text-ink">Activity</h2>
           {!compact && <p className="mt-1 mb-0 text-[10px] text-muted max-[560px]:hidden">Your activity rhythm over the last year</p>}
         </div>
         {compact ? (

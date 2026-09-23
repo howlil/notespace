@@ -7,8 +7,8 @@ import {
 } from "../../adapters/http/activity-api";
 import { useDismissablePopup } from "../../shared/ui/dismissable";
 import { useToast } from "../../shared/ui/toast-provider";
-import type { StudySessionState } from "./use-study-session";
-import { formatDay, formatDuration } from "./study-timer";
+import type { ActivitySessionState } from "./use-activity-session";
+import { formatDay, formatDuration } from "./activity-timer";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";
 
 const timerActionClass = "!size-10 !min-h-10 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
@@ -22,12 +22,12 @@ function sessionTime(value: string) {
   }).format(date);
 }
 
-export function StudyIndicator({
-  study,
+export function ActivityIndicator({
+  activity,
   workspaceId,
   workspaceTitle,
 }: {
-  study: StudySessionState;
+  activity: ActivitySessionState;
   workspaceId: string;
   workspaceTitle: string;
 }) {
@@ -59,13 +59,13 @@ export function StudyIndicator({
       })
       .finally(() => { if (active) setSessionsLoading(false); });
     return () => { active = false; };
-  }, [open, study.status]);
+  }, [open, activity.status]);
 
   async function removeSession(session: ActivitySession) {
-    if (study.status !== "idle" || deletingSessionId) return;
+    if (activity.status !== "idle" || deletingSessionId) return;
     setDeletingSessionId(session.id);
     try {
-      await study.deleteSession(session.id);
+      await activity.deleteSession(session.id);
       setSessions((current) => current.filter((item) => item.id !== session.id));
       showToast({ kind: "success", message: "Activity session deleted." });
     } catch (error) {
@@ -78,9 +78,9 @@ export function StudyIndicator({
     }
   }
 
-  const state = study.status === "running"
+  const state = activity.status === "running"
     ? "Running"
-    : study.status === "paused"
+    : activity.status === "paused"
       ? "Paused"
       : "No active activity";
 
@@ -93,7 +93,7 @@ export function StudyIndicator({
         className="min-h-8 gap-1.5 px-2 py-1 text-[11px] text-muted hover:text-ink focus-visible:bg-tint focus-visible:text-ink"
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={`Activity, today ${formatDuration(study.todaySeconds)}`}
+        aria-label={`Activity, today ${formatDuration(activity.todaySeconds)}`}
         onClick={() => {
           setStartOpen(false);
           setOpen((value) => !value);
@@ -101,21 +101,21 @@ export function StudyIndicator({
       >
         <span className={cn(
           "text-[10px] leading-none not-italic",
-          study.status === "running" ? "text-success" : "text-muted",
+          activity.status === "running" ? "text-success" : "text-muted",
         )}>●</span>
-        {formatDuration(study.todaySeconds)}
+        {formatDuration(activity.todaySeconds)}
       </Button>
 
-      {study.status === "idle" && (
+      {activity.status === "idle" && (
         <Button
           variant="secondary"
           size="sm"
           className={timerActionClass}
-          disabled={!study.ready || !study.canStart}
+          disabled={!activity.ready || !activity.canStart}
           aria-label="Start activity"
           aria-haspopup="menu"
           aria-expanded={startOpen}
-          title={study.blockedByOtherTab ? "Retry activity lock" : "Start activity"}
+          title={activity.blockedByOtherTab ? "Retry activity lock" : "Start activity"}
           onClick={() => {
             setOpen(false);
             setStartOpen((value) => !value);
@@ -125,12 +125,12 @@ export function StudyIndicator({
         </Button>
       )}
 
-      {startOpen && study.status === "idle" && (
+      {startOpen && activity.status === "idle" && (
         <ActivityTypeMenu
           className="absolute top-[calc(100%+8px)] right-0"
           onSelect={(activityType) => {
             setStartOpen(false);
-            study.start({
+            activity.start({
               title: workspaceTitle,
               activityType,
               workspaceId,
@@ -151,13 +151,13 @@ export function StudyIndicator({
             <Timer size={16} className="text-muted" />
           </div>
 
-          {study.activeContext && (
+          {activity.activeContext && (
             <div className="mt-3 border-b border-line pb-2.5">
-              <div className="truncate text-[11px] font-medium text-ink">{study.activeContext.title}</div>
+              <div className="truncate text-[11px] font-medium text-ink">{activity.activeContext.title}</div>
               <div className="mt-0.5 text-[9px] capitalize text-muted">
-                {study.activeContext.activityType}
-                {study.activeContext.workspaceTitleSnapshot
-                  ? ` · ${study.activeContext.workspaceTitleSnapshot}`
+                {activity.activeContext.activityType}
+                {activity.activeContext.workspaceTitleSnapshot
+                  ? ` · ${activity.activeContext.workspaceTitleSnapshot}`
                   : ""}
               </div>
             </div>
@@ -166,22 +166,22 @@ export function StudyIndicator({
           <dl className="my-3.5 grid gap-[9px]">
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-[10px] text-muted">Current session</dt>
-              <dd className="m-0 text-[11px] text-ink">{formatDuration(study.currentSeconds)}</dd>
+              <dd className="m-0 text-[11px] text-ink">{formatDuration(activity.currentSeconds)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-[10px] text-muted">Today</dt>
-              <dd className="m-0 text-[11px] text-ink">{formatDuration(study.todaySeconds)}</dd>
+              <dd className="m-0 text-[11px] text-ink">{formatDuration(activity.todaySeconds)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-[10px] text-muted">Total</dt>
-              <dd className="m-0 text-[11px] text-ink">{formatDuration(study.totalSeconds)}</dd>
+              <dd className="m-0 text-[11px] text-ink">{formatDuration(activity.totalSeconds)}</dd>
             </div>
           </dl>
 
           <div className="border-t border-line pt-2.5">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="text-[10px] font-medium text-ink">Recent sessions</span>
-              {study.status !== "idle" && (
+              {activity.status !== "idle" && (
                 <span className="text-[9px] text-muted">End activity to clean history</span>
               )}
             </div>
@@ -219,10 +219,10 @@ export function StudyIndicator({
                       type="button"
                       className="!size-6 shrink-0 text-muted hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] hover:text-danger"
                       aria-label={`Delete activity ${session.title}`}
-                      title={study.status === "idle" && !study.blockedByOtherTab
+                      title={activity.status === "idle" && !activity.blockedByOtherTab
                         ? "Delete session"
                         : "End the active activity before deleting history"}
-                      disabled={study.status !== "idle" || study.blockedByOtherTab || deletingSessionId === session.id}
+                      disabled={activity.status !== "idle" || activity.blockedByOtherTab || deletingSessionId === session.id}
                       onClick={() => void removeSession(session)}
                     >
                       <Trash2 size={13} />
@@ -238,7 +238,7 @@ export function StudyIndicator({
           <div className="mt-2.5 flex items-center gap-[5px] border-t border-line pt-2.5 text-[10px] text-muted">
             <i className={cn(
               "text-[9px] not-italic",
-              study.status === "running" ? "text-success" : "text-muted",
+              activity.status === "running" ? "text-success" : "text-muted",
             )}>●</i>
             {state}
           </div>

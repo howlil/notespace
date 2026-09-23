@@ -23,4 +23,3 @@ func expectedVersion(r *http.Request) (*int, error) {
 	}
 	return &value, nil
 }
-

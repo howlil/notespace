@@ -42,14 +42,14 @@ type trashSummary struct {
 }
 
 type libraryBackup struct {
-	Format      string                      `json:"format"`
-	Version     int                         `json:"version"`
-	GeneratedAt string                      `json:"generatedAt"`
+	Format      string                         `json:"format"`
+	Version     int                            `json:"version"`
+	GeneratedAt string                         `json:"generatedAt"`
 	Categories  []workspacepkg.CategorySummary `json:"categories"`
-	Workspaces  []workspaceEnvelope         `json:"workspaces"`
-	Tasks       []planning.Task             `json:"standaloneTasks,omitempty"`
-	Trash       []trashRecord               `json:"trash"`
-	Activity    []activity.Session          `json:"studySessions"`
+	Workspaces  []workspaceEnvelope            `json:"workspaces"`
+	Tasks       []planning.Task                `json:"standaloneTasks,omitempty"`
+	Trash       []trashRecord                  `json:"trash"`
+	Activity    []activity.Session             `json:"studySessions"`
 }
 
 func (s *Store) snapshotWorkspace(ctx context.Context, id string) (workspaceEnvelope, error) {

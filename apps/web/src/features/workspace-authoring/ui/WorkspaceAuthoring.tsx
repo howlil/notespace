@@ -129,7 +129,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     canvasFocus,
     interaction: paneInteraction,
     focusMode,
-    activePane,
     maximizeLabel,
     activeViewMode,
     splitPane,

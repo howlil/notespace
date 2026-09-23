@@ -141,7 +141,6 @@ type Update struct {
 type CategoryStore interface {
 	CreateCategory(context.Context, CategorySummary) error
 	UpdateCategory(context.Context, string, string) (CategorySummary, error)
-	DeleteCategory(context.Context, string) error
 	ListCategories(context.Context) ([]CategorySummary, error)
 	CategoryExists(context.Context, string) (bool, error)
 }
@@ -154,7 +153,6 @@ type WorkspaceStore interface {
 	Move(context.Context, string, string) (Workspace, error)
 	Get(context.Context, string) (Workspace, error)
 	Update(context.Context, string, Update) (Workspace, error)
-	Delete(context.Context, string) error
 }
 
 type SearchStore interface {
@@ -234,14 +232,6 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 	return s.Store.UpdateCategory(ctx, id, title)
 }
 
-func (s Service) DeleteCategory(ctx context.Context, id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" || id == UncategorizedCategoryID {
-		return ErrInvalid
-	}
-	return s.Store.DeleteCategory(ctx, id)
-}
-
 func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error) {
 	title = strings.TrimSpace(title)
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
@@ -274,14 +264,6 @@ func (s Service) Move(ctx context.Context, id, categoryID string) (Workspace, er
 		return Workspace{}, ErrNotFound
 	}
 	return s.Store.Move(ctx, id, categoryID)
-}
-
-func (s Service) Delete(ctx context.Context, id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return ErrInvalid
-	}
-	return s.Store.Delete(ctx, id)
 }
 
 func (s Service) Create(

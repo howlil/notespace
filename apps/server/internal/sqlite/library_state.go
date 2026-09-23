@@ -117,4 +117,3 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope workspaceEnvel
 	}
 	return nil
 }
-

@@ -16,7 +16,6 @@ import (
 // Keep the HTTP round-trip bound conservative until that path is fully streamed.
 const maxBackupBytes = 64 << 20
 
-
 func singlePathID(path, prefix string) (string, bool) {
 	if !strings.HasPrefix(path, prefix) {
 		return "", false

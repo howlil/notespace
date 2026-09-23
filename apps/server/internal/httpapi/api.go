@@ -12,6 +12,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -20,7 +21,8 @@ type API struct {
 	service     *workspace.Service
 	planning    *planning.Service
 	activities  *activity.Service
-	assets      asset.Store
+	assets      *asset.Service
+	library     *library.Service
 	health      func(context.Context) error
 	eraserIcons *eraserIconGateway
 }
@@ -29,7 +31,8 @@ type Dependencies struct {
 	Workspace *workspace.Service
 	Planning  *planning.Service
 	Activity  *activity.Service
-	Assets    asset.Store
+	Assets    *asset.Service
+	Library   *library.Service
 	Health    func(context.Context) error
 }
 
@@ -44,12 +47,15 @@ func New(deps Dependencies) http.Handler {
 		panic("httpapi: activity service is required")
 	}
 	if deps.Assets == nil {
-		panic("httpapi: asset store is required")
+		panic("httpapi: asset service is required")
+	}
+	if deps.Library == nil {
+		panic("httpapi: library service is required")
 	}
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
+	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: newEraserIconGateway(&http.Client{Timeout: 5 * time.Second}, eraserIconOrigin)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -102,6 +108,11 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /api/workspaces/{id}/history/{historyId}/restore", a.restore)
 	mux.HandleFunc("DELETE /api/projects/{id}", a.delete)
 	mux.HandleFunc("DELETE /api/workspaces/{id}", a.delete)
+	mux.HandleFunc("GET /api/trash", a.listTrash)
+	mux.HandleFunc("POST /api/trash/{id}", a.restoreTrash)
+	mux.HandleFunc("DELETE /api/trash/{id}", a.deleteTrash)
+	mux.HandleFunc("GET /api/backup", a.exportBackup)
+	mux.HandleFunc("POST /api/backup/restore", a.restoreBackup)
 	mux.HandleFunc("GET /api/workspaces/{id}/assets/{assetId}", a.getAsset)
 	mux.HandleFunc("PUT /api/workspaces/{id}/assets/{assetId}", a.putAsset)
 	mux.HandleFunc("DELETE /api/workspaces/{id}/assets/{assetId}", a.deleteAsset)
@@ -122,6 +133,10 @@ func New(deps Dependencies) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
+		if isLegacyProjectPath(r.URL.Path) {
+			w.Header().Set("Deprecation", "true")
+			w.Header().Set("Link", `</api/workspaces>; rel="successor-version"`)
+		}
 		mux.ServeHTTP(w, r)
 	})
 }

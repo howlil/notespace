@@ -34,7 +34,7 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	projects := sqlite.NewIndexedProjectStore(store)
+	projects := sqlite.NewIndexedWorkspaceStore(store)
 	deps := httpapi.Dependencies{Projects: projects, Planning: store, Activity: store, ActivityReferences: store, Assets: store, Health: store.Healthy}
 	libraryService := library.NewService(store)
 	api := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(deps), libraryService))

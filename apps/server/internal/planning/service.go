@@ -355,4 +355,3 @@ func (s Service) DeleteAnyTask(ctx context.Context, taskID string, version int) 
 	}
 	return s.Store.DeleteTask(ctx, taskID, version)
 }
-

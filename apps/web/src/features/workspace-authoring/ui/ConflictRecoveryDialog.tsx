@@ -3,7 +3,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogT
 import { snapshotToMarkdown } from "../../../domain/document/markdown";
 import { subscribeWorkspaceConflict } from "../../../adapters/browser/workspace-conflict-events";
 import type { ConflictDraft } from "../../../adapters/browser/workspace-conflict-events";
-import { useToast } from "../../../app/providers/toast-provider";
+import { useToast } from "../../../shared/ui/toast-provider";
 
 function notesMarkdown(draft: ConflictDraft) {
   if (draft.kind === "canvas") return "";

@@ -6,7 +6,7 @@ import {
   type ActivitySession,
 } from "../../adapters/http/activity-api";
 import { useDismissablePopup } from "../../shared/ui/dismissable";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import type { StudySessionState } from "./use-study-session";
 import { formatDay, formatDuration } from "./study-timer";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";

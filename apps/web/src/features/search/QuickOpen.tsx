@@ -5,7 +5,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, c
 import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { getWorkspace, listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
 import type { SearchResult } from "../../adapters/http/workspace-api";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 

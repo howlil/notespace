@@ -52,7 +52,7 @@ import {
   cn,
 } from "../../../shared/ui";
 import { useDismissablePopup } from "../../../shared/ui/dismissable";
-import { useToast } from "../../../app/providers/toast-provider";
+import { useToast } from "../../../shared/ui/toast-provider";
 import { placeEditorPopup } from "./editor-floating";
 import { createLocalImageExtension } from "./LocalImageNode";
 import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";

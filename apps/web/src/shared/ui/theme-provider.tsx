@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
-import { IconButton } from "../../shared/ui";
-import { readLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
+import { IconButton } from ".";
+import { readLocalStorage, writeLocalStorage } from "../browser/local-storage";
 
 const Theme = createContext<{ dark: boolean; toggle: () => void }>({
   dark: false,

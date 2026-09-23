@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton, cn } from "../../shared/ui";
 import { getActivityDayDetail, getActivitySummary } from "../../adapters/http/activity-api";
 import type { ActivityDayDetail, ActivitySummary } from "../../adapters/http/activity-api";
-import { useToast } from "../../app/providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import { formatDay, formatDuration, localDate } from "./study-timer";
 
 function dateWithOffset(days: number) {

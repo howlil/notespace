@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCategories, listRecentWorkspaces } from "../adapters/http/workspace-api";
 import { HomePage } from "../pages/home/HomePage";
-import { RoutePending } from "../app/feedback/RoutePending";
+import { RoutePending } from "../pages/_shared/RoutePending";
 
 export const Route = createFileRoute("/")({
   ssr: false,

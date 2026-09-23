@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { CalendarPlus, Inbox as InboxIcon, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { Sidebar } from "../../app/shell/Sidebar";
+import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import { Button, IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/workspace/workspace";
@@ -17,8 +17,8 @@ import {
   type PlanningTask,
 } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
-import { ThemeToggle } from "../../app/providers/theme-provider";
-import { useToast } from "../../app/providers/toast-provider";
+import { ThemeToggle } from "../../shared/ui/theme-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 
 function InboxTaskRow({
   task,
@@ -197,7 +197,7 @@ export function InboxPage({
 
   return (
     <div className="grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] bg-background max-[560px]:grid-cols-[minmax(0,1fr)]">
-      <Sidebar
+      <LibrarySidebar
         categories={categoryItems}
         inboxActive
         onChanged={() => {

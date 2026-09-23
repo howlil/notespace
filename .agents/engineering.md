@@ -32,13 +32,12 @@ Preferred top-level responsibilities:
 
 ```text
 apps/web/src/
-├── app/        application bootstrap and global providers
-├── routes/     URL boundary and route data wiring
-├── pages/      screen-level composition
+├── routes/     URL boundary and route-level composition
+├── pages/      screen-level composition, including pages/_shared for shared page composition
 ├── features/   product behavior and use-cases
 ├── domain/     pure product models, rules, and state transformations
-├── adapters/   HTTP, browser, storage, and external technology boundaries
-└── shared/     genuinely generic UI and utilities
+├── adapters/   product-facing HTTP, browser event, asset, and external technology boundaries
+└── shared/     genuinely generic UI, browser primitives, styles, and utilities
 ```
 
 Do not create a folder only because a pattern exists elsewhere. Add a boundary only when it clarifies ownership or dependency direction.
@@ -48,10 +47,10 @@ Do not create a folder only because a pattern exists elsewhere. Add a boundary o
 Default rules:
 
 ```text
-routes   → pages, domain, adapters, shared
-pages    → features, domain, adapters, shared
-features → domain, adapters, shared
-adapters → domain, shared
+routes   → routes, pages, features, domain, adapters, shared
+pages    → pages, features, domain, adapters, shared
+features → same feature, domain, adapters, shared
+adapters → adapters, domain, shared
 domain   → domain only
 shared   → shared only
 ```
@@ -73,10 +72,10 @@ Architecture enforcement rules:
 - sibling feature implementations must not depend on each other;
 - every `*.test.ts` and `*.test.tsx` under `apps/web/src` and `tests` must be discovered automatically by the Node test runner.
 
-Temporary migration exception:
-- `src/app` remains only until the next web-boundary migration wave;
-- do not add new `app` sub-boundaries or new dependency shapes around it;
-- existing provider consumers, page-level Sidebar composition, and route pending UI are tolerated only as explicit transitional edges.
+Page-composition rule:
+- `pages/_shared` may contain product-specific composition used by multiple routed pages;
+- `pages/_shared` may combine sibling features because it belongs to the page composition layer;
+- do not move product-specific composition into `shared` merely to make it reusable.
 
 ## 4. Routes
 
@@ -327,7 +326,9 @@ features/today screen     → pages/today
 features/inbox screen     → pages/inbox
 
 components/ui             → shared/ui
-application Sidebar       → app/page composition owner
+application Sidebar       → pages/_shared/LibrarySidebar
+application providers     → shared/ui when generic
+generic browser storage   → shared/browser
 
 domain/project HTTP       → adapters/http
 domain/project model      → domain/workspace

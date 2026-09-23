@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { CalendarCheck2, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Inbox as InboxIcon, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
-import { useToast } from "../providers/toast-provider";
+import { useToast } from "../../shared/ui/toast-provider";
 import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { createCategory, createWorkspace, deleteCategory, deleteWorkspace, listCategoryWorkspaces, moveWorkspace, renameWorkspace, updateCategory } from "../../adapters/http/workspace-api";
 import { QuickCapture } from "../../features/capture/QuickCapture";
@@ -13,7 +13,7 @@ import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { useLibraryRevision } from "../../features/library/use-library-revision";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
-import { NotespaceLogo } from "../brand/NotespaceLogo";
+import { NotespaceLogo } from "./NotespaceLogo";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -24,7 +24,7 @@ type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "works
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
-export function Sidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
+export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);

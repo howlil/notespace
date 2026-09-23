@@ -6,7 +6,7 @@ import {
   type ActivityHeartbeat,
   type ActivityType,
 } from "../../adapters/http/activity-api";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../adapters/browser/local-storage";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
 import {
   acknowledgeActivityFinalization,
   enqueueActivityFinalization,

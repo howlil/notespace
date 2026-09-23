@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCategories } from "../adapters/http/workspace-api";
 import { getInbox } from "../adapters/http/planning-api";
-import { RoutePending } from "../app/feedback/RoutePending";
+import { RoutePending } from "../pages/_shared/RoutePending";
 import { InboxPage } from "../pages/inbox/InboxPage";
 
 export const Route = createFileRoute("/inbox")({

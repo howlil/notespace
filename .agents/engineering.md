@@ -186,6 +186,8 @@ Typical responsibilities:
 
 Adapters implement infrastructure concerns; they do not own product behavior.
 
+Adapter facades may orchestrate narrower infrastructure responsibilities, but keep transport, browser cache, and media normalization separate when they have independent failure modes. Preserve a stable facade when splitting those internals prevents consumer churn.
+
 ## 9. Shared code
 
 `shared/` is for code that is genuinely reusable without knowing Notespace product semantics.

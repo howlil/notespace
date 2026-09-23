@@ -319,6 +319,22 @@ test("workspace authoring delegates mutations to its command boundary", () => {
   assert.match(commands, /flushNote/);
 });
 
+test("image store stays an orchestration facade over cache, remote I/O, and normalization", () => {
+  const store = source("adapters/assets/image-store.ts");
+  const cache = source("adapters/assets/image-cache.ts");
+  const api = source("adapters/assets/image-api.ts");
+  const normalizer = source("adapters/assets/image-normalizer.ts");
+
+  assert.match(store, /image-cache/);
+  assert.match(store, /image-api/);
+  assert.match(store, /image-normalizer/);
+  assert.doesNotMatch(store, /indexedDB|createImageBitmap|\/api\/workspaces\/.*\/assets/);
+
+  assert.match(cache, /indexedDB/);
+  assert.match(api, /\/api\/workspaces\//);
+  assert.match(normalizer, /createImageBitmap/);
+});
+
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {
   const editor = source("features/workspace-authoring/document/DocumentEditor.tsx");
   const localImage = source("features/workspace-authoring/document/LocalImageNode.tsx");

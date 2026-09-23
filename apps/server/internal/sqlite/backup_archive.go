@@ -62,7 +62,7 @@ type libraryArchiveManifest struct {
 	Workspaces    []archiveWorkspaceEnvelope `json:"workspaces"`
 	Tasks         []planning.Task            `json:"standaloneTasks,omitempty"`
 	Trash         []archiveTrashRecord       `json:"trash"`
-	Study         []activity.Session            `json:"activitySessions"`
+	Activity         []activity.Session            `json:"studySessions"`
 	Blobs         []archiveBlob              `json:"blobs"`
 }
 
@@ -94,7 +94,7 @@ func (s *Store) ExportBackupArchiveAtomic(ctx context.Context) ([]byte, error) {
 	catalog := map[string]archiveBlob{}
 	manifest := libraryArchiveManifest{
 		Format: libraryBackupFormat, Version: libraryArchiveVersion, SchemaVersion: libraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Study: backup.Study, Tasks: backup.Tasks,
+		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Activity: backup.Activity, Tasks: backup.Tasks,
 		Workspaces: make([]archiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:      make([]archiveTrashRecord, 0, len(backup.Trash)),
 	}
@@ -250,7 +250,7 @@ func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
 
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Study: manifest.Study, Tasks: manifest.Tasks,
+		Categories: manifest.Categories, Activity: manifest.Activity, Tasks: manifest.Tasks,
 		Workspaces: make([]workspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:      make([]trashRecord, 0, len(manifest.Trash)),
 	}

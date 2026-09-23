@@ -12,9 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
-	"github.com/howlil/notespace/apps/server/internal/persistence"
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/icon"
+	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/planning"
+	"github.com/howlil/notespace/apps/server/internal/sqlite"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func call(t *testing.T, api http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -30,43 +35,56 @@ func call(t *testing.T, api http.Handler, method, path string, body any) *httpte
 	return res
 }
 
-func newAPI(store *persistence.Store) http.Handler {
-	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Study:    store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}))
+type testIconSource struct{}
+
+func (testIconSource) Fetch(context.Context, string) (icon.Entry, error) {
+	return icon.Entry{}, icon.ErrNotFound
 }
 
-func newLibraryAPI(store *persistence.Store) http.Handler {
-	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Study:    store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}), store))
+func apiDependencies(store *sqlite.Store) httpapi.Dependencies {
+	workspaceService := workspacepkg.NewService(store)
+	planningService := planning.NewService(store, store, nil)
+	activityService := activity.NewService(store, store, nil)
+	assetService := asset.NewService(store, store)
+	libraryService := library.NewService(store)
+	return httpapi.Dependencies{
+		Workspace: &workspaceService,
+		Planning:  &planningService,
+		Activity:  &activityService,
+		Assets:    &assetService,
+		Library:   &libraryService,
+		Icons:     testIconSource{},
+		Health:    store.Healthy,
+	}
 }
+
+func newAPI(store *sqlite.Store) http.Handler {
+	return httpapi.WithSameOriginMutations(httpapi.New(apiDependencies(store)))
+}
+
+func newLibraryAPI(store *sqlite.Store) http.Handler {
+	return newAPI(store)
+}
+
 func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	t.Helper()
 	if res.Code != status {
 		t.Fatalf("status %d, want %d: %s", res.Code, status, res.Body.String())
 	}
 }
-func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) project.Project {
+
+func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) workspacepkg.Workspace {
 	t.Helper()
-	var p project.Project
+	var p workspacepkg.Workspace
 	if err := json.Unmarshal(res.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
 
-func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.CategorySummary {
+func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []workspacepkg.CategorySummary {
 	t.Helper()
-	var categories []project.CategorySummary
+	var categories []workspacepkg.CategorySummary
 	if err := json.Unmarshal(res.Body.Bytes(), &categories); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +92,7 @@ func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.Ca
 }
 
 func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +113,7 @@ func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) 
 }
 
 func TestCategoryGroupsWorkspaces(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +121,7 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Computer Science"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspacepkg.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +140,7 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 }
 
 func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,13 +148,13 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 	api := newAPI(store)
 
 	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Root workspace"}))
-	if workspace.CategoryID != project.UncategorizedCategoryID {
-		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, project.UncategorizedCategoryID)
+	if workspace.CategoryID != workspacepkg.UncategorizedCategoryID {
+		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, workspacepkg.UncategorizedCategoryID)
 	}
 }
 
 func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +162,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	api := newAPI(store)
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspacepkg.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -157,9 +175,9 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	page := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?q=go&limit=1", nil)
 	expect(t, page, 200)
 	var result struct {
-		Items      []project.Summary `json:"items"`
-		Total      int               `json:"total"`
-		NextOffset *int              `json:"nextOffset"`
+		Items      []workspacepkg.Summary `json:"items"`
+		Total      int                    `json:"total"`
+		NextOffset *int                   `json:"nextOffset"`
 	}
 	if err := json.Unmarshal(page.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
@@ -176,7 +194,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 
 func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +203,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 
 	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
 	expect(t, createdCategory, 201)
-	var category project.CategorySummary
+	var category workspacepkg.CategorySummary
 	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
 		t.Fatal(err)
 	}
@@ -203,10 +221,12 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 		t.Fatalf("workspace title = %q, want %q", got, "Golang")
 	}
 
-	// Category deletion must not cascade into authored workspace data.
+	// Category deletion must not cascade into active or recoverable workspace data.
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
 	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), 204)
+	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
+	expect(t, call(t, api, "DELETE", "/api/trash/"+workspace.ID, nil), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
 	for _, listed := range decodeCategories(t, call(t, api, "GET", "/api/categories", nil)) {
 		if listed.ID == category.ID {
@@ -217,14 +237,14 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 
 func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
 
-	var firstCategory, secondCategory project.CategorySummary
+	var firstCategory, secondCategory workspacepkg.CategorySummary
 	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Learning"}).Body.Bytes(), &firstCategory); err != nil {
 		t.Fatal(err)
 	}
@@ -242,9 +262,9 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	all := call(t, api, "GET", "/api/workspaces?limit=1", nil)
 	expect(t, all, 200)
 	var page struct {
-		Items      []project.Summary `json:"items"`
-		Total      int               `json:"total"`
-		NextOffset *int              `json:"nextOffset"`
+		Items      []workspacepkg.Summary `json:"items"`
+		Total      int                    `json:"total"`
+		NextOffset *int                   `json:"nextOffset"`
 	}
 	if err := json.Unmarshal(all.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
@@ -262,15 +282,15 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 
 func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Research"}))
-	second := project.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
-	update := project.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
+	second := workspacepkg.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	update := workspacepkg.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
 	got := decodeWorkspace(t, saved)
@@ -285,7 +305,7 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 
 func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,23 +313,23 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Note actions"}))
 	note := p.Notes[0]
-	note.Document = project.Snapshot{
+	note.Document = workspacepkg.Snapshot{
 		Format:  "tiptap",
 		Version: 1,
 		Data:    json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"highlight-block"},"content":[{"type":"text","text":"Marked","marks":[{"type":"highlight"}]}]}]}`),
 	}
-	canvas := project.Snapshot{
+	canvas := workspacepkg.Snapshot{
 		Format:  "excalidraw",
 		Version: 1,
 		Data:    json.RawMessage(`{"elements":[{"id":"linked-element","type":"rectangle"}],"appState":{},"files":{}}`),
 	}
-	update := project.Update{
+	update := workspacepkg.Update{
 		Title:      p.Title,
 		Version:    p.Version,
 		Document:   note.Document,
-		Notes:      []project.Note{note},
+		Notes:      []workspacepkg.Note{note},
 		Canvas:     canvas,
-		References: []project.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
+		References: []workspacepkg.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
 		SplitRatio: p.SplitRatio,
 	}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
@@ -322,12 +342,12 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 		t.Fatalf("reference mapping was not persisted: %+v", reloaded.References)
 	}
 
-	second := project.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
+	second := workspacepkg.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 	deleted := update
 	deleted.Version = reloaded.Version
 	deleted.Document = second.Document
-	deleted.Notes = []project.Note{second}
-	deleted.References = []project.Reference{}
+	deleted.Notes = []workspacepkg.Note{second}
+	deleted.References = []workspacepkg.Reference{}
 	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, deleted), 200)
 	afterDelete := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
 	if len(afterDelete.Notes) != 1 || afterDelete.Notes[0].ID != second.ID || len(afterDelete.References) != 0 {
@@ -338,7 +358,7 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 func TestProjectJourneyAndRestart(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "notespace.db")
-	store, err := persistence.Open(ctx, dbPath)
+	store, err := sqlite.Open(ctx, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,10 +372,10 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	created := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems"})
 	expect(t, created, 201)
 	p := decodeWorkspace(t, created)
-	update := project.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
-		Document:   project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
-		Canvas:     project.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
-		References: []project.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
+	update := workspacepkg.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
+		Document:   workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
+		Canvas:     workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
+		References: []workspacepkg.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
 	}
 	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
 	expect(t, saved, 200)
@@ -368,7 +388,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = persistence.Open(ctx, dbPath)
+	store, err = sqlite.Open(ctx, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +411,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 }
 
 func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +446,7 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 }
 
 func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "query-boundary.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "query-boundary.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,20 +467,14 @@ func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
 }
 
 func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "library-origin.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library-origin.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 
 	workspace := decodeWorkspace(t, call(t, newAPI(store), "POST", "/api/workspaces", map[string]string{"title": "Protected workspace"}))
-	composed := httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
-		Projects: store,
-		Planning: store,
-		Study:    store,
-		Assets:   store,
-		Health:   store.Healthy,
-	}), store))
+	composed := httpapi.WithSameOriginMutations(httpapi.New(apiDependencies(store)))
 	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+workspace.ID, nil)
 	req.Header.Set("Origin", "https://untrusted.example")
 	res := httptest.NewRecorder()
@@ -470,13 +484,13 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 }
 
 func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Keep me"}))
-	update := project.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
+	update := workspacepkg.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
 	update.Document.Format = "unknown"
 	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
 	update.Document = p.Document
@@ -496,7 +510,7 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 }
 
 func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +557,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 }
 
 func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,20 +654,20 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 }
 
 func TestSearchReturnsExactParentBlockContext(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Search workspace"}))
-	p.Document = project.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
+	p.Document = workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-raft"},"content":[{"type":"text","text":"Raft consensus"}]}]}`)}
 	p.Notes[0].Document = p.Document
-	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: p.Version, Document: p.Document, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, saved, 200)
 	results := call(t, api, "GET", "/api/search?q=consensus", nil)
 	expect(t, results, 200)
-	var got []project.SearchResult
+	var got []workspacepkg.SearchResult
 	if err := json.Unmarshal(results.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +677,7 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 }
 
 func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -672,7 +686,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Portable workspace"}))
 	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
-	var entries []project.HistoryEntry
+	var entries []workspacepkg.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
 		t.Fatal(err)
 	}
@@ -683,7 +697,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 }
 
 func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -692,14 +706,14 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "History"}))
 	first := p.Document
 	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
-	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
+	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
 	second := saved.Document
 	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
-	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, project.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
+	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
 	expect(t, updated, 200)
 	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
 	expect(t, history, 200)
-	var entries []project.HistoryEntry
+	var entries []workspacepkg.HistoryEntry
 	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
 		t.Fatal(err)
 	}
@@ -715,7 +729,7 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 
 func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -725,7 +739,7 @@ func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 
 	response := call(t, api, "GET", "/api/workspaces/"+workspace.ID+"/canvas", nil)
 	expect(t, response, http.StatusOK)
-	var state project.CanvasState
+	var state workspacepkg.CanvasState
 	if err := json.Unmarshal(response.Body.Bytes(), &state); err != nil {
 		t.Fatal(err)
 	}

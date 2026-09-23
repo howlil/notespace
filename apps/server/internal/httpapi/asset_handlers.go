@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
-	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
 const maxAssetBytes = 8 << 20
@@ -22,15 +21,6 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 	workspaceID, assetID := r.PathValue("id"), r.PathValue("assetId")
 	if !validAssetID(assetID) {
 		fail(w, asset.ErrInvalid)
-		return
-	}
-	exists, err := a.service.WorkspaceExists(r.Context(), workspaceID)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	if !exists {
-		fail(w, project.ErrNotFound)
 		return
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -53,7 +43,7 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 		fail(w, asset.ErrInvalid)
 		return
 	}
-	_, err = a.assets.PutAsset(r.Context(), asset.Stored{ID: assetID, WorkspaceID: workspaceID, MimeType: mediaType, Data: data})
+	_, err = a.assets.Put(r.Context(), asset.Stored{ID: assetID, WorkspaceID: workspaceID, MimeType: mediaType, Data: data})
 	if err != nil {
 		fail(w, err)
 		return
@@ -62,7 +52,7 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) getAsset(w http.ResponseWriter, r *http.Request) {
-	value, err := a.assets.GetAsset(r.Context(), r.PathValue("id"), r.PathValue("assetId"))
+	value, err := a.assets.Get(r.Context(), r.PathValue("id"), r.PathValue("assetId"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -76,7 +66,7 @@ func (a API) getAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) deleteAsset(w http.ResponseWriter, r *http.Request) {
-	if err := a.assets.DeleteAsset(r.Context(), r.PathValue("id"), r.PathValue("assetId")); err != nil {
+	if err := a.assets.Delete(r.Context(), r.PathValue("id"), r.PathValue("assetId")); err != nil {
 		fail(w, err)
 		return
 	}

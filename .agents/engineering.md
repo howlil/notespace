@@ -356,14 +356,16 @@ Preferred dependency graph:
 ```text
 cmd/notespace
     ├── wires → httpapi
-    └── wires → sqlite
+    ├── wires → sqlite
+    └── wires → icon
 
 httpapi
     ├── → workspace
     ├── → planning
     ├── → activity
     ├── → library
-    └── → asset
+    ├── → asset
+    └── → icon
 
 sqlite
     ├── implements → workspace ports
@@ -376,8 +378,8 @@ sqlite
 Forbidden dependency direction:
 
 ```text
-workspace / planning / activity / library / asset ─X→ httpapi
-workspace / planning / activity / library / asset ─X→ sqlite
+workspace / planning / activity / library / asset / icon ─X→ httpapi
+workspace / planning / activity / library / asset / icon ─X→ sqlite
 httpapi                                      ─X→ sqlite concrete implementation
 ```
 
@@ -403,7 +405,11 @@ activity
   and activity-specific validation
 
 asset
-  owns durable binary asset semantics
+  owns durable binary asset semantics and asset use-cases
+
+icon
+  owns external icon retrieval, SVG trust validation,
+  bounded caching, and concurrent fetch deduplication
 
 library
   owns recovery and portability use-cases:
@@ -453,6 +459,7 @@ apps/server/
 │   ├── planning/
 │   ├── activity/
 │   ├── asset/
+│   ├── icon/
 │   ├── library/
 │   ├── httpapi/
 │   └── sqlite/
@@ -573,9 +580,7 @@ Keep compatibility behavior at the transport edge when possible. New server code
 
 ## 22. Server naming and migration direction
 
-Current server terminology contains compatibility debt.
-
-Move incrementally toward:
+The package migration is complete:
 
 ```text
 internal/persistence → internal/sqlite
@@ -583,18 +588,7 @@ internal/study       → internal/activity
 internal/project     → internal/workspace
 ```
 
-Order for the current architecture cleanup:
-
-```text
-1. add/enforce server dependency-boundary checks
-2. persistence → sqlite
-3. study → activity
-4. move cross-domain activity orchestration out of HTTP
-5. extract library ownership for Trash / Backup / Restore
-6. project → workspace
-```
-
-Do one ownership boundary at a time and keep behavior stable.
+Do not reintroduce the legacy `persistence`, `study`, or `project` packages. Continue refactors by moving one ownership boundary at a time while keeping behavior stable.
 
 Do not rename database tables such as `projects` merely to match package terminology. Schema renames require their own concrete payoff and migration justification.
 

@@ -4,6 +4,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,19 +14,17 @@ import (
 const modulePath = "github.com/howlil/notespace/apps/server/internal/"
 
 var applicationPackages = map[string]bool{
-	"project":   true, // migration alias: target is workspace
 	"workspace": true,
 	"planning":  true,
-	"study":     true, // migration alias: target is activity
 	"activity":  true,
 	"library":   true,
 	"asset":     true,
+	"icon":      true,
 }
 
 var infrastructurePackages = map[string]bool{
-	"httpapi":     true,
-	"persistence": true, // migration alias: target is sqlite
-	"sqlite":      true,
+	"httpapi": true,
+	"sqlite":  true,
 }
 
 func TestServerDependencyBoundaries(t *testing.T) {
@@ -78,8 +77,24 @@ func forbiddenDependency(source, target string) bool {
 	if applicationPackages[source] && infrastructurePackages[target] {
 		return true
 	}
-	if source == "httpapi" && (target == "persistence" || target == "sqlite") {
+	if source == "httpapi" && target == "sqlite" {
 		return true
 	}
 	return false
+}
+
+
+func TestLegacyServerPackagesRemoved(t *testing.T) {
+	internalRoot := filepath.Clean("..")
+	for _, name := range []string{"project", "study", "persistence"} {
+		path := filepath.Join(internalRoot, name)
+		_, err := os.Stat(path)
+		if err == nil {
+			t.Errorf("legacy server package %q still exists", name)
+			continue
+		}
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
 }

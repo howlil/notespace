@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/howlil/notespace/apps/server/internal/project"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type staleSearchWorkspace struct {
@@ -154,15 +154,15 @@ func safeFTSQuery(query string) string {
 // SearchIndexed keeps authored snapshots as the source of truth while using a
 // lazily synchronized SQLite FTS projection for retrieval. Only workspaces whose
 // version/category/title changed are decoded during a search.
-func (s *Store) SearchIndexed(ctx context.Context, query string) ([]project.SearchResult, error) {
+func (s *Store) SearchIndexed(ctx context.Context, query string) ([]workspace.SearchResult, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return []project.SearchResult{}, nil
+		return []workspace.SearchResult{}, nil
 	}
 	if err := s.syncSearchIndex(ctx); err != nil {
 		return nil, err
 	}
-	results := []project.SearchResult{}
+	results := []workspace.SearchResult{}
 	categoryRows, err := s.db.QueryContext(ctx, `SELECT id,title FROM categories WHERE LOWER(title) LIKE ? ORDER BY updated_at DESC LIMIT 20`, "%"+strings.ToLower(query)+"%")
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func (s *Store) SearchIndexed(ctx context.Context, query string) ([]project.Sear
 			categoryRows.Close()
 			return nil, err
 		}
-		results = append(results, project.SearchResult{Type: "category", CategoryID: id, CategoryTitle: title, Excerpt: title})
+		results = append(results, workspace.SearchResult{Type: "category", CategoryID: id, CategoryTitle: title, Excerpt: title})
 	}
 	if err := categoryRows.Err(); err != nil {
 		categoryRows.Close()
@@ -201,7 +201,7 @@ WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match
 		if kind == "block" {
 			excerptValue = excerpt(content, query)
 		}
-		results = append(results, project.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, NoteTitle: noteTitle, BlockID: blockID, Excerpt: excerptValue})
+		results = append(results, workspace.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, NoteTitle: noteTitle, BlockID: blockID, Excerpt: excerptValue})
 	}
 	return results, rows.Err()
 }

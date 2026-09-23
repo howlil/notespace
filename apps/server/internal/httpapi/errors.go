@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"log/slog"
+	"net/http"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
-	"github.com/howlil/notespace/apps/server/internal/persistence"
+	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/project"
 )
 
@@ -30,7 +30,7 @@ func call(t *testing.T, api http.Handler, method, path string, body any) *httpte
 	return res
 }
 
-func newAPI(store *persistence.Store) http.Handler {
+func newAPI(store *sqlite.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Planning: store,
@@ -40,7 +40,7 @@ func newAPI(store *persistence.Store) http.Handler {
 	}))
 }
 
-func newLibraryAPI(store *persistence.Store) http.Handler {
+func newLibraryAPI(store *sqlite.Store) http.Handler {
 	return httpapi.WithSameOriginMutations(httpapi.WithLibraryRoutes(httpapi.New(httpapi.Dependencies{
 		Projects: store,
 		Planning: store,
@@ -74,7 +74,7 @@ func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []project.Ca
 }
 
 func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) 
 }
 
 func TestCategoryGroupsWorkspaces(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestCategoryGroupsWorkspaces(t *testing.T) {
 }
 
 func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 }
 
 func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 
 func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 
 func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 
 func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
 
 func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
 func TestProjectJourneyAndRestart(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "notespace.db")
-	store, err := persistence.Open(ctx, dbPath)
+	store, err := sqlite.Open(ctx, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +368,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = persistence.Open(ctx, dbPath)
+	store, err = sqlite.Open(ctx, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 }
 
 func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func TestInvalidRequestsDoNotCreateProjects(t *testing.T) {
 }
 
 func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "query-boundary.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "query-boundary.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
 }
 
 func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "library-origin.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library-origin.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestLibraryMutationsUseComposedSameOriginBoundary(t *testing.T) {
 }
 
 func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +496,7 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 }
 
 func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +543,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 }
 
 func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,7 +640,7 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 }
 
 func TestSearchReturnsExactParentBlockContext(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "search.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +663,7 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 }
 
 func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -683,7 +683,7 @@ func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
 }
 
 func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
-	store, err := persistence.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -715,7 +715,7 @@ func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
 
 func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 	ctx := context.Background()
-	store, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

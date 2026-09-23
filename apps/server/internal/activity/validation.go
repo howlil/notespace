@@ -24,4 +24,3 @@ func validTitle(value string) bool {
 func ValidActivityType(value string) bool {
 	return validActivityTypes[strings.TrimSpace(value)]
 }
-

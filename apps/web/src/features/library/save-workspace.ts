@@ -2,7 +2,8 @@ import { pruneLocalImageCache } from "../../adapters/assets/image-store";
 import { BlockingAutosaveError } from "../../domain/workspace/autosave";
 import { mergeCanvasSnapshots, mergeWorkspaceContent, sameNonCanvasContent, sameWorkspaceContent } from "../../domain/workspace/canvas-merge";
 import { publishWorkspaceConflict } from "../../adapters/browser/workspace-conflict-events";
-import { APIError, getWorkspace, updateWorkspaceSnapshot } from "../../adapters/http/client";
+import { APIError } from "../../adapters/http/client";
+import { getWorkspace, updateWorkspaceSnapshot } from "../../adapters/http/workspace-api";
 import { workspaceContentOf } from "../../domain/workspace/workspace";
 import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace";
 

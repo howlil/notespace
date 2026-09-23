@@ -66,6 +66,8 @@ const DISMISSABLE_POPUP = join(WEB_SRC, "shared", "ui", "dismissable.tsx");
 const POPUP_SURFACE = join(WEB_SRC, "shared", "ui", "popup-surface.tsx");
 const CONFIRM_DIALOG = join(WEB_SRC, "shared", "ui", "confirm-dialog.tsx");
 const IMAGE_ASSETS = join(WEB_SRC, "adapters", "assets", "image-store.ts");
+const IMAGE_ASSET_API = join(WEB_SRC, "adapters", "assets", "image-api.ts");
+const IMAGE_ASSET_CACHE = join(WEB_SRC, "adapters", "assets", "image-cache.ts");
 const ROUTER = join(WEB_SRC, "router.tsx");
 const WEB_PACKAGE = join(WEB, "package.json");
 const VITE_CONFIG = join(WEB, "vite.config.ts");
@@ -437,9 +439,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {
-  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), imageActions=source(DOCUMENT_IMAGE_ACTIONS), assets=source(IMAGE_ASSETS), packageJson=source(WEB_PACKAGE);
+  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), imageActions=source(DOCUMENT_IMAGE_ACTIONS), store=source(IMAGE_ASSETS), api=source(IMAGE_ASSET_API), cache=source(IMAGE_ASSET_CACHE), packageJson=source(WEB_PACKAGE);
   assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(imageActions,/storeImageAsset\(workspaceId, assetId/);
-  assert.match(assets,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(assets,/method:\s*"PUT"/); assert.match(assets,/loadRemoteAsset/); assert.match(assets,/Read-through migration/); assert.match(assets,/indexedDB\.open\(DATABASE_NAME/); assert.match(assets,/inFlightAssetLoads/);
+  assert.match(api,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(api,/method:\s*"PUT"/); assert.match(api,/loadRemoteImageAsset/); assert.match(store,/Read-through migration/); assert.match(cache,/indexedDB\.open\(DATABASE_NAME/); assert.match(store,/inFlightAssetLoads/);
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {

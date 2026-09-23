@@ -235,6 +235,16 @@ test("generic browser storage lives in shared foundation", () => {
   assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "local-storage.ts")), true);
 });
 
+test("HTTP client stays transport-only", () => {
+  const client = source("adapters/http/client.ts");
+  const workspaceApi = source("adapters/http/workspace-api.ts");
+
+  assert.doesNotMatch(client, /domain\/workspace|WorkspaceHttpClient|createWorkspaceHttpClient|getWorkspace|updateWorkspaceSnapshot/);
+  assert.match(workspaceApi, /createWorkspaceHttpClient/);
+  assert.match(workspaceApi, /getWorkspace/);
+  assert.match(workspaceApi, /updateWorkspaceSnapshot/);
+});
+
 test("browser event and asset initialization stay behind explicit boundaries", () => {
   const dashboard = source("pages/home/HomePage.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");
@@ -323,6 +333,22 @@ test("workspace authoring delegates pane navigation state to its layout controll
   assert.match(controller, /selectView/);
   assert.match(controller, /focusCanvasFrame/);
   assert.match(controller, /resizeSplit/);
+});
+
+test("image store stays an orchestration facade over cache, remote I/O, and normalization", () => {
+  const store = source("adapters/assets/image-store.ts");
+  const cache = source("adapters/assets/image-cache.ts");
+  const api = source("adapters/assets/image-api.ts");
+  const normalizer = source("adapters/assets/image-normalizer.ts");
+
+  assert.match(store, /image-cache/);
+  assert.match(store, /image-api/);
+  assert.match(store, /image-normalizer/);
+  assert.doesNotMatch(store, /indexedDB|createImageBitmap|\/api\/workspaces\/.*\/assets/);
+
+  assert.match(cache, /indexedDB/);
+  assert.match(api, /\/api\/workspaces\//);
+  assert.match(normalizer, /createImageBitmap/);
 });
 
 test("editor integrations delegate reusable lifecycle and scene derivation", () => {

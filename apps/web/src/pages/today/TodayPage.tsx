@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
-import type { ActivityType } from "../../adapters/http/activity-api";
+import type { ActivityType } from "../../domain/activity/activity";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ThemeToggle } from "../../shared/ui/theme-provider";
 import { useLibraryCategories } from "../../features/library/use-library-categories";

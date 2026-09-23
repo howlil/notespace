@@ -59,7 +59,7 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-needle"},"content":[{"type":"text","text":"Raft consensus needle"}]}]}`)}
-	notes := append([]workspacepkg.Note(nil), workspacepkg.Notes...)
+	notes := append([]workspacepkg.Note(nil), workspace.Notes...)
 	notes[0].Document = document
 	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspacepkg.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestIndexedSearchTreatsQuotesAsPunctuationAndSupportsUnicode(t *testing.T) 
 		t.Fatal(err)
 	}
 	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"unicode-block"},"content":[{"type":"text","text":"Raft consensus 日本語 knowledge"}]}]}`)}
-	notes := append([]workspacepkg.Note(nil), workspacepkg.Notes...)
+	notes := append([]workspacepkg.Note(nil), workspace.Notes...)
 	notes[0].Document = document
 	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspacepkg.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	note := workspacepkg.Notes[0]
+	note := workspace.Notes[0]
 	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"lazy-block"},"content":[{"type":"text","text":"deferred projection needle"}]}]}`)}
 	note, err = service.UpdateNote(ctx, workspace.ID, note.ID, workspacepkg.NoteUpdate{
 		Title: note.Title, Document: document, Version: note.Version,

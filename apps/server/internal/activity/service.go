@@ -50,7 +50,6 @@ func (s Service) RecordWorkspaceSession(ctx context.Context, workspaceID, sessio
 	})
 }
 
-
 func (s Service) RecordActivity(ctx context.Context, sessionID string, input ActivityHeartbeat) (Session, error) {
 	if s.references == nil {
 		return Session{}, ErrInvalid

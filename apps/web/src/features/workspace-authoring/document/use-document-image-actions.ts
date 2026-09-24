@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, type RefObject } from "react";
 import { createLocalAssetId, storeImageAsset } from "../../../adapters/assets/image-store";
+import { prepareDocumentImage } from "./document-image-actions";
 
 export function useDocumentImageActions(editorRef: RefObject<Editor | null>, workspaceId: string, onError: (message: string) => void) {
   return useCallback(async (files: File[], position?: number) => {
@@ -10,8 +11,13 @@ export function useDocumentImageActions(editorRef: RefObject<Editor | null>, wor
       let at = position;
       for (const file of files) {
         const assetId = createLocalAssetId();
-        await storeImageAsset(workspaceId, assetId, file);
-        const node = { type: "image", attrs: { assetId, src: `notespace-asset://${assetId}`, alt: file.name || "Pasted image" } };
+        const node = await prepareDocumentImage({
+          workspaceId,
+          assetId,
+          file,
+          store: storeImageAsset,
+        });
+        if (!node) throw new Error("This image could not be stored in the workspace.");
         if (typeof at === "number") {
           editor.chain().focus().insertContentAt(at, node).run();
           at += 1;

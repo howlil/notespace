@@ -19,7 +19,7 @@ func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Planning durability")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Planning durability")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestPlanningRejectsStaleTaskUpdate(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Planning conflict")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Planning conflict")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Today workspace")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Today workspace")
 	if err != nil {
 		t.Fatal(err)
 	}

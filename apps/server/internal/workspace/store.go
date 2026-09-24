@@ -22,11 +22,6 @@ type SearchStore interface {
 	Search(context.Context, string) ([]SearchResult, error)
 }
 
-type HistoryStore interface {
-	ListHistory(context.Context, string) ([]HistoryEntry, error)
-	GetHistory(context.Context, string, string) (HistorySnapshot, error)
-}
-
 // Store is the composition used by the application service. Tests and future
 // adapters may depend on the narrower capability interfaces above.
 type Store interface {
@@ -35,5 +30,4 @@ type Store interface {
 	GranularStore
 	WorkspaceQueryStore
 	SearchStore
-	HistoryStore
 }

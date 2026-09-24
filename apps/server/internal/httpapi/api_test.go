@@ -523,22 +523,28 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 	}
 }
 
-func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
+func TestActivitySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend Fundamentals"}))
-	body := map[string]any{"activityDate": "2026-09-03", "activeSeconds": 120, "finish": false}
-	path := "/api/workspaces/" + p.ID + "/study-sessions/session-1"
+	body := map[string]any{
+		"activityDate": "2026-09-03",
+		"activeSeconds": 120,
+		"finish": false,
+		"activityType": "learn",
+		"workspaceId": p.ID,
+	}
+	path := "/api/activity/sessions/session-1:2026-09-03"
 	expect(t, call(t, api, "PUT", path, body), 200)
 	body["activeSeconds"] = 60
 	expect(t, call(t, api, "PUT", path, body), 200)
 	body["activeSeconds"] = 600
 	expect(t, call(t, api, "PUT", path, body), 200)
-	activity := call(t, api, "GET", "/api/study/activity?from=2026-09-03&to=2026-09-03", nil)
+	activity := call(t, api, "GET", "/api/activity?from=2026-09-03&to=2026-09-03", nil)
 	expect(t, activity, 200)
 	var summary struct {
 		TodaySeconds int64 `json:"todaySeconds"`
@@ -553,7 +559,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 		t.Fatalf("unexpected activity: %+v", summary)
 	}
 	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
-	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
+	detail := call(t, api, "GET", "/api/activity/2026-09-03", nil)
 	expect(t, detail, 200)
 	var day struct {
 		Workspaces []struct {
@@ -690,56 +696,27 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	}
 }
 
-func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
+func TestRemovedStudyAndHistoryCompatibilityRoutesStayUnavailable(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "removed-compat-routes.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Portable workspace"}))
-	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
-	expect(t, history, 200)
-	var entries []workspacepkg.HistoryEntry
-	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
-		t.Fatal(err)
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Compatibility boundary"}))
+
+	for _, path := range []string{
+		"/api/workspaces/" + p.ID + "/history",
+		"/api/projects/" + p.ID + "/history",
+		"/api/workspaces/" + p.ID + "/study",
+		"/api/workspaces/" + p.ID + "/study-sessions",
+		"/api/study/activity?from=2026-09-03&to=2026-09-03",
+	} {
+		expect(t, call(t, api, "GET", path, nil), http.StatusNotFound)
 	}
-	if len(entries) != 1 || entries[0].Version != p.Version {
-		t.Fatalf("initial history = %+v", entries)
-	}
-	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID+"/export", nil), http.StatusNotFound)
 }
 
-func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "History"}))
-	first := p.Document
-	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
-	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
-	second := saved.Document
-	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
-	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
-	expect(t, updated, 200)
-	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
-	expect(t, history, 200)
-	var entries []workspacepkg.HistoryEntry
-	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("history entries = %d, want initial checkpoint only", len(entries))
-	}
-	restore := call(t, api, "POST", "/api/workspaces/"+p.ID+"/history/"+entries[0].ID+"/restore", nil)
-	expect(t, restore, 200)
-	if got := decodeWorkspace(t, restore); string(got.Document.Data) != string(p.Document.Data) {
-		t.Fatalf("restored document = %s, want %s", got.Document.Data, p.Document.Data)
-	}
-}
+
 
 func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 	ctx := context.Background()

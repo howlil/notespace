@@ -6,50 +6,6 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
-func (a API) workspaceActivitySessions(w http.ResponseWriter, r *http.Request) {
-	limit, err := parseIntQuery(r, "limit", 8)
-	if err != nil {
-		fail(w, activity.ErrInvalid)
-		return
-	}
-	sessions, err := a.activities.ListSessions(r.Context(), r.PathValue("id"), limit)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	send(w, 200, sessions)
-}
-
-func (a API) workspaceActivityHeartbeat(w http.ResponseWriter, r *http.Request) {
-	var body activity.Heartbeat
-	if !decode(w, r, &body) {
-		return
-	}
-	session, err := a.activities.RecordWorkspaceSession(r.Context(), r.PathValue("id"), r.PathValue("sessionId"), body)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	send(w, 200, session)
-}
-
-func (a API) deleteWorkspaceActivitySession(w http.ResponseWriter, r *http.Request) {
-	if err := a.activities.DeleteSession(r.Context(), r.PathValue("id"), r.PathValue("sessionId")); err != nil {
-		fail(w, err)
-		return
-	}
-	send(w, 204, nil)
-}
-
-func (a API) workspaceActivityStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := a.activities.GetWorkspaceStats(r.Context(), r.PathValue("id"), r.URL.Query().Get("date"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	send(w, 200, stats)
-}
-
 func (a API) activitySessions(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseIntQuery(r, "limit", 12)
 	if err != nil {

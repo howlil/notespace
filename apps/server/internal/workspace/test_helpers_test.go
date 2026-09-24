@@ -3,41 +3,41 @@ package workspace
 import "context"
 
 type workspaceTestStore struct {
-	categoryExists     bool
-	categoryExistsErr  error
-	createInput        Workspace
-	createErr          error
-	moveID             string
-	moveCategoryID     string
-	moveResult         Workspace
-	moveErr            error
-	updateID           string
-	updateInput        Update
-	updateResult       Workspace
-	updateErr          error
-	record             Workspace
-	recordErr          error
-	workspaceExists    bool
-	workspaceExistsErr error
-	notes              []Note
-	notesErr           error
-	listNotesCalls     int
-	canvas             CanvasState
-	canvasErr          error
-	getCanvasCalls     int
-	createNoteWorkspaceID string
-	createNoteInput       NoteCreate
-	createNoteResult      Note
-	createNoteErr         error
-	updateNoteWorkspaceID string
-	updateNoteID          string
-	updateNoteInput       NoteUpdate
-	updateNoteResult      Note
-	updateNoteErr         error
-	deleteNoteWorkspaceID string
-	deleteNoteID          string
-	deleteNoteVersion     int
-	deleteNoteErr         error
+	categoryExists          bool
+	categoryExistsErr       error
+	createInput             Workspace
+	createErr               error
+	moveID                  string
+	moveCategoryID          string
+	moveResult              Workspace
+	moveErr                 error
+	updateID                string
+	updateInput             Update
+	updateResult            Workspace
+	updateErr               error
+	record                  Workspace
+	recordErr               error
+	workspaceExists         bool
+	workspaceExistsErr      error
+	notes                   []Note
+	notesErr                error
+	listNotesCalls          int
+	canvas                  CanvasState
+	canvasErr               error
+	getCanvasCalls          int
+	createNoteWorkspaceID   string
+	createNoteInput         NoteCreate
+	createNoteResult        Note
+	createNoteErr           error
+	updateNoteWorkspaceID   string
+	updateNoteID            string
+	updateNoteInput         NoteUpdate
+	updateNoteResult        Note
+	updateNoteErr           error
+	deleteNoteWorkspaceID   string
+	deleteNoteID            string
+	deleteNoteVersion       int
+	deleteNoteErr           error
 	updateCanvasWorkspaceID string
 	updateCanvasInput       CanvasUpdate
 	updateCanvasResult      CanvasState

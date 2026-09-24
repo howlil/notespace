@@ -11,6 +11,7 @@ import {
   loadImageAsset,
   storeImageAsset,
 } from "../../../adapters/assets/image-store";
+import { persistCanvasAsset } from "./canvas-assets";
 
 function readCanvasFiles(data: Record<string, unknown>) {
   const files = data.files;
@@ -95,9 +96,17 @@ export function useCanvasAssets({
       }
 
       pendingFileIds.current.add(fileId);
-      void blobFromDataUrl(file.dataURL)
-        .then((blob) => storeImageAsset(workspaceId, fileId, blob))
-        .then(() => persistedFileIds.current.add(fileId))
+      void persistCanvasAsset(workspaceId, fileId, file.dataURL, {
+        blobFromDataUrl,
+        storeImageAsset,
+      })
+        .then((stored) => {
+          if (!stored) {
+            onError("Could not store this canvas image.");
+            return;
+          }
+          persistedFileIds.current.add(fileId);
+        })
         .catch((error) =>
           onError(
             error instanceof Error

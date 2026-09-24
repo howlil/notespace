@@ -5,7 +5,7 @@ import {
   saveWorkspaceWith,
   WorkspaceConflictError,
   type SaveWorkspaceDependencies,
-} from "./save-workspace.ts";
+} from "./save-workspace-core.ts";
 import type { Snapshot, Workspace, WorkspaceContent } from "../../domain/workspace/workspace.ts";
 
 function document(text = ""): Snapshot {

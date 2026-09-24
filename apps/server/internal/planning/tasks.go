@@ -22,41 +22,16 @@ func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID
 		}
 		return Task{}, ErrInvalid
 	}
-	plan, err := s.store.GetPlan(ctx, workspaceID)
-	if err != nil {
-		return Task{}, err
-	}
-	if len(plan.Tasks) >= 1000 {
-		return Task{}, ErrInvalid
-	}
 	var normalizedMilestone *string
 	if milestoneID != nil && strings.TrimSpace(*milestoneID) != "" {
 		value := strings.TrimSpace(*milestoneID)
-		found := false
-		for _, milestone := range plan.Milestones {
-			if milestone.ID == value {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return Task{}, ErrInvalid
-		}
 		normalizedMilestone = &value
-	}
-	position := 0
-	for _, item := range plan.Tasks {
-		sameGroup := (item.MilestoneID == nil && normalizedMilestone == nil) ||
-			(item.MilestoneID != nil && normalizedMilestone != nil && *item.MilestoneID == *normalizedMilestone)
-		if sameGroup && item.Position >= position {
-			position = item.Position + 1
-		}
 	}
 	now := s.now().Format(time.RFC3339Nano)
 	workspace := workspaceID
 	return s.store.CreateTask(ctx, Task{
 		ID: rand.Text(), WorkspaceID: &workspace, MilestoneID: normalizedMilestone,
-		Title: title, Description: "", Position: position,
+		Title: title, Description: "",
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 }
@@ -70,31 +45,9 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 	if err != nil {
 		return Task{}, err
 	}
-	position := 0
-	if date != nil {
-		today, err := s.store.ListToday(ctx, *date)
-		if err != nil {
-			return Task{}, err
-		}
-		for _, item := range today {
-			if item.WorkspaceID == nil && item.Position >= position {
-				position = item.Position + 1
-			}
-		}
-	} else {
-		inbox, err := s.store.ListInbox(ctx)
-		if err != nil {
-			return Task{}, err
-		}
-		for _, item := range inbox {
-			if item.Position >= position {
-				position = item.Position + 1
-			}
-		}
-	}
 	now := s.now().Format(time.RFC3339Nano)
 	return s.store.CreateTask(ctx, Task{
-		ID: rand.Text(), Title: title, Description: "", Position: position, PlannedFor: date,
+		ID: rand.Text(), Title: title, Description: "", PlannedFor: date,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 }

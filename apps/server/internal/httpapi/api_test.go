@@ -73,6 +73,20 @@ func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	}
 }
 
+func deleteWorkspaceRequest(t *testing.T, api http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	version := 1
+	current := call(t, api, http.MethodGet, path, nil)
+	if current.Code == http.StatusOK {
+		version = decodeWorkspace(t, current).Version
+	}
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	req.Header.Set("If-Match", `"`+strconv.Itoa(version)+`"`)
+	res := httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	return res
+}
+
 func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) workspacepkg.Workspace {
 	t.Helper()
 	var p workspacepkg.Workspace
@@ -109,7 +123,7 @@ func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) 
 		t.Fatalf("legacy location = %q", got)
 	}
 	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), http.StatusOK)
-	expect(t, call(t, api, "DELETE", "/api/projects/"+workspace.ID, nil), http.StatusNoContent)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/projects/"+workspace.ID), http.StatusNoContent)
 }
 
 func TestCategoryGroupsWorkspaces(t *testing.T) {
@@ -224,7 +238,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	// Category deletion must not cascade into active or recoverable workspace data.
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), 204)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+workspace.ID), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "DELETE", "/api/trash/"+workspace.ID, nil), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
@@ -404,9 +418,9 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	if other := decodeWorkspace(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
 		t.Fatal("project content leaked")
 	}
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil), 404)
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 404)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 404)
 	expect(t, call(t, api, "GET", "/api/health", nil), 200)
 }
 
@@ -538,7 +552,7 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 {
 		t.Fatalf("unexpected activity: %+v", summary)
 	}
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
 	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
 	expect(t, detail, 200)
 	var day struct {
@@ -598,7 +612,7 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 
 	// An active timer must keep accepting heartbeats after its source context
 	// disappears. The client carries snapshots specifically for this case.
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), http.StatusNoContent)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+workspace.ID), http.StatusNoContent)
 	finishedTaskActivity := call(t, api, "PUT", "/api/activity/sessions/task-session:2026-09-21", map[string]any{
 		"activityDate":           "2026-09-21",
 		"activeSeconds":          1200,

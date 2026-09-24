@@ -18,7 +18,7 @@ func TestConcurrentSavesHaveExactlyOneWinner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (workspace.Service{Store: store}).Create(ctx, "Concurrency")
+	p, err := workspace.NewService(store).Create(ctx, "Concurrency")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (workspace.Service{Store: store}).Create(ctx, "History policy")
+	p, err := workspace.NewService(store).Create(ctx, "History policy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (workspace.Service{Store: store}).Create(ctx, "Delete history")
+	p, err := workspace.NewService(store).Create(ctx, "Delete history")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (workspace.Service{Store: store}).Create(ctx, "Delete failure")
+	p, err := workspace.NewService(store).Create(ctx, "Delete failure")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestHistoryReadsLegacy0006Rows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p, err := (workspace.Service{Store: store}).Create(ctx, "Legacy history")
+	p, err := workspace.NewService(store).Create(ctx, "Legacy history")
 	if err != nil {
 		t.Fatal(err)
 	}

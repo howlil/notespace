@@ -5,6 +5,7 @@ import {
   applyTodayTaskUpdate,
   belongsToInbox,
   belongsToToday,
+  removeFromTodayPatch,
 } from "./projection-state.ts";
 import type { PlanningTask, TodayProjection } from "../../domain/planning/planning.ts";
 
@@ -26,6 +27,13 @@ test("belongsToToday mirrors exact-date and incomplete carry-over projection pol
   assert.equal(belongsToToday(task({ plannedFor: "2026-09-23" }), "2026-09-24"), true);
   assert.equal(belongsToToday(task({ plannedFor: "2026-09-23", completedAt: "2026-09-23T12:00:00Z" }), "2026-09-24"), false);
   assert.equal(belongsToToday(task({ plannedFor: undefined }), "2026-09-24"), false);
+});
+
+test("Remove from Today clears both exact-date and carried-forward scheduling", () => {
+  assert.deepEqual(removeFromTodayPatch(), { plannedFor: "" });
+  assert.equal(belongsToToday(task({ plannedFor: "2026-09-24" }), "2026-09-24"), true);
+  assert.equal(belongsToToday(task({ plannedFor: "2026-09-23" }), "2026-09-24"), true);
+  assert.equal(belongsToToday(task({ ...removeFromTodayPatch() }), "2026-09-24"), false);
 });
 
 test("applyTodayTaskUpdate preserves projection context and removes tasks that leave Today", () => {

@@ -38,7 +38,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, workspace.Version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspacepkg.ErrNotFound) {

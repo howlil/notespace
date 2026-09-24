@@ -12,7 +12,7 @@ import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 type Destination = { key: string; title: string; context: string; href: string; kind: "category" | "workspace" | "note" | "block" };
 
 function resultHref(result: SearchResult) {
-  if (result.type === "category" && result.categoryId) return `/categories/${encodeURIComponent(result.categoryId)}`;
+  if (result.type === "category" && result.categoryId) return `/?category=${encodeURIComponent(result.categoryId)}`;
   if (result.type === "workspace") return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
   return `/workspaces/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}${result.blockId ? `&block=${encodeURIComponent(result.blockId)}` : ""}`;
 }

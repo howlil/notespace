@@ -25,7 +25,7 @@ export function InboxPage({
         inboxActive
         onChanged={refreshCategories}
         onSelectCategory={(categoryId) => {
-          void navigate({ to: "/categories/$categoryId", params: { categoryId } });
+          void navigate({ to: "/", search: { category: categoryId } });
         }}
       />
 

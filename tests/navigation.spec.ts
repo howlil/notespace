@@ -1,23 +1,35 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Production-Safe Navigation & Reload", () => {
-  test("direct navigation and reload on category detail (/categories/:id)", async ({
+  test("legacy category URLs redirect to the dashboard category filter", async ({
     page,
     request,
   }) => {
-    const title = `Category Direct ${Date.now()}`;
-    const res = await request.post("/api/categories", {
-      data: { title },
+    const categoryTitle = `Category Direct ${Date.now()}`;
+    const categoryRes = await request.post("/api/categories", {
+      data: { title: categoryTitle },
     });
-    expect(res.status()).toBe(201);
-    const category = await res.json();
+    expect(categoryRes.status()).toBe(201);
+    const category = await categoryRes.json();
+
+    const workspaceTitle = `Category Workspace ${Date.now()}`;
+    const workspaceRes = await request.post("/api/workspaces", {
+      data: { title: workspaceTitle, categoryId: category.id },
+    });
+    expect(workspaceRes.status()).toBe(201);
+    const workspace = await workspaceRes.json();
 
     try {
       await page.goto(`/categories/${category.id}`);
-      await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/\\?category=${category.id}$`));
+      await expect(page.getByRole("link", { name: `Open ${workspaceTitle}` })).toBeVisible();
+
       await page.reload();
-      await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/\\?category=${category.id}$`));
+      await expect(page.getByRole("link", { name: `Open ${workspaceTitle}` })).toBeVisible();
     } finally {
+      await request.delete(`/api/workspaces/${workspace.id}`);
+      await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
       await request.delete(`/api/categories/${category.id}`);
     }
   });

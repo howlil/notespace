@@ -369,13 +369,22 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
     setSelectedCategoryId(id); setView("category"); setPageLoading(true);
+    void navigate({ to: "/", search: { category: id }, replace: true });
     try { const result = await listCategoryWorkspaces(id, { limit: 50 }); setPage(result); }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." }); }
     finally { setPageLoading(false); }
   }
 
+  function openRecent() {
+    setView("recent");
+    setSelectedCategoryId("");
+    setPage(null);
+    void navigate({ to: "/", search: {}, replace: true });
+  }
+
   async function openAll(offset = 0) {
     setView("all"); setSelectedCategoryId(""); setPageLoading(true);
+    void navigate({ to: "/", search: {}, replace: true });
     try { const result = await listAllWorkspaces({ offset, limit: 50 }); setPage(result); }
     catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." }); }
     finally { setPageLoading(false); }
@@ -449,7 +458,7 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
         <div className="mx-auto w-full max-w-[1240px] px-6 pt-5 pb-8 max-[800px]:px-5 max-[800px]:pt-5 max-[800px]:pb-7 max-[560px]:p-4 max-[560px]:pt-4">
           <h1 id="library-list-title" className="sr-only">{heading}</h1>
           <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
-            <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={() => setView("recent")}>Recent</Button>
+            <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
             <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
           </nav>
           <section className="min-w-0" aria-labelledby="library-list-title">

@@ -129,6 +129,8 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "features", "activity")), true);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
+  assert.equal(existsSync(join(WEB_SRC, "pages", "category", "CategoryPage.tsx")), false);
+  assert.equal(existsSync(join(WEB_SRC, "features", "library", "CategoryLibrary.tsx")), false);
 });
 
 test("features do not depend on sibling feature implementations", () => {
@@ -294,14 +296,12 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 
   const home = source("pages/home/HomePage.tsx");
-  const category = source("pages/category/CategoryPage.tsx");
   const inbox = source("pages/inbox/InboxPage.tsx");
   const today = source("pages/today/TodayPage.tsx");
   assert.match(home, /WorkspaceLibrary/);
-  assert.match(category, /CategoryLibrary/);
   assert.match(inbox, /InboxPlanning/);
   assert.match(today, /TodayPlanning/);
-  for (const page of [home, category, inbox, today]) {
+  for (const page of [home, inbox, today]) {
     assert.doesNotMatch(page, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
   }
 });

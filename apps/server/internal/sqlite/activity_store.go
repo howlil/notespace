@@ -62,7 +62,12 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 	if session.EndedAt != nil {
 		endedAt = *session.EndedAt
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return activity.Session{}, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
   last_heartbeat_at=MAX(activity_sessions.last_heartbeat_at,excluded.last_heartbeat_at),
@@ -71,7 +76,8 @@ ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_second
   task_title_snapshot=excluded.task_title_snapshot
 WHERE activity_sessions.workspace_id=excluded.workspace_id
   AND activity_sessions.task_id=excluded.task_id
-  AND activity_sessions.activity_type=excluded.activity_type`,
+  AND activity_sessions.activity_type=excluded.activity_type
+  AND activity_sessions.activity_date=excluded.activity_date`,
 		session.ID,
 		session.WorkspaceID,
 		session.WorkspaceTitleSnapshot,
@@ -88,7 +94,21 @@ WHERE activity_sessions.workspace_id=excluded.workspace_id
 	if err != nil {
 		return activity.Session{}, err
 	}
-	return scanActivitySession(s.db.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return activity.Session{}, err
+	}
+	if affected == 0 {
+		return activity.Session{}, activity.ErrConflict
+	}
+	stored, err := scanActivitySession(tx.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))
+	if err != nil {
+		return activity.Session{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return activity.Session{}, err
+	}
+	return stored, nil
 }
 
 func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (activity.WorkspaceStats, error) {

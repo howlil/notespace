@@ -111,18 +111,6 @@ WHERE activity_sessions.workspace_id=excluded.workspace_id
 	return stored, nil
 }
 
-func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (activity.WorkspaceStats, error) {
-	var stats activity.WorkspaceStats
-	err := s.db.QueryRowContext(ctx, `
-		SELECT
-			COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0),
-			COALESCE(SUM(active_seconds),0)
-		FROM activity_sessions
-		WHERE workspace_id=?
-	`, activityDate, workspaceID).Scan(&stats.TodaySeconds, &stats.TotalSeconds)
-	return stats, err
-}
-
 func (s *Store) GlobalStats(ctx context.Context, activityDate string) (activity.WorkspaceStats, error) {
 	var stats activity.WorkspaceStats
 	err := s.db.QueryRowContext(ctx, `

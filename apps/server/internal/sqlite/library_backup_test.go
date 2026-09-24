@@ -38,7 +38,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.TrashWorkspaceAtomic(ctx, workspace.ID); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspacepkg.ErrNotFound) {
@@ -59,7 +59,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatalf("trash = %+v", trash)
 	}
 
-	restored, err := store.RestoreTrashedWorkspaceAtomic(ctx, workspace.ID)
+	restored, err := store.RestoreTrashedWorkspace(ctx, workspace.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	backup, err := store.ExportBackupArchiveAtomic(ctx)
+	backup, err := store.ExportBackupArchive(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestArchiveRestoreRejectsTamperedAsset(t *testing.T) {
 	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("original")}); err != nil {
 		t.Fatal(err)
 	}
-	backup, err := store.ExportBackupArchiveAtomic(ctx)
+	backup, err := store.ExportBackupArchive(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestLegacyJSONBackupStillRestores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backup, err := store.ExportBackupJSONAtomic(ctx)
+	backup, err := store.exportBackupJSONAtomic(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +366,7 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	data, err := store.ExportBackupJSONAtomic(ctx)
+	data, err := store.exportBackupJSONAtomic(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +403,7 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 		t.Fatal(err)
 	}
 
-	data, err := store.ExportBackupJSONAtomic(ctx)
+	data, err := store.exportBackupJSONAtomic(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

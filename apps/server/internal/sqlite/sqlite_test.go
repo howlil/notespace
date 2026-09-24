@@ -124,7 +124,7 @@ func TestAutosaveDoesNotCreatePeriodicHistoryCheckpoints(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
+func TestWorkspaceTrashRemovesActiveCheckpointHistory(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "history-delete.db"))
 	if err != nil {
@@ -135,7 +135,7 @@ func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete(ctx, p.ID); err != nil {
+	if err := store.TrashWorkspace(ctx, p.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := store.ListHistory(ctx, p.ID)
@@ -154,7 +154,7 @@ func TestWorkspaceDeleteRemovesCheckpointHistory(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
+func TestWorkspaceTrashReturnsStorageErrorWithoutPanicking(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "delete-error.db"))
 	if err != nil {
@@ -168,18 +168,18 @@ func TestWorkspaceDeleteReturnsStorageErrorWithoutPanicking(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `CREATE TRIGGER block_project_delete BEFORE DELETE ON projects BEGIN SELECT RAISE(ABORT, 'delete blocked'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete(ctx, p.ID); err == nil {
-		t.Fatal("delete should return the SQLite trigger error")
+	if err := store.TrashWorkspace(ctx, p.ID, nil); err == nil {
+		t.Fatal("trash should return the SQLite trigger error")
 	}
 	if _, err := store.Get(ctx, p.ID); err != nil {
-		t.Fatalf("workspace should remain after failed delete: %v", err)
+		t.Fatalf("workspace should remain after failed trash: %v", err)
 	}
 	entries, err := store.ListHistory(ctx, p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(entries) == 0 {
-		t.Fatal("delete transaction should roll back creation-baseline removal")
+		t.Fatal("trash transaction should roll back creation-baseline removal")
 	}
 }
 

@@ -44,7 +44,7 @@ func fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, activity.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid activity"})
 	default:
-		slog.Error("workspace operation failed", "error", err)
-		send(w, 500, map[string]string{"error": "Unable to access workspace storage. Please retry."})
+		slog.Error("request operation failed", "error", err)
+		send(w, 500, map[string]string{"error": "Unable to complete the request. Please retry."})
 	}
 }

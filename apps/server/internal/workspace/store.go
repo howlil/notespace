@@ -15,7 +15,6 @@ type WorkspaceStore interface {
 	ListRecent(context.Context, int) ([]Summary, error)
 	ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error)
 	Move(context.Context, string, string) (Workspace, error)
-	Get(context.Context, string) (Workspace, error)
 	Update(context.Context, string, Update) (Workspace, error)
 }
 
@@ -26,7 +25,6 @@ type SearchStore interface {
 type HistoryStore interface {
 	ListHistory(context.Context, string) ([]HistoryEntry, error)
 	GetHistory(context.Context, string, string) (HistorySnapshot, error)
-	CreateHistory(context.Context, HistorySnapshot) error
 }
 
 // Store is the composition used by the application service. Tests and future

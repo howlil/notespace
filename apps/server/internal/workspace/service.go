@@ -48,7 +48,7 @@ func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return Workspace{}, ErrInvalid
 	}
-	current, err := s.store.Get(ctx, id)
+	current, err := s.Get(ctx, id)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -124,7 +124,7 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, er
 	u.Title = strings.TrimSpace(u.Title)
 	notesOmitted := u.Notes == nil
 	if u.References == nil || notesOmitted {
-		current, err := s.store.Get(ctx, id)
+		current, err := s.Get(ctx, id)
 		if err != nil {
 			return Workspace{}, err
 		}

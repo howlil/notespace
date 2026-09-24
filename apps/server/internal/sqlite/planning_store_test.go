@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -223,5 +224,60 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	}
 	if len(today.Tasks) != 1 {
 		t.Fatalf("today after removal = %#v", today.Tasks)
+	}
+}
+
+
+func TestConcurrentPlanningCreatesUseUniquePositions(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "planning-concurrent-create.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Concurrent planning")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := planning.NewService(store, store, nil)
+
+	const count = 12
+	var wg sync.WaitGroup
+	errs := make(chan error, count)
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := service.CreateTask(ctx, workspace.ID, nil, "Concurrent task")
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent create: %v", err)
+		}
+	}
+
+	plan, err := service.GetPlan(ctx, workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Tasks) != count {
+		t.Fatalf("task count = %d, want %d", len(plan.Tasks), count)
+	}
+	seen := make(map[int]bool, count)
+	for _, task := range plan.Tasks {
+		if seen[task.Position] {
+			t.Fatalf("duplicate task position %d in %#v", task.Position, plan.Tasks)
+		}
+		seen[task.Position] = true
+	}
+	for position := 0; position < count; position++ {
+		if !seen[position] {
+			t.Fatalf("missing task position %d in %#v", position, plan.Tasks)
+		}
 	}
 }

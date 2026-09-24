@@ -16,7 +16,7 @@ type TrashItem struct {
 // Store is the persistence capability required to preserve Library recovery and
 // portability semantics. Atomic operations stay atomic behind this boundary.
 type Store interface {
-	TrashWorkspace(context.Context, string, *int) error
+	TrashWorkspace(context.Context, string, int) error
 	ListTrash(context.Context) ([]TrashItem, error)
 	RestoreTrashedWorkspace(context.Context, string) (workspace.Workspace, error)
 	DeleteTrashedWorkspace(context.Context, string) error
@@ -37,7 +37,7 @@ func NewService(store Store) Service {
 	return Service{store: store}
 }
 
-func (s Service) TrashWorkspace(ctx context.Context, id string, expectedVersion *int) error {
+func (s Service) TrashWorkspace(ctx context.Context, id string, expectedVersion int) error {
 	return s.store.TrashWorkspace(ctx, id, expectedVersion)
 }
 

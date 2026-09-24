@@ -245,6 +245,7 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
+  const pageRequestGeneration = useRef(0);
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
@@ -368,30 +369,53 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
 
   async function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
-    setSelectedCategoryId(id); setView("category"); setPageLoading(true);
+    const generation = ++pageRequestGeneration.current;
+    setSelectedCategoryId(id);
+    setView("category");
+    setPageLoading(true);
     void navigate({ to: "/", search: { category: id }, replace: true });
-    try { const result = await listCategoryWorkspaces(id, { limit: 50 }); setPage(result); }
-    catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." }); }
-    finally { setPageLoading(false); }
+    try {
+      const result = await listCategoryWorkspaces(id, { limit: 50 });
+      if (pageRequestGeneration.current === generation) setPage(result);
+    } catch (err) {
+      if (pageRequestGeneration.current === generation) {
+        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." });
+      }
+    } finally {
+      if (pageRequestGeneration.current === generation) setPageLoading(false);
+    }
   }
 
   function openRecent() {
+    pageRequestGeneration.current += 1;
     setView("recent");
     setSelectedCategoryId("");
     setPage(null);
+    setPageLoading(false);
     void navigate({ to: "/", search: {}, replace: true });
   }
 
   async function openAll(offset = 0) {
-    setView("all"); setSelectedCategoryId(""); setPageLoading(true);
+    const generation = ++pageRequestGeneration.current;
+    setView("all");
+    setSelectedCategoryId("");
+    setPageLoading(true);
     void navigate({ to: "/", search: {}, replace: true });
-    try { const result = await listAllWorkspaces({ offset, limit: 50 }); setPage(result); }
-    catch (err) { showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." }); }
-    finally { setPageLoading(false); }
+    try {
+      const result = await listAllWorkspaces({ offset, limit: 50 });
+      if (pageRequestGeneration.current === generation) setPage(result);
+    } catch (err) {
+      if (pageRequestGeneration.current === generation) {
+        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." });
+      }
+    } finally {
+      if (pageRequestGeneration.current === generation) setPageLoading(false);
+    }
   }
 
   const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
     const silent = options.silent ?? false;
+    const generation = view === "recent" ? null : ++pageRequestGeneration.current;
     void listRecentWorkspaces(20)
       .then(setRecentItems)
       .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
@@ -399,16 +423,24 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
     if (view === "all") {
       if (!silent) setPageLoading(true);
       void listAllWorkspaces({ limit: 50 })
-        .then(setPage)
-        .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }))
-        .finally(() => { if (!silent) setPageLoading(false); });
+        .then((result) => {
+          if (generation === pageRequestGeneration.current) setPage(result);
+        })
+        .catch((err) => {
+          if (generation === pageRequestGeneration.current) {
+            showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." });
+          }
+        })
+        .finally(() => {
+          if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
+        });
     }
 
     if (view === "category" && selectedCategoryId && !silent) setPageLoading(true);
     void listCategories()
       .then((nextCategories) => {
         setCategoryItems(nextCategories);
-        if (view !== "category" || !selectedCategoryId) return;
+        if (view !== "category" || !selectedCategoryId || generation !== pageRequestGeneration.current) return;
         if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
           setSelectedCategoryId("");
           setView("recent");
@@ -418,13 +450,23 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
           return;
         }
         void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
-          .then(setPage)
-          .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." }))
-          .finally(() => { if (!silent) setPageLoading(false); });
+          .then((result) => {
+            if (generation === pageRequestGeneration.current) setPage(result);
+          })
+          .catch((err) => {
+            if (generation === pageRequestGeneration.current) {
+              showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." });
+            }
+          })
+          .finally(() => {
+            if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
+          });
       })
       .catch((err) => {
-        if (view === "category" && !silent) setPageLoading(false);
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
+        if (view === "category" && !silent && generation === pageRequestGeneration.current) setPageLoading(false);
+        if (generation === null || generation === pageRequestGeneration.current) {
+          showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
+        }
       });
   }, [navigate, selectedCategoryId, showToast, view]);
 

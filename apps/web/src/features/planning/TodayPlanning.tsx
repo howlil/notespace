@@ -11,7 +11,7 @@ import {
 } from "../../adapters/http/planning-api";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
-import { applyTodayTaskUpdate } from "./projection-state";
+import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -135,7 +135,7 @@ function TodayTaskRow({
               className="!size-7 text-muted hover:text-accent"
               aria-label={`Remove ${task.title} from Today`}
               title="Remove from Today"
-              onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === date ? "" : date })}
+              onClick={() => void onUpdate(task, removeFromTodayPatch())}
             >
               <CalendarX2 size={13} />
             </IconButton>

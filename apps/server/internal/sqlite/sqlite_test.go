@@ -135,7 +135,7 @@ func TestWorkspaceTrashRemovesActiveCheckpointHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspace(ctx, p.ID, nil); err != nil {
+	if err := store.TrashWorkspace(ctx, p.ID, p.Version); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := store.ListHistory(ctx, p.ID)
@@ -168,7 +168,7 @@ func TestWorkspaceTrashReturnsStorageErrorWithoutPanicking(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `CREATE TRIGGER block_project_delete BEFORE DELETE ON projects BEGIN SELECT RAISE(ABORT, 'delete blocked'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspace(ctx, p.ID, nil); err == nil {
+	if err := store.TrashWorkspace(ctx, p.ID, p.Version); err == nil {
 		t.Fatal("trash should return the SQLite trigger error")
 	}
 	if _, err := store.Get(ctx, p.ID); err != nil {

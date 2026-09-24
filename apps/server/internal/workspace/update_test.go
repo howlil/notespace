@@ -24,7 +24,7 @@ func validWorkspaceUpdate(current Workspace) Update {
 		Document:   current.Document,
 		Notes:      append([]Note(nil), current.Notes...),
 		Canvas:     current.Canvas,
-		References: append([]Reference(nil), current.References...),
+		References: append([]Reference{}, current.References...),
 		SplitRatio: current.SplitRatio,
 		Version:    current.Version,
 	}

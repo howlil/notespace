@@ -17,7 +17,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Initial")
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestDeleteCategoryAtomicRejectsTrashedWorkspace(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	category, err := service.CreateCategory(ctx, "Concurrency")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	}
 	defer store.Close()
 
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Race")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Race")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,14 +42,6 @@ test("workspace conflict events publish exact drafts and unsubscribe cleanly", (
         document: { format: "tiptap", version: 1, data: { type: "doc", content: [] } },
         version: 2,
       },
-      latest: {
-        id: "note-1",
-        title: "Remote",
-        document: { format: "tiptap", version: 1, data: { type: "doc", content: [] } },
-        createdAt: "2026-09-25T00:00:00Z",
-        updatedAt: "2026-09-25T00:00:00Z",
-        version: 3,
-      },
     });
     assert.equal(drafts.length, 1);
     assert.equal((drafts[0] as { kind: string }).kind, "note");

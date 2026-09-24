@@ -424,3 +424,57 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 		t.Fatalf("existing library changed after domain-invalid restore: %v", err)
 	}
 }
+
+
+func TestRestoreRejectsInvalidActivitySessionFields(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-activity-fields-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep valid activity library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpsertSession(ctx, activity.Session{
+		ID: "activity-1", Title: "Read paper", ActivityType: "read",
+		ActivityDate: "2026-09-21", StartedAt: "2026-09-21T01:00:00Z",
+		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-21T01:05:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := store.exportBackupJSONAtomic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var valid libraryBackup
+	if err := json.Unmarshal(data, &valid); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]func(*activity.Session){
+		"date": func(session *activity.Session) { session.ActivityDate = "not-a-date" },
+		"started": func(session *activity.Session) { session.StartedAt = "not-a-time" },
+		"heartbeat": func(session *activity.Session) { session.LastHeartbeatAt = "" },
+		"seconds": func(session *activity.Session) { session.ActiveSeconds = -1 },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			backup := valid
+			backup.Activity = append([]activity.Session(nil), valid.Activity...)
+			mutate(&backup.Activity[0])
+			encoded, err := json.Marshal(backup)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.RestoreBackupJSON(ctx, encoded); !errors.Is(err, workspacepkg.ErrInvalid) {
+				t.Fatalf("restore error = %v, want workspace.ErrInvalid", err)
+			}
+			if _, err := store.Get(ctx, workspace.ID); err != nil {
+				t.Fatalf("existing library changed after rejected restore: %v", err)
+			}
+		})
+	}
+}

@@ -24,7 +24,7 @@ func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 21, 7, 0, 0, 0, time.UTC)
-	service := planning.Service{Store: store, Workspaces: store, Now: func() time.Time { return now }}
+	service := planning.NewService(store, store, func() time.Time { return now })
 
 	milestone, err := service.CreateMilestone(ctx, workspace.ID, "Ship MVP")
 	if err != nil {
@@ -84,7 +84,7 @@ func TestPlanningRejectsStaleTaskUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := planning.Service{Store: store, Workspaces: store}
+	service := planning.NewService(store, store, nil)
 	task, err := service.CreateTask(ctx, workspace.ID, nil, "First title")
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := planning.Service{Store: store, Workspaces: store}
+	service := planning.NewService(store, store, nil)
 	workspaceTask, err := service.CreateTask(ctx, workspace.ID, nil, "Workspace action")
 	if err != nil {
 		t.Fatal(err)

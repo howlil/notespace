@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("workspace plan persists milestones and tasks across reload", async ({ page, request }) => {
+test("@critical workspace plan persists milestones and tasks across reload", async ({ page, request }) => {
   const title = `Planning ${Date.now()}`;
   const response = await request.post("/api/workspaces", { data: { title } });
   expect(response.status()).toBe(201);

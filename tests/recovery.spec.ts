@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("workspace trash restores the same authored workspace", async ({ request }) => {
+test("@critical workspace trash restores the same authored workspace", async ({ request }) => {
   const title = `Trash recovery ${Date.now()}`;
   const createdResponse = await request.post("/api/workspaces", { data: { title } });
   expect(createdResponse.status()).toBe(201);
@@ -31,7 +31,7 @@ test("workspace trash restores the same authored workspace", async ({ request })
   }
 });
 
-test("full-library ZIP backup restores an active workspace", async ({ request }) => {
+test("@critical full-library ZIP backup restores an active workspace", async ({ request }) => {
   const title = `Backup recovery ${Date.now()}`;
   const createdResponse = await request.post("/api/workspaces", { data: { title } });
   expect(createdResponse.status()).toBe(201);

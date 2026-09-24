@@ -80,3 +80,69 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+
+func TestActivitySessionIDRejectsIdentityReuse(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-identity.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	base := activity.Session{
+		ID: "session-1:2026-09-10", Title: "Read paper", ActivityType: "read",
+		ActivityDate: "2026-09-10", StartedAt: "2026-09-10T10:00:00Z",
+		ActiveSeconds: 60, LastHeartbeatAt: "2026-09-10T10:01:00Z",
+	}
+	if _, err := store.UpsertSession(ctx, base); err != nil {
+		t.Fatal(err)
+	}
+	reused := base
+	reused.ActivityDate = "2026-09-11"
+	reused.LastHeartbeatAt = "2026-09-11T10:01:00Z"
+	if _, err := store.UpsertSession(ctx, reused); !errors.Is(err, activity.ErrConflict) {
+		t.Fatalf("reused session ID error = %v, want activity.ErrConflict", err)
+	}
+	stored, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].ActivityDate != base.ActivityDate || stored[0].ActiveSeconds != base.ActiveSeconds {
+		t.Fatalf("stored activity changed after identity conflict: %#v", stored)
+	}
+}
+
+func TestLogicalActivityUsesLatestHeartbeatMetadata(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-latest-metadata.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	segments := []activity.Session{
+		{
+			ID: "session-1:2026-09-10", WorkspaceID: "workspace-1", WorkspaceTitleSnapshot: "Zeta",
+			Title: "Zeta", ActivityType: "learn", ActivityDate: "2026-09-10",
+			StartedAt: "2026-09-10T23:50:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-11T00:00:00Z",
+		},
+		{
+			ID: "session-1:2026-09-11", WorkspaceID: "workspace-1", WorkspaceTitleSnapshot: "Alpha",
+			Title: "Alpha", ActivityType: "learn", ActivityDate: "2026-09-11",
+			StartedAt: "2026-09-11T00:00:00Z", ActiveSeconds: 900, LastHeartbeatAt: "2026-09-11T00:15:00Z",
+		},
+	}
+	for _, session := range segments {
+		if _, err := store.UpsertSession(ctx, session); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].WorkspaceTitleSnapshot != "Alpha" || stored[0].Title != "Alpha" {
+		t.Fatalf("logical session metadata = %#v, want latest heartbeat metadata", stored)
+	}
+}

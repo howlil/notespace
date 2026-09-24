@@ -81,7 +81,6 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 
 func stringPointer(value string) *string { return &value }
 
-
 func TestActivitySessionIDRejectsIdentityReuse(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-identity.db"))

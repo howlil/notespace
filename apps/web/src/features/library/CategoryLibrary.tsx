@@ -7,7 +7,7 @@ import { ThemeToggle } from "../../shared/ui/theme-provider";
 import { useToast } from "../../shared/ui/toast-provider";
 import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listCategoryWorkspaces, renameWorkspace, updateCategory } from "../../adapters/http/workspace-api";
-import { WorkspaceListSkeleton } from "../../features/library/WorkspaceListSkeleton";
+import { WorkspaceListSkeleton } from "./WorkspaceListSkeleton";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 

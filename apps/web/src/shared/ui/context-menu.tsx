@@ -1,7 +1,7 @@
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "./utils";
+import { cn } from "./class-names";
 import { CLOSE_POPUPS_EVENT } from "./dismissable";
 
 export const ContextMenu = ContextMenuPrimitive.Root;

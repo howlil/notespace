@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "./utils";
+import { cn } from "./class-names";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "icon";

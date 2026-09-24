@@ -4,4 +4,4 @@ export { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 export { Input } from "./input";
 export { PopupSurface } from "./popup-surface";
 export { Skeleton } from "./skeleton";
-export { cn } from "./utils";
+export { cn } from "./class-names";

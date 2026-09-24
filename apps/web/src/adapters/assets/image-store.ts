@@ -7,12 +7,16 @@ import {
 } from "./image-cache";
 import { loadRemoteImageAsset, uploadRemoteImageAsset } from "./image-api";
 import { normalizeImageBlob } from "./image-normalizer";
-import type { LocalImageAsset } from "./image-types";
 import { createImageStore } from "./image-store-core";
 
 export type { LocalImageAsset } from "./image-types";
 export { normalizeImageBlob } from "./image-normalizer";
 export { pruneLocalImageCache } from "./image-cache";
+
+export function createLocalAssetId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `asset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const defaultImageStore = createImageStore({
   normalize: normalizeImageBlob,

@@ -5,6 +5,10 @@ export function belongsToToday(task: PlanningTask, date: string) {
   return task.plannedFor === date || (task.plannedFor < date && !task.completedAt);
 }
 
+export function removeFromTodayPatch() {
+  return { plannedFor: "" } as const;
+}
+
 export function applyTodayTaskUpdate(
   projection: TodayProjection,
   updated: PlanningTask,

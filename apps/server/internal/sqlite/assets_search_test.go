@@ -19,7 +19,7 @@ func TestWorkspaceAssetPersistsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Asset durability")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Asset durability")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
 	}
 	defer store.Close()
 	indexed := NewIndexedWorkspaceStore(store)
-	service := workspacepkg.Service{Store: indexed}
+	service := workspacepkg.NewService(indexed)
 	workspace, err := service.Create(ctx, "Search workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestIndexedSearchTreatsQuotesAsPunctuationAndSupportsUnicode(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "International search")
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
 	defer store.Close()
 
 	indexed := NewIndexedWorkspaceStore(store)
-	service := workspacepkg.Service{Store: indexed}
+	service := workspacepkg.NewService(indexed)
 	workspace, err := service.Create(ctx, "Lazy search")
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestWorkspaceExistsAndAssetPutAvoidHydratedReadback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Asset fast path")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Asset fast path")
 	if err != nil {
 		t.Fatal(err)
 	}

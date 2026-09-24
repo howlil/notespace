@@ -18,7 +18,7 @@ func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Image lifecycle")
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestCanvasFileIDOwnsAssetBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Canvas image")
 	if err != nil {
 		t.Fatal(err)

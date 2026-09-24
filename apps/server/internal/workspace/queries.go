@@ -17,7 +17,7 @@ func (s Service) WorkspaceExists(ctx context.Context, id string) (bool, error) {
 	if id == "" {
 		return false, ErrInvalid
 	}
-	return s.Store.WorkspaceExists(ctx, id)
+	return s.store.WorkspaceExists(ctx, id)
 }
 
 // GetCanvasState exposes the granular Canvas read boundary for conflict
@@ -27,7 +27,7 @@ func (s Service) GetCanvasState(ctx context.Context, id string) (CanvasState, er
 	if id == "" {
 		return CanvasState{}, ErrInvalid
 	}
-	return s.Store.GetCanvasState(ctx, id)
+	return s.store.GetCanvasState(ctx, id)
 }
 
 // Get returns one authored workspace through the application boundary.
@@ -37,7 +37,7 @@ func (s Service) Get(ctx context.Context, id string) (Workspace, error) {
 	if id == "" {
 		return Workspace{}, ErrInvalid
 	}
-	value, err := s.Store.GetWorkspaceRecord(ctx, id)
+	value, err := s.store.GetWorkspaceRecord(ctx, id)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -45,25 +45,25 @@ func (s Service) Get(ctx context.Context, id string) (Workspace, error) {
 }
 
 func (s Service) List(ctx context.Context) ([]Summary, error) {
-	return s.Store.List(ctx)
+	return s.store.List(ctx)
 }
 
 func (s Service) ListRecent(ctx context.Context, limit int) ([]Summary, error) {
 	if limit < 1 || limit > 100 {
 		return nil, ErrInvalid
 	}
-	return s.Store.ListRecent(ctx, limit)
+	return s.store.ListRecent(ctx, limit)
 }
 
 func (s Service) ListWorkspaces(ctx context.Context, query WorkspaceQuery) (WorkspacePage, error) {
 	if query.Offset < 0 || query.Limit < 1 || query.Limit > 100 {
 		return WorkspacePage{}, ErrInvalid
 	}
-	return s.Store.ListWorkspaces(ctx, query)
+	return s.store.ListWorkspaces(ctx, query)
 }
 
 func (s Service) ListCategories(ctx context.Context) ([]CategorySummary, error) {
-	return s.Store.ListCategories(ctx)
+	return s.store.ListCategories(ctx)
 }
 
 func (s Service) ListCategoryWorkspaces(ctx context.Context, categoryID string, query WorkspaceQuery) (WorkspacePage, error) {
@@ -71,7 +71,7 @@ func (s Service) ListCategoryWorkspaces(ctx context.Context, categoryID string, 
 	if categoryID == "" {
 		return WorkspacePage{}, ErrInvalid
 	}
-	exists, err := s.Store.CategoryExists(ctx, categoryID)
+	exists, err := s.store.CategoryExists(ctx, categoryID)
 	if err != nil {
 		return WorkspacePage{}, err
 	}
@@ -85,14 +85,14 @@ func (s Service) ListCategoryWorkspaces(ctx context.Context, categoryID string, 
 // Search is the application-facing query port. Decorated Store implementations
 // may serve it from a derived projection while authored workspace rows remain authoritative.
 func (s Service) Search(ctx context.Context, query string) ([]SearchResult, error) {
-	return s.Store.Search(ctx, strings.TrimSpace(query))
+	return s.store.Search(ctx, strings.TrimSpace(query))
 }
 
 func (s Service) ListHistory(ctx context.Context, workspaceID string) ([]HistoryEntry, error) {
 	if _, err := s.Get(ctx, workspaceID); err != nil {
 		return nil, err
 	}
-	return s.Store.ListHistory(ctx, workspaceID)
+	return s.store.ListHistory(ctx, workspaceID)
 }
 
 func (s Service) GetHistory(ctx context.Context, workspaceID, historyID string) (HistorySnapshot, error) {
@@ -101,7 +101,7 @@ func (s Service) GetHistory(ctx context.Context, workspaceID, historyID string) 
 	if workspaceID == "" || historyID == "" {
 		return HistorySnapshot{}, ErrInvalid
 	}
-	return s.Store.GetHistory(ctx, workspaceID, historyID)
+	return s.store.GetHistory(ctx, workspaceID, historyID)
 }
 
 // RestoreHistory owns the restore use case so HTTP only maps transport input/output.

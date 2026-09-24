@@ -13,18 +13,30 @@ import (
 
 const modulePath = "github.com/howlil/notespace/apps/server/internal/"
 
-var applicationPackages = map[string]bool{
-	"workspace": true,
-	"planning":  true,
-	"activity":  true,
-	"library":   true,
-	"asset":     true,
-	"icon":      true,
-}
-
-var infrastructurePackages = map[string]bool{
-	"httpapi": true,
-	"sqlite":  true,
+var allowedDependencies = map[string]map[string]bool{
+	"workspace": {},
+	"planning":  {},
+	"activity":  {},
+	"asset":     {},
+	"icon":      {},
+	"library": {
+		"workspace": true,
+	},
+	"httpapi": {
+		"workspace": true,
+		"planning":  true,
+		"activity":  true,
+		"library":   true,
+		"asset":     true,
+		"icon":      true,
+	},
+	"sqlite": {
+		"workspace": true,
+		"planning":  true,
+		"activity":  true,
+		"library":   true,
+		"asset":     true,
+	},
 }
 
 func TestServerDependencyBoundaries(t *testing.T) {
@@ -62,8 +74,11 @@ func TestServerDependencyBoundaries(t *testing.T) {
 				continue
 			}
 			target := strings.Split(strings.TrimPrefix(importPath, modulePath), "/")[0]
-			if forbiddenDependency(source, target) {
-				t.Errorf("%s imports forbidden internal dependency %q", filepath.ToSlash(rel), target)
+			if source == target {
+				continue
+			}
+			if !allowedDependencies[source][target] {
+				t.Errorf("%s imports internal dependency %q outside the allowed graph", filepath.ToSlash(rel), target)
 			}
 		}
 		return nil
@@ -71,16 +86,6 @@ func TestServerDependencyBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func forbiddenDependency(source, target string) bool {
-	if applicationPackages[source] && infrastructurePackages[target] {
-		return true
-	}
-	if source == "httpapi" && target == "sqlite" {
-		return true
-	}
-	return false
 }
 
 func TestLegacyServerPackagesRemoved(t *testing.T) {

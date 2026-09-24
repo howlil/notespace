@@ -11,7 +11,7 @@ func (a API) createNote(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	note, err := a.service.CreateNote(r.Context(), r.PathValue("id"), body)
+	note, err := a.workspace.CreateNote(r.Context(), r.PathValue("id"), body)
 	if err != nil {
 		fail(w, err)
 		return
@@ -24,7 +24,7 @@ func (a API) updateNote(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	note, err := a.service.UpdateNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), body)
+	note, err := a.workspace.UpdateNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), body)
 	if err != nil {
 		fail(w, err)
 		return
@@ -38,7 +38,7 @@ func (a API) deleteNote(w http.ResponseWriter, r *http.Request) {
 		fail(w, workspace.ErrInvalid)
 		return
 	}
-	if err := a.service.DeleteNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), *version); err != nil {
+	if err := a.workspace.DeleteNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"), *version); err != nil {
 		fail(w, err)
 		return
 	}

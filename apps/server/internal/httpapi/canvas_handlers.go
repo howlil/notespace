@@ -7,7 +7,7 @@ import (
 )
 
 func (a API) getCanvas(w http.ResponseWriter, r *http.Request) {
-	canvas, err := a.service.GetCanvasState(r.Context(), r.PathValue("id"))
+	canvas, err := a.workspace.GetCanvasState(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -20,7 +20,7 @@ func (a API) updateCanvas(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	canvas, err := a.service.UpdateCanvas(r.Context(), r.PathValue("id"), body)
+	canvas, err := a.workspace.UpdateCanvas(r.Context(), r.PathValue("id"), body)
 	if err != nil {
 		fail(w, err)
 		return

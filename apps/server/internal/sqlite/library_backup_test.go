@@ -25,7 +25,7 @@ func TestWorkspaceTrashRestoresIdentityHistoryAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	category, err := service.CreateCategory(ctx, "Distributed Systems")
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	category, err := service.CreateCategory(ctx, "Backend")
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	planningService := planning.Service{Store: store, Workspaces: store}
+	planningService := planning.NewService(store, store, nil)
 	milestone, err := planningService.CreateMilestone(ctx, workspace.ID, "Ship persistence")
 	if err != nil {
 		t.Fatal(err)
@@ -285,7 +285,7 @@ func TestArchiveRestoreRejectsTamperedAsset(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Checksum")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Checksum")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +311,7 @@ func TestLegacyJSONBackupStillRestores(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Legacy JSON")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Legacy JSON")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestRestoreRejectsUnknownBackupWithoutReplacingLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Keep me")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep me")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestRestoreRejectsInvalidActivityTypeWithoutReplacingLibrary(t *testing.T) 
 	}
 	defer store.Close()
 
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Keep activity library")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep activity library")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := (workspacepkg.Service{Store: store}).Create(ctx, "Keep me")
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep me")
 	if err != nil {
 		t.Fatal(err)
 	}

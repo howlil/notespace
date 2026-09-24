@@ -41,7 +41,7 @@ type GranularStore interface {
 }
 
 func (s Service) hydrateGranularState(ctx context.Context, value Workspace) (Workspace, error) {
-	notes, err := s.Store.ListNotes(ctx, value.ID)
+	notes, err := s.store.ListNotes(ctx, value.ID)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -49,7 +49,7 @@ func (s Service) hydrateGranularState(ctx context.Context, value Workspace) (Wor
 		value.Notes = notes
 		value.Document = notes[0].Document
 	}
-	canvas, err := s.Store.GetCanvasState(ctx, value.ID)
+	canvas, err := s.store.GetCanvasState(ctx, value.ID)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -65,7 +65,7 @@ func (s Service) CreateNote(ctx context.Context, workspaceID string, input NoteC
 	if workspaceID == "" || input.ID == "" || !ValidTitle(input.Title) || !validDocument(input.Document) {
 		return Note{}, ErrInvalid
 	}
-	return s.Store.CreateNote(ctx, workspaceID, input)
+	return s.store.CreateNote(ctx, workspaceID, input)
 }
 
 func (s Service) UpdateNote(ctx context.Context, workspaceID, noteID string, update NoteUpdate) (Note, error) {
@@ -75,7 +75,7 @@ func (s Service) UpdateNote(ctx context.Context, workspaceID, noteID string, upd
 	if workspaceID == "" || noteID == "" || !ValidTitle(update.Title) || update.Version < 1 || !validDocument(update.Document) {
 		return Note{}, ErrInvalid
 	}
-	return s.Store.UpdateNote(ctx, workspaceID, noteID, update)
+	return s.store.UpdateNote(ctx, workspaceID, noteID, update)
 }
 
 func (s Service) UpdateCanvas(ctx context.Context, workspaceID string, update CanvasUpdate) (CanvasState, error) {
@@ -83,7 +83,7 @@ func (s Service) UpdateCanvas(ctx context.Context, workspaceID string, update Ca
 	if workspaceID == "" || update.Version < 1 || !validCanvas(update.Canvas) {
 		return CanvasState{}, ErrInvalid
 	}
-	return s.Store.UpdateCanvas(ctx, workspaceID, update)
+	return s.store.UpdateCanvas(ctx, workspaceID, update)
 }
 
 func (s Service) DeleteNote(ctx context.Context, workspaceID, noteID string, version int) error {
@@ -92,5 +92,5 @@ func (s Service) DeleteNote(ctx context.Context, workspaceID, noteID string, ver
 	if workspaceID == "" || noteID == "" || version < 1 {
 		return ErrInvalid
 	}
-	return s.Store.DeleteNote(ctx, workspaceID, noteID, version)
+	return s.store.DeleteNote(ctx, workspaceID, noteID, version)
 }

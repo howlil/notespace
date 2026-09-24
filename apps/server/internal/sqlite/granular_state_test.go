@@ -38,7 +38,7 @@ func TestGranularWorkspaceStateHasIndependentVersions(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Granular")
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +129,7 @@ func TestGranularWriteInvalidatesStaleAggregateSnapshot(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Race guard")
 	if err != nil {
 		t.Fatal(err)

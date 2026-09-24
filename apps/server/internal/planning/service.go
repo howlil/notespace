@@ -8,9 +8,9 @@ import (
 )
 
 type Service struct {
-	Store      Store
-	Workspaces WorkspaceLookup
-	Now        func() time.Time
+	store      Store
+	workspaces WorkspaceLookup
+	clock      func() time.Time
 }
 
 func NewService(store Store, workspaces WorkspaceLookup, now func() time.Time) Service {
@@ -20,12 +20,12 @@ func NewService(store Store, workspaces WorkspaceLookup, now func() time.Time) S
 	if workspaces == nil {
 		panic("planning: workspace lookup is required")
 	}
-	return Service{Store: store, Workspaces: workspaces, Now: now}
+	return Service{store: store, workspaces: workspaces, clock: now}
 }
 
 func (s Service) now() time.Time {
-	if s.Now != nil {
-		return s.Now().UTC()
+	if s.clock != nil {
+		return s.clock().UTC()
 	}
 	return time.Now().UTC()
 }
@@ -34,7 +34,7 @@ func (s Service) requireWorkspace(ctx context.Context, workspaceID string) error
 	if strings.TrimSpace(workspaceID) == "" {
 		return ErrInvalid
 	}
-	exists, err := s.Workspaces.WorkspaceExists(ctx, workspaceID)
+	exists, err := s.workspaces.WorkspaceExists(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -48,21 +48,21 @@ func (s Service) GetPlan(ctx context.Context, workspaceID string) (Plan, error) 
 	if err := s.requireWorkspace(ctx, workspaceID); err != nil {
 		return Plan{}, err
 	}
-	return s.Store.GetPlan(ctx, workspaceID)
+	return s.store.GetPlan(ctx, workspaceID)
 }
 
 func (s Service) GetTask(ctx context.Context, taskID string) (Task, error) {
 	if strings.TrimSpace(taskID) == "" {
 		return Task{}, ErrInvalid
 	}
-	return s.Store.GetTask(ctx, taskID)
+	return s.store.GetTask(ctx, taskID)
 }
 
 func (s Service) Today(ctx context.Context, date string) (Today, error) {
 	if !validDateKey(date) {
 		return Today{}, ErrInvalid
 	}
-	tasks, err := s.Store.ListToday(ctx, date)
+	tasks, err := s.store.ListToday(ctx, date)
 	if err != nil {
 		return Today{}, err
 	}
@@ -70,7 +70,7 @@ func (s Service) Today(ctx context.Context, date string) (Today, error) {
 }
 
 func (s Service) Inbox(ctx context.Context) (Inbox, error) {
-	tasks, err := s.Store.ListInbox(ctx)
+	tasks, err := s.store.ListInbox(ctx)
 	if err != nil {
 		return Inbox{}, err
 	}
@@ -85,7 +85,7 @@ func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string)
 		}
 		return Milestone{}, ErrInvalid
 	}
-	plan, err := s.Store.GetPlan(ctx, workspaceID)
+	plan, err := s.store.GetPlan(ctx, workspaceID)
 	if err != nil {
 		return Milestone{}, err
 	}
@@ -99,7 +99,7 @@ func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string)
 		}
 	}
 	now := s.now().Format(time.RFC3339Nano)
-	return s.Store.CreateMilestone(ctx, Milestone{
+	return s.store.CreateMilestone(ctx, Milestone{
 		ID: rand.Text(), WorkspaceID: workspaceID, Title: title, Position: position,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
@@ -143,7 +143,7 @@ func (s Service) UpdateMilestone(ctx context.Context, workspaceID, milestoneID s
 		}
 	}
 	current.UpdatedAt = s.now().Format(time.RFC3339Nano)
-	return s.Store.UpdateMilestone(ctx, *current)
+	return s.store.UpdateMilestone(ctx, *current)
 }
 
 func (s Service) DeleteMilestone(ctx context.Context, workspaceID, milestoneID string, version int) error {
@@ -153,7 +153,7 @@ func (s Service) DeleteMilestone(ctx context.Context, workspaceID, milestoneID s
 	if err := s.requireWorkspace(ctx, workspaceID); err != nil {
 		return err
 	}
-	return s.Store.DeleteMilestone(ctx, workspaceID, milestoneID, version)
+	return s.store.DeleteMilestone(ctx, workspaceID, milestoneID, version)
 }
 
 func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID *string, title string) (Task, error) {
@@ -164,7 +164,7 @@ func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID
 		}
 		return Task{}, ErrInvalid
 	}
-	plan, err := s.Store.GetPlan(ctx, workspaceID)
+	plan, err := s.store.GetPlan(ctx, workspaceID)
 	if err != nil {
 		return Task{}, err
 	}
@@ -196,7 +196,7 @@ func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID
 	}
 	now := s.now().Format(time.RFC3339Nano)
 	workspace := workspaceID
-	return s.Store.CreateTask(ctx, Task{
+	return s.store.CreateTask(ctx, Task{
 		ID: rand.Text(), WorkspaceID: &workspace, MilestoneID: normalizedMilestone,
 		Title: title, Description: "", Position: position,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
@@ -214,7 +214,7 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 	}
 	position := 0
 	if date != nil {
-		today, err := s.Store.ListToday(ctx, *date)
+		today, err := s.store.ListToday(ctx, *date)
 		if err != nil {
 			return Task{}, err
 		}
@@ -224,7 +224,7 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 			}
 		}
 	} else {
-		inbox, err := s.Store.ListInbox(ctx)
+		inbox, err := s.store.ListInbox(ctx)
 		if err != nil {
 			return Task{}, err
 		}
@@ -235,7 +235,7 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 		}
 	}
 	now := s.now().Format(time.RFC3339Nano)
-	return s.Store.CreateTask(ctx, Task{
+	return s.store.CreateTask(ctx, Task{
 		ID: rand.Text(), Title: title, Description: "", Position: position, PlannedFor: date,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
@@ -300,14 +300,14 @@ func (s Service) UpdateTask(ctx context.Context, workspaceID, taskID string, pat
 	if err != nil {
 		return Task{}, err
 	}
-	return s.Store.UpdateTask(ctx, next)
+	return s.store.UpdateTask(ctx, next)
 }
 
 func (s Service) UpdateAnyTask(ctx context.Context, taskID string, patch TaskPatch) (Task, error) {
 	if patch.Version < 1 || strings.TrimSpace(taskID) == "" {
 		return Task{}, ErrInvalid
 	}
-	current, err := s.Store.GetTask(ctx, taskID)
+	current, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return Task{}, err
 	}
@@ -315,7 +315,7 @@ func (s Service) UpdateAnyTask(ctx context.Context, taskID string, patch TaskPat
 	if err != nil {
 		return Task{}, err
 	}
-	return s.Store.UpdateTask(ctx, next)
+	return s.store.UpdateTask(ctx, next)
 }
 
 func (s Service) DeleteTask(ctx context.Context, workspaceID, taskID string, version int) error {
@@ -336,14 +336,14 @@ func (s Service) DeleteTask(ctx context.Context, workspaceID, taskID string, ver
 	if !found {
 		return ErrNotFound
 	}
-	return s.Store.DeleteTask(ctx, taskID, version)
+	return s.store.DeleteTask(ctx, taskID, version)
 }
 
 func (s Service) DeleteAnyTask(ctx context.Context, taskID string, version int) error {
 	if version < 1 || strings.TrimSpace(taskID) == "" {
 		return ErrInvalid
 	}
-	current, err := s.Store.GetTask(ctx, taskID)
+	current, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return err
 	}
@@ -353,5 +353,5 @@ func (s Service) DeleteAnyTask(ctx context.Context, taskID string, version int) 
 	if current.Version != version {
 		return ErrConflict
 	}
-	return s.Store.DeleteTask(ctx, taskID, version)
+	return s.store.DeleteTask(ctx, taskID, version)
 }

@@ -3,7 +3,7 @@ package httpapi
 import "net/http"
 
 func (a API) listCategories(w http.ResponseWriter, r *http.Request) {
-	data, err := a.service.ListCategories(r.Context())
+	data, err := a.workspace.ListCategories(r.Context())
 	if err != nil {
 		fail(w, err)
 		return
@@ -18,7 +18,7 @@ func (a API) listCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	page, err := a.service.ListCategoryWorkspaces(r.Context(), categoryID, query)
+	page, err := a.workspace.ListCategoryWorkspaces(r.Context(), categoryID, query)
 	if err != nil {
 		fail(w, err)
 		return
@@ -33,7 +33,7 @@ func (a API) createCategory(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	category, err := a.service.CreateCategory(r.Context(), body.Title)
+	category, err := a.workspace.CreateCategory(r.Context(), body.Title)
 	if err != nil {
 		fail(w, err)
 		return
@@ -49,7 +49,7 @@ func (a API) updateCategory(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	category, err := a.service.UpdateCategory(r.Context(), r.PathValue("id"), body.Title)
+	category, err := a.workspace.UpdateCategory(r.Context(), r.PathValue("id"), body.Title)
 	if err != nil {
 		fail(w, err)
 		return

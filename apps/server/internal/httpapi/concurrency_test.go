@@ -20,7 +20,7 @@ func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	}
 	defer store.Close()
 
-	service := workspacepkg.Service{Store: store}
+	service := workspacepkg.NewService(store)
 	workspace, err := service.Create(ctx, "Initial")
 	if err != nil {
 		t.Fatal(err)

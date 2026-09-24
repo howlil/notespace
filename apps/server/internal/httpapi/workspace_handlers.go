@@ -13,7 +13,7 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 			fail(w, workspace.ErrInvalid)
 			return
 		}
-		data, err := a.service.ListRecent(r.Context(), limit)
+		data, err := a.workspace.ListRecent(r.Context(), limit)
 		if err != nil {
 			fail(w, err)
 			return
@@ -21,7 +21,7 @@ func (a API) list(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, data)
 		return
 	}
-	data, err := a.service.List(r.Context())
+	data, err := a.workspace.List(r.Context())
 	if err != nil {
 		fail(w, err)
 		return
@@ -35,7 +35,7 @@ func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	page, err := a.service.ListWorkspaces(r.Context(), query)
+	page, err := a.workspace.ListWorkspaces(r.Context(), query)
 	if err != nil {
 		fail(w, err)
 		return
@@ -51,7 +51,7 @@ func (a API) create(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Create(r.Context(), body.Title, body.CategoryID)
+	p, err := a.workspace.Create(r.Context(), body.Title, body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return
@@ -65,7 +65,7 @@ func (a API) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) get(w http.ResponseWriter, r *http.Request) {
-	p, err := a.service.Get(r.Context(), r.PathValue("id"))
+	p, err := a.workspace.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -78,7 +78,7 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Update(r.Context(), r.PathValue("id"), body)
+	p, err := a.workspace.Update(r.Context(), r.PathValue("id"), body)
 	if err != nil {
 		fail(w, err)
 		return
@@ -93,7 +93,7 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Rename(r.Context(), r.PathValue("id"), body.Title)
+	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title)
 	if err != nil {
 		fail(w, err)
 		return
@@ -108,7 +108,7 @@ func (a API) move(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.service.Move(r.Context(), r.PathValue("id"), body.CategoryID)
+	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return

@@ -7,7 +7,7 @@ import (
 )
 
 func (a API) history(w http.ResponseWriter, r *http.Request) {
-	data, err := a.service.ListHistory(r.Context(), r.PathValue("id"))
+	data, err := a.workspace.ListHistory(r.Context(), r.PathValue("id"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -16,7 +16,7 @@ func (a API) history(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
-	data, err := a.service.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
+	data, err := a.workspace.GetHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -26,7 +26,7 @@ func (a API) historySnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) restore(w http.ResponseWriter, r *http.Request) {
-	restored, err := a.service.RestoreHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
+	restored, err := a.workspace.RestoreHistory(r.Context(), r.PathValue("id"), r.PathValue("historyId"))
 	if err != nil {
 		fail(w, err)
 		return

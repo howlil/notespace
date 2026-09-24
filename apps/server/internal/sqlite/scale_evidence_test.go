@@ -68,7 +68,7 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.Service{Store: NewIndexedWorkspaceStore(store)}
+	service := workspacepkg.NewService(NewIndexedWorkspaceStore(store))
 	workspace, err := service.Create(ctx, "Scale evidence")
 	if err != nil {
 		t.Fatal(err)

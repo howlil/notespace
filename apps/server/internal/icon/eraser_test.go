@@ -2,6 +2,7 @@ package icon
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -97,6 +98,48 @@ func TestEraserSourceDedupesConcurrentCacheMisses(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fetch error = %v", err)
 		}
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("upstream requests = %d, want 1", got)
+	}
+}
+
+
+func TestEraserSourceLeaderCancellationDoesNotFailFollowers(t *testing.T) {
+	var requests atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		w.Header().Set("Content-Type", "image/svg+xml")
+		_, _ = io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`)
+	}))
+	defer upstream.Close()
+
+	source := NewEraserSource(&http.Client{Timeout: time.Second}, upstream.URL)
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderResult := make(chan error, 1)
+	go func() {
+		_, err := source.Fetch(leaderCtx, "aws-lambda")
+		leaderResult <- err
+	}()
+	<-started
+
+	followerResult := make(chan error, 1)
+	go func() {
+		_, err := source.Fetch(context.Background(), "aws-lambda")
+		followerResult <- err
+	}()
+	cancelLeader()
+	if err := <-leaderResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("leader error = %v, want context.Canceled", err)
+	}
+	close(release)
+	if err := <-followerResult; err != nil {
+		t.Fatalf("follower error = %v", err)
 	}
 	if got := requests.Load(); got != 1 {
 		t.Fatalf("upstream requests = %d, want 1", got)

@@ -7,20 +7,28 @@ import (
 )
 
 const logicalActivitySelect = `
+WITH ranked_activity_sessions AS (
+  SELECT *,
+    ROW_NUMBER() OVER (
+      PARTITION BY logical_session_id,workspace_id,task_id
+      ORDER BY last_heartbeat_at DESC,id DESC
+    ) AS logical_rank
+  FROM activity_sessions
+)
 SELECT
   logical_session_id,
   workspace_id,
-  MAX(workspace_title_snapshot),
+  COALESCE(MAX(CASE WHEN logical_rank=1 THEN workspace_title_snapshot END),''),
   task_id,
-  MAX(task_title_snapshot),
-  MAX(activity_title),
-  MAX(activity_type),
+  COALESCE(MAX(CASE WHEN logical_rank=1 THEN task_title_snapshot END),''),
+  COALESCE(MAX(CASE WHEN logical_rank=1 THEN activity_title END),''),
+  COALESCE(MAX(CASE WHEN logical_rank=1 THEN activity_type END),''),
   MIN(activity_date),
   MIN(started_at),
   CASE WHEN SUM(CASE WHEN ended_at IS NULL THEN 1 ELSE 0 END) > 0 THEN NULL ELSE MAX(ended_at) END,
   SUM(active_seconds),
   MAX(last_heartbeat_at)
-FROM activity_sessions
+FROM ranked_activity_sessions
 `
 
 func (s *Store) ListWorkspaceSessions(ctx context.Context, workspaceID string, limit int) ([]activity.Session, error) {

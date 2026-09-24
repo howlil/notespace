@@ -156,8 +156,8 @@ func TestActivityTimestampsCanonicalizeAndLegacyOffsetsOrderByInstant(t *testing
 
 	stored, err := store.UpsertSession(ctx, activity.Session{
 		ID: "canonical:2026-09-11", Title: "Canonical", ActivityType: "learn",
-		ActivityDate: "2026-09-11",
-		StartedAt: "2026-09-11T00:30:00+02:00",
+		ActivityDate:    "2026-09-11",
+		StartedAt:       "2026-09-11T00:30:00+02:00",
 		LastHeartbeatAt: "2026-09-11T00:45:00+02:00",
 	})
 	if err != nil {

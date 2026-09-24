@@ -145,3 +145,60 @@ func TestLogicalActivityUsesLatestHeartbeatMetadata(t *testing.T) {
 		t.Fatalf("logical session metadata = %#v, want latest heartbeat metadata", stored)
 	}
 }
+
+
+func TestActivityTimestampsCanonicalizeAndLegacyOffsetsOrderByInstant(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-offsets.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	stored, err := store.UpsertSession(ctx, activity.Session{
+		ID: "canonical:2026-09-11", Title: "Canonical", ActivityType: "learn",
+		ActivityDate: "2026-09-11",
+		StartedAt: "2026-09-11T00:30:00+02:00",
+		LastHeartbeatAt: "2026-09-11T00:45:00+02:00",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.StartedAt != "2026-09-10T22:30:00.000000000Z" ||
+		stored.LastHeartbeatAt != "2026-09-10T22:45:00.000000000Z" {
+		t.Fatalf("canonical timestamps = started %q heartbeat %q", stored.StartedAt, stored.LastHeartbeatAt)
+	}
+
+	for _, row := range []struct {
+		id, title, heartbeat string
+	}{
+		{"legacy:early", "Lexically later", "2026-09-11T00:30:00+02:00"},
+		{"legacy:late", "Actually later", "2026-09-10T23:00:00Z"},
+	} {
+		if _, err := store.db.ExecContext(ctx, `
+			INSERT INTO activity_sessions(
+				id,logical_session_id,workspace_id,workspace_title_snapshot,
+				task_id,task_title_snapshot,activity_title,activity_type,
+				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at
+			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		`, row.id, "legacy", "", "", "", "", row.title, "learn",
+			"2026-09-10", row.heartbeat, nil, 60, row.heartbeat); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sessions, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy *activity.Session
+	for i := range sessions {
+		if sessions[i].ID == "legacy" {
+			legacy = &sessions[i]
+			break
+		}
+	}
+	if legacy == nil || legacy.Title != "Actually later" || legacy.LastHeartbeatAt != "2026-09-10T23:00:00Z" {
+		t.Fatalf("legacy offset ordering = %#v, want actual latest instant", legacy)
+	}
+}

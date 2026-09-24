@@ -8,77 +8,26 @@ import {
 import { loadRemoteImageAsset, uploadRemoteImageAsset } from "./image-api";
 import { normalizeImageBlob } from "./image-normalizer";
 import type { LocalImageAsset } from "./image-types";
+import { createImageStore } from "./image-store-core";
 
 export type { LocalImageAsset } from "./image-types";
 export { normalizeImageBlob } from "./image-normalizer";
 export { pruneLocalImageCache } from "./image-cache";
 
-const inFlightAssetLoads = new Map<string, Promise<LocalImageAsset | null>>();
+const defaultImageStore = createImageStore({
+  normalize: normalizeImageBlob,
+  uploadRemote: uploadRemoteImageAsset,
+  loadRemote: loadRemoteImageAsset,
+  getMemory: getMemoryImageAsset,
+  putLocal: putLocalImageCache,
+  readLocal: readLocalImageCache,
+  removeLocal: removeLocalImageCache,
+  cacheKey: imageCacheKey,
+  now: () => Date.now(),
+});
 
-export function createLocalAssetId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `asset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-export async function storeImageAsset(workspaceId: string, id: string, source: Blob) {
-  const blob = await normalizeImageBlob(source);
-  const accepted = await uploadRemoteImageAsset(workspaceId, id, blob);
-  if (!accepted) {
-    await removeLocalImageCache(workspaceId, id);
-    return null;
-  }
-
-  const record: LocalImageAsset = {
-    id,
-    workspaceId,
-    blob,
-    mimeType: blob.type || source.type,
-    createdAt: Date.now(),
-  };
-  await putLocalImageCache(record);
-  return record;
-}
-
-export async function loadImageAsset(workspaceId: string, id: string) {
-  const memory = getMemoryImageAsset(workspaceId, id);
-  if (memory) return memory;
-
-  const key = imageCacheKey(workspaceId, id);
-  const existing = inFlightAssetLoads.get(key);
-  if (existing) return existing;
-
-  const load = (async () => {
-    try {
-      const remote = await loadRemoteImageAsset(workspaceId, id);
-      if (remote) {
-        await putLocalImageCache(remote);
-        return remote;
-      }
-    } catch {
-      // A local cache may still make an acknowledged legacy workspace readable.
-    }
-
-    const legacy = await readLocalImageCache(workspaceId, id);
-    if (!legacy) return null;
-
-    // Read-through migration: legacy browser-only assets become server-owned once seen.
-    try {
-      const accepted = await uploadRemoteImageAsset(workspaceId, id, legacy.blob);
-      if (!accepted) {
-        await removeLocalImageCache(workspaceId, id);
-        return null;
-      }
-    } catch {
-      // Keep legacy readable when the server is temporarily unavailable.
-    }
-    return legacy;
-  })().finally(() => {
-    if (inFlightAssetLoads.get(key) === load) inFlightAssetLoads.delete(key);
-  });
-
-  inFlightAssetLoads.set(key, load);
-  return load;
-}
+export const storeImageAsset = defaultImageStore.storeImageAsset;
+export const loadImageAsset = defaultImageStore.loadImageAsset;
 
 export async function blobFromDataUrl(dataUrl: string) {
   const response = await fetch(dataUrl);

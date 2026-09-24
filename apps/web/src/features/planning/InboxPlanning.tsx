@@ -13,6 +13,7 @@ import {
   type PlanningTask,
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
+import { applyInboxTaskUpdate } from "./projection-state";
 
 function InboxTaskRow({
   task,
@@ -149,12 +150,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         ...patch,
         version: task.version,
       });
-      setProjection((current) => ({
-        ...current,
-        tasks: updated.plannedFor
-          ? current.tasks.filter((item) => item.id !== updated.id)
-          : current.tasks.map((item) => item.id === updated.id ? updated : item),
-      }));
+      setProjection((current) => applyInboxTaskUpdate(current, updated));
     } catch (error) {
       showToast({
         kind: "error",

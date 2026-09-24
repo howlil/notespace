@@ -11,6 +11,8 @@ For implementation, refactoring, architecture, file structure, module ownership,
 
 For user-facing UI and interaction work, also read `DESIGN.md`.
 
+For the current implementation map, read `docs/ARCHITECTURE.md`. For test ownership, CI lanes, and focused verification commands, read `docs/TESTING.md`.
+
 Inspect the current code and tests before implementation. Repository evidence is implementation truth unless an explicit current rule or decision supersedes it.
 
 ## Authority

@@ -88,28 +88,6 @@ export function makeDiagramId(prefix: string) {
   return `${prefix}-${random}`;
 }
 
-export function searchDiagramCatalog(query: string, category: DiagramCategory | "all" = "all") {
-  const normalized = query.trim().toLowerCase();
-  return diagramCatalog.filter((item) => {
-    if (category !== "all" && item.category !== category) return false;
-    if (!normalized) return true;
-    return [item.label, item.key, item.category, ...item.keywords].some((value) => value.toLowerCase().includes(normalized));
-  });
-}
-
-export function searchEraserCatalog(query: string, category: DiagramCategory | "all" = "all") {
-  const normalized = query.trim().toLowerCase();
-  return eraserDiagramCatalog.filter((item) => {
-    if (category !== "all" && item.category !== category) return false;
-    if (!normalized) return true;
-    return [item.label, item.key, item.category, ...item.keywords].some((value) => value.toLowerCase().includes(normalized));
-  });
-}
-
-export function getCatalogItem(key: string) {
-  return diagramCatalog.find((item) => item.key === key) ?? diagramCatalog[0];
-}
-
 function createNode(specKey: string, label: string, x: number, y: number, idFactory: IdFactory, renderMode: DiagramNodeRenderMode): DiagramNode {
   return {
     id: idFactory("node"),

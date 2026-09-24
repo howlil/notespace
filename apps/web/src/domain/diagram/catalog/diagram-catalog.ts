@@ -95,3 +95,24 @@ export const diagramPickerIconCount = eraserDiagramCatalog.length;
 // general icons that are no longer offered for new insertion.
 export const diagramCatalog: readonly DiagramCatalogItem[] = uniqueCatalog([...compatibilityCatalog, ...generatedEraserCatalog]);
 
+export function searchDiagramCatalog(query: string, category: DiagramCategory | "all" = "all") {
+  const normalized = query.trim().toLowerCase();
+  return diagramCatalog.filter((item) => {
+    if (category !== "all" && item.category !== category) return false;
+    if (!normalized) return true;
+    return [item.label, item.key, item.category, ...item.keywords].some((value) => value.toLowerCase().includes(normalized));
+  });
+}
+
+export function searchEraserCatalog(query: string, category: DiagramCategory | "all" = "all") {
+  const normalized = query.trim().toLowerCase();
+  return eraserDiagramCatalog.filter((item) => {
+    if (category !== "all" && item.category !== category) return false;
+    if (!normalized) return true;
+    return [item.label, item.key, item.category, ...item.keywords].some((value) => value.toLowerCase().includes(normalized));
+  });
+}
+
+export function getCatalogItem(key: string) {
+  return diagramCatalog.find((item) => item.key === key) ?? diagramCatalog[0];
+}

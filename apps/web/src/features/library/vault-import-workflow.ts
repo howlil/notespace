@@ -4,7 +4,7 @@ import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, res
 
 export type VaultImportOperations = {
   createWorkspace: (title: string, categoryId?: string) => Promise<Workspace>;
-  deleteWorkspace: (id: string) => Promise<void>;
+  deleteWorkspace: (id: string, expectedVersion: number) => Promise<void>;
   deleteTrashedWorkspace: (id: string) => Promise<void>;
   saveWorkspace: (id: string, content: WorkspaceContent, version: number) => Promise<unknown>;
   createLocalAssetId: () => string;
@@ -34,7 +34,7 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
   let cleanupFailed = 0;
 
   for (const markdownFile of markdownFiles) {
-    let createdWorkspaceId: string | null = null;
+    let createdWorkspace: Workspace | null = null;
     try {
       const path = filePath(markdownFile);
       const markdown = await markdownFile.text();
@@ -53,7 +53,7 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
       });
       const title = importedDocumentTitle(path, markdown);
       const workspace = await operations.createWorkspace(title, categoryId);
-      createdWorkspaceId = workspace.id;
+      createdWorkspace = workspace;
       for (const asset of plannedAssets.values()) {
         await operations.storeImageAsset(workspace.id, asset.id, asset.file);
       }
@@ -69,10 +69,10 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
       imported += 1;
     } catch {
       failed += 1;
-      if (createdWorkspaceId) {
+      if (createdWorkspace) {
         try {
-          await operations.deleteWorkspace(createdWorkspaceId);
-          await operations.deleteTrashedWorkspace(createdWorkspaceId);
+          await operations.deleteWorkspace(createdWorkspace.id, createdWorkspace.version);
+          await operations.deleteTrashedWorkspace(createdWorkspace.id);
         } catch {
           cleanupFailed += 1;
         }

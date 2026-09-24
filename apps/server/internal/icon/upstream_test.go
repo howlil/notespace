@@ -23,7 +23,7 @@ func TestEraserSourceMapsInvalidUpstreamResponses(t *testing.T) {
 		{"empty body", http.StatusOK, "image/svg+xml", "", true},
 		{"malformed svg", http.StatusOK, "image/svg+xml", "<svg", true},
 		{"unsafe svg", http.StatusOK, "image/svg+xml", "<svg><script>alert(1)</script></svg>", true},
-		{"oversized svg", http.StatusOK, "image/svg+xml", "<svg>"+strings.Repeat(" ", maxEraserIconBytes)+"</svg>", true},
+		{"oversized svg", http.StatusOK, "image/svg+xml", "<svg>" + strings.Repeat(" ", maxEraserIconBytes) + "</svg>", true},
 	}
 
 	for _, tc := range tests {

@@ -48,7 +48,7 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 	renamed := segments[0]
 	renamed.WorkspaceTitleSnapshot = "Distributed Systems Renamed"
 	renamed.ActiveSeconds = 12 * 60
-	renamed.LastHeartbeatAt = "2026-09-11T00:02:00Z"
+	renamed.LastHeartbeatAt = "2026-09-11T00:20:00Z"
 	if _, err := store.UpsertSession(ctx, renamed); err != nil {
 		t.Fatal(err)
 	}

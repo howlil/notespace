@@ -1,4 +1,4 @@
-import { fetchTransport, json, request, type HttpTransport } from "./client";
+import { fetchTransport, json, request, type HttpTransport } from "./client.ts";
 import type { ActivitySession, ActivityStats, ActivitySummary, ActivityDayDetail, ActivityHeartbeat } from "../../domain/activity/activity";
 export type { ActivityType, ActivitySession, ActivityStats, ActivityDay, ActivitySummary, ActivityDayDetail, ActivityHeartbeat } from "../../domain/activity/activity";
 

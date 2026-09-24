@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import { motion, type HTMLMotionProps } from "motion/react";
-import { cn } from "./utils";
+import { cn } from "./class-names";
 
 /**
  * Shared visual surface for lightweight, non-modal popovers and menus.

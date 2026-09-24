@@ -1,7 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { motion } from "motion/react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
-import { cn } from "./utils";
+import { cn } from "./class-names";
 
 export const Dialog = DialogPrimitive.Root;
 

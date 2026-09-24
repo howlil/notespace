@@ -227,7 +227,6 @@ func TestTodayProjectsWorkspaceAndStandaloneTasks(t *testing.T) {
 	}
 }
 
-
 func TestConcurrentPlanningCreatesUseUniquePositions(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "planning-concurrent-create.db"))

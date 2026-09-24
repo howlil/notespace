@@ -30,6 +30,7 @@ const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace-authoring", "mode
 const CANVAS_FRAME_LINK = join(WEB_SRC, "domain", "workspace", "canvas-frame-link.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "features", "workspace-authoring", "document", "DocumentEditor.tsx");
 const DOCUMENT_IMAGE_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "document", "use-document-image-actions.ts");
+const DOCUMENT_IMAGE_ACTION_CORE = join(WEB_SRC, "features", "workspace-authoring", "document", "document-image-actions.ts");
 const DOCUMENT_SLASH_COMMANDS = join(WEB_SRC, "features", "workspace-authoring", "document", "document-slash-commands.ts");
 const CANVAS_FRAME_LINK_NODE = join(WEB_SRC, "features", "workspace-authoring", "document", "CanvasFrameLinkNode.tsx");
 const CANVAS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasEditor.tsx");
@@ -441,8 +442,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
 });
 
 test("asset contract: server is durable owner and IndexedDB is only a compatibility cache", () => {
-  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), imageActions=source(DOCUMENT_IMAGE_ACTIONS), store=source(IMAGE_ASSETS), core=source(IMAGE_ASSET_CORE), api=source(IMAGE_ASSET_API), cache=source(IMAGE_ASSET_CACHE), packageJson=source(WEB_PACKAGE);
-  assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(imageActions,/storeImageAsset\(workspaceId, assetId/);
+  const canvas=source(CANVAS), editor=source(DOCUMENT_EDITOR), imageActions=source(DOCUMENT_IMAGE_ACTIONS), imageActionCore=source(DOCUMENT_IMAGE_ACTION_CORE), store=source(IMAGE_ASSETS), core=source(IMAGE_ASSET_CORE), api=source(IMAGE_ASSET_API), cache=source(IMAGE_ASSET_CACHE), packageJson=source(WEB_PACKAGE);
+  assert.match(packageJson,/"@excalidraw\/excalidraw":/); assert.match(canvas,/restoreLocalFiles/); assert.match(canvas,/persistCanvasFiles/); assert.match(editor,/handlePaste:/); assert.match(imageActions,/prepareDocumentImage/); assert.match(imageActions,/store:\s*storeImageAsset/); assert.match(imageActionCore,/await store\(workspaceId, assetId, file\)/);
   assert.match(api,/\/api\/workspaces\/\$\{encodeURIComponent\(workspaceId\)\}\/assets/); assert.match(api,/method:\s*"PUT"/); assert.match(api,/loadRemoteImageAsset/); assert.match(store,/createImageStore/); assert.match(core,/deps\.readLocal/); assert.match(core,/deps\.uploadRemote/); assert.match(cache,/indexedDB\.open\(DATABASE_NAME/); assert.match(core,/inFlightLoads/);
 });
 

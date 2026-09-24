@@ -7,10 +7,10 @@ import (
 
 func TestNormalizeMimeTypeAcceptsCanonicalImageMediaTypes(t *testing.T) {
 	tests := map[string]string{
-		"image/png":                  "image/png",
-		" image/jpeg ":               "image/jpeg",
-		"image/svg+xml":              "image/svg+xml",
-		"image/png; charset=utf-8":   "image/png",
+		"image/png":                "image/png",
+		" image/jpeg ":             "image/jpeg",
+		"image/svg+xml":            "image/svg+xml",
+		"image/png; charset=utf-8": "image/png",
 	}
 	for input, want := range tests {
 		got, err := NormalizeMimeType(input)

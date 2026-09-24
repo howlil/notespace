@@ -153,7 +153,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                       <ContextMenuContent><ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem></ContextMenuContent>
                     </ContextMenu>
                   ))}
-                  {items.length >= 5 && <Link className="mx-[5px] mt-0.5 ml-[9px] px-[3px] py-[5px] text-[10px] font-medium text-accent" to="/categories/$categoryId" params={{ categoryId: category.id }}>View all</Link>}
+                  {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}
                   {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
                 </div>
               )}

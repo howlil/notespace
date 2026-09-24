@@ -2,6 +2,7 @@ import { pruneLocalImageCache } from "../../adapters/assets/image-store";
 import { BlockingAutosaveError } from "../../domain/workspace/autosave";
 import { mergeCanvasSnapshots, mergeWorkspaceContent, sameNonCanvasContent, sameWorkspaceContent } from "../../domain/workspace/canvas-merge";
 import { publishWorkspaceConflict } from "../../adapters/browser/workspace-conflict-events";
+import type { WorkspaceConflictDraft } from "../../adapters/browser/workspace-conflict-events";
 import { APIError } from "../../adapters/http/client";
 import { getWorkspace, updateWorkspaceSnapshot } from "../../adapters/http/workspace-api";
 import { workspaceContentOf } from "../../domain/workspace/workspace";
@@ -49,8 +50,27 @@ function reconcileAssetCache(project: Workspace) {
   void pruneLocalImageCache(project.id, assetIDs(project)).catch(() => {});
 }
 
-function conflict(id: string, local: WorkspaceContent, latest: Workspace): never {
-  publishWorkspaceConflict({ workspaceId: id, local, latest });
+export type SaveWorkspaceDependencies = {
+  update: (id: string, content: WorkspaceContent, version: number) => Promise<Workspace>;
+  getLatest: (id: string) => Promise<Workspace>;
+  publishConflict: (draft: WorkspaceConflictDraft) => void;
+  reconcileAssets: (workspace: Workspace) => void;
+};
+
+const defaultSaveWorkspaceDependencies: SaveWorkspaceDependencies = {
+  update: updateWorkspaceSnapshot,
+  getLatest: getWorkspace,
+  publishConflict: publishWorkspaceConflict,
+  reconcileAssets: reconcileAssetCache,
+};
+
+function conflict(
+  deps: SaveWorkspaceDependencies,
+  id: string,
+  local: WorkspaceContent,
+  latest: Workspace,
+): never {
+  deps.publishConflict({ workspaceId: id, local, latest });
   throw new WorkspaceConflictError(latest);
 }
 
@@ -61,7 +81,13 @@ function conflict(id: string, local: WorkspaceContent, latest: Workspace): never
  * True concurrent edits to the same non-Canvas field still stop autosave and
  * surface the explicit local-draft recovery path.
  */
-export async function saveWorkspace(id: string, content: WorkspaceContent, version: number, base?: WorkspaceContent) {
+export async function saveWorkspaceWith(
+  deps: SaveWorkspaceDependencies,
+  id: string,
+  content: WorkspaceContent,
+  version: number,
+  base?: WorkspaceContent,
+) {
   let candidate = content;
   let candidateVersion = version;
   let candidateBase = base;
@@ -69,26 +95,26 @@ export async function saveWorkspace(id: string, content: WorkspaceContent, versi
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const saved = await updateWorkspaceSnapshot(id, candidate, candidateVersion);
-      reconcileAssetCache(saved);
+      const saved = await deps.update(id, candidate, candidateVersion);
+      deps.reconcileAssets(saved);
       return saved;
     } catch (error) {
       if (!(error instanceof APIError) || error.status !== 409) throw error;
 
-      latest = await getWorkspace(id);
+      latest = await deps.getLatest(id);
       if (sameWorkspaceContent(candidate, latest)) {
-        reconcileAssetCache(latest);
+        deps.reconcileAssets(latest);
         return latest;
       }
 
       if (candidateBase) {
         const rebased = mergeWorkspaceContent(candidateBase, candidate, workspaceContentOf(latest));
-        if (!rebased) conflict(id, candidate, latest);
+        if (!rebased) conflict(deps, id, candidate, latest);
         candidate = rebased;
         candidateBase = workspaceContentOf(latest);
       } else {
         if (!sameNonCanvasContent(candidate, latest)) {
-          conflict(id, candidate, latest);
+          conflict(deps, id, candidate, latest);
         }
         candidate = {
           ...candidate,
@@ -99,5 +125,9 @@ export async function saveWorkspace(id: string, content: WorkspaceContent, versi
     }
   }
 
-  conflict(id, candidate, latest ?? await getWorkspace(id));
+  conflict(deps, id, candidate, latest ?? await deps.getLatest(id));
+}
+
+export function saveWorkspace(id: string, content: WorkspaceContent, version: number, base?: WorkspaceContent) {
+  return saveWorkspaceWith(defaultSaveWorkspaceDependencies, id, content, version, base);
 }

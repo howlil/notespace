@@ -42,7 +42,7 @@ func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, workspace.Version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.RestoreTrashedWorkspace(ctx, workspace.ID); err != nil {

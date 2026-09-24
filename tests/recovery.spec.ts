@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("workspace trash restores the same authored workspace", async ({ request }) => {
   const title = `Trash recovery ${Date.now()}`;
@@ -7,7 +8,9 @@ test("workspace trash restores the same authored workspace", async ({ request })
   const workspace = await createdResponse.json();
 
   try {
-    expect((await request.delete(`/api/workspaces/${workspace.id}`)).status()).toBe(204);
+    expect((await request.delete(`/api/workspaces/${workspace.id}`, {
+      headers: { "If-Match": `"${workspace.version}"` },
+    })).status()).toBe(204);
     const trash = await (await request.get("/api/trash")).json();
     expect(trash.some((item: { id: string }) => item.id === workspace.id)).toBe(true);
 
@@ -20,7 +23,7 @@ test("workspace trash restores the same authored workspace", async ({ request })
     expect((await read.json()).title).toBe(title);
   } finally {
     const active = await request.get(`/api/workspaces/${workspace.id}`);
-    if (active.ok()) await request.delete(`/api/workspaces/${workspace.id}`);
+    if (active.ok()) await deleteWorkspace(request, workspace.id);
     const trashed = await request.get("/api/trash");
     if (trashed.ok() && (await trashed.json()).some((item: { id: string }) => item.id === workspace.id)) {
       await request.delete(`/api/trash/${workspace.id}`);
@@ -40,7 +43,7 @@ test("full-library ZIP backup restores an active workspace", async ({ request })
   const backup = await backupResponse.body();
 
   try {
-    expect((await request.delete(`/api/workspaces/${workspace.id}`)).status()).toBe(204);
+    expect((await deleteWorkspace(request, workspace.id)).status()).toBe(204);
     expect((await request.delete(`/api/trash/${workspace.id}`)).status()).toBe(204);
     expect((await request.get(`/api/workspaces/${workspace.id}`)).status()).toBe(404);
 
@@ -56,7 +59,7 @@ test("full-library ZIP backup restores an active workspace", async ({ request })
     expect((await read.json()).title).toBe(title);
   } finally {
     const active = await request.get(`/api/workspaces/${workspace.id}`);
-    if (active.ok()) await request.delete(`/api/workspaces/${workspace.id}`);
+    if (active.ok()) await deleteWorkspace(request, workspace.id);
     const trashResponse = await request.get("/api/trash");
     if (trashResponse.ok() && (await trashResponse.json()).some((item: { id: string }) => item.id === workspace.id)) {
       await request.delete(`/api/trash/${workspace.id}`);

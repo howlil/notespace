@@ -1,4 +1,4 @@
-import { fetchTransport, json, request, type HttpTransport } from "./client";
+import { fetchTransport, json, request, type HttpTransport } from "./client.ts";
 import type { InboxProjection, PlanningMilestone, PlanningTask, TodayProjection, WorkspacePlan } from "../../domain/planning/planning";
 
 const workspacePath = (workspaceId: string) => `/api/workspaces/${encodeURIComponent(workspaceId)}`;

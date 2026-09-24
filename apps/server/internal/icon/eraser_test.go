@@ -104,7 +104,6 @@ func TestEraserSourceDedupesConcurrentCacheMisses(t *testing.T) {
 	}
 }
 
-
 func TestEraserSourceLeaderCancellationDoesNotFailFollowers(t *testing.T) {
 	var requests atomic.Int32
 	started := make(chan struct{})

@@ -1,4 +1,4 @@
-import type { DiagramCatalogItem as CatalogItem } from "./catalog/diagram-catalog";
+import type { DiagramCatalogItem as CatalogItem } from "./catalog/diagram-catalog.ts";
 export {
   diagramCatalog,
   diagramPickerIconCount,
@@ -6,8 +6,8 @@ export {
   getCatalogItem,
   searchDiagramCatalog,
   searchEraserCatalog,
-} from "./catalog/diagram-catalog";
-export type { DiagramCatalogItem, DiagramCategory, DiagramNodeShape } from "./catalog/diagram-catalog";
+} from "./catalog/diagram-catalog.ts";
+export type { DiagramCatalogItem, DiagramCategory, DiagramNodeShape } from "./catalog/diagram-catalog.ts";
 
 export type DiagramKind = "architecture" | "flowchart";
 // `component` remains readable for old snapshots. New creation paths are icon-only.

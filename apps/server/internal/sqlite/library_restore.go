@@ -53,7 +53,7 @@ func validateLibraryBackup(backup libraryBackup) error {
 	}
 	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
-		if !activity.ValidActivityType(session.ActivityType) {
+		if err := activity.ValidateSession(session); err != nil {
 			return workspacepkg.ErrInvalid
 		}
 	}

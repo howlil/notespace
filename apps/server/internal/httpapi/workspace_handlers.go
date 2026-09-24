@@ -118,11 +118,11 @@ func (a API) move(w http.ResponseWriter, r *http.Request) {
 
 func (a API) delete(w http.ResponseWriter, r *http.Request) {
 	version, err := expectedVersion(r)
-	if err != nil {
-		fail(w, err)
+	if err != nil || version == nil {
+		fail(w, workspace.ErrInvalid)
 		return
 	}
-	if err := a.library.TrashWorkspace(r.Context(), r.PathValue("id"), version); err != nil {
+	if err := a.library.TrashWorkspace(r.Context(), r.PathValue("id"), *version); err != nil {
 		fail(w, err)
 		return
 	}

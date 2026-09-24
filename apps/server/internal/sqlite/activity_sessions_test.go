@@ -48,12 +48,12 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 	renamed := segments[0]
 	renamed.WorkspaceTitleSnapshot = "Distributed Systems Renamed"
 	renamed.ActiveSeconds = 12 * 60
-	renamed.LastHeartbeatAt = "2026-09-11T00:02:00Z"
+	renamed.LastHeartbeatAt = "2026-09-11T00:20:00Z"
 	if _, err := store.UpsertSession(ctx, renamed); err != nil {
 		t.Fatal(err)
 	}
 
-	sessions, err := store.ListWorkspaceSessions(ctx, "workspace-1", 8)
+	sessions, err := store.ListActivitySessions(ctx, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,19 +64,140 @@ func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
 		t.Fatalf("workspace snapshot = %q, want renamed value", sessions[0].WorkspaceTitleSnapshot)
 	}
 
-	if err := store.DeleteWorkspaceSession(ctx, "workspace-1", "session-1"); err != nil {
+	if err := store.DeleteActivitySession(ctx, "session-1"); err != nil {
 		t.Fatal(err)
 	}
-	sessions, err = store.ListWorkspaceSessions(ctx, "workspace-1", 8)
+	sessions, err = store.ListActivitySessions(ctx, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(sessions) != 0 {
 		t.Fatalf("sessions after delete = %#v, want empty history", sessions)
 	}
-	if err := store.DeleteWorkspaceSession(ctx, "workspace-1", "session-1"); !errors.Is(err, activity.ErrNotFound) {
+	if err := store.DeleteActivitySession(ctx, "session-1"); !errors.Is(err, activity.ErrNotFound) {
 		t.Fatalf("second delete error = %v, want activity.ErrNotFound", err)
 	}
 }
 
 func stringPointer(value string) *string { return &value }
+
+func TestActivitySessionIDRejectsIdentityReuse(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-identity.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	base := activity.Session{
+		ID: "session-1:2026-09-10", Title: "Read paper", ActivityType: "read",
+		ActivityDate: "2026-09-10", StartedAt: "2026-09-10T10:00:00Z",
+		ActiveSeconds: 60, LastHeartbeatAt: "2026-09-10T10:01:00Z",
+	}
+	if _, err := store.UpsertSession(ctx, base); err != nil {
+		t.Fatal(err)
+	}
+	reused := base
+	reused.ActivityDate = "2026-09-11"
+	reused.LastHeartbeatAt = "2026-09-11T10:01:00Z"
+	if _, err := store.UpsertSession(ctx, reused); !errors.Is(err, activity.ErrConflict) {
+		t.Fatalf("reused session ID error = %v, want activity.ErrConflict", err)
+	}
+	stored, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].ActivityDate != base.ActivityDate || stored[0].ActiveSeconds != base.ActiveSeconds {
+		t.Fatalf("stored activity changed after identity conflict: %#v", stored)
+	}
+}
+
+func TestLogicalActivityUsesLatestHeartbeatMetadata(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-latest-metadata.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	segments := []activity.Session{
+		{
+			ID: "session-1:2026-09-10", WorkspaceID: "workspace-1", WorkspaceTitleSnapshot: "Zeta",
+			Title: "Zeta", ActivityType: "learn", ActivityDate: "2026-09-10",
+			StartedAt: "2026-09-10T23:50:00Z", ActiveSeconds: 600, LastHeartbeatAt: "2026-09-11T00:00:00Z",
+		},
+		{
+			ID: "session-1:2026-09-11", WorkspaceID: "workspace-1", WorkspaceTitleSnapshot: "Alpha",
+			Title: "Alpha", ActivityType: "learn", ActivityDate: "2026-09-11",
+			StartedAt: "2026-09-11T00:00:00Z", ActiveSeconds: 900, LastHeartbeatAt: "2026-09-11T00:15:00Z",
+		},
+	}
+	for _, session := range segments {
+		if _, err := store.UpsertSession(ctx, session); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].WorkspaceTitleSnapshot != "Alpha" || stored[0].Title != "Alpha" {
+		t.Fatalf("logical session metadata = %#v, want latest heartbeat metadata", stored)
+	}
+}
+
+func TestActivityTimestampsCanonicalizeAndLegacyOffsetsOrderByInstant(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-offsets.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	stored, err := store.UpsertSession(ctx, activity.Session{
+		ID: "canonical:2026-09-11", Title: "Canonical", ActivityType: "learn",
+		ActivityDate:    "2026-09-11",
+		StartedAt:       "2026-09-11T00:30:00+02:00",
+		LastHeartbeatAt: "2026-09-11T00:45:00+02:00",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.StartedAt != "2026-09-10T22:30:00.000000000Z" ||
+		stored.LastHeartbeatAt != "2026-09-10T22:45:00.000000000Z" {
+		t.Fatalf("canonical timestamps = started %q heartbeat %q", stored.StartedAt, stored.LastHeartbeatAt)
+	}
+
+	for _, row := range []struct {
+		id, title, heartbeat string
+	}{
+		{"legacy:early", "Lexically later", "2026-09-11T00:30:00+02:00"},
+		{"legacy:late", "Actually later", "2026-09-10T23:00:00Z"},
+	} {
+		if _, err := store.db.ExecContext(ctx, `
+			INSERT INTO activity_sessions(
+				id,logical_session_id,workspace_id,workspace_title_snapshot,
+				task_id,task_title_snapshot,activity_title,activity_type,
+				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at
+			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+		`, row.id, "legacy", "", "", "", "", row.title, "learn",
+			"2026-09-10", row.heartbeat, nil, 60, row.heartbeat); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sessions, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy *activity.Session
+	for i := range sessions {
+		if sessions[i].ID == "legacy" {
+			legacy = &sessions[i]
+			break
+		}
+	}
+	if legacy == nil || legacy.Title != "Actually later" || legacy.LastHeartbeatAt != "2026-09-10T23:00:00Z" {
+		t.Fatalf("legacy offset ordering = %#v, want actual latest instant", legacy)
+	}
+}

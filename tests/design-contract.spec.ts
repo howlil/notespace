@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("design contract: Library keeps a persistent category tree and global quick search", async ({ page }) => {
   await page.goto("/");
@@ -71,7 +72,7 @@ test("design contract: workspace creation stays in Library and authoring shell i
     await expect(page.getByText("Capture source URL", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "History", exact: true })).toHaveCount(0);
   } finally {
-    await request.delete(`/api/workspaces/${workspace.id}`);
+    await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

@@ -4,10 +4,12 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogT
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import {
+  APIError,
   createWorkspace,
   deleteWorkspace,
   deleteTrashedWorkspace,
   exportLibraryBackup,
+  getWorkspace,
   listCategories,
   listTrash,
   restoreLibraryBackup,
@@ -107,6 +109,14 @@ export function LibraryTools() {
     setLoading(true);
     const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
       createWorkspace,
+      getWorkspace: async (id) => {
+        try {
+          return await getWorkspace(id);
+        } catch (error) {
+          if (error instanceof APIError && error.status === 404) return null;
+          throw error;
+        }
+      },
       deleteWorkspace,
       deleteTrashedWorkspace,
       saveWorkspace,

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("global search finds note content and navigates to exact context", async ({
   page,
@@ -74,7 +75,7 @@ test("global search finds note content and navigates to exact context", async ({
     await expect(page).toHaveURL(new RegExp(workspace.id));
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
   } finally {
-    await request.delete(`/api/workspaces/${workspace.id}`);
+    await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

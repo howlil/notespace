@@ -54,3 +54,27 @@ func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	}
 	expect(t, remove(updated.Version), http.StatusNoContent)
 }
+
+func TestWorkspaceDeleteRequiresIfMatch(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "delete-precondition-http.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Protected delete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := newLibraryAPI(store)
+	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+workspace.ID, nil)
+	res := httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	expect(t, res, http.StatusBadRequest)
+
+	current, err := store.Get(ctx, workspace.ID)
+	if err != nil || current.Version != workspace.Version {
+		t.Fatalf("workspace changed after missing precondition: %+v err=%v", current.Summary, err)
+	}
+}

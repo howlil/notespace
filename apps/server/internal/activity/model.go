@@ -6,6 +6,7 @@ import "errors"
 var (
 	ErrNotFound              = errors.New("activity session not found")
 	ErrInvalid               = errors.New("invalid activity")
+	ErrConflict              = errors.New("activity session identity conflict")
 	ErrTaskNotFound          = errors.New("activity task not found")
 	ErrWorkspaceNotFound     = errors.New("activity workspace not found")
 	ErrTaskWorkspaceMismatch = errors.New("activity task workspace mismatch")

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("activity opens current session controls and recent history", async ({
   page,
@@ -58,7 +59,7 @@ test("activity opens current session controls and recent history", async ({
         }
       }
     }
-    await request.delete(`/api/workspaces/${workspace.id}`);
+    await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

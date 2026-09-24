@@ -73,6 +73,20 @@ func expect(t *testing.T, res *httptest.ResponseRecorder, status int) {
 	}
 }
 
+func deleteWorkspaceRequest(t *testing.T, api http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	version := 1
+	current := call(t, api, http.MethodGet, path, nil)
+	if current.Code == http.StatusOK {
+		version = decodeWorkspace(t, current).Version
+	}
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	req.Header.Set("If-Match", `"`+strconv.Itoa(version)+`"`)
+	res := httptest.NewRecorder()
+	api.ServeHTTP(res, req)
+	return res
+}
+
 func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) workspacepkg.Workspace {
 	t.Helper()
 	var p workspacepkg.Workspace
@@ -109,7 +123,7 @@ func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) 
 		t.Fatalf("legacy location = %q", got)
 	}
 	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), http.StatusOK)
-	expect(t, call(t, api, "DELETE", "/api/projects/"+workspace.ID, nil), http.StatusNoContent)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/projects/"+workspace.ID), http.StatusNoContent)
 }
 
 func TestCategoryGroupsWorkspaces(t *testing.T) {
@@ -224,7 +238,7 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	// Category deletion must not cascade into active or recoverable workspace data.
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), 204)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+workspace.ID), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
 	expect(t, call(t, api, "DELETE", "/api/trash/"+workspace.ID, nil), 204)
 	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
@@ -404,9 +418,9 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	if other := decodeWorkspace(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
 		t.Fatal("project content leaked")
 	}
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
 	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil), 404)
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 404)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 404)
 	expect(t, call(t, api, "GET", "/api/health", nil), 200)
 }
 
@@ -509,22 +523,28 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 	}
 }
 
-func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "study.db"))
+func TestActivitySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "activity.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend Fundamentals"}))
-	body := map[string]any{"activityDate": "2026-09-03", "activeSeconds": 120, "finish": false}
-	path := "/api/workspaces/" + p.ID + "/study-sessions/session-1"
+	body := map[string]any{
+		"activityDate":  "2026-09-03",
+		"activeSeconds": 120,
+		"finish":        false,
+		"activityType":  "learn",
+		"workspaceId":   p.ID,
+	}
+	path := "/api/activity/sessions/session-1:2026-09-03"
 	expect(t, call(t, api, "PUT", path, body), 200)
 	body["activeSeconds"] = 60
 	expect(t, call(t, api, "PUT", path, body), 200)
 	body["activeSeconds"] = 600
 	expect(t, call(t, api, "PUT", path, body), 200)
-	activity := call(t, api, "GET", "/api/study/activity?from=2026-09-03&to=2026-09-03", nil)
+	activity := call(t, api, "GET", "/api/activity?from=2026-09-03&to=2026-09-03", nil)
 	expect(t, activity, 200)
 	var summary struct {
 		TodaySeconds int64 `json:"todaySeconds"`
@@ -538,8 +558,8 @@ func TestStudySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *testin
 	if summary.TodaySeconds != 600 || len(summary.Days) != 1 || summary.Days[0].ActiveSeconds != 600 {
 		t.Fatalf("unexpected activity: %+v", summary)
 	}
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+p.ID, nil), 204)
-	detail := call(t, api, "GET", "/api/study/activity/2026-09-03", nil)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
+	detail := call(t, api, "GET", "/api/activity/2026-09-03", nil)
 	expect(t, detail, 200)
 	var day struct {
 		Workspaces []struct {
@@ -598,7 +618,7 @@ func TestActivitySessionsSupportStandaloneAndTaskContext(t *testing.T) {
 
 	// An active timer must keep accepting heartbeats after its source context
 	// disappears. The client carries snapshots specifically for this case.
-	expect(t, call(t, api, "DELETE", "/api/workspaces/"+workspace.ID, nil), http.StatusNoContent)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+workspace.ID), http.StatusNoContent)
 	finishedTaskActivity := call(t, api, "PUT", "/api/activity/sessions/task-session:2026-09-21", map[string]any{
 		"activityDate":           "2026-09-21",
 		"activeSeconds":          1200,
@@ -676,54 +696,23 @@ func TestSearchReturnsExactParentBlockContext(t *testing.T) {
 	}
 }
 
-func TestHistoryStartsAtWorkspaceCreation(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "history.db"))
+func TestRemovedStudyAndHistoryCompatibilityRoutesStayUnavailable(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "removed-compat-routes.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Portable workspace"}))
-	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
-	expect(t, history, 200)
-	var entries []workspacepkg.HistoryEntry
-	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 || entries[0].Version != p.Version {
-		t.Fatalf("initial history = %+v", entries)
-	}
-	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID+"/export", nil), http.StatusNotFound)
-}
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Compatibility boundary"}))
 
-func TestHistoryRestoreReturnsPreviousWorkspaceState(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "restore.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "History"}))
-	first := p.Document
-	first.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"first"},"content":[{"type":"text","text":"first"}]}]}`)
-	saved := decodeWorkspace(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: p.Version, Document: first, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio}))
-	second := saved.Document
-	second.Data = json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"second"},"content":[{"type":"text","text":"second"}]}]}`)
-	updated := call(t, api, "PATCH", "/api/workspaces/"+p.ID, workspacepkg.Update{Title: p.Title, Version: saved.Version, Document: second, Notes: p.Notes, Canvas: p.Canvas, References: p.References, SplitRatio: p.SplitRatio})
-	expect(t, updated, 200)
-	history := call(t, api, "GET", "/api/workspaces/"+p.ID+"/history", nil)
-	expect(t, history, 200)
-	var entries []workspacepkg.HistoryEntry
-	if err := json.Unmarshal(history.Body.Bytes(), &entries); err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("history entries = %d, want initial checkpoint only", len(entries))
-	}
-	restore := call(t, api, "POST", "/api/workspaces/"+p.ID+"/history/"+entries[0].ID+"/restore", nil)
-	expect(t, restore, 200)
-	if got := decodeWorkspace(t, restore); string(got.Document.Data) != string(p.Document.Data) {
-		t.Fatalf("restored document = %s, want %s", got.Document.Data, p.Document.Data)
+	for _, path := range []string{
+		"/api/workspaces/" + p.ID + "/history",
+		"/api/projects/" + p.ID + "/history",
+		"/api/workspaces/" + p.ID + "/study",
+		"/api/workspaces/" + p.ID + "/study-sessions",
+		"/api/study/activity?from=2026-09-03&to=2026-09-03",
+	} {
+		expect(t, call(t, api, "GET", path, nil), http.StatusNotFound)
 	}
 }
 

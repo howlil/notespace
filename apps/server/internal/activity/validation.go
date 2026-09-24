@@ -24,3 +24,34 @@ func validTitle(value string) bool {
 func ValidActivityType(value string) bool {
 	return validActivityTypes[strings.TrimSpace(value)]
 }
+
+func ValidateSession(session Session) error {
+	if strings.TrimSpace(session.ID) == "" ||
+		!validTitle(session.Title) ||
+		!ValidActivityType(session.ActivityType) ||
+		!ValidDate(session.ActivityDate) ||
+		session.ActiveSeconds < 0 {
+		return ErrInvalid
+	}
+	if strings.TrimSpace(session.StartedAt) == "" || strings.TrimSpace(session.LastHeartbeatAt) == "" {
+		return ErrInvalid
+	}
+	if _, err := time.Parse(time.RFC3339Nano, session.StartedAt); err != nil {
+		return ErrInvalid
+	}
+	if _, err := time.Parse(time.RFC3339Nano, session.LastHeartbeatAt); err != nil {
+		return ErrInvalid
+	}
+	if session.EndedAt != nil {
+		if _, err := time.Parse(time.RFC3339Nano, *session.EndedAt); err != nil {
+			return ErrInvalid
+		}
+	}
+	if strings.TrimSpace(session.WorkspaceID) != "" && strings.TrimSpace(session.WorkspaceTitleSnapshot) == "" {
+		return ErrInvalid
+	}
+	if strings.TrimSpace(session.TaskID) != "" && strings.TrimSpace(session.TaskTitleSnapshot) == "" {
+		return ErrInvalid
+	}
+	return nil
+}

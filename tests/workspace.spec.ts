@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 async function createViaAPI(page: Page, request: APIRequestContext, title: string) {
   const response = await request.post("/api/workspaces", { data: { title } });
@@ -11,7 +12,7 @@ async function createViaAPI(page: Page, request: APIRequestContext, title: strin
 }
 
 async function cleanup(request: APIRequestContext, id: string) {
-  await request.delete(`/api/workspaces/${id}`);
+  await deleteWorkspace(request, id);
   await request.delete(`/api/trash/${id}`).catch(() => undefined);
 }
 

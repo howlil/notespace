@@ -10,7 +10,7 @@ import (
 // TrashWorkspace rejects a destructive command made from a stale
 // workspace view. The version comparison, trash snapshot, and delete share one
 // transaction so no autosave can land between them.
-func (s *Store) TrashWorkspace(ctx context.Context, id string, expectedVersion *int) error {
+func (s *Store) TrashWorkspace(ctx context.Context, id string, expectedVersion int) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -20,7 +20,7 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string, expectedVersion *
 	if err != nil {
 		return err
 	}
-	if expectedVersion != nil && envelope.Project.Version != *expectedVersion {
+	if envelope.Project.Version != expectedVersion {
 		return workspacepkg.ErrConflict
 	}
 	payload, err := encodeTrashEnvelope(envelope)

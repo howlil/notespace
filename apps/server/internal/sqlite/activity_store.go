@@ -40,6 +40,16 @@ func scanActivitySession(row scanner) (activity.Session, error) {
 	return session, nil
 }
 
+const canonicalActivityTimestamp = "2006-01-02T15:04:05.000000000Z"
+
+func canonicalizeActivityTimestamp(value string) string {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return value
+	}
+	return parsed.UTC().Format(canonicalActivityTimestamp)
+}
+
 func normalizeActivitySession(session activity.Session) activity.Session {
 	if session.ActivityType == "" {
 		session.ActivityType = "learn"
@@ -53,6 +63,12 @@ func normalizeActivitySession(session activity.Session) activity.Session {
 	if session.Title == "" {
 		session.Title = "Activity"
 	}
+	session.StartedAt = canonicalizeActivityTimestamp(session.StartedAt)
+	session.LastHeartbeatAt = canonicalizeActivityTimestamp(session.LastHeartbeatAt)
+	if session.EndedAt != nil {
+		endedAt := canonicalizeActivityTimestamp(*session.EndedAt)
+		session.EndedAt = &endedAt
+	}
 	return session
 }
 
@@ -62,16 +78,34 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 	if session.EndedAt != nil {
 		endedAt = *session.EndedAt
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return activity.Session{}, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
-  last_heartbeat_at=MAX(activity_sessions.last_heartbeat_at,excluded.last_heartbeat_at),
-  activity_title=excluded.activity_title,
-  workspace_title_snapshot=excluded.workspace_title_snapshot,
-  task_title_snapshot=excluded.task_title_snapshot
+  last_heartbeat_at=CASE
+    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.last_heartbeat_at
+    ELSE activity_sessions.last_heartbeat_at
+  END,
+  activity_title=CASE
+    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.activity_title
+    ELSE activity_sessions.activity_title
+  END,
+  workspace_title_snapshot=CASE
+    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.workspace_title_snapshot
+    ELSE activity_sessions.workspace_title_snapshot
+  END,
+  task_title_snapshot=CASE
+    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.task_title_snapshot
+    ELSE activity_sessions.task_title_snapshot
+  END
 WHERE activity_sessions.workspace_id=excluded.workspace_id
   AND activity_sessions.task_id=excluded.task_id
-  AND activity_sessions.activity_type=excluded.activity_type`,
+  AND activity_sessions.activity_type=excluded.activity_type
+  AND activity_sessions.activity_date=excluded.activity_date`,
 		session.ID,
 		session.WorkspaceID,
 		session.WorkspaceTitleSnapshot,
@@ -88,19 +122,21 @@ WHERE activity_sessions.workspace_id=excluded.workspace_id
 	if err != nil {
 		return activity.Session{}, err
 	}
-	return scanActivitySession(s.db.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))
-}
-
-func (s *Store) WorkspaceStats(ctx context.Context, workspaceID, activityDate string) (activity.WorkspaceStats, error) {
-	var stats activity.WorkspaceStats
-	err := s.db.QueryRowContext(ctx, `
-		SELECT
-			COALESCE(SUM(CASE WHEN activity_date=? THEN active_seconds ELSE 0 END),0),
-			COALESCE(SUM(active_seconds),0)
-		FROM activity_sessions
-		WHERE workspace_id=?
-	`, activityDate, workspaceID).Scan(&stats.TodaySeconds, &stats.TotalSeconds)
-	return stats, err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return activity.Session{}, err
+	}
+	if affected == 0 {
+		return activity.Session{}, activity.ErrConflict
+	}
+	stored, err := scanActivitySession(tx.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))
+	if err != nil {
+		return activity.Session{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return activity.Session{}, err
+	}
+	return stored, nil
 }
 
 func (s *Store) GlobalStats(ctx context.Context, activityDate string) (activity.WorkspaceStats, error) {

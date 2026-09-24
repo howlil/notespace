@@ -67,8 +67,18 @@ export async function deleteWorkspace(
   request: APIRequestContext,
   id: string,
 ): Promise<void> {
-  if (id) {
-    await request.delete(`/api/workspaces/${id}`);
+  if (!id) return;
+  const current = await request.get(`/api/workspaces/${id}`);
+  if (current.status() === 404) return;
+  if (!current.ok()) {
+    throw new Error(`Could not load workspace ${id} before cleanup.`);
+  }
+  const workspace = await current.json() as { version: number };
+  const removed = await request.delete(`/api/workspaces/${id}`, {
+    headers: { "If-Match": `"${workspace.version}"` },
+  });
+  if (!removed.ok() && removed.status() !== 404) {
+    throw new Error(`Could not delete workspace ${id}: HTTP ${removed.status()}.`);
   }
 }
 

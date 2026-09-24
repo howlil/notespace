@@ -1,10 +1,12 @@
 import { workspaceContentOf } from "../../domain/workspace/workspace.ts";
 import type { Workspace, WorkspaceContent } from "../../domain/workspace/workspace.ts";
+import { sameWorkspaceContent } from "../../domain/workspace/canvas-merge.ts";
 import { importedDocumentTitle, markdownWithVaultImages, normalizeVaultPath, resolveVaultReference } from "./vault-import.ts";
 
 export type VaultImportOperations = {
   createWorkspace: (title: string, categoryId?: string) => Promise<Workspace>;
-  deleteWorkspace: (id: string) => Promise<void>;
+  getWorkspace: (id: string) => Promise<Workspace | null>;
+  deleteWorkspace: (id: string, expectedVersion: number) => Promise<void>;
   deleteTrashedWorkspace: (id: string) => Promise<void>;
   saveWorkspace: (id: string, content: WorkspaceContent, version: number) => Promise<unknown>;
   createLocalAssetId: () => string;
@@ -26,6 +28,41 @@ function findVaultFile(files: Map<string, File>, sourcePath: string) {
   return matches.length === 1 ? matches[0][1] : null;
 }
 
+async function cleanupImportedWorkspace(
+  created: Workspace,
+  expectedContent: WorkspaceContent | null,
+  operations: VaultImportOperations,
+) {
+  try {
+    await operations.deleteWorkspace(created.id, created.version);
+    await operations.deleteTrashedWorkspace(created.id);
+    return;
+  } catch {
+    // A delete may have committed even if its response was lost.
+    try {
+      await operations.deleteTrashedWorkspace(created.id);
+      return;
+    } catch {
+      // Otherwise resolve the current active version before deciding whether a retry is safe.
+    }
+  }
+
+  const current = await operations.getWorkspace(created.id);
+  if (!current) {
+    await operations.deleteTrashedWorkspace(created.id);
+    return;
+  }
+
+  const matchesCreated = sameWorkspaceContent(workspaceContentOf(created), current);
+  const matchesImport = expectedContent ? sameWorkspaceContent(expectedContent, current) : false;
+  if (!matchesCreated && !matchesImport) {
+    throw new Error("Imported workspace changed before cleanup.");
+  }
+
+  await operations.deleteWorkspace(current.id, current.version);
+  await operations.deleteTrashedWorkspace(current.id);
+}
+
 export async function importVaultFiles(files: readonly File[], categoryId: string, operations: VaultImportOperations): Promise<VaultImportResult> {
   const markdownFiles = files.filter((file) => /\.(?:md|markdown)$/i.test(file.name));
   const filesByPath = new Map(files.map((file) => [filePath(file), file]));
@@ -34,7 +71,8 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
   let cleanupFailed = 0;
 
   for (const markdownFile of markdownFiles) {
-    let createdWorkspaceId: string | null = null;
+    let createdWorkspace: Workspace | null = null;
+    let expectedContent: WorkspaceContent | null = null;
     try {
       const path = filePath(markdownFile);
       const markdown = await markdownFile.text();
@@ -53,26 +91,26 @@ export async function importVaultFiles(files: readonly File[], categoryId: strin
       });
       const title = importedDocumentTitle(path, markdown);
       const workspace = await operations.createWorkspace(title, categoryId);
-      createdWorkspaceId = workspace.id;
+      createdWorkspace = workspace;
       for (const asset of plannedAssets.values()) {
         await operations.storeImageAsset(workspace.id, asset.id, asset.file);
       }
       const content = workspaceContentOf(workspace);
       const now = new Date().toISOString();
       const seedNote = content.notes[0];
-      await operations.saveWorkspace(workspace.id, {
+      expectedContent = {
         ...content,
         title,
         document,
         notes: [{ ...seedNote, title, document, updatedAt: now }],
-      }, workspace.version);
+      };
+      await operations.saveWorkspace(workspace.id, expectedContent, workspace.version);
       imported += 1;
     } catch {
       failed += 1;
-      if (createdWorkspaceId) {
+      if (createdWorkspace) {
         try {
-          await operations.deleteWorkspace(createdWorkspaceId);
-          await operations.deleteTrashedWorkspace(createdWorkspaceId);
+          await cleanupImportedWorkspace(createdWorkspace, expectedContent, operations);
         } catch {
           cleanupFailed += 1;
         }

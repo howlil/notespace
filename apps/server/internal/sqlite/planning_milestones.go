@@ -7,9 +7,33 @@ import (
 )
 
 func (s *Store) CreateMilestone(ctx context.Context, item planning.Milestone) (planning.Milestone, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO workspace_milestones(id,workspace_id,title,position,completed_at,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?)`,
-		item.ID, item.WorkspaceID, item.Title, item.Position, item.CompletedAt, item.CreatedAt, item.UpdatedAt, item.Version)
-	return item, err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return planning.Milestone{}, err
+	}
+	defer tx.Rollback()
+
+	var workspaceExists, count int
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM projects WHERE id=?),COUNT(*) FROM workspace_milestones WHERE workspace_id=?`, item.WorkspaceID, item.WorkspaceID).Scan(&workspaceExists, &count); err != nil {
+		return planning.Milestone{}, err
+	}
+	if workspaceExists == 0 {
+		return planning.Milestone{}, planning.ErrNotFound
+	}
+	if count >= planning.MaxMilestonesPerWorkspace {
+		return planning.Milestone{}, planning.ErrInvalid
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(position),-1)+1 FROM workspace_milestones WHERE workspace_id=?`, item.WorkspaceID).Scan(&item.Position); err != nil {
+		return planning.Milestone{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_milestones(id,workspace_id,title,position,completed_at,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?)`,
+		item.ID, item.WorkspaceID, item.Title, item.Position, item.CompletedAt, item.CreatedAt, item.UpdatedAt, item.Version); err != nil {
+		return planning.Milestone{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return planning.Milestone{}, err
+	}
+	return item, nil
 }
 
 func (s *Store) UpdateMilestone(ctx context.Context, item planning.Milestone) (planning.Milestone, error) {

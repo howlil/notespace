@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test.describe("Production-Safe Navigation & Reload", () => {
   test("legacy category URLs redirect to the dashboard category filter", async ({
@@ -28,7 +29,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await expect(page).toHaveURL(new RegExp(`/\\?category=${category.id}$`));
       await expect(page.getByRole("link", { name: `Open ${workspaceTitle}` })).toBeVisible();
     } finally {
-      await request.delete(`/api/workspaces/${workspace.id}`);
+      await deleteWorkspace(request, workspace.id);
       await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
       await request.delete(`/api/categories/${category.id}`);
     }
@@ -86,7 +87,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await assertWorkspaceLoaded();
     } finally {
       for (const item of [workspace, sibling]) {
-        await request.delete(`/api/workspaces/${item.id}`);
+        await deleteWorkspace(request, item.id);
         await request.delete(`/api/trash/${item.id}`).catch(() => undefined);
       }
     }

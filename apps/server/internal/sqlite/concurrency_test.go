@@ -36,7 +36,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 
 	staleVersion := workspace.Version
-	if err := store.TrashWorkspace(ctx, workspace.ID, &staleVersion); !errors.Is(err, workspacepkg.ErrConflict) {
+	if err := store.TrashWorkspace(ctx, workspace.ID, staleVersion); !errors.Is(err, workspacepkg.ErrConflict) {
 		t.Fatalf("stale delete error = %v, want conflict", err)
 	}
 	current, err := store.Get(ctx, workspace.ID)
@@ -55,7 +55,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 
 	currentVersion := updated.Version
-	if err := store.TrashWorkspace(ctx, workspace.ID, &currentVersion); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, currentVersion); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspacepkg.ErrNotFound) {
@@ -80,7 +80,7 @@ func TestDeleteCategoryRejectsTrashedWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, workspace.Version); err != nil {
 		t.Fatal(err)
 	}
 
@@ -108,7 +108,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, workspace.Version); err != nil {
 		t.Fatal(err)
 	}
 

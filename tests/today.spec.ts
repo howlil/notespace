@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 function localDateKey(value = new Date()) {
   const year = value.getFullYear();
@@ -68,7 +69,7 @@ test("Today combines workspace and standalone tasks without changing ownership",
         }
       }
     }
-    await request.delete(`/api/workspaces/${workspace.id}`);
+    await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await request.delete(`/api/tasks/${standalone.id}`, {
       headers: { "If-Match": `"${standalone.version}"` },

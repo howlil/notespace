@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("workspace plan persists milestones and tasks across reload", async ({ page, request }) => {
   const title = `Planning ${Date.now()}`;
@@ -120,7 +121,7 @@ test("workspace plan persists milestones and tasks across reload", async ({ page
         }
       }
     }
-    await request.delete(`/api/workspaces/${workspace.id}`);
+    await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

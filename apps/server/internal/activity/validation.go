@@ -25,7 +25,6 @@ func ValidActivityType(value string) bool {
 	return validActivityTypes[strings.TrimSpace(value)]
 }
 
-
 func ValidateSession(session Session) error {
 	if strings.TrimSpace(session.ID) == "" ||
 		!validTitle(session.Title) ||

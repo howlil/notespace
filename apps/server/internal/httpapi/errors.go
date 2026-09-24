@@ -41,6 +41,8 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 400, map[string]string{"error": "Invalid milestone or task"})
 	case errors.Is(err, activity.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Activity session not found"})
+	case errors.Is(err, activity.ErrConflict):
+		send(w, 409, map[string]string{"error": "This activity session ID is already used by another activity.", "code": "activity_conflict"})
 	case errors.Is(err, activity.ErrInvalid):
 		send(w, 400, map[string]string{"error": "Invalid activity"})
 	default:

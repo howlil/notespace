@@ -463,10 +463,10 @@ func TestRestoreRejectsInvalidActivitySessionFields(t *testing.T) {
 	}
 
 	cases := map[string]func(*activity.Session){
-		"date": func(session *activity.Session) { session.ActivityDate = "not-a-date" },
-		"started": func(session *activity.Session) { session.StartedAt = "not-a-time" },
+		"date":      func(session *activity.Session) { session.ActivityDate = "not-a-date" },
+		"started":   func(session *activity.Session) { session.StartedAt = "not-a-time" },
 		"heartbeat": func(session *activity.Session) { session.LastHeartbeatAt = "" },
-		"seconds": func(session *activity.Session) { session.ActiveSeconds = -1 },
+		"seconds":   func(session *activity.Session) { session.ActiveSeconds = -1 },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -6,6 +6,11 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	MaxMilestonesPerWorkspace = 100
+	MaxTasksPerWorkspace      = 1000
+)
+
 func validTitle(value string) bool {
 	value = strings.TrimSpace(value)
 	return value != "" && utf8.RuneCountInString(value) <= 160

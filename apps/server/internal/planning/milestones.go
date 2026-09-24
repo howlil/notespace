@@ -15,22 +15,9 @@ func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string)
 		}
 		return Milestone{}, ErrInvalid
 	}
-	plan, err := s.store.GetPlan(ctx, workspaceID)
-	if err != nil {
-		return Milestone{}, err
-	}
-	if len(plan.Milestones) >= 100 {
-		return Milestone{}, ErrInvalid
-	}
-	position := 0
-	for _, item := range plan.Milestones {
-		if item.Position >= position {
-			position = item.Position + 1
-		}
-	}
 	now := s.now().Format(time.RFC3339Nano)
 	return s.store.CreateMilestone(ctx, Milestone{
-		ID: rand.Text(), WorkspaceID: workspaceID, Title: title, Position: position,
+		ID: rand.Text(), WorkspaceID: workspaceID, Title: title,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 }

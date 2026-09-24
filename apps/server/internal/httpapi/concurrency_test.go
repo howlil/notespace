@@ -55,7 +55,6 @@ func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	expect(t, remove(updated.Version), http.StatusNoContent)
 }
 
-
 func TestWorkspaceDeleteRequiresIfMatch(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "delete-precondition-http.db"))

@@ -11,6 +11,7 @@ import {
 } from "../../adapters/http/planning-api";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
+import { applyTodayTaskUpdate } from "./projection-state";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -244,14 +245,7 @@ export function TodayPlanning({
         ...patch,
         version: task.version,
       });
-      setProjection((current) => ({
-        ...current,
-        tasks:
-          updated.plannedFor === current.date
-            ? current.tasks.map((item) =>
-                item.id === updated.id ? { ...item, ...updated } : item)
-            : current.tasks.filter((item) => item.id !== updated.id),
-      }));
+      setProjection((current) => applyTodayTaskUpdate(current, updated));
     } catch (error) {
       showToast({
         kind: "error",

@@ -6,26 +6,12 @@ import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../d
 import { getWorkspace, listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
 import type { SearchResult } from "../../adapters/http/workspace-api";
 import { useToast } from "../../shared/ui/toast-provider";
+import {
+  destinationFromSearchResult,
+  type QuickOpenDestination,
+} from "./quick-open-model";
 import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
-
-type Destination = { key: string; title: string; context: string; href: string; kind: "category" | "workspace" | "note" | "block" };
-
-function resultHref(result: SearchResult) {
-  if (result.type === "category" && result.categoryId) return `/?category=${encodeURIComponent(result.categoryId)}`;
-  if (result.type === "workspace") return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
-  return `/workspaces/${encodeURIComponent(result.workspaceId)}?note=${encodeURIComponent(result.noteId)}${result.blockId ? `&block=${encodeURIComponent(result.blockId)}` : ""}`;
-}
-
-function destinationOf(result: SearchResult): Destination {
-  return {
-    key: `${result.type}-${result.categoryId ?? ""}-${result.workspaceId}-${result.noteId}-${result.blockId}`,
-    title: result.type === "category" ? result.categoryTitle || "Category" : result.type === "workspace" ? result.workspaceTitle : result.noteTitle,
-    context: result.type === "category" ? "Category" : result.type === "workspace" ? result.categoryTitle || "Workspace" : `${result.workspaceTitle} · ${result.excerpt || "Open note"}`,
-    href: resultHref(result),
-    kind: result.type,
-  };
-}
 
 export function QuickOpen() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -102,8 +88,8 @@ export function QuickOpen() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [open, query, showToast]);
 
-  const destinations = useMemo<Destination[]>(() => {
-    if (query.trim().length >= 2) return results.map(destinationOf);
+  const destinations = useMemo<QuickOpenDestination[]>(() => {
+    if (query.trim().length >= 2) return results.map(destinationFromSearchResult);
     const categoryNames = new Map(categories.map((category) => [category.id, category.title]));
     return recent.map((workspace) => ({
       key: `recent-${workspace.id}`,
@@ -114,7 +100,7 @@ export function QuickOpen() {
     }));
   }, [categories, query, recent, results]);
 
-  function openDestination(destination: Destination | undefined) {
+  function openDestination(destination: QuickOpenDestination | undefined) {
     if (!destination) return;
     setOpen(false);
     window.location.assign(destination.href);

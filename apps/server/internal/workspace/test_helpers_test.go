@@ -3,28 +3,45 @@ package workspace
 import "context"
 
 type workspaceTestStore struct {
-	categoryExists     bool
-	categoryExistsErr  error
-	createInput        Workspace
-	createErr          error
-	moveID             string
-	moveCategoryID     string
-	moveResult         Workspace
-	moveErr            error
-	updateID           string
-	updateInput        Update
-	updateResult       Workspace
-	updateErr          error
-	record             Workspace
-	recordErr          error
-	workspaceExists    bool
-	workspaceExistsErr error
-	notes              []Note
-	notesErr           error
-	listNotesCalls     int
-	canvas             CanvasState
-	canvasErr          error
-	getCanvasCalls     int
+	categoryExists          bool
+	categoryExistsErr       error
+	createInput             Workspace
+	createErr               error
+	moveID                  string
+	moveCategoryID          string
+	moveResult              Workspace
+	moveErr                 error
+	updateID                string
+	updateInput             Update
+	updateResult            Workspace
+	updateErr               error
+	record                  Workspace
+	recordErr               error
+	workspaceExists         bool
+	workspaceExistsErr      error
+	notes                   []Note
+	notesErr                error
+	listNotesCalls          int
+	canvas                  CanvasState
+	canvasErr               error
+	getCanvasCalls          int
+	createNoteWorkspaceID   string
+	createNoteInput         NoteCreate
+	createNoteResult        Note
+	createNoteErr           error
+	updateNoteWorkspaceID   string
+	updateNoteID            string
+	updateNoteInput         NoteUpdate
+	updateNoteResult        Note
+	updateNoteErr           error
+	deleteNoteWorkspaceID   string
+	deleteNoteID            string
+	deleteNoteVersion       int
+	deleteNoteErr           error
+	updateCanvasWorkspaceID string
+	updateCanvasInput       CanvasUpdate
+	updateCanvasResult      CanvasState
+	updateCanvasErr         error
 }
 
 func validDocumentSnapshot() Snapshot {
@@ -106,14 +123,38 @@ func (s *workspaceTestStore) GetCanvasState(context.Context, string) (CanvasStat
 	s.getCanvasCalls++
 	return s.canvas, s.canvasErr
 }
-func (s *workspaceTestStore) CreateNote(_ context.Context, _ string, input NoteCreate) (Note, error) {
+func (s *workspaceTestStore) CreateNote(_ context.Context, workspaceID string, input NoteCreate) (Note, error) {
+	s.createNoteWorkspaceID, s.createNoteInput = workspaceID, input
+	if s.createNoteErr != nil {
+		return Note{}, s.createNoteErr
+	}
+	if s.createNoteResult.ID != "" {
+		return s.createNoteResult, nil
+	}
 	return Note{ID: input.ID, Title: input.Title, Document: input.Document, Version: 1}, nil
 }
-func (s *workspaceTestStore) UpdateNote(_ context.Context, _, _ string, input NoteUpdate) (Note, error) {
-	return Note{ID: "note-1", Title: input.Title, Document: input.Document, Version: input.Version + 1}, nil
+func (s *workspaceTestStore) UpdateNote(_ context.Context, workspaceID, noteID string, input NoteUpdate) (Note, error) {
+	s.updateNoteWorkspaceID, s.updateNoteID, s.updateNoteInput = workspaceID, noteID, input
+	if s.updateNoteErr != nil {
+		return Note{}, s.updateNoteErr
+	}
+	if s.updateNoteResult.ID != "" {
+		return s.updateNoteResult, nil
+	}
+	return Note{ID: noteID, Title: input.Title, Document: input.Document, Version: input.Version + 1}, nil
 }
-func (s *workspaceTestStore) DeleteNote(context.Context, string, string, int) error { return nil }
-func (s *workspaceTestStore) UpdateCanvas(_ context.Context, _ string, input CanvasUpdate) (CanvasState, error) {
+func (s *workspaceTestStore) DeleteNote(_ context.Context, workspaceID, noteID string, version int) error {
+	s.deleteNoteWorkspaceID, s.deleteNoteID, s.deleteNoteVersion = workspaceID, noteID, version
+	return s.deleteNoteErr
+}
+func (s *workspaceTestStore) UpdateCanvas(_ context.Context, workspaceID string, input CanvasUpdate) (CanvasState, error) {
+	s.updateCanvasWorkspaceID, s.updateCanvasInput = workspaceID, input
+	if s.updateCanvasErr != nil {
+		return CanvasState{}, s.updateCanvasErr
+	}
+	if s.updateCanvasResult.Version != 0 {
+		return s.updateCanvasResult, nil
+	}
 	return CanvasState{Canvas: input.Canvas, Version: input.Version + 1}, nil
 }
 func (s *workspaceTestStore) GetWorkspaceRecord(context.Context, string) (Workspace, error) {

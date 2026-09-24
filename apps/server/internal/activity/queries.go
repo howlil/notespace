@@ -13,7 +13,8 @@ func (s Service) ListActivities(ctx context.Context, limit int) ([]Session, erro
 }
 
 func (s Service) DeleteActivity(ctx context.Context, sessionID string) error {
-	if strings.TrimSpace(sessionID) == "" {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
 		return ErrInvalid
 	}
 	return s.store.DeleteActivitySession(ctx, sessionID)

@@ -78,7 +78,7 @@ test("Today combines workspace and standalone tasks without changing ownership",
 });
 
 
-test("carried-forward workspace task can be removed from Today", async ({ page, request }) => {
+test("@critical carried-forward workspace task can be removed from Today", async ({ page, request }) => {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);

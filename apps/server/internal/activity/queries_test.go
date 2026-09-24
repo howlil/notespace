@@ -8,13 +8,13 @@ import (
 )
 
 type queryTestStore struct {
-	listLimit      int
-	deleteID       string
-	deleteCalls    int
-	statsDate      string
-	activityFrom   string
-	activityTo     string
-	detailDate     string
+	listLimit    int
+	deleteID     string
+	deleteCalls  int
+	statsDate    string
+	activityFrom string
+	activityTo   string
+	detailDate   string
 }
 
 func (s *queryTestStore) UpsertSession(_ context.Context, session Session) (Session, error) {

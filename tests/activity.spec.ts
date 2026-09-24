@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 type ActivitySessionRecord = {
   id: string;
@@ -152,7 +153,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
         }
       }
     }
-    await request.delete(`/api/workspaces/${workspace.id}`).catch(() => undefined);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

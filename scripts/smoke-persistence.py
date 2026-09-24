@@ -27,10 +27,13 @@ class StylesheetParser(HTMLParser):
             self.hrefs.append(values['href'])
 
 
-def call(path, method='GET', body=None):
+def call(path, method='GET', body=None, headers=None):
     data = None if body is None else json.dumps(body).encode()
+    request_headers = {'Content-Type': 'application/json'}
+    if headers:
+        request_headers.update(headers)
     req = urllib.request.Request(args.url + path, data=data, method=method,
-                                 headers={'Content-Type': 'application/json'})
+                                 headers=request_headers)
     with urllib.request.urlopen(req, timeout=10) as response:
         raw = response.read()
         return json.loads(raw) if raw else None
@@ -89,4 +92,11 @@ try:
         assert b'Notespace' in page.read(), 'Direct project URL does not serve app shell'
     print('PASS: production stylesheet, create, edit both surfaces, persist reference, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
 finally:
-    call(path, 'DELETE')
+    try:
+        current = call(path)
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+        current = None
+    if current is not None:
+        call(path, 'DELETE', headers={'If-Match': f'"{current["version"]}"'})

@@ -31,19 +31,6 @@ SELECT
 FROM ranked_activity_sessions
 `
 
-func (s *Store) ListWorkspaceSessions(ctx context.Context, workspaceID string, limit int) ([]activity.Session, error) {
-	rows, err := s.db.QueryContext(ctx, logicalActivitySelect+`
-WHERE workspace_id=?
-GROUP BY logical_session_id,workspace_id,task_id
-ORDER BY MAX(last_heartbeat_at) DESC, logical_session_id DESC
-LIMIT ?`, workspaceID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanLogicalActivityRows(rows)
-}
-
 func (s *Store) ListActivitySessions(ctx context.Context, limit int) ([]activity.Session, error) {
 	rows, err := s.db.QueryContext(ctx, logicalActivitySelect+`
 GROUP BY logical_session_id,workspace_id,task_id
@@ -70,21 +57,6 @@ func scanLogicalActivityRows(rows interface {
 		sessions = append(sessions, session)
 	}
 	return sessions, rows.Err()
-}
-
-func (s *Store) DeleteWorkspaceSession(ctx context.Context, workspaceID, sessionID string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM activity_sessions WHERE workspace_id=? AND logical_session_id=?`, workspaceID, sessionID)
-	if err != nil {
-		return err
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return activity.ErrNotFound
-	}
-	return nil
 }
 
 func (s *Store) DeleteActivitySession(ctx context.Context, sessionID string) error {

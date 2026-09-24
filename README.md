@@ -6,7 +6,10 @@ The user-facing model is:
 
 ```text
 Today
-└── Tasks[]  ← projection of explicitly planned work
+└── Tasks[]  ← planned today + incomplete carry-over
+
+Inbox
+└── Tasks[]  ← standalone unscheduled work
 
 Category
 └── Workspace
@@ -26,7 +29,8 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Category → Workspace library with recent-first Home and scalable category browsing.
 - Multiple durable Tiptap Notes plus one Excalidraw Canvas per Workspace.
 - Workspace Plan with lightweight milestones and tasks; tasks may belong to a milestone or remain loose.
-- Today projection for workspace tasks explicitly chosen for the day plus standalone tasks that do not need a Workspace.
+- Today projection for tasks planned for the day plus incomplete planned tasks carried forward from earlier dates; standalone tasks may also be scheduled into Today.
+- Inbox projection for incomplete standalone tasks that have not been scheduled yet.
 - Global Activity sessions for Build, Learn, Read, Write, Exercise, or Other work; a session may link to a Today task/Workspace or remain standalone.
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
@@ -88,7 +92,7 @@ The Library tools surface exposes:
 - **Trash** — restores accidentally deleted Workspaces or deletes them permanently;
 - **Import Markdown vault** — selects a Markdown directory/vault and imports files into a chosen Category.
 
-The full-library backup includes Categories, active and trashed Workspaces, authored snapshots, durable image assets, study sessions, and legacy history rows when present. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
+The full-library backup includes Categories, active and trashed Workspaces, authored snapshots, durable image assets, activity sessions, and legacy history rows when present. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
 
 The application backup/restore path is currently intentionally capped at **64 MiB** because the archive adapter still assembles a round trip in memory. For a larger installation, use infrastructure-level backup until archive streaming is implemented: stop the container and copy the complete SQLite volume, or use an equivalent SQLite-safe snapshot procedure. Include SQLite WAL files when copying a live data directory.
 
@@ -148,9 +152,9 @@ This is same-browser multi-tab synchronization, not cross-device multiplayer col
 
 Moving a Workspace to Trash captures its authored state and image assets inside one SQLite transaction before removing it from the active library. Full-library backup uses a consistent SQLite read transaction; restore is all-or-nothing.
 
-## Study sessions
+## Activity sessions
 
-Study tracking is manual: Start, Pause/Resume, and End are explicit user actions. A user-visible logical session may cross midnight. Persistence splits daily accounting into date segments, but Recent sessions groups those segments back into one session and deleting it removes the complete logical session.
+Activity tracking is manual: Start, Pause/Resume, and End are explicit user actions. A user-visible logical session may cross midnight. Persistence splits daily accounting into date segments, but Recent sessions groups those segments back into one session and deleting it removes the complete logical session.
 
 ## Search behavior
 
@@ -175,9 +179,12 @@ Run deterministic local gates with:
 task verify
 ```
 
-The required CI path covers TypeScript typechecking/lint/unit/build, Go formatting/vet/race/build, repository knowledge contracts, focused persistence evidence, and a small Playwright set for critical user journeys: route/reload, search, Trash recovery, and full-library backup/restore. Persistence/runtime changes additionally exercise Docker Compose and restart durability.
+CI separates pull-request merge safety from post-merge browser breadth:
 
-The full Playwright suite remains available for targeted debugging but is not the normal merge gate.
+- pull requests run the production web build, TypeScript typecheck/lint/Node tests, Go formatting/vet/race/build, critical `@critical` Playwright journeys, Docker Compose validation, container health, and persistence restart smoke;
+- pushes to `master` run the same static/server/runtime gates and the full Playwright suite.
+
+See [`docs/TESTING.md`](docs/TESTING.md) for test ownership, focused commands, and the verification ladder.
 
 ## Implementation boundaries
 
@@ -186,7 +193,7 @@ The full Playwright suite remains available for targeted debugging but is not th
 - Same-browser Canvas tab synchronization uses `BroadcastChannel`; durable persistence remains server-owned.
 - Go `net/http`, `database/sql`, pure-Go `modernc.org/sqlite`, explicit SQL and embedded transactional migrations.
 - SQLite uses WAL + FULL synchronous with one pooled connection.
-- Search, study telemetry, durable assets, Trash, authored state, and legacy history compatibility data remain in the same self-hosted SQLite ownership boundary.
+- Search, activity telemetry, durable assets, Trash, authored state, and legacy history compatibility data remain in the same self-hosted SQLite ownership boundary.
 - No hosted service is required for core editing.
 
-For authoritative product/engineering guidance start at [`AGENTS.md`](AGENTS.md). Active milestone state lives in [`.agents/CURRENT_ITERATION.md`](.agents/CURRENT_ITERATION.md).
+For a current implementation map, read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). For testing and CI ownership, read [`docs/TESTING.md`](docs/TESTING.md). Repository-local implementation rules start at [`AGENTS.md`](AGENTS.md).

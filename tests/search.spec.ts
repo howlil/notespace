@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("global search finds note content and navigates to exact context", async ({
+test("@critical global search finds note content and navigates to exact context", async ({
   page,
   request,
 }) => {

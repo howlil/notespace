@@ -10,7 +10,7 @@
     "lint": "eslint apps/web/src tests scripts/run-node-tests.mjs --max-warnings 0",
     "test": "node scripts/run-node-tests.mjs",
     "test:e2e": "pnpm build && playwright test",
-    "test:e2e:critical": "playwright test tests/navigation.spec.ts tests/search.spec.ts tests/recovery.spec.ts"
+    "test:e2e:critical": "playwright test --grep @critical"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

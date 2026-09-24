@@ -68,7 +68,7 @@ function frameClipboardPayload() {
   return JSON.stringify({ type: "excalidraw/clipboard", elements: snapshot.data.elements });
 }
 
-test("create → edit note and canvas → reload", async ({ page, request }) => {
+test("@critical create → edit note and canvas → reload", async ({ page, request }) => {
   const title = `Distributed Systems ${Date.now()}`;
   const id = await createViaAPI(page, request, title);
 

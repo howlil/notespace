@@ -665,7 +665,46 @@ define one target boundary
 
 Avoid a big-bang server rewrite.
 
-## 24. Stop rule
+## 24. Testing ownership and verification
+
+Test observable behavior at the lowest boundary that owns it.
+
+```text
+business rule / state transition → domain or service test
+persistence semantics            → real SQLite integration test
+HTTP decoding/status/headers     → httpapi contract test
+browser-specific interaction     → focused Playwright test
+critical cross-system journey    → critical E2E
+```
+
+Rules:
+- do not require one test per file or function;
+- do not duplicate the same business-rule assertion across layers unless each layer proves a distinct contract;
+- use small behavioral fakes for service dependencies; do not build fake databases;
+- use real SQLite for transactions, foreign keys, optimistic concurrency, FTS, backup/restore, migration, and persistence-specific behavior;
+- keep tests deterministic: inject clocks where supported, avoid sleep-based correctness assertions, and do not assert random identifiers exactly;
+- prefer table-driven tests when variants share the same mechanism and assertion shape;
+- keep fixtures local to the owning package unless a stable cross-package test contract genuinely exists;
+- Playwright is for browser behavior and cross-system wiring, not for enumerating domain edge cases.
+
+For bug fixes:
+
+```text
+find lowest owning boundary
+→ write or identify failing behavioral regression test
+→ confirm it fails for the intended reason
+→ implement the smallest fix
+→ run progressively broader verification
+```
+
+Verification escalates from nearest test → affected package → static checks → affected integration boundary → critical E2E when the user journey changed → full release verification when appropriate.
+
+CI intent:
+- pull requests prove merge safety with static checks, Go race tests, integration tests, critical E2E journeys, and Docker persistence smoke;
+- pushes to the default branch additionally run the full Playwright suite;
+- scale, migration compatibility, and other expensive evidence remain explicit release/scheduled checks rather than everyday inner-loop tests.
+
+## 25. Stop rule
 
 A refactor is complete when:
 - ownership is clearer;

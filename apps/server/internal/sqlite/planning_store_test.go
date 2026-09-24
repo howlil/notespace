@@ -280,3 +280,61 @@ func TestConcurrentPlanningCreatesUseUniquePositions(t *testing.T) {
 		}
 	}
 }
+
+func TestTodayProjectionExcludesCompletedPastTasksAndInboxScopesStandaloneUnplanned(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "planning-projection-policy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Projection policy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := planning.NewService(store, store, nil)
+	todayDate := "2026-09-24"
+
+	past, err := service.CreateStandaloneTask(ctx, "Completed carryover", "2026-09-23")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UpdateAnyTask(ctx, past.ID, planning.TaskPatch{Completed: boolPointer(true), Version: past.Version}); err != nil {
+		t.Fatal(err)
+	}
+	todayTask, err := service.CreateStandaloneTask(ctx, "Today standalone", todayDate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inboxTask, err := service.CreateStandaloneTask(ctx, "Inbox standalone", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateTask(ctx, workspace.ID, nil, "Unplanned workspace task"); err != nil {
+		t.Fatal(err)
+	}
+
+	today, err := service.Today(ctx, todayDate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundToday := false
+	for _, task := range today.Tasks {
+		if task.ID == past.ID {
+			t.Fatalf("completed past task leaked into Today: %#v", today.Tasks)
+		}
+		foundToday = foundToday || task.ID == todayTask.ID
+	}
+	if !foundToday {
+		t.Fatalf("today task missing from projection: %#v", today.Tasks)
+	}
+
+	inbox, err := service.Inbox(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inbox.Tasks) != 1 || inbox.Tasks[0].ID != inboxTask.ID {
+		t.Fatalf("inbox = %#v, want only standalone unplanned task %q", inbox.Tasks, inboxTask.ID)
+	}
+}

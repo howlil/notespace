@@ -84,6 +84,12 @@ tasks:
       - task: build:web
       - pnpm test:e2e
 
+  e2e:critical:
+    desc: Build the web app and run only critical cross-system journeys
+    cmds:
+      - task: build:web
+      - pnpm test:e2e:critical
+
   e2e:target:
     desc: Build the web app and run one focused Playwright spec (SPEC=tests/example.spec.ts)
     requires:
@@ -113,7 +119,7 @@ tasks:
     env:
       NOTESPACE_SCALE_EVIDENCE: "1"
     cmds:
-      - go test ./internal/persistence -run TestPersistenceScaleEvidence -count=1
+      - go test ./internal/sqlite -run TestPersistenceScaleEvidence -count=1
 
   up:
     desc: Build and start the self-hosted Docker Compose stack

@@ -25,7 +25,12 @@ jobs:
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - name: Run critical browser journeys
+        if: github.event_name == 'pull_request'
+        run: pnpm test:e2e:critical
+      - name: Run full browser suite
+        if: github.event_name == 'push'
+        run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:

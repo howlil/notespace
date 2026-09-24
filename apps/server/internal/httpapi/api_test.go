@@ -716,8 +716,6 @@ func TestRemovedStudyAndHistoryCompatibilityRoutesStayUnavailable(t *testing.T) 
 	}
 }
 
-
-
 func TestCanvasEndpointReturnsGranularStateOnly(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "canvas-state.db"))

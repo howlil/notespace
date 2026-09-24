@@ -27,11 +27,11 @@ func readTrashTx(ctx context.Context, tx *sql.Tx, id string) (trashRecord, error
 	return record, nil
 }
 
-// RestoreTrashedWorkspaceAtomic claims the trash row and restores its workspace
+// RestoreTrashedWorkspace claims the trash row and restores its workspace
 // in one transaction. A concurrent permanent purge can therefore win before
 // this transaction or lose after it, but it cannot remove the row between the
 // restore read and the restore commit.
-func (s *Store) RestoreTrashedWorkspaceAtomic(ctx context.Context, id string) (workspace.Workspace, error) {
+func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return workspace.Workspace{}, err
@@ -73,10 +73,10 @@ func (s *Store) RestoreTrashedWorkspaceAtomic(ctx context.Context, id string) (w
 	return s.Get(ctx, id)
 }
 
-// DeleteCategoryAtomic validates active and trashed ownership at the same
+// DeleteCategory validates active and trashed ownership at the same
 // serialization point as the delete. This closes the old check-then-delete gap
 // where a workspace could enter trash after the HTTP preflight check.
-func (s *Store) DeleteCategoryAtomic(ctx context.Context, id string) error {
+func (s *Store) DeleteCategory(ctx context.Context, id string) error {
 	if id == "" || id == workspace.UncategorizedCategoryID {
 		return workspace.ErrInvalid
 	}

@@ -16,12 +16,12 @@ type TrashItem struct {
 // Store is the persistence capability required to preserve Library recovery and
 // portability semantics. Atomic operations stay atomic behind this boundary.
 type Store interface {
-	TrashWorkspaceAtomicVersion(context.Context, string, *int) error
+	TrashWorkspace(context.Context, string, *int) error
 	ListTrash(context.Context) ([]TrashItem, error)
-	RestoreTrashedWorkspaceAtomic(context.Context, string) (workspace.Workspace, error)
+	RestoreTrashedWorkspace(context.Context, string) (workspace.Workspace, error)
 	DeleteTrashedWorkspace(context.Context, string) error
-	DeleteCategoryAtomic(context.Context, string) error
-	ExportBackupArchiveAtomic(context.Context) ([]byte, error)
+	DeleteCategory(context.Context, string) error
+	ExportBackupArchive(context.Context) ([]byte, error)
 	RestoreBackupArchive(context.Context, []byte) error
 	RestoreBackupJSON(context.Context, []byte) error
 }
@@ -38,7 +38,7 @@ func NewService(store Store) Service {
 }
 
 func (s Service) TrashWorkspace(ctx context.Context, id string, expectedVersion *int) error {
-	return s.store.TrashWorkspaceAtomicVersion(ctx, id, expectedVersion)
+	return s.store.TrashWorkspace(ctx, id, expectedVersion)
 }
 
 func (s Service) ListTrash(ctx context.Context) ([]TrashItem, error) {
@@ -46,7 +46,7 @@ func (s Service) ListTrash(ctx context.Context) ([]TrashItem, error) {
 }
 
 func (s Service) RestoreWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
-	return s.store.RestoreTrashedWorkspaceAtomic(ctx, id)
+	return s.store.RestoreTrashedWorkspace(ctx, id)
 }
 
 func (s Service) DeleteTrash(ctx context.Context, id string) error {
@@ -54,11 +54,11 @@ func (s Service) DeleteTrash(ctx context.Context, id string) error {
 }
 
 func (s Service) DeleteCategory(ctx context.Context, id string) error {
-	return s.store.DeleteCategoryAtomic(ctx, id)
+	return s.store.DeleteCategory(ctx, id)
 }
 
 func (s Service) ExportBackup(ctx context.Context) ([]byte, error) {
-	return s.store.ExportBackupArchiveAtomic(ctx)
+	return s.store.ExportBackupArchive(ctx)
 }
 
 func (s Service) RestoreBackupArchive(ctx context.Context, data []byte) error {

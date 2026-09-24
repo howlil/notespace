@@ -106,7 +106,7 @@ COALESCE((SELECT SUM(length(title)+length(document_state)) FROM workspace_notes 
 		workspace.ID, workspace.ID, workspace.ID).Scan(&authoredBytes); err != nil {
 		t.Fatal(err)
 	}
-	backup, err := store.ExportBackupArchiveAtomic(ctx)
+	backup, err := store.ExportBackupArchive(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

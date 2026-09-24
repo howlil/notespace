@@ -20,16 +20,6 @@ func (s Service) WorkspaceExists(ctx context.Context, id string) (bool, error) {
 	return s.store.WorkspaceExists(ctx, id)
 }
 
-// GetCanvasState exposes the granular Canvas read boundary for conflict
-// recovery without loading every Note in the Workspace.
-func (s Service) GetCanvasState(ctx context.Context, id string) (CanvasState, error) {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return CanvasState{}, ErrInvalid
-	}
-	return s.store.GetCanvasState(ctx, id)
-}
-
 // Get returns one authored workspace through the application boundary.
 // Transport adapters should not reach through Service to the persistence port.
 func (s Service) Get(ctx context.Context, id string) (Workspace, error) {
@@ -101,7 +91,14 @@ func (s Service) GetHistory(ctx context.Context, workspaceID, historyID string) 
 	if workspaceID == "" || historyID == "" {
 		return HistorySnapshot{}, ErrInvalid
 	}
-	return s.store.GetHistory(ctx, workspaceID, historyID)
+	snapshot, err := s.store.GetHistory(ctx, workspaceID, historyID)
+	if err != nil {
+		return HistorySnapshot{}, err
+	}
+	// References are legacy workspace-level links and are intentionally not
+	// restored or exposed as authored history state.
+	snapshot.References = []Reference{}
+	return snapshot, nil
 }
 
 // RestoreHistory owns the restore use case so HTTP only maps transport input/output.

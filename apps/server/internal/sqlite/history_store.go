@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -19,8 +18,6 @@ import (
 type execContext interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
-
-const historyCheckpointInterval = 5 * time.Minute
 
 type historyPayload struct {
 	Title      string                `json:"title"`
@@ -123,83 +120,6 @@ func createHistory(ctx context.Context, db execContext, snapshot workspace.Histo
 	}
 	_, err = db.ExecContext(ctx, `DELETE FROM workspace_history WHERE workspace_id=? AND id NOT IN (SELECT id FROM workspace_history WHERE workspace_id=? ORDER BY created_at DESC, rowid DESC LIMIT 50)`, snapshot.WorkspaceID, snapshot.WorkspaceID)
 	return err
-}
-
-func (s *Store) CreateHistory(ctx context.Context, snapshot workspace.HistorySnapshot) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := createHistory(ctx, tx, snapshot); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-type latestHistory struct {
-	CreatedAt string
-	Hash      string
-}
-
-func latestHistoryFor(ctx context.Context, db queryer, workspaceID string) (latestHistory, bool, error) {
-	var latest latestHistory
-	var hash sql.NullString
-	var title string
-	var document, notes, canvas, references string
-	var splitRatio float64
-	err := db.QueryRowContext(ctx, `SELECT h.created_at, p.content_hash, h.title, h.document_state, h.notes_state, h.canvas_state, h.references_state, h.split_ratio FROM workspace_history h LEFT JOIN workspace_history_payload p ON p.history_id=h.id WHERE h.workspace_id=? ORDER BY h.created_at DESC, h.rowid DESC LIMIT 1`, workspaceID).Scan(&latest.CreatedAt, &hash, &title, &document, &notes, &canvas, &references, &splitRatio)
-	if errors.Is(err, sql.ErrNoRows) {
-		return latest, false, nil
-	}
-	if err != nil {
-		return latest, false, err
-	}
-	if hash.Valid && hash.String != "" {
-		latest.Hash = hash.String
-		return latest, true, nil
-	}
-	legacy := workspace.HistorySnapshot{HistoryEntry: workspace.HistoryEntry{Title: title}, SplitRatio: splitRatio}
-	if err := json.Unmarshal([]byte(document), &legacy.Document); err != nil {
-		return latest, false, err
-	}
-	if err := json.Unmarshal([]byte(notes), &legacy.Notes); err != nil {
-		return latest, false, err
-	}
-	if err := json.Unmarshal([]byte(canvas), &legacy.Canvas); err != nil {
-		return latest, false, err
-	}
-	if err := json.Unmarshal([]byte(references), &legacy.References); err != nil {
-		return latest, false, err
-	}
-	latest.Hash, err = historyAuthoredHash(legacy)
-	return latest, true, err
-}
-
-type queryer interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
-func shouldCreateHistory(ctx context.Context, db queryer, previous workspace.HistorySnapshot, now time.Time) (bool, error) {
-	latest, found, err := latestHistoryFor(ctx, db, previous.WorkspaceID)
-	if err != nil {
-		return false, err
-	}
-	if !found {
-		return true, nil
-	}
-	createdAt, parseErr := time.Parse(time.RFC3339Nano, latest.CreatedAt)
-	if parseErr == nil && now.Before(createdAt.Add(historyCheckpointInterval)) {
-		return false, nil
-	}
-	previousHash, err := historyAuthoredHash(previous)
-	if err != nil {
-		return false, err
-	}
-	if previousHash == latest.Hash {
-		return false, nil
-	}
-	return true, nil
 }
 
 func (s *Store) ListHistory(ctx context.Context, workspaceID string) ([]workspace.HistoryEntry, error) {

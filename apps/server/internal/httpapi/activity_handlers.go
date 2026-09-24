@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
@@ -43,11 +42,7 @@ func (a API) deleteWorkspaceActivitySession(w http.ResponseWriter, r *http.Reque
 }
 
 func (a API) workspaceActivityStats(w http.ResponseWriter, r *http.Request) {
-	date := r.URL.Query().Get("date")
-	if date == "" {
-		date = time.Now().Format(activity.DateLayout)
-	}
-	stats, err := a.activities.GetWorkspaceStats(r.Context(), r.PathValue("id"), date)
+	stats, err := a.activities.GetWorkspaceStats(r.Context(), r.PathValue("id"), r.URL.Query().Get("date"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -91,11 +86,7 @@ func (a API) deleteActivitySession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) activityStats(w http.ResponseWriter, r *http.Request) {
-	date := r.URL.Query().Get("date")
-	if date == "" {
-		date = time.Now().Format(activity.DateLayout)
-	}
-	stats, err := a.activities.GetGlobalStats(r.Context(), date)
+	stats, err := a.activities.GetGlobalStats(r.Context(), r.URL.Query().Get("date"))
 	if err != nil {
 		fail(w, err)
 		return

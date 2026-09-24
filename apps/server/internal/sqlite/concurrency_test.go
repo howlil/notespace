@@ -36,7 +36,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 
 	staleVersion := workspace.Version
-	if err := store.TrashWorkspaceAtomicVersion(ctx, workspace.ID, &staleVersion); !errors.Is(err, workspacepkg.ErrConflict) {
+	if err := store.TrashWorkspace(ctx, workspace.ID, &staleVersion); !errors.Is(err, workspacepkg.ErrConflict) {
 		t.Fatalf("stale delete error = %v, want conflict", err)
 	}
 	current, err := store.Get(ctx, workspace.ID)
@@ -55,7 +55,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 
 	currentVersion := updated.Version
-	if err := store.TrashWorkspaceAtomicVersion(ctx, workspace.ID, &currentVersion); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, &currentVersion); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Get(ctx, workspace.ID); !errors.Is(err, workspacepkg.ErrNotFound) {
@@ -63,7 +63,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 }
 
-func TestDeleteCategoryAtomicRejectsTrashedWorkspace(t *testing.T) {
+func TestDeleteCategoryRejectsTrashedWorkspace(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "category-trash.db"))
 	if err != nil {
@@ -80,11 +80,11 @@ func TestDeleteCategoryAtomicRejectsTrashedWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspaceAtomic(ctx, workspace.ID); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := store.DeleteCategoryAtomic(ctx, category.ID); !errors.Is(err, workspacepkg.ErrNotEmpty) {
+	if err := store.DeleteCategory(ctx, category.ID); !errors.Is(err, workspacepkg.ErrNotEmpty) {
 		t.Fatalf("category delete error = %v, want not empty", err)
 	}
 	var count int
@@ -108,7 +108,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspaceAtomic(ctx, workspace.ID); err != nil {
+	if err := store.TrashWorkspace(ctx, workspace.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,7 +120,7 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	results := make(chan result, 2)
 	go func() {
 		<-start
-		_, err := store.RestoreTrashedWorkspaceAtomic(ctx, workspace.ID)
+		_, err := store.RestoreTrashedWorkspace(ctx, workspace.ID)
 		results <- result{op: "restore", err: err}
 	}()
 	go func() {

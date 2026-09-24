@@ -396,6 +396,21 @@ httpapi                                      ─X→ sqlite concrete implementat
 
 Prefer interfaces owned by the package that consumes the capability. A domain/application package defines the smallest port it needs; the SQLite adapter satisfies that port.
 
+Keep the application dependency graph explicit:
+
+```text
+workspace → {}
+planning  → {}
+activity  → {}
+asset     → {}
+icon      → {}
+library   → {workspace}
+```
+
+`httpapi` may depend on those application capabilities, and `sqlite` may implement their persistence ports. Do not add a new cross-domain import unless the owning use-case genuinely requires it and the architecture guard is updated deliberately.
+
+Service construction dependencies must stay private after construction. Callers use exported use-cases; they must not reach through a service to its store, reference lookup, or clock.
+
 ## 18. Server responsibility ownership
 
 Canonical responsibility boundaries:
@@ -455,6 +470,8 @@ activity application service
 
 Do not make the HTTP handler the application service.
 
+Destructive Workspace lifecycle is Library-owned. Do not add raw Workspace or Category hard-delete APIs that bypass Trash/recovery invariants. SQLite may expose the semantic Library operations needed to implement the Library port, but it must not expose a second weaker deletion path.
+
 ## 19. Server package and file structure
 
 The target shape is capability-oriented:
@@ -486,9 +503,11 @@ workspace/
 ├── model.go
 ├── service.go
 ├── store.go
+├── queries.go
+├── granular.go
 ├── note.go
 ├── canvas.go
-└── history.go
+└── validation.go
 
 httpapi/
 ├── router.go
@@ -501,16 +520,29 @@ httpapi/
 └── assets.go
 
 sqlite/
-├── db.go
-├── workspace.go
-├── workspace_state.go
-├── workspace_history.go
-├── workspace_search.go
-├── planning.go
-├── activity.go
+├── sqlite.go
+├── workspace_scan.go
+├── workspace_queries.go
+├── workspace_mutations.go
+├── workspace_granular.go
+├── workspace_notes.go
+├── workspace_canvas.go
+├── history_store.go
+├── planning_queries.go
+├── planning_milestones.go
+├── planning_tasks.go
+├── planning_restore.go
+├── activity_store.go
+├── activity_sessions.go
+├── activity_references.go
 ├── assets.go
-├── library.go
-└── archive.go
+├── library_state.go
+├── library_workspace_snapshot.go
+├── library_trash_atomic.go
+├── library_backup_snapshot.go
+├── library_restore.go
+├── library_recovery.go
+└── library_archive.go
 ```
 
 Do not introduce nested packages unless an independent contract, lifecycle, state owner, or dependency boundary justifies them.

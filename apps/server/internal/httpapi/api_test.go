@@ -532,11 +532,11 @@ func TestActivitySessionsAreIdempotentAndHistorySurvivesWorkspaceDeletion(t *tes
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend Fundamentals"}))
 	body := map[string]any{
-		"activityDate": "2026-09-03",
+		"activityDate":  "2026-09-03",
 		"activeSeconds": 120,
-		"finish": false,
-		"activityType": "learn",
-		"workspaceId": p.ID,
+		"finish":        false,
+		"activityType":  "learn",
+		"workspaceId":   p.ID,
 	}
 	path := "/api/activity/sessions/session-1:2026-09-03"
 	expect(t, call(t, api, "PUT", path, body), 200)

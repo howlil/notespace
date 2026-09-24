@@ -387,3 +387,24 @@ test("editor integrations delegate reusable lifecycle and scene derivation", () 
   assert.doesNotMatch(frameNode, /URL\.createObjectURL|URL\.revokeObjectURL/);
   assert.doesNotMatch(canvas, /shouldSwitchCodeBlockToManualHeight/);
 });
+
+
+test("shared library sidebar delegates library mutations to the library feature", () => {
+  const sidebar = source("pages/_shared/LibrarySidebar.tsx");
+  const navigation = source("features/library/use-library-navigation.ts");
+
+  assert.match(sidebar, /useLibraryNavigation/);
+  assert.doesNotMatch(sidebar, /adapters\/http\/workspace-api|notifyLibraryChanged|workspaceRenameTitle/);
+  assert.match(navigation, /adapters\/http\/workspace-api/);
+  assert.match(navigation, /notifyLibraryChanged/);
+});
+
+test("diagram catalog metadata is owned by the diagram catalog module", () => {
+  const diagram = source("domain/diagram/diagram.ts");
+  const catalog = source("domain/diagram/catalog/diagram-catalog.ts");
+
+  assert.match(diagram, /\.\/catalog\/diagram-catalog/);
+  assert.doesNotMatch(diagram, /generatedIconMetadata|compatibilityCatalog/);
+  assert.match(catalog, /eraser-icons\.generated\.json/);
+  assert.match(catalog, /compatibilityCatalog/);
+});

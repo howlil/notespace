@@ -37,6 +37,7 @@ func TestPutValidatesBeforeDependencies(t *testing.T) {
 		{"missing workspace", Stored{ID: "asset-1", MimeType: "image/png", Data: []byte("x")}},
 		{"missing mime", Stored{ID: "asset-1", WorkspaceID: "workspace-1", Data: []byte("x")}},
 		{"empty data", Stored{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "image/png"}},
+		{"non-image mime", Stored{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "text/html", Data: []byte("x")}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

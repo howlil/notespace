@@ -11,6 +11,26 @@ import (
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
+func TestPutAssetRejectsNonImageMimeAtStorageBoundary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-asset.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Asset validation")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "html", WorkspaceID: workspace.ID, MimeType: "text/html", Data: []byte("<html>")}); !errors.Is(err, asset.ErrInvalid) {
+		t.Fatalf("non-image storage error = %v, want invalid", err)
+	}
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "svg", WorkspaceID: workspace.ID, MimeType: "image/svg+xml", Data: []byte("<svg/>")}); err != nil {
+		t.Fatalf("image MIME storage error = %v", err)
+	}
+}
+
 func TestRemovedWorkspaceImageDeletesStoredBlob(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "asset-lifecycle.db"))

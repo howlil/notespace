@@ -84,8 +84,8 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 		args = append(args, query.CategoryID)
 	}
 	if strings.TrimSpace(query.Query) != "" {
-		conditions = append(conditions, "LOWER(p.title) LIKE ?")
-		args = append(args, "%"+strings.ToLower(strings.TrimSpace(query.Query))+"%")
+		conditions = append(conditions, "LOWER(p.title) LIKE ? ESCAPE '\\'")
+		args = append(args, containsLikeLiteral(query.Query))
 	}
 	if query.HasCanvas {
 		conditions = append(conditions, hasCanvasExpr)

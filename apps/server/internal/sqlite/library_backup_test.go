@@ -287,6 +287,122 @@ func tamperFirstBlob(t *testing.T, data []byte) []byte {
 	return output.Bytes()
 }
 
+func tamperFirstAssetMime(t *testing.T, data []byte, mimeType string) []byte {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	tampered := false
+	for _, file := range reader.File {
+		stream, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(stream)
+		_ = stream.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !tampered && file.Name == archiveManifestPath {
+			var manifest libraryArchiveManifest
+			if err := json.Unmarshal(body, &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if len(manifest.Workspaces) == 0 || len(manifest.Workspaces[0].Assets) == 0 {
+				t.Fatal("archive has no workspace asset")
+			}
+			manifest.Workspaces[0].Assets[0].MimeType = mimeType
+			body, err = json.Marshal(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tampered = true
+		}
+		header := file.FileHeader
+		target, err := writer.CreateHeader(&header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := target.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !tampered {
+		t.Fatal("manifest not found")
+	}
+	return output.Bytes()
+}
+
+func TestRestoreRejectsNonImageJSONAssetWithoutReplacingLibrary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-asset-json.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep asset library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("original")}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := store.exportBackupJSONAtomic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup libraryBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	backup.Workspaces[0].Assets[0].MimeType = "text/html"
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RestoreBackupJSON(ctx, data); !errors.Is(err, workspacepkg.ErrInvalid) {
+		t.Fatalf("invalid asset restore error = %v, want invalid", err)
+	}
+	if _, err := store.Get(ctx, workspace.ID); err != nil {
+		t.Fatalf("existing library changed after rejected restore: %v", err)
+	}
+	if restored, err := store.GetAsset(ctx, workspace.ID, "image"); err != nil || restored.MimeType != "image/png" {
+		t.Fatalf("existing asset after rejected restore = %+v err=%v", restored, err)
+	}
+}
+
+func TestArchiveRestoreRejectsNonImageAssetWithoutReplacingLibrary(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-asset-archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Keep archive library")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "image", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("original")}); err != nil {
+		t.Fatal(err)
+	}
+	backup, err := store.ExportBackupArchive(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RestoreBackupArchive(ctx, tamperFirstAssetMime(t, backup, "text/html")); !errors.Is(err, workspacepkg.ErrInvalid) {
+		t.Fatalf("invalid asset archive restore error = %v, want invalid", err)
+	}
+	if _, err := store.Get(ctx, workspace.ID); err != nil {
+		t.Fatalf("existing library changed after rejected archive: %v", err)
+	}
+}
+
 func TestArchiveRestoreRejectsTamperedAsset(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "tamper.db"))

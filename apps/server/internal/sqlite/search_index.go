@@ -163,7 +163,7 @@ func (s *Store) SearchIndexed(ctx context.Context, query string) ([]workspace.Se
 		return nil, err
 	}
 	results := []workspace.SearchResult{}
-	categoryRows, err := s.db.QueryContext(ctx, `SELECT id,title FROM categories WHERE LOWER(title) LIKE ? ORDER BY updated_at DESC LIMIT 20`, "%"+strings.ToLower(query)+"%")
+	categoryRows, err := s.db.QueryContext(ctx, `SELECT id,title FROM categories WHERE LOWER(title) LIKE ? ESCAPE '\' ORDER BY updated_at DESC LIMIT 20`, containsLikeLiteral(query))
 	if err != nil {
 		return nil, err
 	}

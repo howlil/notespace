@@ -65,6 +65,9 @@ func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) er
 		if stored.ID == "" || stored.WorkspaceID != authored.ID || stored.MimeType == "" || len(stored.Data) == 0 {
 			return workspacepkg.ErrInvalid
 		}
+		if err := asset.ValidateStored(stored); err != nil {
+			return workspacepkg.ErrInvalid
+		}
 	}
 	plan := envelope.Plan
 	if plan.WorkspaceID == "" {

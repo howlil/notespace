@@ -3,7 +3,6 @@ package httpapi
 import (
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,8 +22,8 @@ func (a API) putAsset(w http.ResponseWriter, r *http.Request) {
 		fail(w, asset.ErrInvalid)
 		return
 	}
-	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || !strings.HasPrefix(mediaType, "image/") {
+	mediaType, err := asset.NormalizeMimeType(r.Header.Get("Content-Type"))
+	if err != nil {
 		fail(w, asset.ErrInvalid)
 		return
 	}

@@ -28,12 +28,11 @@ func NewService(store Store, workspaces WorkspaceLookup) Service {
 }
 
 func (s Service) Put(ctx context.Context, value Stored) (Stored, error) {
-	value.ID = strings.TrimSpace(value.ID)
-	value.WorkspaceID = strings.TrimSpace(value.WorkspaceID)
-	value.MimeType = strings.TrimSpace(value.MimeType)
-	if value.ID == "" || value.WorkspaceID == "" || value.MimeType == "" || len(value.Data) == 0 {
-		return Stored{}, ErrInvalid
+	normalized, err := NormalizeStored(value)
+	if err != nil {
+		return Stored{}, err
 	}
+	value = normalized
 	exists, err := s.workspaces.WorkspaceExists(ctx, value.WorkspaceID)
 	if err != nil {
 		return Stored{}, err

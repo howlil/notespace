@@ -4,16 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
 )
 
 func (s *Store) PutAsset(ctx context.Context, value asset.Stored) (asset.Stored, error) {
-	if strings.TrimSpace(value.WorkspaceID) == "" || strings.TrimSpace(value.ID) == "" || strings.TrimSpace(value.MimeType) == "" || len(value.Data) == 0 {
-		return asset.Stored{}, asset.ErrInvalid
+	normalized, err := asset.NormalizeStored(value)
+	if err != nil {
+		return asset.Stored{}, err
 	}
+	value = normalized
 	if value.CreatedAt == "" {
 		value.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}

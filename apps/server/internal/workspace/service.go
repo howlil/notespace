@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-type Service struct{ Store Store }
+type Service struct{ store Store }
 
 func NewService(store Store) Service {
 	if store == nil {
 		panic("workspace: store is required")
 	}
-	return Service{Store: store}
+	return Service{store: store}
 }
 
 func (s Service) CreateCategory(
@@ -32,7 +32,7 @@ func (s Service) CreateCategory(
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	return category, s.Store.CreateCategory(ctx, category)
+	return category, s.store.CreateCategory(ctx, category)
 }
 
 func (s Service) UpdateCategory(ctx context.Context, id, title string) (CategorySummary, error) {
@@ -40,7 +40,7 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return CategorySummary{}, ErrInvalid
 	}
-	return s.Store.UpdateCategory(ctx, id, title)
+	return s.store.UpdateCategory(ctx, id, title)
 }
 
 func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error) {
@@ -48,7 +48,7 @@ func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return Workspace{}, ErrInvalid
 	}
-	current, err := s.Store.Get(ctx, id)
+	current, err := s.store.Get(ctx, id)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -67,14 +67,14 @@ func (s Service) Move(ctx context.Context, id, categoryID string) (Workspace, er
 	if strings.TrimSpace(id) == "" || strings.TrimSpace(categoryID) == "" {
 		return Workspace{}, ErrInvalid
 	}
-	exists, err := s.Store.CategoryExists(ctx, categoryID)
+	exists, err := s.store.CategoryExists(ctx, categoryID)
 	if err != nil {
 		return Workspace{}, err
 	}
 	if !exists {
 		return Workspace{}, ErrNotFound
 	}
-	return s.Store.Move(ctx, id, categoryID)
+	return s.store.Move(ctx, id, categoryID)
 }
 
 func (s Service) Create(
@@ -90,7 +90,7 @@ func (s Service) Create(
 	if len(categoryID) > 0 && strings.TrimSpace(categoryID[0]) != "" {
 		category = strings.TrimSpace(categoryID[0])
 	}
-	exists, err := s.Store.CategoryExists(ctx, category)
+	exists, err := s.store.CategoryExists(ctx, category)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -114,7 +114,7 @@ func (s Service) Create(
 		References:    []Reference{},
 		SplitRatio:    0.45,
 	}
-	if err := s.Store.Create(ctx, p); err != nil {
+	if err := s.store.Create(ctx, p); err != nil {
 		return Workspace{}, err
 	}
 	return s.Get(ctx, p.ID)
@@ -124,7 +124,7 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, er
 	u.Title = strings.TrimSpace(u.Title)
 	notesOmitted := u.Notes == nil
 	if u.References == nil || notesOmitted {
-		current, err := s.Store.Get(ctx, id)
+		current, err := s.store.Get(ctx, id)
 		if err != nil {
 			return Workspace{}, err
 		}
@@ -146,7 +146,7 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, er
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Workspace{}, ErrInvalid
 	}
-	value, err := s.Store.Update(ctx, id, u)
+	value, err := s.store.Update(ctx, id, u)
 	if err != nil {
 		return Workspace{}, err
 	}

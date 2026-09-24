@@ -85,28 +85,7 @@ func (g *EraserSource) storeCached(slug string, entry Entry) Entry {
 	return entry
 }
 
-func (g *EraserSource) Fetch(ctx context.Context, slug string) (Entry, error) {
-	if !validEraserIconSlug(slug) {
-		return Entry{}, ErrInvalidName
-	}
-	if entry, ok := g.cached(slug); ok {
-		return entry, nil
-	}
-
-	g.mu.Lock()
-	if existing, ok := g.inFlight[slug]; ok {
-		g.mu.Unlock()
-		select {
-		case <-existing.done:
-			return existing.entry, existing.err
-		case <-ctx.Done():
-			return Entry{}, ctx.Err()
-		}
-	}
-	flight := &eraserIconFlight{done: make(chan struct{})}
-	g.inFlight[slug] = flight
-	g.mu.Unlock()
-
+func (g *EraserSource) completeFlight(ctx context.Context, slug string, flight *eraserIconFlight) {
 	entry, err := g.fetchUpstream(ctx, slug)
 	if err == nil {
 		entry = g.storeCached(slug, entry)
@@ -118,5 +97,32 @@ func (g *EraserSource) Fetch(ctx context.Context, slug string) (Entry, error) {
 	delete(g.inFlight, slug)
 	close(flight.done)
 	g.mu.Unlock()
-	return entry, err
+}
+
+func (g *EraserSource) Fetch(ctx context.Context, slug string) (Entry, error) {
+	if !validEraserIconSlug(slug) {
+		return Entry{}, ErrInvalidName
+	}
+	if entry, ok := g.cached(slug); ok {
+		return entry, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return Entry{}, err
+	}
+
+	g.mu.Lock()
+	flight, exists := g.inFlight[slug]
+	if !exists {
+		flight = &eraserIconFlight{done: make(chan struct{})}
+		g.inFlight[slug] = flight
+		go g.completeFlight(context.WithoutCancel(ctx), slug, flight)
+	}
+	g.mu.Unlock()
+
+	select {
+	case <-flight.done:
+		return flight.entry, flight.err
+	case <-ctx.Done():
+		return Entry{}, ctx.Err()
+	}
 }

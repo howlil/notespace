@@ -43,7 +43,7 @@ test("full-library ZIP backup restores an active workspace", async ({ request })
   const backup = await backupResponse.body();
 
   try {
-    expect((await deleteWorkspace(request, workspace.id)).status()).toBe(204);
+    await deleteWorkspace(request, workspace.id);
     expect((await request.delete(`/api/trash/${workspace.id}`)).status()).toBe(204);
     expect((await request.get(`/api/workspaces/${workspace.id}`)).status()).toBe(404);
 

@@ -178,9 +178,18 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	if err != nil || string(storedAsset.Data) != string(assetBytes) {
 		t.Fatalf("restored asset = %+v err=%v", storedAsset, err)
 	}
-	stats, err := store.WorkspaceStats(ctx, workspace.ID, "2026-09-06")
-	if err != nil || stats.TotalSeconds != 600 {
-		t.Fatalf("restored workspace activity stats = %+v err=%v", stats, err)
+	day, err := store.DayDetail(ctx, "2026-09-06")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundWorkspaceActivity := false
+	for _, item := range day.Workspaces {
+		if item.WorkspaceID == workspace.ID && item.ActiveSeconds == 600 {
+			foundWorkspaceActivity = true
+		}
+	}
+	if !foundWorkspaceActivity {
+		t.Fatalf("restored workspace activity missing from day detail: %+v", day.Workspaces)
 	}
 	globalStats, err := store.GlobalStats(ctx, "2026-09-06")
 	if err != nil || globalStats.TotalSeconds != 900 {

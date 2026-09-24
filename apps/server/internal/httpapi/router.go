@@ -13,7 +13,7 @@ import (
 )
 
 type API struct {
-	service     *workspace.Service
+	workspace   *workspace.Service
 	planning    *planning.Service
 	activities  *activity.Service
 	assets      *asset.Service
@@ -54,7 +54,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{service: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: deps.Icons}
+	a := API{workspace: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: deps.Icons}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {

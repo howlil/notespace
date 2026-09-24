@@ -48,7 +48,7 @@ func (f referenceFixture) LookupWorkspace(_ context.Context, id string) (Workspa
 
 func TestResolveReferencesUsesTaskThenWorkspace(t *testing.T) {
 	workspaceID := "workspace-1"
-	service := Service{References: referenceFixture{
+	service := Service{references: referenceFixture{
 		tasks: map[string]TaskRef{
 			"task-1": {Title: "Task title", WorkspaceID: &workspaceID},
 		},
@@ -74,7 +74,7 @@ func TestResolveReferencesUsesTaskThenWorkspace(t *testing.T) {
 
 func TestResolveReferencesPreservesExplicitTitle(t *testing.T) {
 	workspaceID := "workspace-1"
-	service := Service{References: referenceFixture{
+	service := Service{references: referenceFixture{
 		tasks: map[string]TaskRef{
 			"task-1": {Title: "Task title", WorkspaceID: &workspaceID},
 		},
@@ -93,7 +93,7 @@ func TestResolveReferencesPreservesExplicitTitle(t *testing.T) {
 }
 
 func TestResolveReferencesUsesDeletedTaskSnapshot(t *testing.T) {
-	service := Service{References: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
+	service := Service{references: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
 	input := ActivityHeartbeat{TaskID: "deleted-task", TaskTitleSnapshot: "Deleted task", ActivityType: "build"}
 
 	if err := service.resolveReferences(context.Background(), &input); err != nil {
@@ -105,7 +105,7 @@ func TestResolveReferencesUsesDeletedTaskSnapshot(t *testing.T) {
 }
 
 func TestResolveReferencesRejectsMissingTaskWithoutSnapshot(t *testing.T) {
-	service := Service{References: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
+	service := Service{references: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
 	input := ActivityHeartbeat{TaskID: "missing-task", ActivityType: "build"}
 
 	err := service.resolveReferences(context.Background(), &input)
@@ -116,7 +116,7 @@ func TestResolveReferencesRejectsMissingTaskWithoutSnapshot(t *testing.T) {
 
 func TestResolveReferencesRejectsTaskWorkspaceMismatch(t *testing.T) {
 	taskWorkspaceID := "workspace-1"
-	service := Service{References: referenceFixture{
+	service := Service{references: referenceFixture{
 		tasks: map[string]TaskRef{
 			"task-1": {Title: "Task", WorkspaceID: &taskWorkspaceID},
 		},
@@ -131,7 +131,7 @@ func TestResolveReferencesRejectsTaskWorkspaceMismatch(t *testing.T) {
 }
 
 func TestResolveReferencesUsesDeletedWorkspaceSnapshot(t *testing.T) {
-	service := Service{References: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
+	service := Service{references: referenceFixture{tasks: map[string]TaskRef{}, workspaces: map[string]WorkspaceRef{}}}
 	input := ActivityHeartbeat{
 		WorkspaceID:            "deleted-workspace",
 		WorkspaceTitleSnapshot: "Deleted workspace",

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("latest Library category selection wins over stale responses", async ({ page, request }) => {
+test("@critical latest Library category selection wins over stale responses", async ({ page, request }) => {
   const suffix = Date.now();
   const categoryAResponse = await request.post("/api/categories", {
     data: { title: `Race A ${suffix}` },

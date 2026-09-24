@@ -6,27 +6,6 @@ import (
 	"time"
 )
 
-func (s Service) RecordWorkspaceSession(ctx context.Context, workspaceID, sessionID string, input Heartbeat) (Session, error) {
-	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return Session{}, ErrInvalid
-	}
-	workspace, found, err := s.references.LookupWorkspace(ctx, workspaceID)
-	if err != nil {
-		return Session{}, err
-	}
-	if !found {
-		return Session{}, ErrWorkspaceNotFound
-	}
-	return s.recordActivity(ctx, sessionID, ActivityHeartbeat{
-		Heartbeat:              input,
-		Title:                  workspace.Title,
-		ActivityType:           "learn",
-		WorkspaceID:            workspaceID,
-		WorkspaceTitleSnapshot: workspace.Title,
-	})
-}
-
 func (s Service) RecordActivity(ctx context.Context, sessionID string, input ActivityHeartbeat) (Session, error) {
 	if err := s.resolveReferences(ctx, &input); err != nil {
 		return Session{}, err

@@ -16,7 +16,11 @@ export function useImageAssetUrl(workspaceId: string, assetId: string | null | u
 
     void loadImageAsset(workspaceId, assetId)
       .then((asset) => {
-        if (!active || !asset) return;
+        if (!active) return;
+        if (!asset) {
+          setSrc(fallbackSrc);
+          return;
+        }
         objectUrl = URL.createObjectURL(asset.blob);
         setSrc(objectUrl);
       })

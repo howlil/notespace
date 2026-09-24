@@ -434,7 +434,6 @@ func TestRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *testing.
 	}
 }
 
-
 func TestRestoreRejectsInvalidActivitySessionFields(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "invalid-activity-fields-backup.db"))

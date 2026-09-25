@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
-import type { Snapshot } from "../../../domain/workspace/workspace";
+import { createDocumentSnapshotSession } from "./document-snapshot-session-core";
 
 export function useDocumentSnapshotSession({
   editorRef,
@@ -19,49 +19,24 @@ export function useDocumentSnapshotSession({
   const onChangeRef = useRef(onChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
   const registerSnapshotFlushRef = useRef(registerSnapshotFlush);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef(false);
-
-  onChangeRef.current = onChange;
-  onDirtyChangeRef.current = onDirtyChange;
-  registerSnapshotFlushRef.current = registerSnapshotFlush;
-
-  const flush = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (!pendingRef.current) return;
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    pendingRef.current = false;
-    onChangeRef.current({ format: "tiptap", version: 1, data: editor.getJSON() });
-    onDirtyChangeRef.current?.(false);
-  }, [editorRef]);
-
-  const schedule = useCallback(() => {
-    if (!pendingRef.current) {
-      pendingRef.current = true;
-      onDirtyChangeRef.current?.(true);
-    }
-    if (timerRef.current) return;
-
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      flush();
-    }, delay);
-  }, [delay, flush]);
-
-  const hasPending = useCallback(() => pendingRef.current, []);
+  const session = useMemo(() => createDocumentSnapshotSession({
+    readSnapshot: () => editorRef.current?.getJSON() ?? null,
+    onChange: (snapshot) => onChangeRef.current(snapshot),
+    onDirtyChange: (dirty) => onDirtyChangeRef.current?.(dirty),
+    delay,
+  }), [delay, editorRef]);
 
   useEffect(() => {
-    registerSnapshotFlushRef.current?.(flush);
+    registerSnapshotFlushRef.current?.(session.flush);
     return () => {
-      flush();
+      session.dispose();
       registerSnapshotFlushRef.current?.(null);
     };
-  }, [flush]);
+  }, [session]);
 
-  return { schedule, flush, hasPending };
+  return {
+    schedule: session.schedule,
+    flush: session.flush,
+    hasPending: session.hasPending,
+  };
 }

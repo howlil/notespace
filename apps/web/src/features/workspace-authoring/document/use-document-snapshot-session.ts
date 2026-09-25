@@ -28,10 +28,11 @@ export function useDocumentSnapshotSession({
   }), [delay, editorRef]);
 
   useEffect(() => {
-    registerSnapshotFlushRef.current?.(session.flush);
+    const registerSnapshotFlush = registerSnapshotFlushRef.current;
+    registerSnapshotFlush?.(session.flush);
     return () => {
       session.dispose();
-      registerSnapshotFlushRef.current?.(null);
+      registerSnapshotFlush?.(null);
     };
   }, [session]);
 

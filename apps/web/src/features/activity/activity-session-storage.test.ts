@@ -41,7 +41,7 @@ function session(overrides: Partial<ManualActivitySession> = {}): ManualActivity
     runningSince: 1000,
     baselineTodaySeconds: 20,
     baselineTotalSeconds: 30,
-    context: { title: "Learn", activityType: "learning" },
+    context: { title: "Learn", activityType: "learn" },
     ...overrides,
   };
 }
@@ -79,7 +79,7 @@ test("activity storage migrates a valid legacy workspace session to the current 
 
   const restored = readStoredActivitySession({
     title: "Workspace timer",
-    activityType: "focus",
+    activityType: "build",
     workspaceId: "workspace-1",
     workspaceTitleSnapshot: "Workspace",
   }, state.api);
@@ -99,7 +99,7 @@ test("legacy activity storage is retained when migration persistence fails", () 
 
   const restored = readStoredActivitySession({
     title: "Workspace timer",
-    activityType: "focus",
+    activityType: "build",
     workspaceId: "workspace-1",
   }, state.api);
 
@@ -125,20 +125,20 @@ test("activity storage writes, clears, and detects legacy state through one boun
 
 test("activity heartbeat mapping preserves standalone and linked context", () => {
   assert.deepEqual(
-    activityHeartbeatFor({ title: "Standalone", activityType: "focus" }, "2026-09-25", 42, false),
+    activityHeartbeatFor({ title: "Standalone", activityType: "build" }, "2026-09-25", 42, false),
     {
       activityDate: "2026-09-25",
       activeSeconds: 42,
       finish: false,
       title: "Standalone",
-      activityType: "focus",
+      activityType: "build",
     },
   );
 
   assert.deepEqual(
     activityHeartbeatFor({
       title: "Task",
-      activityType: "learning",
+      activityType: "learn",
       workspaceId: "workspace-1",
       workspaceTitleSnapshot: "Workspace",
       taskId: "task-1",
@@ -149,7 +149,7 @@ test("activity heartbeat mapping preserves standalone and linked context", () =>
       activeSeconds: 99,
       finish: true,
       title: "Task",
-      activityType: "learning",
+      activityType: "learn",
       workspaceId: "workspace-1",
       workspaceTitleSnapshot: "Workspace",
       taskId: "task-1",

@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
+import type { Snapshot } from "../../../domain/workspace/workspace";
 import { createDocumentSnapshotSession } from "./document-snapshot-session-core";
 
 export function useDocumentSnapshotSession({

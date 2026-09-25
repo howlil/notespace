@@ -3,10 +3,14 @@ import {
   deleteActivitySession,
   getActivityStats,
   recordActivityHeartbeat,
-  type ActivityHeartbeat,
   type ActivityType,
 } from "../../adapters/http/activity-api";
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
+import {
+  activityHeartbeatFor,
+  hasLegacyStoredActivitySession,
+  readStoredActivitySession,
+  writeStoredActivitySession,
+} from "./activity-session-storage";
 import {
   acknowledgeActivityFinalization,
   enqueueActivityFinalization,
@@ -53,78 +57,6 @@ export type ActivitySessionState = {
 };
 
 type ActivityLease = { release: () => void };
-
-const activityStorageKey = "notespace.activity-session";
-
-function legacyStorageKey(workspaceId: string) {
-  return `notespace.study-session:${workspaceId}`;
-}
-
-function validStoredSession(value: Partial<ManualActivitySession>) {
-  return (
-    typeof value.segmentId === "string"
-    && typeof value.activityDate === "string"
-    && (value.status === "running" || value.status === "paused")
-    && typeof value.sessionAccumulatedSeconds === "number"
-    && typeof value.segmentAccumulatedSeconds === "number"
-    && (value.runningSince === null || typeof value.runningSince === "number")
-    && typeof value.baselineTodaySeconds === "number"
-    && typeof value.baselineTotalSeconds === "number"
-  );
-}
-
-function readStoredSession(defaultContext?: ActivityStart): ManualActivitySession | null {
-  try {
-    const current = readLocalStorage(activityStorageKey);
-    if (current) {
-      const value = JSON.parse(current) as Partial<ManualActivitySession>;
-      if (!validStoredSession(value) || !value.context?.title || !value.context?.activityType) return null;
-      const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
-        ? value.logicalSessionId
-        : value.segmentId!.split(":", 1)[0] || value.segmentId!;
-      return { ...value, logicalSessionId } as ManualActivitySession;
-    }
-
-    if (!defaultContext?.workspaceId) return null;
-    const legacyKey = legacyStorageKey(defaultContext.workspaceId);
-    const raw = readLocalStorage(legacyKey);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<ManualActivitySession>;
-    if (!validStoredSession(value)) return null;
-    const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
-      ? value.logicalSessionId
-      : value.segmentId!.split(":", 1)[0] || value.segmentId!;
-    const migrated = {
-      ...value,
-      logicalSessionId,
-      context: defaultContext,
-    } as ManualActivitySession;
-    writeLocalStorage(activityStorageKey, JSON.stringify(migrated));
-    removeLocalStorage(legacyKey);
-    return migrated;
-  } catch {
-    return null;
-  }
-}
-
-function heartbeatFor(
-  context: ActivitySessionContext,
-  date: string,
-  activeSeconds: number,
-  finish: boolean,
-): ActivityHeartbeat {
-  return {
-    activityDate: date,
-    activeSeconds,
-    finish,
-    title: context.title,
-    activityType: context.activityType,
-    ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-    ...(context.workspaceTitleSnapshot ? { workspaceTitleSnapshot: context.workspaceTitleSnapshot } : {}),
-    ...(context.taskId ? { taskId: context.taskId } : {}),
-    ...(context.taskTitleSnapshot ? { taskTitleSnapshot: context.taskTitleSnapshot } : {}),
-  };
-}
 
 function acquireActivityLease(): Promise<ActivityLease | null> {
   if (typeof navigator === "undefined" || !("locks" in navigator)) {
@@ -177,8 +109,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
   const commitSession = useCallback((next: ManualActivitySession | null) => {
     sessionRef.current = next;
     setSession(next);
-    if (next) writeLocalStorage(activityStorageKey, JSON.stringify(next));
-    else removeLocalStorage(activityStorageKey);
+    writeStoredActivitySession(next);
   }, []);
 
   const sendSegment = useCallback((
@@ -189,7 +120,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     finish: boolean,
   ) => {
     if (!context) return;
-    void recordActivityHeartbeat(id, heartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
+    void recordActivityHeartbeat(id, activityHeartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
   }, []);
 
   const queueFinalization = useCallback((
@@ -202,7 +133,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     if (!context) return null;
     const finalization: PendingActivityFinalization = {
       sessionId: id,
-      heartbeat: heartbeatFor(context, date, activeSeconds, true),
+      heartbeat: activityHeartbeatFor(context, date, activeSeconds, true),
       ...(handoffTaskId ? { handoffTaskId } : {}),
     };
     return enqueueActivityFinalization(finalization) ? finalization : null;
@@ -274,7 +205,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     setReady(false);
     setBlockedByOtherTab(false);
     const now = Date.now();
-    const restored = readStoredSession(defaultContextRef.current);
+    const restored = readStoredActivitySession(defaultContextRef.current);
 
     if (restored) {
       void acquireActivityLease().then((lease) => {
@@ -378,7 +309,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       leaseRef.current = lease;
       setBlockedByOtherTab(false);
       const now = Date.now();
-      const stored = readStoredSession(defaultContextRef.current);
+      const stored = readStoredActivitySession(defaultContextRef.current);
       if (stored) {
         adoptStoredSession(stored, now);
         return;
@@ -417,7 +348,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       || leaseRef.current
       || acquiringLease.current
     ) return;
-    if (!readLocalStorage(legacyStorageKey(context.workspaceId))) return;
+    if (!hasLegacyStoredActivitySession(context.workspaceId)) return;
 
     acquiringLease.current = true;
     void acquireActivityLease().then((lease) => {
@@ -431,7 +362,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       setBlockedByOtherTab(false);
 
       const now = Date.now();
-      const stored = readStoredSession(context);
+      const stored = readStoredActivitySession(context);
       if (!stored) {
         releaseLease();
         return;

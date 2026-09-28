@@ -79,7 +79,8 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .env("NOTESPACE_ADDR", "127.0.0.1:0")
         .env("NOTESPACE_DB", &database)
         .env("NOTESPACE_WEB_DIR", &web_dir)
-        .env("NOTESPACE_PASSWORD", "");
+        .env("NOTESPACE_PASSWORD", "")
+        .env("NOTESPACE_READY_STDOUT", "1");
 
     let (mut events, child) = command
         .spawn()

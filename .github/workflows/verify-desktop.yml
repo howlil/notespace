@@ -8,6 +8,7 @@ on:
       - "apps/server/cmd/notespace/**"
       - "apps/web/**"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
       - "pnpm-lock.yaml"
   push:
@@ -54,6 +55,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke desktop sidecar runtime
+        run: node scripts/smoke-desktop-runtime.mjs
       - name: Test desktop runtime
         working-directory: apps/desktop/src-tauri
         run: cargo test

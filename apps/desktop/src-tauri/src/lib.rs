@@ -1,6 +1,7 @@
 use std::{
     fs,
     sync::Mutex,
+    time::Duration,
 };
 
 use tauri::{Manager, RunEvent, Url};
@@ -10,6 +11,7 @@ use tauri_plugin_shell::{
 };
 
 const READY_PREFIX: &str = "NOTESPACE_READY=";
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Default)]
 struct RuntimeProcess {
@@ -37,6 +39,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 if let Err(error) = start_runtime(&handle).await {
                     set_startup_status(&handle, &format!("Unable to start Notespace: {error}"), true);
+                    stop_runtime(&handle);
                 }
             });
             Ok(())
@@ -91,21 +94,52 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         *slot = Some(child);
     }
 
+    let ready_url = wait_for_readiness(&mut events).await?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window is unavailable".to_string())?;
+    window
+        .navigate(ready_url)
+        .map_err(|error| format!("open Notespace runtime: {error}"))?;
+
     while let Some(event) = events.recv().await {
+        match event {
+            CommandEvent::Stderr(bytes) => {
+                eprintln!("notespace-server: {}", String::from_utf8_lossy(&bytes).trim());
+            }
+            CommandEvent::Error(error) => {
+                clear_runtime(app);
+                show_runtime_failure(app, &format!("Local runtime error: {error}"));
+                return Ok(());
+            }
+            CommandEvent::Terminated(payload) => {
+                clear_runtime(app);
+                show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
+    clear_runtime(app);
+    show_runtime_failure(app, "Local runtime stopped unexpectedly.");
+    Ok(())
+}
+
+async fn wait_for_readiness(
+    events: &mut tokio::sync::mpsc::Receiver<CommandEvent>,
+) -> Result<Url, String> {
+    loop {
+        let event = tokio::time::timeout(STARTUP_TIMEOUT, events.recv())
+            .await
+            .map_err(|_| "server readiness timed out".to_string())?
+            .ok_or_else(|| "server sidecar closed without readiness".to_string())?;
+
         match event {
             CommandEvent::Stdout(bytes) => {
                 let line = String::from_utf8_lossy(&bytes);
-                let line = line.trim();
-                if let Some(raw_url) = line.strip_prefix(READY_PREFIX) {
-                    let url = Url::parse(raw_url)
-                        .map_err(|error| format!("invalid server readiness URL: {error}"))?;
-                    let window = app
-                        .get_webview_window("main")
-                        .ok_or_else(|| "main window is unavailable".to_string())?;
-                    window
-                        .navigate(url)
-                        .map_err(|error| format!("open Notespace runtime: {error}"))?;
-                    return Ok(());
+                if let Some(url) = parse_ready_line(line.trim())? {
+                    return Ok(url);
                 }
             }
             CommandEvent::Stderr(bytes) => {
@@ -120,8 +154,18 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
             _ => {}
         }
     }
+}
 
-    Err("server sidecar closed without readiness".to_string())
+fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
+    let Some(raw_url) = line.strip_prefix(READY_PREFIX) else {
+        return Ok(None);
+    };
+    let url = Url::parse(raw_url)
+        .map_err(|error| format!("invalid server readiness URL: {error}"))?;
+    if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") {
+        return Err("server readiness URL must use loopback HTTP".to_string());
+    }
+    Ok(Some(url))
 }
 
 fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
@@ -137,6 +181,27 @@ fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
     let _ = window.eval(&script);
 }
 
+fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let message = format!("{detail} Close and reopen Notespace.");
+    let Ok(message) = serde_json::to_string(&message) else {
+        return;
+    };
+    let script = format!(
+        "document.title='Notespace — Runtime stopped'; document.body.innerHTML='<main id=\"notespace-runtime-failure\" style=\"min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#f7f8fa;color:#252630\"><div style=\"display:grid;gap:8px;text-align:center\"><h1 style=\"margin:0;font-size:18px\">Notespace</h1><p id=\"runtime-message\" style=\"margin:0;color:#b13e4b;font-size:13px\"></p></div></main>'; document.getElementById('runtime-message').textContent={message};"
+    );
+    let _ = window.eval(&script);
+}
+
+fn clear_runtime(app: &tauri::AppHandle) {
+    let process = app.state::<RuntimeProcess>();
+    if let Ok(mut slot) = process.child.lock() {
+        *slot = None;
+    }
+}
+
 fn stop_runtime(app: &tauri::AppHandle) {
     let process = app.state::<RuntimeProcess>();
     let Ok(mut slot) = process.child.lock() else {
@@ -144,5 +209,22 @@ fn stop_runtime(app: &tauri::AppHandle) {
     };
     if let Some(child) = slot.take() {
         let _ = child.kill();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn readiness_accepts_only_loopback_http() {
+        let url = parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49152")
+            .expect("ready line should parse")
+            .expect("ready line should contain a URL");
+        assert_eq!(url.as_str(), "http://127.0.0.1:49152/");
+
+        assert!(parse_ready_line("NOTESPACE_READY=http://0.0.0.0:49152").is_err());
+        assert!(parse_ready_line("NOTESPACE_READY=https://127.0.0.1:49152").is_err());
+        assert!(parse_ready_line("unrelated log line").expect("non-ready log should be ignored").is_none());
     }
 }

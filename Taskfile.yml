@@ -146,9 +146,10 @@ tasks:
     desc: Prepare and test the desktop runtime shell
     deps:
       - desktop:prepare
-    dir: apps/desktop/src-tauri
     cmds:
-      - cargo test
+      - node scripts/smoke-desktop-runtime.mjs
+      - cmd: cargo test
+        dir: apps/desktop/src-tauri
 
   desktop:dev:
     desc: Run the desktop shell against the bundled local Notespace runtime

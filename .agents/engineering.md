@@ -704,6 +704,34 @@ CI intent:
 - pushes to the default branch additionally run the full Playwright suite;
 - scale, migration compatibility, and other expensive evidence remain explicit release/scheduled checks rather than everyday inner-loop tests.
 
+## Desktop runtime boundary
+
+Notespace Desktop is a thin runtime shell around the existing application, not a second product implementation.
+
+```text
+Tauri shell
+  → owns desktop process/window/resource lifecycle
+  → starts one bundled Notespace Go process on loopback
+        ↓
+existing Go HTTP server
+  → serves the existing web SPA and /api on one origin
+        ↓
+existing application services
+        ↓
+existing SQLite source of truth
+```
+
+Rules:
+
+- `apps/web` remains the single user-interface implementation for browser and desktop.
+- `apps/server` remains the owner of API, application behavior, persistence wiring, and SQLite lifecycle.
+- Desktop code must not duplicate Workspace, Note, Canvas, planning, activity, search, asset, or backup behavior.
+- Desktop product state must not move into Rust/Tauri storage; SQLite remains authoritative and browser storage keeps its existing cache/UI roles.
+- Keep web → server communication on the existing same-origin HTTP contract; do not introduce Tauri IPC for ordinary product operations.
+- The desktop shell may own only OS-specific concerns such as application-data/resource paths, sidecar lifecycle, single-instance behavior, and window lifecycle.
+- Prefer compatibility with existing browser APIs inside the WebView; add native adapters only when target-platform verification proves an existing browser capability is insufficient.
+- Desktop runtime must bind the embedded server to loopback only and must shut down its owned child process with the app.
+
 ## 25. Stop rule
 
 A refactor is complete when:

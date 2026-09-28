@@ -199,9 +199,10 @@ fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
 
 fn clear_runtime(app: &tauri::AppHandle) {
     let process = app.state::<RuntimeProcess>();
-    if let Ok(mut slot) = process.child.lock() {
-        *slot = None;
-    }
+    let Ok(mut slot) = process.child.lock() else {
+        return;
+    };
+    *slot = None;
 }
 
 fn stop_runtime(app: &tauri::AppHandle) {

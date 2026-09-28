@@ -94,7 +94,9 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         *slot = Some(child);
     }
 
-    let ready_url = wait_for_readiness(&mut events).await?;
+    let ready_url = tokio::time::timeout(STARTUP_TIMEOUT, wait_for_readiness(&mut events))
+        .await
+        .map_err(|_| "server readiness timed out".to_string())??;
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
@@ -108,7 +110,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
                 eprintln!("notespace-server: {}", String::from_utf8_lossy(&bytes).trim());
             }
             CommandEvent::Error(error) => {
-                clear_runtime(app);
+                stop_runtime(app);
                 show_runtime_failure(app, &format!("Local runtime error: {error}"));
                 return Ok(());
             }
@@ -121,7 +123,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         }
     }
 
-    clear_runtime(app);
+    stop_runtime(app);
     show_runtime_failure(app, "Local runtime stopped unexpectedly.");
     Ok(())
 }
@@ -130,9 +132,9 @@ async fn wait_for_readiness(
     events: &mut tokio::sync::mpsc::Receiver<CommandEvent>,
 ) -> Result<Url, String> {
     loop {
-        let event = tokio::time::timeout(STARTUP_TIMEOUT, events.recv())
+        let event = events
+            .recv()
             .await
-            .map_err(|_| "server readiness timed out".to_string())?
             .ok_or_else(|| "server sidecar closed without readiness".to_string())?;
 
         match event {

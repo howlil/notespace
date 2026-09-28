@@ -18,6 +18,7 @@ on:
       - "apps/server/cmd/notespace/**"
       - "apps/web/**"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
       - "pnpm-lock.yaml"
 

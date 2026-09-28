@@ -76,7 +76,9 @@ func run() error {
 	failures := make(chan error, 1)
 	go func() { failures <- server.Serve(listener) }()
 	actualAddress := listener.Addr().String()
-	fmt.Printf("NOTESPACE_READY=http://%s\n", actualAddress)
+	if os.Getenv("NOTESPACE_READY_STDOUT") == "1" {
+		fmt.Printf("NOTESPACE_READY=http://%s\n", actualAddress)
+	}
 	slog.Info("notespace listening", "address", actualAddress)
 	select {
 	case err := <-failures:

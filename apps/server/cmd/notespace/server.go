@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -67,9 +69,15 @@ func run() error {
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return err
+	}
 	failures := make(chan error, 1)
-	go func() { failures <- server.ListenAndServe() }()
-	slog.Info("notespace listening", "address", server.Addr)
+	go func() { failures <- server.Serve(listener) }()
+	actualAddress := listener.Addr().String()
+	fmt.Printf("NOTESPACE_READY=http://%s\n", actualAddress)
+	slog.Info("notespace listening", "address", actualAddress)
 	select {
 	case err := <-failures:
 		if !errors.Is(err, http.ErrServerClosed) {

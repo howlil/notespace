@@ -1,0 +1,20 @@
+[package]
+name = "notespace-desktop"
+version = "0.1.0"
+description = "Thin desktop runtime for Notespace"
+authors = ["howlil"]
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "notespace_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"

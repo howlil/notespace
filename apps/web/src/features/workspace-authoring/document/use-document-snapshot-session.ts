@@ -20,6 +20,10 @@ export function useDocumentSnapshotSession({
   const onChangeRef = useRef(onChange);
   const onDirtyChangeRef = useRef(onDirtyChange);
   const registerSnapshotFlushRef = useRef(registerSnapshotFlush);
+
+  onChangeRef.current = onChange;
+  onDirtyChangeRef.current = onDirtyChange;
+  registerSnapshotFlushRef.current = registerSnapshotFlush;
   const session = useMemo(() => createDocumentSnapshotSession({
     readSnapshot: () => editorRef.current?.getJSON() ?? null,
     onChange: (snapshot) => onChangeRef.current(snapshot),

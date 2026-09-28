@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Notespace",
+  "version": "0.1.0",
+  "identifier": "com.howlil.notespace",
+  "build": {
+    "frontendDist": "../bootstrap"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Notespace",
+        "url": "index.html",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "externalBin": [
+      "binaries/notespace-server"
+    ],
+    "resources": {
+      "../../web/dist/client/": "web/"
+    }
+  }
+}

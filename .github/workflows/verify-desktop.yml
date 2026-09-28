@@ -1,0 +1,63 @@
+name: Verify Desktop
+
+on:
+  pull_request:
+    paths:
+      - ".agents/engineering.md"
+      - "apps/desktop/**"
+      - "apps/server/cmd/notespace/**"
+      - "apps/web/**"
+      - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-runtime.mjs"
+      - "Taskfile.yml"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [master]
+    paths:
+      - "apps/desktop/**"
+      - "apps/server/cmd/notespace/**"
+      - "apps/web/**"
+      - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-runtime.mjs"
+      - "Taskfile.yml"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - run: rustup update stable && rustup default stable
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke desktop sidecar runtime
+        run: node scripts/smoke-desktop-runtime.mjs
+      - name: Test desktop runtime
+        working-directory: apps/desktop/src-tauri
+        run: cargo test

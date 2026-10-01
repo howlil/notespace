@@ -16,6 +16,8 @@
         "height": 820,
         "minWidth": 900,
         "minHeight": 600,
+        "dragDropEnabled": false,
+        "dataDirectory": "webview-data",
         "resizable": true
       }
     ],
@@ -25,6 +27,8 @@
   },
   "bundle": {
     "active": true,
+    "targets": ["msi"],
+    "icon": ["icons/icon.ico", "icons/icon.icns", "icons/icon.png"],
     "externalBin": [
       "binaries/notespace-server"
     ],

@@ -1,10 +1,13 @@
 use std::{
     fs,
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::Duration,
 };
 
-use tauri::{Manager, RunEvent, Url};
+use tauri::{AppHandle, Manager, RunEvent, Url, WindowEvent};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
@@ -12,10 +15,15 @@ use tauri_plugin_shell::{
 
 const READY_PREFIX: &str = "NOTESPACE_READY=";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+const SIDECAR_KILL_TIMEOUT: Duration = Duration::from_secs(3);
+const DESKTOP_PORT: u16 = 49832;
+const DESKTOP_ADDR: &str = "127.0.0.1:49832";
 
 #[derive(Default)]
 struct RuntimeProcess {
     child: Mutex<Option<CommandChild>>,
+    close_requested: AtomicBool,
 }
 
 pub fn run() {
@@ -33,24 +41,33 @@ pub fn run() {
 
     let app = builder
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(RuntimeProcess::default())
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(error) = start_runtime(&handle).await {
-                    set_startup_status(&handle, &format!("Unable to start Notespace: {error}"), true);
+                    set_startup_status(&handle, &startup_error_message(&error), true);
                     stop_runtime(&handle);
                 }
             });
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            allow_desktop_close,
+            cancel_desktop_close
+        ])
         .build(tauri::generate_context!())
         .expect("failed to build Notespace desktop runtime");
 
-    app.run(|app, event| {
-        if matches!(event, RunEvent::Exit) {
-            stop_runtime(app);
-        }
+    app.run(|app, event| match event {
+        RunEvent::WindowEvent {
+            label,
+            event: WindowEvent::CloseRequested { api, .. },
+            ..
+        } if label == "main" => request_close(app, api),
+        RunEvent::Exit => stop_runtime(app),
+        _ => {}
     });
 }
 
@@ -59,8 +76,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .path()
         .app_data_dir()
         .map_err(|error| format!("resolve app data directory: {error}"))?;
-    fs::create_dir_all(&data_dir)
-        .map_err(|error| format!("create app data directory: {error}"))?;
+    fs::create_dir_all(&data_dir).map_err(|error| format!("create app data directory: {error}"))?;
 
     let web_dir = app
         .path()
@@ -76,10 +92,11 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .shell()
         .sidecar("notespace-server")
         .map_err(|error| format!("resolve server sidecar: {error}"))?
-        .env("NOTESPACE_ADDR", "127.0.0.1:0")
+        .env("NOTESPACE_ADDR", DESKTOP_ADDR)
         .env("NOTESPACE_DB", &database)
         .env("NOTESPACE_WEB_DIR", &web_dir)
         .env("NOTESPACE_PASSWORD", "")
+        .env("NOTESPACE_PARENT_LIFECYCLE", "1")
         .env("NOTESPACE_READY_STDOUT", "1");
 
     let (mut events, child) = command
@@ -108,7 +125,10 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     while let Some(event) = events.recv().await {
         match event {
             CommandEvent::Stderr(bytes) => {
-                eprintln!("notespace-server: {}", String::from_utf8_lossy(&bytes).trim());
+                eprintln!(
+                    "notespace-server: {}",
+                    String::from_utf8_lossy(&bytes).trim()
+                );
             }
             CommandEvent::Error(error) => {
                 stop_runtime(app);
@@ -146,13 +166,18 @@ async fn wait_for_readiness(
                 }
             }
             CommandEvent::Stderr(bytes) => {
-                eprintln!("notespace-server: {}", String::from_utf8_lossy(&bytes).trim());
+                eprintln!(
+                    "notespace-server: {}",
+                    String::from_utf8_lossy(&bytes).trim()
+                );
             }
             CommandEvent::Error(error) => {
                 return Err(format!("server sidecar error: {error}"));
             }
             CommandEvent::Terminated(payload) => {
-                return Err(format!("server exited before readiness: {payload:?}"));
+                return Err(format!(
+                    "server exited before readiness on {DESKTOP_ADDR}: {payload:?}"
+                ));
             }
             _ => {}
         }
@@ -163,12 +188,59 @@ fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
     let Some(raw_url) = line.strip_prefix(READY_PREFIX) else {
         return Ok(None);
     };
-    let url = Url::parse(raw_url)
-        .map_err(|error| format!("invalid server readiness URL: {error}"))?;
+    let url =
+        Url::parse(raw_url).map_err(|error| format!("invalid server readiness URL: {error}"))?;
     if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") {
         return Err("server readiness URL must use loopback HTTP".to_string());
     }
+    if url.port() != Some(DESKTOP_PORT) {
+        return Err(format!("server readiness URL must use {DESKTOP_ADDR}"));
+    }
     Ok(Some(url))
+}
+
+fn startup_error_message(error: &str) -> String {
+    if error.contains("before readiness") {
+        return format!(
+            "Unable to start Notespace on {DESKTOP_ADDR}. Another process may be using this port; close it and reopen Notespace."
+        );
+    }
+    format!("Unable to start Notespace: {error}")
+}
+
+fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
+    api.prevent_close();
+    let process = app.state::<RuntimeProcess>();
+    if process.close_requested.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval("window.dispatchEvent(new Event('notespace:close-requested'))");
+    }
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(CLOSE_HANDSHAKE_TIMEOUT).await;
+        handle
+            .state::<RuntimeProcess>()
+            .close_requested
+            .store(false, Ordering::Release);
+    });
+}
+
+#[tauri::command]
+fn allow_desktop_close(app: AppHandle) -> Result<(), String> {
+    app.state::<RuntimeProcess>()
+        .close_requested
+        .store(false, Ordering::Release);
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_desktop_close(app: AppHandle) {
+    app.state::<RuntimeProcess>()
+        .close_requested
+        .store(false, Ordering::Release);
 }
 
 fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
@@ -211,8 +283,12 @@ fn stop_runtime(app: &tauri::AppHandle) {
     let Ok(mut slot) = process.child.lock() else {
         return;
     };
-    if let Some(child) = slot.take() {
-        let _ = child.kill();
+    if let Some(mut child) = slot.take() {
+        let _ = child.write(b"shutdown\n");
+        std::thread::spawn(move || {
+            std::thread::sleep(SIDECAR_KILL_TIMEOUT);
+            let _ = child.kill();
+        });
     }
 }
 
@@ -222,13 +298,23 @@ mod tests {
 
     #[test]
     fn readiness_accepts_only_loopback_http() {
-        let url = parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49152")
+        let url = parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49832")
             .expect("ready line should parse")
             .expect("ready line should contain a URL");
-        assert_eq!(url.as_str(), "http://127.0.0.1:49152/");
+        assert_eq!(url.as_str(), "http://127.0.0.1:49832/");
 
-        assert!(parse_ready_line("NOTESPACE_READY=http://0.0.0.0:49152").is_err());
-        assert!(parse_ready_line("NOTESPACE_READY=https://127.0.0.1:49152").is_err());
-        assert!(parse_ready_line("unrelated log line").expect("non-ready log should be ignored").is_none());
+        assert!(parse_ready_line("NOTESPACE_READY=http://0.0.0.0:49832").is_err());
+        assert!(parse_ready_line("NOTESPACE_READY=https://127.0.0.1:49832").is_err());
+        assert!(parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49833").is_err());
+        assert!(parse_ready_line("unrelated log line")
+            .expect("non-ready log should be ignored")
+            .is_none());
+    }
+
+    #[test]
+    fn startup_port_collision_has_actionable_recovery_message() {
+        let message = startup_error_message("server exited before readiness on 127.0.0.1:49832");
+        assert!(message.contains("127.0.0.1:49832"));
+        assert!(message.contains("close it and reopen Notespace"));
     }
 }

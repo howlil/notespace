@@ -13,6 +13,7 @@ import type {
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../shared/ui";
+import { openExternalUrl } from "../../../adapters/browser/external-links";
 import { useDismissablePopup } from "../../../shared/ui/dismissable";
 import { executeNativeAction, nativeActionIcon } from "./CanvasNativeActions";
 import {
@@ -606,7 +607,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
                     <NativeEmbedIcon /><span>Edit embed URL</span>
                   </button>
                   {selectedEmbed.link && (
-                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => { window.open(selectedEmbed.link!, "_blank", "noopener,noreferrer"); closePanel(); }}>
+                    <button type="button" className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-[10px] hover:bg-tint hover:text-accent [&_svg]:size-4" onClick={() => { void openExternalUrl(selectedEmbed.link!); closePanel(); }}>
                       <NativeEmbedIcon /><span>Open embed source</span>
                     </button>
                   )}

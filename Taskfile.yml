@@ -146,13 +146,14 @@ tasks:
     internal: true
     dir: apps/desktop/src-tauri
     cmds:
-      - cargo test
+      - cargo test --locked
 
   desktop:check:
     desc: Prepare and test the desktop runtime shell
     deps:
       - desktop:prepare
     cmds:
+      - pnpm test:desktop:lifecycle
       - node scripts/smoke-desktop-runtime.mjs
       - task: desktop:test-shell
 
@@ -170,4 +171,4 @@ tasks:
       - desktop:prepare
     dir: apps/desktop/src-tauri
     cmds:
-      - cargo tauri build
+      - cargo tauri build -- --locked

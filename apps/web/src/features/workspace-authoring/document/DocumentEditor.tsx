@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import type { Snapshot } from "../../../domain/workspace/workspace";
+import { openExternalUrl } from "../../../adapters/browser/external-links";
 import { canvasFrameLinkFromClipboard, listCanvasFrameLinks, type CanvasFrameLinkData } from "../../../domain/workspace/canvas-frame-link";
 import { canvasFrameLinkNode, createCanvasFrameLinkExtension } from "./CanvasFrameLinkNode";
 import { looksLikeMarkdown, markdownToSnapshot } from "../../../domain/document/markdown";
@@ -767,7 +768,7 @@ export default function DocumentEditor({
                 />
                 {linkUrl && (
                   <>
-                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Open link" onMouseDown={(event) => event.preventDefault()} onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={13} /></IconButton>
+                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Open link" onMouseDown={(event) => event.preventDefault()} onClick={() => void openExternalUrl(linkUrl)}><ExternalLink size={13} /></IconButton>
                     <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Copy link" onMouseDown={(event) => event.preventDefault()} onClick={() => void copyText(linkUrl, "Link copied.")}><Copy size={13} /></IconButton>
                   </>
                 )}

@@ -207,6 +207,30 @@ Prefer Playwright when correctness depends on:
 
 Do not use Playwright to enumerate pure domain edge cases.
 
+## Native desktop verification
+
+The Tauri shell keeps the web application as the product-behavior owner. Native checks cover only WebView and
+sidecar-specific risks:
+
+```sh
+pnpm build
+node scripts/prepare-desktop-sidecar.mjs
+pnpm test:desktop:lifecycle
+cargo tauri build --debug --no-bundle -- --locked
+pnpm test:desktop:native
+```
+
+`test:desktop:native` requires `tauri-driver` and the matching Edge WebDriver on Windows. Its WebView2 capability sets
+an explicit user-data folder so the launch/relaunch persistence assertion uses the same profile. The production shell
+uses the stable Tauri `dataDirectory`; browser Playwright remains the owner for full product journeys and multi-tab
+behavior.
+
+Windows release verification builds the MSI bundle with:
+
+```sh
+cargo tauri build -- --locked
+```
+
 ## Critical versus full browser suite
 
 The CI lanes are intentionally different.

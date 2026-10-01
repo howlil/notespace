@@ -1,0 +1,93 @@
+name: Release desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke sidecar parent lifecycle
+        run: pnpm test:desktop:lifecycle
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
+      - name: Test desktop runtime
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build Windows installer
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri build -- --locked
+      - name: Inspect bundle contents
+        shell: pwsh
+        run: |
+          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
+          $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
+          if (-not $installers) { throw "No Windows installer found in $bundle" }
+          if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
+          $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
+          $files | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | ConvertTo-Csv -NoTypeInformation | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.csv"
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: notespace-windows-${{ github.ref_name }}
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/
+            apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          if-no-files-found: error
+
+  cross-platform-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            deps: ""
+          - os: ubuntu-latest
+            deps: "libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - run: cargo install tauri-cli --locked
+      - working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - working-directory: apps/desktop/src-tauri
+        run: cargo tauri build --no-bundle -- --locked

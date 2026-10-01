@@ -7,7 +7,10 @@ on:
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
       - "apps/web/**"
+      - "package.json"
+      - "scripts/desktop-webdriver-smoke.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
       - "pnpm-lock.yaml"
@@ -17,7 +20,10 @@ on:
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
       - "apps/web/**"
+      - "package.json"
+      - "scripts/desktop-webdriver-smoke.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
       - "pnpm-lock.yaml"
@@ -56,8 +62,53 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke sidecar parent lifecycle
+        run: pnpm test:desktop:lifecycle
       - name: Smoke desktop sidecar runtime
         run: node scripts/smoke-desktop-runtime.mjs
       - name: Test desktop runtime
         working-directory: apps/desktop/src-tauri
-        run: cargo test
+        run: cargo test --locked
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
+      - name: Build native executable
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri build --no-bundle -- --locked
+
+  check-desktop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke sidecar parent lifecycle
+        run: pnpm test:desktop:lifecycle
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
+      - name: Test desktop runtime
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build native executable
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri build --no-bundle -- --locked
+      - name: Build debug executable for native parity
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri build --debug --no-bundle -- --locked
+      - name: Install native WebDriver tools
+        run: |
+          cargo install tauri-driver --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
+          msedgedriver-tool.exe
+      - name: Run native WebDriver parity smoke
+        run: pnpm test:desktop:native

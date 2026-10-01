@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -69,6 +72,9 @@ func run() error {
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
+	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
+		go watchParentLifecycle(stop)
+	}
 	listener, err := net.Listen("tcp", server.Addr)
 	if err != nil {
 		return err
@@ -94,4 +100,24 @@ func run() error {
 		}
 	}
 	return nil
+}
+
+func watchParentLifecycle(stop context.CancelFunc) {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		line, err := reader.ReadString('\n')
+		if strings.TrimSpace(line) == "shutdown" {
+			stop()
+			return
+		}
+		if errors.Is(err, io.EOF) {
+			stop()
+			return
+		}
+		if err != nil {
+			slog.Warn("parent lifecycle channel failed", "error", err)
+			stop()
+			return
+		}
+	}
 }

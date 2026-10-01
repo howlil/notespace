@@ -6,7 +6,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import "../shared/styles/globals.css";
 import "../features/workspace-authoring/workspace-authoring.css";
 import { Button } from "../shared/ui";
@@ -17,6 +17,7 @@ import { QuickOpen } from "../features/search/QuickOpen";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
 import { ActivityRuntimeProvider } from "../features/activity/activity-runtime-provider";
 import { ActivityDock } from "../features/activity/ActivityDock";
+import { allowDesktopClose, cancelDesktopClose, flushDesktopState, isTauriRuntime } from "../adapters/browser/desktop-lifecycle";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -40,6 +41,7 @@ export const Route = createRootRoute({
         <ToastProvider>
           <ThemeProvider>
             <ActivityRuntimeProvider>
+              <DesktopCloseBridge />
               <QuickOpen />
               <ConflictRecoveryDialog />
               <Outlet />
@@ -65,6 +67,23 @@ export const Route = createRootRoute({
     </main>
   ),
 });
+
+function DesktopCloseBridge() {
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    const requestClose = () => {
+      void flushDesktopState()
+        .then(() => allowDesktopClose())
+        .catch(async (error) => {
+          console.error("Notespace close flush failed", error);
+          await cancelDesktopClose();
+        });
+    };
+    window.addEventListener("notespace:close-requested", requestClose);
+    return () => window.removeEventListener("notespace:close-requested", requestClose);
+  }, []);
+  return null;
+}
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (

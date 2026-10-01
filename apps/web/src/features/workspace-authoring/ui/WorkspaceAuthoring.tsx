@@ -15,6 +15,7 @@ import type { Pane, PaneNode, WorkspaceViewMode } from "../model/pane-layout";
 import { useWorkspaceSession } from "../model/use-workspace-session";
 import { useWorkspaceCommands } from "../model/use-workspace-commands";
 import { useWorkspacePaneLayout } from "../model/use-workspace-pane-layout";
+import { registerDesktopFlush } from "../../../adapters/browser/desktop-lifecycle";
 import { workspaceRenameTitle } from "../../../domain/workspace/naming";
 import { WorkspaceRenameField } from "./WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
@@ -212,6 +213,7 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     document.addEventListener("visibilitychange", flush);
     return () => { document.removeEventListener("visibilitychange", flush); void flushAll().catch(() => {}); };
   }, [flushAll]);
+  useEffect(() => registerDesktopFlush(flushAll), [flushAll]);
 
   const updateDocument = useCallback((paneId: string, document: Snapshot) => {
     const pane = findPane(layout, paneId);

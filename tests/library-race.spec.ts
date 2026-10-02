@@ -55,7 +55,6 @@ test("@critical latest Library category selection wins over stale responses", as
     await expect(page.getByRole("link", { name: `Open ${workspaceB.title}` })).toBeVisible();
 
     releaseCategoryA?.();
-    await page.waitForTimeout(250);
 
     await expect(page).toHaveURL(new RegExp(`category=${categoryB.id}`));
     await expect(page.getByRole("link", { name: `Open ${workspaceB.title}` })).toBeVisible();

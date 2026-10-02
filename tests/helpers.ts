@@ -1,6 +1,18 @@
 import { expect } from "@playwright/test";
 import type { Page, APIRequestContext } from "@playwright/test";
 
+export function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, resolve, reject };
+}
+
 /**
  * Create a workspace via the Library sidebar and navigate into it.
  * Returns the workspace ID extracted from the URL.

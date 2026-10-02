@@ -1,199 +1,5 @@
-import { expect, test } from "@playwright/test";
-import type { APIRequestContext, Page } from "@playwright/test";
-import { deleteWorkspace } from "./helpers";
-
-async function createViaAPI(page: Page, request: APIRequestContext, title: string) {
-  const response = await request.post("/api/workspaces", { data: { title } });
-  expect(response.status()).toBe(201);
-  const workspace = await response.json() as { id: string };
-  await page.goto(`/workspaces/${workspace.id}`);
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-  return workspace.id;
-}
-
-async function cleanup(request: APIRequestContext, id: string) {
-  await deleteWorkspace(request, id);
-  await request.delete(`/api/trash/${id}`).catch(() => undefined);
-}
-
-async function openPaneMenu(page: Page) {
-  const details = page.locator("details.pane-actions").first();
-  if ((await details.getAttribute("open")) === null) {
-    await page.locator('summary[aria-label^="Actions for"]').first().click();
-  }
-}
-
-async function selectView(page: Page, name: "Canvas" | "Note" | "Split") {
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name, exact: true }).click();
-}
-
-function frameCanvasSnapshot() {
-  const base = {
-    angle: 0,
-    strokeColor: "#4f7396",
-    backgroundColor: "transparent",
-    fillStyle: "solid",
-    strokeWidth: 1,
-    strokeStyle: "solid",
-    roughness: 0,
-    opacity: 100,
-    groupIds: [],
-    roundness: null,
-    seed: 1,
-    version: 1,
-    versionNonce: 1,
-    isDeleted: false,
-    boundElements: null,
-    updated: 1,
-    link: null,
-    locked: false,
-  };
-  return {
-    format: "excalidraw",
-    version: 1,
-    data: {
-      elements: [
-        { ...base, id: "frame-architecture", type: "frame", x: 120, y: 90, width: 440, height: 260, frameId: null, index: "a0", name: "Architecture" },
-        { ...base, id: "service-box", type: "rectangle", x: 180, y: 145, width: 180, height: 90, frameId: "frame-architecture", index: "a1", backgroundColor: "#e8eef6" },
-        { ...base, id: "service-logo", type: "image", x: 390, y: 155, width: 64, height: 64, frameId: "frame-architecture", index: "a2", fileId: "asset-frame-logo", status: "saved", scale: [1, 1], crop: null },
-      ],
-      appState: { viewBackgroundColor: "#f8f9fc" },
-      files: {},
-    },
-  };
-}
-
-function frameClipboardPayload() {
-  const snapshot = frameCanvasSnapshot();
-  return JSON.stringify({ type: "excalidraw/clipboard", elements: snapshot.data.elements });
-}
-
-test("@critical create → edit note and canvas → reload", async ({ page, request }) => {
-  const title = `Distributed Systems ${Date.now()}`;
-  const id = await createViaAPI(page, request, title);
-
-  try {
-    const editor = page.getByRole("textbox", { name: "Workspace document" });
-    await editor.fill("Consensus\nRaft\nPaxos\nquorum = majority(nodes)");
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-
-    await selectView(page, "Canvas");
-    const canvas = page.locator(".excalidraw__canvas.interactive");
-    await expect(canvas).toBeVisible();
-    const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
-    await toolbar.getByRole("button", { name: "Rectangle", exact: true }).click();
-    const bounds = await canvas.boundingBox();
-    if (!bounds) throw new Error("Canvas did not render");
-    await page.mouse.move(bounds.x + 220, bounds.y + 180);
-    await page.mouse.down();
-    await page.mouse.move(bounds.x + 360, bounds.y + 250, { steps: 8 });
-    await page.mouse.up();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-
-    const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
-      canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };
-    };
-    expect(stored.canvas.data.elements.filter((element) => !element.isDeleted).length).toBeGreaterThanOrEqual(1);
-
-    await page.reload();
-    await selectView(page, "Note");
-    await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("Paxos");
-  } finally {
-    await cleanup(request, id);
-  }
-});
-
-test("failed autosave blocks navigation and retry preserves content", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, `Recovery ${Date.now()}`);
-
-  try {
-    const noteSaveRoute = `**/api/workspaces/${id}/notes/*`;
-    await page.route(noteSaveRoute, async (route) => {
-      if (route.request().method() === "PATCH") {
-        await route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          body: JSON.stringify({ error: "Storage temporarily unavailable" }),
-        });
-        return;
-      }
-      await route.continue();
-    });
-
-    const editor = page.getByRole("textbox", { name: "Workspace document" });
-    await editor.fill("Keep this thought");
-    await expect(page.getByRole("alert")).toContainText("Storage temporarily unavailable");
-
-    await page.getByRole("link", { name: "Back to library", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/workspaces/${id}`));
-    await expect(editor).toContainText("Keep this thought");
-
-    await page.unroute(noteSaveRoute);
-    await page.getByRole("button", { name: "Retry save" }).first().click();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-    await page.reload();
-    await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("Keep this thought");
-  } finally {
-    await cleanup(request, id);
-  }
-});
-
-test("pane tree splits, enters focus mode, and restores layout", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, `Pane tree ${Date.now()}`);
-
-  try {
-    for (let index = 0; index < 2; index += 1) {
-      await page.getByRole("button", { name: "New note", exact: true }).click();
-    }
-
-    await openPaneMenu(page);
-    await page.getByRole("button", { name: "Split right", exact: true }).click();
-    await openPaneMenu(page);
-    await page.getByRole("button", { name: "Split down", exact: true }).click();
-    await expect(page.locator('section[aria-label$="note pane"]')).toHaveCount(3);
-
-    const maximize = page.getByRole("button", { name: /Maximize active (pane|split)/ });
-    await expect(maximize).toBeVisible();
-    await maximize.click();
-    await expect(page.locator(".workspace-main.is-focus-mode")).toBeVisible();
-    await expect(page.locator(".workspace-header")).toBeHidden();
-
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".workspace-header")).toBeVisible();
-  } finally {
-    await cleanup(request, id);
-  }
-});
-
-test("narrow split view retains note and canvas without horizontal overflow", async ({ page, request }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  const id = await createViaAPI(page, request, `Narrow ${Date.now()}`);
-
-  try {
-    await selectView(page, "Split");
-    await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  } finally {
-    await cleanup(request, id);
-  }
-});
-
-test("Canvas content survives reload independently from pane layout", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, `Canvas mechanics ${Date.now()}`);
-
-  try {
-    await selectView(page, "Canvas");
-    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
-    await page.reload();
-    await selectView(page, "Canvas");
-    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
-    await expect(page.getByRole("region", { name: "Canvas pane" })).toBeVisible();
-  } finally {
-    await cleanup(request, id);
-  }
-});
-
+import { test, expect, cleanupWorkspace, createViaAPI, frameCanvasSnapshot, frameClipboardPayload, selectView } from "./fixtures";
+import { deferred } from "../helpers";
 
 test("flowchart spawn previews, chains, auto-connects, and switches shape type", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Directional spawn ${Date.now()}`);
@@ -282,27 +88,7 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
       };
     }).toEqual({ rectangles: 2, diamonds: 1, arrows: 2 });
   } finally {
-    await cleanup(request, id);
-  }
-});
-
-
-test("single Note view uses a centered article-width writing column", async ({ page, request }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const id = await createViaAPI(page, request, `Article width ${Date.now()}`);
-
-  try {
-    await selectView(page, "Note");
-    const editor = page.getByRole("textbox", { name: "Workspace document" });
-    const pane = page.locator('section[aria-label$="note pane"]').first();
-    const editorBox = await editor.boundingBox();
-    const paneBox = await pane.boundingBox();
-    expect(editorBox).not.toBeNull();
-    expect(paneBox).not.toBeNull();
-    expect(editorBox!.width).toBeLessThanOrEqual(762);
-    expect(Math.abs((editorBox!.x + editorBox!.width / 2) - (paneBox!.x + paneBox!.width / 2))).toBeLessThan(6);
-  } finally {
-    await cleanup(request, id);
+    await cleanupWorkspace(request, id);
   }
 });
 
@@ -355,7 +141,7 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     expect(storedDocument).not.toContain('"stderr"');
     expect(storedDocument).not.toContain('"durationMs"');
   } finally {
-    await cleanup(request, id);
+    await cleanupWorkspace(request, id);
   }
 });
 
@@ -405,13 +191,14 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     await reloadedEditor.click();
 
     let notePatchCount = 0;
+    const firstPatchRelease = deferred<void>();
     await page.route(`**/api/workspaces/${id}/notes/*`, async (route) => {
       if (route.request().method() !== "PATCH") {
         await route.continue();
         return;
       }
       notePatchCount += 1;
-      await new Promise((resolve) => setTimeout(resolve, notePatchCount === 1 ? 500 : 900));
+      if (notePatchCount === 1) await firstPatchRelease.promise;
       await route.continue();
     });
 
@@ -426,12 +213,12 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     const linkedFrames = page.getByRole("button", { name: "Open canvas frame Architecture" });
     await expect(linkedFrames).toHaveCount(2);
     await expect(page.getByText("Saving…", { exact: true })).toBeVisible();
+    await expect.poll(() => notePatchCount).toBeGreaterThanOrEqual(1);
 
-    // Delete while the older two-frame snapshot is still in flight. The stale
-    // acknowledgement must never replace the newer local one-frame document.
     await page.getByRole("button", { name: "Remove canvas frame link" }).first().click();
     await expect(linkedFrames).toHaveCount(1);
-    await page.waitForTimeout(650);
+    firstPatchRelease.resolve();
+    await expect.poll(() => notePatchCount).toBeGreaterThanOrEqual(2);
     await expect(linkedFrames).toHaveCount(1);
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     expect(notePatchCount).toBeGreaterThanOrEqual(2);
@@ -444,6 +231,6 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     expect(frameNodes).toHaveLength(1);
     expect(frameNodes[0]?.attrs?.frameId).toBe("frame-architecture");
   } finally {
-    await cleanup(request, id);
+    await cleanupWorkspace(request, id);
   }
 });

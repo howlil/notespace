@@ -5,9 +5,14 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing tag to release, for example v1.2.3"
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-installer:
@@ -15,6 +20,22 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG_INPUT } else { $env:GITHUB_REF_NAME }
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$') { throw "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/sync-desktop-version.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -37,27 +58,56 @@ jobs:
       - name: Build Windows installer
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build -- --locked
+      - name: Smoke release binary
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
+        run: pnpm test:desktop:native
+      - name: Verify release product persistence
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
+        run: pnpm test:desktop:critical
       - name: Inspect bundle contents
         shell: pwsh
         run: |
           $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
           $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
-          if (-not $installers) { throw "No Windows installer found in $bundle" }
+          if (-not ($installers | Where-Object Extension -eq '.msi')) { throw "No Windows MSI found in $bundle" }
           if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
           $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
       - name: Create checksums
         shell: pwsh
         run: |
-          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
-          $files | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | ConvertTo-Csv -NoTypeInformation | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.csv"
+          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -eq '.msi' }
+          $lines = $files | ForEach-Object { $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash; "$hash  $($_.Name)" }
+          $lines | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt"
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: notespace-windows-${{ github.ref_name }}
+          name: notespace-windows-${{ steps.release.outputs.tag }}
           path: |
             apps/desktop/src-tauri/target/release/bundle/
             apps/desktop/src-tauri/target/release/notespace-desktop.exe
           if-no-files-found: error
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
+          $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
+          $files += Get-Item (Join-Path $bundle "SHA256SUMS.txt")
+          $paths = $files | ForEach-Object { $_.FullName }
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG $paths --clobber
+          } else {
+            gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
 
   cross-platform-native:
     strategy:
@@ -72,6 +122,25 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - name: Resolve release version
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          tag="${RELEASE_TAG_INPUT:-${GITHUB_REF_NAME}}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/sync-desktop-version.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

@@ -1,8 +1,9 @@
 use std::{
     fs,
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Mutex,
+        Arc, Condvar, Mutex,
     },
     time::Duration,
 };
@@ -16,14 +17,24 @@ use tauri_plugin_shell::{
 const READY_PREFIX: &str = "NOTESPACE_READY=";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
-const SIDECAR_KILL_TIMEOUT: Duration = Duration::from_secs(3);
+const SIDECAR_GRACEFUL_TIMEOUT: Duration = Duration::from_secs(12);
 const DESKTOP_PORT: u16 = 49832;
 const DESKTOP_ADDR: &str = "127.0.0.1:49832";
 
-#[derive(Default)]
 struct RuntimeProcess {
     child: Mutex<Option<CommandChild>>,
     close_requested: AtomicBool,
+    sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl Default for RuntimeProcess {
+    fn default() -> Self {
+        Self {
+            child: Mutex::new(None),
+            close_requested: AtomicBool::new(false),
+            sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
+        }
+    }
 }
 
 pub fn run() {
@@ -72,10 +83,7 @@ pub fn run() {
 }
 
 async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("resolve app data directory: {error}"))?;
+    let data_dir = runtime_data_dir(app)?;
     fs::create_dir_all(&data_dir).map_err(|error| format!("create app data directory: {error}"))?;
 
     let web_dir = app
@@ -103,6 +111,8 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .spawn()
         .map_err(|error| format!("spawn server sidecar: {error}"))?;
 
+    let sidecar_exited = app.state::<RuntimeProcess>().sidecar_exited.clone();
+    reset_sidecar_exit(&sidecar_exited);
     {
         let process = app.state::<RuntimeProcess>();
         let mut slot = process
@@ -112,9 +122,12 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         *slot = Some(child);
     }
 
-    let ready_url = tokio::time::timeout(STARTUP_TIMEOUT, wait_for_readiness(&mut events))
-        .await
-        .map_err(|_| "server readiness timed out".to_string())??;
+    let ready_url = tokio::time::timeout(
+        STARTUP_TIMEOUT,
+        wait_for_readiness(&mut events, &sidecar_exited),
+    )
+    .await
+    .map_err(|_| "server readiness timed out".to_string())??;
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
@@ -149,8 +162,22 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn runtime_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var_os("NOTESPACE_DESKTOP_TEST_DATA_DIR") {
+        let path = PathBuf::from(path);
+        if path.as_os_str().is_empty() {
+            return Err("desktop test data directory cannot be empty".to_string());
+        }
+        return Ok(path);
+    }
+    app.path()
+        .app_data_dir()
+        .map_err(|error| format!("resolve app data directory: {error}"))
+}
+
 async fn wait_for_readiness(
     events: &mut tokio::sync::mpsc::Receiver<CommandEvent>,
+    sidecar_exited: &Arc<(Mutex<bool>, Condvar)>,
 ) -> Result<Url, String> {
     loop {
         let event = events
@@ -175,6 +202,7 @@ async fn wait_for_readiness(
                 return Err(format!("server sidecar error: {error}"));
             }
             CommandEvent::Terminated(payload) => {
+                mark_sidecar_exited(sidecar_exited);
                 return Err(format!(
                     "server exited before readiness on {DESKTOP_ADDR}: {payload:?}"
                 ));
@@ -232,6 +260,7 @@ fn allow_desktop_close(app: AppHandle) -> Result<(), String> {
     app.state::<RuntimeProcess>()
         .close_requested
         .store(false, Ordering::Release);
+    stop_runtime(&app);
     app.exit(0);
     Ok(())
 }
@@ -276,19 +305,54 @@ fn clear_runtime(app: &tauri::AppHandle) {
         return;
     };
     *slot = None;
+    mark_sidecar_exited(&process.sidecar_exited);
 }
 
 fn stop_runtime(app: &tauri::AppHandle) {
     let process = app.state::<RuntimeProcess>();
-    let Ok(mut slot) = process.child.lock() else {
-        return;
+    let child = {
+        let Ok(mut slot) = process.child.lock() else {
+            return;
+        };
+        slot.take()
     };
-    if let Some(mut child) = slot.take() {
-        let _ = child.write(b"shutdown\n");
-        std::thread::spawn(move || {
-            std::thread::sleep(SIDECAR_KILL_TIMEOUT);
+    if let Some(mut child) = child {
+        if let Err(error) = child.write(b"shutdown\n") {
+            eprintln!("notespace-server: graceful shutdown request failed: {error}");
             let _ = child.kill();
-        });
+            mark_sidecar_exited(&process.sidecar_exited);
+            return;
+        }
+        if wait_for_sidecar_exit(&process.sidecar_exited, SIDECAR_GRACEFUL_TIMEOUT) {
+            eprintln!("notespace-server: exited gracefully");
+        } else {
+            eprintln!("notespace-server: graceful shutdown timed out; force-killing sidecar");
+            let _ = child.kill();
+        }
+    }
+}
+
+fn wait_for_sidecar_exit(signal: &Arc<(Mutex<bool>, Condvar)>, timeout: Duration) -> bool {
+    let (lock, notify) = &**signal;
+    let exited = lock.lock().expect("sidecar exit signal lock poisoned");
+    let (exited, _) = notify
+        .wait_timeout_while(exited, timeout, |exited| !*exited)
+        .expect("sidecar exit signal wait failed");
+    *exited
+}
+
+fn reset_sidecar_exit(signal: &Arc<(Mutex<bool>, Condvar)>) {
+    let (lock, _) = &**signal;
+    if let Ok(mut exited) = lock.lock() {
+        *exited = false;
+    }
+}
+
+fn mark_sidecar_exited(signal: &Arc<(Mutex<bool>, Condvar)>) {
+    let (lock, notify) = &**signal;
+    if let Ok(mut exited) = lock.lock() {
+        *exited = true;
+        notify.notify_all();
     }
 }
 
@@ -316,5 +380,19 @@ mod tests {
         let message = startup_error_message("server exited before readiness on 127.0.0.1:49832");
         assert!(message.contains("127.0.0.1:49832"));
         assert!(message.contains("close it and reopen Notespace"));
+    }
+
+    #[test]
+    fn graceful_shutdown_timeout_exceeds_server_shutdown_window() {
+        assert!(SIDECAR_GRACEFUL_TIMEOUT >= Duration::from_secs(10));
+    }
+
+    #[test]
+    fn graceful_shutdown_wait_observes_exit_signal_and_timeout() {
+        let exited = Arc::new((Mutex::new(false), Condvar::new()));
+        assert!(!wait_for_sidecar_exit(&exited, Duration::from_millis(1)));
+
+        mark_sidecar_exited(&exited);
+        assert!(wait_for_sidecar_exit(&exited, Duration::from_millis(1)));
     }
 }

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -71,6 +72,7 @@ func run() error {
 	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
+	handler = withTestNoteSaveDelay(handler)
 	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
 	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
 		go watchParentLifecycle(stop)
@@ -100,6 +102,29 @@ func run() error {
 		}
 	}
 	return nil
+}
+
+// withTestNoteSaveDelay is an opt-in integration-test fixture. It delays only
+// granular Note writes so the desktop close journey can observe an in-flight
+// save and prove that the second pending snapshot is flushed before exit.
+func withTestNoteSaveDelay(next http.Handler) http.Handler {
+	delayMs, err := strconv.Atoi(os.Getenv("NOTESPACE_TEST_NOTE_SAVE_DELAY_MS"))
+	if err != nil || delayMs <= 0 {
+		return next
+	}
+	delay := time.Duration(delayMs) * time.Millisecond
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/notes/") {
+			timer := time.NewTimer(delay)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func watchParentLifecycle(stop context.CancelFunc) {

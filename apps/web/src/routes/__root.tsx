@@ -6,7 +6,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import "../shared/styles/globals.css";
 import "../features/workspace-authoring/workspace-authoring.css";
 import { Button } from "../shared/ui";
@@ -69,20 +69,41 @@ export const Route = createRootRoute({
 });
 
 function DesktopCloseBridge() {
+  const [closeState, setCloseState] = useState<"idle" | "flushing" | "error">("idle");
+  const [closeError, setCloseError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isTauriRuntime()) return;
     const requestClose = () => {
+      setCloseState("flushing");
+      setCloseError(null);
       void flushDesktopState()
-        .then(() => allowDesktopClose())
+        .then(async () => {
+          await allowDesktopClose();
+        })
         .catch(async (error) => {
           console.error("Notespace close flush failed", error);
-          await cancelDesktopClose();
+          setCloseState("error");
+          setCloseError(error instanceof Error ? error.message : "Perubahan belum tersimpan. Coba tutup lagi.");
+          try {
+            await cancelDesktopClose();
+          } catch (cancelError) {
+            console.error("Notespace close cancellation failed", cancelError);
+          }
         });
     };
     window.addEventListener("notespace:close-requested", requestClose);
     return () => window.removeEventListener("notespace:close-requested", requestClose);
   }, []);
-  return null;
+  if (closeState === "idle") return null;
+  const failed = closeState === "error";
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex justify-center p-3" data-testid="desktop-close-status" data-desktop-close-state={closeState}>
+      <div className={`rounded-md border bg-surface px-3 py-2 text-xs shadow-sm ${failed ? "border-danger/40 text-danger" : "border-line text-muted"}`} role={failed ? "alert" : "status"} aria-live={failed ? "assertive" : "polite"}>
+        {failed ? closeError ?? "Perubahan belum tersimpan. Coba tutup lagi." : "Menyimpan perubahan sebelum menutup…"}
+      </div>
+    </div>
+  );
 }
 
 function RootDocument({ children }: { children: ReactNode }) {

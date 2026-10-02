@@ -108,6 +108,17 @@ go vet ./...
 go test -race ./...
 ```
 
+The real server-process integration proof runs the built Go binary against a temporary SQLite database, waits for the
+readiness handshake, exercises Workspace Note/Canvas HTTP mutations, shuts the process down through its parent-lifecycle
+stdin protocol, relaunches it with the same database, and verifies durable state:
+
+```sh
+pnpm test:server:process
+```
+
+This is intentionally separate from package tests because it proves command wiring, process lifecycle, HTTP routing, and
+SQLite durability together. It uses observable readiness/process-exit signals rather than arbitrary sleeps.
+
 ### Application/service tests
 
 Application packages use small behavioral fakes for their consumer-owned ports.
@@ -224,6 +235,14 @@ pnpm test:desktop:native
 an explicit user-data folder so the launch/relaunch persistence assertion uses the same profile. The production shell
 uses the stable Tauri `dataDirectory`; browser Playwright remains the owner for full product journeys and multi-tab
 behavior.
+
+The release lane also runs `pnpm test:desktop:critical` against the release executable. This journey creates a
+Workspace through the UI, starts one Note save, edits the Note again while that save is active, closes the native
+window, relaunches the same executable, and verifies the latest authored data from the same SQLite data directory.
+The critical command requires an isolated
+`NOTESPACE_DESKTOP_TEST_DATA_DIR`; the desktop runtime uses that path only when the test environment provides it.
+The critical runner also sets the opt-in `NOTESPACE_TEST_NOTE_SAVE_DELAY_MS` sidecar fixture so the close journey
+can deterministically exercise an in-flight Note save without synchronizing on arbitrary sleeps.
 
 Windows release verification builds the MSI bundle with:
 

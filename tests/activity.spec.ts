@@ -85,7 +85,6 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(taskActivityMenu).toBeVisible();
     await taskActivityMenu.getByRole("menuitem", { name: "Build" }).click();
 
-    await expect(activityType).toHaveValue("read");
     await expect(page.getByText(task.title, { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
 

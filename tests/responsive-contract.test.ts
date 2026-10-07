@@ -6,6 +6,7 @@ import { join } from "node:path";
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
+const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
@@ -19,11 +20,12 @@ function source(path: string) { return readFileSync(path, "utf8"); }
 
 test("responsive contract: compact workspaces preserve usable pane width", () => {
   const workspace = source(WORKSPACE);
+  const workspacePage = source(WORKSPACE_PAGE);
   assert.match(workspace, /matchMedia\("\(max-width: 760px\)"\)/);
   assert.match(workspace, /node\.direction === "row" && compactPanes \? "column" : node\.direction/);
   assert.match(workspace, /max-\[760px\]:!grid-cols-1/);
-  assert.match(workspace, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)_auto\]/);
-  assert.match(workspace, /max-\[560px\]:grid-rows-\[30px_32px\]/);
+  assert.match(workspacePage, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)_auto\]/);
+  assert.match(workspacePage, /max-\[560px\]:grid-rows-\[30px_32px\]/);
   assert.doesNotMatch(workspace, /keepsCanvasOnRight/);
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });

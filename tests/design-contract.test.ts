@@ -328,7 +328,7 @@ test("capture contract: Quick Capture and Library Tools are direct sidebar actio
 });
 
 test("workspace contract: bounded panes and explicit Canvas frame embeds remain user-facing behavior", () => {
-  const workspace=source(WORKSPACE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
+  const workspace=source(WORKSPACE), workspacePage=source(WORKSPACE_PAGE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
   assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
   assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/);
   const viewSwitcher = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceViewSwitcher.tsx"));
@@ -336,17 +336,17 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
   assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
   assert.match(workspace,/renameWorkspace/);
-  assert.match(workspace,/Rename workspace/);
-  assert.match(workspace,/onDoubleClick=\{\(event\) =>/);
-  assert.doesNotMatch(workspace,/aria-label="Rename workspace"/);
-  assert.match(workspace,/workspace-switcher/);
-  assert.match(workspace,/role="listbox"/);
-  assert.doesNotMatch(workspace,/<select /);
+  assert.match(workspacePage,/Rename workspace/);
+  assert.match(workspacePage,/onDoubleClick=\{\(event\) =>/);
+  assert.doesNotMatch(workspacePage,/aria-label="Rename workspace"/);
+  assert.match(workspacePage,/workspace-switcher/);
+  assert.match(workspacePage,/role="listbox"/);
+  assert.doesNotMatch(workspacePage,/<select /);
   assert.match(renameField,/aria-label="Workspace title"/);
   for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
-  assert.match(source(WORKSPACE_PAGE), /<WorkspacePlan/);
-  assert.match(source(WORKSPACE_PAGE), /renderPlan=/);
-  assert.match(workspace, /renderPlan\(\{ workspaceId: workspace\.id, workspaceTitle: current\.current\.title \}\)/);
+  assert.match(workspacePage, /<WorkspacePlan/);
+  assert.doesNotMatch(workspacePage, /renderPlan=/);
+  assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
   assert.match(source(WORKSPACE_PAGE), /renderTaskAction=/);
   assert.match(source(WORKSPACE_PAGE), /Start activity for/);
   assert.match(source(WORKSPACE_PAGE), /ActivityTypeTrigger/);

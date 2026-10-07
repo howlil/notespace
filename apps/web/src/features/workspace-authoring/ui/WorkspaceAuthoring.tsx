@@ -269,11 +269,11 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
       showToast({ kind: "error", message: "This linked note no longer exists." });
       return;
     }
-    setPlanOpen(false);
+
   }
 
   function openCanvasFrame(frameId: string) {
-    setPlanOpen(false);
+
     focusCanvasFrame(frameId);
   }
 

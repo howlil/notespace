@@ -408,3 +408,18 @@ test("diagram catalog metadata is owned by the diagram catalog module", () => {
   assert.match(catalog, /eraser-icons\.generated\.json/);
   assert.match(catalog, /compatibilityCatalog/);
 });
+
+test("home page owns the library screen composition", () => {
+  const home = source("pages/home/HomePage.tsx");
+  const library = source("features/library/WorkspaceLibrary.tsx");
+  const model = source("features/library/use-workspace-library.ts");
+
+  assert.match(home, /dashboard-shell/);
+  assert.match(home, /LibrarySidebar/);
+  assert.match(home, /useWorkspaceLibrary/);
+  assert.match(home, /WorkspaceLibrary/);
+
+  assert.doesNotMatch(library, /dashboard-shell|renderNavigation|renderToolbar/);
+  assert.doesNotMatch(library, /adapters\/http\//);
+  assert.match(model, /adapters\/http\/workspace-api/);
+});

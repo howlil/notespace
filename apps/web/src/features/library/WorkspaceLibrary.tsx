@@ -1,38 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Folder, Pencil, Plus, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import type { FormEvent, ReactNode } from "react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import { useToast } from "../../shared/ui/toast-provider";
-import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
-import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
-import { notifyLibraryChanged } from "../../adapters/browser/library-change";
-import { useLibraryRevision } from "./use-library-revision";
-import { workspaceRenameTitle } from "../../domain/workspace/naming";
-import { errorMessage } from "../../shared/lib/error-message";
+import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 import { WorkspaceListSkeleton } from "./WorkspaceListSkeleton";
+import type { WorkspaceLibraryModel } from "./use-workspace-library";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
-
-export type WorkspaceLibraryNavigationProps = {
-  categories: CategorySummary[];
-  selectedCategoryId: string;
-  onSelectCategory: (id: string) => void;
-  onChanged: () => void;
-};
-
-type Props = {
-  categories: CategorySummary[];
-  recentWorkspaces: WorkspaceSummary[];
-  initialSelectedCategoryId?: string;
-  initialCategoryPage?: WorkspacePage;
-  renderNavigation: (props: WorkspaceLibraryNavigationProps) => ReactNode;
-  renderToolbar: ReactNode;
-  renderAfterList?: ReactNode;
-};
-type LibraryView = "recent" | "all" | "category";
-
 const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
 
 type WorkspaceFolderCardProps = {
@@ -240,327 +216,103 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
   );
 }
 
-export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage, renderNavigation, renderToolbar, renderAfterList }: Props) {
-  const navigate = useNavigate();
-  const { showToast } = useToast();
-  const libraryRevision = useLibraryRevision();
-  const handledLibraryRevision = useRef(libraryRevision);
-  const pageRequestGeneration = useRef(0);
-  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
-  const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
-  const [categoryItems, setCategoryItems] = useState(categories);
-  const [recentItems, setRecentItems] = useState(recentWorkspaces);
-  const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
-  const [pageLoading, setPageLoading] = useState(false);
-  const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
+type WorkspaceLibraryProps = {
+  model: WorkspaceLibraryModel;
+  afterList?: ReactNode;
+};
 
-  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
-  const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
-  const [createLoading, setCreateLoading] = useState(false);
-  const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
-  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
-  const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");
-  const [savingWorkspaceId, setSavingWorkspaceId] = useState<string | null>(null);
-  const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceSummary | null>(null);
-  const workspaceRenameSubmitting = useRef(false);
-  const workspaceRenameCancelled = useRef(false);
-
-  const newWorkspaceCategoryId = useMemo(() => {
-    if (view === "category" && selectedCategoryId) return selectedCategoryId;
-    return (categoryItems.find((c) => c.id === "legacy") ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
-  }, [view, selectedCategoryId, categoryItems]);
-
-  async function handleCreateWorkspace(event: FormEvent) {
-    event.preventDefault();
-    const title = newWorkspaceTitle.trim();
-    if (!title) return;
-    setCreateLoading(true);
-    try {
-      const workspace = await createWorkspace(title, newWorkspaceCategoryId);
-      setRecentlyCreatedWorkspaceId(workspace.id);
-
-      if (view === "recent") {
-        setRecentItems((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)].slice(0, 20));
-      } else {
-        setPage((current) => current ? {
-          ...current,
-          items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
-          total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
-        } : current);
-      }
-
-      setNewWorkspaceTitle("");
-      setCreatingWorkspace(false);
-      refreshLibrary({ silent: true });
-    } catch (err) {
-      showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });
-    } finally {
-      setCreateLoading(false);
-    }
-  }
-
-  function beginWorkspaceRename(workspace: WorkspaceSummary) {
-    workspaceRenameCancelled.current = false;
-    setEditingWorkspaceId(workspace.id);
-    setWorkspaceTitleDraft(workspace.title);
-  }
-
-  function cancelWorkspaceRename() {
-    if (workspaceRenameSubmitting.current) return;
-    workspaceRenameCancelled.current = true;
-    setEditingWorkspaceId(null);
-    setWorkspaceTitleDraft("");
-  }
-
-  function replaceWorkspaceInLists(updated: WorkspaceSummary) {
-    const replace = (workspace: WorkspaceSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
-    setRecentItems((current) => current.map(replace));
-    setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
-  }
-
-  async function saveWorkspaceTitle(workspace: WorkspaceSummary) {
-    if (workspaceRenameSubmitting.current) return;
-    if (workspaceRenameCancelled.current) {
-      workspaceRenameCancelled.current = false;
-      return;
-    }
-    const value = workspaceRenameTitle(workspaceTitleDraft, workspace.title);
-    if (!value) {
-      cancelWorkspaceRename();
-      return;
-    }
-    workspaceRenameSubmitting.current = true;
-    setSavingWorkspaceId(workspace.id);
-    try {
-      const renamed = await renameWorkspace(workspace.id, value);
-      replaceWorkspaceInLists(renamed);
-      setEditingWorkspaceId(null);
-      setWorkspaceTitleDraft("");
-      workspaceRenameCancelled.current = false;
-      notifyLibraryChanged();
-      showToast({ kind: "success", message: "Workspace renamed." });
-    } catch (err) {
-      showToast({ kind: "error", message: errorMessage(err, "Could not rename workspace.") });
-    } finally {
-      workspaceRenameSubmitting.current = false;
-      setSavingWorkspaceId(null);
-    }
-  }
-
-  async function confirmDeleteWorkspace() {
-    if (!deletingWorkspace) return;
-    const target = deletingWorkspace;
-    setDeletingWorkspace(null);
-    try {
-      await deleteWorkspace(target.id, target.version);
-      setRecentItems((current) => current.filter((workspace) => workspace.id !== target.id));
-      setPage((current) => {
-        if (!current) return current;
-        const items = current.items.filter((workspace) => workspace.id !== target.id);
-        return items.length === current.items.length ? current : { ...current, items, total: Math.max(0, current.total - 1) };
-      });
-      if (editingWorkspaceId === target.id) cancelWorkspaceRename();
-      notifyLibraryChanged();
-      showToast({ kind: "success", message: "Workspace deleted." });
-    } catch (err) {
-      showToast({ kind: "error", message: errorMessage(err, "Could not delete workspace.") });
-    }
-  }
-
-  async function selectCategory(id: string, force = false) {
-    if (id === selectedCategoryId && !force) return;
-    const generation = ++pageRequestGeneration.current;
-    setSelectedCategoryId(id);
-    setView("category");
-    setPageLoading(true);
-    void navigate({ to: "/", search: { category: id }, replace: true });
-    try {
-      const result = await listCategoryWorkspaces(id, { limit: 50 });
-      if (pageRequestGeneration.current === generation) setPage(result);
-    } catch (err) {
-      if (pageRequestGeneration.current === generation) {
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." });
-      }
-    } finally {
-      if (pageRequestGeneration.current === generation) setPageLoading(false);
-    }
-  }
-
-  function openRecent() {
-    pageRequestGeneration.current += 1;
-    setView("recent");
-    setSelectedCategoryId("");
-    setPage(null);
-    setPageLoading(false);
-    void navigate({ to: "/", search: {}, replace: true });
-  }
-
-  async function openAll(offset = 0) {
-    const generation = ++pageRequestGeneration.current;
-    setView("all");
-    setSelectedCategoryId("");
-    setPageLoading(true);
-    void navigate({ to: "/", search: {}, replace: true });
-    try {
-      const result = await listAllWorkspaces({ offset, limit: 50 });
-      if (pageRequestGeneration.current === generation) setPage(result);
-    } catch (err) {
-      if (pageRequestGeneration.current === generation) {
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." });
-      }
-    } finally {
-      if (pageRequestGeneration.current === generation) setPageLoading(false);
-    }
-  }
-
-  const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
-    const silent = options.silent ?? false;
-    const generation = view === "recent" ? null : ++pageRequestGeneration.current;
-    void listRecentWorkspaces(20)
-      .then(setRecentItems)
-      .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
-
-    if (view === "all") {
-      if (!silent) setPageLoading(true);
-      void listAllWorkspaces({ limit: 50 })
-        .then((result) => {
-          if (generation === pageRequestGeneration.current) setPage(result);
-        })
-        .catch((err) => {
-          if (generation === pageRequestGeneration.current) {
-            showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." });
-          }
-        })
-        .finally(() => {
-          if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
-        });
-    }
-
-    if (view === "category" && selectedCategoryId && !silent) setPageLoading(true);
-    void listCategories()
-      .then((nextCategories) => {
-        setCategoryItems(nextCategories);
-        if (view !== "category" || !selectedCategoryId || generation !== pageRequestGeneration.current) return;
-        if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
-          setSelectedCategoryId("");
-          setView("recent");
-          setPage(null);
-          setPageLoading(false);
-          void navigate({ to: "/" });
-          return;
-        }
-        void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
-          .then((result) => {
-            if (generation === pageRequestGeneration.current) setPage(result);
-          })
-          .catch((err) => {
-            if (generation === pageRequestGeneration.current) {
-              showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." });
-            }
-          })
-          .finally(() => {
-            if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
-          });
-      })
-      .catch((err) => {
-        if (view === "category" && !silent && generation === pageRequestGeneration.current) setPageLoading(false);
-        if (generation === null || generation === pageRequestGeneration.current) {
-          showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
-        }
-      });
-  }, [navigate, selectedCategoryId, showToast, view]);
-
-  useEffect(() => {
-    if (handledLibraryRevision.current === libraryRevision) return;
-    handledLibraryRevision.current = libraryRevision;
-    refreshLibrary();
-  }, [libraryRevision, refreshLibrary]);
-
-  useEffect(() => {
-    if (!recentlyCreatedWorkspaceId) return;
-    const timeout = window.setTimeout(() => setRecentlyCreatedWorkspaceId(null), 600);
-    return () => window.clearTimeout(timeout);
-  }, [recentlyCreatedWorkspaceId]);
-
-  const items = view === "recent" ? recentItems : (page?.items ?? []);
-  const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
+export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
+  const {
+    view,
+    categoryItems,
+    page,
+    pageLoading,
+    creatingWorkspace,
+    newWorkspaceTitle,
+    createLoading,
+    recentlyCreatedWorkspaceId,
+    editingWorkspaceId,
+    workspaceTitleDraft,
+    savingWorkspaceId,
+    deletingWorkspace,
+    items,
+    heading,
+    setCreatingWorkspace,
+    setNewWorkspaceTitle,
+    setWorkspaceTitleDraft,
+    setDeletingWorkspace,
+    handleCreateWorkspace,
+    beginWorkspaceRename,
+    cancelWorkspaceRename,
+    saveWorkspaceTitle,
+    confirmDeleteWorkspace,
+    openRecent,
+    openAll,
+  } = model;
 
   return (
-    <div className="dashboard-shell grid min-h-dvh grid-cols-[minmax(0,224px)_minmax(0,1fr)] max-[560px]:grid-cols-[minmax(0,1fr)]">
-      {renderNavigation({
-        categories: categoryItems,
-        selectedCategoryId,
-        onSelectCategory: (id) => { void selectCategory(id); },
-        onChanged: refreshLibrary,
-      })}
-      <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
-        <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
-          {renderToolbar}
-        </header>
-        <div className="mx-auto w-full max-w-[1240px] px-6 pt-5 pb-8 max-[800px]:px-5 max-[800px]:pt-5 max-[800px]:pb-7 max-[560px]:p-4 max-[560px]:pt-4">
-          <h1 id="library-list-title" className="sr-only">{heading}</h1>
-          <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
-            <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
-            <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
-          </nav>
-          <section className="min-w-0" aria-labelledby="library-list-title">
-            {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
-                {items.map((workspace) => (
-                  <WorkspaceFolderCard
-                    key={workspace.id}
-                    workspace={workspace}
-                    categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
-                    entering={workspace.id === recentlyCreatedWorkspaceId}
-                    editing={editingWorkspaceId === workspace.id}
-                    editingTitle={workspaceTitleDraft}
-                    editLoading={savingWorkspaceId === workspace.id}
-                    onEditingTitleChange={setWorkspaceTitleDraft}
-                    onCommitTitle={() => void saveWorkspaceTitle(workspace)}
-                    onCancelTitle={cancelWorkspaceRename}
-                    onRename={() => beginWorkspaceRename(workspace)}
-                    onDelete={() => setDeletingWorkspace(workspace)}
-                  />
-                ))}
-                <NewWorkspaceCard
-                  editing={creatingWorkspace}
-                  value={newWorkspaceTitle}
-                  loading={createLoading}
-                  onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
-                  onChange={setNewWorkspaceTitle}
-                  onSubmit={(e) => { void handleCreateWorkspace(e); }}
-                  onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
-                />
-              </div>
-            ) : (
-              <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
-                <div>
-                  <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent mx-auto"><Folder size={20} /></span>
-                  <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
-                  <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
-                </div>
-                <NewWorkspaceCard
-                  editing={creatingWorkspace}
-                  value={newWorkspaceTitle}
-                  loading={createLoading}
-                  onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
-                  onChange={setNewWorkspaceTitle}
-                  onSubmit={(e) => { void handleCreateWorkspace(e); }}
-                  onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
-                />
-              </div>
-            )}
-          </section>
-          {view === "all" && page && page.total > page.limit && (
-            <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
-              <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
-              <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-              <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => void openAll(page.nextOffset ?? page.offset)}>Next</Button>
-            </nav>
-          )}
-          {renderAfterList}
-        </div>
-      </main>
+    <>
+      <h1 id="library-list-title" className="sr-only">{heading}</h1>
+      <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
+        <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
+        <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
+      </nav>
+      <section className="min-w-0" aria-labelledby="library-list-title">
+        {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
+            {items.map((workspace) => (
+              <WorkspaceFolderCard
+                key={workspace.id}
+                workspace={workspace}
+                categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
+                entering={workspace.id === recentlyCreatedWorkspaceId}
+                editing={editingWorkspaceId === workspace.id}
+                editingTitle={workspaceTitleDraft}
+                editLoading={savingWorkspaceId === workspace.id}
+                onEditingTitleChange={setWorkspaceTitleDraft}
+                onCommitTitle={() => void saveWorkspaceTitle(workspace)}
+                onCancelTitle={cancelWorkspaceRename}
+                onRename={() => beginWorkspaceRename(workspace)}
+                onDelete={() => setDeletingWorkspace(workspace)}
+              />
+            ))}
+            <NewWorkspaceCard
+              editing={creatingWorkspace}
+              value={newWorkspaceTitle}
+              loading={createLoading}
+              onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+              onChange={setNewWorkspaceTitle}
+              onSubmit={(event) => { void handleCreateWorkspace(event); }}
+              onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
+            />
+          </div>
+        ) : (
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
+            <div>
+              <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent mx-auto"><Folder size={20} /></span>
+              <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+              <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
+            </div>
+            <NewWorkspaceCard
+              editing={creatingWorkspace}
+              value={newWorkspaceTitle}
+              loading={createLoading}
+              onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+              onChange={setNewWorkspaceTitle}
+              onSubmit={(event) => { void handleCreateWorkspace(event); }}
+              onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
+            />
+          </div>
+        )}
+      </section>
+      {view === "all" && page && page.total > page.limit && (
+        <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
+          <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => void openAll(page.nextOffset ?? page.offset)}>Next</Button>
+        </nav>
+      )}
+      {afterList}
       <ConfirmDialog
         open={!!deletingWorkspace}
         title="Delete this workspace?"
@@ -569,6 +321,6 @@ export function WorkspaceLibrary({ categories, recentWorkspaces, initialSelected
         onOpenChange={(open) => { if (!open) setDeletingWorkspace(null); }}
         onConfirm={() => void confirmDeleteWorkspace()}
       />
-    </div>
+    </>
   );
 }

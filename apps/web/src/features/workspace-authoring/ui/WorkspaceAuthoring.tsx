@@ -1,43 +1,34 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, Circle, ExternalLink, FileText, Highlighter, Loader2, Maximize2, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { useBlocker } from "@tanstack/react-router";
+import { ChevronDown, ExternalLink, FileText, Highlighter, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../../shared/ui";
 import { useExclusivePopup } from "../../../shared/ui/dismissable";
 import { useTheme } from "../../../shared/ui/theme-provider";
 import { useToast } from "../../../shared/ui/toast-provider";
 import { workspaceContentOf } from "../../../domain/workspace/workspace";
-import type { Note, Workspace, WorkspaceSummary, Snapshot } from "../../../domain/workspace/workspace";
-import { WorkspaceGuide } from "./WorkspaceGuide";
+import type { Note, Workspace, Snapshot } from "../../../domain/workspace/workspace";
 import { normalizeWorkspaceContent } from "../model/workspace-content";
 import { findPane, findSplit, leaves } from "../model/pane-layout";
-import type { Pane, PaneNode, WorkspaceViewMode } from "../model/pane-layout";
+import type { Pane, PaneNode } from "../model/pane-layout";
 import { useWorkspaceSession } from "../model/use-workspace-session";
 import { useWorkspaceCommands } from "../model/use-workspace-commands";
 import { useWorkspacePaneLayout } from "../model/use-workspace-pane-layout";
 import { registerDesktopFlush } from "../../../adapters/browser/desktop-lifecycle";
 import { workspaceRenameTitle } from "../../../domain/workspace/naming";
-import { WorkspaceRenameField } from "./WorkspaceRenameField";
-import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 import { findCanvasNoteArtifactId } from "../canvas/canvas-note-artifact";
+import { paneMenuButtonClass, popupClass } from "./workspace-ui-classes";
 
 const DocumentEditor = lazy(() => import("../document/DocumentEditor"));
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
-type WorkspaceRenderContext = { workspaceId: string; workspaceTitle: string };
+export type WorkspaceAuthoringContext = { workspaceId: string; workspaceTitle: string };
 
-type WorkspaceAuthoringProps = {
+type UseWorkspaceAuthoringOptions = {
   workspace: Workspace;
-  categoryTitle: string;
-  categoryWorkspaces: WorkspaceSummary[];
-  onWorkspaceActive?: (context: WorkspaceRenderContext) => void;
-  renderPlan: (context: WorkspaceRenderContext) => ReactNode;
-  renderActivityIndicator: (context: WorkspaceRenderContext) => ReactNode;
+  onWorkspaceActive?: (context: WorkspaceAuthoringContext) => void;
 };
 
 const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";
-const paneMenuButtonClass = "border-0 bg-transparent px-2 py-[7px] text-left text-[10px] text-ink hover:bg-tint hover:text-accent disabled:opacity-50";
-const iconActionClass = "grid size-9 shrink-0 place-items-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent";
-const popupClass = "absolute z-30 grid w-max min-w-0 max-w-[calc(100vw_-_24px)] max-h-[calc(100dvh_-_80px)] gap-0.5 overflow-y-auto rounded-[7px] border border-line bg-surface p-[5px] shadow-[0_10px_24px_#0002] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0";
 
 function useCompactPaneLayout() {
   const [compact, setCompact] = useState(false);
@@ -78,9 +69,8 @@ class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 }
 
-export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspaces, onWorkspaceActive, renderPlan, renderActivityIndicator }: WorkspaceAuthoringProps) {
+export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorkspaceAuthoringOptions) {
   const { dark } = useTheme();
-  const navigate = useNavigate();
   const { showToast } = useToast();
   const compactPanes = useCompactPaneLayout();
   const [normalized] = useState(() => normalizeWorkspaceContent(workspaceContentOf(workspace)));
@@ -150,7 +140,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
   const [workspaceTitle, setWorkspaceTitle] = useState(workspace.title);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState(workspace.title);
   const [workspaceRenamePending, setWorkspaceRenamePending] = useState(false);
-  const [planOpen, setPlanOpen] = useState(false);
   const noteRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
@@ -179,7 +168,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     setWorkspaceTitle(workspace.title);
     setWorkspaceTitleDraft(workspace.title);
     setRenamingWorkspace(false);
-    setPlanOpen(false);
   }, [workspace.id, workspace.title]);
   useEffect(() => {
     const keepPaneMenuClicksLocal = (event: MouseEvent) => {
@@ -276,18 +264,6 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
     if (target) switchPaneNote(target.id, result.replacementId);
     setDeletingNote(null);
   }
-  const workspaceOptions = [{ ...workspace, title: workspaceTitle }, ...categoryWorkspaces.filter((candidate) => candidate.id !== workspace.id)];
-
-  function selectWorkspaceView(mode: WorkspaceViewMode) {
-    setPlanOpen(false);
-    selectView(mode);
-  }
-
-  function openPlan() {
-    setPlanOpen(true);
-    clearMaximize();
-  }
-
   function openNoteFromCanvas(noteId: string) {
     if (!activateNote(noteId)) {
       showToast({ kind: "error", message: "This linked note no longer exists." });
@@ -407,74 +383,30 @@ export function WorkspaceAuthoring({ workspace, categoryTitle, categoryWorkspace
 
   const maximizedSplit = maximizedSplitId ? findSplit(layout, maximizedSplitId) : undefined;
   const authoringVisible = maximizedPaneId ? (findPane(layout, maximizedPaneId) ? renderPane(findPane(layout, maximizedPaneId)!) : renderNode(layout)) : maximizedSplit ? renderNode(maximizedSplit) : renderNode(layout);
-  const visible = planOpen
-    ? renderPlan({ workspaceId: workspace.id, workspaceTitle: current.current.title })
-    : authoringVisible;
-  const saveFailed = status.state === "error" || status.state === "conflict";
-  const saveLabel = status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "conflict" ? "Conflict" : status.state === "error" ? "Not saved" : "Unsaved";
 
-  return (
-    <div className="h-dvh min-w-0 overflow-hidden">
-      <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:44px] max-[560px]:[--workspace-header-height:76px]", focusMode && "is-focus-mode")}>
-        <header className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-[76px] max-[560px]:grid-cols-[minmax(0,1fr)_auto] max-[560px]:grid-rows-[30px_32px] max-[560px]:items-center max-[560px]:gap-x-2 max-[560px]:gap-y-1 max-[560px]:px-2 max-[560px]:py-1.5", focusMode && "hidden")}>
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-full max-[560px]:gap-1">
-            <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={24} /></Link>
-            <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
-            <div className="flex min-w-0 max-w-[min(32vw,360px)] flex-1 items-center gap-0.5 max-[800px]:w-[34vw] max-[800px]:max-w-[34vw] max-[560px]:min-w-0 max-[560px]:w-auto max-[560px]:max-w-none max-[560px]:flex-1">
-              <ContextMenu>
-                {renamingWorkspace ? (
-                  <WorkspaceRenameField inputRef={workspaceRenameInput} value={workspaceTitleDraft} disabled={workspaceRenamePending} onChange={setWorkspaceTitleDraft} onCommit={commitRenameWorkspace} onCancel={cancelRenameWorkspace} />
-                ) : (
-                  <details className="workspace-switcher relative min-w-0 flex-1 [&>summary::-webkit-details-marker]:hidden">
-                    <ContextMenuTrigger asChild>
-                      <summary className="flex h-7 min-w-0 cursor-pointer list-none items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-ink hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label="Switch workspace" onDoubleClick={(event) => { event.preventDefault(); beginRenameWorkspace(); }}>
-                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspaceTitle}</span>
-                        <ChevronDown size={13} className="shrink-0 text-muted" aria-hidden="true" />
-                      </summary>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onSelect={beginRenameWorkspace}><Pencil size={13} /> Rename workspace</ContextMenuItem>
-                    </ContextMenuContent>
-                    <div className={cn(popupClass, "top-7 left-0")} role="listbox" aria-label="Workspaces in this category">
-                      {workspaceOptions.map((option) => (
-                        <Button
-                          key={option.id}
-                          variant="ghost"
-                          size="sm"
-                          className={cn("!min-h-0 w-full justify-start whitespace-nowrap", paneMenuButtonClass, option.id === workspace.id && "bg-tint text-accent")}
-                          role="option"
-                          aria-selected={option.id === workspace.id}
-                          onClick={(event) => {
-                            const details = event.currentTarget.closest("details");
-                            if (details) details.open = false;
-                            if (option.id !== workspace.id) void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: option.id } });
-                          }}
-                        >
-                          {option.title}
-                        </Button>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </ContextMenu>
-            </div>
-          </div>
-          <WorkspaceViewSwitcher activeViewMode={activeViewMode} planActive={planOpen} onSelect={selectWorkspaceView} onPlanSelect={openPlan} />
-          <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
-            {renderActivityIndicator({
-              workspaceId: workspace.id,
-              workspaceTitle: current.current.title,
-            })}
-            <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">{status.state === "saved" ? <Check size={20} /> : status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}{saveLabel}</span>
-            {!planOpen && <IconButton type="button" className={iconActionClass} onClick={toggleActiveMaximize} aria-label={maximizeLabel} title={maximizeLabel}><Maximize2 size={24} /></IconButton>}
-            <WorkspaceGuide />
-          </div>
-        </header>
-        <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:p-[7px]", focusMode && "p-0")}>{visible}</div>
-      </main>
+  return {
+    authoringVisible,
+    focusMode,
+    activeViewMode,
+    selectView,
+    clearMaximize,
+    toggleActiveMaximize,
+    maximizeLabel,
+    status,
+    renamingWorkspace,
+    workspaceTitle,
+    currentWorkspaceTitle: current.current.title,
+    workspaceTitleDraft,
+    workspaceRenamePending,
+    workspaceRenameInput,
+    beginRenameWorkspace,
+    cancelRenameWorkspace,
+    commitRenameWorkspace,
+    setWorkspaceTitleDraft,
+    overlays: (
       <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
         <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose><Button variant="danger" onClick={removeNote}>Delete note</Button></DialogFooter></DialogContent>
       </Dialog>
-    </div>
-  );
+    ),
+  };
 }

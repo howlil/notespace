@@ -306,18 +306,24 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 });
 
-test("workspace page is a composition boundary for authoring, planning, and activity", () => {
+test("workspace page is the screen composition boundary for authoring, planning, and activity", () => {
   const page = source("pages/workspace/WorkspacePage.tsx");
-  assert.match(page, /WorkspaceAuthoring/);
+  const authoring = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
+
+  assert.match(page, /useWorkspaceAuthoring/);
+  assert.match(page, /workspace-main/);
   assert.match(page, /WorkspacePlan/);
   assert.match(page, /ActivityIndicator/);
   assert.doesNotMatch(page, /useWorkspaceSession/);
+
+  assert.doesNotMatch(authoring, /workspace-main|renderPlan|renderActivityIndicator/);
 });
 
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
   const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
   const session = source("features/workspace-authoring/model/use-workspace-session.ts");
   assert.match(workspace, /useWorkspaceSession/);
+  assert.match(workspace, /export function useWorkspaceAuthoring/);
   assert.doesNotMatch(workspace, /useGranularWorkspaceAutosave/);
   assert.match(session, /useGranularWorkspaceAutosave/);
   assert.match(session, /updateNoteDocument/);

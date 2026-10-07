@@ -40,7 +40,7 @@ test("responsive contract: mobile library keeps persistent navigation without a 
   assert.doesNotMatch(dashboard, /max-\[560px\]:-translate-x-full/);
   assert.match(dashboard, /aria-label="Search Notespace with Control K or Command K"/);
   assert.match(dashboard, /w-\[min\(320px,42vw\)\]/);
-  assert.match(library, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
+  assert.match(dashboard, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
   assert.match(library, /overflow-x-auto overscroll-x-contain/);
   assert.match(library, /function WorkspaceFolderCard/);
   assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
@@ -51,7 +51,7 @@ test("responsive contract: mobile library keeps persistent navigation without a 
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
   assert.match(sidebar, /return <NotespaceLogo \/>/);
   assert.match(sidebar, /<Brand \/>/);
-  assert.match(dashboard, /renderAfterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
+  assert.match(dashboard, /afterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
 });
 
 test("responsive contract: mobile activity is summary-first", () => {

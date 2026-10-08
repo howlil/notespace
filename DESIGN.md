@@ -89,7 +89,7 @@ Glassmorphism or bento composition is allowed only when it has a clear semantic 
 
 ## Design tokens
 
-These tokens describe the current Notespace implementation. The semantic CSS variables in `apps/web/src/styles/globals.css` are the runtime source of truth; this section is the design-system reference for choosing them consistently. When a new token is needed, update this document and the runtime token definition in the same change.
+These tokens describe the current Notespace implementation. The semantic CSS variables in `apps/web/src/shared/styles/globals.css` are the runtime source of truth; this section is the design-system reference for choosing them consistently. When a new token is needed, update this document and the runtime token definition in the same change.
 
 ### Token usage hierarchy
 
@@ -283,16 +283,49 @@ Every interactive component needs an accessible name and a keyboard path. Icon-o
 
 ## Color and emphasis
 
-Use neutral surfaces for most of the interface. The canonical secondary/accent family is restrained steel blue:
+Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the existing restrained steel-blue identity:
 
-- dark accent/focus: `#7FA6C9`;
-- dark active tint: `#1B2636`;
-- light accent/focus: `#4F7396`;
-- light active tint: `#E8EEF6`.
+- Light accent/focus: `#4F7396` (`--accent`); light active tint: `#E8EEF6` (`--tint`).
+- Dark accent/focus: `#7FA6C9` (`--accent`); dark active tint: `#1B2636` (`--tint`).
+- Neutral backgrounds, ink, supporting text, and status colors remain the semantic tokens in the table above.
 
-Do not introduce electric blue, purple-blue gradients, blue glow, neon accents, or decorative color noise without a product reason.
+### Color distribution
 
-Emphasis should come primarily from hierarchy, density, typography, spacing, and state—not saturation.
+Use **80 / 15 / 5 as a visual composition heuristic**, not as a measured pixel quota or a requirement to recolor each screen:
+
+- **~80% neutral working surfaces:** `--bg`, `--surface`, `--sidebar`, `--canvas`. Documents, notes, and Canvas should feel quiet and content-first.
+- **~15% supporting hierarchy:** `--line`, `--muted`, `--tint` for grouping, metadata, dividers, and low-emphasis interaction states.
+- **~5% accent:** `--accent` for brand recognition, selection, links, keyboard focus, and other meaningful active states—not broad decorative fills.
+
+The ratio is evaluated by perceived emphasis across a representative screen; it is not a CSS budget. Purposeful workspace-card thumbnails and user-authored Canvas/document colors are contextual content, not justification for coloring the whole UI blue.
+
+### Color ownership and component rules
+
+Use this dependency direction when choosing colors:
+
+```text
+primitive values (centralized light/dark definitions)
+  → semantic tokens (--bg, --ink, --accent, --tint, ...)
+  → shared component variants and interaction states
+  → page composition
+```
+
+The current runtime defines color values directly in semantic tokens; **do not introduce a parallel primitive-token layer solely to satisfy this diagram**. Components consume semantic roles, not copied hex codes.
+
+- **Primary actions:** use neutral `--button` / `--button-text` by default, not an accent-blue button on every page.
+- **Selected, active, or focused:** pair `--tint` with `--accent` where needed; preserve the shared keyboard focus outline. Hover uses restrained tint.
+- **Destructive or success feedback:** use `--danger` or `--success` only for their state meaning; accompany color with clear text, icons, or labels when needed.
+- **Exceptional fixed colors:** allowed for user-authored content, illustrations, syntax/data palettes, logos, or deliberate terminal previews; keep them scoped and document why a semantic token is unsuitable.
+- Do not introduce electric blue, purple-blue gradients, blue glow, neon accents, or decorative color noise without a product reason.
+
+Emphasis should come primarily from information hierarchy, density, typography, spacing, and state—not saturation.
+
+### Contrast and light/dark verification
+
+- Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
+- Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
+- **Known current gap (not yet changed by this contract):** light `--muted: #787B8A` on white `--surface: #FFFFFF` yields approximately **4.20:1**, below 4.5:1 for normal-size supporting text. A candidate is `#707482` (approximately 4.66:1 on white); validate across all actual backgrounds and update the runtime token and this table together when implementing the fix.
+- Preserve the steel-blue identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
 
 ## Component and interaction rules
 
@@ -329,6 +362,7 @@ A design change is not complete because the page renders or matches a screenshot
 - progressive disclosure still works;
 - keyboard navigation/focus remains usable;
 - light/dark state remains coherent when affected;
+- foreground/background contrast and semantic color roles remain valid on the affected surfaces;
 - narrow layout remains usable when affected;
 - workspace focus is not diluted by library/dashboard chrome;
 - destructive and error states remain understandable;

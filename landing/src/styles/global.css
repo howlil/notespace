@@ -1,10 +1,7 @@
-@import "@fontsource/geist/latin-400.css";
-@import "@fontsource/geist/latin-500.css";
-@import "@fontsource/geist/latin-600.css";
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Geist", system-ui, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-background: var(--bg);
   --color-surface: var(--surface);
   --color-soft: var(--soft);
@@ -18,9 +15,9 @@
 
 :root {
   color-scheme: light;
-  --bg: #f7f8fa;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --soft: #f1f2f6;
+  --soft: #f8f9fb;
   --ink: #252630;
   --muted: #787b8a;
   --line: #e4e5ec;
@@ -29,20 +26,7 @@
   --canvas: #f8f9fc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #18191d;
-    --surface: #202126;
-    --soft: #1c1d22;
-    --ink: #e8e8ef;
-    --muted: #999ba9;
-    --line: #34353e;
-    --accent: #7fa6c9;
-    --tint: #1b2636;
-    --canvas: #1d1e24;
-  }
-}
+/* This marketing landing intentionally uses the approved white palette in all OS themes. */
 
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }

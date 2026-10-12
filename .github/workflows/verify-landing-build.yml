@@ -1,9 +1,16 @@
 name: Verify landing build
 
 on:
+  pull_request:
+    paths:
+      - "landing/**"
+      - ".github/workflows/verify-landing-build.yml"
   push:
     branches:
-      - fix/landing-pnpm-build-policy
+      - master
+    paths:
+      - "landing/**"
+      - ".github/workflows/verify-landing-build.yml"
 
 jobs:
   verify:
@@ -19,8 +26,18 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: landing/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Validate static output and Workers assets config
+        run: |
+          node --input-type=module -e '
+            import { existsSync, readFileSync } from "node:fs";
+            import assert from "node:assert/strict";
+            const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+            assert.equal(config.assets.directory, "./dist");
+            assert.ok(!("main" in config), "landing must remain static");
+            assert.ok(existsSync("dist/index.html"), "Astro must emit dist/index.html");
+          '

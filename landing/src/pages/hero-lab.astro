@@ -2,18 +2,21 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Brand from "../components/Brand.astro";
 import ProductPreview from "../components/ProductPreview.astro";
+import HowlilHero from "../components/HowlilHero.astro";
 import "../styles/hero-lab.css";
+import "../styles/howlil-hero.css";
 
 const repo = "https://github.com/howlil/notespace";
 const install = "/#self-host";
 ---
 
 <BaseLayout title="Notespace — Hero design explorations" description="Isolated design explorations for the Notespace landing page.">
-  <div class="hl-lab" data-choice="d" data-device="desktop" data-color="light">
+  <div class="hl-lab" data-choice="i" data-device="desktop" data-color="light">
     <div class="hl-controls" role="group" aria-label="Design lab controls">
       <div class="hl-controls-intro"><strong>Notespace / Hero Lab</strong><span>Not the production landing page</span></div>
       <div class="hl-control-group" aria-label="Hero direction">
-        <button type="button" data-choice-button="d" aria-pressed="true">D · Editorial</button>
+        <button type="button" data-choice-button="i" aria-pressed="true">I · Howlil Rules</button>
+        <button type="button" data-choice-button="d" aria-pressed="false">D · Editorial</button>
         <button type="button" data-choice-button="e" aria-pressed="false">E · Knowledge Stack</button>
         <button type="button" data-choice-button="f" aria-pressed="false">F · Interactive</button>
       </div>
@@ -28,7 +31,8 @@ const install = "/#self-host";
     </div>
     <div class="hl-stage">
       <div class="hl-viewport">
-        <section class="hl-option" data-hl-option="d" aria-label="Editorial Stage hero">
+        <section class="hl-option" data-hl-option="i" aria-label="Howlil Rules navbar and hero"><HowlilHero /></section>
+        <section class="hl-option" data-hl-option="d" aria-label="Editorial Stage hero" hidden>
           <header class="hl-navbar">
             <div class="hl-container hl-nav-inner">
               <Brand />
@@ -112,7 +116,7 @@ const install = "/#self-host";
         </section>
       </div>
     </div>
-    <div class="hl-explanation" aria-live="polite">D — Editorial Stage · text-first introduction with a full-width authentic product preview.</div>
+    <div class="hl-explanation" aria-live="polite">I — Howlil Rules · content-first hero with Notespace colors and a bordered real product preview.</div>
   </div>
 </BaseLayout>
 
@@ -120,6 +124,7 @@ const install = "/#self-host";
   const lab = document.querySelector<HTMLElement>(".hl-lab");
   if (lab) {
     const explanations = {
+      i: "I — Howlil Rules · content-first hero with Notespace colors and a bordered real product preview.",
       d: "D — Editorial Stage · text-first introduction with a full-width authentic product preview.",
       e: "E — Knowledge Stack · shows how Notes, Canvas and Split belong to the same workspace.",
       f: "F — Interactive Workspace · switch preview modes to discover the product."

@@ -1,0 +1,164 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Brand from "../components/Brand.astro";
+import ProductPreview from "../components/ProductPreview.astro";
+import "../styles/hero-lab.css";
+
+const repo = "https://github.com/howlil/notespace";
+const install = "/#self-host";
+---
+
+<BaseLayout title="Notespace — Hero design explorations" description="Isolated design explorations for the Notespace landing page.">
+  <div class="hl-lab" data-choice="d" data-device="desktop" data-color="light">
+    <div class="hl-controls" role="group" aria-label="Design lab controls">
+      <div class="hl-controls-intro"><strong>Notespace / Hero Lab</strong><span>Not the production landing page</span></div>
+      <div class="hl-control-group" aria-label="Hero direction">
+        <button type="button" data-choice-button="d" aria-pressed="true">D · Editorial</button>
+        <button type="button" data-choice-button="e" aria-pressed="false">E · Knowledge Stack</button>
+        <button type="button" data-choice-button="f" aria-pressed="false">F · Interactive</button>
+      </div>
+      <div class="hl-control-group" aria-label="Preview width">
+        <button type="button" data-device-button="desktop" aria-pressed="true">Desktop</button>
+        <button type="button" data-device-button="mobile" aria-pressed="false">Mobile</button>
+      </div>
+      <div class="hl-control-group" aria-label="Preview theme">
+        <button type="button" data-color-button="light" aria-pressed="true">Light</button>
+        <button type="button" data-color-button="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <div class="hl-stage">
+      <div class="hl-viewport">
+        <section class="hl-option" data-hl-option="d" aria-label="Editorial Stage hero">
+          <header class="hl-navbar">
+            <div class="hl-container hl-nav-inner">
+              <Brand />
+              <nav class="hl-nav-links" aria-label="Editorial navigation">
+                <a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/#self-host">Self-host</a>
+              </nav>
+              <a class="hl-nav-cta" href={repo} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+            </div>
+          </header>
+          <main id="editorial">
+            <div class="hl-container hl-editorial">
+              <div class="hl-editorial-upper">
+                <div class="hl-eyebrow-block"><span class="hl-marker" aria-hidden="true"></span><p>NOTESPACE / OPEN SOURCE</p><p class="hl-fine-print">A place for notes and spatial thinking.</p></div>
+                <div class="hl-editorial-message">
+                  <h1>Thoughts become clearer when you can see them.</h1>
+                  <p>Keep structured notes and a spatial canvas inside the same self-hosted workspace. Move between writing and exploring without losing context.</p>
+                  <div class="hl-actions"><a class="hl-button hl-button-primary" href={install}>Self-host Notespace <span aria-hidden="true">↗</span></a><a class="hl-button hl-button-secondary" href={repo} target="_blank" rel="noopener noreferrer">View on GitHub</a></div>
+                </div>
+              </div>
+              <div class="hl-editorial-preview"><div class="hl-preview-heading"><span>01 — YOUR WORKSPACE</span><span>Notes + Canvas + Split</span></div><ProductPreview /></div>
+            </div>
+          </main>
+        </section>
+
+        <section class="hl-option" data-hl-option="e" aria-label="Knowledge Stack hero" hidden>
+          <header class="hl-navbar">
+            <div class="hl-container hl-nav-inner">
+              <Brand />
+              <nav class="hl-nav-links" aria-label="Knowledge Stack navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/#self-host">Self-host</a></nav>
+              <a class="hl-nav-cta" href={repo} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+            </div>
+          </header>
+          <main id="knowledge">
+            <div class="hl-container hl-knowledge">
+              <div class="hl-knowledge-copy">
+                <div class="hl-eyebrow">NOTES · CANVAS · OWNED BY YOU</div>
+                <h1>One place to write, connect, and return.</h1>
+                <p>Capture the details in Notes. Explore relationships on Canvas. Keep both together in a workspace you control.</p>
+                <div class="hl-actions"><a class="hl-button hl-button-primary" href={install}>Self-host Notespace <span aria-hidden="true">↗</span></a><a class="hl-button hl-button-secondary" href={repo} target="_blank" rel="noopener noreferrer">View on GitHub</a></div>
+              </div>
+              <div class="hl-knowledge-stage" aria-label="Illustrated relationship between notes, canvas and split views">
+                <div class="hl-mini-card hl-note-card" aria-hidden="true"><div class="hl-mini-toolbar"><span>NOTE</span><span>01</span></div><h3>Leader election</h3><p>A majority of votes elects the leader for a term.</p><i></i><i></i><i></i></div>
+                <div class="hl-feature-frame"><ProductPreview /></div>
+                <div class="hl-mini-card hl-canvas-card" aria-hidden="true"><div class="hl-mini-toolbar"><span>CANVAS</span><span>02</span></div><svg viewBox="0 0 180 110" role="img" aria-label="Diagram"><path d="M90 12L42 63M90 12L137 63M42 63L90 95M137 63L90 95" stroke="#4f7396" fill="none" stroke-width="1.5"/><rect x="58" y="2" width="64" height="24" rx="5" fill="var(--surface)" stroke="var(--accent)"/><rect x="10" y="51" width="63" height="22" rx="5" fill="var(--surface)" stroke="var(--line)"/><rect x="107" y="51" width="63" height="22" rx="5" fill="var(--surface)" stroke="var(--line)"/><rect x="59" y="85" width="63" height="22" rx="5" fill="var(--tint)" stroke="var(--accent)"/><g fill="var(--ink)" font-size="8" text-anchor="middle"><text x="90" y="18">Leader</text><text x="42" y="65">Follower</text><text x="138" y="65">Follower</text><text x="90" y="99">Committed</text></g></svg></div>
+              </div>
+              <div class="hl-knowledge-caption"><span>STRUCTURED NOTES</span><span>SPATIAL CANVAS</span><span>SAME WORKSPACE</span></div>
+            </div>
+          </main>
+        </section>
+
+        <section class="hl-option" data-hl-option="f" aria-label="Interactive Workspace hero" hidden>
+          <header class="hl-navbar">
+            <div class="hl-container hl-nav-inner">
+              <Brand />
+              <nav class="hl-nav-links" aria-label="Interactive Workspace navigation"><a href="/#product">Product</a><a href="/#workflow">Workflow</a><a href="/#self-host">Self-host</a></nav>
+              <a class="hl-nav-cta hl-nav-cta-solid" href={install}>Self-host <span aria-hidden="true">↗</span></a>
+            </div>
+          </header>
+          <main id="interactive">
+            <div class="hl-container hl-interactive">
+              <div class="hl-interactive-intro">
+                <div class="hl-eyebrow">A SELF-HOSTED KNOWLEDGE WORKSPACE</div>
+                <h1>Notes and canvas.<br />One workspace.</h1>
+                <p>Write with structure, think visually, and pick up where you left off—without separating your ideas into different tools.</p>
+                <div class="hl-actions"><a class="hl-button hl-button-primary" href={install}>Self-host Notespace <span aria-hidden="true">↗</span></a><a class="hl-button hl-button-secondary" href={repo} target="_blank" rel="noopener noreferrer">View on GitHub</a></div>
+              </div>
+              <div class="hl-interactive-demo" data-view="split">
+                <div class="hl-demo-top">
+                  <div><strong>Explore the workspace</strong><span>Switch between authored views</span></div>
+                  <div class="hl-mode-buttons" role="group" aria-label="Product preview mode">
+                    <button type="button" data-demo-mode="note" aria-pressed="false">Note</button>
+                    <button type="button" data-demo-mode="canvas" aria-pressed="false">Canvas</button>
+                    <button type="button" data-demo-mode="split" aria-pressed="true">Split</button>
+                  </div>
+                </div>
+                <div class="hl-product"><ProductPreview /><div class="hl-display-mode" aria-live="polite">Split view</div></div>
+              </div>
+              <div class="hl-knowledge-caption"><span>NOTES</span><span>CANVAS</span><span>SELF-HOSTED / SQLITE</span></div>
+            </div>
+          </main>
+        </section>
+      </div>
+    </div>
+    <div class="hl-explanation" aria-live="polite">D — Editorial Stage · text-first introduction with a full-width authentic product preview.</div>
+  </div>
+</BaseLayout>
+
+<script>
+  const lab = document.querySelector<HTMLElement>(".hl-lab");
+  if (lab) {
+    const explanations = {
+      d: "D — Editorial Stage · text-first introduction with a full-width authentic product preview.",
+      e: "E — Knowledge Stack · shows how Notes, Canvas and Split belong to the same workspace.",
+      f: "F — Interactive Workspace · switch preview modes to discover the product."
+    };
+    type Choice = keyof typeof explanations;
+    lab.querySelectorAll<HTMLButtonElement>("[data-choice-button]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const choice = button.dataset.choiceButton as Choice;
+        if (!(choice in explanations)) return;
+        lab.dataset.choice = choice;
+        lab.querySelectorAll<HTMLButtonElement>("[data-choice-button]").forEach((target) => target.setAttribute("aria-pressed", String(target === button)));
+        lab.querySelectorAll<HTMLElement>("[data-hl-option]").forEach((option) => { option.hidden = option.dataset.hlOption !== choice; });
+        const text = lab.querySelector<HTMLElement>(".hl-explanation");
+        if (text) text.textContent = explanations[choice];
+        lab.querySelector(".hl-viewport")?.scrollTo({ top: 0 });
+      });
+    });
+    for (const key of ["device", "color"] as const) {
+      lab.querySelectorAll<HTMLButtonElement>(`[data-${key}-button]`).forEach((button) => {
+        button.addEventListener("click", () => {
+          const next = button.dataset[key+"Button"];
+          if (!next) return;
+          lab.dataset[key] = next;
+          lab.querySelectorAll<HTMLButtonElement>(`[data-${key}-button]`).forEach((target) => target.setAttribute("aria-pressed", String(target === button)));
+        });
+      });
+    }
+    const demo = lab.querySelector<HTMLElement>(".hl-interactive-demo");
+    if (demo) {
+      demo.querySelectorAll<HTMLButtonElement>("[data-demo-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.demoMode;
+          if (!["note", "canvas", "split"].includes(mode ?? "")) return;
+          demo.dataset.view = mode;
+          demo.querySelectorAll<HTMLButtonElement>("[data-demo-mode]").forEach((target) => target.setAttribute("aria-pressed", String(target === button)));
+          const state = demo.querySelector<HTMLElement>(".hl-display-mode");
+          if (state) state.textContent = `${mode === "note" ? "Note" : mode === "canvas" ? "Canvas" : "Split"} view`;
+        });
+      });
+    }
+  }
+</script>

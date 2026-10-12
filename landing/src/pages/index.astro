@@ -142,7 +142,7 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
             <div class="flex h-10 items-center border-b border-[#303138] px-4 text-[10px] text-[#8f929f]"><span>terminal</span><span class="ml-auto">docker compose</span></div>
             <pre class="overflow-x-auto p-5 text-[11px] leading-6"><code><span class="text-[#7fa6c9]">$</span> git clone https://github.com/howlil/notespace.git
 <span class="text-[#7fa6c9]">$</span> cd notespace
-<span class="text-[#7fa6c9]">$</span> docker compose up --build -d --wait
+<span class="text-[#7fa6c9]">$</span> docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
 
 <span class="text-[#6f947d]">✓</span> Notespace is ready on localhost:8080</code></pre>
           </div>

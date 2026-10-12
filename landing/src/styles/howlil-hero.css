@@ -1,0 +1,50 @@
+/* Howlil design grammar applied to Notespace. Palette is inherited unchanged. */
+.hlh-root { --hlh-step1:4px; --hlh-step2:8px; --hlh-step3:12px; --hlh-step4:16px; --hlh-step6:24px; --hlh-step8:32px; font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+.hlh-root *, .hlh-root *::before, .hlh-root *::after { box-sizing:border-box; }
+.hlh-root .hlh-shell { max-width:1180px; margin-inline:auto; padding-inline:var(--hlh-step8); }
+.hlh-root .hlh-header { min-height:56px; display:flex; align-items:center; }
+.hlh-root .hlh-nav { display:flex; gap:var(--hlh-step6); align-items:center; width:100%; }
+.hlh-root .hlh-nav > a:first-child { flex-shrink:0; font-size:16px; font-weight:600; color:var(--ink); }
+.hlh-root .hlh-links { display:flex; align-items:center; gap:var(--hlh-step6); margin-left:auto; }
+.hlh-root .hlh-links a, .hlh-root .hlh-github { color:var(--muted); font-size:14px; line-height:20px; font-weight:400; text-decoration:none; }
+.hlh-root .hlh-links a:hover, .hlh-root .hlh-github:hover { color:var(--ink); }
+.hlh-root .hlh-github { display:inline-flex; align-items:center; gap:var(--hlh-step2); color:var(--ink); white-space:nowrap; }
+.hlh-root .hlh-github svg, .hlh-root .hlh-actions svg { width:16px; height:16px; flex:none; }
+.hlh-root .hlh-main { padding-top:48px; padding-bottom:var(--hlh-step8); }
+.hlh-root .hlh-intro { max-width:640px; margin-inline:auto; text-align:center; }
+.hlh-root .hlh-meta { font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; font-size:12px; line-height:16px; font-weight:400; letter-spacing:.04em; color:var(--muted); margin:0; }
+.hlh-root .hlh-intro h1 { font-size:36px; line-height:40px; letter-spacing:0; font-weight:400; margin:var(--hlh-step4) 0 var(--hlh-step3); color:var(--ink); }
+.hlh-root .hlh-summary { max-width:60ch; margin-inline:auto; color:var(--muted); font-size:16px; line-height:24px; font-weight:400; }
+.hlh-root .hlh-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:var(--hlh-step4); margin-top:var(--hlh-step6); }
+.hlh-root .hlh-primary { display:inline-flex; gap:var(--hlh-step2); align-items:center; justify-content:center; min-height:44px; padding:var(--hlh-step3) var(--hlh-step6); border:0; border-radius:9999px; text-decoration:none; color:var(--button-text); background:linear-gradient(to bottom,color-mix(in srgb,var(--button) 94%,var(--surface)),var(--button)); font-size:14px; line-height:20px; font-weight:500; transition:filter .16s ease,transform .16s ease; }
+.hlh-root .hlh-primary:hover { filter:brightness(.98); }
+.hlh-root .hlh-primary:active { transform:scale(.985); }
+.hlh-root .hlh-source { display:inline-flex; gap:var(--hlh-step2); align-items:center; justify-content:center; color:var(--muted); text-decoration:none; font-size:14px; line-height:20px; padding:var(--hlh-step3) var(--hlh-step2); }
+.hlh-root .hlh-source:hover { color:var(--ink); }
+.hlh-root a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.hlh-root .hlh-proof { max-width:980px; margin:var(--hlh-step8) auto 0; }
+.hlh-root .hlh-proof-caption { display:flex; justify-content:space-between; align-items:end; gap:var(--hlh-step4); margin-bottom:var(--hlh-step3); }
+.hlh-root .hlh-proof-caption strong { display:block; font-size:14px; line-height:20px; font-weight:500; color:var(--ink); margin-top:var(--hlh-step2); }
+.hlh-root .hlh-proof-state { flex-shrink:0; font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; font-size:12px; line-height:16px; color:var(--muted); }
+.hlh-root .hlh-product > div { border-radius:14px; border:1px solid var(--line); box-shadow:none!important; }
+@media(max-width:700px){
+  .hlh-root .hlh-shell { padding-inline:var(--hlh-step4); }
+  .hlh-root .hlh-header { min-height:56px; }
+  .hlh-root .hlh-links { display:none; }
+  .hlh-root .hlh-github { margin-left:auto; }
+  .hlh-root .hlh-main { padding-top:40px; padding-bottom:var(--hlh-step6); }
+  .hlh-root .hlh-intro h1 { font-size:36px; line-height:40px; }
+  .hlh-root .hlh-meta, .hlh-root .hlh-proof-state { font-size:12px; }
+  .hlh-root .hlh-proof-caption { align-items:start; }
+  .hlh-root .hlh-proof { margin-top:var(--hlh-step8); }
+  .hlh-root .hlh-product > div > div:nth-child(3) { grid-template-columns:1fr!important; }
+  .hlh-root .hlh-product > div > div:nth-child(3) > section:first-child { border-right:0; border-bottom:1px solid var(--line); }
+  .hlh-root .hlh-product > div > div:nth-child(3) > section:last-child { min-height:310px; }
+}
+@media(max-width:420px){
+  .hlh-root .hlh-intro { text-align:left; }
+  .hlh-root .hlh-actions { justify-content:flex-start; }
+  .hlh-root .hlh-proof-caption { display:block; }
+  .hlh-root .hlh-proof-state { display:inline-block; margin-top:var(--hlh-step2); }
+}
+@media(prefers-reduced-motion:reduce){ .hlh-root *, .hlh-root *::before, .hlh-root *::after { transition:none!important; animation:none!important; } }

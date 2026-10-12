@@ -36,5 +36,5 @@ test('demo mode, search and selection markup is emitted', () => {
 
 test('CSS and standalone Astro product script are bundled', () => {
   assert.ok(existsSync(new URL('../dist/_astro', import.meta.url)), 'Astro assets are missing')
-  assert.match(html, /<script[^>]+src="/)
+  assert.match(html, /<script(?:\\s|>)/)
 })

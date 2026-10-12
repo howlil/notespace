@@ -30,7 +30,7 @@ test('demo mode, search and selection markup is emitted', () => {
   assert.match(html, /data-demo-query/)
   assert.match(html, /data-demo-search-text/)
   assert.match(html, /data-demo-selection/)
-  assert.match(html, /aria-label="Interactive/i)
+  assert.match(html, /aria-label="Workspace preview mode"/)
   assert.match(html, /example content, no backend connection/)
 })
 

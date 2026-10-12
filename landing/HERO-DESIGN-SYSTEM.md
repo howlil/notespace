@@ -1,53 +1,55 @@
-# Notespace Landing — Navbar + Hero Design Contract
+# Notespace Landing — White Canvas Navbar + Hero
 
-Status: **exploration only**. The production `landing/src/pages/index.astro` is unchanged until a direction is selected.
+Status: **selected direction for the production landing page**, implemented by `landing/src/pages/index.astro` and `landing/src/styles/white-hero.css`.
 
-## Authority and product
+Sources of truth:
+1. Notespace [DESIGN.md](../DESIGN.md): product boundaries and steel-blue semantic palette.
+2. Howlil [design.md](https://github.com/howlil/howlil-app/blob/main/design.md): hierarchy, type roles, spacing, anti-slop rules, conservative motion.
+3. This document: explicit *landing-only* deviations (white by design, wider product preview).
 
-1. `DESIGN.md` and `apps/web/src/shared/styles/globals.css` are the canonical application design tokens.
-2. `landing/src/styles/global.css` defines the existing landing colors and currently uses Geist, while the app uses Open Sans. Treat **Open Sans 400/500/600** as the intended shared typography; do not silently change typography in unrelated landing sections during this exploration.
-3. The product is a free self-hosted knowledge workspace: categories → workspaces → multiple Notes + one Canvas, with split authoring, search, and backups. Do not imply a hosted SaaS account, AI generation, collaborative live cursors, or an online demo.
+## Product intent and hierarchy
 
-## Information architecture
+Notespace is a **free, self-hosted knowledge workspace**, not a hosted sign-up SaaS.
 
 ```text
-Header: identity → Product / Workflow / Self-host → GitHub
-Hero:   explicit value → short explanation → self-host CTA → GitHub secondary → product proof
-Mobile: same reading order, one column, CTA before proof
+Navbar: Foldling + name → Product / Self-host / Documentation → GitHub
+Hero: product identity → what it actually does → Docker CTA → GitHub secondary
+      → true properties → labeled interactive illustration (Note / Canvas / Split)
 ```
 
-No unverified testimonials, social-proof counts, conversion statistics, or extra feature cards in the hero.
+The headline must name Notes/Canvas directly; never substitute generic thinking slogans or unsupported value claims.
 
-## Primitive system
+## Visual contract
 
-| Foundation | Contract |
-| --- | --- |
-| Light colors | Background `#F7F8FA`, surface `#FFFFFF`, ink `#252630`, muted `#787B8A`, line `#E4E5EC`, accent `#4F7396`, tint `#E8EEF6` |
-| Dark colors | Background `#18191D`, surface `#202126`, ink `#E8E8EF`, muted `#999BA9`, line `#34353E`, accent `#7FA6C9`, tint `#1B2636` |
-| Typography | Open Sans; title desktop 48–56px, mobile 36–42px; body 14–16px; navigation 11–12px; eyebrow 10–11px. Max heading weight 600 |
-| Layout | Max content width 1180px, navbar 56–64px, columns only when they clarify relationship; 4px spacing system; no large empty space just for decoration |
-| Corners | 6px control / 8px surface / 12px featured product frame; pill only for semantic chips |
-| Borders/elevation | Quiet 1px line; restrained product frame elevation only; no full-viewport blur/glow, shader, or image background |
-| States | 100–160ms hover/press, clear 2px keyboard focus, semantic selected state, reduced-motion-safe |
-| Accessibility | One h1, navigation landmark, functional links, 44px minimum tap target where possible, demo selectors as real buttons with ARIA state |
-| Responsive | Content first in the DOM; mobile stack must retain explanation and CTA before product proof; no false phone mockup |
+- Background: `#FFFFFF` in all OS color schemes for this landing. This is intentional: white is the requested direction, not automatic dark mode.
+- Colors retain Notespace values: `--ink #252630`, `--muted #787B8A`, `--line #E4E5EC`, `--accent #4F7396`, `--tint #E8EEF6`.
+- Accent color only for links, CTA, headings with explicit semantic emphasis, controls' active/focus states, and product-owned diagram highlights. No giant blue backdrop, glow, decorative dot grid behind hero copy, or gradient display heading.
+- Font: Howlil-style system sans (400/500/600), mono only for metadata. Main display `48px` desktop / `36px` mobile. Body `16/24`, navigation and controls `14/20`, labels `12/16`.
+- Spacing: 4px base, favor 8/12/16/24/32px. Header ~64px desktop / 56px mobile; hero top padding 64px desktop / 40px mobile.
+- Layout: headline ~720px, body 560px, real UI illustration max 980px (deliberate exception to Howlil's 640px reading column).
+- Control: flat primary pill; secondary text action; full border on the real application frame. Only very subtle shadow on the framed UI.
+- Interaction motion: 160ms max for local hover/press, no scroll-triggered reveal, honor `prefers-reduced-motion`.
+- Accessibility: one hero `h1`, keyboard-visible focus, semantic nav and section headings, functional links.
 
-## CTA vocabulary
+## Interactive illustration contract
 
-- Primary: **Self-host Notespace** → existing `#self-host` or GitHub self-host instructions.
-- Secondary: **View on GitHub** → `https://github.com/howlil/notespace`.
-- No **Start free**, **Sign in**, or **Try demo** until those destinations are real.
+`ProductPreview.astro` supports `interactive` prop, but preserves a static mode for other callers.
 
-## Sliced experiment
+- Note/Canvas/Split tabs update **only mock preview layout** and report active state with `aria-pressed`.
+- Search demonstrates **static example data** only, with working query filter, Escape/outside dismissal, focus return and tab containment; it does not call the Go API.
+- Canvas nodes are keyboard- and pointer-selectable, with `aria-pressed` and a text selection label. This is illustrative, not an editable or persistent Excalidraw workspace.
+- Demo is explicitly labeled an illustration and does not imply online SaaS, login, cloud storage, or collaborative editing.
+- Mobile stacks note and canvas, keeps the primary CTA ahead of demo, and exposes tab/search controls without horizontal overflow.
 
-Only header + hero are in scope, sharing the existing `Brand.astro` and `ProductPreview.astro`.
+## QA gate
 
-- D / **Editorial Stage**: left-side product descriptor + right-side message, full-width real UI below. Inspired by 21st Editorial Hero: https://mcp.21st.dev/%40felipemenezes098/components/hero-05
-- E / **Knowledge Stack**: centered title with three visually related authored surfaces. Inspired by 21st Centered Hero with Image Fan: https://docs.21st.dev/%40felipemenezes098/components/hero-10
-- F / **Interactive Workspace**: direct pitch + 3 UI mode tabs (Note/Canvas/Split) that change the local preview; no real server interaction. Inspired by 21st Hero Section with Device Mockups: https://mcp.21st.dev/%40solaceui/components/hero-section-6
+1. Static Astro build and emitted `dist/index.html` assertions succeed.
+2. Review desktop/mobile at >= 1280px and <= 390px; inspect 320px controls for overflow.
+3. Verify search filter, empty search, switch modes, canvas node click and Enter/Space, Escape and focus restoration.
+4. Check outbound links and functional `#self-host` anchor.
+5. Check contrast, reduced-motion and keyboard focus visibility.
+6. Production deployment is a **separate step** after PR merge; this change does not imply Cloudflare is deployed.
 
-Do not install the templates' React/Next.js/Motion dependencies into the Astro landing. Use the structural idea, authored HTML/CSS, existing Notespace components, and progressive enhancement only.
+## Scope boundary
 
-## Implementation boundary and gate
-
-`landing/src/pages/hero-lab.astro` and `landing/src/styles/hero-lab.css` own the isolated review page. The production homepage, Go API, SQLite runtime, root workspace, and Cloudflare configuration must remain untouched. Before promoting one variant: review desktop/mobile, light/dark, focus/ARIA, links, reduced motion, production font self-hosting, then build. Remove the lab route once the production hero is selected.
+Only the navbar/hero design and shared landing foundation tokens change. The Product, Workflow, Self-host, metrics, closing CTA, and footer sections retain their structure and copy. The existing Compose example in Self-host is corrected to publish localhost using `compose.local.yaml`.

@@ -283,6 +283,7 @@
   color:var(--ink);
   cursor:pointer;
 }
+.notespace-demo .ns-demo-result[hidden] { display: none!important; }
 .notespace-demo .ns-demo-result:hover,
 .notespace-demo .ns-demo-result:focus-visible { background:#f1f5fa; }
 .notespace-demo .ns-demo-result-mark { display:grid; place-items:center; height:30px; width:30px; border-radius:6px; background:var(--tint); color:var(--accent); flex-shrink:0; }

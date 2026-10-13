@@ -24,3 +24,9 @@ test('existing root build retains the web build and also builds Astro from landi
   assert.match(build, /pnpm --dir landing build/)
   assert.equal(pkg.scripts.deploy, undefined, 'Cloudflare deploys using npx wrangler deploy directly')
 })
+
+test('Docker builds the independent web package without importing the landing build', () => {
+  const dockerfile = readFileSync(fromRoot('Dockerfile'), 'utf8')
+  assert.ok(dockerfile.includes('RUN pnpm --filter @notespace/web build'))
+  assert.ok(!dockerfile.includes('RUN pnpm build'), 'Docker stage does not copy landing sources')
+})

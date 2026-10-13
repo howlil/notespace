@@ -14,7 +14,10 @@
     "test:server:process": "node scripts/server-process-integration.mjs",
     "test:desktop:native": "node scripts/desktop-webdriver-smoke.mjs",
     "test:desktop:critical": "node scripts/desktop-webdriver-smoke.mjs --critical",
-    "test:desktop:lifecycle": "node scripts/smoke-desktop-sidecar-lifecycle.mjs"
+    "test:desktop:lifecycle": "node scripts/smoke-desktop-sidecar-lifecycle.mjs",
+    "build:landing": "pnpm --dir landing install --frozen-lockfile && pnpm --dir landing build",
+    "deploy:landing": "pnpm dlx wrangler@4.149.0 deploy --config landing/wrangler.jsonc",
+    "check:landing:deploy": "pnpm dlx wrangler@4.149.0 deploy --config landing/wrangler.jsonc --dry-run"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

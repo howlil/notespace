@@ -111,7 +111,7 @@
   text-decoration: none;
   transition: background-color 160ms ease, transform 160ms ease;
 }
-.ns-white-landing .ns-white-primary:hover { background: #3d6185; }
+.ns-white-landing .ns-white-primary:hover { background: color-mix(in srgb, var(--accent) 85%, #1d2823); }
 .ns-white-landing .ns-white-primary:active { transform: scale(.985); }
 .ns-white-landing .ns-white-secondary {
   display: inline-flex;
@@ -171,7 +171,7 @@
 }
 
 /* Product preview interactive states. Root is its own containing block. */
-.notespace-demo { position: relative; color: #252630; --ink: #252630; --muted: #787b8a; --line: #e4e5ec; --accent: #4f7396; --tint: #e8eef6; --surface: #fff; --canvas: #f8f9fc; --bg: #fff; }
+.notespace-demo { position: relative; color: var(--ink); --surface: #fff; --canvas: #f8f9fc; --bg: #fff; }
 .notespace-demo .ns-demo-search {
   display: inline-flex;
   gap: 8px;
@@ -285,7 +285,7 @@
 }
 .notespace-demo .ns-demo-result[hidden] { display: none!important; }
 .notespace-demo .ns-demo-result:hover,
-.notespace-demo .ns-demo-result:focus-visible { background:#f1f5fa; }
+.notespace-demo .ns-demo-result:focus-visible { background:var(--tint); }
 .notespace-demo .ns-demo-result-mark { display:grid; place-items:center; height:30px; width:30px; border-radius:6px; background:var(--tint); color:var(--accent); flex-shrink:0; }
 .notespace-demo .ns-demo-result strong { display:block; font-size:12px; line-height:16px; font-weight:600; }
 .notespace-demo .ns-demo-result small { display:block; margin-top:4px; font-size:10px; line-height:14px; color:var(--muted); }

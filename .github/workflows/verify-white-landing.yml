@@ -32,3 +32,5 @@ jobs:
       - run: pnpm build
       - name: Verify White Canvas hero and demo output
         run: node --test tests/hero.test.mjs
+      - name: Validate Workers deployment target without publishing
+        run: pnpm run deploy:check

@@ -11,6 +11,8 @@ on:
     branches: [master]
     paths:
       - "landing/**"
+      - "wrangler.jsonc"
+      - "package.json"
       - ".github/workflows/verify-white-landing.yml"
 
 jobs:

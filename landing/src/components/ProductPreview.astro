@@ -1,4 +1,8 @@
-<div class="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[0_24px_80px_rgba(27,31,40,0.10)] dark:shadow-[0_24px_80px_rgba(0,0,0,0.26)]">
+---
+interface Props { svgIdPrefix?: string; interactive?: boolean }
+const { svgIdPrefix = "notespace", interactive = false } = Astro.props
+---
+<div class="notespace-demo overflow-hidden rounded-xl border border-line bg-surface shadow-[0_6px_28px_rgba(28,43,64,0.055)]" data-interactive={interactive ? "true" : undefined} data-view="split">
   <div class="flex h-10 items-center border-b border-line bg-soft px-3">
     <div class="flex gap-1.5" aria-hidden="true">
       <span class="size-2 rounded-full bg-muted/40"></span>
@@ -8,21 +12,35 @@
     <span class="mx-auto -translate-x-5 text-[10px] font-medium text-muted">localhost:8080/workspaces/distributed-systems</span>
   </div>
 
-  <div class="flex h-12 items-center gap-3 border-b border-line px-4">
+  <div class="ns-demo-workbar flex h-14 items-center gap-3 border-b border-line px-4">
     <span class="grid size-7 place-items-center rounded-md text-muted" aria-hidden="true">←</span>
     <div class="min-w-0 flex-1">
       <p class="truncate text-[12px] font-semibold">Distributed Systems</p>
       <p class="text-[9px] text-muted">All changes saved</p>
     </div>
-    <div class="hidden items-center rounded-md border border-line bg-background p-0.5 text-[9px] sm:flex">
-      <span class="rounded-[4px] px-2 py-1 text-muted">Note</span>
-      <span class="rounded-[4px] px-2 py-1 text-muted">Canvas</span>
-      <span class="rounded-[4px] bg-tint px-2 py-1 font-medium text-accent">Split</span>
-    </div>
+    {interactive ? (
+      <div class="ns-demo-header-tools flex items-center gap-3">
+        <button type="button" class="ns-demo-search" data-demo-search-trigger aria-haspopup="dialog" aria-expanded="false" aria-label="Search preview notes and canvas">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7" /><path d="m16 16 5 5" /></svg>
+          Search <kbd>Ctrl K</kbd>
+        </button>
+        <div class="ns-demo-tabs" role="group" aria-label="Workspace preview mode">
+          <button type="button" data-demo-mode="note" aria-pressed="false">Note</button>
+          <button type="button" data-demo-mode="canvas" aria-pressed="false">Canvas</button>
+          <button type="button" data-demo-mode="split" aria-pressed="true">Split</button>
+        </div>
+      </div>
+    ) : (
+      <div class="hidden items-center rounded-md border border-line bg-background p-0.5 text-[9px] sm:flex">
+        <span class="rounded-[4px] px-2 py-1 text-muted">Note</span>
+        <span class="rounded-[4px] px-2 py-1 text-muted">Canvas</span>
+        <span class="rounded-[4px] bg-tint px-2 py-1 font-medium text-accent">Split</span>
+      </div>
+    )}
   </div>
 
-  <div class="grid min-h-[360px] grid-cols-1 md:grid-cols-[1.02fr_0.98fr]">
-    <section class="border-b border-line bg-surface md:border-r md:border-b-0">
+  <div class="ns-demo-panes grid min-h-[360px] grid-cols-1 md:grid-cols-[1.02fr_0.98fr]">
+    <section class="ns-demo-note border-b border-line bg-surface md:border-r md:border-b-0">
       <div class="flex h-9 items-center gap-2 border-b border-line px-3 text-[9px] text-muted">
         <span class="font-medium text-ink">Raft consensus</span>
         <span>Architecture notes</span>
@@ -51,47 +69,176 @@
       </div>
     </section>
 
-    <section class="relative min-h-[310px] overflow-hidden bg-canvas">
+    <section class="ns-demo-canvas relative min-h-[310px] overflow-hidden bg-canvas">
       <div class="flex h-9 items-center gap-2 border-b border-line bg-surface/70 px-3 text-[9px] text-muted">
         <span class="font-medium text-ink">Canvas</span>
         <span class="ml-auto">100%</span>
       </div>
       <svg class="absolute inset-x-0 bottom-0 top-9 h-[calc(100%_-_2.25rem)] w-full" viewBox="0 0 500 350" fill="none" aria-label="Canvas showing a Raft consensus diagram">
         <defs>
-          <pattern id="dot-grid" width="18" height="18" patternUnits="userSpaceOnUse">
+          <pattern id={`${svgIdPrefix}-dot-grid`} width="18" height="18" patternUnits="userSpaceOnUse">
             <circle cx="1" cy="1" r="1" fill="var(--line)" opacity="0.7" />
           </pattern>
-          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <marker id={`${svgIdPrefix}-arrow`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
             <path d="M0 0L8 4L0 8Z" fill="var(--accent)" />
           </marker>
         </defs>
-        <rect width="500" height="350" fill="url(#dot-grid)" />
-        <path d="M250 90C220 125 175 140 125 158" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#arrow)" opacity="0.85" />
-        <path d="M250 90C280 125 325 140 375 158" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#arrow)" opacity="0.85" />
-        <path d="M130 198C175 228 210 240 245 248" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#arrow)" opacity="0.58" />
-        <path d="M370 198C325 228 290 240 255 248" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#arrow)" opacity="0.58" />
+        <rect width="500" height="350" fill={`url(#${svgIdPrefix}-dot-grid)`} />
+        <path d="M250 90C220 125 175 140 125 158" stroke="var(--accent)" stroke-width="1.6" marker-end={`url(#${svgIdPrefix}-arrow)`} opacity="0.85" />
+        <path d="M250 90C280 125 325 140 375 158" stroke="var(--accent)" stroke-width="1.6" marker-end={`url(#${svgIdPrefix}-arrow)`} opacity="0.85" />
+        <path d="M130 198C175 228 210 240 245 248" stroke="var(--muted)" stroke-width="1.3" marker-end={`url(#${svgIdPrefix}-arrow)`} opacity="0.58" />
+        <path d="M370 198C325 228 290 240 255 248" stroke="var(--muted)" stroke-width="1.3" marker-end={`url(#${svgIdPrefix}-arrow)`} opacity="0.58" />
 
-        <g>
+        <g class={interactive ? "ns-demo-node" : undefined} data-demo-node={interactive ? "Leader" : undefined} role={interactive ? "button" : undefined} tabindex={interactive ? 0 : undefined} aria-label={interactive ? "Select Leader node" : undefined} aria-pressed={interactive ? "true" : undefined}>
           <rect x="185" y="42" width="130" height="52" rx="9" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4" />
           <text x="250" y="64" text-anchor="middle" fill="var(--ink)" font-size="11" font-weight="600">Leader</text>
           <text x="250" y="80" text-anchor="middle" fill="var(--muted)" font-size="8">term 8 · log index 42</text>
         </g>
-        <g>
+        <g class={interactive ? "ns-demo-node" : undefined} data-demo-node={interactive ? "Follower A" : undefined} role={interactive ? "button" : undefined} tabindex={interactive ? 0 : undefined} aria-label={interactive ? "Select Follower A node" : undefined} aria-pressed={interactive ? "false" : undefined}>
           <rect x="66" y="156" width="130" height="48" rx="9" fill="var(--surface)" stroke="var(--line)" />
           <text x="131" y="177" text-anchor="middle" fill="var(--ink)" font-size="10" font-weight="600">Follower A</text>
           <text x="131" y="191" text-anchor="middle" fill="var(--muted)" font-size="8">append entries</text>
         </g>
-        <g>
+        <g class={interactive ? "ns-demo-node" : undefined} data-demo-node={interactive ? "Follower B" : undefined} role={interactive ? "button" : undefined} tabindex={interactive ? 0 : undefined} aria-label={interactive ? "Select Follower B node" : undefined} aria-pressed={interactive ? "false" : undefined}>
           <rect x="304" y="156" width="130" height="48" rx="9" fill="var(--surface)" stroke="var(--line)" />
           <text x="369" y="177" text-anchor="middle" fill="var(--ink)" font-size="10" font-weight="600">Follower B</text>
           <text x="369" y="191" text-anchor="middle" fill="var(--muted)" font-size="8">append entries</text>
         </g>
-        <g>
+        <g class={interactive ? "ns-demo-node" : undefined} data-demo-node={interactive ? "Committed" : undefined} role={interactive ? "button" : undefined} tabindex={interactive ? 0 : undefined} aria-label={interactive ? "Select Committed node" : undefined} aria-pressed={interactive ? "false" : undefined}>
           <rect x="185" y="246" width="130" height="48" rx="9" fill="var(--tint)" stroke="var(--accent)" stroke-opacity="0.5" />
           <text x="250" y="267" text-anchor="middle" fill="var(--accent)" font-size="10" font-weight="600">Committed</text>
           <text x="250" y="281" text-anchor="middle" fill="var(--muted)" font-size="8">majority acknowledged</text>
         </g>
       </svg>
+      {interactive && <div class="ns-demo-selection" aria-live="polite">Selected node: <strong data-demo-selection>Leader · term 8</strong></div>}
     </section>
   </div>
+  {interactive && (
+    <div class="ns-demo-overlay" data-demo-overlay hidden>
+      <div class="ns-demo-dialog" role="dialog" aria-modal="true" aria-label="Search preview workspace">
+        <div class="ns-demo-inputbar">
+          <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="7" /><path d="m16 16 5 5" /></svg>
+          <input type="search" data-demo-query placeholder="Search notes and workspaces…" aria-label="Search notes and canvas in this demo" autocomplete="off" />
+          <button type="button" data-demo-close class="ns-demo-close" aria-label="Close search">Esc</button>
+        </div>
+        <div class="p-2">
+          <p class="px-3 py-2 text-[10px] font-medium text-muted">EXAMPLE RESULTS</p>
+          <button type="button" class="ns-demo-result" data-demo-result="note" data-demo-search-text="raft consensus leader election distributed systems">
+            <span class="ns-demo-result-mark" aria-hidden="true">▤</span>
+            <span><strong>Raft consensus</strong><small>Distributed Systems / Note</small></span>
+          </button>
+          <button type="button" class="ns-demo-result" data-demo-result="canvas" data-demo-search-text="distributed systems canvas diagram raft">
+            <span class="ns-demo-result-mark" aria-hidden="true">◇</span>
+            <span><strong>Distributed Systems canvas</strong><small>Distributed Systems / Canvas</small></span>
+          </button>
+          <p class="ns-demo-empty" data-demo-empty hidden>No matching example content.</p>
+        </div>
+        <div class="ns-demo-search-foot">Illustrative preview data · not connected to the app</div>
+      </div>
+    </div>
+  )}
 </div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.notespace-demo[data-interactive="true"]').forEach((root) => {
+    if (root.dataset.ready === "true") return
+    root.dataset.ready = "true"
+    const overlay = root.querySelector<HTMLElement>('[data-demo-overlay]')
+    const trigger = root.querySelector<HTMLButtonElement>('[data-demo-search-trigger]')
+    const query = root.querySelector<HTMLInputElement>('[data-demo-query]')
+    const closeButton = root.querySelector<HTMLButtonElement>('[data-demo-close]')
+    const empty = root.querySelector<HTMLElement>('[data-demo-empty]')
+    const results = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-demo-result]'))
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-demo-mode]'))
+    let previousFocus: HTMLElement | null = null
+
+    function selectMode(mode: string) {
+      if (!["note", "canvas", "split"].includes(mode)) return
+      root.dataset.view = mode
+      tabs.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.demoMode === mode)))
+    }
+    tabs.forEach((button) => button.addEventListener("click", () => selectMode(button.dataset.demoMode ?? "")))
+
+    const names: Record<string, string> = {
+      Leader: "Leader · term 8",
+      "Follower A": "Follower A · append entries",
+      "Follower B": "Follower B · append entries",
+      Committed: "Committed · majority acknowledged",
+    }
+    function selectNode(name: string) {
+      root.querySelectorAll<SVGGElement>('[data-demo-node]').forEach((node) => {
+        node.setAttribute("aria-pressed", String(node.dataset.demoNode === name))
+      })
+      const selection = root.querySelector<HTMLElement>('[data-demo-selection]')
+      if (selection) selection.textContent = names[name] ?? name
+    }
+    root.querySelectorAll<SVGGElement>('[data-demo-node]').forEach((node) => {
+      node.addEventListener("click", () => selectNode(node.dataset.demoNode ?? ""))
+      node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          selectNode(node.dataset.demoNode ?? "")
+        }
+      })
+    })
+
+    function filterResults() {
+      const term = (query?.value ?? "").trim().toLowerCase()
+      let matches = 0
+      results.forEach((button) => {
+        const show = !term || (button.dataset.demoSearchText ?? "").includes(term)
+        button.hidden = !show
+        if (show) matches++
+      })
+      if (empty) empty.hidden = matches > 0
+    }
+    function openSearch() {
+      if (!overlay || !trigger || !query || !overlay.hidden) return
+      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : trigger
+      overlay.hidden = false
+      trigger.setAttribute("aria-expanded", "true")
+      query.value = ""
+      filterResults()
+      query.focus()
+    }
+    function closeSearch() {
+      if (!overlay || !trigger) return
+      overlay.hidden = true
+      trigger.setAttribute("aria-expanded", "false")
+      ;(previousFocus?.isConnected ? previousFocus : trigger)?.focus()
+    }
+
+    trigger?.addEventListener("click", openSearch)
+    closeButton?.addEventListener("click", closeSearch)
+    query?.addEventListener("input", filterResults)
+    overlay?.addEventListener("click", (event) => { if (event.target === overlay) closeSearch() })
+    results.forEach((button) => button.addEventListener("click", () => {
+      selectMode(button.dataset.demoResult ?? "")
+      closeSearch()
+    }))
+    root.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        openSearch()
+      }
+      if (!overlay || overlay.hidden) return
+      if (event.key === "Escape") {
+        event.preventDefault()
+        closeSearch()
+      } else if (event.key === "Tab") {
+        const focusable = [query, ...results.filter((button) => !button.hidden), closeButton].filter(
+          (el): el is HTMLElement => Boolean(el)
+        )
+        if (focusable.length === 0) return
+        const first = focusable[0], last = focusable[focusable.length - 1]
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    })
+  })
+</script>

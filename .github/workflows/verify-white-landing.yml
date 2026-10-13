@@ -1,0 +1,36 @@
+name: Verify White Canvas landing
+
+on:
+  pull_request:
+    paths:
+      - "landing/**"
+      - ".github/workflows/verify-white-landing.yml"
+  push:
+    branches: [master]
+    paths:
+      - "landing/**"
+      - ".github/workflows/verify-white-landing.yml"
+
+jobs:
+  landing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: landing/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Verify White Canvas hero and demo output
+        run: node --test tests/hero.test.mjs
+      - name: Validate Workers deployment target without publishing
+        run: npx wrangler@4.149.0 deploy --dry-run

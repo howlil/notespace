@@ -2,58 +2,70 @@
 import BaseLayout from '../layouts/BaseLayout.astro'
 import Brand from '../components/Brand.astro'
 import ProductPreview from '../components/ProductPreview.astro'
+import '../styles/white-hero.css'
 
 const repoUrl = 'https://github.com/howlil/notespace'
 const description = 'Notespace is a free, self-hosted knowledge workspace for structured notes and spatial thinking.'
 ---
 
 <BaseLayout title="Notespace — Notes and canvas, one self-hosted workspace" description={description}>
-  <div id="top" class="min-h-screen overflow-x-hidden">
-    <header class="sticky top-0 z-30 border-b border-line bg-background/95">
-      <div class="mx-auto flex h-14 max-w-[1180px] items-center px-5 sm:px-7 lg:px-8">
+  <div id="top" class="ns-white-landing min-h-screen overflow-x-hidden">
+    <header class="ns-white-header">
+      <div class="ns-white-header-inner">
         <Brand />
-        <nav class="ml-auto hidden items-center gap-6 text-[12px] text-muted md:flex" aria-label="Primary navigation">
-          <a class="transition-colors hover:text-ink" href="#product">Product</a>
-          <a class="transition-colors hover:text-ink" href="#workflow">Workflow</a>
-          <a class="transition-colors hover:text-ink" href="#self-host">Self-host</a>
+        <nav aria-label="Primary navigation">
+          <a href="#product">Product</a>
+          <a href="#self-host">Self-host</a>
+          <a href={`${repoUrl}#self-host-with-docker`} target="_blank" rel="noopener noreferrer">Documentation</a>
         </nav>
-        <a class="ml-6 inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-[11px] font-medium transition-colors hover:border-accent hover:bg-tint" href={repoUrl} target="_blank" rel="noreferrer">
-          View on GitHub <span aria-hidden="true">↗</span>
+        <a class="ns-white-github" href={repoUrl} target="_blank" rel="noopener noreferrer">
+          GitHub
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+          </svg>
         </a>
       </div>
     </header>
 
     <main>
-      <section id="main-content" class="border-b border-line" aria-labelledby="hero-title">
-        <div class="mx-auto grid max-w-[1180px] gap-12 px-5 py-16 sm:px-7 sm:py-20 lg:grid-cols-[0.78fr_1.22fr] lg:items-center lg:gap-14 lg:px-8 lg:py-24">
-          <div class="max-w-[520px]">
-            <div class="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.13em] text-muted">
-              <span class="inline-flex items-center gap-1.5 text-accent"><span class="size-1.5 rounded-full bg-accent" aria-hidden="true"></span>Open source workspace</span>
-              <span class="text-line">/</span><span>Self-hosted</span><span class="text-line">/</span><span>SQLite</span>
-            </div>
-            <h1 id="hero-title" class="max-w-[500px] text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-ink sm:text-[52px] lg:text-[58px]">
-              One workspace<br />for deeper thinking.
-            </h1>
-            <p class="mt-6 max-w-[470px] text-[15px] leading-7 text-muted sm:text-[16px]">
-              Write structured notes, map ideas on a spatial canvas, and return to the exact context later. Notespace keeps the whole working thought in one self-hosted workspace.
+      <section id="main-content" class="ns-white-hero" aria-labelledby="hero-title">
+        <div class="ns-white-hero-inner">
+          <div class="ns-white-hero-copy">
+            <p class="ns-white-kicker">Open source · Self-hosted knowledge workspace</p>
+            <h1 id="hero-title">Your notes and <span>canvas</span>, in one place.</h1>
+            <p class="ns-white-summary">
+              Write structured notes, sketch systems, and return to the same context—all inside a workspace you control.
             </p>
-            <div class="mt-8 flex flex-wrap items-center gap-3">
-              <a class="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-4 text-[12px] font-medium text-background transition-opacity hover:opacity-90" href={repoUrl} target="_blank" rel="noreferrer">
-                Get Notespace on GitHub <span aria-hidden="true">↗</span>
-              </a>
-              <a class="inline-flex h-10 items-center rounded-md border border-line bg-surface px-4 text-[12px] font-medium transition-colors hover:bg-soft" href="#self-host">
+            <div class="ns-white-actions">
+              <a class="ns-white-primary" href="#self-host">
                 Self-host with Docker
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                </svg>
+              </a>
+              <a class="ns-white-secondary" href={repoUrl} target="_blank" rel="noopener noreferrer">
+                Explore on GitHub
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                </svg>
               </a>
             </div>
-            <div class="mt-8 grid max-w-[430px] grid-cols-3 border-y border-line py-3">
-              <div class="border-r border-line pr-3"><p class="text-[11px] font-medium text-ink">Notes</p><p class="mt-1 text-[10px] leading-4 text-muted">structured writing</p></div>
-              <div class="border-r border-line px-3"><p class="text-[11px] font-medium text-ink">Canvas</p><p class="mt-1 text-[10px] leading-4 text-muted">spatial thinking</p></div>
-              <div class="pl-3"><p class="text-[11px] font-medium text-ink">Owned</p><p class="mt-1 text-[10px] leading-4 text-muted">your deployment</p></div>
-            </div>
+            <ul class="ns-white-facts" aria-label="Notespace properties">
+              <li>Free & open source</li>
+              <li>SQLite storage</li>
+              <li>No hosted account</li>
+            </ul>
           </div>
-
-          <div class="lg:-mr-20">
-            <ProductPreview />
+          <div class="ns-white-showcase">
+            <div class="ns-white-showcase-caption">
+              <div>
+                <p class="ns-white-preview-label">PRODUCT PREVIEW</p>
+                <h2>Work with notes and canvas side by side.</h2>
+              </div>
+              <p class="ns-white-preview-hint">Switch views or search the example workspace</p>
+            </div>
+            <ProductPreview interactive svgIdPrefix="landing-white-hero" />
+            <p class="ns-white-demo-note">Interactive product illustration · example content, no backend connection</p>
           </div>
         </div>
       </section>
@@ -142,7 +154,7 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
             <div class="flex h-10 items-center border-b border-[#303138] px-4 text-[10px] text-[#8f929f]"><span>terminal</span><span class="ml-auto">docker compose</span></div>
             <pre class="overflow-x-auto p-5 text-[11px] leading-6"><code><span class="text-[#7fa6c9]">$</span> git clone https://github.com/howlil/notespace.git
 <span class="text-[#7fa6c9]">$</span> cd notespace
-<span class="text-[#7fa6c9]">$</span> docker compose up --build -d --wait
+<span class="text-[#7fa6c9]">$</span> docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
 
 <span class="text-[#6f947d]">✓</span> Notespace is ready on localhost:8080</code></pre>
           </div>

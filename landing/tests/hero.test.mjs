@@ -38,3 +38,15 @@ test('CSS and standalone Astro product script are bundled', () => {
   assert.ok(existsSync(new URL('../dist/_astro', import.meta.url)), 'Astro assets are missing')
   assert.ok(html.includes('<script'), 'generated page has no client-side script')
 })
+
+test('Cloudflare deployment is explicitly scoped to the Astro landing dist', () => {
+  const wrangler = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'))
+  const root = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+  const landing = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(wrangler.name, 'notespace-landing')
+  assert.equal(wrangler.assets.directory, './dist')
+  assert.equal(wrangler.main, undefined, 'a static landing does not need a Worker entrypoint')
+  assert.match(root.scripts['build:landing'], /landing build/)
+  assert.match(root.scripts['deploy:landing'], /--config landing\/wrangler\.jsonc/)
+  assert.match(landing.scripts.deploy, /wrangler@4\.149\.0 deploy/)
+})

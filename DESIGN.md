@@ -49,7 +49,7 @@ Today must not become a calendar, backlog dashboard, habit tracker, kanban board
 
 ### Workspace cards
 
-Workspace cards retain the compact square paper-stack composition used by the library. The card background is the blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
+Workspace cards retain the compact square paper-stack composition used by the library. The card background is the muted-jade `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
 
 ### Category detail
 
@@ -85,7 +85,7 @@ Default direction:
 - subtle motion only when it explains state or continuity;
 - light and dark modes must remain coherent.
 
-Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained blue thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
+Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained muted-jade thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
 
 ## Design tokens
 
@@ -115,8 +115,8 @@ The application uses semantic colors so the same component can remain coherent i
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
 | `--muted` | `#787B8A` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#4F7396` | `#7FA6C9` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
-| `--tint` | `#E8EEF6` | `#1B2636` | Hover background, active background, selected rows, and soft emphasis |
+| `--accent` | `#3F6D61` | `#A6D1BC` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
+| `--tint` | `#EBF2EE` | `#20352E` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
@@ -283,11 +283,13 @@ Every interactive component needs an accessible name and a keyboard path. Icon-o
 
 ## Color and emphasis
 
-Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the existing restrained steel-blue identity:
+Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the existing restrained muted-jade identity:
 
-- Light accent/focus: `#4F7396` (`--accent`); light active tint: `#E8EEF6` (`--tint`).
-- Dark accent/focus: `#7FA6C9` (`--accent`); dark active tint: `#1B2636` (`--tint`).
+- Light accent/focus: `#3F6D61` (`--accent`); light active tint: `#EBF2EE` (`--tint`).
+- Dark accent/focus: `#A6D1BC` (`--accent`); dark active tint: `#20352E` (`--tint`).
 - Neutral backgrounds, ink, supporting text, and status colors remain the semantic tokens in the table above.
+
+The brand accent colors theme-aware navigation, focus, selected states, and new diagram presets. Existing user-authored Canvas colors are content and must not be rewritten during a theme change.
 
 ### Color distribution
 
@@ -325,7 +327,7 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
 - **Known current gap (not yet changed by this contract):** light `--muted: #787B8A` on white `--surface: #FFFFFF` yields approximately **4.20:1**, below 4.5:1 for normal-size supporting text. A candidate is `#707482` (approximately 4.66:1 on white); validate across all actual backgrounds and update the runtime token and this table together when implementing the fix.
-- Preserve the steel-blue identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
+- Preserve the muted-jade identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
 
 ## Component and interaction rules
 

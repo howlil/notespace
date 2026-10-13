@@ -29,9 +29,9 @@ export function renderStructuredDiagram(
   dark: boolean,
   availableEraserIcons: ReadonlySet<string> = new Set(),
 ): OrderedExcalidrawElement[] {
-  const strokeColor = dark ? "#7fa6c9" : "#4f7396";
-  const backgroundColor = dark ? "#1b2636" : "#f0f4f8";
-  const groupStroke = dark ? "#586678" : "#aab7c4";
+  const strokeColor = dark ? "#a6d1bc" : "#3f6d61";
+  const backgroundColor = dark ? "#20352e" : "#ebf2ee";
+  const groupStroke = dark ? "#6c8a7c" : "#9cb7aa";
   const skeletons: ExcalidrawElementSkeleton[] = [];
 
   for (const group of diagram.groups) {

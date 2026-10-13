@@ -129,8 +129,8 @@ export function CanvasCodeBlockLayer({
                 height,
                 background: palette.background,
                 color: palette.foreground,
-                border: `1px solid ${selected ? "#4f7396" : palette.border}`,
-                boxShadow: selected ? "0 0 0 1px color-mix(in srgb, #4f7396 35%, transparent)" : "none",
+                border: `1px solid ${selected ? "var(--accent)" : palette.border}`,
+                boxShadow: selected ? "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent)" : "none",
               }}
               data-canvas-code-block={element.id}
               aria-label={`Code block, ${effectiveLanguage}`}

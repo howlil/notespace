@@ -91,7 +91,26 @@ test("design token contract: DESIGN.md documents the runtime semantic tokens", (
   const design = source(DESIGN); const globals = source(GLOBALS);
   for (const token of ["--bg", "--surface", "--sidebar", "--canvas", "--ink", "--muted", "--line", "--accent", "--tint", "--button", "--button-text", "--danger", "--success"]) assert.match(design, new RegExp(token));
   assert.match(design, /--font-sans/); assert.match(design, /Motion tokens/); assert.match(design, /prefers-reduced-motion/); assert.match(design, /z-1000/);
-  assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--font-sans:\s*"Open Sans"/);
+  assert.match(globals, /--accent:\s*#3f6d61/i); assert.match(globals, /--tint:\s*#ebf2ee/i); assert.match(globals, /--font-sans:\s*"Open Sans"/);
+});
+
+test("muted jade identity: landing and runtime use the same accent/tint", () => {
+  const landing = source(join(ROOT, "landing", "src", "styles", "global.css"));
+  const hero = source(join(ROOT, "landing", "src", "styles", "white-hero.css"));
+  const design = source(DESIGN);
+  for (const [token, value] of [["accent", "#3f6d61"], ["tint", "#ebf2ee"]] as const) {
+    assert.match(landing, new RegExp(`--${token}:\\s*${value}`, "i"));
+    assert.match(source(GLOBALS), new RegExp(`--${token}:\\s*${value}`, "i"));
+  }
+  assert.match(design, /muted-jade identity/);
+  assert.doesNotMatch(hero, /#4f7396|#e8eef6/i);
+  for (const surface of ["apps/web", "landing"]) {
+    const asset = (file: string) => source(join(ROOT, surface, "public", file));
+    assert.match(asset("brand/notespace-foldling.svg"), /#3f6d61/i);
+    assert.match(asset("brand/notespace-foldling-light.svg"), /#a6d1bc/i);
+    assert.match(asset("favicon.svg"), /#3f6d61/i);
+  }
+  assert.match(hero, /\.ns-white-primary:hover\s*\{\s*background:\s*color-mix\(/);
 });
 
 test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-first setup", () => {
@@ -113,7 +132,7 @@ test("frontend styling contract: shared globals and workspace authoring styles k
 
 test("frontend styling contract: globals owns tokens and document defaults, not feature selectors", () => {
   const globals = source(GLOBALS);
-  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#4f7396/i); assert.match(globals, /--tint:\s*#e8eef6/i); assert.match(globals, /--accent:\s*#7fa6c9/i); assert.match(globals, /--tint:\s*#1b2636/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
+  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#3f6d61/i); assert.match(globals, /--tint:\s*#ebf2ee/i); assert.match(globals, /--accent:\s*#a6d1bc/i); assert.match(globals, /--tint:\s*#20352e/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(globals, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
@@ -452,4 +471,4 @@ test("interaction contract: contextual popups still share one dismissal model", 
   const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
-test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#4f7396/); });
+test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#3f6d61/); });

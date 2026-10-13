@@ -3,7 +3,7 @@
 Status: **selected direction for the production landing page**, implemented by `landing/src/pages/index.astro` and `landing/src/styles/white-hero.css`.
 
 Sources of truth:
-1. Notespace [DESIGN.md](../DESIGN.md): product boundaries and steel-blue semantic palette.
+1. Notespace [DESIGN.md](../DESIGN.md): product boundaries and muted-jade semantic palette.
 2. Howlil [design.md](https://github.com/howlil/howlil-app/blob/main/design.md): hierarchy, type roles, spacing, anti-slop rules, conservative motion.
 3. This document: explicit *landing-only* deviations (white by design, wider product preview).
 
@@ -22,8 +22,8 @@ The headline must name Notes/Canvas directly; never substitute generic thinking 
 ## Visual contract
 
 - Background: `#FFFFFF` in all OS color schemes for this landing. This is intentional: white is the requested direction, not automatic dark mode.
-- Colors retain Notespace values: `--ink #252630`, `--muted #787B8A`, `--line #E4E5EC`, `--accent #4F7396`, `--tint #E8EEF6`.
-- Accent color only for links, CTA, headings with explicit semantic emphasis, controls' active/focus states, and product-owned diagram highlights. No giant blue backdrop, glow, decorative dot grid behind hero copy, or gradient display heading.
+- Colors retain the Notespace muted-jade values: `--ink #252630`, `--muted #787B8A`, `--line #E4E5EC`, `--accent #3F6D61`, `--tint #EBF2EE`.
+- Accent color only for links, CTA, headings with explicit semantic emphasis, controls' active/focus states, and product-owned diagram highlights. No giant colored backdrop, glow, decorative dot grid behind hero copy, or gradient display heading.
 - Font: Howlil-style system sans (400/500/600), mono only for metadata. Main display `48px` desktop / `36px` mobile. Body `16/24`, navigation and controls `14/20`, labels `12/16`.
 - Spacing: 4px base, favor 8/12/16/24/32px. Header ~64px desktop / 56px mobile; hero top padding 64px desktop / 40px mobile.
 - Layout: headline ~720px, body 560px, real UI illustration max 980px (deliberate exception to Howlil's 640px reading column).

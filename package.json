@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @notespace/web dev",
-    "build": "pnpm --filter @notespace/web build",
+    "build": "pnpm --filter @notespace/web build && pnpm --dir landing install --frozen-lockfile && pnpm --dir landing build",
     "typecheck": "pnpm --filter @notespace/web typecheck",
     "lint": "eslint apps/web/src tests scripts/run-node-tests.mjs --max-warnings 0",
     "test": "node scripts/run-node-tests.mjs",

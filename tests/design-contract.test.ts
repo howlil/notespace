@@ -103,7 +103,13 @@ test("muted jade identity: landing and runtime use the same accent/tint", () => 
     assert.match(source(GLOBALS), new RegExp(`--${token}:\\s*${value}`, "i"));
   }
   assert.match(design, /muted-jade identity/);
-  assert.doesNotMatch(hero, /--accent:\\s*#4f7396|--tint:\\s*#e8eef6/i);
+  assert.doesNotMatch(hero, /#4f7396|#e8eef6/i);
+  for (const surface of ["apps/web", "landing"]) {
+    const asset = (file: string) => source(join(ROOT, surface, "public", file));
+    assert.match(asset("brand/notespace-foldling.svg"), /#3f6d61/i);
+    assert.match(asset("brand/notespace-foldling-light.svg"), /#a6d1bc/i);
+    assert.match(asset("favicon.svg"), /#3f6d61/i);
+  }
   assert.match(hero, /\.ns-white-primary:hover\s*\{\s*background:\s*color-mix\(/);
 });
 

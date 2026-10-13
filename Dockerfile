@@ -6,7 +6,7 @@ COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY apps/web apps/web
-RUN pnpm build
+RUN pnpm --filter @notespace/web build
 
 FROM golang:1.25-bookworm AS server
 WORKDIR /src

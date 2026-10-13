@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "deploy": "pnpm dlx wrangler@4.149.0 deploy",
-    "deploy:check": "pnpm dlx wrangler@4.149.0 deploy --dry-run"
+    "preview": "astro preview"
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.8",

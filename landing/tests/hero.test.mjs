@@ -34,18 +34,18 @@ test('panorama asset and one heading with preserved landing sections', () => {
 
 test('panorama frame maintains symmetric gutters and rounded corners', () => {
   const css = readFileSync(new URL('../src/styles/white-hero.css', import.meta.url), 'utf8')
-  const shell = css.match(/\\.ns-ambient-shell\\s*\\{([^}]*)\\}/)?.[1] ?? ''
-  assert.match(shell, /padding-inline:\\s*clamp\\(/, 'both desktop gutters should share one spacing rule')
-  assert.doesNotMatch(shell, /padding-(?:left|right)\\s*:/, 'single-sided padding would unbalance the hero image')
+  const shell = css.match(/\.ns-ambient-shell\s*\{([^}]*)\}/)?.[1] ?? ''
+  assert.match(shell, /padding-inline:\s*clamp\(/, 'both desktop gutters should share one spacing rule')
+  assert.doesNotMatch(shell, /padding-(?:left|right)\s*:/, 'single-sided padding would unbalance the hero image')
 
-  const art = css.match(/\\.ns-ambient-art\\s*\\{([^}]*)\\}/)?.[1] ?? ''
-  assert.match(art, /border-radius:\\s*18px/, 'desktop panorama should have noticeable rounded corners')
-  assert.match(art, /overflow:\\s*hidden/, 'frame should clip the image at all corners')
-  assert.match(css, /\\.ns-ambient-art img\\s*\\{[^}]*border-radius:\\s*inherit/, 'image should inherit the clipping radius')
+  const art = css.match(/\.ns-ambient-art\s*\{([^}]*)\}/)?.[1] ?? ''
+  assert.match(art, /border-radius:\s*18px/, 'desktop panorama should have noticeable rounded corners')
+  assert.match(art, /overflow:\s*hidden/, 'frame should clip the image at all corners')
+  assert.match(css, /\.ns-ambient-art img\s*\{[^}]*border-radius:\s*inherit/, 'image should inherit the clipping radius')
 
   const mobile = css.split('@media(max-width:720px) {')[1] ?? ''
-  assert.match(mobile, /\\.ns-ambient-shell\\s*\\{[^}]*padding-inline:\\s*17px/, 'mobile gutters must stay symmetrical')
-  assert.match(mobile, /\\.ns-ambient-art\\s*\\{[^}]*border-radius:\\s*12px/, 'mobile corners should remain rounded')
+  assert.match(mobile, /\.ns-ambient-shell\s*\{[^}]*padding-inline:\s*17px/, 'mobile gutters must stay symmetrical')
+  assert.match(mobile, /\.ns-ambient-art\s*\{[^}]*border-radius:\s*12px/, 'mobile corners should remain rounded')
 })
 
 test('responsive navigation has accessible toggle and ships a client script', () => {

@@ -5,7 +5,7 @@
 .ns-ambient-header,.ns-ambient-hero,.ns-ambient-under-image { font-family:"Geist",Inter,"Helvetica Neue",Arial,sans-serif; }
 .ns-ambient-header { height:94px; padding:0 19px 0 26px; display:grid; grid-template-columns:minmax(220px,1fr) auto minmax(265px,1fr); align-items:center; gap:20px; }
 .ns-ambient-brand { display:inline-flex; width:max-content; align-items:center; gap:12px; color:var(--ambient-ink); font-size:25px; font-weight:500; letter-spacing:-.048em; line-height:1; text-decoration:none; }
-.ns-ambient-brand-icon { display:block; width:29px; height:33px; flex:none; }
+.ns-ambient-brand-icon { display:block; width:33px; height:33px; flex:none; object-fit:contain; }
 .ns-ambient-desktop-nav { display:flex; justify-content:center; align-items:center; gap:clamp(26px,3.3vw,51px); white-space:nowrap; }
 .ns-ambient-desktop-nav a { font-size:15px; font-weight:400; color:#424656; transition:color .16s ease; }
 .ns-ambient-desktop-nav a:hover { color:var(--ambient-ink); }
@@ -47,7 +47,7 @@
   .ns-ambient-shell { padding-inline:17px; }
   .ns-ambient-header { padding:0 3px; height:76px; }
   .ns-ambient-brand { font-size:23px; }
-  .ns-ambient-brand-icon { width:26px; height:29px; }
+  .ns-ambient-brand-icon { width:29px; height:29px; }
   .ns-ambient-header-actions .ns-arc-button { display:none; }
   .ns-ambient-menu-trigger { display:inline-flex; }
   .ns-ambient-mobile-nav[data-open="true"] { display:flex; flex-direction:column; position:absolute; z-index:40; left:17px; right:17px; top:70px; padding:10px; border:1px solid #ebedf0; background:white; border-radius:12px; box-shadow:0 14px 32px rgba(23,28,31,.07); }

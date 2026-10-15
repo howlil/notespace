@@ -1,74 +1,76 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro'
-import Brand from '../components/Brand.astro'
-import ProductPreview from '../components/ProductPreview.astro'
+import '@fontsource/geist/400.css'
+import '@fontsource/geist/500.css'
+import '@fontsource/geist/600.css'
 import '../styles/white-hero.css'
 
 const repoUrl = 'https://github.com/howlil/notespace'
-const description = 'Notespace is a free, self-hosted knowledge workspace for structured notes and spatial thinking.'
+const docsUrl = `${repoUrl}#self-host-with-docker`
+const description = 'Own your thinking. Write notes, connect ideas visually, and turn insights into plans in one self-hosted workspace.'
 ---
 
-<BaseLayout title="Notespace — Notes and canvas, one self-hosted workspace" description={description}>
-  <div id="top" class="ns-white-landing min-h-screen overflow-x-hidden">
-    <header class="ns-white-header">
-      <div class="ns-white-header-inner">
-        <Brand />
-        <nav aria-label="Primary navigation">
-          <a href="#product">Product</a>
-          <a href="#self-host">Self-host</a>
-          <a href={`${repoUrl}#self-host-with-docker`} target="_blank" rel="noopener noreferrer">Documentation</a>
-        </nav>
-        <a class="ns-white-github" href={repoUrl} target="_blank" rel="noopener noreferrer">
-          GitHub
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+<BaseLayout title="Notespace — Own your thinking" description={description}>
+  <div id="top" class="ns-white-landing ns-ambient-landing">
+    <div class="ns-ambient-shell">
+      <header class="ns-ambient-header">
+        <a class="ns-ambient-brand" href="#top" aria-label="Notespace home">
+          <svg class="ns-ambient-brand-icon" viewBox="0 0 29 33" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M1 2.4c0-.85.7-1.54 1.55-1.53L13.9 2c1.04.1 1.8.91 1.8 1.96v26.52c0 1.04-.81 1.89-1.85 1.96L2.96 32.8C1.86 32.87 1 32 1 30.9V2.4Z" fill="#1D2642" />
+            <path d="M19.7 2.1c0-.87.7-1.57 1.57-1.57h5.17c.86 0 1.56.7 1.56 1.57v12.03c0 .87-.7 1.57-1.56 1.57h-5.17c-.87 0-1.57-.7-1.57-1.57V2.1Z" fill="#1D2642" />
+            <path d="M19.7 20.65c0-.87.7-1.57 1.57-1.57h5.17c.86 0 1.56.7 1.56 1.57v10.25c0 .87-.7 1.57-1.56 1.57h-5.17c-.87 0-1.57-.7-1.57-1.57V20.65Z" fill="#1D2642" />
           </svg>
+          <span>Notespace</span>
         </a>
-      </div>
-    </header>
+        <nav class="ns-ambient-desktop-nav" aria-label="Primary navigation">
+          <a href="#product">Product</a>
+          <a href="#workflow">Workflow</a>
+          <a href="#self-host">Self-Host</a>
+          <a href={docsUrl} target="_blank" rel="noopener noreferrer">Docs</a>
+          <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+        </nav>
+        <div class="ns-ambient-header-actions">
+          <a class="ns-arc-button ns-arc-button-light ns-ambient-docs-action" href={docsUrl} target="_blank" rel="noopener noreferrer">Documentation</a>
+          <a class="ns-arc-button ns-arc-button-dark ns-ambient-get-action" href="#self-host">Get Notespace</a>
+          <button class="ns-ambient-menu-trigger" type="button" aria-label="Toggle navigation" aria-controls="notespace-mobile-navigation" aria-expanded="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+        </div>
+      </header>
+      <nav class="ns-ambient-mobile-nav" id="notespace-mobile-navigation" aria-label="Mobile navigation" data-open="false">
+        <a href="#product">Product</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#self-host">Self-Host</a>
+        <a href={docsUrl} target="_blank" rel="noopener noreferrer">Documentation</a>
+        <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+    </div>
 
     <main>
-      <section id="main-content" class="ns-white-hero" aria-labelledby="hero-title">
-        <div class="ns-white-hero-inner">
-          <div class="ns-white-hero-copy">
-            <p class="ns-white-kicker">Open source · Self-hosted knowledge workspace</p>
-            <h1 id="hero-title">Your notes and <span>canvas</span>, in one place.</h1>
-            <p class="ns-white-summary">
-              Write structured notes, sketch systems, and return to the same context—all inside a workspace you control.
-            </p>
-            <div class="ns-white-actions">
-              <a class="ns-white-primary" href="#self-host">
-                Self-host with Docker
-                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
-                </svg>
-              </a>
-              <a class="ns-white-secondary" href={repoUrl} target="_blank" rel="noopener noreferrer">
-                Explore on GitHub
-                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
-                </svg>
-              </a>
-            </div>
-            <ul class="ns-white-facts" aria-label="Notespace properties">
-              <li>Free & open source</li>
-              <li>SQLite storage</li>
-              <li>No hosted account</li>
-            </ul>
+      <div class="ns-ambient-shell">
+        <section class="ns-ambient-hero" id="main-content" aria-labelledby="hero-title">
+          <h1 id="hero-title">
+            <span class="ns-ambient-line">Own your thinking.</span>
+            <span class="ns-ambient-line">Shape ideas. Build a calmer</span>
+            <span class="ns-ambient-line">knowledge system.</span>
+          </h1>
+          <p class="ns-ambient-summary">Notespace helps you write notes, connect ideas visually, and turn insights into plans in one self-hosted workspace.</p>
+          <div class="ns-ambient-hero-actions">
+            <a class="ns-arc-button ns-arc-button-dark ns-white-primary" href="#self-host">
+              Get Notespace
+              <svg class="ns-ambient-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16m-7-7 7 7-7 7" /></svg>
+            </a>
+            <a class="ns-arc-button ns-arc-button-light" href="#workflow"><span class="ns-ambient-play" aria-hidden="true"></span>See how it works</a>
           </div>
-          <div class="ns-white-showcase">
-            <div class="ns-white-showcase-caption">
-              <div>
-                <p class="ns-white-preview-label">PRODUCT PREVIEW</p>
-                <h2>Work with notes and canvas side by side.</h2>
-              </div>
-              <p class="ns-white-preview-hint">Switch views or search the example workspace</p>
-            </div>
-            <ProductPreview interactive svgIdPrefix="landing-white-hero" />
-            <p class="ns-white-demo-note">Interactive product illustration · example content, no backend connection</p>
-          </div>
+        </section>
+        <a class="ns-ambient-art" href="#workflow" aria-label="Explore how Notespace connects notes, canvas, and plans">
+          <img src="/notespace-ambient-hero.webp" alt="A writer working under a tree overlooking a mountain valley, with notes visually connected across the landscape" width="1349" height="506" decoding="async" fetchpriority="high" />
+        </a>
+        <div class="ns-ambient-under-image">
+          <span>WRITE · CONNECT · PLAN</span>
+          <a href={repoUrl} target="_blank" rel="noopener noreferrer">Free &amp; open source ↗</a>
         </div>
-      </section>
+      </div>
 
       <section id="product" class="border-b border-line bg-surface" aria-labelledby="product-title">
         <div class="mx-auto max-w-[1180px] px-5 py-16 sm:px-7 lg:px-8 lg:py-20">
@@ -178,5 +180,23 @@ const description = 'Notespace is a free, self-hosted knowledge workspace for st
         <span>Built for notes, canvas, and durable ownership.</span>
       </div>
     </footer>
+
+    <script is:inline>
+      const trigger = document.querySelector('.ns-ambient-menu-trigger');
+      const mobileMenu = document.getElementById('notespace-mobile-navigation');
+      function closeNav() {
+        if (!trigger || !mobileMenu) return;
+        mobileMenu.dataset.open = 'false';
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+      trigger?.addEventListener('click', () => {
+        const open = mobileMenu?.dataset.open !== 'true';
+        if (mobileMenu) mobileMenu.dataset.open = String(open);
+        trigger.setAttribute('aria-expanded', String(open));
+      });
+      mobileMenu?.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+      document.addEventListener('click', e => { if (!trigger?.contains(e.target) && !mobileMenu?.contains(e.target)) closeNav(); });
+    </script>
   </div>
 </BaseLayout>

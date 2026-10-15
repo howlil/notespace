@@ -58,6 +58,6 @@ No `pnpm run deploy` wrapper is required for either method.
 
 Both Wrangler configurations deliberately use the same Worker name, `notespace-landing`. Check whether your existing Cloudflare Worker has this name before deployment; if it has another name, rename the configuration appropriately to update the existing service rather than create a separate one.
 
-The interactive hero demo is client-side sample data, not a hosted Notespace application. Running the application requires a separate Go API and persistent SQLite backend; see the [Docker self-host instructions](../README.md#self-host-with-docker).
+The landing hero uses a static panoramic marketing illustration and has no app session, authentication, or cloud service. Running Notespace requires the separate Go API and persistent SQLite backend; see the [Docker self-host instructions](../README.md#self-host-with-docker).
 
-The [White Canvas design system](HERO-DESIGN-SYSTEM.md) describes the landing UI. Root deploy regression tests reside in `landing/tests/workers-root.test.mjs`.
+The [Ambient Editorial Hero design contract](HERO-DESIGN-SYSTEM.md) describes the landing UI. Root deploy regression tests reside in `landing/tests/workers-root.test.mjs`.

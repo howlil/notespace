@@ -1,3 +1,4 @@
+import { trackDesktopMutation } from "../browser/desktop-lifecycle.ts";
 import type { LocalImageAsset } from "./image-types";
 
 function assetUrl(workspaceId: string, assetId: string) {
@@ -11,12 +12,12 @@ export function createImageApi(fetcher: typeof fetch = globalThis.fetch) {
       id: string,
       blob: Blob,
     ) {
-      const response = await fetcher(assetUrl(workspaceId, id), {
+      const response = await trackDesktopMutation(() => fetcher(assetUrl(workspaceId, id), {
         method: "PUT",
         headers: { "Content-Type": blob.type || "application/octet-stream" },
         body: blob,
         signal: AbortSignal.timeout(20_000),
-      });
+      }));
 
       // A 404 means ownership disappeared while the upload was in flight.
       if (response.status === 404) return false;

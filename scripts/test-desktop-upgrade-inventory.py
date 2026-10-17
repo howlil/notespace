@@ -59,6 +59,16 @@ class InventoryContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "authored Workspace and Note data"):
             inventory.verify(self.before, inventory.snapshot(self.path), self.path)
 
+    def test_mutated_note_content_without_id_change_fails(self):
+        self.mutate("UPDATE workspace_notes SET document_state=? WHERE id='n1'", ('{"content":"corrupted"}',))
+        with self.assertRaisesRegex(AssertionError, "User data content changed"):
+            inventory.verify(self.before, inventory.snapshot(self.path), self.path)
+
+    def test_mutated_workspace_title_without_id_change_fails(self):
+        self.mutate("UPDATE projects SET title='Corrupted title' WHERE id='w1'")
+        with self.assertRaisesRegex(AssertionError, "User data content changed"):
+            inventory.verify(self.before, inventory.snapshot(self.path), self.path)
+
     def test_changed_binary_asset_fails(self):
         self.mutate("UPDATE workspace_assets SET data=X'FFFF' WHERE id='asset1'")
         with self.assertRaisesRegex(AssertionError, "binary asset"):

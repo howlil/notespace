@@ -17,7 +17,7 @@ permissions:
 jobs:
   windows-installer:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +32,33 @@ jobs:
           if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$') { throw "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" }
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
+      - name: Select previous published stable release
+        id: previous
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if ($env:CURRENT_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            "::notice::Upgrade comparison only supports stable SemVer" | Write-Host
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $releases = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw "Cannot query previous Notespace releases" }
+          $previous = @($releases | Where-Object {
+            -not $_.isDraft -and -not $_.isPrerelease -and
+            $_.tagName -match '^v\d+\.\d+\.\d+$' -and
+            ([version]$_.tagName.Substring(1)) -lt ([version]$env:CURRENT_VERSION)
+          } | Sort-Object { [version]$_.tagName.Substring(1) } -Descending)
+          if ($previous.Count -gt 0) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            "tag=$($previous[0].tagName)" >> $env:GITHUB_OUTPUT
+            "version=$($previous[0].tagName.Substring(1))" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "::notice::Initial stable release; no previous MSI to compare."
+            "enabled=false" >> $env:GITHUB_OUTPUT
+          }
       - name: Synchronize desktop version
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
@@ -44,6 +71,9 @@ jobs:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -58,6 +88,11 @@ jobs:
       - name: Build Windows installer
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build -- --locked
+      - name: Install native WebDriver tools
+        run: |
+          cargo install tauri-driver --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
+          msedgedriver-tool.exe
       - name: Smoke release binary
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
@@ -70,6 +105,33 @@ jobs:
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
         run: pnpm test:desktop:critical
+      - name: Download previous stable MSI
+        if: steps.previous.outputs.enabled == 'true'
+        id: baseline
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP "notespace-previous-msi"
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          gh release download $env:PREVIOUS_TAG --repo $env:GITHUB_REPOSITORY --pattern "*.msi" --dir $directory
+          if ($LASTEXITCODE -ne 0) { throw "Cannot download previous MSI $env:PREVIOUS_TAG" }
+          $files = @(Get-ChildItem -Path $directory -Filter "*.msi" -File)
+          if ($files.Count -ne 1) { throw "Expected exactly one previous MSI, got $($files.Count)" }
+          "old_msi=$($files[0].FullName)" >> $env:GITHUB_OUTPUT
+      - name: Gate release on real MSI upgrade and user-data preservation
+        if: steps.previous.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          NOTESPACE_UPGRADE_OLD_MSI: ${{ steps.baseline.outputs.old_msi }}
+          NOTESPACE_UPGRADE_OLD_VERSION: ${{ steps.previous.outputs.version }}
+          NOTESPACE_UPGRADE_NEW_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $candidates = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
+          if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
+          $env:NOTESPACE_UPGRADE_NEW_MSI = $candidates[0].FullName
+          ./scripts/verify-desktop-msi-upgrade.ps1
       - name: Inspect bundle contents
         shell: pwsh
         run: |

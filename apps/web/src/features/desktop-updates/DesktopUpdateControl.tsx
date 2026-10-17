@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { flushDesktopState, isTauriRuntime } from "../adapters/browser/desktop-lifecycle";
+import { flushDesktopState, isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
+import { installDesktopUpdateWith } from "./install-desktop-update";
 
 type PreparedUpdate = { version: string; notes?: string | null };
 type Phase = "idle" | "checking" | "ready" | "saving" | "installing" | "error" | "current";
@@ -54,18 +55,18 @@ export function DesktopUpdateControl() {
     setPhase("saving");
     setError("");
     try {
-      await flushDesktopState();
+      await installDesktopUpdateWith({
+        flush: async () => {
+          await flushDesktopState();
+          setPhase("installing");
+        },
+        install: async () => {
+          await invoke("install_prepared_desktop_update");
+        },
+      });
+      // Windows may exit during the native installation command.
     } catch (cause) {
-      setError(`Changes could not be saved. Update cancelled: ${errorText(cause)}`);
-      setPhase("ready");
-      return;
-    }
-    setPhase("installing");
-    try {
-      await invoke("install_prepared_desktop_update");
-      // On Windows the native updater terminates/relaunches the app.
-    } catch (cause) {
-      setError(`Installation failed: ${errorText(cause)}`);
+      setError(`Update cancelled or failed: ${errorText(cause)}`);
       setInfo(null);
       setPhase("error");
     }

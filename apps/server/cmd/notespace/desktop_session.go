@@ -20,14 +20,20 @@ type desktopSession struct {
 func newDesktopSession() (*desktopSession, error) {
 	newSecret := func() (string, error) {
 		var bytes [32]byte
-		if _, err := rand.Read(bytes[:]); err != nil { return "", fmt.Errorf("desktop session entropy unavailable: %w", err) }
+		if _, err := rand.Read(bytes[:]); err != nil {
+			return "", fmt.Errorf("desktop session entropy unavailable: %w", err)
+		}
 		return hex.EncodeToString(bytes[:]), nil
 	}
 	bootstrap, err := newSecret()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	cookie, err := newSecret()
-	if err != nil { return nil, err }
-	return &desktopSession{bootstrap:bootstrap, cookie:cookie}, nil
+	if err != nil {
+		return nil, err
+	}
+	return &desktopSession{bootstrap: bootstrap, cookie: cookie}, nil
 }
 
 func (s *desktopSession) handler(next http.Handler) http.Handler {

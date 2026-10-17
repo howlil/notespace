@@ -88,7 +88,9 @@ func run() error {
 	var bootstrapURL string
 	if desktop {
 		session, err := newDesktopSession()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		handler = desktopLoopbackBoundary(session.handler(handler), actualAddress)
 		bootstrapURL = fmt.Sprintf("http://%s/__desktop_session?code=%s", actualAddress, session.bootstrap)
 		go watchParentLifecycle(stop)

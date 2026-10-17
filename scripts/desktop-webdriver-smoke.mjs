@@ -55,7 +55,7 @@ try {
 
   await waitForDesktopRuntime(driver);
   const firstUrl = await driver.getCurrentUrl();
-  assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:\\d+\//, "desktop must use an OS-allocated loopback port");
+  assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:\d+\//, "desktop must use an OS-allocated loopback port");
   activeOrigin = new URL(firstUrl).origin;
   if (upgradeSeed) {
     // Run against an INSTALLED historical MSI, never a debug binary.
@@ -328,7 +328,7 @@ async function waitForDesktopRuntime(session) {
     try {
       const title = await session.getTitle();
       const url = await session.getCurrentUrl();
-      if (title.includes("Notespace") && /^http:\/\/127\.0\.0\.1:\\d+\//.test(url)) return;
+      if (title.includes("Notespace") && /^http:\/\/127\.0\.0\.1:\d+\//.test(url)) return;
     } catch {
       // A closed native window is the expected completion signal.
     }

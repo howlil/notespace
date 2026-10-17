@@ -14,6 +14,9 @@ on:
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
+      - "scripts/create-desktop-update-manifest.mjs"
+      - "scripts/create-desktop-update-manifest.test.mjs"
+      - "scripts/prepare-desktop-updater-config.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -32,6 +35,9 @@ on:
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
+      - "scripts/create-desktop-update-manifest.mjs"
+      - "scripts/create-desktop-update-manifest.test.mjs"
+      - "scripts/prepare-desktop-updater-config.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -61,6 +67,12 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify signed updater manifest contract
+        run: node --test scripts/create-desktop-update-manifest.test.mjs
+      - name: Syntax-check updater release scripts
+        run: |
+          node --check scripts/create-desktop-update-manifest.mjs
+          node --check scripts/prepare-desktop-updater-config.mjs
       - run: rustup update stable && rustup default stable
       - name: Install Tauri Linux dependencies
         run: |
@@ -119,6 +131,12 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify signed updater manifest contract
+        run: node --test scripts/create-desktop-update-manifest.test.mjs
+      - name: Syntax-check updater release scripts
+        run: |
+          node --check scripts/create-desktop-update-manifest.mjs
+          node --check scripts/prepare-desktop-updater-config.mjs
       - uses: dtolnay/rust-toolchain@stable
       - run: corepack enable
       - run: pnpm install --frozen-lockfile

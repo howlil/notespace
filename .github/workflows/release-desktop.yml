@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   windows-installer:
@@ -22,6 +25,285 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_tag || github.ref }}
+      - name: Require stable release at current master HEAD
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            $releaseTag = "${{ inputs.release_tag }}"
+          } else {
+            $releaseTag = $env:GITHUB_REF_NAME
+          }
+          if ($releaseTag -notmatch '^v\d+\.\d+\.\d+
+        shell: pwsh
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG_INPUT } else { $env:GITHUB_REF_NAME }
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$') { throw "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
+      - name: Select previous published stable release
+        id: previous
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if ($env:CURRENT_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            "::notice::Upgrade comparison only supports stable SemVer" | Write-Host
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $releases = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw "Cannot query previous Notespace releases" }
+          $previous = @($releases | Where-Object {
+            -not $_.isDraft -and -not $_.isPrerelease -and
+            $_.tagName -match '^v\d+\.\d+\.\d+$' -and
+            ([version]$_.tagName.Substring(1)) -lt ([version]$env:CURRENT_VERSION)
+          } | Sort-Object { [version]$_.tagName.Substring(1) } -Descending)
+          if ($previous.Count -gt 0) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            "tag=$($previous[0].tagName)" >> $env:GITHUB_OUTPUT
+            "version=$($previous[0].tagName.Substring(1))" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "::notice::Initial stable release; no previous MSI to compare."
+            "enabled=false" >> $env:GITHUB_OUTPUT
+          }
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/sync-desktop-version.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Smoke sidecar parent lifecycle
+        run: pnpm test:desktop:lifecycle
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
+      - name: Test desktop runtime
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Require production updater signing keys
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+        run: node scripts/prepare-desktop-updater-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
+      - name: Require Windows publisher signing and Azure credentials
+        shell: pwsh
+        env:
+          NOTESPACE_AZURE_SIGNING_ENDPOINT: ${{ vars.NOTESPACE_AZURE_SIGNING_ENDPOINT }}
+          NOTESPACE_AZURE_SIGNING_ACCOUNT: ${{ vars.NOTESPACE_AZURE_SIGNING_ACCOUNT }}
+          NOTESPACE_AZURE_SIGNING_PROFILE: ${{ vars.NOTESPACE_AZURE_SIGNING_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: node scripts/prepare-desktop-windows-sign-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
+      - name: Install official Windows Artifact Signing CLI
+        run: cargo install artifact-signing-cli --locked
+      - name: Build signed Windows installer and updater artifact
+        working-directory: apps/desktop/src-tauri
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NOTESPACE_UPDATER_ENABLED: "1"
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        shell: pwsh
+        run: cargo tauri build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
+      - name: Install native WebDriver tools
+        run: |
+          cargo install tauri-driver --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
+          msedgedriver-tool.exe
+      - name: Smoke release binary
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
+        run: pnpm test:desktop:native
+      - name: Verify release product persistence
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
+        run: pnpm test:desktop:critical
+      - name: Download previous stable MSI
+        if: steps.previous.outputs.enabled == 'true'
+        id: baseline
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP "notespace-previous-msi"
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          gh release download $env:PREVIOUS_TAG --repo $env:GITHUB_REPOSITORY --pattern "*.msi" --dir $directory
+          if ($LASTEXITCODE -ne 0) { throw "Cannot download previous MSI $env:PREVIOUS_TAG" }
+          $files = @(Get-ChildItem -Path $directory -Filter "*.msi" -File)
+          if ($files.Count -ne 1) { throw "Expected exactly one previous MSI, got $($files.Count)" }
+          "old_msi=$($files[0].FullName)" >> $env:GITHUB_OUTPUT
+      - name: Gate release on real MSI upgrade and user-data preservation
+        if: steps.previous.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          NOTESPACE_UPGRADE_OLD_MSI: ${{ steps.baseline.outputs.old_msi }}
+          NOTESPACE_UPGRADE_OLD_VERSION: ${{ steps.previous.outputs.version }}
+          NOTESPACE_UPGRADE_NEW_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $candidates = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
+          if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
+          $env:NOTESPACE_UPGRADE_NEW_MSI = $candidates[0].FullName
+          ./scripts/verify-desktop-msi-upgrade.ps1
+      - name: Verify Windows publisher signature on installer
+        shell: pwsh
+        env:
+          EXPECTED_WINDOWS_SIGNER_SUBJECT: ${{ vars.NOTESPACE_WINDOWS_SIGNER_SUBJECT }}
+        run: |
+          if (-not $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) { throw "Publisher signer subject policy is missing" }
+          $installers = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
+          if ($installers.Count -ne 1) { throw "Expected one Windows installer for verification" }
+          $signature = Get-AuthenticodeSignature -FilePath $installers[0].FullName
+          if ($signature.Status -ne "Valid") { throw "Authenticode signature not valid: $($signature.Status)" }
+          if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Subject -ne $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) {
+            throw "Authenticode publisher identity does not match configured policy"
+          }
+          Write-Host "Publisher certificate verified, SHA256:"
+          (Get-FileHash $installers[0].FullName -Algorithm SHA256).Hash
+      - name: Create signed updater manifest
+        shell: pwsh
+        env:
+          NOTESPACE_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/create-desktop-update-manifest.mjs apps/desktop/src-tauri/target/release/bundle $env:NOTESPACE_RELEASE_VERSION
+      - name: Inspect bundle contents
+        shell: pwsh
+        run: |
+          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
+          $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
+          if (-not ($installers | Where-Object Extension -eq '.msi')) { throw "No Windows MSI found in $bundle" }
+          $msis = @($installers | Where-Object Extension -eq '.msi')
+          if ($msis.Count -ne 1) { throw "Expected precisely one MSI to publish" }
+          if (-not (Test-Path "$($msis[0].FullName).sig")) { throw "Missing detached updater signature" }
+          if (-not (Test-Path (Join-Path $bundle "latest.json"))) { throw "Signed update manifest is missing" }
+          if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
+          $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -eq '.msi' }
+          $lines = $files | ForEach-Object { $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash; "$hash  $($_.Name)" }
+          $lines | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt"
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: notespace-windows-${{ steps.release.outputs.tag }}
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/
+            apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          if-no-files-found: error
+      - name: Attest signed MSI build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'apps/desktop/src-tauri/target/release/bundle/**/*.msi'
+      - name: Verify MSI provenance attestation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $msis = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
+          if ($msis.Count -ne 1) { throw "Expected one MSI for attestation verification" }
+          gh attestation verify $msis[0].FullName -R $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "MSI build provenance verification failed" }
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
+          $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
+          $files += @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Name.EndsWith('.msi.sig') })
+          $files += Get-Item (Join-Path $bundle "SHA256SUMS.txt")
+          $files += Get-Item (Join-Path $bundle "latest.json")
+          $paths = $files | ForEach-Object { $_.FullName }
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Refusing to overwrite an existing signed release" }
+          gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
+
+  cross-platform-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            deps: ""
+          - os: ubuntu-latest
+            deps: "libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - name: Resolve release version
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          tag="${RELEASE_TAG_INPUT:-${GITHUB_REF_NAME}}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/sync-desktop-version.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - run: cargo install tauri-cli --locked
+      - working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - working-directory: apps/desktop/src-tauri
+        run: cargo tauri build --no-bundle -- --locked
+) { throw "Production updates require a stable SemVer tag" }
+          git fetch origin master --depth=1
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect release source" }
+          $candidate = (git rev-parse HEAD).Trim()
+          $master = (git rev-parse origin/master).Trim()
+          if ($candidate -ne $master) { throw "Release tag must point at current master HEAD; refusing unpublished or stale commit" }
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release already exists; immutable release policy refuses asset replacement" }
       - name: Resolve release version
         id: release
         shell: pwsh

@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::json;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-use crate::{start_runtime, stop_runtime};
+use crate::{start_runtime, stop_runtime, RuntimeProcess};
 
 // A downloaded update is verified by the official Tauri updater BEFORE the
 // frontend is offered the Install action. The bytes and signed metadata stay
@@ -84,6 +84,9 @@ pub async fn install_prepared_desktop_update(
 ) -> Result<(), String> {
     if !update_enabled() {
         return Err("Desktop updater is not configured in this build".into());
+    }
+    if app.state::<RuntimeProcess>().backup_in_flight.load(Ordering::Acquire) {
+        return Err("A SQLite backup is running; finish it before installing updates".into());
     }
     if state.installing.swap(true, Ordering::AcqRel) {
         return Err("Update installation is already in progress".into());

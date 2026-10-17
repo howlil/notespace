@@ -82,7 +82,10 @@ to a newer, unknown schema. The compatibility fence will reject this. Restoring
 an older snapshot is a deliberate offline recovery operation, not a safe
 automatic application-version downgrade.
 
-A desktop startup failure is explicitly sent to the native shell so that the\nrecovery snapshot location is not mislabeled as a port collision.\n\nIf the disk has insufficient free space for a complete snapshot, migration
+A desktop startup failure is explicitly sent to the native shell so that the
+recovery snapshot location is not mislabeled as a port collision.
+
+If the disk has insufficient free space for a complete snapshot, migration
 will not start. Free sufficient space or move the whole library through a
 documented offline migration procedure; do not bypass the snapshot check.
 

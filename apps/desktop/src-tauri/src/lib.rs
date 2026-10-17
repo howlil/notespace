@@ -33,6 +33,7 @@ struct RuntimeProcess {
     child: Mutex<Option<CommandChild>>,
     close_requested: AtomicBool,
     startup_in_flight: AtomicBool,
+    backup_in_flight: AtomicBool,
     sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -42,6 +43,7 @@ impl Default for RuntimeProcess {
             child: Mutex::new(None),
             close_requested: AtomicBool::new(false),
             startup_in_flight: AtomicBool::new(false),
+            backup_in_flight: AtomicBool::new(false),
             sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
         }
     }

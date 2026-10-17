@@ -15,6 +15,7 @@ use tauri_plugin_shell::{
 };
 
 const READY_PREFIX: &str = "NOTESPACE_READY=";
+const STARTUP_ERROR_PREFIX: &str = "NOTESPACE_STARTUP_ERROR=";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SIDECAR_GRACEFUL_TIMEOUT: Duration = Duration::from_secs(12);
@@ -179,6 +180,7 @@ async fn wait_for_readiness(
     events: &mut tokio::sync::mpsc::Receiver<CommandEvent>,
     sidecar_exited: &Arc<(Mutex<bool>, Condvar)>,
 ) -> Result<Url, String> {
+    let mut stderr_output = String::new();
     loop {
         let event = events
             .recv()
@@ -193,16 +195,22 @@ async fn wait_for_readiness(
                 }
             }
             CommandEvent::Stderr(bytes) => {
-                eprintln!(
-                    "notespace-server: {}",
-                    String::from_utf8_lossy(&bytes).trim()
-                );
+                let chunk = String::from_utf8_lossy(&bytes);
+                eprintln!("notespace-server: {}", chunk.trim());
+                stderr_output.push_str(&chunk);
+                if stderr_output.len() > 16_384 {
+                    // Bound startup diagnostics; preserve later error messages.
+                    stderr_output.clear();
+                }
             }
             CommandEvent::Error(error) => {
                 return Err(format!("server sidecar error: {error}"));
             }
             CommandEvent::Terminated(payload) => {
                 mark_sidecar_exited(sidecar_exited);
+                if let Some(detail) = startup_detail(&stderr_output) {
+                    return Err(format!("server startup failed: {detail}"));
+                }
                 return Err(format!(
                     "server exited before readiness on {DESKTOP_ADDR}: {payload:?}"
                 ));
@@ -210,6 +218,14 @@ async fn wait_for_readiness(
             _ => {}
         }
     }
+}
+
+fn startup_detail(stderr: &str) -> Option<&str> {
+    stderr
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix(STARTUP_ERROR_PREFIX))
+        .filter(|detail| !detail.trim().is_empty())
+        .last()
 }
 
 fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
@@ -373,6 +389,15 @@ mod tests {
         assert!(parse_ready_line("unrelated log line")
             .expect("non-ready log should be ignored")
             .is_none());
+    }
+
+    #[test]
+    fn startup_database_failure_preserves_diagnostic_path() {
+        let message = "NOTESPACE_STARTUP_ERROR=database startup failed; verified pre-upgrade snapshot retained at C:/Users/test/notespace.db.recovery/snapshot.db\n";
+        let detail = startup_detail(message).expect("startup error marker must parse");
+        let display = startup_error_message(&format!("server startup failed: {detail}"));
+        assert!(display.contains("snapshot.db"));
+        assert!(!display.contains("Another process may be using this port"));
     }
 
     #[test]

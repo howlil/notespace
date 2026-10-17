@@ -1,12 +1,11 @@
-use std::{fs, path::{Path, PathBuf}, sync::atomic::Ordering};
+use std::{fs, path::{Path, PathBuf}};
 
-use serde::Serialize;
+use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
 use crate::{runtime_data_dir, RuntimeProcess};
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct RecoveryPoint {
     name: String,
     bytes: u64,
@@ -63,33 +62,26 @@ fn read_recovery_points(db: &Path) -> Result<Vec<RecoveryPoint>, String> {
 }
 
 #[tauri::command]
-pub fn list_desktop_recovery_points(app: AppHandle) -> Result<Vec<RecoveryPoint>, String> {
+pub fn list_desktop_recovery_points(app: AppHandle) -> Result<Vec<Value>, String> {
     let db = runtime_data_dir(&app)?.join("notespace.db");
-    read_recovery_points(&db)
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecoveryDiagnostics {
-    app_version: String,
-    platform: String,
-    runtime_active: bool,
-    recovery_point_count: usize,
-    summary: String,
+    let points = read_recovery_points(&db)?;
+    Ok(points.into_iter().map(|p| json!({
+        "name": p.name, "bytes": p.bytes, "path": p.path,
+    })).collect())
 }
 
 #[tauri::command]
-pub fn desktop_recovery_diagnostics(app: AppHandle) -> Result<RecoveryDiagnostics, String> {
+pub fn desktop_recovery_diagnostics(app: AppHandle) -> Result<Value, String> {
     let points = read_recovery_points(&runtime_data_dir(&app)?.join("notespace.db"))?;
     let state = app.state::<RuntimeProcess>();
     let running = state.child.lock().map_err(|_| "Runtime lock unavailable".to_string())?.is_some();
-    Ok(RecoveryDiagnostics {
-        app_version: app.package_info().version.to_string(),
-        platform: std::env::consts::OS.to_string(),
-        runtime_active: running,
-        recovery_point_count: points.len(),
-        summary: "Diagnostics intentionally omit note content, full filesystem paths, and secrets. Recovery copies are never automatically restored.".into(),
-    })
+    Ok(json!({
+        "appVersion": app.package_info().version.to_string(),
+        "platform": std::env::consts::OS,
+        "runtimeActive": running,
+        "recoveryPointCount": points.len(),
+        "summary": "Diagnostics omit note content, full filesystem paths and secrets; recovery copies are never automatically restored."
+    }))
 }
 
 #[cfg(test)]

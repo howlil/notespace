@@ -31,19 +31,25 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
-          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
-            $releaseTag = "${{ inputs.release_tag }}"
-          } else {
-            $releaseTag = $env:GITHUB_REF_NAME
-          }
-          if ($releaseTag -notmatch '^v\d+\.\d+\.\d+
+          $releaseTag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG_INPUT } else { $env:GITHUB_REF_NAME }
+          if ($releaseTag -notmatch '^v\d+\.\d+\.\d+$') { throw "Production updates require a stable SemVer tag" }
+          git fetch origin master --depth=1
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect release source" }
+          $candidate = (git rev-parse HEAD).Trim()
+          $master = (git rev-parse origin/master).Trim()
+          if ($candidate -ne $master) { throw "Release tag must point at current master HEAD" }
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release already exists; immutable release policy refuses asset replacement" }
+      - name: Resolve release version
+        id: release
         shell: pwsh
         env:
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
           $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG_INPUT } else { $env:GITHUB_REF_NAME }
-          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$') { throw "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" }
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') { throw "Invalid stable Notespace release tag" }
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
       - name: Select previous published stable release

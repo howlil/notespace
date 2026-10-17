@@ -2,7 +2,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Condvar, Mutex,
     },
     time::Duration,
@@ -35,6 +35,8 @@ struct RuntimeProcess {
     startup_in_flight: AtomicBool,
     backup_in_flight: AtomicBool,
     recovery_visible: AtomicBool,
+    generation: AtomicU64,
+    stopping: AtomicBool,
     sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -46,6 +48,8 @@ impl Default for RuntimeProcess {
             startup_in_flight: AtomicBool::new(false),
             backup_in_flight: AtomicBool::new(false),
             recovery_visible: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
+            stopping: AtomicBool::new(false),
             sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
         }
     }
@@ -110,6 +114,9 @@ pub fn run() {
 // sidecar, as doing so could create simultaneous SQLite writers.
 fn launch_runtime(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<RuntimeProcess>();
+    if state.stopping.load(Ordering::Acquire) {
+        return Err("Notespace is still shutting down its previous runtime".into());
+    }
     if state.startup_in_flight.swap(true, Ordering::AcqRel) {
         return Err("Notespace runtime is already starting".into());
     }
@@ -124,16 +131,20 @@ fn launch_runtime(app: &AppHandle) -> Result<(), String> {
         state.startup_in_flight.store(false, Ordering::Release);
         return Err("Notespace runtime is already active; restart is only available after failure".into());
     }
+    let generation = state.generation.fetch_add(1, Ordering::AcqRel) + 1;
     desktop_ops::record(app, "runtime_start_requested");
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
-        let result = start_runtime(&handle).await;
-        if let Err(error) = result {
-            desktop_ops::record(&handle, "runtime_start_failed");
-            stop_runtime(&handle);
-            show_runtime_failure(&handle, &startup_error_message(&error));
+        let result = start_runtime(&handle, generation).await;
+        // Outdated child task must not overwrite current supervisor state.
+        if handle.state::<RuntimeProcess>().generation.load(Ordering::Acquire) == generation {
+            if let Err(error) = result {
+                desktop_ops::record(&handle, "runtime_start_failed");
+                stop_runtime(&handle);
+                show_runtime_failure(&handle, &startup_error_message(&error));
+            }
+            handle.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
         }
-        handle.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
     });
     Ok(())
 }
@@ -144,7 +155,7 @@ fn desktop_retry_runtime(app: AppHandle) -> Result<(), String> {
     launch_runtime(&app)
 }
 
-async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
+async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), String> {
     let data_dir = runtime_data_dir(app)?;
     fs::create_dir_all(&data_dir).map_err(|error| format!("create app data directory: {error}"))?;
 
@@ -190,6 +201,9 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     )
     .await
     .map_err(|_| "server readiness timed out".to_string())??;
+    if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation {
+        return Ok(());
+    }
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
@@ -203,6 +217,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     desktop_ops::record(app, "runtime_ready");
 
     while let Some(event) = events.recv().await {
+        if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation { return Ok(()); }
         match event {
             CommandEvent::Stderr(bytes) => {
                 eprintln!(
@@ -434,6 +449,7 @@ fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
 
 fn clear_runtime(app: &tauri::AppHandle) {
     let process = app.state::<RuntimeProcess>();
+    process.generation.fetch_add(1, Ordering::AcqRel);
     let Ok(mut slot) = process.child.lock() else {
         return;
     };
@@ -443,8 +459,12 @@ fn clear_runtime(app: &tauri::AppHandle) {
 
 fn stop_runtime(app: &tauri::AppHandle) {
     let process = app.state::<RuntimeProcess>();
+    // Invalidate the previous monitor BEFORE a restart can begin.
+    if process.stopping.swap(true, Ordering::AcqRel) { return; }
+    process.generation.fetch_add(1, Ordering::AcqRel);
     let child = {
         let Ok(mut slot) = process.child.lock() else {
+            process.stopping.store(false, Ordering::Release);
             return;
         };
         slot.take()
@@ -454,6 +474,7 @@ fn stop_runtime(app: &tauri::AppHandle) {
             eprintln!("notespace-server: graceful shutdown request failed: {error}");
             let _ = child.kill();
             mark_sidecar_exited(&process.sidecar_exited);
+            process.stopping.store(false, Ordering::Release);
             return;
         }
         if wait_for_sidecar_exit(&process.sidecar_exited, SIDECAR_GRACEFUL_TIMEOUT) {
@@ -463,6 +484,7 @@ fn stop_runtime(app: &tauri::AppHandle) {
             let _ = child.kill();
         }
     }
+    process.stopping.store(false, Ordering::Release);
 }
 
 fn wait_for_sidecar_exit(signal: &Arc<(Mutex<bool>, Condvar)>, timeout: Duration) -> bool {

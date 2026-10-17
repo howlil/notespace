@@ -21,7 +21,7 @@ Design Thinking graph: shapes → success path → execution → failure → cap
 ```text
 Tauri spawn
   -> Go SQLite safety gates (M1)
-  -> Go net.Listen("127.0.0.1:0")
+  -> Go tries stable loopback ports 49832 → 41371 → 41372 → OS-assigned fallback
   -> cryptographic bootstrap and session secrets
   -> install Host/Origin/Cookie guards on private API
   -> stdout readiness URL (parent-only pipe)
@@ -43,7 +43,7 @@ Tauri spawn
 
 ## Execution and failures
 
-- Session cookie lives only until Go process exits; app reload gets a fresh
+- Stable loopback ports preserve the WebView origin across ordinary restarts. If\n  all candidates are unavailable, the OS-assigned fallback changes origin and\n  browser-local cache/preferences may not persist; SQLite remains authoritative.\n- Session cookie lives only until Go process exits; app reload gets a fresh
   bootstrap/session pair. No credentials are committed to SQLite or repository.
 - Desktop only: self-hosted Go deployments still use existing Basic Auth or
   their existing explicit trust configuration.

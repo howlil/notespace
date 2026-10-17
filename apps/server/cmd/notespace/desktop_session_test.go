@@ -57,6 +57,8 @@ func TestDesktopSessionEnforcesHostAndOriginAheadOfBootstrap(t *testing.T) {
     wrapped.ServeHTTP(rr,req)
     if rr.Code!=http.StatusForbidden {t.Fatalf("bad Host accepted: %d",rr.Code)}
     req.Host="127.0.0.1:49201"
+    req.Header.Set("Sec-Fetch-Site", "cross-site")
+    req.Header.Set("Sec-Fetch-Mode", "navigate")
     rr=httptest.NewRecorder()
     wrapped.ServeHTTP(rr,req)
     if rr.Code!=http.StatusSeeOther {t.Fatalf("valid bootstrap rejected: %d",rr.Code)}

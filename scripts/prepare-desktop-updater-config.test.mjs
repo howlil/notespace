@@ -4,8 +4,9 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const script = new URL("./prepare-desktop-updater-config.mjs", import.meta.url).pathname;
+const script = fileURLToPath(new URL("./prepare-desktop-updater-config.mjs", import.meta.url));
 function invoke(pubkey, privateKey) {
   const root = mkdtempSync(join(tmpdir(), "notespace-updater-test-"));
   try {

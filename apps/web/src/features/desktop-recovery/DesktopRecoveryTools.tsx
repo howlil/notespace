@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { flushDesktopState, isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
+import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../../adapters/browser/desktop-lifecycle";
 import { createDesktopBackupWith } from "./create-desktop-backup";
 
 type Point = { name: string; path: string; bytes: number };
@@ -28,24 +28,6 @@ export function DesktopRecoveryTools() {
     setNative(isTauriRuntime());
   }, []);
 
-  // Pointer shielding alone cannot stop typing into an already-focused
-  // editor. Suspend input at capture phase while the consistent backup is
-  // being finalized; do not mutate editor contents or the user's draft.
-  useEffect(() => {
-    if (!busy) return;
-    const block = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest('[aria-label="Desktop backup and recovery"]')) return;
-      if (event.cancelable) event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    const events = ["keydown", "beforeinput", "paste", "drop", "compositionstart"] as const;
-    for (const type of events) window.addEventListener(type, block, true);
-    return () => {
-      for (const type of events) window.removeEventListener(type, block, true);
-    };
-  }, [busy]);
-
   if (!native) return null;
 
   async function refresh() {
@@ -68,9 +50,14 @@ export function DesktopRecoveryTools() {
     if (busy) return;
     setBusy(true);
     setMessage("Saving pending changes before backup…");
+    let release: (() => void) | null = null;
     try {
+      release = beginDesktopQuiescence();
       const created = await createDesktopBackupWith({
-        flush: flushDesktopState,
+        flush: async () => {
+          await flushDesktopState();
+          sealDesktopWrites();
+        },
         snapshot: () => invoke<Point>("create_desktop_manual_backup"),
       });
       setMessage(`Verified SQLite backup created: ${created.name}`);
@@ -84,6 +71,7 @@ export function DesktopRecoveryTools() {
     } catch (error) {
       setMessage(`Backup was not completed: ${describeError(error)}`);
     } finally {
+      release?.();
       setBusy(false);
     }
   }

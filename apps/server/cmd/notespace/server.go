@@ -71,27 +71,37 @@ func run() error {
 		}
 	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
+	desktop := env("NOTESPACE_PARENT_LIFECYCLE", "") == "1"
 	listenAddress := env("NOTESPACE_ADDR", "127.0.0.1:8080")
-	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
-	handler = withTestNoteSaveDelay(handler)
-	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
-		// Desktop child process has no HTTP password: enforce exact loopback
-		// authority for both GET and mutations, including static assets.
-		handler = desktopLoopbackBoundary(handler, listenAddress)
+	if desktop {
+		// The OS owns port selection; fixed ports can be reserved on Windows.
+		listenAddress = "127.0.0.1:0"
 	}
-	server := &http.Server{Addr: listenAddress, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
-	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
-		go watchParentLifecycle(stop)
-	}
-	listener, err := net.Listen("tcp", server.Addr)
+	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		return err
 	}
+	defer listener.Close()
+	actualAddress := listener.Addr().String()
+	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
+	handler = withTestNoteSaveDelay(handler)
+	var bootstrapURL string
+	if desktop {
+		session, err := newDesktopSession()
+		if err != nil { return err }
+		handler = desktopLoopbackBoundary(session.handler(handler), actualAddress)
+		bootstrapURL = fmt.Sprintf("http://%s/__desktop_session?code=%s", actualAddress, session.bootstrap)
+		go watchParentLifecycle(stop)
+	}
+	server := &http.Server{Addr: actualAddress, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
 	failures := make(chan error, 1)
 	go func() { failures <- server.Serve(listener) }()
-	actualAddress := listener.Addr().String()
 	if os.Getenv("NOTESPACE_READY_STDOUT") == "1" {
-		fmt.Printf("NOTESPACE_READY=http://%s\n", actualAddress)
+		if desktop {
+			fmt.Printf("NOTESPACE_READY=%s\n", bootstrapURL)
+		} else {
+			fmt.Printf("NOTESPACE_READY=http://%s\n", actualAddress)
+		}
 	}
 	slog.Info("notespace listening", "address", actualAddress)
 	select {

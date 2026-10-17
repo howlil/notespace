@@ -10,6 +10,9 @@ use std::{
 
 use tauri::{AppHandle, Manager, RunEvent, Url, WindowEvent};
 mod desktop_updates;
+mod desktop_recovery;
+
+use desktop_recovery::{desktop_recovery_diagnostics, list_desktop_recovery_points};
 
 use desktop_updates::{cancel_prepared_desktop_update, install_prepared_desktop_update, prepare_desktop_update, desktop_updater_enabled, DesktopUpdateState};
 
@@ -29,6 +32,7 @@ const DESKTOP_ADDR: &str = "127.0.0.1:49832";
 struct RuntimeProcess {
     child: Mutex<Option<CommandChild>>,
     close_requested: AtomicBool,
+    startup_in_flight: AtomicBool,
     sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -37,6 +41,7 @@ impl Default for RuntimeProcess {
         Self {
             child: Mutex::new(None),
             close_requested: AtomicBool::new(false),
+            startup_in_flight: AtomicBool::new(false),
             sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
         }
     }
@@ -67,13 +72,7 @@ pub fn run() {
         .manage(RuntimeProcess::default())
         .manage(DesktopUpdateState::default())
         .setup(|app| {
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = start_runtime(&handle).await {
-                    set_startup_status(&handle, &startup_error_message(&error), true);
-                    stop_runtime(&handle);
-                }
-            });
+            launch_runtime(app.handle()).map_err(std::io::Error::other)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -82,7 +81,10 @@ pub fn run() {
             desktop_updater_enabled,
             prepare_desktop_update,
             install_prepared_desktop_update,
-            cancel_prepared_desktop_update
+            cancel_prepared_desktop_update,
+            desktop_retry_runtime,
+            list_desktop_recovery_points,
+            desktop_recovery_diagnostics
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Notespace desktop runtime");
@@ -96,6 +98,41 @@ pub fn run() {
         RunEvent::Exit => stop_runtime(app),
         _ => {}
     });
+}
+
+// One in-flight runtime operation at a time. Do not restart an existing
+// sidecar, as doing so could create simultaneous SQLite writers.
+fn launch_runtime(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<RuntimeProcess>();
+    if state.startup_in_flight.swap(true, Ordering::AcqRel) {
+        return Err("Notespace runtime is already starting".into());
+    }
+    let active = match state.child.lock() {
+        Ok(slot) => slot.is_some(),
+        Err(_) => {
+            state.startup_in_flight.store(false, Ordering::Release);
+            return Err("Notespace process state is unavailable".into());
+        }
+    };
+    if active {
+        state.startup_in_flight.store(false, Ordering::Release);
+        return Err("Notespace runtime is already active; restart is only available after failure".into());
+    }
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = start_runtime(&handle).await;
+        if let Err(error) = result {
+            stop_runtime(&handle);
+            show_runtime_failure(&handle, &startup_error_message(&error));
+        }
+        handle.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn desktop_retry_runtime(app: AppHandle) -> Result<(), String> {
+    launch_runtime(&app)
 }
 
 async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
@@ -317,16 +354,37 @@ fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
 }
 
 fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let message = format!("{detail} Close and reopen Notespace.");
-    let Ok(message) = serde_json::to_string(&message) else {
-        return;
-    };
-    let script = format!(
-        "document.title='Notespace — Runtime stopped'; document.body.innerHTML='<main id=\"notespace-runtime-failure\" style=\"min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#f7f8fa;color:#252630\"><div style=\"display:grid;gap:8px;text-align:center\"><h1 style=\"margin:0;font-size:18px\">Notespace</h1><p id=\"runtime-message\" style=\"margin:0;color:#b13e4b;font-size:13px\"></p></div></main>'; document.getElementById('runtime-message').textContent={message};"
-    );
+    let Some(window) = app.get_webview_window("main") else { return; };
+    let Ok(message) = serde_json::to_string(detail) else { return; };
+    // Error display is a native recovery view, not a page from the failing Go
+    // server. Every user-data action is read-only. No automatic DB restore.
+    let script = format!(r#"
+      document.title = 'Notespace — Recovery';
+      document.body.innerHTML = '<main style="max-width:560px;margin:8vh auto;padding:24px;font-family:system-ui,sans-serif;line-height:1.5"><h1>Notespace recovery</h1><p id="recovery-message" style="color:#9f3342;white-space:pre-wrap"></p><p>Committed notes remain in your library. Changes that were never saved may be lost. Retrying will not overwrite your database.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="recovery-retry">Retry startup</button><button id="recovery-points-button">Show recovery points</button><button id="recovery-diagnostics-button">Show diagnostics</button></div><pre id="recovery-details" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto"></pre></main>';
+      document.getElementById('recovery-message').textContent = {message};
+      const details = document.getElementById('recovery-details');
+      const invoke = (command) => window.__TAURI_INTERNALS__.invoke(command);
+      document.getElementById('recovery-retry').onclick = async () => {{
+        details.textContent = 'Starting Notespace…';
+        try {{ await invoke('desktop_retry_runtime'); }}
+        catch (e) {{ details.textContent = String(e); }}
+      }};
+      document.getElementById('recovery-points-button').onclick = async () => {{
+        try {{
+          const points = await invoke('list_desktop_recovery_points');
+          details.textContent = points.length
+            ? 'Recovery points (read-only; manual offline restore only):\\n' + points.map(p => p.name + ' (' + p.bytes + ' bytes)\\n' + p.path).join('\\n')
+            : 'No pre-migration recovery snapshots found.';
+        }} catch (e) {{ details.textContent = String(e); }}
+      }};
+      document.getElementById('recovery-diagnostics-button').onclick = async () => {{
+        try {{ details.textContent = JSON.stringify(await invoke('desktop_recovery_diagnostics'), null, 2); }}
+        catch (e) {{ details.textContent = String(e); }}
+      }};
+      document.querySelectorAll('#recovery-retry,#recovery-points-button,#recovery-diagnostics-button').forEach(b => {{
+        b.style.cssText='padding:8px 14px;border:1px solid #aaa;border-radius:20px;background:white;color:#252630;cursor:pointer';
+      }});
+    "#);
     let _ = window.eval(&script);
 }
 

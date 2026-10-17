@@ -1,4 +1,4 @@
-/* global console, fetch, setTimeout, URL */
+/* global console, fetch, setTimeout, URL, AbortSignal */
 
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

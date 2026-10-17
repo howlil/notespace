@@ -191,6 +191,9 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     window
         .navigate(ready_url)
         .map_err(|error| format!("open Notespace runtime: {error}"))?;
+    // Startup is complete; the task continues monitoring sidecar events.
+    // Backups are allowed during normal operation, not during migration.
+    app.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
 
     while let Some(event) = events.recv().await {
         match event {

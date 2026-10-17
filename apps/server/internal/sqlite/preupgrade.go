@@ -64,7 +64,7 @@ func snapshotBeforeMigration(ctx context.Context, db *sql.DB, databasePath strin
 		return "", fmt.Errorf("close pre-migration snapshot: %w", closeErr)
 	}
 
-	file, err := os.Open(partial)
+	file, err := os.OpenFile(partial, os.O_RDWR, 0)
 	if err != nil {
 		return "", err
 	}

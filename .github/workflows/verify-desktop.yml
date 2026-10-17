@@ -17,6 +17,7 @@ on:
       - "scripts/create-desktop-update-manifest.mjs"
       - "scripts/create-desktop-update-manifest.test.mjs"
       - "scripts/prepare-desktop-updater-config.mjs"
+      - "scripts/prepare-desktop-updater-config.test.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -38,6 +39,7 @@ on:
       - "scripts/create-desktop-update-manifest.mjs"
       - "scripts/create-desktop-update-manifest.test.mjs"
       - "scripts/prepare-desktop-updater-config.mjs"
+      - "scripts/prepare-desktop-updater-config.test.mjs"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -68,7 +70,7 @@ jobs:
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
       - name: Verify signed updater manifest contract
-        run: node --test scripts/create-desktop-update-manifest.test.mjs
+        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs
       - name: Syntax-check updater release scripts
         run: |
           node --check scripts/create-desktop-update-manifest.mjs
@@ -132,7 +134,7 @@ jobs:
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
       - name: Verify signed updater manifest contract
-        run: node --test scripts/create-desktop-update-manifest.test.mjs
+        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs
       - name: Syntax-check updater release scripts
         run: |
           node --check scripts/create-desktop-update-manifest.mjs

@@ -39,7 +39,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CURRENT_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          if ($env:CURRENT_VERSION -notmatch '^\d+\.\d+\.\d+
+          if ($env:CURRENT_VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            "::notice::Upgrade comparison only supports stable SemVer" | Write-Host
+            "enabled=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $releases = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw "Cannot query previous Notespace releases" }
+          $previous = @($releases | Where-Object {
+            -not $_.isDraft -and -not $_.isPrerelease -and
+            $_.tagName -match '^v\d+\.\d+\.\d+$' -and
+            ([version]$_.tagName.Substring(1)) -lt ([version]$env:CURRENT_VERSION)
+          } | Sort-Object { [version]$_.tagName.Substring(1) } -Descending)
+          if ($previous.Count -gt 0) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+            "tag=$($previous[0].tagName)" >> $env:GITHUB_OUTPUT
+            "version=$($previous[0].tagName.Substring(1))" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "::notice::Initial stable release; no previous MSI to compare."
+            "enabled=false" >> $env:GITHUB_OUTPUT
+          }
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/sync-desktop-version.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -91,11 +114,11 @@ jobs:
           PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
         run: |
           $directory = Join-Path $env:RUNNER_TEMP "notespace-previous-msi"
-          New-Item -ItemType Directory -Force $directory | Out-Null
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
           gh release download $env:PREVIOUS_TAG --repo $env:GITHUB_REPOSITORY --pattern "*.msi" --dir $directory
           if ($LASTEXITCODE -ne 0) { throw "Cannot download previous MSI $env:PREVIOUS_TAG" }
-          $files = @(Get-ChildItem $directory -Filter "*.msi" -File)
-          if ($files.Count -ne 1) { throw "Expected exactly one previous stable Windows MSI, got $($files.Count)" }
+          $files = @(Get-ChildItem -Path $directory -Filter "*.msi" -File)
+          if ($files.Count -ne 1) { throw "Expected exactly one previous MSI, got $($files.Count)" }
           "old_msi=$($files[0].FullName)" >> $env:GITHUB_OUTPUT
       - name: Gate release on real MSI upgrade and user-data preservation
         if: steps.previous.outputs.enabled == 'true'
@@ -106,282 +129,9 @@ jobs:
           NOTESPACE_UPGRADE_NEW_VERSION: ${{ steps.release.outputs.version }}
         run: |
           $candidates = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
-          if ($candidates.Count -ne 1) { throw "Expected one newly built MSI, got $($candidates.Count)" }
+          if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
           $env:NOTESPACE_UPGRADE_NEW_MSI = $candidates[0].FullName
           ./scripts/verify-desktop-msi-upgrade.ps1
-      - name: Inspect bundle contents
-        shell: pwsh
-        run: |
-          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
-          $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
-          if (-not ($installers | Where-Object Extension -eq '.msi')) { throw "No Windows MSI found in $bundle" }
-          if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
-          $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
-      - name: Create checksums
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -eq '.msi' }
-          $lines = $files | ForEach-Object { $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash; "$hash  $($_.Name)" }
-          $lines | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt"
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: notespace-windows-${{ steps.release.outputs.tag }}
-          path: |
-            apps/desktop/src-tauri/target/release/bundle/
-            apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          if-no-files-found: error
-      - name: Publish GitHub Release
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
-          $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
-          $files += Get-Item (Join-Path $bundle "SHA256SUMS.txt")
-          $paths = $files | ForEach-Object { $_.FullName }
-          gh release view $env:RELEASE_TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:RELEASE_TAG $paths --clobber
-          } else {
-            gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
-          }
-          if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
-
-  cross-platform-native:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            deps: ""
-          - os: ubuntu-latest
-            deps: "libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev"
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag || github.ref }}
-      - name: Resolve release version
-        id: release
-        shell: bash
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
-        run: |
-          tag="${RELEASE_TAG_INPUT:-${GITHUB_REF_NAME}}"
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-      - name: Synchronize desktop version
-        env:
-          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-          cache-dependency-path: apps/server/go.sum
-      - uses: dtolnay/rust-toolchain@stable
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: node scripts/prepare-desktop-sidecar.mjs
-      - run: cargo install tauri-cli --locked
-      - working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
-      - working-directory: apps/desktop/src-tauri
-        run: cargo tauri build --no-bundle -- --locked
-) {
-            Write-Host "::notice::Upgrade comparison is for stable MSI versions; prereleases require a separate upgrade test."
-            "enabled=false" >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          $releases = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json)
-          if ($LASTEXITCODE -ne 0) { throw "Cannot query previous Notespace releases" }
-          $matches = @($releases | Where-Object {
-            -not $_.isDraft -and -not $_.isPrerelease -and
-            $_.tagName -match '^v\d+\.\d+\.\d+
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-          cache-dependency-path: apps/server/go.sum
-      - uses: dtolnay/rust-toolchain@stable
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: node scripts/prepare-desktop-sidecar.mjs
-      - name: Smoke sidecar parent lifecycle
-        run: pnpm test:desktop:lifecycle
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --locked
-      - name: Test desktop runtime
-        working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
-      - name: Build Windows installer
-        working-directory: apps/desktop/src-tauri
-        run: cargo tauri build -- --locked
-      - name: Smoke release binary
-        env:
-          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
-          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
-        run: pnpm test:desktop:native
-      - name: Verify release product persistence
-        env:
-          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
-          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
-        run: pnpm test:desktop:critical
-      - name: Inspect bundle contents
-        shell: pwsh
-        run: |
-          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
-          $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
-          if (-not ($installers | Where-Object Extension -eq '.msi')) { throw "No Windows MSI found in $bundle" }
-          if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
-          $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
-      - name: Create checksums
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -eq '.msi' }
-          $lines = $files | ForEach-Object { $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash; "$hash  $($_.Name)" }
-          $lines | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt"
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: notespace-windows-${{ steps.release.outputs.tag }}
-          path: |
-            apps/desktop/src-tauri/target/release/bundle/
-            apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          if-no-files-found: error
-      - name: Publish GitHub Release
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: |
-          $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
-          $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
-          $files += Get-Item (Join-Path $bundle "SHA256SUMS.txt")
-          $paths = $files | ForEach-Object { $_.FullName }
-          gh release view $env:RELEASE_TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:RELEASE_TAG $paths --clobber
-          } else {
-            gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
-          }
-          if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
-
-  cross-platform-native:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            deps: ""
-          - os: ubuntu-latest
-            deps: "libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev"
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag || github.ref }}
-      - name: Resolve release version
-        id: release
-        shell: bash
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
-        run: |
-          tag="${RELEASE_TAG_INPUT:-${GITHUB_REF_NAME}}"
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-      - name: Synchronize desktop version
-        env:
-          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-          cache-dependency-path: apps/server/go.sum
-      - uses: dtolnay/rust-toolchain@stable
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: node scripts/prepare-desktop-sidecar.mjs
-      - run: cargo install tauri-cli --locked
-      - working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
-      - working-directory: apps/desktop/src-tauri
-        run: cargo tauri build --no-bundle -- --locked
- -and
-            ([version]$_.tagName.Substring(1)) -lt ([version]$env:CURRENT_VERSION)
-          } | Sort-Object { [version]$_.tagName.Substring(1) } -Descending)
-          if ($matches.Count -eq 0) {
-            Write-Host "::notice::No preceding published stable release: initial release has no N-to-N+1 baseline."
-            "enabled=false" >> $env:GITHUB_OUTPUT
-          } else {
-            "enabled=true" >> $env:GITHUB_OUTPUT
-            "tag=$($matches[0].tagName)" >> $env:GITHUB_OUTPUT
-            "version=$($matches[0].tagName.Substring(1))" >> $env:GITHUB_OUTPUT
-          }
-      - name: Synchronize desktop version
-        env:
-          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-          cache-dependency-path: apps/server/go.sum
-      - uses: dtolnay/rust-toolchain@stable
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: node scripts/prepare-desktop-sidecar.mjs
-      - name: Smoke sidecar parent lifecycle
-        run: pnpm test:desktop:lifecycle
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --locked
-      - name: Test desktop runtime
-        working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
-      - name: Build Windows installer
-        working-directory: apps/desktop/src-tauri
-        run: cargo tauri build -- --locked
-      - name: Smoke release binary
-        env:
-          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
-          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
-        run: pnpm test:desktop:native
-      - name: Verify release product persistence
-        env:
-          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
-          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
-        run: pnpm test:desktop:critical
       - name: Inspect bundle contents
         shell: pwsh
         run: |

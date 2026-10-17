@@ -14,6 +14,7 @@ import { ThemeProvider } from "../shared/ui/theme-provider";
 import { ToastProvider } from "../shared/ui/toast-provider";
 import { NativePopupManager } from "../shared/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
+import { DesktopUpdateControl } from "../features/desktop-updates/DesktopUpdateControl";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
 import { ActivityRuntimeProvider } from "../features/activity/activity-runtime-provider";
 import { ActivityDock } from "../features/activity/ActivityDock";
@@ -42,6 +43,7 @@ export const Route = createRootRoute({
           <ThemeProvider>
             <ActivityRuntimeProvider>
               <DesktopCloseBridge />
+              <DesktopUpdateControl />
               <QuickOpen />
               <ConflictRecoveryDialog />
               <Outlet />

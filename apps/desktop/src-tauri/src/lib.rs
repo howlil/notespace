@@ -9,6 +9,10 @@ use std::{
 };
 
 use tauri::{AppHandle, Manager, RunEvent, Url, WindowEvent};
+mod desktop_updates;
+
+use desktop_updates::{cancel_prepared_desktop_update, install_prepared_desktop_update, prepare_desktop_update, desktop_updater_enabled, DesktopUpdateState};
+
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
@@ -51,10 +55,17 @@ pub fn run() {
         }));
     }
 
+    // Only signed release builds carry a pinned public key and updater feed.
+    // Dev / CI builds keep the plugin entirely unavailable.
+    if desktop_updates::update_enabled() {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
     let app = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeProcess::default())
+        .manage(DesktopUpdateState::default())
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -67,7 +78,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             allow_desktop_close,
-            cancel_desktop_close
+            cancel_desktop_close,
+            desktop_updater_enabled,
+            prepare_desktop_update,
+            install_prepared_desktop_update,
+            cancel_prepared_desktop_update
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Notespace desktop runtime");

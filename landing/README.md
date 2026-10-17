@@ -4,6 +4,26 @@ Notespace is a monorepo containing the Go/SQLite self-hosted application, its Ta
 
 **Cloudflare Workers only hosts the static marketing landing.** It does not host the Notespace Go backend or provide persistent SQLite.
 
+## Development
+
+The landing is an independent Astro site. Its dependencies stay outside the root pnpm workspace so they do not affect the Go/SQLite application runtime or existing verification contract.
+
+```sh
+cd landing
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+## Build and preview
+
+```sh
+cd landing
+pnpm build
+pnpm dlx wrangler@4.148.0 dev
+```
+
+Astro pre-renders this site into `landing/dist`. Cloudflare Workers serves these static assets; no Astro Cloudflare SSR adapter, API bindings, or D1 database are required for the landing page.
+
 ## Cloudflare Workers Builds: current account settings (root `/`)
 
 Cloudflare's build logs on October 13, 2026 demonstrate that the Worker currently invokes `pnpm run build` and `npx wrangler deploy` from the **repository root**, not `landing/`. Both commands now work without changing those dashboard fields:

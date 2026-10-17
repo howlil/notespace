@@ -34,6 +34,7 @@ struct RuntimeProcess {
     close_requested: AtomicBool,
     startup_in_flight: AtomicBool,
     backup_in_flight: AtomicBool,
+    recovery_visible: AtomicBool,
     sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -44,6 +45,7 @@ impl Default for RuntimeProcess {
             close_requested: AtomicBool::new(false),
             startup_in_flight: AtomicBool::new(false),
             backup_in_flight: AtomicBool::new(false),
+            recovery_visible: AtomicBool::new(false),
             sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
         }
     }
@@ -194,6 +196,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     // Startup is complete; the task continues monitoring sidecar events.
     // Backups are allowed during normal operation, not during migration.
     app.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
+    app.state::<RuntimeProcess>().recovery_visible.store(false, Ordering::Release);
 
     while let Some(event) = events.recv().await {
         match event {
@@ -312,6 +315,11 @@ fn startup_error_message(error: &str) -> String {
 }
 
 fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
+    // The native recovery view has no React close-flush bridge. If the local
+    // runtime has exited, let Windows close the window normally.
+    if app.state::<RuntimeProcess>().recovery_visible.load(Ordering::Acquire) {
+        return;
+    }
     api.prevent_close();
     let process = app.state::<RuntimeProcess>();
     if process.close_requested.swap(true, Ordering::AcqRel) {
@@ -361,6 +369,7 @@ fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
 }
 
 fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
+    app.state::<RuntimeProcess>().recovery_visible.store(true, Ordering::Release);
     let Some(window) = app.get_webview_window("main") else { return; };
     let Ok(message) = serde_json::to_string(detail) else { return; };
     // Error display is a native recovery view, not a page from the failing Go

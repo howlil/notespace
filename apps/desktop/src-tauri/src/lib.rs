@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager, RunEvent, Url, WindowEvent};
 mod desktop_updates;
 mod desktop_recovery;
 
-use desktop_recovery::{desktop_recovery_diagnostics, list_desktop_recovery_points};
+use desktop_recovery::{desktop_recovery_diagnostics, list_desktop_recovery_points, list_desktop_manual_backups, create_desktop_manual_backup};
 
 use desktop_updates::{cancel_prepared_desktop_update, install_prepared_desktop_update, prepare_desktop_update, desktop_updater_enabled, DesktopUpdateState};
 
@@ -86,7 +86,9 @@ pub fn run() {
             cancel_prepared_desktop_update,
             desktop_retry_runtime,
             list_desktop_recovery_points,
-            desktop_recovery_diagnostics
+            desktop_recovery_diagnostics,
+            list_desktop_manual_backups,
+            create_desktop_manual_backup
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Notespace desktop runtime");

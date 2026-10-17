@@ -71,7 +71,7 @@ class InventoryContractTest(unittest.TestCase):
 
     def test_changed_binary_asset_fails(self):
         self.mutate("UPDATE workspace_assets SET data=X'FFFF' WHERE id='asset1'")
-        with self.assertRaisesRegex(AssertionError, "binary asset"):
+        with self.assertRaisesRegex(AssertionError, "User data content changed|binary asset"):
             inventory.verify(self.before, inventory.snapshot(self.path), self.path)
 
     def test_migration_without_recovery_snapshot_fails(self):

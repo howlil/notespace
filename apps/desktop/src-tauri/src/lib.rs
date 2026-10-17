@@ -227,22 +227,25 @@ async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), St
             }
             CommandEvent::Error(error) => {
                 desktop_ops::record(app, "runtime_exited");
-                stop_runtime(app);
-                show_runtime_failure(app, &format!("Local runtime error: {error}"));
+                if stop_runtime_expected(app, Some(generation)) {
+                    show_runtime_failure(app, &format!("Local runtime error: {error}"));
+                }
                 return Ok(());
             }
             CommandEvent::Terminated(payload) => {
                 desktop_ops::record(app, "runtime_exited");
-                clear_runtime(app);
-                show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
+                if clear_runtime(app, generation) {
+                    show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
+                }
                 return Ok(());
             }
             _ => {}
         }
     }
 
-    stop_runtime(app);
-    show_runtime_failure(app, "Local runtime stopped unexpectedly.");
+    if stop_runtime_expected(app, Some(generation)) {
+        show_runtime_failure(app, "Local runtime stopped unexpectedly.");
+    }
     Ok(())
 }
 
@@ -447,25 +450,41 @@ fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     let _ = window.eval(&script);
 }
 
-fn clear_runtime(app: &tauri::AppHandle) {
+// Claim a particular generation before touching its process slot. A stale
+// Terminated event cannot erase a newer child spawned during installer recovery.
+fn clear_runtime(app: &tauri::AppHandle, generation: u64) -> bool {
     let process = app.state::<RuntimeProcess>();
+    if process.stopping.swap(true, Ordering::AcqRel) { return false; }
+    if process.generation.load(Ordering::Acquire) != generation {
+        process.stopping.store(false, Ordering::Release);
+        return false;
+    }
     process.generation.fetch_add(1, Ordering::AcqRel);
-    let Ok(mut slot) = process.child.lock() else {
-        return;
+    let claimed = match process.child.lock() {
+        Ok(mut slot) => { *slot = None; true },
+        Err(_) => false,
     };
-    *slot = None;
     mark_sidecar_exited(&process.sidecar_exited);
+    process.stopping.store(false, Ordering::Release);
+    claimed
 }
 
 fn stop_runtime(app: &tauri::AppHandle) {
+    let _ = stop_runtime_expected(app, None);
+}
+
+fn stop_runtime_expected(app: &tauri::AppHandle, expected: Option<u64>) -> bool {
     let process = app.state::<RuntimeProcess>();
-    // Invalidate the previous monitor BEFORE a restart can begin.
-    if process.stopping.swap(true, Ordering::AcqRel) { return; }
+    if process.stopping.swap(true, Ordering::AcqRel) { return false; }
+    if expected.is_some_and(|generation| process.generation.load(Ordering::Acquire) != generation) {
+        process.stopping.store(false, Ordering::Release);
+        return false;
+    }
     process.generation.fetch_add(1, Ordering::AcqRel);
     let child = {
         let Ok(mut slot) = process.child.lock() else {
             process.stopping.store(false, Ordering::Release);
-            return;
+            return false;
         };
         slot.take()
     };
@@ -475,7 +494,7 @@ fn stop_runtime(app: &tauri::AppHandle) {
             let _ = child.kill();
             mark_sidecar_exited(&process.sidecar_exited);
             process.stopping.store(false, Ordering::Release);
-            return;
+            return true;
         }
         if wait_for_sidecar_exit(&process.sidecar_exited, SIDECAR_GRACEFUL_TIMEOUT) {
             eprintln!("notespace-server: exited gracefully");
@@ -485,6 +504,7 @@ fn stop_runtime(app: &tauri::AppHandle) {
         }
     }
     process.stopping.store(false, Ordering::Release);
+    true
 }
 
 fn wait_for_sidecar_exit(signal: &Arc<(Mutex<bool>, Condvar)>, timeout: Duration) -> bool {

@@ -51,7 +51,7 @@ try {
     webviewOptions: { userDataFolder: profileDirectory },
   });
   capabilities.setBrowserName("wry");
-  driver = await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
+  driver = await openNativeSession(capabilities);
 
   await waitForDesktopRuntime(driver);
   const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
@@ -93,7 +93,7 @@ try {
     await driver.quit().catch(() => {});
     driver = undefined;
   
-    driver = await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
+    driver = await openNativeSession(capabilities);
     await waitForDesktopRuntime(driver);
     const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
     assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
@@ -109,6 +109,26 @@ try {
 } finally {
   if (driver) await driver.quit().catch(() => {});
   driverProcess.kill();
+}
+
+async function openNativeSession(capabilities) {
+  try {
+    // Native acceptance must drive the real Tauri WebView2 process, not
+    // silently fall back to a Playwright/HTTP-only smoke.
+    return await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("DevToolsActivePort")) {
+      console.error([
+        "NATIVE_WEBDRIVER_SESSION_FAILED: WebView2 did not expose its DevTools port.",
+        "Inspect the WebView2 and EdgeDriver versions in the CI preflight.",
+        "Known WebView2+EdgeDriver upstream regression on Windows Server 2025:",
+        "https://github.com/actions/runner-images/issues/14738",
+        "Test the real WebView2 UI on windows-2022; do not substitute a mocked browser.",
+      ].join("\n"));
+    }
+    throw error;
+  }
 }
 
 async function runProductPersistenceJourney(session) {

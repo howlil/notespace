@@ -23,8 +23,8 @@ fn is_snapshot_name(name: &str) -> bool {
     let Some((timestamp, random)) = stem.rsplit_once('-') else {
         return false;
     };
-    timestamp.ends_with('Z') && timestamp.len() == 26
-        && timestamp[..25].bytes().all(|b| b.is_ascii_digit() || b == b'T' || b == b'.')
+    timestamp.len() == 26 && timestamp.as_bytes()[25] == b'Z'
+        && timestamp.as_bytes()[..25].iter().all(|b| b.is_ascii_digit() || *b == b'T' || *b == b'.')
         && random.len() == 16 && random.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
@@ -181,6 +181,7 @@ mod tests {
         assert!(!is_snapshot_name("pre-migration-incomplete.partial.db"));
         assert!(!is_snapshot_name("pre-migration-20261018T012345.123456789Z-xyz.db"));
         assert!(!is_snapshot_name("../pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"));
+        assert!(!is_snapshot_name("pre-migration-20261018T012345.12345678éZ-0123456789abcdef.db"));
         assert!(is_snapshot_name("pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"));
     }
 

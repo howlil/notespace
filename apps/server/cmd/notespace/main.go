@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"time"
-
 	"fmt"
-	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"log/slog"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/howlil/notespace/apps/server/internal/sqlite"
 )
 
 func main() {

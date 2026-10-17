@@ -7,12 +7,14 @@ const privateKey = process.env.TAURI_SIGNING_PRIVATE_KEY?.trim();
 if (!key || !privateKey) {
   throw new Error("Release signing unavailable: provision NOTESPACE_UPDATER_PUBLIC_KEY as a GitHub Actions variable and TAURI_SIGNING_PRIVATE_KEY as a secret. Refusing an unsigned desktop release.");
 }
-if (!key.startsWith("RWQ") && !key.startsWith("RWT")) {
-  // Minisign-encoded Tauri public keys normally start with RW; never accept a
-  // placeholder such as an empty string, file path, or generic PEM block.
-  if (!/^RW[A-Za-z0-9+/=]+$/.test(key)) {
-    throw new Error("Expected inline Tauri minisign public key, not a filename or PEM block");
-  }
+// Tauri's signer emits base64 of the full minisign public-key box, usually
+// starting with "dW50..." ("untrusted comment:") rather than raw "RW...".
+if (!/^[A-Za-z0-9+/]+={0,2}$/.test(key)) {
+  throw new Error("Updater public key must be base64 of the Tauri minisign public-key box");
+}
+const decoded = Buffer.from(key, "base64").toString("utf8");
+if (!decoded.startsWith("untrusted comment:") || !/^RW[A-Za-z0-9+/=]+$/m.test(decoded)) {
+  throw new Error("Updater public key is not a valid-looking Tauri minisign public-key box");
 }
 const overlay = {
   bundle: { createUpdaterArtifacts: true },

@@ -1,0 +1,30 @@
+name: Format Desktop Port Adaptation
+on:
+  push:
+    branches: [feat/desktop-m6-review-remediation]
+    paths:
+      - "apps/server/cmd/notespace/desktop_listener.go"
+      - "apps/server/cmd/notespace/desktop_listener_test.go"
+      - "apps/server/cmd/notespace/server.go"
+      - ".github/workflows/format-m6b-go.yml"
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/desktop-m6-review-remediation
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - run: gofmt -w apps/server/cmd/notespace/desktop_listener.go apps/server/cmd/notespace/desktop_listener_test.go apps/server/cmd/notespace/server.go
+      - run: |
+          git add apps/server/cmd/notespace/desktop_listener.go apps/server/cmd/notespace/desktop_listener_test.go apps/server/cmd/notespace/server.go
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style(desktop): gofmt adaptive listener"
+          git push origin HEAD:feat/desktop-m6-review-remediation

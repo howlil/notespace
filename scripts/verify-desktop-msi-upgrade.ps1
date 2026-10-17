@@ -88,6 +88,7 @@ Write-Host "Installing real previous release MSI $oldVersion..."
 Install-Msi $oldMsi "previous"
 $old = Get-InstalledNotespace
 Assert-InstalledVersion $old $oldVersion
+$oldBinaryHash = (Get-FileHash -LiteralPath $old.Binary -Algorithm SHA256).Hash
 $env:TAURI_APP_BINARY = $old.Binary
 node scripts/desktop-webdriver-smoke.mjs --upgrade-seed
 if ($LASTEXITCODE -ne 0) { throw "Previous release failed to create a durable Workspace fixture" }
@@ -100,6 +101,10 @@ $new = Get-InstalledNotespace
 Assert-InstalledVersion $new $newVersion
 if ($new.Binary -ne $old.Binary) {
   throw "Installer created a second Notespace app instead of upgrading in place ($($old.Binary) vs $($new.Binary))"
+}
+$newBinaryHash = (Get-FileHash -LiteralPath $new.Binary -Algorithm SHA256).Hash
+if ($newBinaryHash -eq $oldBinaryHash) {
+  throw "Candidate MSI registered a new version but did not replace the installed executable"
 }
 $env:TAURI_APP_BINARY = $new.Binary
 node scripts/desktop-webdriver-smoke.mjs --upgrade-verify

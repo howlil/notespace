@@ -124,6 +124,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Parse MSI upgrade PowerShell
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/verify-desktop-msi-upgrade.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Smoke sidecar parent lifecycle
         run: pnpm test:desktop:lifecycle
       - name: Install Tauri CLI

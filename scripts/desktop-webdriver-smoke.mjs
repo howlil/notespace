@@ -60,6 +60,7 @@ try {
     // Run against an INSTALLED historical MSI, never a debug binary.
     // Persist the fixture only after the OS close and sidecar shutdown.
     const marker = await runProductPersistenceJourney(driver);
+    Object.assign(marker, await seedDurableDomains(driver));
     await closeDesktopWindow(driver);
     await waitForLocalServerExit();
     await driver.quit().catch(() => {});
@@ -72,6 +73,7 @@ try {
     assert.equal(typeof marker.workspaceTitle, "string");
     assert.equal(typeof marker.noteMarker, "string");
     await assertProductPersistence(driver, marker);
+    await assertDurableDomains(marker);
     await closeDesktopWindow(driver);
     await waitForLocalServerExit();
     console.log("upgrade proof: candidate installed app read legacy authored state", marker.workspaceTitle);
@@ -146,6 +148,75 @@ async function waitForLocalServerExit() {
     await delay(250);
   }
   throw new Error("Desktop sidecar still serves requests after close; refusing MSI upgrade");
+}
+
+// Seed real user-owned aggregates using the installed PREVIOUS version's HTTP
+// boundary. Browser fixture alone would only cover Notes and an empty Canvas.
+async function requestLocal(path, method = "GET", body, headers = {}) {
+  const request = {
+    method,
+    headers: { ...headers },
+  };
+  if (body !== undefined) {
+    if (body instanceof Uint8Array) {
+      request.body = body;
+    } else {
+      request.body = JSON.stringify(body);
+      request.headers["Content-Type"] = "application/json";
+    }
+  }
+  const response = await fetch(`http://127.0.0.1:49832${path}`, request);
+  if (!response.ok) {
+    throw new Error(`${method} ${path}: HTTP ${response.status} ${await response.text()}`);
+  }
+  if (response.status === 204) return null;
+  const type = response.headers.get("Content-Type") ?? "";
+  if (!type.includes("json")) return new Uint8Array(await response.arrayBuffer());
+  return response.json();
+}
+
+async function seedDurableDomains(session) {
+  const url = new URL(await session.getCurrentUrl());
+  const match = url.pathname.match(/^\/workspaces\/([^/]+)$/);
+  assert.ok(match, "upgrade seed must remain on authored Workspace");
+  const workspaceId = decodeURIComponent(match[1]);
+  const prefix = `/api/workspaces/${encodeURIComponent(workspaceId)}`;
+
+  const milestone = await requestLocal(`${prefix}/milestones`, "POST", { title: "Upgrade milestone" });
+  assert.ok(milestone.id);
+  const task = await requestLocal(`${prefix}/tasks`, "POST", { title: "Preserved task", milestoneId: milestone.id });
+  assert.ok(task.id);
+  const standalone = await requestLocal("/api/tasks", "POST", { title: "Upgrade inbox task" });
+  assert.ok(standalone.id);
+  const assetId = `upgrade-proof-asset-${Date.now()}`;
+  const originalAsset = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+  await requestLocal(`${prefix}/assets/${assetId}`, "PUT", originalAsset, { "Content-Type": "image/png" });
+  const activityId = `upgrade-proof-session-${Date.now()}`;
+  await requestLocal(`/api/activity/sessions/${activityId}`, "PUT", {
+    title: "Preserved activity", activityType: "write",
+    activityDate: new Date().toISOString().slice(0, 10),
+    activeSeconds: 600, finish: true, workspaceId, taskId: task.id,
+  });
+  const trashed = await requestLocal("/api/workspaces", "POST", { title: "Upgrade Trash evidence" });
+  assert.ok(trashed.id && trashed.version);
+  await requestLocal(`/api/workspaces/${encodeURIComponent(trashed.id)}`, "DELETE", undefined, { "If-Match": `"${trashed.version}"` });
+  return { workspaceId, taskId: task.id, standaloneTaskId: standalone.id, assetId, activityId, trashedId: trashed.id };
+}
+
+async function assertDurableDomains(marker) {
+  const prefix = `/api/workspaces/${encodeURIComponent(marker.workspaceId)}`;
+  const workspace = await requestLocal(prefix);
+  assert.equal(workspace.id, marker.workspaceId);
+  const task = await requestLocal(`/api/tasks/${encodeURIComponent(marker.taskId)}`);
+  assert.equal(task.title, "Preserved task");
+  const standalone = await requestLocal(`/api/tasks/${encodeURIComponent(marker.standaloneTaskId)}`);
+  assert.equal(standalone.title, "Upgrade inbox task");
+  const asset = await requestLocal(`${prefix}/assets/${encodeURIComponent(marker.assetId)}`);
+  assert.deepEqual(Array.from(asset), [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+  const trash = await requestLocal("/api/trash");
+  assert.ok(JSON.stringify(trash).includes(marker.trashedId), "Trashed workspace must survive upgrade");
+  const activities = await requestLocal("/api/activity/sessions?limit=50");
+  assert.ok(JSON.stringify(activities).includes(marker.activityId), "Activity history must survive upgrade");
 }
 
 async function closeDesktopWindow(session) {

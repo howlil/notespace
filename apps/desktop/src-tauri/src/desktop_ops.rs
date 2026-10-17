@@ -71,31 +71,54 @@ fn write_event(app: &AppHandle, code: &'static str) -> std::io::Result<()> {
     Ok(())
 }
 
+// Read bounded tails newest-first across active and archived journals.
+fn recent_in_dir(directory: &std::path::Path) -> Vec<Value> {
+    const ALLOWED: [&str; 10] = [
+        "runtime_start_requested","runtime_ready","runtime_start_failed",
+        "runtime_exited","recovery_retry","backup_requested","backup_success",
+        "backup_failed","update_install_requested","update_install_failed",
+    ];
+    let mut entries = Vec::new();
+    for filename in ["events.jsonl", "events.1.jsonl", "events.2.jsonl", "events.3.jsonl"] {
+        let path = directory.join(filename);
+        let Ok(info) = fs::symlink_metadata(&path) else { continue; };
+        if !info.is_file() || info.file_type().is_symlink() || info.len() > 512 * 1024 { continue; }
+        let Ok(mut file) = fs::File::open(path) else { continue; };
+        let mut content = String::new();
+        if file.read_to_string(&mut content).is_err() { continue; }
+        for line in content.lines().rev() {
+            if entries.len() == 20 { return entries; }
+            let Ok(value) = serde_json::from_str::<Value>(line) else { continue; };
+            let Some(code) = value.get("event").and_then(Value::as_str) else { continue; };
+            let Some(time) = value.get("unixSeconds").and_then(Value::as_u64) else { continue; };
+            if ALLOWED.contains(&code) {
+                entries.push(json!({"event":code,"unixSeconds":time}));
+            }
+        }
+    }
+    entries
+}
+
 pub fn recent(app: &AppHandle) -> Vec<Value> {
     let Ok(directory) = event_dir(app) else { return vec![]; };
-    let base = directory.join("events.jsonl");
-    let Ok(mut file) = fs::File::open(base) else { return vec![]; };
-    let Ok(info) = file.metadata() else { return vec![]; };
-    // Read a bounded tail, never the entire historical log.
-    if info.len() > 512 * 1024 { return vec![]; }
-    let mut content = String::new();
-    if file.read_to_string(&mut content).is_err() { return vec![]; }
-    content.lines().rev().take(20).filter_map(|line| {
-        let value: Value = serde_json::from_str(line).ok()?;
-        let code = value.get("event")?.as_str()?;
-        // Avoid displaying injected file content if the log was tampered with.
-        if ![
-            "runtime_start_requested","runtime_ready","runtime_start_failed",
-            "runtime_exited","recovery_retry","backup_requested","backup_success",
-            "backup_failed","update_install_requested","update_install_failed"
-        ].contains(&code) { return None; }
-        Some(json!({"event":code,"unixSeconds":value.get("unixSeconds")?.as_u64()?}))
-    }).collect()
+    recent_in_dir(&directory)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recent_reads_rotated_journals_in_newest_first_order() {
+        let dir = std::env::temp_dir().join(format!("notespace-ops-read-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("events.1.jsonl"), "{\"unixSeconds\":1,\"event\":\"runtime_start_failed\"}\n").unwrap();
+        fs::write(dir.join("events.jsonl"), "{\"unixSeconds\":2,\"event\":\"runtime_ready\"}\n").unwrap();
+        let events = recent_in_dir(&dir);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0]["unixSeconds"], 2);
+        assert_eq!(events[1]["unixSeconds"], 1);
+        fs::remove_dir_all(&dir).unwrap();
+    }
     #[test]
     fn rotation_is_bounded_and_keeps_prior_log() {
         let dir = std::env::temp_dir().join(format!("notespace-ops-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));

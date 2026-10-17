@@ -135,6 +135,10 @@ func Validate(ctx context.Context, q queryContext) error {
 }
 
 func Run(ctx context.Context, db *sql.DB) error {
+	// Reject a future or inconsistent schema before ensureMetadata writes anything.
+	if _, err := Inspect(ctx, db); err != nil {
+		return err
+	}
 	if err := ensureMetadata(ctx, db); err != nil {
 		return err
 	}

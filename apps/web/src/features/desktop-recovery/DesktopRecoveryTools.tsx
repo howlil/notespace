@@ -65,7 +65,9 @@ export function DesktopRecoveryTools() {
   }
 
   return (
-    <aside className="fixed left-4 bottom-4 z-[99] text-xs" aria-label="Desktop backup and recovery">
+    <>
+      {busy && <div className="fixed inset-0 z-[190] bg-black/10" aria-hidden="true" />}
+      <aside className={`fixed left-4 bottom-4 text-xs ${busy ? "z-[191]" : "z-[99]"}`} aria-label="Desktop backup and recovery">
       {!expanded ? (
         <button type="button" className="rounded-full border border-line bg-surface px-3 py-2 text-ink" onClick={() => { setExpanded(true); void refresh(); }}>
           Backups
@@ -109,7 +111,8 @@ export function DesktopRecoveryTools() {
           )}
         </section>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
 

@@ -18,6 +18,42 @@ permissions:
   artifact-metadata: write
 
 jobs:
+  # Fail fast on missing signing infrastructure before spending time on native builds.
+  # Inspect presence only; never print credential values.
+  release-credentials-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all production signing configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+          NOTESPACE_AZURE_SIGNING_ENDPOINT: ${{ vars.NOTESPACE_AZURE_SIGNING_ENDPOINT }}
+          NOTESPACE_AZURE_SIGNING_ACCOUNT: ${{ vars.NOTESPACE_AZURE_SIGNING_ACCOUNT }}
+          NOTESPACE_AZURE_SIGNING_PROFILE: ${{ vars.NOTESPACE_AZURE_SIGNING_PROFILE }}
+          NOTESPACE_WINDOWS_SIGNER_SUBJECT: ${{ vars.NOTESPACE_WINDOWS_SIGNER_SUBJECT }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          missing=0
+          for key in \
+            TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY \
+            NOTESPACE_AZURE_SIGNING_ENDPOINT NOTESPACE_AZURE_SIGNING_ACCOUNT \
+            NOTESPACE_AZURE_SIGNING_PROFILE NOTESPACE_WINDOWS_SIGNER_SUBJECT \
+            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error title=Missing desktop signing configuration::Set $key in repository Actions secrets or variables."
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "See docs/DESKTOP_FIRST_RELEASE.md. No installer has been published."
+            exit 1
+          fi
+          echo "All required release signing names are configured; cryptographic checks run later."
+
   windows-installer:
     # Keep native WebView2 + EdgeDriver release acceptance on a known working
     # Windows image while https://github.com/actions/runner-images/issues/14738
@@ -246,6 +282,7 @@ jobs:
       - name: Publish GitHub Release
         shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
@@ -260,6 +297,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
 
   cross-platform-native:
+    needs: release-credentials-preflight
     strategy:
       fail-fast: false
       matrix:

@@ -73,11 +73,14 @@ func run() error {
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	desktop := env("NOTESPACE_PARENT_LIFECYCLE", "") == "1"
 	listenAddress := env("NOTESPACE_ADDR", "127.0.0.1:8080")
+	var listener net.Listener
 	if desktop {
-		// The OS owns port selection; fixed ports can be reserved on Windows.
-		listenAddress = "127.0.0.1:0"
+		// Preserve a stable browser origin when possible; the OS may reserve
+		// 49832 on CI or on some Windows machines.
+		listener, err = listenDesktop()
+	} else {
+		listener, err = net.Listen("tcp", listenAddress)
 	}
-	listener, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		return err
 	}

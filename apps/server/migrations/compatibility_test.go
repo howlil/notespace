@@ -23,7 +23,7 @@ func TestInspectRejectsUnknownMigrationWithoutSchemaChanges(t *testing.T) {
 		INSERT INTO schema_migrations(name,checksum) VALUES ('9999_future.sql','future');`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Run(ctx, db); err == nil || !strings.Contains(err.Error(), "unsupported database schema") {
+	if err := Run(ctx, db); err == nil || !strings.Contains(err.Error(), "unsupported database schema") {
 		t.Fatalf("expected non-destructive forward-schema rejection, got %v", err)
 	}
 	var writes int

@@ -40,13 +40,16 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		if err == nil && wasExisting && inspection.NeedsMigration {
 			// Refuse upgrades if the source is already damaged. No migration may
 			// run unless a complete, verified recovery copy is on disk.
-			err = migrations.Validate(ctx, db)
+			err = migrations.ValidateFull(ctx, db)
 			if err == nil {
 				recoveryPath, err = snapshotBeforeMigration(ctx, db, absolute)
 			}
 		}
 		if err == nil {
 			err = migrations.Run(ctx, db)
+			if err == nil && wasExisting && inspection.NeedsMigration {
+				err = migrations.ValidateFull(ctx, db)
+			}
 		}
 	}
 	if err != nil {

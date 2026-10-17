@@ -197,10 +197,26 @@ async function seedDurableDomains(session) {
     activityDate: new Date().toISOString().slice(0, 10),
     activeSeconds: 600, finish: true, workspaceId, taskId: task.id,
   });
+  const canvasWorkspace = await requestLocal("/api/workspaces", "POST", { title: "Upgrade Canvas evidence" });
+  assert.ok(canvasWorkspace.id);
+  const canvasPath = `/api/workspaces/${encodeURIComponent(canvasWorkspace.id)}/canvas`;
+  const originalCanvas = await requestLocal(canvasPath);
+  const canvasElementId = `upgrade-canvas-${Date.now()}`;
+  const scene = structuredClone(originalCanvas.canvas.data);
+  scene.elements.push({
+    id: canvasElementId, type: "rectangle", x: 12, y: 16, width: 120, height: 90,
+    angle: 0, strokeColor: "#000000", backgroundColor: "transparent",
+    fillStyle: "solid", strokeWidth: 1, roughness: 1, opacity: 100,
+    seed: 1, version: 1, versionNonce: 1, isDeleted: false,
+    groupIds: [], boundElements: null, updated: Date.now(), link: null, locked: false,
+  });
+  await requestLocal(canvasPath, "PATCH", {
+    canvas: { ...originalCanvas.canvas, data: scene }, version: originalCanvas.version,
+  });
   const trashed = await requestLocal("/api/workspaces", "POST", { title: "Upgrade Trash evidence" });
   assert.ok(trashed.id && trashed.version);
   await requestLocal(`/api/workspaces/${encodeURIComponent(trashed.id)}`, "DELETE", undefined, { "If-Match": `"${trashed.version}"` });
-  return { workspaceId, taskId: task.id, standaloneTaskId: standalone.id, assetId, activityId, trashedId: trashed.id };
+  return { workspaceId, taskId: task.id, standaloneTaskId: standalone.id, assetId, activityId, trashedId: trashed.id, canvasWorkspaceId: canvasWorkspace.id, canvasElementId };
 }
 
 async function assertDurableDomains(marker) {
@@ -213,6 +229,8 @@ async function assertDurableDomains(marker) {
   assert.equal(standalone.title, "Upgrade inbox task");
   const asset = await requestLocal(`${prefix}/assets/${encodeURIComponent(marker.assetId)}`);
   assert.deepEqual(Array.from(asset), [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+  const canvas = await requestLocal(`/api/workspaces/${encodeURIComponent(marker.canvasWorkspaceId)}/canvas`);
+  assert.ok(canvas.canvas.data.elements.some(element => element.id === marker.canvasElementId), "Authored Canvas element must survive upgrade");
   const trash = await requestLocal("/api/trash");
   assert.ok(JSON.stringify(trash).includes(marker.trashedId), "Trashed workspace must survive upgrade");
   const activities = await requestLocal("/api/activity/sessions?limit=50");

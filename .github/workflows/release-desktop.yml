@@ -19,9 +19,12 @@ permissions:
 
 jobs:
   windows-installer:
-    # Do not publish a release until macOS and Linux source/native checks pass.
+    # Keep native WebView2 + EdgeDriver release acceptance on a known working
+    # Windows image while https://github.com/actions/runner-images/issues/14738
+    # and MicrosoftEdge/WebView2Feedback#5415 remain unresolved.
+    # Still run current Windows build/unit tests in verify-desktop.yml.
     needs: cross-platform-native
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
@@ -139,6 +142,9 @@ jobs:
           cargo install tauri-driver --locked
           cargo install --git https://github.com/chippers/msedgedriver-tool --locked
           msedgedriver-tool.exe
+      - name: Diagnose release WebView2 environment
+        shell: pwsh
+        run: ./scripts/diagnose-desktop-webdriver.ps1
       - name: Smoke release binary
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe

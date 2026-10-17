@@ -315,6 +315,15 @@ fn startup_error_message(error: &str) -> String {
 }
 
 fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
+    // Do not terminate a backup worker mid-write. Completed backups are only
+    // published after the worker has validated and closed its SQLite snapshot.
+    if app.state::<RuntimeProcess>().backup_in_flight.load(Ordering::Acquire) {
+        api.prevent_close();
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.eval("console.info('Notespace: backup in progress; finish backup before closing')");
+        }
+        return;
+    }
     // The native recovery view has no React close-flush bridge. If the local
     // runtime has exited, let Windows close the window normally.
     if app.state::<RuntimeProcess>().recovery_visible.load(Ordering::Acquire) {
@@ -340,6 +349,9 @@ fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
 
 #[tauri::command]
 fn allow_desktop_close(app: AppHandle) -> Result<(), String> {
+    if app.state::<RuntimeProcess>().backup_in_flight.load(Ordering::Acquire) {
+        return Err("Cannot close Notespace while a SQLite backup is in progress".into());
+    }
     app.state::<RuntimeProcess>()
         .close_requested
         .store(false, Ordering::Release);

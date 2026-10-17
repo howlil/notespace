@@ -19,6 +19,8 @@ permissions:
 
 jobs:
   windows-installer:
+    # Do not publish a release until macOS and Linux source/native checks pass.
+    needs: cross-platform-native
     runs-on: windows-latest
     timeout-minutes: 85
     steps:

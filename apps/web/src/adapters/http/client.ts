@@ -1,3 +1,5 @@
+import { trackDesktopMutation } from "../browser/desktop-lifecycle.ts";
+
 export interface HttpTransport {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
@@ -14,7 +16,13 @@ export class APIError extends Error {
 }
 
 export const fetchTransport: HttpTransport = {
-  fetch: (input, init) => globalThis.fetch(input, init),
+  fetch: (input, init) => {
+    const action = () => globalThis.fetch(input, init);
+    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    return method === "GET" || method === "HEAD"
+      ? action()
+      : trackDesktopMutation(action);
+  },
 };
 
 const requestWithTransport = async <T>(

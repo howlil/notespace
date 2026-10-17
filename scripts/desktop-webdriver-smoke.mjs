@@ -1,7 +1,7 @@
 /* global console, fetch, setTimeout, URL */
 
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -18,7 +18,14 @@ const profileDirectory = process.env.TAURI_NATIVE_PROFILE
   ? resolve(root, process.env.TAURI_NATIVE_PROFILE)
   : resolve(root, ".desktop-webdriver-data");
 const persistedKey = "notespace.desktop.webdriver.smoke";
-const critical = process.argv.includes("--critical") || process.env.TAURI_NATIVE_PRODUCT_SMOKE === "1";
+const upgradeSeed = process.argv.includes("--upgrade-seed");
+const upgradeVerify = process.argv.includes("--upgrade-verify");
+assert.ok(!(upgradeSeed && upgradeVerify), "Choose one upgrade proof mode");
+const upgradeFixture = process.env.NOTESPACE_UPGRADE_FIXTURE;
+if ((upgradeSeed || upgradeVerify) && (!upgradeFixture || !process.env.NOTESPACE_DESKTOP_TEST_DATA_DIR)) {
+  throw new Error("Upgrade proof requires NOTESPACE_UPGRADE_FIXTURE and isolated NOTESPACE_DESKTOP_TEST_DATA_DIR");
+}
+const critical = process.argv.includes("--critical") || process.env.TAURI_NATIVE_PRODUCT_SMOKE === "1" || upgradeSeed;
 
 if (critical && !process.env.NOTESPACE_DESKTOP_TEST_DATA_DIR) {
   throw new Error("Critical desktop smoke requires NOTESPACE_DESKTOP_TEST_DATA_DIR for isolated product data.");
@@ -49,30 +56,51 @@ try {
   await waitForDesktopRuntime(driver);
   const firstUrl = await driver.getCurrentUrl();
   assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:49832\//, "desktop must use the stable loopback origin");
-  await driver.executeScript(
-    "localStorage.setItem(arguments[0], arguments[1]);",
-    persistedKey,
-    "persisted",
-  );
-  const productMarker = critical ? await runProductPersistenceJourney(driver) : null;
-  if (critical) {
+  if (upgradeSeed) {
+    // Run against an INSTALLED historical MSI, never a debug binary.
+    // Persist the fixture only after the OS close and sidecar shutdown.
+    const marker = await runProductPersistenceJourney(driver);
     await closeDesktopWindow(driver);
+    await waitForLocalServerExit();
+    await driver.quit().catch(() => {});
+    driver = undefined;
+    writeFileSync(resolve(upgradeFixture), JSON.stringify(marker, null, 2), { flag: "wx" });
+    console.log("upgrade proof: legacy installed app created durable library", marker.workspaceTitle);
+  } else if (upgradeVerify) {
+    // Run against an INSTALLED candidate MSI with the SAME data and WebView profile.
+    const marker = JSON.parse(readFileSync(resolve(upgradeFixture), "utf8"));
+    assert.equal(typeof marker.workspaceTitle, "string");
+    assert.equal(typeof marker.noteMarker, "string");
+    await assertProductPersistence(driver, marker);
+    await closeDesktopWindow(driver);
+    await waitForLocalServerExit();
+    console.log("upgrade proof: candidate installed app read legacy authored state", marker.workspaceTitle);
+  } else {
+    await driver.executeScript(
+      "localStorage.setItem(arguments[0], arguments[1]);",
+      persistedKey,
+      "persisted",
+    );
+    const productMarker = critical ? await runProductPersistenceJourney(driver) : null;
+    if (critical) {
+      await closeDesktopWindow(driver);
+    }
+    await driver.quit().catch(() => {});
+    driver = undefined;
+  
+    driver = await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
+    await waitForDesktopRuntime(driver);
+    const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
+    assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
+    if (critical) {
+      assert.ok(productMarker, "critical smoke must have a product marker");
+      await assertProductPersistence(driver, productMarker);
+    }
+    await driver.executeScript("localStorage.removeItem(arguments[0]);", persistedKey);
+    console.log(critical
+      ? "native WebDriver smoke passed: launch, close flush, product persistence, relaunch persistence"
+      : "native WebDriver smoke passed: launch, stable origin, relaunch persistence");
   }
-  await driver.quit().catch(() => {});
-  driver = undefined;
-
-  driver = await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
-  await waitForDesktopRuntime(driver);
-  const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
-  assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
-  if (critical) {
-    assert.ok(productMarker, "critical smoke must have a product marker");
-    await assertProductPersistence(driver, productMarker);
-  }
-  await driver.executeScript("localStorage.removeItem(arguments[0]);", persistedKey);
-  console.log(critical
-    ? "native WebDriver smoke passed: launch, close flush, product persistence, relaunch persistence"
-    : "native WebDriver smoke passed: launch, stable origin, relaunch persistence");
 } finally {
   if (driver) await driver.quit().catch(() => {});
   driverProcess.kill();
@@ -107,6 +135,19 @@ async function assertProductPersistence(session, marker) {
   assert.match(content, new RegExp(escapeRegExp(marker.noteMarker)), "product data must survive desktop relaunch");
 }
 
+async function waitForLocalServerExit() {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    try {
+      await fetch("http://127.0.0.1:49832/api/health", { signal: AbortSignal.timeout(1000) });
+    } catch {
+      return;
+    }
+    await delay(250);
+  }
+  throw new Error("Desktop sidecar still serves requests after close; refusing MSI upgrade");
+}
+
 async function closeDesktopWindow(session) {
   await session.actions()
     .keyDown(Key.ALT)
@@ -122,6 +163,7 @@ async function closeDesktopWindow(session) {
     }
     await delay(250);
   }
+  throw new Error("Desktop window did not close within 15 seconds");
 }
 
 async function visibleElement(session, locator, timeout = 30_000) {

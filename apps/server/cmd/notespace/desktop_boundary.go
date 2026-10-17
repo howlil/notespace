@@ -31,8 +31,16 @@ func desktopLoopbackBoundary(next http.Handler, listenAddress string) http.Handl
 		}
 		switch strings.ToLower(r.Header.Get("Sec-Fetch-Site")) {
 		case "cross-site", "same-site":
-			http.Error(w, "Cross-origin desktop request rejected", http.StatusForbidden)
-			return
+			// The first Tauri bootstrap navigation starts on a different
+			// scheme. Its 256-bit one-use secret is independently verified by
+			// desktopSession.handler. No other cross-site request is allowed.
+			bootstrap := r.URL.Path == "/__desktop_session" &&
+				r.Method == http.MethodGet &&
+				r.Header.Get("Sec-Fetch-Mode") == "navigate"
+			if !bootstrap {
+				http.Error(w, "Cross-origin desktop request rejected", http.StatusForbidden)
+				return
+			}
 		}
 		if r.Header.Get("Sec-Fetch-Mode") == "navigate" &&
 			r.Header.Get("Sec-Fetch-Dest") != "document" &&

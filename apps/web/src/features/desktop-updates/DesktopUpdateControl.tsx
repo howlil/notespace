@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { flushDesktopState, isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
+import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../../adapters/browser/desktop-lifecycle";
 import { installDesktopUpdateWith } from "./install-desktop-update";
 
 type PreparedUpdate = { version: string; notes?: string | null };
@@ -54,18 +54,23 @@ export function DesktopUpdateControl() {
     // flush. The installer must never be invoked after a rejected save.
     setPhase("saving");
     setError("");
+    let release: (() => void) | null = null;
     try {
+      // Input is frozen synchronously, before the first async flush begins.
+      release = beginDesktopQuiescence();
       await installDesktopUpdateWith({
         flush: async () => {
           await flushDesktopState();
+          sealDesktopWrites();
           setPhase("installing");
         },
         install: async () => {
           await invoke("install_prepared_desktop_update");
         },
       });
-      // Windows may exit during the native installation command.
+      // Keep the write seal active on success: Windows now owns app shutdown.
     } catch (cause) {
+      release?.();
       setError(`Update cancelled or failed: ${errorText(cause)}`);
       setInfo(null);
       setPhase("error");

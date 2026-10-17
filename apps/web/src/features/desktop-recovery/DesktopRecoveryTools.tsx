@@ -28,6 +28,24 @@ export function DesktopRecoveryTools() {
     setNative(isTauriRuntime());
   }, []);
 
+  // Pointer shielding alone cannot stop typing into an already-focused
+  // editor. Suspend input at capture phase while the consistent backup is
+  // being finalized; do not mutate editor contents or the user's draft.
+  useEffect(() => {
+    if (!busy) return;
+    const block = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[aria-label="Desktop backup and recovery"]')) return;
+      if (event.cancelable) event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const events = ["keydown", "beforeinput", "paste", "drop", "compositionstart"] as const;
+    for (const type of events) window.addEventListener(type, block, true);
+    return () => {
+      for (const type of events) window.removeEventListener(type, block, true);
+    };
+  }, [busy]);
+
   if (!native) return null;
 
   async function refresh() {

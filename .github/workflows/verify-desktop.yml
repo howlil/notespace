@@ -12,6 +12,7 @@ on:
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
       - "scripts/diagnose-desktop-webdriver.ps1"
+      - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -41,6 +42,7 @@ on:
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
       - "scripts/diagnose-desktop-webdriver.ps1"
+      - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -183,11 +185,11 @@ jobs:
       - name: Build debug executable for native parity
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build --debug --no-bundle -- --locked
-      - name: Install native WebDriver tools
-        run: |
-          cargo install tauri-driver --locked
-          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
-          msedgedriver-tool.exe
+      - name: Install Tauri WebDriver server
+        run: cargo install tauri-driver --locked
+      - name: Install Microsoft EdgeDriver matching WebView2 Runtime
+        shell: pwsh
+        run: ./scripts/install-webview2-edgedriver.ps1
       - name: Diagnose native WebView2 and EdgeDriver
         shell: pwsh
         run: ./scripts/diagnose-desktop-webdriver.ps1

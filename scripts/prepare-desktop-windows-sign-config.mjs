@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 export function signingConfig(env) {
   const endpoint = env.NOTESPACE_AZURE_SIGNING_ENDPOINT?.trim();
@@ -34,7 +35,7 @@ export function signingConfig(env) {
   };
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replaceAll("\\", "/")}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const path = process.argv[2];
   if (!path) throw new Error("Supply existing Tauri release overlay path");
   const overlay = JSON.parse(await readFile(path, "utf8"));

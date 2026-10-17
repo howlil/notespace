@@ -18,6 +18,12 @@ on:
       - "scripts/create-desktop-update-manifest.test.mjs"
       - "scripts/prepare-desktop-updater-config.mjs"
       - "scripts/prepare-desktop-updater-config.test.mjs"
+      - "scripts/prepare-desktop-windows-sign-config.mjs"
+      - "scripts/prepare-desktop-windows-sign-config.test.mjs"
+      - "scripts/check-desktop-release-security.test.mjs"
+      - ".github/workflows/release-desktop.yml"
+      - "apps/server/cmd/notespace/desktop_boundary.go"
+      - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -40,6 +46,12 @@ on:
       - "scripts/create-desktop-update-manifest.test.mjs"
       - "scripts/prepare-desktop-updater-config.mjs"
       - "scripts/prepare-desktop-updater-config.test.mjs"
+      - "scripts/prepare-desktop-windows-sign-config.mjs"
+      - "scripts/prepare-desktop-windows-sign-config.test.mjs"
+      - "scripts/check-desktop-release-security.test.mjs"
+      - ".github/workflows/release-desktop.yml"
+      - "apps/server/cmd/notespace/desktop_boundary.go"
+      - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
@@ -70,11 +82,12 @@ jobs:
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
       - name: Verify signed updater manifest contract
-        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs
+        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
         run: |
           node --check scripts/create-desktop-update-manifest.mjs
           node --check scripts/prepare-desktop-updater-config.mjs
+          node --check scripts/prepare-desktop-windows-sign-config.mjs
       - run: rustup update stable && rustup default stable
       - name: Install Tauri Linux dependencies
         run: |
@@ -134,11 +147,12 @@ jobs:
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
       - name: Verify signed updater manifest contract
-        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs
+        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
         run: |
           node --check scripts/create-desktop-update-manifest.mjs
           node --check scripts/prepare-desktop-updater-config.mjs
+          node --check scripts/prepare-desktop-windows-sign-config.mjs
       - uses: dtolnay/rust-toolchain@stable
       - run: corepack enable
       - run: pnpm install --frozen-lockfile

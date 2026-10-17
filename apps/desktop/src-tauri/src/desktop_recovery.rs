@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 
-use crate::{runtime_data_dir, RuntimeProcess};
+use crate::{runtime_data_dir, desktop_ops, RuntimeProcess};
 
 #[derive(Debug, Clone)]
 pub struct RecoveryPoint {
@@ -81,6 +81,7 @@ pub fn desktop_recovery_diagnostics(app: AppHandle) -> Result<Value, String> {
         "platform": std::env::consts::OS,
         "runtimeActive": running,
         "recoveryPointCount": points.len(),
+        "recentEvents": desktop_ops::recent(&app),
         "summary": "Diagnostics omit note content, full filesystem paths and secrets; recovery copies are never automatically restored."
     }))
 }
@@ -106,6 +107,7 @@ pub async fn create_desktop_manual_backup(app: AppHandle) -> Result<Value, Strin
         return Err("A backup is already in progress".into());
     }
     let _guard = BackupGuard(&process.backup_in_flight);
+    desktop_ops::record(&app, "backup_requested");
     let db = runtime_data_dir(&app)?.join("notespace.db");
     let output = app
         .shell()
@@ -117,6 +119,7 @@ pub async fn create_desktop_manual_backup(app: AppHandle) -> Result<Value, Strin
         .await
         .map_err(|error| format!("Create verified SQLite backup: {error}"))?;
     if !output.status.success() {
+        desktop_ops::record(&app, "backup_failed");
         // Sidecar stderr can include internal filesystem details; avoid
         // displaying it to the frontend or copying it into a diagnostics file.
         return Err("Backup failed; canonical library was not changed. Check the available disk space and retry.".into());
@@ -136,6 +139,7 @@ pub async fn create_desktop_manual_backup(app: AppHandle) -> Result<Value, Strin
     if !meta.is_file() || meta.file_type().is_symlink() || meta.len() == 0 {
         return Err("Backup worker did not produce a regular nonempty backup file".into());
     }
+    desktop_ops::record(&app, "backup_success");
     Ok(json!({"name":name,"path":candidate.display().to_string(),"bytes":meta.len()}))
 }
 

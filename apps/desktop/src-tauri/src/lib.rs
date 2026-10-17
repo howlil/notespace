@@ -11,6 +11,7 @@ use std::{
 use tauri::{AppHandle, Manager, RunEvent, Url, WindowEvent};
 mod desktop_updates;
 mod desktop_recovery;
+mod desktop_ops;
 
 use desktop_recovery::{desktop_recovery_diagnostics, list_desktop_recovery_points, list_desktop_manual_backups, create_desktop_manual_backup};
 
@@ -124,10 +125,12 @@ fn launch_runtime(app: &AppHandle) -> Result<(), String> {
         state.startup_in_flight.store(false, Ordering::Release);
         return Err("Notespace runtime is already active; restart is only available after failure".into());
     }
+    desktop_ops::record(app, "runtime_start_requested");
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let result = start_runtime(&handle).await;
         if let Err(error) = result {
+            desktop_ops::record(&handle, "runtime_start_failed");
             stop_runtime(&handle);
             show_runtime_failure(&handle, &startup_error_message(&error));
         }
@@ -138,6 +141,7 @@ fn launch_runtime(app: &AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn desktop_retry_runtime(app: AppHandle) -> Result<(), String> {
+    desktop_ops::record(&app, "recovery_retry");
     launch_runtime(&app)
 }
 
@@ -197,6 +201,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     // Backups are allowed during normal operation, not during migration.
     app.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
     app.state::<RuntimeProcess>().recovery_visible.store(false, Ordering::Release);
+    desktop_ops::record(app, "runtime_ready");
 
     while let Some(event) = events.recv().await {
         match event {
@@ -207,11 +212,13 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
                 );
             }
             CommandEvent::Error(error) => {
+                desktop_ops::record(app, "runtime_exited");
                 stop_runtime(app);
                 show_runtime_failure(app, &format!("Local runtime error: {error}"));
                 return Ok(());
             }
             CommandEvent::Terminated(payload) => {
+                desktop_ops::record(app, "runtime_exited");
                 clear_runtime(app);
                 show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
                 return Ok(());

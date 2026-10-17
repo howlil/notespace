@@ -4,7 +4,7 @@ use serde_json::json;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-use crate::{start_runtime, stop_runtime, RuntimeProcess};
+use crate::{start_runtime, stop_runtime, desktop_ops, RuntimeProcess};
 
 // A downloaded update is verified by the official Tauri updater BEFORE the
 // frontend is offered the Install action. The bytes and signed metadata stay
@@ -102,8 +102,10 @@ pub async fn install_prepared_desktop_update(
 
     // On Windows Tauri may terminate the process when launching MSI. Stop the
     // Go sidecar gracefully first so SQLite can complete pending transactions.
+    desktop_ops::record(&app, "update_install_requested");
     stop_runtime(&app);
     if let Err(error) = pending.update.install(&pending.bytes) {
+        desktop_ops::record(&app, "update_install_failed");
         state.installing.store(false, Ordering::Release);
         let recovery_handle = app.clone();
         tauri::async_runtime::spawn(async move {

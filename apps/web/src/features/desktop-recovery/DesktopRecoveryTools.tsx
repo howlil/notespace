@@ -56,7 +56,13 @@ export function DesktopRecoveryTools() {
         snapshot: () => invoke<Point>("create_desktop_manual_backup"),
       });
       setMessage(`Verified SQLite backup created: ${created.name}`);
-      setManual(await invoke<Point[]>("list_desktop_manual_backups"));
+      try {
+        setManual(await invoke<Point[]>("list_desktop_manual_backups"));
+      } catch {
+        // A listing problem must never be reported as failed backup creation.
+        setManual((previous) => [created, ...previous]);
+        setMessage(`Verified backup created: ${created.name}. The backup list could not refresh.`);
+      }
     } catch (error) {
       setMessage(`Backup was not completed: ${describeError(error)}`);
     } finally {

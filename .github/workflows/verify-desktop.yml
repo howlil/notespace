@@ -6,6 +6,8 @@ on:
       - ".agents/engineering.md"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
+      - "apps/server/internal/sqlite/**"
+      - "apps/server/migrations/**"
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
@@ -19,6 +21,8 @@ on:
     paths:
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
+      - "apps/server/internal/sqlite/**"
+      - "apps/server/migrations/**"
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"

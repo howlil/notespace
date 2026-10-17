@@ -54,6 +54,8 @@ try {
   driver = await new Builder().usingServer(driverUrl).withCapabilities(capabilities).build();
 
   await waitForDesktopRuntime(driver);
+  const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
+  assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
   const firstUrl = await driver.getCurrentUrl();
   assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:\d+\//, "desktop must use an OS-allocated loopback port");
   activeOrigin = new URL(firstUrl).origin;

@@ -85,9 +85,20 @@ jobs:
       - name: Test desktop runtime
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked
-      - name: Build Windows installer
+      - name: Require production updater signing keys
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+        run: node scripts/prepare-desktop-updater-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
+      - name: Build signed Windows installer and updater artifact
         working-directory: apps/desktop/src-tauri
-        run: cargo tauri build -- --locked
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NOTESPACE_UPDATER_ENABLED: "1"
+        shell: pwsh
+        run: cargo tauri build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
       - name: Install native WebDriver tools
         run: |
           cargo install tauri-driver --locked
@@ -132,12 +143,21 @@ jobs:
           if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
           $env:NOTESPACE_UPGRADE_NEW_MSI = $candidates[0].FullName
           ./scripts/verify-desktop-msi-upgrade.ps1
+      - name: Create signed updater manifest
+        shell: pwsh
+        env:
+          NOTESPACE_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/create-desktop-update-manifest.mjs apps/desktop/src-tauri/target/release/bundle $env:NOTESPACE_RELEASE_VERSION
       - name: Inspect bundle contents
         shell: pwsh
         run: |
           $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
           $installers = Get-ChildItem -Path $bundle -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' }
           if (-not ($installers | Where-Object Extension -eq '.msi')) { throw "No Windows MSI found in $bundle" }
+          $msis = @($installers | Where-Object Extension -eq '.msi')
+          if ($msis.Count -ne 1) { throw "Expected precisely one MSI to publish" }
+          if (-not (Test-Path "$($msis[0].FullName).sig")) { throw "Missing detached updater signature" }
+          if (-not (Test-Path (Join-Path $bundle "latest.json"))) { throw "Signed update manifest is missing" }
           if (-not (Test-Path "apps/desktop/src-tauri/target/release/notespace-desktop.exe")) { throw "Native executable missing" }
           $installers | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | Format-Table
       - name: Create checksums
@@ -161,7 +181,9 @@ jobs:
         run: |
           $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
           $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
+          $files += @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Name.EndsWith('.msi.sig') })
           $files += Get-Item (Join-Path $bundle "SHA256SUMS.txt")
+          $files += Get-Item (Join-Path $bundle "latest.json")
           $paths = $files | ForEach-Object { $_.FullName }
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) {

@@ -1,7 +1,8 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}, sync::atomic::{AtomicBool, Ordering}};
 
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
+use tauri_plugin_shell::ShellExt;
 
 use crate::{runtime_data_dir, RuntimeProcess};
 
@@ -82,6 +83,93 @@ pub fn desktop_recovery_diagnostics(app: AppHandle) -> Result<Value, String> {
         "recoveryPointCount": points.len(),
         "summary": "Diagnostics omit note content, full filesystem paths and secrets; recovery copies are never automatically restored."
     }))
+}
+
+// The interactive backup worker reads SQLite using VACUUM INTO. It does not
+// call the normal Go startup/migration path. The worker returns a path inside
+// the app-owned .backups directory; the UI is never allowed to choose a path.
+struct BackupGuard<'a>(&'a AtomicBool);
+impl Drop for BackupGuard<'_> {
+    fn drop(&mut self) { self.0.store(false, Ordering::Release); }
+}
+
+#[tauri::command]
+pub async fn create_desktop_manual_backup(app: AppHandle) -> Result<Value, String> {
+    let process = app.state::<RuntimeProcess>();
+    if process.startup_in_flight.load(Ordering::Acquire) {
+        return Err("Wait until library startup finishes".into());
+    }
+    if process.child.lock().map_err(|_| "Runtime lock unavailable".to_string())?.is_none() {
+        return Err("The local library is not running; use the offline recovery instructions".into());
+    }
+    if process.backup_in_flight.swap(true, Ordering::AcqRel) {
+        return Err("A backup is already in progress".into());
+    }
+    let _guard = BackupGuard(&process.backup_in_flight);
+    let db = runtime_data_dir(&app)?.join("notespace.db");
+    let output = app
+        .shell()
+        .sidecar("notespace-server")
+        .map_err(|error| format!("Locate SQLite backup worker: {error}"))?
+        .env("NOTESPACE_DB", &db)
+        .env("NOTESPACE_SNAPSHOT_ONLY", "1")
+        .output()
+        .await
+        .map_err(|error| format!("Create verified SQLite backup: {error}"))?;
+    if !output.status.success() {
+        // Sidecar stderr can include internal filesystem details; avoid
+        // displaying it to the frontend or copying it into a diagnostics file.
+        return Err("Backup failed; canonical library was not changed. Check the available disk space and retry.".into());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let raw = stdout.lines()
+        .find_map(|line| line.strip_prefix("NOTESPACE_SNAPSHOT="))
+        .ok_or_else(|| "Backup worker returned no recovery point".to_string())?;
+    let candidate = PathBuf::from(raw);
+    let expected_dir = PathBuf::from(format!("{}.backups", db.display()));
+    if candidate.parent() != Some(expected_dir.as_path()) {
+        return Err("Backup worker returned a path outside the owned backup directory".into());
+    }
+    let name = candidate.file_name().and_then(|x| x.to_str()).ok_or("Invalid backup filename")?;
+    if !is_manual_name(name) { return Err("Backup worker returned an unexpected filename".into()); }
+    let meta = fs::symlink_metadata(&candidate).map_err(|error| format!("Verify saved backup: {error}"))?;
+    if !meta.is_file() || meta.file_type().is_symlink() || meta.len() == 0 {
+        return Err("Backup worker did not produce a regular nonempty backup file".into());
+    }
+    Ok(json!({"name":name,"path":candidate.display().to_string(),"bytes":meta.len()}))
+}
+
+fn is_manual_name(name: &str) -> bool {
+    if !name.starts_with("manual-") || !name.ends_with(".db") { return false; }
+    let mapped = name.replacen("manual-", "pre-migration-", 1);
+    is_snapshot_name(&mapped)
+}
+
+#[tauri::command]
+pub fn list_desktop_manual_backups(app: AppHandle) -> Result<Vec<Value>, String> {
+    let db = runtime_data_dir(&app)?.join("notespace.db");
+    let directory = PathBuf::from(format!("{}.backups", db.display()));
+    let meta = match fs::symlink_metadata(&directory) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(error) => return Err(format!("Read backup directory: {error}")),
+    };
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err("Backup path is not a real directory".into());
+    }
+    let mut result = Vec::new();
+    for entry in fs::read_dir(&directory).map_err(|error| format!("List backups: {error}"))? {
+        let entry = entry.map_err(|error| format!("Read backup entry: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !is_manual_name(&name) { continue; }
+        let meta = fs::symlink_metadata(entry.path()).map_err(|error| format!("Inspect backup: {error}"))?;
+        if meta.is_file() && !meta.file_type().is_symlink() && meta.len() > 0 {
+            result.push(json!({"name": name, "bytes": meta.len(), "path": entry.path().display().to_string()}));
+        }
+    }
+    result.sort_by(|a,b| b["name"].as_str().cmp(&a["name"].as_str()));
+    result.truncate(50);
+    Ok(result)
 }
 
 #[cfg(test)]

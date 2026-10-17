@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { Builder, By, Capabilities, Key } from "selenium-webdriver";
 
 const root = resolve(import.meta.dirname, "..");
@@ -38,6 +39,9 @@ if (!existsSync(application)) {
   throw new Error(`Native application binary not found: ${application}`);
 }
 mkdirSync(profileDirectory, { recursive: true });
+// Windows-hosted runners may reserve this fixed port. Fail immediately with
+// the actual bind error instead of waiting for WebDriver DevToolsActivePort.
+await assertDesktopLoopbackIsAvailable();
 
 const driverArgs = existsSync(nativeDriver) ? ["--native-driver", nativeDriver] : [];
 const driverProcess = spawn(driverBinary, driverArgs, { cwd: root, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
@@ -135,6 +139,16 @@ async function assertProductPersistence(session, marker) {
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
   const content = await editor.getText();
   assert.match(content, new RegExp(escapeRegExp(marker.noteMarker)), "product data must survive desktop relaunch");
+}
+
+async function assertDesktopLoopbackIsAvailable() {
+  const probe = createServer();
+  await new Promise((resolveProbe, rejectProbe) => {
+    probe.once("error", error => rejectProbe(new Error(
+      `Desktop loopback 127.0.0.1:49832 is unavailable: ${error.message}. Use a Windows runner where this port is not reserved.`
+    )));
+    probe.listen(49832, "127.0.0.1", () => probe.close(resolveProbe));
+  });
 }
 
 async function waitForLocalServerExit() {

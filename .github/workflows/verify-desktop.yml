@@ -11,6 +11,7 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -39,6 +40,7 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -127,9 +129,12 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build --no-bundle -- --locked
 
+  # WebView2 + EdgeDriver regression on Windows Server 2025:
+  # https://github.com/actions/runner-images/issues/14738
+  # Keep genuine native WebView2 acceptance on 2022; do NOT mark it skipped.
   check-desktop-windows:
-    runs-on: windows-latest
-    timeout-minutes: 35
+    runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,5 +188,39 @@ jobs:
           cargo install tauri-driver --locked
           cargo install --git https://github.com/chippers/msedgedriver-tool --locked
           msedgedriver-tool.exe
+      - name: Diagnose native WebView2 and EdgeDriver
+        shell: pwsh
+        run: ./scripts/diagnose-desktop-webdriver.ps1
       - name: Run native WebDriver parity smoke
         run: pnpm test:desktop:native
+      - name: Collect native WebDriver environment after failure
+        if: failure()
+        shell: pwsh
+        run: ./scripts/diagnose-desktop-webdriver.ps1
+
+
+  # Separate current Windows image compile check: updates to the latest
+  # toolchain must still be verified even while WebView2 automation is broken.
+  check-desktop-windows-latest:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Native Rust tests on current Windows
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build desktop on current Windows
+        working-directory: apps/desktop/src-tauri
+        run: cargo build --locked

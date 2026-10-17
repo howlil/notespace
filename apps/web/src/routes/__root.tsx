@@ -19,7 +19,7 @@ import { DesktopRecoveryTools } from "../features/desktop-recovery/DesktopRecove
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
 import { ActivityRuntimeProvider } from "../features/activity/activity-runtime-provider";
 import { ActivityDock } from "../features/activity/ActivityDock";
-import { allowDesktopClose, cancelDesktopClose, flushDesktopState, isTauriRuntime } from "../adapters/browser/desktop-lifecycle";
+import { allowDesktopClose, beginDesktopQuiescence, cancelDesktopClose, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../adapters/browser/desktop-lifecycle";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -81,11 +81,22 @@ function DesktopCloseBridge() {
     const requestClose = () => {
       setCloseState("flushing");
       setCloseError(null);
+      let release: (() => void) | null = null;
+      try {
+        release = beginDesktopQuiescence();
+      } catch (error) {
+        setCloseState("error");
+        setCloseError(error instanceof Error ? error.message : "Penyimpanan lain masih berjalan.");
+        void cancelDesktopClose().catch(() => {});
+        return;
+      }
       void flushDesktopState()
         .then(async () => {
+          sealDesktopWrites();
           await allowDesktopClose();
         })
         .catch(async (error) => {
+          release?.();
           console.error("Notespace close flush failed", error);
           setCloseState("error");
           setCloseError(error instanceof Error ? error.message : "Perubahan belum tersimpan. Coba tutup lagi.");

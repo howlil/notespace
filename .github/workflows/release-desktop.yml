@@ -137,11 +137,11 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         shell: pwsh
         run: cargo tauri build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
-      - name: Install native WebDriver tools
-        run: |
-          cargo install tauri-driver --locked
-          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
-          msedgedriver-tool.exe
+      - name: Install Tauri WebDriver server
+        run: cargo install tauri-driver --locked
+      - name: Install Microsoft EdgeDriver matching WebView2 Runtime
+        shell: pwsh
+        run: ./scripts/install-webview2-edgedriver.ps1
       - name: Diagnose release WebView2 environment
         shell: pwsh
         run: ./scripts/diagnose-desktop-webdriver.ps1

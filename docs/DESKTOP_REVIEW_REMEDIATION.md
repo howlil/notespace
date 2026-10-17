@@ -85,7 +85,7 @@ Tauri spawn
   callers but does **not** defend against all malicious processes running as
   the same OS user (e.g., compromised WebView profile or cookie theft).
   It is an additional per-process boundary, not OS-user isolation.
-- HTTP adapter mutations are tracked. Any future direct raw fetch with writes
+- HTTP adapter mutations and Canvas asset PUT uploads are tracked. Any future direct raw fetch with writes
   must adopt the same tracked transport; add a lint/contract test to prevent
   regression before release.
 - CI Windows WebDriver acceptance, real publisher signing credentials,

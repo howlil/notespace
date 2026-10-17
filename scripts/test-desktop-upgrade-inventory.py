@@ -56,7 +56,7 @@ class InventoryContractTest(unittest.TestCase):
 
     def test_missing_note_fails(self):
         self.mutate("DELETE FROM workspace_notes WHERE id='n1'")
-        with self.assertRaisesRegex(AssertionError, "workspace_notes"):
+        with self.assertRaisesRegex(RuntimeError, "authored Workspace and Note data"):
             inventory.verify(self.before, inventory.snapshot(self.path), self.path)
 
     def test_changed_binary_asset_fails(self):

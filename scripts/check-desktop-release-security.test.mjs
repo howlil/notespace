@@ -31,3 +31,24 @@ test("attestation generated and verified before publishing", () => {
   assert.match(workflow, /id-token: write/);
   assert.ok(workflow.indexOf("gh attestation verify") < workflow.indexOf("Publish GitHub Release"));
 });
+
+test("first-release signing prerequisite fails before expensive builds", () => {
+  assert.match(workflow, /^  release-credentials-preflight:/m);
+  assert.match(workflow, /cross-platform-native:\s+needs: release-credentials-preflight/);
+  for (const name of [
+    "TAURI_SIGNING_PRIVATE_KEY", "NOTESPACE_UPDATER_PUBLIC_KEY",
+    "NOTESPACE_AZURE_SIGNING_ENDPOINT", "NOTESPACE_AZURE_SIGNING_ACCOUNT",
+    "NOTESPACE_AZURE_SIGNING_PROFILE", "NOTESPACE_WINDOWS_SIGNER_SUBJECT",
+    "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID",
+  ]) {
+    const job = workflow.split(/^  windows-installer:/m)[0];
+    assert.ok(job.includes(name), `Missing release signing preflight for ${name}`);
+  }
+});
+
+test("GitHub CLI publisher receives GH_TOKEN and keeps immutable signed releases", () => {
+  const publish = workflow.slice(workflow.indexOf("      - name: Publish GitHub Release"));
+  assert.match(publish, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
+  assert.match(publish, /gh release create .*--verify-tag/);
+  assert.doesNotMatch(publish, /--clobber/);
+});

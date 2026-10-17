@@ -42,6 +42,25 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Explicit Start / Pause / Resume / End activity sessions, optionally linked to a Workspace or Today task.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
 
+## Windows Desktop
+
+The Windows desktop app is distributed as a signed `.msi` through
+[GitHub Releases](https://github.com/howlil/notespace/releases).
+
+**Availability:** A merged change or passing CI run is not a published
+installer. If there is no release with an `.msi` asset, the desktop download
+is not yet available. Do not download unverified executables from third-party
+mirrors.
+
+When a signed MSI has been published, choose the version under **Releases →
+Assets**, download the `.msi`, and run it on Windows. The app keeps its local
+library in SQLite. Verify the Windows publisher signature and checksum before
+installing.
+
+Maintainers: see [first desktop release instructions](docs/DESKTOP_FIRST_RELEASE.md)
+for the updater signing key, Azure Authenticode signing requirements, GitHub
+Actions workflow, and mandatory native/product persistence checks.
+
 ## Self-host with Docker
 
 For a local source build, use the localhost port-publishing override:

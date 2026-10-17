@@ -71,9 +71,15 @@ func run() error {
 		}
 	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
+	listenAddress := env("NOTESPACE_ADDR", "127.0.0.1:8080")
 	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
 	handler = withTestNoteSaveDelay(handler)
-	server := &http.Server{Addr: env("NOTESPACE_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
+	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
+		// Desktop child process has no HTTP password: enforce exact loopback
+		// authority for both GET and mutations, including static assets.
+		handler = desktopLoopbackBoundary(handler, listenAddress)
+	}
+	server := &http.Server{Addr: listenAddress, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
 	if env("NOTESPACE_PARENT_LIFECYCLE", "") == "1" {
 		go watchParentLifecycle(stop)
 	}

@@ -115,10 +115,11 @@ pub async fn install_prepared_desktop_update(
 }
 
 #[tauri::command]
-pub async fn cancel_prepared_desktop_update(state: State<'_, DesktopUpdateState>) {
+pub async fn cancel_prepared_desktop_update(state: State<'_, DesktopUpdateState>) -> Result<(), String> {
     if !state.installing.load(Ordering::Acquire) {
         *state.pending.lock().await = None;
     }
+    Ok(())
 }
 
 #[cfg(test)]

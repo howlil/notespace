@@ -5,7 +5,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
 import { Builder, By, Capabilities, Key } from "selenium-webdriver";
 
 const root = resolve(import.meta.dirname, "..");
@@ -39,13 +38,10 @@ if (!existsSync(application)) {
   throw new Error(`Native application binary not found: ${application}`);
 }
 mkdirSync(profileDirectory, { recursive: true });
-// Windows-hosted runners may reserve this fixed port. Fail immediately with
-// the actual bind error instead of waiting for WebDriver DevToolsActivePort.
-await assertDesktopLoopbackIsAvailable();
-
 const driverArgs = existsSync(nativeDriver) ? ["--native-driver", nativeDriver] : [];
 const driverProcess = spawn(driverBinary, driverArgs, { cwd: root, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
 let driver;
+let activeOrigin;
 
 try {
   await waitForWebDriver(driverUrl, driverProcess);
@@ -59,7 +55,8 @@ try {
 
   await waitForDesktopRuntime(driver);
   const firstUrl = await driver.getCurrentUrl();
-  assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:49832\//, "desktop must use the stable loopback origin");
+  assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:\\d+\//, "desktop must use an OS-allocated loopback port");
+  activeOrigin = new URL(firstUrl).origin;
   if (upgradeSeed) {
     // Run against an INSTALLED historical MSI, never a debug binary.
     // Persist the fixture only after the OS close and sidecar shutdown.
@@ -141,21 +138,11 @@ async function assertProductPersistence(session, marker) {
   assert.match(content, new RegExp(escapeRegExp(marker.noteMarker)), "product data must survive desktop relaunch");
 }
 
-async function assertDesktopLoopbackIsAvailable() {
-  const probe = createServer();
-  await new Promise((resolveProbe, rejectProbe) => {
-    probe.once("error", error => rejectProbe(new Error(
-      `Desktop loopback 127.0.0.1:49832 is unavailable: ${error.message}. Use a Windows runner where this port is not reserved.`
-    )));
-    probe.listen(49832, "127.0.0.1", () => probe.close(resolveProbe));
-  });
-}
-
 async function waitForLocalServerExit() {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     try {
-      await fetch("http://127.0.0.1:49832/api/health", { signal: AbortSignal.timeout(1000) });
+      await fetch(`${activeOrigin}/api/health`, { signal: AbortSignal.timeout(1000) });
     } catch {
       return;
     }
@@ -167,26 +154,30 @@ async function waitForLocalServerExit() {
 // Seed real user-owned aggregates using the installed PREVIOUS version's HTTP
 // boundary. Browser fixture alone would only cover Notes and an empty Canvas.
 async function requestLocal(path, method = "GET", body, headers = {}) {
-  const request = {
-    method,
-    headers: { ...headers },
-  };
-  if (body !== undefined) {
-    if (body instanceof Uint8Array) {
-      request.body = body;
-    } else {
-      request.body = JSON.stringify(body);
-      request.headers["Content-Type"] = "application/json";
-    }
-  }
-  const response = await fetch(`http://127.0.0.1:49832${path}`, request);
-  if (!response.ok) {
-    throw new Error(`${method} ${path}: HTTP ${response.status} ${await response.text()}`);
-  }
-  if (response.status === 204) return null;
-  const type = response.headers.get("Content-Type") ?? "";
-  if (!type.includes("json")) return new Uint8Array(await response.arrayBuffer());
-  return response.json();
+  // M6 authenticates the private API with an HttpOnly WebView session cookie.
+  // A Node.js client must NOT bypass the security boundary. All fixture
+  // requests go through the authenticated browser's same-origin transport.
+  const payload = body === undefined ? null
+    : body instanceof Uint8Array ? { kind: "binary", value: Array.from(body) }
+    : { kind: "json", value: body };
+  const response = await driver.executeAsyncScript(function(path, method, payload, headers, done) {
+    (async () => {
+      const request = { method, headers: { ...headers } };
+      if (payload) {
+        request.body = payload.kind === "binary"
+          ? new Uint8Array(payload.value) : JSON.stringify(payload.value);
+        if (payload.kind === "json") request.headers["Content-Type"] ??= "application/json";
+      }
+      const result = await window.fetch(path, request);
+      const contentType = result.headers.get("Content-Type") ?? "";
+      const value = result.status === 204 ? null : contentType.includes("json")
+        ? await result.json() : Array.from(new Uint8Array(await result.arrayBuffer()));
+      done({ status: result.status, ok: result.ok, value });
+    })().catch(error => done({ error: String(error) }));
+  }, path, method, payload, headers);
+  if (response.error) throw new Error(`${method} ${path}: ${response.error}`);
+  if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}: ${JSON.stringify(response.value)}`);
+  return Array.isArray(response.value) ? new Uint8Array(response.value) : response.value;
 }
 
 async function seedDurableDomains(session) {
@@ -337,7 +328,7 @@ async function waitForDesktopRuntime(session) {
     try {
       const title = await session.getTitle();
       const url = await session.getCurrentUrl();
-      if (title.includes("Notespace") && url.startsWith("http://127.0.0.1:49832/")) return;
+      if (title.includes("Notespace") && /^http:\/\/127\.0\.0\.1:\\d+\//.test(url)) return;
     } catch {
       // A closed native window is the expected completion signal.
     }

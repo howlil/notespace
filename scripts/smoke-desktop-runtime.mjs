@@ -31,8 +31,9 @@ const child = spawn(binary, [], {
     NOTESPACE_WEB_DIR: webDir,
     NOTESPACE_PASSWORD: "",
     NOTESPACE_READY_STDOUT: "1",
+    NOTESPACE_PARENT_LIFECYCLE: "1",
   },
-  stdio: ["ignore", "pipe", "pipe"],
+  stdio: ["pipe", "pipe", "pipe"],
 });
 
 let stdoutBuffer = "";
@@ -102,19 +103,35 @@ async function shutdown() {
 try {
   const base = await readyUrl();
 
-  const health = await fetch(new URL("/api/health", base), {
-    signal: AbortSignal.timeout(5_000),
+  const privateHealth = new URL("/api/health", base);
+  const anonymous = await fetch(privateHealth, { signal: AbortSignal.timeout(5_000) });
+  if (anonymous.status !== 401) {
+    throw new Error(`Unauthenticated local API responded HTTP ${anonymous.status}; expected 401`);
+  }
+  const bootstrap = await fetch(base, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
+  if (bootstrap.status !== 303 || bootstrap.headers.get("location") !== "/") {
+    throw new Error("Desktop one-use session bootstrap failed");
+  }
+  const rawCookie = bootstrap.headers.get("set-cookie") ?? "";
+  if (!rawCookie.includes("HttpOnly") || !rawCookie.includes("SameSite=Strict")) {
+    throw new Error("Desktop session cookie lacks browser-access restrictions");
+  }
+  const cookie = rawCookie.split(";")[0];
+  const reused = await fetch(base, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
+  if (reused.status !== 403) throw new Error("Desktop bootstrap token can be replayed");
+  const health = await fetch(privateHealth, {
+    headers: { Cookie: cookie }, signal: AbortSignal.timeout(5_000),
   });
   if (!health.ok) {
-    throw new Error(`Desktop runtime health returned HTTP ${health.status}.`);
+    throw new Error(`Authenticated desktop health returned HTTP ${health.status}.`);
   }
   const healthBody = await health.json();
   if (healthBody?.status !== "ok") {
     throw new Error(`Desktop runtime health payload was unexpected: ${JSON.stringify(healthBody)}`);
   }
 
-  const rootResponse = await fetch(base, {
-    signal: AbortSignal.timeout(5_000),
+  const rootResponse = await fetch(new URL("/", base), {
+    headers: { Cookie: cookie }, signal: AbortSignal.timeout(5_000),
   });
   const rootBody = await rootResponse.text();
   if (!rootResponse.ok || !/<html[\s>]/i.test(rootBody)) {

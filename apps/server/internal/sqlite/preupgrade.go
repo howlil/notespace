@@ -55,7 +55,7 @@ func snapshotBeforeMigration(ctx context.Context, db *sql.DB, databasePath strin
 		return "", err
 	}
 	snapshot.SetMaxOpenConns(1)
-	validationErr := migrations.Validate(ctx, snapshot)
+	validationErr := migrations.ValidateFull(ctx, snapshot)
 	closeErr := snapshot.Close()
 	if validationErr != nil {
 		return "", fmt.Errorf("validate pre-migration snapshot: %w", validationErr)

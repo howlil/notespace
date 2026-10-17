@@ -2,7 +2,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Condvar, Mutex,
     },
     time::Duration,
@@ -27,8 +27,7 @@ const STARTUP_ERROR_PREFIX: &str = "NOTESPACE_STARTUP_ERROR=";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SIDECAR_GRACEFUL_TIMEOUT: Duration = Duration::from_secs(12);
-const DESKTOP_PORT: u16 = 49832;
-const DESKTOP_ADDR: &str = "127.0.0.1:49832";
+const DESKTOP_ADDR: &str = "127.0.0.1:0";
 
 struct RuntimeProcess {
     child: Mutex<Option<CommandChild>>,
@@ -36,6 +35,8 @@ struct RuntimeProcess {
     startup_in_flight: AtomicBool,
     backup_in_flight: AtomicBool,
     recovery_visible: AtomicBool,
+    generation: AtomicU64,
+    stopping: AtomicBool,
     sidecar_exited: Arc<(Mutex<bool>, Condvar)>,
 }
 
@@ -47,6 +48,8 @@ impl Default for RuntimeProcess {
             startup_in_flight: AtomicBool::new(false),
             backup_in_flight: AtomicBool::new(false),
             recovery_visible: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
+            stopping: AtomicBool::new(false),
             sidecar_exited: Arc::new((Mutex::new(false), Condvar::new())),
         }
     }
@@ -111,6 +114,9 @@ pub fn run() {
 // sidecar, as doing so could create simultaneous SQLite writers.
 fn launch_runtime(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<RuntimeProcess>();
+    if state.stopping.load(Ordering::Acquire) {
+        return Err("Notespace is still shutting down its previous runtime".into());
+    }
     if state.startup_in_flight.swap(true, Ordering::AcqRel) {
         return Err("Notespace runtime is already starting".into());
     }
@@ -125,16 +131,20 @@ fn launch_runtime(app: &AppHandle) -> Result<(), String> {
         state.startup_in_flight.store(false, Ordering::Release);
         return Err("Notespace runtime is already active; restart is only available after failure".into());
     }
+    let generation = state.generation.fetch_add(1, Ordering::AcqRel) + 1;
     desktop_ops::record(app, "runtime_start_requested");
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
-        let result = start_runtime(&handle).await;
-        if let Err(error) = result {
-            desktop_ops::record(&handle, "runtime_start_failed");
-            stop_runtime(&handle);
-            show_runtime_failure(&handle, &startup_error_message(&error));
+        let result = start_runtime(&handle, generation).await;
+        // Outdated child task must not overwrite current supervisor state.
+        if handle.state::<RuntimeProcess>().generation.load(Ordering::Acquire) == generation {
+            if let Err(error) = result {
+                desktop_ops::record(&handle, "runtime_start_failed");
+                stop_runtime(&handle);
+                show_runtime_failure(&handle, &startup_error_message(&error));
+            }
+            handle.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
         }
-        handle.state::<RuntimeProcess>().startup_in_flight.store(false, Ordering::Release);
     });
     Ok(())
 }
@@ -145,7 +155,7 @@ fn desktop_retry_runtime(app: AppHandle) -> Result<(), String> {
     launch_runtime(&app)
 }
 
-async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
+async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), String> {
     let data_dir = runtime_data_dir(app)?;
     fs::create_dir_all(&data_dir).map_err(|error| format!("create app data directory: {error}"))?;
 
@@ -191,6 +201,9 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     )
     .await
     .map_err(|_| "server readiness timed out".to_string())??;
+    if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation {
+        return Ok(());
+    }
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
@@ -204,6 +217,7 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     desktop_ops::record(app, "runtime_ready");
 
     while let Some(event) = events.recv().await {
+        if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation { return Ok(()); }
         match event {
             CommandEvent::Stderr(bytes) => {
                 eprintln!(
@@ -213,22 +227,25 @@ async fn start_runtime(app: &tauri::AppHandle) -> Result<(), String> {
             }
             CommandEvent::Error(error) => {
                 desktop_ops::record(app, "runtime_exited");
-                stop_runtime(app);
-                show_runtime_failure(app, &format!("Local runtime error: {error}"));
+                if stop_runtime_expected(app, Some(generation)) {
+                    show_runtime_failure(app, &format!("Local runtime error: {error}"));
+                }
                 return Ok(());
             }
             CommandEvent::Terminated(payload) => {
                 desktop_ops::record(app, "runtime_exited");
-                clear_runtime(app);
-                show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
+                if clear_runtime(app, generation) {
+                    show_runtime_failure(app, &format!("Local runtime stopped: {payload:?}"));
+                }
                 return Ok(());
             }
             _ => {}
         }
     }
 
-    stop_runtime(app);
-    show_runtime_failure(app, "Local runtime stopped unexpectedly.");
+    if stop_runtime_expected(app, Some(generation)) {
+        show_runtime_failure(app, "Local runtime stopped unexpectedly.");
+    }
     Ok(())
 }
 
@@ -306,8 +323,18 @@ fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
     if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") {
         return Err("server readiness URL must use loopback HTTP".to_string());
     }
-    if url.port() != Some(DESKTOP_PORT) {
-        return Err(format!("server readiness URL must use {DESKTOP_ADDR}"));
+    // The server emits a privileged one-time bootstrap URL on its private
+    // stdout pipe. Never log the token, even when parsing fails.
+    if url.port().unwrap_or(0) == 0 || url.path() != "/__desktop_session" ||
+        url.query_pairs().count() != 1 {
+        return Err("server readiness URL must be a loopback desktop session bootstrap".into());
+    }
+    let key = url.query_pairs()
+        .find(|(name, _)| name == "code")
+        .map(|(_, value)| value.into_owned())
+        .unwrap_or_default();
+    if key.len() != 64 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("server readiness URL lacks a valid one-time bootstrap key".into());
     }
     Ok(Some(url))
 }
@@ -315,7 +342,7 @@ fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
 fn startup_error_message(error: &str) -> String {
     if error.contains("before readiness") {
         return format!(
-            "Unable to start Notespace on {DESKTOP_ADDR}. Another process may be using this port; close it and reopen Notespace."
+            "Unable to start the local Notespace server. Check system permissions and retry from the recovery screen."
         );
     }
     format!("Unable to start Notespace: {error}")
@@ -423,20 +450,41 @@ fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     let _ = window.eval(&script);
 }
 
-fn clear_runtime(app: &tauri::AppHandle) {
+// Claim a particular generation before touching its process slot. A stale
+// Terminated event cannot erase a newer child spawned during installer recovery.
+fn clear_runtime(app: &tauri::AppHandle, generation: u64) -> bool {
     let process = app.state::<RuntimeProcess>();
-    let Ok(mut slot) = process.child.lock() else {
-        return;
+    if process.stopping.swap(true, Ordering::AcqRel) { return false; }
+    if process.generation.load(Ordering::Acquire) != generation {
+        process.stopping.store(false, Ordering::Release);
+        return false;
+    }
+    process.generation.fetch_add(1, Ordering::AcqRel);
+    let claimed = match process.child.lock() {
+        Ok(mut slot) => { *slot = None; true },
+        Err(_) => false,
     };
-    *slot = None;
     mark_sidecar_exited(&process.sidecar_exited);
+    process.stopping.store(false, Ordering::Release);
+    claimed
 }
 
 fn stop_runtime(app: &tauri::AppHandle) {
+    let _ = stop_runtime_expected(app, None);
+}
+
+fn stop_runtime_expected(app: &tauri::AppHandle, expected: Option<u64>) -> bool {
     let process = app.state::<RuntimeProcess>();
+    if process.stopping.swap(true, Ordering::AcqRel) { return false; }
+    if expected.is_some_and(|generation| process.generation.load(Ordering::Acquire) != generation) {
+        process.stopping.store(false, Ordering::Release);
+        return false;
+    }
+    process.generation.fetch_add(1, Ordering::AcqRel);
     let child = {
         let Ok(mut slot) = process.child.lock() else {
-            return;
+            process.stopping.store(false, Ordering::Release);
+            return false;
         };
         slot.take()
     };
@@ -445,7 +493,8 @@ fn stop_runtime(app: &tauri::AppHandle) {
             eprintln!("notespace-server: graceful shutdown request failed: {error}");
             let _ = child.kill();
             mark_sidecar_exited(&process.sidecar_exited);
-            return;
+            process.stopping.store(false, Ordering::Release);
+            return true;
         }
         if wait_for_sidecar_exit(&process.sidecar_exited, SIDECAR_GRACEFUL_TIMEOUT) {
             eprintln!("notespace-server: exited gracefully");
@@ -454,6 +503,8 @@ fn stop_runtime(app: &tauri::AppHandle) {
             let _ = child.kill();
         }
     }
+    process.stopping.store(false, Ordering::Release);
+    true
 }
 
 fn wait_for_sidecar_exit(signal: &Arc<(Mutex<bool>, Condvar)>, timeout: Duration) -> bool {
@@ -485,18 +536,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn readiness_accepts_only_loopback_http() {
-        let url = parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49832")
-            .expect("ready line should parse")
-            .expect("ready line should contain a URL");
-        assert_eq!(url.as_str(), "http://127.0.0.1:49832/");
-
-        assert!(parse_ready_line("NOTESPACE_READY=http://0.0.0.0:49832").is_err());
-        assert!(parse_ready_line("NOTESPACE_READY=https://127.0.0.1:49832").is_err());
-        assert!(parse_ready_line("NOTESPACE_READY=http://127.0.0.1:49833").is_err());
-        assert!(parse_ready_line("unrelated log line")
-            .expect("non-ready log should be ignored")
-            .is_none());
+    fn readiness_accepts_only_dynamic_loopback_bootstrap() {
+        let key = "a".repeat(64);
+        let valid = format!("NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code={key}");
+        let url = parse_ready_line(&valid).unwrap().unwrap();
+        assert_eq!(url.port(), Some(49201));
+        for invalid in [
+            format!("NOTESPACE_READY=http://0.0.0.0:49201/__desktop_session?code={key}"),
+            format!("NOTESPACE_READY=https://127.0.0.1:49201/__desktop_session?code={key}"),
+            format!("NOTESPACE_READY=http://127.0.0.1:49201/"),
+            format!("NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code=bad"),
+            format!("NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code={key}&extra=1"),
+        ] {
+            assert!(parse_ready_line(&invalid).is_err(), "unexpected trusted bootstrap: {invalid}");
+        }
+        assert!(parse_ready_line("unrelated output").unwrap().is_none());
     }
 
     #[test]
@@ -511,8 +565,8 @@ mod tests {
     #[test]
     fn startup_port_collision_has_actionable_recovery_message() {
         let message = startup_error_message("server exited before readiness on 127.0.0.1:49832");
-        assert!(message.contains("127.0.0.1:49832"));
-        assert!(message.contains("close it and reopen Notespace"));
+        assert!(message.contains("Check system permissions"));
+        assert!(!message.contains("49832"));
     }
 
     #[test]

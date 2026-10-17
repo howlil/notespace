@@ -55,6 +55,38 @@ def snapshot(database):
         if not results["projects"] or not results["workspace_notes"]:
             raise RuntimeError("Upgrade proof must contain authored Workspace and Note data")
 
+        # Preserve a per-field digest for every existing user-owned row.
+        # An ID-only inventory cannot detect overwritten Note/Canvas/task text.
+        # Hash each field individually so additive columns in newer releases
+        # are allowed without silently ignoring changes to old data.
+        fields = {}
+        for table, identity in IDENTITIES.items():
+            if table not in results:
+                continue
+            cursor = con.execute(f"SELECT * FROM {table}")
+            columns = [column[0] for column in cursor.description]
+            records = {}
+            for row in cursor:
+                key = json.dumps([row[columns.index(field)] for field in identity],
+                                 separators=(",", ":"), ensure_ascii=False)
+                field_digests = {}
+                for name, value in zip(columns, row):
+                    if name in identity:
+                        continue
+                    if isinstance(value, bytes):
+                        raw = b"binary\0" + value
+                    else:
+                        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+                            try:
+                                value = json.loads(value)
+                            except ValueError:
+                                pass
+                        raw = json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                         ensure_ascii=False).encode("utf-8")
+                    field_digests[name] = hashlib.sha256(raw).hexdigest()
+                records[key] = field_digests
+            fields[table] = records
+
         assets = {}
         if "workspace_assets" in results:
             for workspace_id, asset_id, data in con.execute(
@@ -64,7 +96,7 @@ def snapshot(database):
         schema_history = sorted(
             row[0] for row in con.execute("SELECT name FROM schema_migrations")
         ) if "schema_migrations" in available else []
-        return {"identities": results, "asset_sha256": assets, "schema_migrations": schema_history}
+        return {"identities": results, "field_sha256": fields, "asset_sha256": assets, "schema_migrations": schema_history}
     finally:
         con.close()
 
@@ -77,6 +109,14 @@ def verify(before, after, database):
         missing = set(keys) - set(present)
         if missing:
             raise AssertionError(f"Data lost from {table}: {sorted(missing)[:5]}")
+    for table, rows in before.get("field_sha256", {}).items():
+        current = after.get("field_sha256", {}).get(table, {})
+        for identity, previous_fields in rows.items():
+            if identity not in current:
+                raise AssertionError(f"User data missing in {table}: {identity}")
+            for column, digest in previous_fields.items():
+                if current[identity].get(column) != digest:
+                    raise AssertionError(f"User data content changed in {table} field {column}: {identity}")
     for key, digest in before["asset_sha256"].items():
         if after["asset_sha256"].get(key) != digest:
             raise AssertionError(f"Durable binary asset changed or disappeared: {key}")

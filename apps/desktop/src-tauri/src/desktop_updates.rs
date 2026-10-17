@@ -4,7 +4,7 @@ use serde_json::json;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-use crate::{start_runtime, stop_runtime, desktop_ops, RuntimeProcess};
+use crate::{launch_runtime, stop_runtime, desktop_ops, RuntimeProcess};
 
 // A downloaded update is verified by the official Tauri updater BEFORE the
 // frontend is offered the Install action. The bytes and signed metadata stay
@@ -107,12 +107,11 @@ pub async fn install_prepared_desktop_update(
     if let Err(error) = pending.update.install(&pending.bytes) {
         desktop_ops::record(&app, "update_install_failed");
         state.installing.store(false, Ordering::Release);
-        let recovery_handle = app.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(start_error) = start_runtime(&recovery_handle).await {
-                eprintln!("notespace updater: sidecar restart after failed update: {start_error}");
-            }
-        });
+        // Recovery goes through the same generation-aware supervisor as
+        // ordinary startup. Never spawn a child outside lifecycle guards.
+        if let Err(start_error) = launch_runtime(&app) {
+            eprintln!("notespace updater: supervisor could not schedule restart: {start_error}");
+        }
         return Err(format!("Install signed update: {error}"));
     }
     // Windows updater handles application termination/relaunch itself.

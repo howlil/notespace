@@ -11,6 +11,9 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/diagnose-desktop-webdriver.ps1"
+      - "scripts/install-webview2-edgedriver.ps1"
+      - "scripts/check-desktop-webdriver-policy.test.mjs"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -39,6 +42,9 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/diagnose-desktop-webdriver.ps1"
+      - "scripts/install-webview2-edgedriver.ps1"
+      - "scripts/check-desktop-webdriver-policy.test.mjs"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -81,6 +87,8 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify WebView2 CI runner and release acceptance policy
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -127,9 +135,12 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build --no-bundle -- --locked
 
+  # WebView2 + EdgeDriver regression on Windows Server 2025:
+  # https://github.com/actions/runner-images/issues/14738
+  # Keep genuine native WebView2 acceptance on 2022; do NOT mark it skipped.
   check-desktop-windows:
-    runs-on: windows-latest
-    timeout-minutes: 35
+    runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -146,6 +157,8 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify WebView2 CI runner and release acceptance policy
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -178,10 +191,53 @@ jobs:
       - name: Build debug executable for native parity
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build --debug --no-bundle -- --locked
-      - name: Install native WebDriver tools
+      - name: Parse Windows native driver PowerShell helpers
+        shell: pwsh
         run: |
-          cargo install tauri-driver --locked
-          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
-          msedgedriver-tool.exe
+          foreach ($script in @("scripts/install-webview2-edgedriver.ps1", "scripts/diagnose-desktop-webdriver.ps1")) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          }
+      - name: Install Tauri WebDriver server
+        run: cargo install tauri-driver --locked
+      - name: Install Microsoft EdgeDriver matching WebView2 Runtime
+        shell: pwsh
+        run: ./scripts/install-webview2-edgedriver.ps1
+      - name: Diagnose native WebView2 and EdgeDriver
+        shell: pwsh
+        run: ./scripts/diagnose-desktop-webdriver.ps1
       - name: Run native WebDriver parity smoke
         run: pnpm test:desktop:native
+      - name: Collect native WebDriver environment after failure
+        if: failure()
+        shell: pwsh
+        run: ./scripts/diagnose-desktop-webdriver.ps1
+
+
+  # Separate current Windows image compile check: updates to the latest
+  # toolchain must still be verified even while WebView2 automation is broken.
+  check-desktop-windows-latest:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Native Rust tests on current Windows
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build desktop on current Windows
+        working-directory: apps/desktop/src-tauri
+        run: cargo build --locked

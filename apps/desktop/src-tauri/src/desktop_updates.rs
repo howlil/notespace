@@ -33,6 +33,11 @@ pub fn update_enabled() -> bool {
 }
 
 #[tauri::command]
+pub fn desktop_updater_enabled() -> bool {
+    update_enabled()
+}
+
+#[tauri::command]
 pub async fn prepare_desktop_update(
     app: AppHandle,
     state: State<'_, DesktopUpdateState>,

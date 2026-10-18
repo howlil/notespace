@@ -226,6 +226,17 @@ test("activity End reconciles when server commits but the response is lost", asy
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
+    // The final PUT must actually reach and commit on the server before we
+    // replace its HTTP response with 503. route.fetch() forwards precisely the
+    // intercepted request without racing a separate Playwright API context.
+    // Synchronize teardown with route.fulfill so unroute/reload cannot dispose
+    // the handler while its asynchronous upstream request is still pending.
+    let resolveResponseLost!: () => void;
+    let rejectResponseLost!: (reason?: unknown) => void;
+    const responseLost = new Promise<void>((resolve, reject) => {
+      resolveResponseLost = resolve;
+      rejectResponseLost = reject;
+    });
     await page.route(heartbeatUrl, async (route) => {
       if (route.request().method() !== "PUT") {
         await route.continue();
@@ -236,19 +247,23 @@ test("activity End reconciles when server commits but the response is lost", asy
         await route.continue();
         return;
       }
-      const target = new URL(route.request().url());
-      const response = await request.put(`${target.pathname}${target.search}`, {
-        data: route.request().postDataJSON(),
-      });
-      expect(response.ok()).toBe(true);
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "Synthetic response loss after final heartbeat commit" }),
-      });
+      try {
+        const committed = await route.fetch();
+        expect(committed.ok()).toBe(true);
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Synthetic response loss after final heartbeat commit" }),
+        });
+        resolveResponseLost();
+      } catch (error) {
+        rejectResponseLost(error);
+        throw error;
+      }
     });
 
     await page.getByRole("button", { name: "End activity" }).click();
+    await responseLost;
     await expect(page.getByRole("status", { name: "Activity sync" })).toBeVisible();
 
     await expect.poll(async () => {

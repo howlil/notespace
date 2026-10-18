@@ -26,12 +26,19 @@ test("fail closed on invalid release metadata or unsafe beta sequence", () => {
   ]));
 });
 
+test("numeric MSI beta version does not exceed 65535", () => {
+  assert.equal(nextFreeDesktopBetaTag([{ tagName: "v0.1.0-beta.65534", isDraft: false }]), "v0.1.0-beta.65535");
+  assert.throws(() => nextFreeDesktopBetaTag([{ tagName: "v0.1.0-beta.65535", isDraft: false }]));
+});
+
 test("free beta only runs on explicit dispatch and preserves native/data safety gates", () => {
   const wf = readFileSync(new URL("../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
   assert.match(wf, /workflow_dispatch:/);
   assert.doesNotMatch(wf, /\bpush:\s*\n\s*branches:/);
   assert.match(wf, /assert-desktop-release-ci\.mjs/);
-  assert.match(wf, /cargo tauri build -- --locked/);
+  assert.match(wf, /cargo tauri build --config \$overlay -- --locked/);
+  assert.match(wf, /wix = @\{ version = "0\.1\.\$sequence" \}/);
+  assert.match(wf, /MSI numeric patch version exceeds WiX limit/);
   assert.match(wf, /pnpm test:desktop:native/);
   assert.match(wf, /pnpm test:desktop:critical/);
   assert.match(wf, /Get-AuthenticodeSignature/);

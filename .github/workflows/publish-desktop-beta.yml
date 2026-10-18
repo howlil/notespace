@@ -102,12 +102,21 @@ jobs:
         env:
           BETA_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          # Deliberately no Azure credentials, signCommand, updater overlay,
-          # TAURI_SIGNING_PRIVATE_KEY, or NOTESPACE_UPDATER_ENABLED.
+          # No Azure credentials, signCommand, updater overlay or private key.
           if ($env:NOTESPACE_UPDATER_ENABLED -eq '1' -or $env:TAURI_SIGNING_PRIVATE_KEY) {
             throw "Unsigned beta must never reuse production updater signing inputs"
           }
-          $match = [regex]::Match($env:BETA_VERSION, '^0\.1\.0-beta\.([1-9][0-9]*)
+          $match = [regex]::Match($env:BETA_VERSION, '^0\.1\.0-beta\.([1-9][0-9]*)$')
+          if (-not $match.Success) { throw "Invalid desktop beta version" }
+          $sequence = [long]::Parse($match.Groups[1].Value)
+          if ($sequence -gt 65535) { throw "MSI numeric patch version exceeds WiX limit" }
+          # WiX ProductVersion must rise for each new MSI. App SemVer is
+          # 0.1.0-beta.N, while Windows MSI is numeric 0.1.N.
+          $overlay = Join-Path $env:RUNNER_TEMP 'notespace-free-beta-wix.json'
+          @{ bundle = @{ windows = @{ wix = @{ version = "0.1.$sequence" } } } } |
+            ConvertTo-Json -Depth 10 | Set-Content -Path $overlay
+          cargo tauri build --config $overlay -- --locked
+          if ($LASTEXITCODE -ne 0) { throw "Tauri MSI build failed" }
 
       - name: Install real native Tauri WebView2 test tooling
         shell: pwsh

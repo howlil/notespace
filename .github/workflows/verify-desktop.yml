@@ -29,6 +29,9 @@ on:
       - "scripts/prepare-desktop-windows-sign-config.test.mjs"
       - "scripts/check-desktop-release-security.test.mjs"
       - ".github/workflows/release-desktop.yml"
+      - ".github/workflows/publish-desktop-beta.yml"
+      - "scripts/resolve-desktop-beta-version.mjs"
+      - "scripts/resolve-desktop-beta-version.test.mjs"
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
@@ -64,6 +67,9 @@ on:
       - "scripts/prepare-desktop-windows-sign-config.test.mjs"
       - "scripts/check-desktop-release-security.test.mjs"
       - ".github/workflows/release-desktop.yml"
+      - ".github/workflows/publish-desktop-beta.yml"
+      - "scripts/resolve-desktop-beta-version.mjs"
+      - "scripts/resolve-desktop-beta-version.test.mjs"
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
@@ -100,6 +106,8 @@ jobs:
           node --check scripts/resolve-desktop-release-version.mjs
           node --check scripts/assert-desktop-release-ci.mjs
           node --test scripts/desktop-release-automation.test.mjs
+          node --check scripts/resolve-desktop-beta-version.mjs
+          node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
         run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract
@@ -175,6 +183,8 @@ jobs:
           node --check scripts/resolve-desktop-release-version.mjs
           node --check scripts/assert-desktop-release-ci.mjs
           node --test scripts/desktop-release-automation.test.mjs
+          node --check scripts/resolve-desktop-beta-version.mjs
+          node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
         run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract

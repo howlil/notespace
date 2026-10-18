@@ -44,27 +44,30 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 
 ## Windows Desktop
 
-The Windows desktop app is distributed as a signed `.msi` through
+The Windows desktop app is distributed through
 [GitHub Releases](https://github.com/howlil/notespace/releases).
+If no release with an `.msi` asset is visible, the installer has **not** been
+published yet.
 
-**Availability:** A merged change or passing CI run is not a published
-installer. If there is no release with an `.msi` asset, the desktop download
-is not yet available. Do not download unverified executables from third-party
-mirrors.
+**Free unsigned beta (recommended first release):** maintainers can open
+[Actions → Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml),
+select `master`, and choose **Run workflow**. No Azure account, paid
+certificate, Tauri updater key, or separate download server is required.
+The workflow only publishes an installer after green master CI, real Windows
+native acceptance, persistence smoke, checksum and GitHub provenance tests.
 
-When a signed MSI has been published, choose the version under **Releases →
-Assets**, download the `.msi`, and run it on Windows. The app keeps its local
-library in SQLite. Verify the Windows publisher signature and checksum before
-installing.
+**Important beta limitation:** this MSI has no Windows publisher signature.
+Microsoft SmartScreen may show `Unknown Publisher` or block installation.
+The beta also has **no automatic updater**; users manually download later
+versions. Never claim the beta installer is signed or use unverified mirrors.
 
-Maintainers can publish a signed MSI through **[Actions → Publish Desktop (one click)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml)**.
-It selects the next stable version, checks successful master CI and signing
-configuration, creates the tag, and starts the signed installer release.
-No local tag command or separate GitHub PAT is needed.
+For a future signed production release, maintainers can use
+[Publish Desktop Stable (signed)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml).
+Publisher signing and Tauri updater signing are required **only for that
+separate workflow**, not for the free beta.
 
-See [desktop release instructions](docs/DESKTOP_FIRST_RELEASE.md) for the
-signing prerequisites, the one-click procedure, and required native/product
-persistence and MSI upgrade gates.
+Read the [desktop distribution guide](docs/DESKTOP_FIRST_RELEASE.md) for
+both release routes and user-verification instructions.
 
 ## Self-host with Docker
 

@@ -1,4 +1,4 @@
-name: Publish Desktop (one click)
+name: Publish Desktop Stable (signed)
 
 # Production releases remain opt-in: never publish on every master commit.
 # Creating a tag with GITHUB_TOKEN does NOT trigger push workflows. Dispatch

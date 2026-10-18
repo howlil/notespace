@@ -18,7 +18,9 @@ export function nextFreeDesktopBetaTag(releases) {
     if (!Number.isSafeInteger(value)) throw new Error("Invalid desktop beta sequence");
     highest = Math.max(highest, value);
   }
-  if (!Number.isSafeInteger(highest + 1)) throw new Error("Desktop beta sequence overflow");
+  if (!Number.isSafeInteger(highest + 1) || highest + 1 > 65535) {
+    throw new Error("Desktop beta sequence exceeds Windows MSI ProductVersion limit");
+  }
   return `v0.1.0-beta.${highest + 1}`;
 }
 

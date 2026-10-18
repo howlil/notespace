@@ -70,3 +70,21 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.match(release, /Attest signed MSI build provenance/);
   assert.match(release, /Publish GitHub Release/);
 });
+
+test("auto desktop beta releases only once after both master verification workflows succeed", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/auto-desktop-beta.yml", import.meta.url), "utf8");
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows:\s*\n\s*- Verify\s*\n\s*- Verify Desktop/);
+  assert.match(workflow, /types:\s*\[completed\]/);
+  assert.match(workflow, /workflow_run\.event == 'push'/);
+  assert.match(workflow, /workflow_run\.head_branch == 'master'/);
+  assert.match(workflow, /workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+  assert.match(workflow, /scripts\/assert-desktop-release-ci\.mjs/);
+  assert.match(workflow, /master_sha.*TRIGGER_SHA/);
+  assert.match(workflow, /gh release list.*tagName,isDraft/);
+  assert.match(workflow, /gh run list --workflow publish-desktop-beta\.yml/);
+  assert.match(workflow, /gh workflow run publish-desktop-beta\.yml --ref master/);
+  assert.doesNotMatch(workflow, /git tag -a|gh release create/);
+  assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
+});

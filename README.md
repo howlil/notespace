@@ -57,9 +57,14 @@ Assets**, download the `.msi`, and run it on Windows. The app keeps its local
 library in SQLite. Verify the Windows publisher signature and checksum before
 installing.
 
-Maintainers: see [first desktop release instructions](docs/DESKTOP_FIRST_RELEASE.md)
-for the updater signing key, Azure Authenticode signing requirements, GitHub
-Actions workflow, and mandatory native/product persistence checks.
+Maintainers can publish a signed MSI through **[Actions → Publish Desktop (one click)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml)**.
+It selects the next stable version, checks successful master CI and signing
+configuration, creates the tag, and starts the signed installer release.
+No local tag command or separate GitHub PAT is needed.
+
+See [desktop release instructions](docs/DESKTOP_FIRST_RELEASE.md) for the
+signing prerequisites, the one-click procedure, and required native/product
+persistence and MSI upgrade gates.
 
 ## Self-host with Docker
 

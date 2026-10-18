@@ -57,13 +57,12 @@ jobs:
 
           # This automation bootstraps only the first public beta, never ships
           # later changes by surprise. Subsequent releases stay explicit.
-          if gh release list --limit 100 --json tagName,isDraft | node -e '
-            let s=""; process.stdin.on("data",d=>s+=d);
-            process.stdin.on("end",()=> {
-              const releases=JSON.parse(s);
-              process.exit(releases.some(x=>!x.isDraft && /^v0\\.1\\.0-beta\\.[1-9]\\d*$/.test(x.tagName))?0:1);
-            });
-          '; then
+          gh release list --limit 100 --json tagName,isDraft > "$RUNNER_TEMP/desktop-releases.json"
+          if node -e '
+            const fs = require("node:fs");
+            const releases = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            process.exit(releases.some(x => !x.isDraft && /^v0\.1\.0-beta\.[1-9]\d*$/.test(x.tagName)) ? 0 : 1);
+          ' "$RUNNER_TEMP/desktop-releases.json"; then
             echo "At least one beta already published; no automatic release needed"
             exit 0
           fi

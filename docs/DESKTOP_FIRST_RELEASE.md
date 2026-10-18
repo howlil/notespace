@@ -12,6 +12,24 @@
   authored Note persistence, SQLite protection, signing and provenance.
 - GitHub-hosted web and Docker deployments are independent of the Windows MSI.
 
+## Automatic first release (no manual button)
+
+The first **unsigned Windows beta** is automatically attempted once the
+**Verify** and **Verify Desktop** workflow runs for the same current
+`master` commit both finish successfully. The controller is
+[`Auto Desktop Beta`](https://github.com/howlil/notespace/actions/workflows/auto-desktop-beta.yml).
+It rejects pull-request builds, stale commits, failed/pending CI, any
+already-published `v0.1.0-beta.N` release, or another in-progress beta run.
+Once eligible, it dispatches the existing
+[`Publish Desktop Beta (free)`](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml),
+which still runs actual native/SQLite verification before public publication.
+The initial beta has **no Azure requirement** and no manual Git tag.
+
+Automation is deliberately **one-shot**: subsequent product updates are not
+published on every merge. A GitHub Release with an actual MSI asset is the
+definition of successful publication. If the installer build fails, inspect
+its failed step and fix/re-run; CI failures must not be bypassed.
+
 ## Route A — Free unsigned beta (recommended for first desktop download)
 
 **Cost: Rp0 for Azure and certificate signing.** You do **not** need an

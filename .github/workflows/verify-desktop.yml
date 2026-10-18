@@ -32,6 +32,7 @@ on:
       - ".github/workflows/publish-desktop-beta.yml"
       - "scripts/resolve-desktop-beta-version.mjs"
       - "scripts/resolve-desktop-beta-version.test.mjs"
+      - "scripts/test-desktop-workflow-yaml.py"
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
@@ -70,6 +71,7 @@ on:
       - ".github/workflows/publish-desktop-beta.yml"
       - "scripts/resolve-desktop-beta-version.mjs"
       - "scripts/resolve-desktop-beta-version.test.mjs"
+      - "scripts/test-desktop-workflow-yaml.py"
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
@@ -99,6 +101,12 @@ jobs:
           python-version: "3.13"
       - name: Verify desktop upgrade inventory contract
         run: python scripts/test-desktop-upgrade-inventory.py
+      - name: Validate all GitHub Actions YAML before running expensive desktop builds
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install --quiet "PyYAML==6.0.3"
+          python scripts/test-desktop-workflow-yaml.py
+
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
       - name: Verify desktop release automation policies and version selection

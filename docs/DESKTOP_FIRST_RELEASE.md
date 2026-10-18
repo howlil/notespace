@@ -67,28 +67,66 @@ secret **names resolve to nonempty values**; later build/signature steps
 validate the actual credentials, certificate and generated artifacts. Failure
 does not publish any MSI.
 
-## Gate 3 — create and push first stable tag (repository owner action)
+## Gate 3 — One-click GitHub release automation
 
-After Gate 1 and Gate 2, from an authenticated local checkout:
+The normal release route **does not require a local Git tag or terminal**.
+
+1. After all secrets and variables in Gate 1 are configured, ensure `Verify`
+   and `Verify Desktop` completed successfully for the latest `master` push.
+2. Open [Actions → Publish Desktop (one click)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml).
+3. Select **Run workflow** and choose branch **master**.
+4. Use **patch** to increment the patch version automatically; choose **minor**
+   or **major** for larger releases. The first release defaults to `v1.0.0`.
+   Optionally enter an exact higher stable `version`, such as `1.2.0`.
+5. Start the run. The workflow will:
+   - reject non-master refs or commits without green master CI;
+   - reject missing updater/Windows signing configuration;
+   - calculate the next stable version from already-published GitHub Releases;
+   - reject a tag collision, or a version older than the latest stable;
+   - re-check the exact master HEAD, create an annotated tag, and push it;
+   - **explicitly dispatch** `release-desktop.yml` for this tag.
+
+Why explicit dispatch? Tags pushed with the Actions `GITHUB_TOKEN` do **not**
+fire another workflow's `push` trigger. An authenticated
+`workflow_dispatch` is explicitly allowed, so this automation needs no PAT
+or custom GitHub App token. The launcher requires `actions: write` and
+`contents: write` permissions.
+
+**Important:** Launcher success means the signed release workflow was
+*started*, not that GitHub Release was published. Check its run: all Windows
+native acceptance, signing, data migration, checksum and provenance checks
+must finish successfully before `gh release create` publishes any MSI.
+
+### Retries, collisions, and race safety
+
+- Launcher jobs share a concurrency group to prevent concurrent version
+  selection and tag creation.
+- If `master` changes while preparing a release, the launcher refuses
+  tagging rather than tagging an unverified commit.
+- If tag creation succeeds but dispatch fails, **do not recreate or force
+  move the tag**. In [Actions → Release desktop](https://github.com/howlil/notespace/actions/workflows/release-desktop.yml),
+  choose **Run workflow** with the existing `release_tag`; that workflow
+  can retry as long as the tag still points at the current `master` HEAD.
+- Signed GitHub Releases are immutable: don't overwrite MSI assets after
+  publishing. Produce a new version for any correction.
+- `GITHUB_TOKEN` tag pushes will **not** trigger independent `push.tags`
+  workflows, including any container-image pipeline. The one-click flow
+  explicitly publishes the **desktop MSI**, not container images.
+
+### Advanced manual fallback
+
+You can still create a tag manually to trigger the existing release workflow:
 
 ```bash
-git fetch origin master
+git fetch origin
 git checkout master
 git pull --ff-only origin master
 git tag -a v1.0.0 -m "Notespace Desktop v1.0.0"
 git push origin v1.0.0
 ```
 
-Choose another stable version only if appropriate; do not reuse or move an
-already-published tag. The release workflow requires the tagged commit to be
-the current `master` HEAD, and requires `vX.Y.Z` (stable SemVer).
-
-Pushing the tag triggers `.github/workflows/release-desktop.yml`. It can also
-trigger any existing container release workflow watching `v*` tags.
-
-Alternatively, if an existing tag is present:
-**Actions → Release desktop → Run workflow** with `release_tag=v1.0.0`.
-Do not run the workflow with an arbitrary nonexistent tag.
+Use an appropriate unused version and ensure the tag is at current
+`master`. Normal usage should use the one-click Actions launcher instead.
 
 ## Gate 4 — verify the actual public MSI
 

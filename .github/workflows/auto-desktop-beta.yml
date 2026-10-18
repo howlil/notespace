@@ -10,6 +10,7 @@ on:
       - Verify
       - Verify Desktop
     types: [completed]
+    branches: [master]
   workflow_dispatch:
 
 permissions:

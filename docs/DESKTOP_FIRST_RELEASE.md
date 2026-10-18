@@ -24,6 +24,9 @@ private key, or a paid download backend.
 3. Choose **Run workflow** on branch `master`. No version input or Git tag
    creation is required. The first beta is `v0.1.0-beta.1`; subsequent
    successful prereleases automatically increment the beta number.
+   To make Windows MSI upgrades distinguishable, the workflow sets WiX's
+   numeric installer version to `0.1.N` for beta `v0.1.0-beta.N`.
+   The MSI upgrade code/identity remains unchanged.
 4. GitHub Actions will build an unsigned MSI on Windows, exercise the **real
    Tauri/WebView2 UI** and product persistence, calculate SHA-256, generate
    and verify GitHub build provenance, then create a GitHub **prerelease**.

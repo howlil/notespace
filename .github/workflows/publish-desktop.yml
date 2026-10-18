@@ -1,0 +1,157 @@
+name: Publish Desktop (one click)
+
+# Production releases remain opt-in: never publish on every master commit.
+# Creating a tag with GITHUB_TOKEN does NOT trigger push workflows. Dispatch
+# release-desktop.yml explicitly in this same workflow, using actions:write.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Release increment (ignored when version is set)"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: "Optional exact stable version (e.g. 1.2.0). Blank = auto."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: notespace-desktop-release-init
+  cancel-in-progress: false
+
+jobs:
+  prepare-and-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Require current master branch and immutable release source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Start Publish Desktop from master, never a feature branch or tag."
+            exit 1
+          fi
+          remote_master=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')
+          if [[ "$remote_master" != "$GITHUB_SHA" ]]; then
+            echo "::error::master moved after workflow start. Re-run on the new HEAD."
+            exit 1
+          fi
+
+      - name: Require successful Verify and Verify Desktop on this master commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" > "$RUNNER_TEMP/desktop-ci.json"
+          node scripts/assert-desktop-release-ci.mjs "$RUNNER_TEMP/desktop-ci.json" "$GITHUB_SHA"
+
+      - name: Require production updater and Windows publisher signing configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+          NOTESPACE_AZURE_SIGNING_ENDPOINT: ${{ vars.NOTESPACE_AZURE_SIGNING_ENDPOINT }}
+          NOTESPACE_AZURE_SIGNING_ACCOUNT: ${{ vars.NOTESPACE_AZURE_SIGNING_ACCOUNT }}
+          NOTESPACE_AZURE_SIGNING_PROFILE: ${{ vars.NOTESPACE_AZURE_SIGNING_PROFILE }}
+          NOTESPACE_WINDOWS_SIGNER_SUBJECT: ${{ vars.NOTESPACE_WINDOWS_SIGNER_SUBJECT }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in \
+            TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY \
+            NOTESPACE_AZURE_SIGNING_ENDPOINT NOTESPACE_AZURE_SIGNING_ACCOUNT \
+            NOTESPACE_AZURE_SIGNING_PROFILE NOTESPACE_WINDOWS_SIGNER_SUBJECT \
+            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error title=Signing is not configured::Set Actions secret/variable $key before publishing."
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "See docs/DESKTOP_FIRST_RELEASE.md; no tag was created."
+            exit 1
+          fi
+
+      - name: Choose next stable release version
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName,isDraft,isPrerelease > "$RUNNER_TEMP/desktop-releases.json"
+          tag=$(node scripts/resolve-desktop-release-version.mjs "$BUMP" "$VERSION_OVERRIDE" < "$RUNNER_TEMP/desktop-releases.json")
+          if [[ -n "$(git ls-remote --tags --refs origin "refs/tags/$tag")" ]]; then
+            echo "::error::Tag $tag already exists. No tag was created; use a newer version."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Selected stable desktop version: $tag"
+
+      - name: Create immutable annotated version tag on verified master
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          remote_master=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')
+          if [[ "$remote_master" != "$GITHUB_SHA" ]]; then
+            echo "::error::master advanced while preparing release; no tag was created."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "Notespace Desktop $RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG"
+          echo "Created $RELEASE_TAG at $GITHUB_SHA"
+
+      - name: Dispatch signed MSI release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # GITHUB_TOKEN tag pushes don't trigger push workflows. A direct
+          # workflow_dispatch is the documented exception and needs no PAT.
+          gh workflow run release-desktop.yml --ref master --field "release_tag=$RELEASE_TAG"
+          {
+            echo "## Desktop release dispatched"
+            echo ""
+            echo "Tag: \`$RELEASE_TAG\` (on verified master commit \`$GITHUB_SHA\`)."
+            echo ""
+            echo "Follow the signed build: https://github.com/$GITHUB_REPOSITORY/actions/workflows/release-desktop.yml"
+            echo ""
+            echo "Once signed, tested and published: https://github.com/$GITHUB_REPOSITORY/releases"
+            echo ""
+            echo "**Dispatch is not publication.** The release must pass every MSI, data, provenance, and signing gate."
+            echo ""
+            echo "If dispatch fails after the tag is created, use the existing"
+            echo "Release desktop workflow_dispatch with the same \`release_tag\`."
+          } >> "$GITHUB_STEP_SUMMARY"

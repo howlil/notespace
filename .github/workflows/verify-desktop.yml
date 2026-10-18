@@ -14,6 +14,10 @@ on:
       - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/check-desktop-webdriver-policy.test.mjs"
+      - "scripts/assert-desktop-release-ci.mjs"
+      - "scripts/resolve-desktop-release-version.mjs"
+      - "scripts/desktop-release-automation.test.mjs"
+      - ".github/workflows/publish-desktop.yml"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -45,6 +49,10 @@ on:
       - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/check-desktop-webdriver-policy.test.mjs"
+      - "scripts/assert-desktop-release-ci.mjs"
+      - "scripts/resolve-desktop-release-version.mjs"
+      - "scripts/desktop-release-automation.test.mjs"
+      - ".github/workflows/publish-desktop.yml"
       - "scripts/desktop-upgrade-inventory.py"
       - "scripts/test-desktop-upgrade-inventory.py"
       - "scripts/verify-desktop-msi-upgrade.ps1"
@@ -87,6 +95,11 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify desktop release automation policies and version selection
+        run: |
+          node --check scripts/resolve-desktop-release-version.mjs
+          node --check scripts/assert-desktop-release-ci.mjs
+          node --test scripts/desktop-release-automation.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
         run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract
@@ -157,6 +170,11 @@ jobs:
         run: python scripts/test-desktop-upgrade-inventory.py
       - name: Syntax-check native WebDriver test
         run: node --check scripts/desktop-webdriver-smoke.mjs
+      - name: Verify desktop release automation policies and version selection
+        run: |
+          node --check scripts/resolve-desktop-release-version.mjs
+          node --check scripts/assert-desktop-release-ci.mjs
+          node --test scripts/desktop-release-automation.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
         run: node --test scripts/check-desktop-webdriver-policy.test.mjs
       - name: Verify signed updater manifest contract

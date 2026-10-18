@@ -214,7 +214,7 @@ test("activity End retries after the final heartbeat fails before server commit"
   }
 });
 
-test("activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
+test("@critical activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
   const suffix = Date.now();
   const title = `Recover committed activity ${suffix}`;
   const heartbeatUrl = "**/api/activity/sessions/*";

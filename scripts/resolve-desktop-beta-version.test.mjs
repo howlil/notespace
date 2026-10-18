@@ -39,7 +39,8 @@ test("free beta only runs on explicit dispatch and preserves native/data safety 
   assert.match(wf, /cargo tauri build --config \$overlay -- --locked/);
   assert.match(wf, /wix = @\{ version = "0\.1\.\$sequence" \}/);
   assert.match(wf, /MSI numeric patch version exceeds WiX limit/);
-  assert.match(wf, /pnpm test:desktop:native/);
+  assert.doesNotMatch(wf, /pnpm test:desktop:native/);
+  assert.equal((wf.match(/pnpm test:desktop:critical/g) ?? []).length, 1);
   assert.match(wf, /pnpm test:desktop:critical/);
   assert.match(wf, /Get-AuthenticodeSignature/);
   assert.match(wf, /actions\/attest@v4/);

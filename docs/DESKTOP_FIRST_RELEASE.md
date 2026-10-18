@@ -1,4 +1,4 @@
-# Notespace Desktop — first signed Windows release
+# Notespace Desktop — free beta and optional signed stable releases
 
 ## Distribution contract
 
@@ -11,6 +11,43 @@
   release exists. It must still pass first-install, real native WebDriver,
   authored Note persistence, SQLite protection, signing and provenance.
 - GitHub-hosted web and Docker deployments are independent of the Windows MSI.
+
+## Route A — Free unsigned beta (recommended for first desktop download)
+
+**Cost: Rp0 for Azure and certificate signing.** You do **not** need an
+Azure Artifact Signing account, a publisher certificate, a Tauri updater
+private key, or a paid download backend.
+
+1. Merge changes to `master` and ensure `Verify` and `Verify Desktop`
+   **push** workflow runs are green for the latest master commit.
+2. Open [Actions → Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml).
+3. Choose **Run workflow** on branch `master`. No version input or Git tag
+   creation is required. The first beta is `v0.1.0-beta.1`; subsequent
+   successful prereleases automatically increment the beta number.
+4. GitHub Actions will build an unsigned MSI on Windows, exercise the **real
+   Tauri/WebView2 UI** and product persistence, calculate SHA-256, generate
+   and verify GitHub build provenance, then create a GitHub **prerelease**.
+5. Share https://github.com/howlil/notespace/releases with users.
+
+**User-visible warning:** this public beta has no Authenticode publisher
+signature. SmartScreen may warn or block installing it. Download only from
+the official GitHub Releases page and check `SHA256SUMS.txt`. Automatic
+desktop updates are intentionally **disabled** for unsigned beta builds;
+users install each newer beta manually. Do not promote this installer as a
+signed stable release.
+
+**Failures are not bypassed:** native Windows test failure, data loss,
+checksum/provenance failure, or stale `master` blocks publishing. A
+successful upload to CI Artifacts alone is **not a public release**.
+
+The future signed stable route below remains available but is **entirely
+optional for publishing the free beta**.
+
+## Route B — Signed stable with automatic updates (optional)
+
+The following Gates 1–4 are **only for signed production releases**.
+Azure Artifact Signing is the configured publisher identity mechanism
+in this specific signed workflow, not a mandatory Tauri or Windows cost.
 
 ## Gate 1 — signing credentials (repository owner action)
 

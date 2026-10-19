@@ -8,6 +8,7 @@ import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceGuide } from "../../features/workspace-authoring/ui/WorkspaceGuide";
+import { SettingsTrigger } from "../../features/settings/AppSettings";
 import { WorkspaceRenameField } from "../../features/workspace-authoring/ui/WorkspaceRenameField";
 import { WorkspaceViewSwitcher } from "../../features/workspace-authoring/ui/WorkspaceViewSwitcher";
 import { iconActionClass, paneMenuButtonClass, popupClass } from "../../features/workspace-authoring/ui/workspace-ui-classes";
@@ -149,6 +150,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
             </span>
             {!planOpen && <IconButton type="button" className={iconActionClass} onClick={authoring.toggleActiveMaximize} aria-label={authoring.maximizeLabel} title={authoring.maximizeLabel}><Maximize2 size={24} /></IconButton>}
             <WorkspaceGuide />
+            <SettingsTrigger className={iconActionClass} />
           </div>
         </header>
 

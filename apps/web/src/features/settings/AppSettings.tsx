@@ -135,9 +135,13 @@ export function AppSettings() {
                       Export notes, canvases, workspaces, assets, and activity in one ZIP.
                     </p>
                   </div>
-                  <Button asChild variant="secondary" size="sm">
-                    <a href={exportLibraryBackup()} download>Export ZIP</a>
-                  </Button>
+                  {backupBusy ? (
+                    <Button variant="secondary" size="sm" disabled>Export ZIP</Button>
+                  ) : (
+                    <Button asChild variant="secondary" size="sm">
+                      <a href={exportLibraryBackup()} download>Export ZIP</a>
+                    </Button>
+                  )}
                 </div>
                 {native ? (
                   <DesktopRecoveryTools onBusyChange={onBusyChange} />

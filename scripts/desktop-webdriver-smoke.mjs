@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { Builder, By, Capabilities, Key } from "selenium-webdriver";
+import { isExpectedNativeCloseDisconnect } from "./native-close-session.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const application = process.env.TAURI_APP_BINARY
@@ -287,29 +288,29 @@ async function closeDesktopWindow(session) {
   const deadline = Date.now() + 30_000;
   let lastState = "no close status reported";
   while (Date.now() < deadline) {
-    let handles;
     try {
-      handles = await session.getAllWindowHandles();
+      const handles = await session.getAllWindowHandles();
+      if (!handles.includes(originalHandle)) return;
+      const status = await session.executeScript(`
+        const element = document.querySelector('[data-testid="desktop-close-status"]');
+        return {
+          error: window.__notespaceCloseRequestError || null,
+          state: element?.getAttribute('data-desktop-close-state') || 'not-started',
+          message: element?.textContent || ''
+        };
+      `);
+      if (status.error) throw new Error(`Native desktop close command failed: ${status.error}`);
+      lastState = `${status.state}: ${status.message}`;
+      if (status.state === "error") {
+        throw new Error(`Notespace refused to close because the durability flush failed: ${lastState}`);
+      }
     } catch (error) {
-      // A closed WebView can invalidate the outstanding Selenium session.
-      // Never treat arbitrary driver faults as successful product closure.
-      if (/no such window|invalid session id|target window already closed/i.test(String(error))) return;
-      throw error;
-    }
-    if (!handles.includes(originalHandle)) return;
-
-    const status = await session.executeScript(`
-      const element = document.querySelector('[data-testid="desktop-close-status"]');
-      return {
-        error: window.__notespaceCloseRequestError || null,
-        state: element?.getAttribute('data-desktop-close-state') || 'not-started',
-        message: element?.textContent || ''
-      };
-    `);
-    if (status.error) throw new Error(`Native desktop close command failed: ${status.error}`);
-    lastState = `${status.state}: ${status.message}`;
-    if (status.state === "error") {
-      throw new Error(`Notespace refused to close because the durability flush failed: ${lastState}`);
+      // WebView2 can tear down DevTools when its last native window exits.
+      // Only a specifically recognized close-time driver error is allowed;
+      // actual loopback shutdown must also be demonstrated before relaunch.
+      if (!isExpectedNativeCloseDisconnect(error)) throw error;
+      await waitForLocalServerExit();
+      return;
     }
     await delay(250);
   }

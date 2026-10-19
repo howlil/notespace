@@ -1,9 +1,9 @@
 name: Auto Desktop Beta
 
-# One-shot bootstrap only: automatically publish the FIRST unsigned beta after
-# both master CI workflows pass. Never publish every push or replace releases.
-# Runs on the completion of both workflows; the first completion skips until
-# the other check has passed.
+# Publish the first unsigned beta automatically, or a later beta only when
+# an explicitly requested master commit subject contains [desktop-beta].
+# Never publish every push, bypass CI, or replace an immutable release.
+# Runs when master push checks complete; the first completion waits for both.
 on:
   workflow_run:
     workflows:
@@ -56,21 +56,46 @@ jobs:
             exit 0
           fi
 
-          # This automation bootstraps only the first public beta, never ships
-          # later changes by surprise. Subsequent releases stay explicit.
+          # The first beta is automatic. Every subsequent beta requires an
+          # explicit opt-in marker in the first line of the verified master
+          # commit subject. That marker is passed only by an intentional merge.
+          subject=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$master_sha" --jq '.message' | head -n 1)
+          explicit=false
+          if [[ "$subject" == *"[desktop-beta]"* ]]; then
+            explicit=true
+          fi
+
           gh release list --limit 100 --json tagName,isDraft > "$RUNNER_TEMP/desktop-releases.json"
           if node -e '
             const fs = require("node:fs");
             const releases = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            process.exit(releases.some(x => !x.isDraft && /^v0\.1\.0-beta\.[1-9]\d*$/.test(x.tagName)) ? 0 : 1);
+            process.exit(releases.some(x => !x.isDraft && /^v0\\.1\\.0-beta\\.[1-9]\\d*$/.test(x.tagName)) ? 0 : 1);
           ' "$RUNNER_TEMP/desktop-releases.json"; then
-            echo "At least one beta already published; no automatic release needed"
+            if [[ "$explicit" != "true" ]]; then
+              echo "A beta has already been published and this commit did not request [desktop-beta]; skip"
+              exit 0
+            fi
+          fi
+
+          # Avoid republishing the same master commit if its checks are rerun.
+          # This is independent of tag/version numbering and of queued runs.
+          gh run list --workflow publish-desktop-beta.yml --limit 100 --json headSha,status,conclusion > "$RUNNER_TEMP/beta-runs.json"
+          if node -e '
+            const fs = require("node:fs");
+            const runs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const sha = process.argv[2];
+            process.exit(runs.some(x => x.headSha === sha && x.status === "completed" && x.conclusion === "success") ? 0 : 1);
+          ' "$RUNNER_TEMP/beta-runs.json" "$master_sha"; then
+            echo "Desktop beta for this verified master commit already completed; skip"
             exit 0
           fi
 
-          # Dispatch once; skip if build already queued/running. The beta
-          # release workflow also verifies master CI and serializes publication.
-          queued=$(gh run list --workflow publish-desktop-beta.yml --limit 30 --json status --jq '[.[]|select(.status=="queued" or .status=="in_progress" or .status=="waiting" or .status=="pending" or .status=="requested")] | length')
+          queued=$(node -e '
+            const fs = require("node:fs");
+            const runs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const active = ["queued", "in_progress", "waiting", "pending", "requested"];
+            process.stdout.write(String(runs.filter(x => active.includes(x.status)).length));
+          ' "$RUNNER_TEMP/beta-runs.json")
           if [[ "$queued" != "0" ]]; then
             echo "A desktop beta release is already building; skip"
             exit 0

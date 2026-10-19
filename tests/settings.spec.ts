@@ -6,7 +6,8 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await expect(page.getByRole("button", { name: "Backups", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Open Notespace settings" }).click();
 
-  const settings = page.getByRole("dialog", { name: "Notespace settings" });
+  // Radix names the dialog from DialogTitle ("Settings"), not the wrapper aria-label.
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await expect(settings).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
   const exportLink = settings.getByRole("link", { name: "Export ZIP" });
@@ -28,7 +29,7 @@ test("Settings is accessible from an open Workspace, without a floating backup",
     await page.goto(`/workspaces/${item.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
     await page.getByRole("button", { name: "Open Notespace settings" }).click();
-    await expect(page.getByRole("dialog", { name: "Notespace settings" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
     await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
   } finally {
     await deleteWorkspace(request, item.id);

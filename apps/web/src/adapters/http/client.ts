@@ -16,13 +16,7 @@ export class APIError extends Error {
 }
 
 export const fetchTransport: HttpTransport = {
-  fetch: (input, init) => {
-    const action = () => globalThis.fetch(input, init);
-    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
-    return method === "GET" || method === "HEAD"
-      ? action()
-      : trackDesktopMutation(action);
-  },
+  fetch: (input, init) => globalThis.fetch(input, init),
 };
 
 const requestWithTransport = async <T>(
@@ -54,4 +48,12 @@ export const request = <T>(
   url: string,
   init?: RequestInit,
   transport: HttpTransport = fetchTransport,
-) => requestWithTransport<T>(transport, url, init);
+): Promise<T> => {
+  // The durability barrier must cover HTTP status validation and response
+  // decoding, not merely fetch(), which resolves even for HTTP 409/500.
+  const operation = () => requestWithTransport<T>(transport, url, init);
+  const method = (init?.method ?? "GET").toUpperCase();
+  return method === "GET" || method === "HEAD"
+    ? operation()
+    : trackDesktopMutation(operation);
+};

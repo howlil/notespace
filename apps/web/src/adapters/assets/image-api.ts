@@ -12,20 +12,22 @@ export function createImageApi(fetcher: typeof fetch = globalThis.fetch) {
       id: string,
       blob: Blob,
     ) {
-      const response = await trackDesktopMutation(() => fetcher(assetUrl(workspaceId, id), {
-        method: "PUT",
-        headers: { "Content-Type": blob.type || "application/octet-stream" },
-        body: blob,
-        signal: AbortSignal.timeout(20_000),
-      }));
+      return trackDesktopMutation(async () => {
+        const response = await fetcher(assetUrl(workspaceId, id), {
+          method: "PUT",
+          headers: { "Content-Type": blob.type || "application/octet-stream" },
+          body: blob,
+          signal: AbortSignal.timeout(20_000),
+        });
 
-      // A 404 means ownership disappeared while the upload was in flight.
-      if (response.status === 404) return false;
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error || "Could not store image on this Notespace instance.");
-      }
-      return true;
+        // A 404 means ownership disappeared while the upload was in flight.
+        if (response.status === 404) return false;
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error || "Could not store image on this Notespace instance.");
+        }
+        return true;
+      });
     },
 
     async loadRemoteImageAsset(

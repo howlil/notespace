@@ -129,7 +129,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -213,7 +213,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts

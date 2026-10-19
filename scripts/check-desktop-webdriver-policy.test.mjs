@@ -42,6 +42,6 @@ test("critical smoke requests a native close and verifies sidecar exit before re
   assert.match(runtime, /window\s*\.close\(\)/);
   assert.match(driver, /invoke\("request_desktop_close"\)/);
   assert.match(driver, /getAllWindowHandles\(\)/);
-  assert.match(driver, /if \(critical\) \{\s*await closeDesktopWindow\(driver\);\s*await waitForLocalServerExit\(\);/);
+  assert.match(driver, /if \(critical\) \{[\s\S]*?await closeDesktopWindow\(driver\);[\s\S]*?await waitForLocalServerExit\(\);[\s\S]*?\}\s*await driver.quit/);
   assert.doesNotMatch(driver, /keyDown\(Key\.ALT\)/);
 });

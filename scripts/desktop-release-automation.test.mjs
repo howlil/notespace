@@ -84,12 +84,12 @@ test("auto desktop beta is first-release only unless master explicitly opts in a
   assert.match(workflow, /master_sha.*TRIGGER_SHA/);
   assert.match(workflow, /gh release list.*tagName,isDraft/);
   assert.match(workflow, /gh run list --workflow publish-desktop-beta\.yml/);
-  assert.match(workflow, /gh workflow run publish-desktop-beta\\.yml --ref master/);
-  assert.match(workflow, /\\[desktop-beta\\]/);
-  assert.match(workflow, /git\\/commits\\/\\$master_sha/);
+  assert.match(workflow, /gh workflow run publish-desktop-beta\.yml --ref master/);
+  assert.match(workflow, /\[desktop-beta\]/);
+  assert.match(workflow, /git\/commits\/\$master_sha/);
   assert.match(workflow, /headSha,status,conclusion/);
-  assert.match(workflow, /x\\.headSha === sha && x\\.status === "completed"/);
-  assert.match(workflow, /\\$explicit.*!= "true"/);
+  assert.match(workflow, /x\.headSha === sha && x\.status === "completed"/);
+  assert.match(workflow, /\$explicit.*!= "true"/);
   assert.doesNotMatch(workflow, /git tag -a|gh release create/);
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
 });

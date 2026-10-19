@@ -4,6 +4,35 @@ Notespace is a monorepo containing the Go/SQLite self-hosted application, its Ta
 
 **Cloudflare Workers only hosts the static marketing landing.** It does not host the Notespace Go backend or provide persistent SQLite.
 
+## Download Notespace Desktop (no GitHub knowledge needed)
+
+The **Download for Windows** buttons in the landing header, hero, mobile menu,
+and footer link directly to a released 64-bit Windows `.msi` from GitHub
+Releases. The browser downloads the installer without visiting the GitHub
+release listing and without requiring a GitHub account.
+
+- Current known-good fallback (already published): [Notespace v0.1.0-beta.1 MSI](https://github.com/howlil/notespace/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi).
+- When JavaScript works, the landing queries the *public* GitHub releases list
+  and picks the newest **published** Notespace Windows MSI. This includes
+  prereleases, which GitHub's `/releases/latest/download/...` does not.
+- If GitHub API is rate-limited or unavailable, links retain the last
+  known-good published MSI; there is no empty or broken loading button.
+- The actual installer is served directly by GitHub. The static Cloudflare
+  Worker does **not** proxy binary traffic, carry release secrets, or need a
+  new backend.
+- Until code signing is added, the Windows MSI beta is **unsigned** and may
+  display a publisher/SmartScreen warning; never claim that the file is
+  signed or that this warning can be suppressed by the landing site.
+- After future releases, update the checked-in fallback URL periodically.
+  Runtime resolution selects the newest valid published MSI but the static
+  fallback guarantees the current version even without JavaScript.
+- For Linux/macOS, the self-hosting docs remain available. There is no
+  downloadable desktop installer for those platforms yet.
+
+Run the download and landing tests with
+`cd landing && node --test tests/windows-release.test.mjs tests/hero.test.mjs tests/workers-root.test.mjs`
+after `pnpm build`.
+
 ## Development
 
 The landing is an independent Astro site. Its dependencies stay outside the root pnpm workspace so they do not affect the Go/SQLite application runtime or existing verification contract.

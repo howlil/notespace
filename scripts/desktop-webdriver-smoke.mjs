@@ -89,6 +89,9 @@ try {
     const productMarker = critical ? await runProductPersistenceJourney(driver) : null;
     if (critical) {
       await closeDesktopWindow(driver);
+      // Closing the WebView is insufficient: the Go/SQLite sidecar must have
+      // terminated before the second native launch reuses the data directory.
+      await waitForLocalServerExit();
     }
     await driver.quit().catch(() => {});
     driver = undefined;
@@ -265,21 +268,52 @@ async function assertDurableDomains(marker) {
 }
 
 async function closeDesktopWindow(session) {
-  await session.actions()
-    .keyDown(Key.ALT)
-    .sendKeys(Key.F4)
-    .keyUp(Key.ALT)
-    .perform();
-  const deadline = Date.now() + 15_000;
+  // WebDriver's synthetic Alt+F4 sometimes never reaches Windows as a native
+  // close request. Invoke the Tauri window.close() command instead: it emits
+  // the SAME native CloseRequested event as the OS close button and therefore
+  // cannot bypass Notespace's flush/cancel handshake.
+  const originalHandle = await session.getWindowHandle();
+  await session.executeScript(`
+    if (typeof window.__TAURI_INTERNALS__?.invoke !== "function") {
+      throw new Error("Native Tauri IPC is unavailable before window close");
+    }
+    window.__notespaceCloseRequestError = null;
+    void window.__TAURI_INTERNALS__.invoke("request_desktop_close").catch(error => {
+      window.__notespaceCloseRequestError = String(error);
+    });
+    return true;
+  `);
+
+  const deadline = Date.now() + 30_000;
+  let lastState = "no close status reported";
   while (Date.now() < deadline) {
+    let handles;
     try {
-      await session.getTitle();
-    } catch {
-      return;
+      handles = await session.getAllWindowHandles();
+    } catch (error) {
+      // A closed WebView can invalidate the outstanding Selenium session.
+      // Never treat arbitrary driver faults as successful product closure.
+      if (/no such window|invalid session id|target window already closed/i.test(String(error))) return;
+      throw error;
+    }
+    if (!handles.includes(originalHandle)) return;
+
+    const status = await session.executeScript(`
+      const element = document.querySelector('[data-testid="desktop-close-status"]');
+      return {
+        error: window.__notespaceCloseRequestError || null,
+        state: element?.getAttribute('data-desktop-close-state') || 'not-started',
+        message: element?.textContent || ''
+      };
+    `);
+    if (status.error) throw new Error(`Native desktop close command failed: ${status.error}`);
+    lastState = `${status.state}: ${status.message}`;
+    if (status.state === "error") {
+      throw new Error(`Notespace refused to close because the durability flush failed: ${lastState}`);
     }
     await delay(250);
   }
-  throw new Error("Desktop window did not close within 15 seconds");
+  throw new Error(`Native desktop window did not close within 30 seconds (last flush status: ${lastState})`);
 }
 
 async function visibleElement(session, locator, timeout = 30_000) {

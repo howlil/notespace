@@ -1,20 +1,35 @@
-name: Verify landing build
+name: Verify landing
 
+# One lightweight landing-specific gate. Core app CI already runs the root
+# build; Cloudflare handles deployment outside GitHub Actions.
 on:
   pull_request:
     paths:
       - "landing/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "Dockerfile"
       - ".github/workflows/verify-landing-build.yml"
   push:
-    branches:
-      - master
+    branches: [master]
     paths:
       - "landing/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "Dockerfile"
       - ".github/workflows/verify-landing-build.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: landing
@@ -26,12 +41,14 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: "24"
           cache: pnpm
           cache-dependency-path: landing/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Validate static output and Workers assets config
+      - name: Verify landing UI and Cloudflare root deployment configuration
+        run: node --test tests/hero.test.mjs tests/workers-root.test.mjs
+      - name: Validate static output
         run: |
           node --input-type=module -e '
             import { existsSync, readFileSync } from "node:fs";

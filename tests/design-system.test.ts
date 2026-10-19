@@ -34,9 +34,18 @@ function contrast(first: string, second: string): number {
 
 test("supporting text meets WCAG AA on theme surfaces", () => {
   for (const theme of [light, dark]) {
-    for (const surface of ["--bg", "--surface", "--sidebar", "--canvas"]) {
+    for (const surface of ["--bg", "--surface", "--sidebar", "--canvas", "--tint"]) {
       const ratio = contrast(color(theme, "--muted"), color(theme, surface));
       assert.ok(ratio >= 4.5, surface + " muted contrast: " + ratio.toFixed(2));
+    }
+  }
+});
+
+test("success status text is readable across theme surfaces", () => {
+  for (const theme of [light, dark]) {
+    for (const surface of ["--bg", "--surface", "--sidebar", "--canvas", "--tint"]) {
+      const ratio = contrast(color(theme, "--success"), color(theme, surface));
+      assert.ok(ratio >= 4.5, surface + " success contrast: " + ratio.toFixed(2));
     }
   }
 });

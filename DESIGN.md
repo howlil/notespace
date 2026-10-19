@@ -113,7 +113,7 @@ The application uses semantic colors so the same component can remain coherent i
 | `--sidebar` | `#FFFFFF` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
 | `--canvas` | `#F8F9FC` | `#1D1E24` | Drawing surface behind Excalidraw content |
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
-| `--muted` | `#6B7080` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
+| `--muted` | `#636979` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
 | `--accent` | `#3F6D61` | `#A6D1BC` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
 | `--tint` | `#EBF2EE` | `#20352E` | Hover background, active background, selected rows, and soft emphasis |
@@ -121,7 +121,7 @@ The application uses semantic colors so the same component can remain coherent i
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
 | `--danger-foreground` | `#FFFFFF` | `#22232A` | Readable text/icon on a filled destructive button |
-| `--success` | `#6F947D` | `#6F947D` | Saved, completed, or healthy state |
+| `--success` | `#4D765D` | `#8FC3A0` | Saved, completed, or healthy state; readable over light/dark tinted surfaces |
 
 The Tailwind theme aliases map these semantics to utility names:
 
@@ -333,7 +333,7 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
-- **Resolved baseline contrast:** light `--muted: #6B7080` targets at least **4.5:1** over both `--surface: #FFFFFF` and `--bg: #F7F8FA`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test checks these color pairs; still verify overlays, alpha blends, and authored surfaces in the browser.
+- **Resolved baseline contrast:** light `--muted: #636979` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
 - Preserve the muted-jade identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
 
 ## Component and interaction rules

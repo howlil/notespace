@@ -72,7 +72,7 @@
   --surface: #fff;
   --sidebar: #fff;
   --ink: #252630;
-  --muted: #6b7080;
+  --muted: #636979;
   --line: #e4e5ec;
   --accent: #3f6d61;
   --tint: #ebf2ee;
@@ -81,7 +81,7 @@
   --canvas: #f8f9fc;
   --danger: #b13e4b;
   --danger-foreground: #ffffff;
-  --success: #6f947d;
+  --success: #4d765d;
   --shadow-popup: 0 12px 32px #0002;
 }
 
@@ -100,7 +100,7 @@
   --canvas: #1d1e24;
   --danger: #ff9aa5;
   --danger-foreground: #22232a;
-  --success: #6f947d;
+  --success: #8fc3a0;
 }
 
 @layer base {

@@ -24,6 +24,8 @@ test("desktop title bar preserves existing per-page React handlers and web heade
 test("workspace has no logo and suppresses Guide only when custom chrome is active", () => {
   assert.match(title, /!isWorkspace &&/);
   assert.match(title, /NotespaceLogo/);
+  assert.match(source(web + "shared/ui/desktop-titlebar/desktop-titlebar.css"), /desktop-workspace-drag/);
+  assert.match(workspace, /data-tauri-drag-region/);
   assert.match(workspace, /!customChromeActive && <WorkspaceGuide \/>/);
   assert.match(workspace, /compact=\{customChromeActive\}/);
 });

@@ -145,6 +145,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
           />
 
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
+            {customChromeActive && <div className="desktop-workspace-drag" data-tauri-drag-region aria-hidden="true" />}
             <ActivityIndicator activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} compact={customChromeActive} />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", authoring.status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">
               {authoring.status.state === "saved" ? <Check size={20} /> : authoring.status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}

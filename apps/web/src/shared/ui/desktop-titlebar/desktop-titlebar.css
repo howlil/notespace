@@ -82,6 +82,7 @@
 }
 .desktop-placed-header.workspace-header > div:first-child { flex: 1; min-width: 0; }
 .desktop-placed-header.workspace-header > div:last-child { flex: 1; min-width: 0; justify-content: flex-end; }
+.desktop-workspace-drag { flex: 1; min-width: 8px; height: 100%; }
 .desktop-placed-header.workspace-header > div:last-child > button,
 .desktop-placed-header.workspace-header > div:first-child > a { width: 29px; height: 29px; min-height: 29px; }
 .desktop-placed-header.workspace-header [aria-label="Start activity"] { width: 28px !important; height: 28px !important; min-height: 28px !important; }

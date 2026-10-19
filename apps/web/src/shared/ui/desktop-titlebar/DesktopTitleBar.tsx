@@ -19,7 +19,7 @@ export function DesktopTitleBar({
           <NotespaceLogo size="sm" gap="sm" className="desktop-titlebar-brand-label" markClassName="desktop-titlebar-mark" />
         </div>
       )}
-      <div ref={headerHostRef} className="desktop-titlebar-header-slot" />
+      <div ref={headerHostRef} className="desktop-titlebar-header-slot" data-tauri-drag-region />
       <WindowControls />
     </div>
   );

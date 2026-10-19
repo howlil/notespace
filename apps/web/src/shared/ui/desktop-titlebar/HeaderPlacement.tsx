@@ -17,6 +17,6 @@ export const useDesktopChrome = () => useContext(DesktopChromeContext);
 // presentation container moves into the desktop shell; Web markup is identical.
 export function HeaderPlacement({ children, className }: { children: ReactNode; className?: string }) {
   const { customChromeActive, headerHost } = useDesktopChrome();
-  const header = <header className={customChromeActive ? (className || "") + " desktop-placed-header" : className}>{children}</header>;
+  const header = <header data-tauri-drag-region={customChromeActive ? "" : undefined} className={customChromeActive ? (className || "") + " desktop-placed-header" : className}>{children}</header>;
   return customChromeActive && headerHost ? createPortal(header, headerHost) : header;
 }

@@ -181,6 +181,12 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         shell: pwsh
         run: pnpm dlx @tauri-apps/cli@2.12.3 build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
+      - name: Reject Windows console-subsystem builds before signing
+        run: >-
+          node scripts/assert-windows-pe-subsystem.mjs
+          apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
+
       - name: Install Tauri WebDriver server
         run: cargo install tauri-driver --locked
       - name: Install Microsoft EdgeDriver matching WebView2 Runtime

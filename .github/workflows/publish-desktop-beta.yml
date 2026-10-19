@@ -119,6 +119,12 @@ jobs:
           pnpm dlx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked
           if ($LASTEXITCODE -ne 0) { throw "Tauri MSI build failed" }
 
+      - name: Reject Windows console-subsystem builds before publishing
+        run: >-
+          node scripts/assert-windows-pe-subsystem.mjs
+          apps/desktop/src-tauri/target/release/notespace-desktop.exe
+          apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
+
       - name: Install real native Tauri WebView2 test tooling
         shell: pwsh
         run: |

@@ -16,12 +16,27 @@ const decoded = Buffer.from(key, "base64").toString("utf8");
 if (!decoded.startsWith("untrusted comment:") || !/^RW[A-Za-z0-9+/=]+$/m.test(decoded)) {
   throw new Error("Updater public key is not a valid-looking Tauri minisign public-key box");
 }
+const channel = process.env.NOTESPACE_UPDATER_CHANNEL?.trim() || "stable";
+if (!["stable", "beta"].includes(channel)) {
+  throw new Error("Unknown Notespace updater channel");
+}
+const betaWixVersion = process.env.NOTESPACE_BETA_WIX_VERSION?.trim();
+if (channel === "beta" && !/^0\.1\.[1-9][0-9]*$/.test(betaWixVersion || "")) {
+  throw new Error("Signed beta requires an increasing numeric WiX installer version");
+}
+if (channel !== "beta" && betaWixVersion) {
+  throw new Error("WiX beta version may only be set for signed beta releases");
+}
+const endpoint = channel === "beta"
+  ? "https://raw.githubusercontent.com/howlil/notespace/desktop-beta-feed/latest.json"
+  : "https://github.com/howlil/notespace/releases/latest/download/latest.json";
+
 const overlay = {
-  bundle: { createUpdaterArtifacts: true },
+  bundle: { createUpdaterArtifacts: true, ...(betaWixVersion ? { windows: { wix: { version: betaWixVersion } } } : {}) },
   plugins: {
     updater: {
       pubkey: key,
-      endpoints: ["https://github.com/howlil/notespace/releases/latest/download/latest.json"],
+      endpoints: [endpoint],
       windows: { installMode: "passive" },
     },
   },

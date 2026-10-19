@@ -26,10 +26,12 @@ export function ActivityIndicator({
   activity,
   workspaceId,
   workspaceTitle,
+  compact = false,
 }: {
   activity: ActivitySessionState;
   workspaceId: string;
   workspaceTitle: string;
+  compact?: boolean;
 }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -110,7 +112,7 @@ export function ActivityIndicator({
         <Button
           variant="secondary"
           size="sm"
-          className={timerActionClass}
+          className={compact ? "!size-7 !min-h-7 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent" : timerActionClass}
           disabled={!activity.ready || !activity.canStart}
           aria-label="Start activity"
           aria-haspopup="menu"

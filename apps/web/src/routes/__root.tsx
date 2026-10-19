@@ -15,6 +15,7 @@ import { ToastProvider } from "../shared/ui/toast-provider";
 import { NativePopupManager } from "../shared/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
 import { DesktopUpdateControl } from "../features/desktop-updates/DesktopUpdateControl";
+import { DesktopChromeProvider } from "../shared/ui/desktop-titlebar/DesktopChromeProvider";
 import { AppSettings } from "../features/settings/AppSettings";
 import { DesktopRecoveryTools } from "../features/desktop-recovery/DesktopRecoveryTools";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
@@ -49,7 +50,7 @@ export const Route = createRootRoute({
               <AppSettings renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />} />
               <QuickOpen />
               <ConflictRecoveryDialog />
-              <Outlet />
+              <DesktopChromeProvider><Outlet /></DesktopChromeProvider>
               <ActivityDock />
             </ActivityRuntimeProvider>
           </ThemeProvider>

@@ -10,6 +10,7 @@ import { SettingsTrigger } from "../../features/settings/AppSettings";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
+import { useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -20,6 +21,7 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inbox
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
 export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
+  const { customChromeActive } = useDesktopChrome();
   const {
     children,
     creating,
@@ -63,9 +65,9 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
 
   return <>
     <aside className="sticky top-0 flex h-dvh min-w-0 flex-col gap-1.5 overflow-hidden border-r border-line bg-sidebar px-3 py-3.5 max-[560px]:relative max-[560px]:h-auto max-[560px]:max-h-[190px] max-[560px]:w-full max-[560px]:border-r-0 max-[560px]:border-b max-[560px]:px-4 max-[560px]:pt-3 max-[560px]:pb-2.5">
-      <div className="flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0">
+      {!customChromeActive && <div className="flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0">
         <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>
-      </div>
+      </div>}
       <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">
         <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
         <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>

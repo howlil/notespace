@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { HeaderPlacement, useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Check, ChevronDown, Circle, Loader2, Maximize2, Pencil } from "lucide-react";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: Props) {
+  const { customChromeActive } = useDesktopChrome();
   const navigate = useNavigate();
   const activity = useActivityRuntime();
   const { adoptLegacyWorkspace } = activity;
@@ -78,7 +80,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
   return (
     <div className="h-dvh min-w-0 overflow-hidden">
       <main className={cn("workspace-main flex h-dvh min-h-0 min-w-0 flex-col [--workspace-header-height:44px] max-[560px]:[--workspace-header-height:76px]", authoring.focusMode && "is-focus-mode")}>
-        <header className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-[76px] max-[560px]:grid-cols-[minmax(0,1fr)_auto] max-[560px]:grid-rows-[30px_32px] max-[560px]:items-center max-[560px]:gap-x-2 max-[560px]:gap-y-1 max-[560px]:px-2 max-[560px]:py-1.5", authoring.focusMode && "hidden")}>
+        <HeaderPlacement className={cn("workspace-header relative flex min-h-11 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 max-[800px]:px-2 max-[560px]:grid max-[560px]:min-h-[76px] max-[560px]:grid-cols-[minmax(0,1fr)_auto] max-[560px]:grid-rows-[30px_32px] max-[560px]:items-center max-[560px]:gap-x-2 max-[560px]:gap-y-1 max-[560px]:px-2 max-[560px]:py-1.5", authoring.focusMode && "hidden")}>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 max-[560px]:order-none max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-1 max-[560px]:w-full max-[560px]:gap-1">
             <Link to="/" className={iconActionClass} aria-label="Back to library" title="Back to library"><ArrowLeft size={24} /></Link>
             <span className="max-w-[24vw] overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted max-[760px]:hidden">{categoryTitle} /</span>
@@ -143,16 +145,16 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
           />
 
           <div className="flex items-center gap-1 max-[760px]:gap-0.5 max-[560px]:order-none max-[560px]:col-start-2 max-[560px]:row-start-2 max-[560px]:w-auto max-[560px]:justify-self-end max-[560px]:overflow-visible max-[560px]:pb-0 max-[560px]:[&>*]:shrink-0">
-            <ActivityIndicator activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />
+            <ActivityIndicator activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} compact={customChromeActive} />
             <span className={cn("flex items-center gap-1 whitespace-nowrap text-[10px] text-muted max-[800px]:gap-0 max-[800px]:text-[0px]", saveFailed && "text-danger", authoring.status.state === "saved" && "[&_svg]:text-success")} role="status" aria-live="polite">
               {authoring.status.state === "saved" ? <Check size={20} /> : authoring.status.state === "saving" ? <Loader2 size={20} className="animate-spin" /> : <Circle size={10} />}
               {saveLabel}
             </span>
             {!planOpen && <IconButton type="button" className={iconActionClass} onClick={authoring.toggleActiveMaximize} aria-label={authoring.maximizeLabel} title={authoring.maximizeLabel}><Maximize2 size={24} /></IconButton>}
-            <WorkspaceGuide />
+            {!customChromeActive && <WorkspaceGuide />}
             <SettingsTrigger className={iconActionClass} />
           </div>
-        </header>
+        </HeaderPlacement>
 
         <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:p-[7px]", authoring.focusMode && "p-0")}>{visible}</div>
       </main>

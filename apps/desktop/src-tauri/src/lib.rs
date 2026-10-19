@@ -85,6 +85,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             request_desktop_close,
+            activate_desktop_titlebar,
             allow_desktop_close,
             cancel_desktop_close,
             desktop_updater_enabled,
@@ -396,6 +397,29 @@ fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
     });
 }
 
+// The authenticated React UI may replace native decorations only after the
+// Go sidecar has reached readiness. Startup/recovery always keep native chrome.
+#[tauri::command]
+fn activate_desktop_titlebar(app: AppHandle) -> Result<(), String> {
+    let runtime = app.state::<RuntimeProcess>();
+    if runtime.startup_in_flight.load(Ordering::Acquire)
+        || runtime.recovery_visible.load(Ordering::Acquire)
+        || runtime.stopping.load(Ordering::Acquire)
+    {
+        return Err("Desktop title bar is unavailable during startup or recovery".into());
+    }
+    let active = runtime.child.lock()
+        .map_err(|_| "Notespace runtime state is unavailable".to_string())?
+        .is_some();
+    if !active {
+        return Err("Notespace runtime is not ready".into());
+    }
+    let window = app.get_webview_window("main")
+        .ok_or_else(|| "Notespace desktop window is unavailable".to_string())?;
+    window.set_decorations(false)
+        .map_err(|error| format!("activate desktop title bar: {error}"))
+}
+
 // A native close request enters the same CloseRequested -> frontend durability
 // handshake as the Windows close button. WebDriver can invoke this reliably;
 // synthetic Alt+F4 is not a reliable OS close signal in WebView2 automation.
@@ -451,6 +475,8 @@ fn set_startup_status(app: &tauri::AppHandle, message: &str, error: bool) {
 fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     app.state::<RuntimeProcess>().recovery_visible.store(true, Ordering::Release);
     let Some(window) = app.get_webview_window("main") else { return; };
+    // Recovery is a plain HTML view: restore OS frame/close/drag before replacing React.
+    let _ = window.set_decorations(true);
     let Ok(message) = serde_json::to_string(detail) else { return; };
     // Error display is a native recovery view, not a page from the failing Go
     // server. Every user-data action is read-only. No automatic DB restore.

@@ -37,7 +37,8 @@ func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	store, err := sqlite.Open(ctx, env("NOTESPACE_DB", "data/notespace.db"))
+	databasePath := env("NOTESPACE_DB", "data/notespace.db")
+	store, err := sqlite.Open(ctx, databasePath)
 	if err != nil {
 		return err
 	}
@@ -75,9 +76,10 @@ func run() error {
 	listenAddress := env("NOTESPACE_ADDR", "127.0.0.1:8080")
 	var listener net.Listener
 	if desktop {
-		// Preserve a stable browser origin when possible; the OS may reserve
-		// 49832 on CI or on some Windows machines.
-		listener, err = listenDesktop()
+		// Pin the first available loopback port across restarts. An occupied
+		// pinned port must surface recovery, not hide origin-scoped UI state.
+		originFile := env("NOTESPACE_DESKTOP_ORIGIN_FILE", databasePath+".desktop-origin")
+		listener, err = listenDesktop(originFile)
 	} else {
 		listener, err = net.Listen("tcp", listenAddress)
 	}

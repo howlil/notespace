@@ -171,12 +171,14 @@ async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), St
     }
 
     let database = data_dir.join("notespace.db");
+    let origin_file = data_dir.join("notespace.db.desktop-origin");
     let command = app
         .shell()
         .sidecar("notespace-server")
         .map_err(|error| format!("resolve server sidecar: {error}"))?
         .env("NOTESPACE_ADDR", DESKTOP_ADDR)
         .env("NOTESPACE_DB", &database)
+        .env("NOTESPACE_DESKTOP_ORIGIN_FILE", &origin_file)
         .env("NOTESPACE_WEB_DIR", &web_dir)
         .env("NOTESPACE_PASSWORD", "")
         .env("NOTESPACE_PARENT_LIFECYCLE", "1")

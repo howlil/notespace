@@ -43,9 +43,9 @@ test("Theme controls only exist in Settings; desktop Workspace hides its Setting
   for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
     const content = source(web + "pages/" + page);
     assert.doesNotMatch(content, /<ThemeToggle/);
-    assert.doesNotMatch(content, /import \\{ ThemeToggle \\}/);
+    assert.doesNotMatch(content, /ThemeToggle/);
   }
-  assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \\{dark \\? "light" : "dark"\\} theme/);
+  assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \{dark \? "light" : "dark"\} theme/);
   assert.match(workspace, /!customChromeActive && <SettingsTrigger/);
   assert.match(workspace, /!customChromeActive && <WorkspaceGuide/);
 });

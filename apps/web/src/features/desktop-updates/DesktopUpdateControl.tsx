@@ -115,7 +115,7 @@ export function DesktopUpdateControl() {
       <aside aria-label="Notespace updates" className={`fixed bottom-4 right-4 z-[191] w-[min(350px,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-3 text-sm text-ink shadow-md`}>
         <div className="flex items-center justify-between gap-3">
           <strong className="font-medium">Desktop updates</strong>
-          {!locked && phase !== "idle" && (
+          {!locked && (
             <button type="button" onClick={() => void dismiss()} className="rounded-full px-2 py-1 text-muted hover:bg-surface-hover" aria-label="Dismiss desktop update">×</button>
           )}
         </div>

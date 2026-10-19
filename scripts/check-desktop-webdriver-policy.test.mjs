@@ -33,3 +33,15 @@ test("Native smoke launches real WebView2 and explicitly reports session failure
   assert.match(driver, /NATIVE_WEBDRIVER_SESSION_FAILED/);
   assert.match(driver, /await waitForDesktopRuntime\(driver\)/);
 });
+
+// A real Tauri close event is mandatory: relying on WebDriver's synthetic
+// Alt+F4 leaves some Windows runners waiting even though the UI is healthy.
+test("critical smoke requests a native close and verifies sidecar exit before relaunch", () => {
+  const runtime = readFileSync(new URL("../apps/desktop/src-tauri/src/lib.rs", import.meta.url), "utf8");
+  assert.match(runtime, /fn request_desktop_close\(app: AppHandle\)/);
+  assert.match(runtime, /window\s*\.close\(\)/);
+  assert.match(driver, /invoke\("request_desktop_close"\)/);
+  assert.match(driver, /getAllWindowHandles\(\)/);
+  assert.match(driver, /if \(critical\) \{[\s\S]*?await closeDesktopWindow\(driver\);[\s\S]*?await waitForLocalServerExit\(\);[\s\S]*?\}\s*await driver.quit/);
+  assert.doesNotMatch(driver, /keyDown\(Key\.ALT\)/);
+});

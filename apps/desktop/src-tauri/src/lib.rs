@@ -84,6 +84,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            request_desktop_close,
             allow_desktop_close,
             cancel_desktop_close,
             desktop_updater_enabled,
@@ -379,6 +380,19 @@ fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
             .close_requested
             .store(false, Ordering::Release);
     });
+}
+
+// A native close request enters the same CloseRequested -> frontend durability
+// handshake as the Windows close button. WebDriver can invoke this reliably;
+// synthetic Alt+F4 is not a reliable OS close signal in WebView2 automation.
+#[tauri::command]
+fn request_desktop_close(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Notespace main desktop window is missing".to_string())?;
+    window
+        .close()
+        .map_err(|error| format!("request native desktop close: {error}"))
 }
 
 #[tauri::command]

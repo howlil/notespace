@@ -143,3 +143,21 @@ If the launcher fails only on a newer Evergreen runtime, retain independent
 compile tests for the latest OS/runtime and verify actual GUI behavior on
 supported Windows physical devices or controlled VMs. Do not claim that
 the WebView2 regression is fixed inside Notespace.
+
+## Native close verification correction (19 October 2026)
+
+The unsigned beta MSI **built successfully** on Windows 2022 but the release
+job failed before publishing: Selenium synthetic Alt+F4 never provided reliable
+OS-window closure confirmation (run 39170254838). The driver was healthy and
+WebView2/EdgeDriver versions matched. This result does not establish whether
+the product flush failed; the old test only said the window stayed open.
+
+The native test now uses `request_desktop_close`, which calls the Tauri
+window's `close()` rather than bypassing it with `destroy()` or `app.exit()`.
+That generates the same `CloseRequested` event as a user clicking the close
+button. Notespace continues to prevent close until pending authoring and HTTP
+mutations have flushed successfully. The acceptance test checks the native
+window handle disappears, reports visible flush errors instead of treating
+them as a pass, waits for the local sidecar to stop, then relaunches and
+verifies authored content. This corrects the driver interaction; **the actual
+Windows runtime acceptance must still pass before publication**.

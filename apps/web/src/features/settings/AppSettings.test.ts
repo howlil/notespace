@@ -6,14 +6,14 @@ const read = (relative: string) => readFileSync(new URL(relative, import.meta.ur
 const root = read("../../routes/__root.tsx");
 const settings = read("./AppSettings.tsx");
 const backup = read("../desktop-recovery/DesktopRecoveryTools.tsx");
-const home = read("../../pages/home/HomePage.tsx");
+const sidebar = read("../../pages/_shared/LibrarySidebar.tsx");
 const workspace = read("../../pages/workspace/WorkspacePage.tsx");
 const lifecycle = read("../../adapters/browser/desktop-lifecycle.ts");
 
 test("desktop backup is reachable through Settings, not a floating overlay", () => {
   assert.match(root, /<AppSettings \/>/);
   assert.doesNotMatch(root, /<DesktopRecoveryTools \/>/);
-  assert.match(home, /<SettingsTrigger \/>/);
+  assert.match(sidebar, /<SettingsTrigger showLabel/);
   assert.match(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
   assert.match(settings, /Data &amp; backup/);

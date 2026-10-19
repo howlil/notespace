@@ -151,15 +151,19 @@ async function assertDesktopChrome(session, workspace) {
       duplicateSidebarBrand: Boolean(document.querySelector('aside a[aria-label="Notespace home"]')),
       workspaceHeader: Boolean(header?.classList.contains("workspace-header")),
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
+      settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
+      theme: Boolean(header?.querySelector('[aria-label="Use dark theme"], [aria-label="Use light theme"]')),
       views: header?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
     };
   `);
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
   assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
+  assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, true, "Workspace header must be placed in the title bar");
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
+    assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
   } else {
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");

@@ -88,3 +88,35 @@ test("auto desktop beta releases only once after both master verification workfl
   assert.doesNotMatch(workflow, /git tag -a|gh release create/);
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
 });
+
+test("release and native CI reuse caches and never compile the Tauri CLI from source", () => {
+  const desktop = readFileSync(new URL("../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
+  const beta = readFileSync(new URL("../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
+  const stable = readFileSync(new URL("../.github/workflows/release-desktop.yml", import.meta.url), "utf8");
+  for (const [name, workflow] of [["verify-desktop", desktop], ["beta", beta], ["stable", stable]]) {
+    assert.doesNotMatch(workflow, /cargo install tauri-cli/);
+    assert.match(workflow, /pnpm dlx @tauri-apps\/cli@2\.12\.3 build/);
+    assert.match(workflow, /Swatinem\/rust-cache@v2/);
+    assert.match(workflow, /pnpm\/action-setup@v4/);
+    assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);
+    assert.doesNotMatch(workflow, /- run: pnpm build\s*$/m, `${name} should not rebuild the landing app`);
+    assert.match(workflow, /pnpm --filter @notespace\/web build/);
+  }
+  assert.match(desktop, /name: Run native WebDriver parity smoke/);
+  assert.match(beta, /pnpm test:desktop:critical/);
+  assert.match(stable, /Gate release on real MSI upgrade and user-data preservation/);
+  assert.equal((stable.match(/Swatinem\/rust-cache@v2/g) ?? []).length, 2);
+  assert.equal((stable.match(/pnpm\/action-setup@v4/g) ?? []).length, 2);
+});
+
+test("only obsolete PR checks are canceled, never master CI or a release", () => {
+  const basic = readFileSync(new URL("../.github/workflows/verify.yml", import.meta.url), "utf8");
+  const desktop = readFileSync(new URL("../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
+  const beta = readFileSync(new URL("../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
+  for (const workflow of [basic, desktop]) {
+    assert.match(workflow, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
+    assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
+  }
+  assert.match(beta, /cancel-in-progress: false/);
+  assert.match(basic, /name: Run full browser suite\s+if: github\.event_name == 'push'\s+run: pnpm exec playwright test/);
+});

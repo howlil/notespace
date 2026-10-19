@@ -122,25 +122,33 @@ jobs:
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
         run: node scripts/sync-desktop-version.mjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/desktop/src-tauri -> target"
+          shared-key: windows-2022-desktop
+          cache-bin: "false"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Smoke sidecar parent lifecycle
         run: pnpm test:desktop:lifecycle
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --locked
       - name: Test desktop runtime
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked
@@ -172,7 +180,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         shell: pwsh
-        run: cargo tauri build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
+        run: pnpm dlx @tauri-apps/cli@2.12.3 build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
       - name: Install Tauri WebDriver server
         run: cargo install tauri-driver --locked
       - name: Install Microsoft EdgeDriver matching WebView2 Runtime
@@ -329,22 +337,30 @@ jobs:
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
         run: node scripts/sync-desktop-version.mjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/desktop/src-tauri -> target"
+          cache-bin: "false"
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
-      - run: cargo install tauri-cli --locked
       - working-directory: apps/desktop/src-tauri
         run: cargo test --locked
       - working-directory: apps/desktop/src-tauri
-        run: cargo tauri build --no-bundle -- --locked
+        run: pnpm dlx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked

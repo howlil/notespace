@@ -45,3 +45,29 @@ test("critical smoke requests a native close and verifies sidecar exit before re
   assert.match(driver, /if \(critical\) \{[\s\S]*?await closeDesktopWindow\(driver\);[\s\S]*?await waitForLocalServerExit\(\);[\s\S]*?\}\s*await driver.quit/);
   assert.doesNotMatch(driver, /keyDown\(Key\.ALT\)/);
 });
+
+test("Tauri commands for the authenticated loopback UI have explicit least-privilege ACL grants", () => {
+  const build = readFileSync(new URL("../apps/desktop/src-tauri/build.rs", import.meta.url), "utf8");
+  const runtime = readFileSync(new URL("../apps/desktop/src-tauri/src/lib.rs", import.meta.url), "utf8");
+  const local = JSON.parse(readFileSync(new URL("../apps/desktop/src-tauri/capabilities/default.json", import.meta.url), "utf8"));
+  const loopback = JSON.parse(readFileSync(new URL("../apps/desktop/src-tauri/capabilities/loopback.json", import.meta.url), "utf8"));
+
+  const handlers = runtime.match(/\.invoke_handler\(tauri::generate_handler!\[([\s\S]*?)\]\)/)?.[1];
+  const manifest = build.match(/\.commands\(&\[([\s\S]*?)\]\)/)?.[1];
+  assert.ok(handlers && manifest, "Tauri command handler and ACL build manifest must both exist");
+  const registered = handlers.split(",").map(x => x.trim()).filter(Boolean);
+  const declared = [...manifest.matchAll(/"([a-z_]+)"/g)].map(m => m[1]);
+  assert.deepEqual([...declared].sort(), [...registered].sort(), "Every native command must be explicitly governed by ACL");
+
+  assert.equal(loopback.local, false, "Loopback permissions must not be granted to the bundled recovery UI");
+  assert.deepEqual(loopback.windows, ["main"]);
+  assert.deepEqual(loopback.remote.urls, ["http://127.0.0.1:*/*"]);
+  assert.equal(local.remote, undefined, "Startup capability must never grant remote origins");
+  for (const command of registered.filter(x => x !== "desktop_retry_runtime")) {
+    assert.ok(loopback.permissions.includes(`allow-${command.replaceAll("_", "-")}`), `Loopback UI command not permitted: ${command}`);
+  }
+  assert.ok(!loopback.permissions.includes("allow-desktop-retry-runtime"), "Untrusted loopback pages cannot restart the sidecar");
+  assert.ok(!loopback.permissions.some(x => typeof x === "string" && (x.startsWith("shell:") || x.startsWith("fs:"))), "Remote UI must not receive shell or filesystem access");
+  assert.ok(local.permissions.includes("allow-desktop-retry-runtime"), "Bundled recovery UI retains retry action");
+  assert.match(driver, /invoke\("request_desktop_close"\)/);
+});

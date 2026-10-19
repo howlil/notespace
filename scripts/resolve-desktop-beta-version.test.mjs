@@ -36,7 +36,9 @@ test("free beta only runs on explicit dispatch and preserves native/data safety 
   assert.match(wf, /workflow_dispatch:/);
   assert.doesNotMatch(wf, /\bpush:\s*\n\s*branches:/);
   assert.match(wf, /assert-desktop-release-ci\.mjs/);
-  assert.match(wf, /cargo tauri build --config \$overlay -- --locked/);
+  assert.match(wf, /pnpm dlx @tauri-apps\/cli@2\.12\.3 build --config \$overlay -- --locked/);
+  assert.doesNotMatch(wf, /cargo install tauri-cli/);
+  assert.match(wf, /Swatinem\/rust-cache@v2/);
   assert.match(wf, /wix = @\{ version = "0\.1\.\$sequence" \}/);
   assert.match(wf, /MSI numeric patch version exceeds WiX limit/);
   assert.doesNotMatch(wf, /pnpm test:desktop:native/);

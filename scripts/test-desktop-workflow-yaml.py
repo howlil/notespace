@@ -64,7 +64,10 @@ def main():
     assert scripts.count("gh release create") == 1, "Exactly one public prerelease action required"
     assert "gh attestation verify" in scripts, "Provenance verification is required"
     assert "scripts/assert-desktop-release-ci.mjs" in scripts, "Exact-master CI must be green"
-    assert "cargo tauri build --config $overlay -- --locked" in scripts
+    assert "pnpm dlx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked" in scripts
+    assert "cargo install tauri-cli" not in scripts, "Release must not compile Tauri CLI from source"
+    assert "Swatinem/rust-cache@v2" in str(beta["jobs"]["windows-msi-beta"]["steps"])
+    assert "pnpm/action-setup@v4" in str(beta["jobs"]["windows-msi-beta"]["steps"])
     assert "TAURI_SIGNING_PRIVATE_KEY" not in str(beta["jobs"]["windows-msi-beta"].get("env", {}))
     print(f"Validated {len(paths)} GitHub Actions workflows and free beta safety contract")
 

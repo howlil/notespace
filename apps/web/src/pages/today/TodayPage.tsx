@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
+import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
@@ -47,7 +48,7 @@ export function TodayPage({
       />
 
       <main className="min-h-dvh min-w-0 max-[560px]:min-h-0">
-        <header className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
+        <HeaderPlacement className="relative z-30 flex min-h-14 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
           <button
             type="button"
             className="flex min-h-9 w-[min(320px,42vw)] min-w-[190px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-ink/70 transition-colors hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-[560px]:min-h-8 max-[560px]:w-full max-[560px]:min-w-0"
@@ -65,7 +66,7 @@ export function TodayPage({
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px]">
             <ThemeToggle />
           </div>
-        </header>
+        </HeaderPlacement>
 
         <TodayPlanning
           initial={initial}

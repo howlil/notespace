@@ -36,6 +36,11 @@
     "allow-list-desktop-recovery-points",
     "allow-desktop-recovery-diagnostics",
     "allow-list-desktop-manual-backups",
-    "allow-create-desktop-manual-backup"
+    "allow-create-desktop-manual-backup",
+    "allow-activate-desktop-titlebar",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-is-maximized"
   ]
 }

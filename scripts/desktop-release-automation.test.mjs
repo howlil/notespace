@@ -71,7 +71,7 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.match(release, /Publish GitHub Release/);
 });
 
-test("auto desktop beta releases only once after both master verification workflows succeed", () => {
+test("auto desktop beta is first-release only unless master explicitly opts in after green CI", () => {
   const workflow = readFileSync(new URL("../.github/workflows/auto-desktop-beta.yml", import.meta.url), "utf8");
   assert.match(workflow, /workflow_run:/);
   assert.match(workflow, /workflows:\s*\n\s*- Verify\s*\n\s*- Verify Desktop/);
@@ -85,6 +85,11 @@ test("auto desktop beta releases only once after both master verification workfl
   assert.match(workflow, /gh release list.*tagName,isDraft/);
   assert.match(workflow, /gh run list --workflow publish-desktop-beta\.yml/);
   assert.match(workflow, /gh workflow run publish-desktop-beta\.yml --ref master/);
+  assert.match(workflow, /\[desktop-beta\]/);
+  assert.match(workflow, /git\/commits\/\$master_sha/);
+  assert.match(workflow, /headSha,status,conclusion/);
+  assert.match(workflow, /x\.headSha === sha && x\.status === "completed"/);
+  assert.match(workflow, /\$explicit.*!= "true"/);
   assert.doesNotMatch(workflow, /git tag -a|gh release create/);
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
 });

@@ -55,6 +55,8 @@ try {
   driver = await openNativeSession(capabilities);
 
   await waitForDesktopRuntime(driver);
+  // Historical installed MSI used for upgrade seeding predates custom chrome.
+  if (!upgradeSeed) await assertDesktopChrome(driver, false);
   const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
   assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
   const firstUrl = await driver.getCurrentUrl();
@@ -135,6 +137,37 @@ async function openNativeSession(capabilities) {
   }
 }
 
+async function assertDesktopChrome(session, workspace) {
+  // The title bar is activated asynchronously only after the authenticated
+  // React UI mounts. A native smoke must prove that the activation succeeded.
+  await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
+  const result = await session.executeScript(`
+    const chrome = document.querySelector(".desktop-titlebar");
+    const header = chrome?.querySelector(".desktop-placed-header");
+    return {
+      height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
+      controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
+      brand: Boolean(chrome?.querySelector(".desktop-titlebar-brand")),
+      duplicateSidebarBrand: Boolean(document.querySelector('aside a[aria-label="Notespace home"]')),
+      workspaceHeader: Boolean(header?.classList.contains("workspace-header")),
+      guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
+      views: header?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
+    };
+  `);
+  assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
+  assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
+  if (workspace) {
+    assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
+    assert.equal(result.workspaceHeader, true, "Workspace header must be placed in the title bar");
+    assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
+    assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
+  } else {
+    assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
+    assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");
+    assert.equal(result.workspaceHeader, false);
+  }
+}
+
 async function runProductPersistenceJourney(session) {
   const workspaceTitle = `Desktop smoke ${Date.now()}`;
   const initialMarker = `Desktop persistence ${Date.now()}`;
@@ -147,6 +180,7 @@ async function runProductPersistenceJourney(session) {
   await workspaceLink.click();
   await waitForUrl(session, /\/workspaces\//);
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+  if (!upgradeSeed) await assertDesktopChrome(session, true);
   await editor.click();
   await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
   await waitForText(session, "Saving…");

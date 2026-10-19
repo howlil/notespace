@@ -5,6 +5,7 @@ fn main() {
     let attributes = tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "request_desktop_close",
+            "activate_desktop_titlebar",
             "allow_desktop_close",
             "cancel_desktop_close",
             "desktop_updater_enabled",

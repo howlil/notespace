@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../../adapters/browser/desktop-lifecycle";
+import { beginDesktopQuiescence, flushDesktopState, sealDesktopWrites } from "../../adapters/browser/desktop-lifecycle";
 import { createDesktopBackupWith } from "./create-desktop-backup";
 
 type Point = { name: string; path: string; bytes: number };
@@ -16,22 +16,13 @@ function describeError(error: unknown) {
 }
 
 export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
-  const [native, setNative] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [manual, setManual] = useState<Point[]>([]);
   const [migrations, setMigrations] = useState<Point[]>([]);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
 
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    setNative(true);
-    void refresh();
-  }, []);
-
-  if (!native) return null;
-
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       const [backups, recovery, info] = await Promise.all([
         invoke<Point[]>("list_desktop_manual_backups"),
@@ -45,7 +36,11 @@ export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: bo
     } catch (error) {
       setMessage(describeError(error));
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   async function backup() {
     if (busy) return;

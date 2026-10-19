@@ -26,6 +26,7 @@
 .ns-ambient-summary { max-width:715px; margin:21px 0 0; font-size:21px; line-height:1.5; letter-spacing:-.029em; font-weight:400; color:#606576; }
 .ns-ambient-hero-actions { display:flex; flex-wrap:wrap; align-items:center; gap:18px; margin-top:18px; }
 .ns-ambient-hero-actions .ns-arc-button { height:52px; padding-inline:28px; font-size:16px; }
+.ns-ambient-download-note { margin:12px 0 0; font-size:12px; line-height:1.5; letter-spacing:0; color:#6d7380; }
 .ns-ambient-hero-actions .ns-white-primary { min-width:208px; justify-content:space-between; }
 .ns-ambient-hero-actions .ns-arc-button-light { min-width:206px; }
 .ns-white-primary:hover { background:color-mix(in srgb,#101115 83%,#ffffff); }
@@ -59,6 +60,7 @@
   .ns-ambient-line:not(:last-child)::after { content:" "; }
   .ns-ambient-summary { margin-top:20px; font-size:16px; letter-spacing:-.025em; line-height:1.65; max-width:550px; }
   .ns-ambient-hero-actions { margin-top:24px; gap:10px; }
+  .ns-ambient-download-note { margin-top:10px; font-size:11px; }
   .ns-ambient-hero-actions .ns-arc-button { height:47px; padding-inline:18px; font-size:13px; min-width:unset; }
   .ns-ambient-hero-actions .ns-white-primary { gap:15px; }
   .ns-ambient-art { margin-top:28px; aspect-ratio:1 / 1.04; border-radius:12px; }

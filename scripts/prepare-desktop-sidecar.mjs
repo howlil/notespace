@@ -25,11 +25,18 @@ const output = join(
 
 mkdirSync(dirname(output), { recursive: true });
 
-execFileSync(
-  "go",
-  ["-C", "apps/server", "build", "-o", output, "./cmd/notespace"],
-  { cwd: root, stdio: "inherit" },
-);
+// A Windows console-subsystem Go executable may create a terminal when run
+// from Explorer/GUI hosts. Build the bundled *desktop* sidecar as a GUI
+// executable instead; stdout/stderr/stdin are still piped by Tauri for the
+// readiness, backup, and graceful-shutdown protocols. Browser/CLI server
+// builds remain unchanged.
+const goBuildArgs = ["-C", "apps/server", "build"];
+if (process.platform === "win32") {
+  goBuildArgs.push("-ldflags", "-H=windowsgui");
+}
+goBuildArgs.push("-o", output, "./cmd/notespace");
+
+execFileSync("go", goBuildArgs, { cwd: root, stdio: "inherit" });
 
 if (process.platform !== "win32") {
   chmodSync(output, 0o755);

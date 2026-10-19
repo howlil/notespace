@@ -54,7 +54,7 @@ export function beginDesktopQuiescence(): () => void {
   sealed = false;
   const block = (event: Event) => {
     const target = event.target;
-    if (target instanceof Element && target.closest('[aria-label="Notespace updates"],[aria-label="Desktop backup and recovery"]')) return;
+    if (target instanceof Element && target.closest('[aria-label="Notespace updates"],[data-notespace-settings-root]')) return;
     if (event.cancelable) event.preventDefault();
     event.stopImmediatePropagation();
   };

@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { NotespaceLogo } from "../../../pages/_shared/NotespaceLogo";
+import { NotespaceLogo } from "../NotespaceLogo";
 import { WindowControls } from "./WindowControls";
 
 export function DesktopTitleBar({

@@ -11,14 +11,15 @@ const workspace = read("../../pages/workspace/WorkspacePage.tsx");
 const lifecycle = read("../../adapters/browser/desktop-lifecycle.ts");
 
 test("desktop backup is reachable through Settings, not a floating overlay", () => {
-  assert.match(root, /<AppSettings \/>/);
-  assert.doesNotMatch(root, /<DesktopRecoveryTools \/>/);
+  assert.match(root, /<AppSettings renderDesktopRecovery=/);
+  assert.match(root, /<DesktopRecoveryTools onBusyChange=\{onBusyChange\} \/>/);
   assert.match(sidebar, /<SettingsTrigger showLabel/);
   assert.match(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
   assert.match(settings, /Data &amp; backup/);
-  assert.match(settings, /<DesktopRecoveryTools onBusyChange=\{onBusyChange\} \/>/);
+  assert.match(settings, /renderDesktopRecovery\(onBusyChange\)/);
   assert.match(settings, /data-notespace-settings-root/);
+  assert.doesNotMatch(settings, /from "\.\.\/desktop-recovery\//);
   assert.doesNotMatch(backup, /fixed left-4 bottom-4|setExpanded\(/);
 });
 

@@ -16,7 +16,22 @@ import { DesktopRecoveryTools } from "../desktop-recovery/DesktopRecoveryTools";
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
 type SettingsTab = "general" | "data";
 
-export function SettingsTrigger({ className }: { className?: string }) {
+export function SettingsTrigger({ className, showLabel = false }: { className?: string; showLabel?: boolean }) {
+  if (showLabel) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={className}
+        aria-label="Open Notespace settings"
+        onClick={() => window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS))}
+      >
+        <Settings2 size={15} aria-hidden="true" />
+        Settings
+      </Button>
+    );
+  }
   return (
     <IconButton
       type="button"

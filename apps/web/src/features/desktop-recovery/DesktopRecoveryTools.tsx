@@ -15,9 +15,8 @@ function describeError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function DesktopRecoveryTools() {
+export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
   const [native, setNative] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [manual, setManual] = useState<Point[]>([]);
@@ -25,7 +24,9 @@ export function DesktopRecoveryTools() {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
 
   useEffect(() => {
-    setNative(isTauriRuntime());
+    if (!isTauriRuntime()) return;
+    setNative(true);
+    void refresh();
   }, []);
 
   if (!native) return null;
@@ -49,6 +50,7 @@ export function DesktopRecoveryTools() {
   async function backup() {
     if (busy) return;
     setBusy(true);
+    onBusyChange(true);
     setMessage("Saving pending changes before backup…");
     let release: (() => void) | null = null;
     try {
@@ -73,58 +75,57 @@ export function DesktopRecoveryTools() {
     } finally {
       release?.();
       setBusy(false);
+      onBusyChange(false);
     }
   }
 
   return (
-    <>
-      {busy && <div className="fixed inset-0 z-[190] bg-black/10" aria-hidden="true" />}
-      <aside className={`fixed left-4 bottom-4 text-xs ${busy ? "z-[191]" : "z-[99]"}`} aria-label="Desktop backup and recovery">
-      {!expanded ? (
-        <button type="button" className="rounded-full border border-line bg-surface px-3 py-2 text-ink" onClick={() => { setExpanded(true); void refresh(); }}>
-          Backups
+    <section className="mt-5" aria-label="Desktop backup and recovery">
+      <h4 className="font-medium text-ink">Local SQLite snapshots</h4>
+      <p className="mt-1 leading-5 text-muted">
+        Create a verified snapshot of the library stored on this device.
+        Snapshots are saved alongside the database; copy them to another drive
+        to protect against disk failure.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-full bg-ink px-3 py-2 text-surface disabled:opacity-50"
+          disabled={busy}
+          onClick={() => void backup()}
+        >
+          {busy ? "Creating verified backup…" : "Create SQLite backup"}
         </button>
-      ) : (
-        <section className="w-[min(390px,calc(100vw-2rem))] max-h-[min(75vh,620px)] overflow-auto rounded-xl border border-line bg-surface p-4 text-ink shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">Backup &amp; recovery</h2>
-            <button type="button" className="rounded-full border border-line px-3 py-1" onClick={() => setExpanded(false)} disabled={busy}>Close</button>
-          </div>
-          <p className="mt-2 text-muted">
-            Your SQLite library stays on this device. Backups are stored next to it;
-            copy them to a separate drive for protection from disk failure.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-ink px-3 py-2 text-surface disabled:opacity-50" disabled={busy} onClick={() => void backup()}>
-              {busy ? "Creating verified backup…" : "Create backup"}
-            </button>
-            <button type="button" className="rounded-full border border-line px-3 py-2" disabled={busy} onClick={() => void refresh()}>Refresh</button>
-          </div>
-          {message && <p className="mt-3 whitespace-pre-wrap text-muted" role="status">{message}</p>}
-          <h3 className="mt-4 font-medium">Manual SQLite backups ({manual.length})</h3>
-          <div className="mt-1 space-y-2">
-            {manual.length === 0 && <p className="text-muted">No manual backups yet.</p>}
-            {manual.map((point) => <BackupPoint key={point.name} point={point} />)}
-          </div>
-          <h3 className="mt-4 font-medium">Pre-upgrade snapshots ({migrations.length})</h3>
-          <div className="mt-1 space-y-2">
-            {migrations.length === 0 && <p className="text-muted">No schema migration snapshots yet.</p>}
-            {migrations.map((point) => <BackupPoint key={point.name} point={point} />)}
-          </div>
-          <p className="mt-4 text-muted">
-            Restoration is deliberately offline and manual: quit Notespace, preserve the original
-            database and WAL files, and follow the recovery runbook. Nothing is replaced automatically.
-          </p>
-          {diagnostics && (
-            <details className="mt-3 border-t border-line pt-2">
-              <summary className="cursor-pointer">Safe diagnostics</summary>
-              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-muted">{JSON.stringify(diagnostics, null, 2)}</pre>
-            </details>
-          )}
-        </section>
+        <button
+          type="button"
+          className="rounded-full border border-line px-3 py-2 disabled:opacity-50"
+          disabled={busy}
+          onClick={() => void refresh()}
+        >Refresh list</button>
+      </div>
+      {message && <p className="mt-3 whitespace-pre-wrap text-muted" role="status">{message}</p>}
+      <h4 className="mt-5 font-medium text-ink">Manual snapshots ({manual.length})</h4>
+      <div className="mt-2 space-y-2">
+        {manual.length === 0 && <p className="text-muted">No manual SQLite snapshots yet.</p>}
+        {manual.map((point) => <BackupPoint key={point.name} point={point} />)}
+      </div>
+      <h4 className="mt-5 font-medium text-ink">Pre-upgrade snapshots ({migrations.length})</h4>
+      <div className="mt-2 space-y-2">
+        {migrations.length === 0 && <p className="text-muted">No migration snapshots yet.</p>}
+        {migrations.map((point) => <BackupPoint key={point.name} point={point} />)}
+      </div>
+      <p className="mt-4 leading-5 text-muted">
+        SQLite recovery is intentionally manual and offline: quit Notespace,
+        preserve the original database and WAL files, then follow the recovery
+        runbook. Creating a backup never overwrites the live library.
+      </p>
+      {diagnostics && (
+        <details className="mt-3 border-t border-line pt-3">
+          <summary className="cursor-pointer">Safe diagnostics</summary>
+          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-muted">{JSON.stringify(diagnostics, null, 2)}</pre>
+        </details>
       )}
-      </aside>
-    </>
+    </section>
   );
 }
 

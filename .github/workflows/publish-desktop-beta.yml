@@ -94,7 +94,7 @@ jobs:
         run: node scripts/sync-desktop-version.mjs
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
 
       - name: Build unsigned Windows MSI (updater disabled)

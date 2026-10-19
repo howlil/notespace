@@ -156,7 +156,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Validate MSI upgrade PowerShell syntax
         if: runner.os == 'Windows'
@@ -229,7 +229,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-bin: "false"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Parse MSI upgrade PowerShell
         shell: pwsh
@@ -297,7 +297,7 @@ jobs:
           workspaces: "apps/desktop/src-tauri -> target"
           cache-bin: "false"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Native Rust tests on current Windows
         working-directory: apps/desktop/src-tauri

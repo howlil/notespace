@@ -126,15 +126,9 @@ jobs:
         with:
           version: 11.19.0
           run_install: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
-          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
@@ -142,10 +136,6 @@ jobs:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "apps/desktop/src-tauri -> target"
-          cache-bin: "false"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "apps/desktop/src-tauri -> target"
@@ -347,14 +337,24 @@ jobs:
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
         run: node scripts/sync-desktop-version.mjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/desktop/src-tauri -> target"
+          cache-bin: "false"
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
       - run: pnpm install --frozen-lockfile

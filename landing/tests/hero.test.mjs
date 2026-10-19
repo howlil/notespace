@@ -11,7 +11,7 @@ test('approved ambient hero is emitted with truthful self-hosted copy and access
   assert.match(html, /knowledge system\./)
   assert.match(html, /notes, connect ideas visually/)
   assert.match(html, /href="#self-host"/)
-  assert.match(html, /Get Notespace/)
+  assert.match(html, /Download for Windows/)
   assert.match(html, /See how it works/)
   assert.doesNotMatch(html, /Sign in|Join for Free/)
 })
@@ -67,4 +67,18 @@ test('Cloudflare deployment is scoped to Astro landing build', () => {
   assert.ok(root.scripts.build.includes('pnpm --filter @notespace/web build'))
   assert.match(root.scripts.build, /pnpm --dir landing build/)
   assert.equal(landing.scripts.deploy, undefined)
+})
+
+test('desktop download CTAs offer the real published MSI instead of a GitHub navigation', () => {
+  const expected = 'https://github.com/howlil/notespace/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi'
+  const anchors = [...html.matchAll(/<a\b[^>]*\bdata-notespace-windows-download\b[^>]*>/g)]
+  assert.equal(anchors.length, 4, 'header, hero, mobile and bottom CTA must download Windows MSI')
+  for (const match of anchors) {
+    assert.ok(match[0].includes(`href="${expected}"`), 'All CTA links need a known-good direct MSI fallback')
+    assert.doesNotMatch(match[0], /target="_blank"/, 'Installer should download without a stray new browser tab')
+  }
+  assert.match(html, /data-notespace-windows-version/)
+  assert.match(html, /Windows 64-bit/)
+  assert.match(html, /Unsigned installer/)
+  assert.doesNotMatch(html, /href="#self-host"[^>]*>\s*Get Notespace/)
 })

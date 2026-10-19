@@ -47,7 +47,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Verify landing UI and Cloudflare root deployment configuration
-        run: node --test tests/hero.test.mjs tests/workers-root.test.mjs
+        run: node --test tests/hero.test.mjs tests/workers-root.test.mjs tests/windows-release.test.mjs
       - name: Validate static output
         run: |
           node --input-type=module -e '

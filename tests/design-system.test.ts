@@ -14,8 +14,8 @@ function color(block: string | undefined, token: string): string {
   const line = block.split("\n").map((value) => value.trim()).find((value) => value.startsWith(token + ":"));
   assert.ok(line, "Missing " + token);
   const value = line.slice(token.length + 1).trim().replace(/;$/, "");
-  assert.match(value, /^#[0-9a-fA-F]{6}$/, token + " must be an opaque RGB color");
-  return value;
+  assert.match(value, /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, token + " must be an opaque RGB color");
+  return value.length === 4 ? "#" + [...value.slice(1)].map((digit) => digit + digit).join("") : value;
 }
 
 function luminance(hex: string): number {

@@ -16,7 +16,7 @@ const variants: Record<ButtonVariant, string> = {
   primary: "bg-[var(--button)] text-[var(--button-text)] hover:opacity-90",
   secondary: "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:border-[var(--accent)] hover:bg-[var(--tint)]",
   ghost: "bg-transparent text-[var(--muted)] hover:bg-[var(--tint)] hover:text-[var(--ink)]",
-  danger: "bg-[var(--danger)] text-white hover:brightness-95",
+  danger: "bg-[var(--danger)] text-[var(--danger-foreground)] hover:brightness-95",
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -27,7 +27,7 @@ const sizes: Record<ButtonSize, string> = {
 
 function buttonClassName(variant: ButtonVariant, size: ButtonSize, className?: string) {
   return cn(
-    "inline-flex items-center justify-center gap-1.5 border font-medium transition-[color,background-color,border-color,opacity,filter,transform] duration-100 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-wait disabled:opacity-50 disabled:active:scale-100",
+    "inline-flex items-center justify-center gap-1.5 border font-medium transition-[color,background-color,border-color,opacity,filter,transform] duration-100 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
     variants[variant],
     sizes[size],
     variant === "secondary" ? "border" : "border-transparent",

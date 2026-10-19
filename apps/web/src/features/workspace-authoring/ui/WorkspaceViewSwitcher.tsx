@@ -13,7 +13,7 @@ export function WorkspaceViewSwitcher({
   onSelect: (mode: WorkspaceViewMode) => void;
   onPlanSelect: () => void;
 }) {
-  const buttonClass = "relative !size-9 !min-h-9 rounded-[5px] p-0 text-muted";
+  const buttonClass = "relative !size-8 !min-h-8 rounded-md p-0 text-muted";
   const selectedClass = "bg-tint text-accent ring-1 ring-accent/15 hover:bg-tint hover:text-accent";
 
   return (

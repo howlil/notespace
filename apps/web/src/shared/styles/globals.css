@@ -72,7 +72,7 @@
   --surface: #fff;
   --sidebar: #fff;
   --ink: #252630;
-  --muted: #787b8a;
+  --muted: #6b7080;
   --line: #e4e5ec;
   --accent: #3f6d61;
   --tint: #ebf2ee;
@@ -80,7 +80,9 @@
   --button-text: #fff;
   --canvas: #f8f9fc;
   --danger: #b13e4b;
+  --danger-foreground: #ffffff;
   --success: #6f947d;
+  --shadow-popup: 0 12px 32px #0002;
 }
 
 :root[data-theme="dark"] {
@@ -97,6 +99,7 @@
   --button-text: #22232a;
   --canvas: #1d1e24;
   --danger: #ff9aa5;
+  --danger-foreground: #22232a;
   --success: #6f947d;
 }
 
@@ -136,7 +139,7 @@
   }
 
   button { cursor: pointer; }
-  button:disabled { cursor: wait; opacity: 0.5; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
   a { color: inherit; text-decoration: none; }
 
   button:focus-visible,
@@ -149,8 +152,8 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline: 0;
-    box-shadow: none;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
 import {
   Button,
@@ -11,7 +11,6 @@ import {
 import { useTheme } from "../../shared/ui/theme-provider";
 import { exportLibraryBackup } from "../../adapters/http/workspace-api";
 import { isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
-import { DesktopRecoveryTools } from "../desktop-recovery/DesktopRecoveryTools";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
 type SettingsTab = "general" | "data";
@@ -45,7 +44,9 @@ export function SettingsTrigger({ className, showLabel = false }: { className?: 
   );
 }
 
-export function AppSettings() {
+export function AppSettings({ renderDesktopRecovery }: {
+  renderDesktopRecovery: (onBusyChange: (busy: boolean) => void) => ReactNode;
+}) {
   const { dark, toggle } = useTheme();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("general");
@@ -159,7 +160,7 @@ export function AppSettings() {
                   )}
                 </div>
                 {native ? (
-                  <DesktopRecoveryTools onBusyChange={onBusyChange} />
+                  renderDesktopRecovery(onBusyChange)
                 ) : (
                   <p className="mt-4 text-muted">
                     Verified SQLite snapshots are available in the Windows desktop app.

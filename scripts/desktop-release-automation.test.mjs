@@ -125,3 +125,21 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
   assert.match(beta, /cancel-in-progress: false/);
   assert.match(basic, /name: Run full browser suite\s+if: github\.event_name == 'push'\s+run: pnpm exec playwright test/);
 });
+
+test("free beta produces signed Tauri updater artifacts without Azure publisher certificates", () => {
+  const beta = readFileSync(new URL("../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
+  const config = readFileSync(new URL("./prepare-desktop-updater-config.mjs", import.meta.url), "utf8");
+  const manifest = readFileSync(new URL("./create-desktop-beta-manifest.mjs", import.meta.url), "utf8");
+  assert.match(beta, /TAURI_SIGNING_PRIVATE_KEY: \$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
+  assert.match(beta, /NOTESPACE_UPDATER_ENABLED: "1"/);
+  assert.match(beta, /NOTESPACE_UPDATER_CHANNEL: beta/);
+  assert.match(beta, /prepare-desktop-updater-config\.mjs/);
+  assert.match(beta, /create-desktop-beta-manifest\.mjs/);
+  assert.match(beta, /Tauri updater detached MSI signature is missing/);
+  assert.match(beta, /gh release create.*\$env:MSI_SIG_PATH.*\$manifest/);
+  assert.match(beta, /Publish verified beta feed only after immutable GitHub Release exists/);
+  assert.match(beta, /contents\/latest\.json/);
+  assert.doesNotMatch(beta, /AZURE_CLIENT_SECRET|NOTESPACE_AZURE_SIGNING_ENDPOINT|signCommand/);
+  assert.match(config, /desktop-beta-feed\/latest\.json/);
+  assert.match(manifest, /windows-x86_64/);
+});

@@ -153,7 +153,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
             </span>
             {!planOpen && <IconButton type="button" className={iconActionClass} onClick={authoring.toggleActiveMaximize} aria-label={authoring.maximizeLabel} title={authoring.maximizeLabel}><Maximize2 size={24} /></IconButton>}
             {!customChromeActive && <WorkspaceGuide />}
-            <SettingsTrigger className={iconActionClass} />
+            {!customChromeActive && <SettingsTrigger className={iconActionClass} />}
           </div>
         </HeaderPlacement>
 

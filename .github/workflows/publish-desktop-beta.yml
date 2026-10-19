@@ -1,8 +1,8 @@
 name: Publish Desktop Beta (free)
 
-# Public, explicitly unsigned MSI beta. No Azure account, publisher certificate,
-# Tauri updater key, or paid service is required to run this workflow.
-# No automatic installer updater is enabled for beta builds.
+# Authenticode-unsigned Windows beta with FREE, mandatory Tauri updater signatures.
+# No Azure account or paid Windows publisher certificate. Fail closed on missing
+# signing configuration; do not ship updater builds that cannot verify signatures.
 on:
   workflow_dispatch:
 
@@ -64,7 +64,7 @@ jobs:
           node scripts/assert-desktop-release-ci.mjs $checks $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "Master CI gate failed" }
 
-      - name: Select next public unsigned beta version
+      - name: Select next public signed-updater beta version
         id: release
         shell: pwsh
         env:
@@ -87,6 +87,16 @@ jobs:
           "version=$($tag.Substring(1))" >> $env:GITHUB_OUTPUT
           Write-Host "Selected unsigned beta $tag"
 
+      - name: Require Tauri updater signing credentials (no Azure)
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:NOTESPACE_UPDATER_PUBLIC_KEY) {
+            throw "Free beta updater requires TAURI_SIGNING_PRIVATE_KEY secret and NOTESPACE_UPDATER_PUBLIC_KEY Actions variable"
+          }
+
       - name: Synchronize desktop beta version
         shell: pwsh
         env:
@@ -97,27 +107,29 @@ jobs:
       - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
 
-      - name: Build unsigned Windows MSI (updater disabled)
+      - name: Build updater-signed Windows MSI (no Authenticode)
         working-directory: apps/desktop/src-tauri
         shell: pwsh
         env:
           BETA_VERSION: ${{ steps.release.outputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
+          NOTESPACE_UPDATER_CHANNEL: beta
+          NOTESPACE_UPDATER_ENABLED: "1"
         run: |
-          # No Azure credentials, signCommand, updater overlay or private key.
-          if ($env:NOTESPACE_UPDATER_ENABLED -eq '1' -or $env:TAURI_SIGNING_PRIVATE_KEY) {
-            throw "Unsigned beta must never reuse production updater signing inputs"
-          }
+          $ErrorActionPreference = 'Stop'
           $match = [regex]::Match($env:BETA_VERSION, '^0\.1\.0-beta\.([1-9][0-9]*)$')
           if (-not $match.Success) { throw "Invalid desktop beta version" }
           $sequence = [long]::Parse($match.Groups[1].Value)
           if ($sequence -gt 65535) { throw "MSI numeric patch version exceeds WiX limit" }
-          # WiX ProductVersion must rise for each new MSI. App SemVer is
-          # 0.1.0-beta.N, while Windows MSI is numeric 0.1.N.
-          $overlay = Join-Path $env:RUNNER_TEMP 'notespace-free-beta-wix.json'
-          @{ bundle = @{ windows = @{ wix = @{ version = "0.1.$sequence" } } } } |
-            ConvertTo-Json -Depth 10 | Set-Content -Path $overlay
+          # Preserve existing upgrade code. MSI version 0.1.N rises for every beta.
+          $env:NOTESPACE_BETA_WIX_VERSION = "0.1.$sequence"
+          $overlay = Join-Path $env:RUNNER_TEMP 'notespace-signed-beta-updater.json'
+          node ../../../scripts/prepare-desktop-updater-config.mjs $overlay
+          if ($LASTEXITCODE -ne 0) { throw "Cannot prepare signed beta updater configuration" }
           pnpm dlx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked
-          if ($LASTEXITCODE -ne 0) { throw "Tauri MSI build failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Signed-updater beta MSI build failed" }
 
       - name: Reject Windows console-subsystem builds before publishing
         run: >-
@@ -152,7 +164,7 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-      - name: Assert one unsigned MSI and generate SHA-256 checksum
+      - name: Assert one updater-signed, Authenticode-unsigned MSI and generate checksum
         id: installer
         shell: pwsh
         run: |
@@ -164,11 +176,27 @@ jobs:
           if ($signature.Status -ne 'NotSigned') {
             throw "Free beta unexpectedly carries an Authenticode signature; check build policy"
           }
+          $detached = "$($msis[0].FullName).sig"
+          if (-not (Test-Path -LiteralPath $detached)) {
+            throw "Tauri updater detached MSI signature is missing"
+          }
           $hash = (Get-FileHash -LiteralPath $msis[0].FullName -Algorithm SHA256).Hash
           "$hash  $($msis[0].Name)" | Set-Content -Path (Join-Path $bundle 'SHA256SUMS.txt')
           "path=$($msis[0].FullName)" >> $env:GITHUB_OUTPUT
           "name=$($msis[0].Name)" >> $env:GITHUB_OUTPUT
-          Write-Host "Unsigned beta MSI verified, SHA-256: $hash"
+          "signature=$detached" >> $env:GITHUB_OUTPUT
+          Write-Host "Updater-signed, Authenticode-unsigned beta MSI verified, SHA-256: $hash"
+
+      - name: Generate Tauri Windows signed beta update manifest
+        shell: pwsh
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          MSI_PATH: ${{ steps.installer.outputs.path }}
+          MSI_SIG_PATH: ${{ steps.installer.outputs.signature }}
+        run: |
+          $manifest = Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json'
+          node scripts/create-desktop-beta-manifest.mjs "$env:TAG" "$env:MSI_PATH" "$env:MSI_SIG_PATH" "$manifest"
+          if ($LASTEXITCODE -ne 0) { throw "Signed updater manifest validation failed" }
 
       - name: Attest unsigned MSI provenance
         uses: actions/attest@v4
@@ -190,7 +218,9 @@ jobs:
           name: notespace-beta-${{ steps.release.outputs.tag }}
           path: |
             apps/desktop/src-tauri/target/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/release/bundle/**/*.msi.sig
             apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt
+            ${{ runner.temp }}/notespace-beta-latest.json
           if-no-files-found: error
 
       - name: Create beta tag and publish GitHub prerelease
@@ -199,6 +229,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
           MSI_PATH: ${{ steps.installer.outputs.path }}
+          MSI_SIG_PATH: ${{ steps.installer.outputs.signature }}
         run: |
           $ErrorActionPreference = 'Stop'
           # Never tag a commit after master advanced or bypass changed CI.
@@ -218,17 +249,72 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Could not publish beta tag" }
 
           $sum = 'apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt'
+          $manifest = Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json'
           $notes = @'
           UNSIGNED WINDOWS BETA — community testing only.
 
-          No Azure, paid certificate, or Tauri updater signing key is required.
-          This MSI is not Authenticode signed. Windows SmartScreen may warn or
-          block installation. Download ONLY from this official GitHub Release.
-          Automatic updates are disabled in this beta; install later versions manually.
+          No Azure or paid publisher certificate is required.
+          This MSI is NOT Windows Authenticode-signed, so SmartScreen may warn.
+          It IS signed for in-app updates using the Tauri minisign keypair.
+          Beta 2 and older require one manual MSI install to acquire the updater.
+          Later signed betas can be checked and installed within Notespace.
+          Download only from official GitHub Releases.
 
           The installer passed native desktop startup/relaunch, persistence,
           and GitHub build provenance checks. Verify SHA256SUMS.txt if desired.
           '@
-          gh release create "$env:TAG" "$env:MSI_PATH" "$sum" --verify-tag --prerelease --title "Notespace Desktop $env:TAG (unsigned beta)" --notes $notes --repo $env:GITHUB_REPOSITORY
+          gh release create "$env:TAG" "$env:MSI_PATH" "$env:MSI_SIG_PATH" "$manifest" "$sum" --verify-tag --prerelease --title "Notespace Desktop $env:TAG (signed updater, unsigned publisher)" --notes $notes --repo $env:GITHUB_REPOSITORY
           if ($LASTEXITCODE -ne 0) { throw "Could not publish unsigned beta GitHub Release" }
           "Published beta: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:TAG" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Publish verified beta feed only after immutable GitHub Release exists
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = gh release view "$env:TAG" --json assets --repo "$env:GITHUB_REPOSITORY" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Cannot confirm published beta release" }
+          $names = @($release.assets | ForEach-Object { $_.name })
+          $msi = @($names | Where-Object { $_ -like '*.msi' })
+          if ($msi.Count -ne 1 -or
+              -not ($names -contains "$($msi[0]).sig") -or
+              -not ($names -contains 'notespace-beta-latest.json')) {
+            throw "Published MSI, signature and manifest assets must all exist before feed update"
+          }
+
+          # Do not switch checkout branches: MSI version sync left changed files
+          # behind. The Contents API updates only the dedicated feed file.
+          $ref = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/desktop-beta-feed" --jq '.object.sha' 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/refs" -f ref=refs/heads/desktop-beta-feed -f sha="$env:GITHUB_SHA"
+            if ($LASTEXITCODE -ne 0) { throw "Could not initialize dedicated updater feed branch" }
+          }
+
+          $previousSha = gh api "repos/$env:GITHUB_REPOSITORY/contents/latest.json?ref=desktop-beta-feed" --jq '.sha' 2>$null
+          $hasPrevious = $LASTEXITCODE -eq 0
+          if ($hasPrevious) {
+            $priorBase64 = gh api "repos/$env:GITHUB_REPOSITORY/contents/latest.json?ref=desktop-beta-feed" --jq '.content'
+            if ($LASTEXITCODE -ne 0) { throw "Cannot verify existing updater feed" }
+            $priorJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($priorBase64 -join '' -replace '\s', '')))
+            $prior = $priorJson | ConvertFrom-Json
+            $priorVersion = [regex]::Match([string]$prior.version, '^0\.1\.0-beta\.([1-9][0-9]*)$')
+            $nextVersion = [regex]::Match($env:TAG, '^v0\.1\.0-beta\.([1-9][0-9]*)$')
+            if (-not $priorVersion.Success -or -not $nextVersion.Success -or
+                [long]::Parse($priorVersion.Groups[1].Value) -ge [long]::Parse($nextVersion.Groups[1].Value)) {
+              throw "Signed updater feed must move forward to a greater beta version"
+            }
+          }
+          $file = Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json'
+          $payload = @{
+            message = "chore(updater): publish $env:TAG signed beta feed"
+            branch = 'desktop-beta-feed'
+            content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($file))
+          }
+          if ($hasPrevious) { $payload.sha = $previousSha.Trim() }
+          $inputFile = Join-Path $env:RUNNER_TEMP 'notespace-beta-feed-api.json'
+          $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inputFile -Encoding utf8
+          gh api --method PUT "repos/$env:GITHUB_REPOSITORY/contents/latest.json" --input "$inputFile"
+          if ($LASTEXITCODE -ne 0) { throw "GitHub beta updater feed publication failed" }
+          "Beta updater feed: https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/desktop-beta-feed/latest.json" >> $env:GITHUB_STEP_SUMMARY

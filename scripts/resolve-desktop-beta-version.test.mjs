@@ -39,7 +39,7 @@ test("free beta only runs on explicit dispatch and preserves native/data safety 
   assert.match(wf, /pnpm dlx @tauri-apps\/cli@2\.12\.3 build --config \$overlay -- --locked/);
   assert.doesNotMatch(wf, /cargo install tauri-cli/);
   assert.match(wf, /Swatinem\/rust-cache@v2/);
-  assert.match(wf, /wix = @\{ version = "0\.1\.\$sequence" \}/);
+  assert.match(wf, /NOTESPACE_BETA_WIX_VERSION = "0\.1\.\$sequence"/);
   assert.match(wf, /MSI numeric patch version exceeds WiX limit/);
   assert.doesNotMatch(wf, /pnpm test:desktop:native/);
   assert.equal((wf.match(/pnpm test:desktop:critical/g) ?? []).length, 1);
@@ -51,7 +51,10 @@ test("free beta only runs on explicit dispatch and preserves native/data safety 
   assert.match(wf, /Unknown Publisher|SmartScreen/);
   assert.doesNotMatch(wf, /Require Windows publisher signing and Azure credentials/);
   assert.doesNotMatch(wf, /NOTESPACE_AZURE_SIGNING_(ENDPOINT|ACCOUNT|PROFILE)/);
-  assert.doesNotMatch(wf, /secrets\.TAURI_SIGNING_PRIVATE_KEY/);
+  assert.match(wf, /secrets\.TAURI_SIGNING_PRIVATE_KEY/);
+  assert.match(wf, /Tauri updater detached MSI signature is missing/);
+  assert.match(wf, /create-desktop-beta-manifest\.mjs/);
+  assert.match(wf, /Publish verified beta feed only after immutable GitHub Release exists/);
   assert.doesNotMatch(wf, /createUpdaterArtifacts:\s*true/);
   assert.doesNotMatch(wf, /continue-on-error:\s*true/);
 });

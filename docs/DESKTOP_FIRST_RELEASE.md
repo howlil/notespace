@@ -12,57 +12,67 @@
   authored Note persistence, SQLite protection, signing and provenance.
 - GitHub-hosted web and Docker deployments are independent of the Windows MSI.
 
-## Automatic first release (no manual button)
+## Free Windows desktop beta: signed updates, unsigned Windows publisher
 
-The first **unsigned Windows beta** is automatically attempted once the
-**Verify** and **Verify Desktop** workflow runs for the same current
-`master` commit both finish successfully. The controller is
-[`Auto Desktop Beta`](https://github.com/howlil/notespace/actions/workflows/auto-desktop-beta.yml).
-It rejects pull-request builds, stale commits, failed/pending CI, any
-already-published `v0.1.0-beta.N` release, or another in-progress beta run.
-Once eligible, it dispatches the existing
-[`Publish Desktop Beta (free)`](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml),
-which still runs actual native/SQLite verification before public publication.
-The initial beta has **no Azure requirement** and no manual Git tag.
+The first two published betas (`v0.1.0-beta.1`, `beta.2`) were manual-install
+only. Beginning with `v0.1.0-beta.3`, the free beta channel enables **Tauri
+signature-verified in-app updates** without requiring paid Azure Artifact
+Signing or a Windows publisher certificate.
 
-Automation is deliberately **one-shot**: subsequent product updates are not
-published on every merge. A GitHub Release with an actual MSI asset is the
-definition of successful publication. If the installer build fails, inspect
-its failed step and fix/re-run; CI failures must not be bypassed.
+### Key configuration (one-time, repository owner)
 
-## Route A — Free unsigned beta (recommended for first desktop download)
+Generate a Tauri v2 keypair locally (never in CI). In
+**Settings → Secrets and variables → Actions** configure:
 
-**Cost: Rp0 for Azure and certificate signing.** You do **not** need an
-Azure Artifact Signing account, a publisher certificate, a Tauri updater
-private key, or a paid download backend.
+- **Secret** `TAURI_SIGNING_PRIVATE_KEY`: full text of the generated private key
+- **Secret** `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: only when password-protected
+- **Variable** `NOTESPACE_UPDATER_PUBLIC_KEY`: complete Tauri-generated base64 public key
 
-1. Merge changes to `master` and ensure `Verify` and `Verify Desktop`
-   **push** workflow runs are green for the latest master commit.
-2. Open [Actions → Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml).
-3. Choose **Run workflow** on branch `master`. No version input or Git tag
-   creation is required. The first beta is `v0.1.0-beta.1`; subsequent
-   successful prereleases automatically increment the beta number.
-   To make Windows MSI upgrades distinguishable, the workflow sets WiX's
-   numeric installer version to `0.1.N` for beta `v0.1.0-beta.N`.
-   The MSI upgrade code/identity remains unchanged.
-4. GitHub Actions will build an unsigned MSI on Windows, exercise the **real
-   Tauri/WebView2 UI** and product persistence, calculate SHA-256, generate
-   and verify GitHub build provenance, then create a GitHub **prerelease**.
-5. Share https://github.com/howlil/notespace/releases with users.
+Do not paste private keys into chat, commits, issues or logs. Keep a secure
+backup: losing or replacing the signing private key prevents previously
+installed builds from trusting the next update. The public key is pinned
+inside each signed beta installer at build time.
 
-**User-visible warning:** this public beta has no Authenticode publisher
-signature. SmartScreen may warn or block installing it. Download only from
-the official GitHub Releases page and check `SHA256SUMS.txt`. Automatic
-desktop updates are intentionally **disabled** for unsigned beta builds;
-users install each newer beta manually. Do not promote this installer as a
-signed stable release.
+### Publishing an opted-in beta
 
-**Failures are not bypassed:** native Windows test failure, data loss,
-checksum/provenance failure, or stale `master` blocks publishing. A
-successful upload to CI Artifacts alone is **not a public release**.
+1. Merge to `master` and wait for **Verify** and **Verify Desktop** green on
+   that exact push SHA.
+2. On subsequent releases, include `[desktop-beta]` in the squash merge
+   commit subject to opt into Auto Desktop Beta; alternatively manually run
+   [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml)
+   on `master`.
+3. The beta publisher selects the next immutable `v0.1.0-beta.N`, syncs app
+   SemVer and monotonically increasing numeric MSI/WiX version `0.1.N`.
+4. GitHub Actions requires updater signing credentials, builds the Authenticode-
+   unsigned MSI **and detached updater signature**, then performs real Windows
+   WebView2 / SQLite persistence acceptance and provenance verification.
+5. It publishes MSI, `.msi.sig`, `notespace-beta-latest.json` and
+   `SHA256SUMS.txt` in an immutable GitHub prerelease.
+6. Only **after** release assets are verifiably present, the publisher advances
+   `latest.json` on the separate `desktop-beta-feed` branch. This is the
+   HTTPS endpoint pinned into signed beta builds:
+   `https://raw.githubusercontent.com/howlil/notespace/desktop-beta-feed/latest.json`
 
-The future signed stable route below remains available but is **entirely
-optional for publishing the free beta**.
+The Tauri updater validates the signature of the actual MSI bytes, not merely
+the feed JSON. Missing/incorrect signatures abort installation. The app checks
+for updates silently at startup and shows a prompt only when a signed update
+is available. The user may also select **Settings → General → Check for updates**.
+Installation is gated by the existing editor flush and graceful Go sidecar
+shutdown. This is **not** background unattended installation.
+
+Users of `beta.1` and `beta.2` must install `beta.3` manually once because
+those versions have no embedded Tauri updater trust root. Subsequent signed
+betas update in-app.
+
+**No Windows Authenticode publisher identity** means SmartScreen may still
+warn. Download only from official GitHub Releases and verify SHA256SUMS.
+Tauri signatures authenticate updater downloads but do not replace a Windows
+publisher certificate. A green CI build without a published release and feed
+does not constitute complete beta update availability.
+
+**Release safety:** no CI failures, missing signatures, stale master SHA,
+or failed native acceptance may be bypassed for publication. Never overwrite
+a published beta tag, MSI asset, detached signature, or release.
 
 ## Route B — Signed stable with automatic updates (optional)
 

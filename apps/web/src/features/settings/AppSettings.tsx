@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
 import {
   Button,
@@ -51,13 +53,20 @@ export function AppSettings({ renderDesktopRecovery }: {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("general");
   const [native, setNative] = useState(false);
+  const [updaterEnabled, setUpdaterEnabled] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const busyRef = useRef(false);
 
   useEffect(() => {
-    setNative(isTauriRuntime());
+    const nativeRuntime = isTauriRuntime();
+    setNative(nativeRuntime);
+    if (nativeRuntime) {
+      void invoke<boolean>("desktop_updater_enabled")
+        .then(setUpdaterEnabled)
+        .catch(() => setUpdaterEnabled(false));
+    }
     const onOpen = () => {
-      setTab("data");
+      setTab("general");
       setOpen(true);
     };
     window.addEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);
@@ -136,6 +145,18 @@ export function AppSettings({ renderDesktopRecovery }: {
                 <p className="mt-4 text-muted">
                   {native ? "Desktop library data is stored on this device." : "Notespace is running in your browser."}
                 </p>
+                {updaterEnabled && (
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4">
+                    <div>
+                      <p className="font-medium text-ink">Desktop updates</p>
+                      <p className="mt-1 text-muted">Check for signed Notespace updates.</p>
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => {
+                      onChangeOpen(false);
+                      window.dispatchEvent(new Event(REQUEST_DESKTOP_UPDATE_CHECK));
+                    }}>Check for updates</Button>
+                  </div>
+                )}
               </section>
             ) : (
               <section aria-label="Data and backup settings">

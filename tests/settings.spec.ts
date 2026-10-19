@@ -9,6 +9,9 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   // Radix names the dialog from DialogTitle ("Settings"), not the wrapper aria-label.
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await expect(settings).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Appearance" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Use dark theme" })).toBeVisible();
+  await settings.getByRole("button", { name: "Data & backup" }).click();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
   const exportLink = settings.getByRole("link", { name: "Export ZIP" });
   await expect(exportLink).toHaveAttribute("href", "/api/backup");
@@ -16,7 +19,6 @@ test("Settings replaces floating backup with a data and recovery panel", async (
 
   await settings.getByRole("button", { name: "General" }).click();
   await expect(settings.getByRole("heading", { name: "Appearance" })).toBeVisible();
-  await settings.getByRole("button", { name: "Data & backup" }).click();
   await settings.getByRole("button", { name: "Close settings" }).click();
   await expect(settings).toHaveCount(0);
 });

@@ -57,7 +57,7 @@ export function AppSettings({ renderDesktopRecovery }: {
   useEffect(() => {
     setNative(isTauriRuntime());
     const onOpen = () => {
-      setTab("data");
+      setTab("general");
       setOpen(true);
     };
     window.addEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);

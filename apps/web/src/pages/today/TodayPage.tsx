@@ -6,7 +6,6 @@ import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import type { ActivityType } from "../../domain/activity/activity";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
-import { ThemeToggle } from "../../shared/ui/theme-provider";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { ActivityQuickStart } from "../../features/activity/ActivityQuickStart";
@@ -64,7 +63,6 @@ export function TodayPage({
             </kbd>
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px]">
-            <ThemeToggle />
           </div>
         </HeaderPlacement>
 

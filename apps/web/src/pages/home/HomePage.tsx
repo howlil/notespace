@@ -1,7 +1,6 @@
 import { Search } from "lucide-react";
 import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
-import { ThemeToggle } from "../../shared/ui/theme-provider";
 import type { CategorySummary, WorkspacePage, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ActivityDashboard } from "../../features/activity/ActivityDashboard";
@@ -43,7 +42,6 @@ export function HomePage(props: Props) {
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px] [&>button]:text-ink max-[560px]:[&>button]:size-[32px]">
             <WorkspaceGuide />
-            <ThemeToggle />
           </div>
         </HeaderPlacement>
         <div className="mx-auto w-full max-w-[1240px] px-6 pt-5 pb-8 max-[800px]:px-5 max-[800px]:pt-5 max-[800px]:pb-7 max-[560px]:p-4 max-[560px]:pt-4">

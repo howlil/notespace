@@ -6,7 +6,6 @@ import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { InboxProjection } from "../../domain/planning/planning";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { InboxPlanning } from "../../features/planning/InboxPlanning";
-import { ThemeToggle } from "../../shared/ui/theme-provider";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
 
 export function InboxPage({
@@ -47,7 +46,6 @@ export function InboxPage({
             </kbd>
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-1 [&>button]:size-[30px]">
-            <ThemeToggle />
           </div>
         </HeaderPlacement>
 

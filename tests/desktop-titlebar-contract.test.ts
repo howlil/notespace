@@ -38,3 +38,14 @@ test("native window close retains the durability handshake and recovery frame", 
   assert.match(rust, /window\.set_decorations\(false\)/);
   assert.match(rust, /window\.dispatchEvent\(new Event\('notespace:close-requested'\)\)/);
 });
+
+test("Theme controls only exist in Settings; desktop Workspace hides its Settings trigger", () => {
+  for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
+    const content = source(web + "pages/" + page);
+    assert.doesNotMatch(content, /<ThemeToggle/);
+    assert.doesNotMatch(content, /import \\{ ThemeToggle \\}/);
+  }
+  assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \\{dark \\? "light" : "dark"\\} theme/);
+  assert.match(workspace, /!customChromeActive && <SettingsTrigger/);
+  assert.match(workspace, /!customChromeActive && <WorkspaceGuide/);
+});

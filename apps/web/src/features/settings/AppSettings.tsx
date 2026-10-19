@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { REQUEST_DESKTOP_UPDATE_CHECK } from "../desktop-updates/update-events";
+import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
 import {
   Button,

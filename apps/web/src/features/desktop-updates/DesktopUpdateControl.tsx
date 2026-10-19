@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../../adapters/browser/desktop-lifecycle";
 import { installDesktopUpdateWith } from "./install-desktop-update";
-import { REQUEST_DESKTOP_UPDATE_CHECK } from "./update-events";
+import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 
 type PreparedUpdate = { version: string; notes?: string | null };
 type Phase = "idle" | "checking" | "ready" | "saving" | "installing" | "error" | "current";

@@ -134,6 +134,18 @@ jobs:
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/beta-critical-data
         run: pnpm test:desktop:critical
 
+      # An MSI built before acceptance is NOT a release. Preserve only as a
+      # short-lived diagnostic artifact when the actual native product gate
+      # fails; this never publishes a tag or GitHub Release.
+      - name: Retain unverified MSI if native acceptance fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UNVERIFIED-desktop-msi-diagnostics-${{ github.run_id }}
+          path: apps/desktop/src-tauri/target/release/bundle/**/*.msi
+          retention-days: 3
+          if-no-files-found: ignore
+
       - name: Assert one unsigned MSI and generate SHA-256 checksum
         id: installer
         shell: pwsh

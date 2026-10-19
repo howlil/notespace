@@ -9,6 +9,8 @@ const driver = readFileSync(new URL("desktop-webdriver-smoke.mjs", import.meta.u
 test("Windows native WebView2 acceptance runs on compatible image without bypass", () => {
   assert.match(desktop, /check-desktop-windows:\s*#?[^]*?runs-on: windows-2022/);
   assert.match(desktop, /name: Run native WebDriver parity smoke\s+run: pnpm test:desktop:native/);
+  assert.match(desktop, /name: Run critical native close and SQLite relaunch before MSI release[\s\S]*?run: pnpm test:desktop:critical/);
+  assert.match(desktop, /NOTESPACE_DESKTOP_TEST_DATA_DIR:/);
   assert.match(desktop, /name: Install Microsoft EdgeDriver matching WebView2 Runtime/);
   assert.match(desktop, /scripts\/install-webview2-edgedriver\.ps1/);
   assert.doesNotMatch(desktop, /msedgedriver-tool/);
@@ -42,6 +44,14 @@ test("critical smoke requests a native close and verifies sidecar exit before re
   assert.match(runtime, /window\s*\.close\(\)/);
   assert.match(driver, /invoke\("request_desktop_close"\)/);
   assert.match(driver, /getAllWindowHandles\(\)/);
+  assert.match(driver, /isExpectedNativeCloseDisconnect\(error\)/);
+  assert.match(driver, /if \(!isExpectedNativeCloseDisconnect\(error\)\) throw error;\s*await waitForLocalServerExit\(\);/);
+  assert.match(runtime, /fn allow_desktop_close\(app: AppHandle\)[\s\S]*?tauri::async_runtime::spawn_blocking\(move \|\| \{\s*stop_runtime\(&app\);\s*app.exit\(0\);/);
+  // The old sidecar's Terminated event must still signal the shutdown waiter
+  // after the supervisor generation has advanced. Otherwise a normal close
+  // waits 12s and force-kills the child despite a successful Go shutdown.
+  assert.match(runtime, /generation\.load\(Ordering::Acquire\) != generation \{[\s\S]*?matches!\(&event, CommandEvent::Terminated\(_\)\)[\s\S]*?mark_sidecar_exited\(&sidecar_exited\);/);
+  assert.match(runtime, /mark_sidecar_exited\(&sidecar_exited\);\s*if stop_runtime_expected\(app, Some\(generation\)\)/);
   assert.match(driver, /if \(critical\) \{[\s\S]*?await closeDesktopWindow\(driver\);[\s\S]*?await waitForLocalServerExit\(\);[\s\S]*?\}\s*await driver.quit/);
   assert.doesNotMatch(driver, /keyDown\(Key\.ALT\)/);
 });

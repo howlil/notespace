@@ -11,6 +11,8 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/native-close-session.mjs"
+      - "scripts/native-close-session.test.mjs"
       - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/check-desktop-webdriver-policy.test.mjs"
@@ -51,6 +53,8 @@ on:
       - "apps/web/**"
       - "package.json"
       - "scripts/desktop-webdriver-smoke.mjs"
+      - "scripts/native-close-session.mjs"
+      - "scripts/native-close-session.test.mjs"
       - "scripts/diagnose-desktop-webdriver.ps1"
       - "scripts/install-webview2-edgedriver.ps1"
       - "scripts/check-desktop-webdriver-policy.test.mjs"
@@ -129,7 +133,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -213,7 +217,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -265,6 +269,12 @@ jobs:
         run: ./scripts/diagnose-desktop-webdriver.ps1
       - name: Run native WebDriver parity smoke
         run: pnpm test:desktop:native
+      - name: Run critical native close and SQLite relaunch before MSI release
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/debug/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/pr-critical-webview
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/pr-critical-data
+        run: pnpm test:desktop:critical
       - name: Collect native WebDriver environment after failure
         if: failure()
         shell: pwsh

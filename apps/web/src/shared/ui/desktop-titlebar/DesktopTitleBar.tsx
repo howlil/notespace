@@ -1,4 +1,4 @@
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { NotespaceLogo } from "../NotespaceLogo";
 import { WindowControls } from "./WindowControls";
 
@@ -16,7 +16,7 @@ export function DesktopTitleBar({
     <div className={active ? "desktop-titlebar" : "desktop-titlebar desktop-titlebar--inactive"}>
       {!isWorkspace && (
         <div className="desktop-titlebar-brand" data-tauri-drag-region>
-          <NotespaceLogo size="sm" gap="sm" className="desktop-titlebar-brand-label" markClassName="desktop-titlebar-mark" />
+          <Link to="/" aria-label="Notespace home"><NotespaceLogo size="sm" gap="sm" className="desktop-titlebar-brand-label" markClassName="desktop-titlebar-mark" /></Link>
         </div>
       )}
       <div ref={headerHostRef} className="desktop-titlebar-header-slot" data-tauri-drag-region />

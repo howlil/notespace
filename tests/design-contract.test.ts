@@ -8,6 +8,7 @@ const DESIGN = join(ROOT, "DESIGN.md");
 const WEB = join(ROOT, "apps", "web");
 const WEB_SRC = join(WEB, "src");
 const GLOBALS = join(WEB_SRC, "shared", "styles", "globals.css");
+const DESKTOP_TITLEBAR_STYLES = join(WEB_SRC, "shared", "ui", "desktop-titlebar", "desktop-titlebar.css");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
@@ -120,11 +121,13 @@ test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-firs
   assert.doesNotMatch(globals, /@tailwind\s+(base|components|utilities)/); assert.doesNotMatch(globals, /@config\s+/); assert.equal(existsSync(join(WEB, "tailwind.config.ts")), false);
 });
 
-test("frontend styling contract: shared globals and workspace authoring styles keep distinct owners", () => {
+test("frontend styling contract: global, authoring, and desktop chrome CSS have explicit owners", () => {
   const authoringStyles = source(AUTHORING_STYLES);
-  assert.deepEqual(collectFiles(WEB_SRC, [".css"]).sort(), [AUTHORING_STYLES, GLOBALS].sort());
+  assert.deepEqual(collectFiles(WEB_SRC, [".css"]).sort(), [AUTHORING_STYLES, GLOBALS, DESKTOP_TITLEBAR_STYLES].sort());
+  assert.match(source(DESKTOP_TITLEBAR_STYLES), /\.desktop-shell--custom/);
   assert.match(source(ROOT_ROUTE), /import "\.\.\/shared\/styles\/globals\.css";/);
   assert.match(source(ROOT_ROUTE), /import "\.\.\/features\/workspace-authoring\/workspace-authoring\.css";/);
+  assert.match(source(ROOT_ROUTE), /import "\.\.\/shared\/ui\/desktop-titlebar\/desktop-titlebar\.css";/);
   assert.match(authoringStyles, /input\[type="range"\]\[aria-label="Opacity"\][\s\S]*width:\s*62px;[\s\S]*flex:\s*0 0 62px/);
   for (const file of collectFiles(WEB_SRC, [".ts", ".tsx"])) { if (file === ROOT_ROUTE) continue; assert.doesNotMatch(source(file), /import\s+["']\.\.?\/[^"']+\.css["']/, `feature stylesheet import remains in ${file}`); }
   assert.match(source(CANVAS), /import "@excalidraw\/excalidraw\/index\.css";/);

@@ -9,6 +9,7 @@ import { MotionConfig } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import "../shared/styles/globals.css";
 import "../features/workspace-authoring/workspace-authoring.css";
+import "../shared/ui/desktop-titlebar/desktop-titlebar.css";
 import { Button } from "../shared/ui";
 import { ThemeProvider } from "../shared/ui/theme-provider";
 import { ToastProvider } from "../shared/ui/toast-provider";

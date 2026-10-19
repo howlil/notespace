@@ -1,12 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { isTauriRuntime } from "../../../adapters/browser/desktop-lifecycle";
 import { DesktopChromeContext } from "./HeaderPlacement";
 import { DesktopTitleBar } from "./DesktopTitleBar";
-import "./desktop-titlebar.css";
 
 export function DesktopChromeProvider({ children }: { children: ReactNode }) {
-  const desktop = isTauriRuntime();
+  const desktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [headerHost, setHeaderHost] = useState<HTMLElement | null>(null);
   const [customChromeActive, setCustomChromeActive] = useState(false);
 

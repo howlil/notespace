@@ -81,3 +81,18 @@ test("Tauri commands for the authenticated loopback UI have explicit least-privi
   assert.ok(local.permissions.includes("allow-desktop-retry-runtime"), "Bundled recovery UI retains retry action");
   assert.match(driver, /invoke\("request_desktop_close"\)/);
 });
+
+test("Windows MSI release must reject executable console windows before publishing", () => {
+  const main = readFileSync(new URL("../apps/desktop/src-tauri/src/main.rs", import.meta.url), "utf8");
+  const prepare = readFileSync(new URL("prepare-desktop-sidecar.mjs", import.meta.url), "utf8");
+  const beta = readFileSync(new URL("../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
+
+  assert.match(main, /windows_subsystem = "windows"/);
+  assert.match(prepare, /"-H=windowsgui"/);
+  for (const flow of [beta, release]) {
+    assert.match(flow, /node scripts\/assert-windows-pe-subsystem\.mjs\s+apps\/desktop\/src-tauri\/target\/release\/notespace-desktop\.exe\s+apps\/desktop\/src-tauri\/binaries\/notespace-server-x86_64-pc-windows-msvc\.exe/);
+  }
+  assert.match(desktop, /name: Verify Go Windows GUI subsystem/);
+  assert.match(desktop, /scripts\/assert-windows-pe-subsystem\.test\.mjs/);
+  assert.match(desktop, /name: Run critical native close and SQLite relaunch before MSI release/);
+});

@@ -218,7 +218,18 @@ async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), St
     desktop_ops::record(app, "runtime_ready");
 
     while let Some(event) = events.recv().await {
-        if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation { return Ok(()); }
+        if app.state::<RuntimeProcess>().generation.load(Ordering::Acquire) != generation {
+            // stop_runtime_expected() invalidates the old generation BEFORE
+            // requesting a graceful shutdown. The old receiver must still
+            // consume its own Terminated event and wake that child's waiter.
+            // Otherwise every normal close waits 12 seconds and force-kills
+            // an already exited Go/SQLite sidecar.
+            if matches!(&event, CommandEvent::Terminated(_)) {
+                mark_sidecar_exited(&sidecar_exited);
+                return Ok(());
+            }
+            continue; // stale events must never affect the next generation
+        }
         match event {
             CommandEvent::Stderr(bytes) => {
                 eprintln!(
@@ -244,6 +255,9 @@ async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Result<(), St
         }
     }
 
+    // The command channel can also close without a Terminated payload.
+    // There can be no further events from this specific child at this point.
+    mark_sidecar_exited(&sidecar_exited);
     if stop_runtime_expected(app, Some(generation)) {
         show_runtime_failure(app, "Local runtime stopped unexpectedly.");
     }

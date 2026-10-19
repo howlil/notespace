@@ -403,8 +403,14 @@ fn allow_desktop_close(app: AppHandle) -> Result<(), String> {
     app.state::<RuntimeProcess>()
         .close_requested
         .store(false, Ordering::Release);
-    stop_runtime(&app);
-    app.exit(0);
+    // The shutdown handshake has finished flushing client edits. Stopping
+    // the Go/SQLite sidecar may wait for outstanding HTTP connections; never
+    // block Tauri's main WebView/event thread while waiting for its exit event.
+    // Exit only AFTER the child has completed its graceful shutdown attempt.
+    tauri::async_runtime::spawn_blocking(move || {
+        stop_runtime(&app);
+        app.exit(0);
+    });
     Ok(())
 }
 

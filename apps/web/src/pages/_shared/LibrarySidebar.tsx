@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { QuickCapture } from "../../features/capture/QuickCapture";
 import { LibraryTools } from "../../features/library/LibraryTools";
+import { SettingsTrigger } from "../../features/settings/AppSettings";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
@@ -161,6 +162,9 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
           );
         })}
       </nav>
+      <div className="mt-auto shrink-0 border-t border-line pt-2">
+        <SettingsTrigger showLabel className="w-full justify-start gap-2 px-2 text-[11px]" />
+      </div>
     </aside>
     <ConfirmDialog open={!!deleting} title={deleting?.kind === "category" ? "Delete this category?" : "Delete this workspace?"} description={deleting ? `“${deleting.item.title}” will be removed.` : ""} confirmLabel="Delete" onOpenChange={(open) => { if (!open) setDeleting(null); }} onConfirm={() => void confirmDelete()} />
   </>;

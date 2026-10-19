@@ -269,6 +269,12 @@ jobs:
         run: ./scripts/diagnose-desktop-webdriver.ps1
       - name: Run native WebDriver parity smoke
         run: pnpm test:desktop:native
+      - name: Run critical native close and SQLite relaunch before MSI release
+        env:
+          TAURI_APP_BINARY: apps/desktop/src-tauri/target/debug/notespace-desktop.exe
+          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/pr-critical-webview
+          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/pr-critical-data
+        run: pnpm test:desktop:critical
       - name: Collect native WebDriver environment after failure
         if: failure()
         shell: pwsh

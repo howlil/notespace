@@ -7,6 +7,7 @@ import '../styles/white-hero.css'
 
 const repoUrl = 'https://github.com/howlil/notespace'
 const docsUrl = `${repoUrl}#self-host-with-docker`
+const windowsMsiUrl = `${repoUrl}/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi`
 const description = 'Own your thinking. Write notes, connect ideas visually, and turn insights into plans in one self-hosted workspace.'
 ---
 
@@ -27,13 +28,14 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
         </nav>
         <div class="ns-ambient-header-actions">
           <a class="ns-arc-button ns-arc-button-light ns-ambient-docs-action" href={docsUrl} target="_blank" rel="noopener noreferrer">Documentation</a>
-          <a class="ns-arc-button ns-arc-button-dark ns-ambient-get-action" href="#self-host">Get Notespace</a>
+          <a class="ns-arc-button ns-arc-button-dark ns-ambient-get-action" href={windowsMsiUrl} data-notespace-windows-download aria-label="Download Notespace for Windows 64-bit">Download for Windows</a>
           <button class="ns-ambient-menu-trigger" type="button" aria-label="Toggle navigation" aria-controls="notespace-mobile-navigation" aria-expanded="false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
           </button>
         </div>
       </header>
       <nav class="ns-ambient-mobile-nav" id="notespace-mobile-navigation" aria-label="Mobile navigation" data-open="false">
+        <a href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
         <a href="#product">Product</a>
         <a href="#workflow">Workflow</a>
         <a href="#self-host">Self-Host</a>
@@ -50,14 +52,15 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
             <span class="ns-ambient-line">Shape ideas. Build a calmer</span>
             <span class="ns-ambient-line">knowledge system.</span>
           </h1>
-          <p class="ns-ambient-summary">Notespace helps you write notes, connect ideas visually, and turn insights into plans in one self-hosted workspace.</p>
+          <p class="ns-ambient-summary">Notespace helps you write notes, connect ideas visually, and turn insights into plans. Download the Windows desktop app and keep your work on your computer.</p>
           <div class="ns-ambient-hero-actions">
-            <a class="ns-arc-button ns-arc-button-dark ns-white-primary" href="#self-host">
-              Get Notespace
+            <a class="ns-arc-button ns-arc-button-dark ns-white-primary" href={windowsMsiUrl} data-notespace-windows-download aria-label="Download Notespace Windows beta MSI installer">
+              Download for Windows
               <svg class="ns-ambient-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16m-7-7 7 7-7 7" /></svg>
             </a>
             <a class="ns-arc-button ns-arc-button-light" href="#workflow"><span class="ns-ambient-play" aria-hidden="true"></span>See how it works</a>
           </div>
+          <p class="ns-ambient-download-note">Free beta · Windows 64-bit · <span data-notespace-windows-version>v0.1.0-beta.1</span> · Unsigned installer</p>
         </section>
         <a class="ns-ambient-art" href="#workflow" aria-label="Explore how Notespace connects notes, canvas, and plans">
           <img src="/notespace-ambient-hero.webp" alt="A writer working under a tree overlooking a mountain valley, with notes visually connected across the landscape" width="1349" height="506" decoding="async" fetchpriority="high" />
@@ -165,7 +168,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
             <p class="text-[20px] font-semibold tracking-[-0.035em]">A smaller surface for deeper work.</p>
             <p class="mt-1 text-[12px] text-muted">No hosted account required for the core workspace.</p>
           </div>
-          <a class="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-ink px-4 text-[12px] font-medium text-background transition-opacity hover:opacity-90" href={repoUrl} target="_blank" rel="noreferrer">Explore Notespace on GitHub <span aria-hidden="true">↗</span></a>
+          <a class="inline-flex h-10 w-fit items-center gap-2 rounded-full bg-ink px-5 text-[12px] font-medium text-background transition-opacity hover:opacity-90" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows <span aria-hidden="true">↓</span></a>
         </div>
       </section>
     </main>
@@ -177,6 +180,33 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
       </div>
     </footer>
 
+    <script>
+      import { latestWindowsInstaller } from '../lib/windows-release.mjs';
+
+      // Progressive enhancement: the HTML already points at a verified,
+      // published MSI. If GitHub is unavailable or rate-limits a visitor,
+      // downloading still works without JavaScript or an API token.
+      async function refreshWindowsDownload() {
+        try {
+          const response = await fetch(
+            'https://api.github.com/repos/howlil/notespace/releases?per_page=30',
+            { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(3500) },
+          );
+          if (!response.ok) return;
+          const installer = latestWindowsInstaller(await response.json());
+          if (!installer) return;
+          document.querySelectorAll('a[data-notespace-windows-download]').forEach(link => {
+            link.setAttribute('href', installer.url);
+          });
+          document.querySelectorAll('[data-notespace-windows-version]').forEach(label => {
+            label.textContent = `v${installer.version}`;
+          });
+        } catch {
+          // No error UI: keep the static known-good installer link intact.
+        }
+      }
+      void refreshWindowsDownload();
+    </script>
     <script is:inline>
       const trigger = document.querySelector('.ns-ambient-menu-trigger');
       const mobileMenu = document.getElementById('notespace-mobile-navigation');

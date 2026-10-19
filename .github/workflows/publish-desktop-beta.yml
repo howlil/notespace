@@ -284,21 +284,37 @@ jobs:
             throw "Published MSI, signature and manifest assets must all exist before feed update"
           }
 
-          # A dedicated non-master branch is served publicly over HTTPS by GitHub.
-          # Its only mutable pointer is latest.json; release MSI and .sig are immutable.
-          $fetched = git fetch origin refs/heads/desktop-beta-feed
-          if ($LASTEXITCODE -eq 0) {
-            git checkout -B desktop-beta-feed FETCH_HEAD
-          } else {
-            git checkout -b desktop-beta-feed
+          # Do not switch checkout branches: MSI version sync left changed files
+          # behind. The Contents API updates only the dedicated feed file.
+          $ref = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/desktop-beta-feed" --jq '.object.sha' 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/refs" -f ref=refs/heads/desktop-beta-feed -f sha="$env:GITHUB_SHA"
+            if ($LASTEXITCODE -ne 0) { throw "Could not initialize dedicated updater feed branch" }
           }
-          if ($LASTEXITCODE -ne 0) { throw "Unable to prepare desktop beta feed branch" }
-          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json') -Destination latest.json -Force
-          git add -- latest.json
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "chore(updater): publish $env:TAG signed beta feed"
-          if ($LASTEXITCODE -ne 0) { throw "Feed must move to a newer published signed release" }
-          git push origin HEAD:refs/heads/desktop-beta-feed
-          if ($LASTEXITCODE -ne 0) { throw "GitHub beta update feed publication failed" }
+
+          $previousSha = gh api "repos/$env:GITHUB_REPOSITORY/contents/latest.json?ref=desktop-beta-feed" --jq '.sha' 2>$null
+          $hasPrevious = $LASTEXITCODE -eq 0
+          if ($hasPrevious) {
+            $priorBase64 = gh api "repos/$env:GITHUB_REPOSITORY/contents/latest.json?ref=desktop-beta-feed" --jq '.content'
+            if ($LASTEXITCODE -ne 0) { throw "Cannot verify existing updater feed" }
+            $priorJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($priorBase64 -join '' -replace '\s', '')))
+            $prior = $priorJson | ConvertFrom-Json
+            $priorVersion = [regex]::Match([string]$prior.version, '^0\.1\.0-beta\.([1-9][0-9]*)$')
+            $nextVersion = [regex]::Match($env:TAG, '^v0\.1\.0-beta\.([1-9][0-9]*)$')
+            if (-not $priorVersion.Success -or -not $nextVersion.Success -or
+                [long]::Parse($priorVersion.Groups[1].Value) -ge [long]::Parse($nextVersion.Groups[1].Value)) {
+              throw "Signed updater feed must move forward to a greater beta version"
+            }
+          }
+          $file = Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json'
+          $payload = @{
+            message = "chore(updater): publish $env:TAG signed beta feed"
+            branch = 'desktop-beta-feed'
+            content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($file))
+          }
+          if ($hasPrevious) { $payload.sha = $previousSha.Trim() }
+          $inputFile = Join-Path $env:RUNNER_TEMP 'notespace-beta-feed-api.json'
+          $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $inputFile -Encoding utf8
+          gh api --method PUT "repos/$env:GITHUB_REPOSITORY/contents/latest.json" --input "$inputFile"
+          if ($LASTEXITCODE -ne 0) { throw "GitHub beta updater feed publication failed" }
           "Beta updater feed: https://raw.githubusercontent.com/$env:GITHUB_REPOSITORY/desktop-beta-feed/latest.json" >> $env:GITHUB_STEP_SUMMARY

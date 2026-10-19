@@ -39,6 +39,8 @@ on:
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/assert-windows-pe-subsystem.mjs"
+      - "scripts/assert-windows-pe-subsystem.test.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
@@ -81,6 +83,8 @@ on:
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/assert-windows-pe-subsystem.mjs"
+      - "scripts/assert-windows-pe-subsystem.test.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
       - "scripts/smoke-desktop-runtime.mjs"
       - "Taskfile.yml"
@@ -133,7 +137,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs scripts/assert-windows-pe-subsystem.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -217,7 +221,7 @@ jobs:
           node --check scripts/resolve-desktop-beta-version.mjs
           node --test scripts/resolve-desktop-beta-version.test.mjs
       - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs
+        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs scripts/assert-windows-pe-subsystem.test.mjs
       - name: Verify signed updater manifest contract
         run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
       - name: Syntax-check updater release scripts
@@ -235,6 +239,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Verify Go Windows GUI subsystem (no console window)
+        run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
       - name: Parse MSI upgrade PowerShell
         shell: pwsh
         run: |
@@ -309,6 +315,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: node scripts/prepare-desktop-sidecar.mjs
+      - name: Verify Go Windows GUI subsystem (no console window)
+        run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
       - name: Native Rust tests on current Windows
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked

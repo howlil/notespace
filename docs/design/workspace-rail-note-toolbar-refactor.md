@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1–M3 implemented and verified by CI (2026-10-21). M4–M5 pending.
+Status: APPROVED DESIGN; M1–M3 verified; M4 Navigate implementation committed, CI pending (2026-10-21). M5 pending.
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -112,3 +112,11 @@ Never claim a gate passed if it was not run. Record issues and exact follow-up a
 - [Verify Desktop run #39500735011](https://github.com/howlil/notespace/actions/runs/39500735011) **success**, including Linux, Windows and Windows-latest jobs; Windows native WebDriver parity/runtime/close smoke.
 - Full browser suite was **skipped** by workflow configuration. Comprehensive screenshot/keyboard/a11y audit is still M5; it is not falsely recorded as executed.
 - **M3 complete. Next M4** on same branch: unify Find/Outline into one popover, remove permanent Code Block header action, and keep Pane Actions layout-only with Tiptap Find & Replace semantics. Do not rewrite editor domain or add duplicate menus.
+
+## M4 implementation handoff (2026-10-21)
+- Exactly one 28px **Navigate note** Search trigger per Note header, via existing Tiptap toolbar portal. The former permanent Code Block and individual Find/Outline buttons are removed; contextual selection Code Block and /code slash remain.
+- One `navigateOpen` state and one anchored border-only popover in DocumentEditor, Outline by default from heading block IDs, search results when query is nonempty, existing Tiptap FindAndReplace commands for previous/next, match-case, replace and replace-all. No secondary search persistence/engine.
+- Escape, outside pointer, Close, and heading navigation close the panel (Escape restores trigger focus); opening the Navigate popover closes Note selector and pane-action details. Search highlights are cleared on dismissal. Per-pane max width and height are constrained to avoid mobile/split overflow.
+- Pane Actions retains only Split right/down and Close pane as of M3; no Delete. Popup ownership is unique.
+- `tests/workspace/navigate.spec.ts` verifies heading jump, Ctrl/Cmd+F, replace all, match case, result navigation, keyboard close/restore, menu ownership and 390px split containment. M5 carries cross-platform screenshot and keyboard a11y audit.
+- CI must be verified before marking M4 complete.

@@ -331,13 +331,13 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
               <span className="max-w-[190px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[110px]">{note?.title ?? "Untitled"}</span>
               <ChevronDown size={13} aria-hidden="true" className="shrink-0 text-muted" />
             </summary>
-            <div className={cn(popupClass, "top-8 right-auto left-0 w-[260px] min-w-[180px]")} role="listbox" aria-label="Notes in this workspace">
+            <div className={cn(popupClass, "top-8 right-auto left-0 w-[260px] min-w-[180px]")} role="list" aria-label="Notes in this workspace">
               <span className="px-2 py-1 text-[9px] font-semibold tracking-wide text-muted">NOTES IN WORKSPACE</span>
               {current.current.notes.map((item) => (
-                <div key={item.id} className={cn("flex min-h-[36px] min-w-0 items-center gap-1 rounded-md px-1", item.id === pane.noteId ? "bg-tint" : "hover:bg-tint")}>
+                <div key={item.id} role="listitem" className={cn("flex min-h-[36px] min-w-0 items-center gap-1 rounded-md px-1", item.id === pane.noteId ? "bg-tint" : "hover:bg-tint")}>
                   <Button variant="ghost" size="sm"
                     className={cn("!min-h-0 min-w-0 flex-1 justify-start overflow-hidden rounded-md px-2 py-1.5 text-left text-[11px]", item.id === pane.noteId ? "font-semibold text-accent" : "text-ink")}
-                    role="option" aria-selected={item.id === pane.noteId}
+                    aria-current={item.id === pane.noteId ? "true" : undefined} aria-label={`Open note ${item.title}`}
                     onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); switchPaneNote(pane.id, item.id); }}>
                     <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{item.title}</span>
                   </Button>

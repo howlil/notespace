@@ -35,8 +35,9 @@ test("M3 Note picker has one create control, inline rename, and a trash action p
     await expect(picker.locator("summary")).toContainText("Practice Notes");
 
     await picker.locator("summary").click();
-    const list = pane.getByRole("listbox", { name: "Notes in this workspace" });
-    await expect(list.getByRole("option")).toHaveCount(2);
+    const list = pane.getByRole("list", { name: "Notes in this workspace" });
+    await expect(list.getByRole("listitem")).toHaveCount(2);
+    await expect(list.getByRole("button", { name: "Open note Practice Notes" })).toHaveAttribute("aria-current", "true");
     await expect(list.getByRole("button", { name: "New note" })).toHaveCount(0);
     await expect(list.getByText("Rename note", { exact: true })).toHaveCount(0);
     await expect(list.getByRole("button", { name: "Delete note Original Note" })).toBeVisible();
@@ -48,7 +49,7 @@ test("M3 Note picker has one create control, inline rename, and a trash action p
     await page.getByRole("dialog").getByRole("button", { name: "Delete note", exact: true }).click();
     await expect(picker.locator("summary")).toContainText("Practice Notes");
     await picker.locator("summary").click();
-    await expect(pane.getByRole("listbox", { name: "Notes in this workspace" }).getByRole("option")).toHaveCount(1);
+    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(1);
     await expect(pane.getByRole("button", { name: "Delete note Practice Notes" })).toBeDisabled();
 
     await expect(pane.locator("details.pane-actions")).not.toContainText("Delete note");
@@ -88,7 +89,7 @@ test("M3 failed deletion keeps the target Note and the active editor unchanged",
     await page.getByRole("dialog").getByRole("button", { name: "Keep note" }).click();
     await expect(picker.locator("summary")).toContainText("Keep this Note");
     await picker.locator("summary").click();
-    await expect(pane.getByRole("listbox", { name: "Notes in this workspace" }).getByRole("option")).toHaveCount(2);
+    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(2);
   } finally {
     await page.unroute(`**/api/workspaces/${id}/notes/*`);
     await cleanupWorkspace(request, id);

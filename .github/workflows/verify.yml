@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -38,7 +38,8 @@ jobs:
         if: github.event_name == 'pull_request'
         run: pnpm test:e2e:critical
       - name: Run full browser suite
-        if: github.event_name == 'push'
+        # M5: every PR must run the complete suite, not only @critical journeys.
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4
         if: always()

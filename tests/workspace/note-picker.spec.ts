@@ -16,6 +16,14 @@ test("M3 Note picker has one create control, inline rename, and a trash action p
     await inline.press("Enter");
     await expect(picker.locator("summary")).toContainText("Original Note");
 
+    // Escape must cancel the draft, not invoke rename again through blur.
+    await picker.locator("summary").focus();
+    await page.keyboard.press("F2");
+    await pane.getByRole("textbox", { name: "Note title" }).fill("Discarded Name");
+    await page.keyboard.press("Escape");
+    await expect(picker.locator("summary")).toContainText("Original Note");
+    await expect(picker.locator("summary")).not.toContainText("Discarded Name");
+
     // New Note is outside the picker and remains accessible in inline-rename mode.
     await expect(pane.getByRole("button", { name: "New note" })).toHaveCount(1);
     await pane.getByRole("button", { name: "New note" }).click();

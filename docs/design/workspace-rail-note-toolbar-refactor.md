@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1 passed CI (PR #137); M2 desktop-shell refactor in progress (2026-10-21).
+Status: APPROVED DESIGN; M1 and M2 implemented and passed CI (PR #137; 2026-10-21). M3–M5 pending.
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -85,3 +85,13 @@ Never claim a gate passed if it was not run. Record issues and exact follow-up a
 - Focus uses existing `workspace-main.is-focus-mode` and CSS `:has` to collapse the 40px desktop rail column to zero; restoring Focus restores rail width without duplicating state.
 - Existing `WindowControls` uses `request_desktop_close` for graceful-close durability. Titlebar drag host `data-tauri-drag-region` stays interactive only on the non-button area; no window-control logic changed.
 - M2 acceptance: rail x=0,y=0,w=40,h=window.innerHeight; desktop titlebar x=40,y=0,h=38 with 3 native controls; Note pane starts x=40 and y=38; true view-center in rail; no extra headers or Saved/Java label; focus collapses rail gutter; pages other than Workspace unchanged; native fallback retains in-page navigation.
+
+## M2 verified code review and CI handoff (2026-10-21)
+- Runtime commit: `2f43a26f44dce865de46c15572f93081f52e8ab0`. Branch: `refactor/workspace-rail-note-toolbar`. Draft PR: #137.
+- `$design-thinking`: Preserve existing single state owner and state transitions. No changes to `useWorkspacePaneLayout`, editor commands, persistence, Activity runtime or Rust close/flush.
+- `$design-graph`: Web uses inline rail. Tauri custom chrome uses one portaled React rail in a 40px full-height shell column and an adjacent 38px titlebar. Tauri native fallback uses inline rail; Library/Inbox/Today keep old chrome; Focus collapses rail gutter and Restore restores layout. No duplicate view switcher or titlebar controls.
+- `$code-review` delta: provider owns only DOM host and route-based shell composition; page owns all business-state and rail commands; context is a DOM-placement adapter, not a second state machine. React Outlet stays under stable shell parent. Native window controls remain in `WindowControls.tsx` and graceful close invokes `request_desktop_close` unchanged. Legacy Workspace titlebar CSS removed. No actionable code findings remained after native verification.
+- **GitHub Verify** run [39494095474](https://github.com/howlil/notespace/actions/runs/39494095474): **success** (TypeScript, lint, unit/contract tests, critical Playwright journeys, Go/server gates, Compose persistence restart smoke). Full browser suite was skipped by workflow configuration (not claimed as run).
+- **Verify Desktop** run [39494095529](https://github.com/howlil/notespace/actions/runs/39494095529): **success** in all three jobs (Linux, Windows, Windows-latest), including Windows native WebDriver geometry and Focus/Restore smoke and desktop lifecycle.
+- Desktop smoke asserts exact rail x=0,y=0,width=40,height=innerHeight, titlebar x=40,height=38, page x=40,y=38; editor Focus x=0 and restored x=40. Library stays outside Workspace-specific grid.
+- M2 complete. **Next M3** on this same branch: Note header (34px) and picker ownership refactor: + always next to title, rename inline only, trash on every list item with exact target ID and last-note/dirty data protections. Do not implement M4 Navigate until M3 passes review and tests.

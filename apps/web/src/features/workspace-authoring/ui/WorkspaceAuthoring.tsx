@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useBlocker } from "@tanstack/react-router";
-import { ChevronDown, ExternalLink, FileText, Highlighter, MoreHorizontal, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ExternalLink, Highlighter, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Skeleton, cn } from "../../../shared/ui";
 import { useExclusivePopup } from "../../../shared/ui/dismissable";
 import { useTheme } from "../../../shared/ui/theme-provider";
@@ -124,6 +124,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     activeViewMode,
     splitPane,
     switchPaneNote,
+    reconcileDeletedNote,
     closePane,
     selectView,
     activateNote,
@@ -210,7 +211,9 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
   }, [layout, updateNoteDocument]);
   async function createNote(paneId: string) {
     const note = await commands.createNote();
-    if (note) switchPaneNote(paneId, note.id);
+    if (!note) return;
+    switchPaneNote(paneId, note.id);
+    beginRenameNote({ id: paneId, kind: "note", noteId: note.id }, note.id);
   }
   function beginRenameNote(pane: Pane, noteId = pane.noteId) {
     if (!noteId) return;
@@ -256,13 +259,21 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     commands.renameNote(noteId, value);
     setRenamingNote(null);
   }
+  const [deletePending, setDeletePending] = useState(false);
   async function removeNote() {
-    if (!deletingNote || current.current.notes.length <= 1) return;
-    const result = await commands.deleteNote(deletingNote.id);
-    if (!result) return;
-    const target = leaves(layout).find((pane) => pane.noteId === result.deletedId);
-    if (target) switchPaneNote(target.id, result.replacementId);
-    setDeletingNote(null);
+    if (!deletingNote || deletePending || current.current.notes.length <= 1) return;
+    setDeletePending(true);
+    try {
+      await flushAll(); // Persist pending editor snapshots before destructive actions.
+      const result = await commands.deleteNote(deletingNote.id);
+      if (!result) return;
+      reconcileDeletedNote(result.deletedId, current.current.notes.map((note) => note.id));
+      setDeletingNote(null);
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not save changes before deleting note." });
+    } finally {
+      setDeletePending(false);
+    }
   }
   function openNoteFromCanvas(noteId: string) {
     if (!activateNote(noteId)) {
@@ -296,37 +307,52 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     const paneCapacityTitle = interaction.paneLimitReached ? "Maximum 4 panes per workspace." : undefined;
     const noUnusedNoteTitle = !interaction.hasUnopenedNote ? "Create another note before opening another note pane." : undefined;
     const noteHeader = pane.kind === "note" && (
-      renamingNote?.paneId === pane.id ? (
-        <Input ref={noteRenameInput} className="min-h-0 w-[45%] min-w-0 rounded-none border-0 bg-transparent px-0 py-1 text-[10px]" aria-label="Note title" value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} onBlur={() => commitRenameNote(pane)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameNote(pane); if (event.key === "Escape") setRenamingNote(null); }} />
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-1">
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        {renamingNote?.paneId === pane.id ? (
+          <Input ref={noteRenameInput} aria-label="Note title"
+            className="!min-h-0 h-7 min-w-[60px] max-w-[210px] flex-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px]"
+            value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)}
+            onBlur={() => commitRenameNote(pane)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") { event.preventDefault(); commitRenameNote(pane); }
+              if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setRenamingNote(null); }
+            }}
+          />
+        ) : (
           <details className="pane-note-switcher relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1.5 text-[10px] text-ink" onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}><FileText size={14} /><span className="max-w-[25vw] overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[62vw]">{note?.title ?? "Untitled"}</span><ChevronDown size={13} /></summary>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onSelect={() => beginRenameNote(pane)}><Pencil size={13} /> Rename note</ContextMenuItem>
-                <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => { if (note) setDeletingNote(note); }}><Trash2 size={13} /> Delete note</ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-            <div className={cn(popupClass, "top-7 right-auto left-0")} role="listbox" aria-label="Notes in this workspace">
-              {current.current.notes.map((item) => <ContextMenu key={item.id}>
-                <ContextMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} role="option" aria-selected={item.id === pane.noteId} onClick={() => switchPaneNote(pane.id, item.id)} onDoubleClick={(event) => { event.preventDefault(); switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}>{item.title}</Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onSelect={() => switchPaneNote(pane.id, item.id)}><MoveRight size={13} /> Move to this pane</ContextMenuItem>
-                  <ContextMenuItem onSelect={() => { switchPaneNote(pane.id, item.id); beginRenameNote(pane, item.id); }}><Pencil size={13} /> Rename note</ContextMenuItem>
-                  <ContextMenuItem disabled={current.current.notes.length <= 1} onSelect={() => setDeletingNote(item)}><Trash2 size={13} /> Delete note</ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>)}
+            <summary className="flex h-7 min-w-0 cursor-pointer list-none items-center gap-1 rounded-md px-1 text-[11px] font-semibold text-ink hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
+              aria-label="Choose note" title="Switch note; double-click or F2 to rename"
+              onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}
+              onKeyDown={(event) => { if (event.key === "F2") { event.preventDefault(); beginRenameNote(pane); } }}>
+              <span className="max-w-[190px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[110px]">{note?.title ?? "Untitled"}</span>
+              <ChevronDown size={13} aria-hidden="true" className="shrink-0 text-muted" />
+            </summary>
+            <div className={cn(popupClass, "top-8 right-auto left-0 w-[260px] min-w-[180px]")} role="listbox" aria-label="Notes in this workspace">
+              <span className="px-2 py-1 text-[9px] font-semibold tracking-wide text-muted">NOTES IN WORKSPACE</span>
+              {current.current.notes.map((item) => (
+                <div key={item.id} className={cn("flex min-h-[36px] min-w-0 items-center gap-1 rounded-md px-1", item.id === pane.noteId ? "bg-tint" : "hover:bg-tint")}>
+                  <Button variant="ghost" size="sm"
+                    className={cn("!min-h-0 min-w-0 flex-1 justify-start overflow-hidden rounded-md px-2 py-1.5 text-left text-[11px]", item.id === pane.noteId ? "font-semibold text-accent" : "text-ink")}
+                    role="option" aria-selected={item.id === pane.noteId}
+                    onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); switchPaneNote(pane.id, item.id); }}>
+                    <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{item.title}</span>
+                  </Button>
+                  <IconButton type="button"
+                    className="!size-7 shrink-0 rounded-md text-muted hover:bg-danger/10 hover:text-danger focus-visible:bg-danger/10 focus-visible:text-danger"
+                    aria-label={`Delete note ${item.title}`}
+                    title={current.current.notes.length <= 1 ? "At least one note is required" : `Delete ${item.title}`}
+                    disabled={current.current.notes.length <= 1}
+                    onClick={(event) => { event.stopPropagation(); event.currentTarget.closest("details")?.removeAttribute("open"); setDeletingNote(item); }}>
+                    <Trash2 size={14} aria-hidden="true" />
+                  </IconButton>
+                </div>
+              ))}
             </div>
           </details>
-          <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New note" title="New note" onClick={() => createNote(pane.id)}><Plus size={14} /></IconButton>
-          {linkedCanvasElementId && <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="Show linked note on Canvas" title="Show on Canvas" onClick={() => openCanvasFrame(linkedCanvasElementId)}><ExternalLink size={13} /></IconButton>}
-        </div>
-      )
+        )}
+        <IconButton type="button" className="!size-7 shrink-0 rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New note" title="New note" onClick={() => void createNote(pane.id)}><Plus size={15} aria-hidden="true" /></IconButton>
+        {linkedCanvasElementId && <IconButton type="button" className="!size-7 shrink-0 rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="Show linked note on Canvas" title="Show on Canvas" onClick={() => openCanvasFrame(linkedCanvasElementId)}><ExternalLink size={13} /></IconButton>}
+      </div>
     );
     const toolbarTargetId = `note-pane-toolbar-${pane.id}`;
     const articleMode = pane.kind === "note" && (leaves(layout).length === 1 || maximizedPaneId === pane.id);
@@ -348,7 +374,6 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canClosePane} onClick={() => closePane(pane.id)}>Close pane</Button>
-                <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={current.current.notes.length <= 1} onClick={() => { if (note) setDeletingNote(note); }}>Delete note</Button>
               </div>
             </details>
           </div>
@@ -404,8 +429,8 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     commitRenameWorkspace,
     setWorkspaceTitleDraft,
     overlays: (
-      <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open) setDeletingNote(null); }}>
-        <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary">Keep note</Button></DialogClose><Button variant="danger" onClick={removeNote}>Delete note</Button></DialogFooter></DialogContent>
+      <Dialog open={!!deletingNote} onOpenChange={(open) => { if (!open && !deletePending) setDeletingNote(null); }}>
+        <DialogContent><DialogTitle>Delete this note?</DialogTitle><DialogDescription>“{deletingNote?.title}” will be removed from this workspace.</DialogDescription><DialogFooter><DialogClose asChild><Button variant="secondary" disabled={deletePending}>Keep note</Button></DialogClose><Button variant="danger" disabled={deletePending} onClick={() => void removeNote()}>{deletePending ? "Deleting…" : "Delete note"}</Button></DialogFooter></DialogContent>
       </Dialog>
     ),
   };

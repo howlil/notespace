@@ -214,3 +214,25 @@ export function restoreLayout(key: string, noteIds: Set<string>): PaneNode {
   }
   return defaultLayout([...noteIds][0] ?? "");
 }
+
+/** Preserve unique Note assignments and valid panes after persisted deletion. */
+export function reconcileDeletedNoteLayout(node: PaneNode, deletedId: string, remainingNoteIds: readonly string[]): PaneNode {
+  const occupied = new Set(leaves(node).filter((pane) => pane.kind === "note" && pane.noteId !== deletedId)
+    .map((pane) => pane.noteId).filter((id): id is string => Boolean(id)));
+  const available = remainingNoteIds.filter((id) => !occupied.has(id));
+  const visit = (item: PaneNode): PaneNode | null => {
+    if (item.kind === "leaf") {
+      if (item.pane.kind !== "note" || item.pane.noteId !== deletedId) return item;
+      const replacement = available.shift();
+      return replacement ? { ...item, pane: { ...item.pane, noteId: replacement } } : null;
+    }
+    const first = visit(item.first);
+    const second = visit(item.second);
+    if (!first) return second;
+    if (!second) return first;
+    return { ...item, first, second };
+  };
+  return visit(node) ?? {
+    kind: "leaf", pane: { id: leaves(node)[0]?.id ?? newId(), kind: "note", noteId: remainingNoteIds[0] ?? "" },
+  };
+}

@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1 and M2 implemented and passed CI (PR #137; 2026-10-21). M3–M5 pending.
+Status: APPROVED DESIGN; M1 and M2 verified; M3 code complete, CI pending (2026-10-21). M4–M5 pending.
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -95,3 +95,10 @@ Never claim a gate passed if it was not run. Record issues and exact follow-up a
 - **Verify Desktop** run [39494095529](https://github.com/howlil/notespace/actions/runs/39494095529): **success** in all three jobs (Linux, Windows, Windows-latest), including Windows native WebDriver geometry and Focus/Restore smoke and desktop lifecycle.
 - Desktop smoke asserts exact rail x=0,y=0,width=40,height=innerHeight, titlebar x=40,height=38, page x=40,y=38; editor Focus x=0 and restored x=40. Library stays outside Workspace-specific grid.
 - M2 complete. **Next M3** on this same branch: Note header (34px) and picker ownership refactor: + always next to title, rename inline only, trash on every list item with exact target ID and last-note/dirty data protections. Do not implement M4 Navigate until M3 passes review and tests.
+
+## M3 implementation state (2026-10-21)
+- Runtime commit `30afbad`: Removed duplicated Rename/Move/Delete context menus from Note picker and Delete action from Pane Actions; removed leading FileText from Note title; Note title double-click/F2 is sole Rename UI; + stays outside picker even while editing; each row has independent visible trash and exact note target.
+- Create Note still goes through existing HTTP command; on success switches pane and focuses inline rename; on failure leaves existing note unchanged.
+- Delete confirms exact note ID, guards last Note and pending clicks, flushes editor snapshots before persistence, keeps dialog open on failure, reconciles all panes on success using a pure helper that avoids duplicate Note assignment. No Tiptap Navigate changes (M4).
+- `pane-layout.test.ts`: pure reconciliation tests; `tests/workspace/note-picker.spec.ts`: browser E2E for UI ownership, inline title rename, creation and destructive rollback.
+- CI must pass before declaring M3 accepted. M4 remains separate.

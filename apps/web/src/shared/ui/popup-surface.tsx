@@ -14,7 +14,7 @@ export const PopupSurface = forwardRef<HTMLDivElement, HTMLMotionProps<"div">>(
         initial={{ opacity: 0, y: -4, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.14, ease: "easeOut" }}
-        className={cn("rounded-lg border border-line bg-surface shadow-[0_12px_32px_#0002] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0", className)}
+        className={cn("rounded-lg border border-line bg-surface [box-shadow:var(--shadow-popup)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0", className)}
         {...props}
       />
     );

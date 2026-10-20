@@ -310,12 +310,6 @@
   padding: 2px;
 }
 
-[data-testid="workspace-view-switcher"] button {
-  width: 32px !important;
-  height: 32px !important;
-  min-height: 32px !important;
-}
-
 [data-testid="workspace-view-switcher"] button svg {
   width: 20px !important;
   height: 20px !important;

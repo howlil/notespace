@@ -113,14 +113,15 @@ The application uses semantic colors so the same component can remain coherent i
 | `--sidebar` | `#FFFFFF` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
 | `--canvas` | `#F8F9FC` | `#1D1E24` | Drawing surface behind Excalidraw content |
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
-| `--muted` | `#787B8A` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
+| `--muted` | `#636979` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
 | `--accent` | `#3F6D61` | `#A6D1BC` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
 | `--tint` | `#EBF2EE` | `#20352E` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
-| `--success` | `#6F947D` | `#6F947D` | Saved, completed, or healthy state |
+| `--danger-foreground` | `#FFFFFF` | `#22232A` | Readable text/icon on a filled destructive button |
+| `--success` | `#4D765D` | `#8FC3A0` | Saved, completed, or healthy state; readable over light/dark tinted surfaces |
 
 The Tailwind theme aliases map these semantics to utility names:
 
@@ -187,6 +188,9 @@ Rounded corners communicate component hierarchy, not decoration.
 | Surface | `8px` | `rounded-lg` | Popups, cards, toolbars, and contained panels |
 | Dialog | `12px` | `rounded-xl` | Modal content and high-emphasis transient surfaces |
 | Pill | `9999px` | `rounded-full` | Status dots, compact tags, and progress indicators only |
+| Workspace identity card | `18px` | `rounded-[18px]` | Intentional square paper-stack library card exception, including its loading skeleton |
+
+Ordinary controls keep the 6px `rounded-md` radius; standard popups use 8px `rounded-lg` rather than locally chosen 5px or 7px. The 18px paper-stack card is a documented brand component, not a general surface radius.
 
 The Excalidraw adapter has its own engine-facing values to keep dependency UI aligned with Notespace:
 
@@ -203,11 +207,11 @@ These adapter values are intentionally scoped under `.notespace-canvas-surface .
 | --- | --- | --- |
 | Default border | `1px solid var(--line)` | Surfaces, inputs, separators, and quiet outlines |
 | Accent border | `1px solid var(--accent)` | Selected controls, active library state, and selected picker mode |
-| Keyboard focus | `2px solid var(--accent)` with `3px` offset | Application buttons, links, and inputs |
+| Keyboard focus | `2px solid var(--accent)` with `3px` offset on buttons/links and `2px` on editable fields | Application buttons, links, inputs, and editable fields |
 | Canvas focus | `2px solid var(--accent)` with `2px` offset | Excalidraw adapter controls and Canvas-owned tools |
 | Active ring | Accent at low opacity | Additional clarity for an active tool without increasing saturation |
 
-Focus is stateful feedback, not decoration. Do not render a persistent focus ring for every pointer interaction, and do not remove the keyboard path to make a component look cleaner.
+Focus is stateful feedback, not decoration. Do not render a persistent focus ring for every pointer interaction, and do not remove the keyboard path to make a component look cleaner. Borderless inline inputs still require visible keyboard focus; a transparent border alone is not sufficient. Disabled controls should communicate unavailability (`not-allowed`) rather than pretending to be processing (`wait`).
 
 ### Elevation and overlay tokens
 
@@ -216,7 +220,7 @@ Notespace is intentionally low-elevation. The Canvas rail and Canvas popups use 
 | Layer | Current value | Use |
 | --- | --- | --- |
 | Flat surface | `none` | Canvas chrome, Excalidraw islands, main content surfaces |
-| Lightweight popup | `0 12px 32px #0002` | Shared `PopupSurface` outside the Canvas |
+| Lightweight popup | `var(--shadow-popup)` = `0 12px 32px #0002` | Shared `PopupSurface`, context menus, workspace/document popups, and activity dock outside the Canvas |
 | Dialog | Existing `shadow-2xl shadow-black/20` | Modal confirmation and dialog surfaces only |
 
 Canvas overlay strata are local implementation tokens and should remain consistent:
@@ -266,6 +270,9 @@ At narrow widths, preserve the primary action and keyboard access first. Canvas 
 
 ### Component state tokens
 
+App control size follows the established Tailwind `min-h-7` (28px) and `min-h-8` (32px) utilities. The compact native desktop titlebar may project a 30px control size because its 38px frame is an environment-specific constraint, not a second generic button size. The workspace view switcher uses 32px in the regular web header; avoid redundant competing `!important` declarations in the workspace CSS.
+
+
 The standard interactive state grammar is:
 
 ```text
@@ -314,7 +321,7 @@ primitive values (centralized light/dark definitions)
 
 The current runtime defines color values directly in semantic tokens; **do not introduce a parallel primitive-token layer solely to satisfy this diagram**. Components consume semantic roles, not copied hex codes.
 
-- **Primary actions:** use neutral `--button` / `--button-text` by default, not an accent-blue button on every page.
+- **Primary actions:** use neutral `--button` / `--button-text` by default, not an accent-blue button on every page. Filled destructive actions use `--danger` / `--danger-foreground` as a pair; never force white text for every theme.
 - **Selected, active, or focused:** pair `--tint` with `--accent` where needed; preserve the shared keyboard focus outline. Hover uses restrained tint.
 - **Destructive or success feedback:** use `--danger` or `--success` only for their state meaning; accompany color with clear text, icons, or labels when needed.
 - **Exceptional fixed colors:** allowed for user-authored content, illustrations, syntax/data palettes, logos, or deliberate terminal previews; keep them scoped and document why a semantic token is unsuitable.
@@ -326,7 +333,7 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
-- **Known current gap (not yet changed by this contract):** light `--muted: #787B8A` on white `--surface: #FFFFFF` yields approximately **4.20:1**, below 4.5:1 for normal-size supporting text. A candidate is `#707482` (approximately 4.66:1 on white); validate across all actual backgrounds and update the runtime token and this table together when implementing the fix.
+- **Resolved baseline contrast:** light `--muted: #636979` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
 - Preserve the muted-jade identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
 
 ## Component and interaction rules

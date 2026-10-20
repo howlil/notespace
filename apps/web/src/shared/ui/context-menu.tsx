@@ -13,7 +13,7 @@ export function ContextMenuContent({ className, children, ...props }: ComponentP
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         className={cn(
-          "z-50 min-w-44 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] shadow-xl shadow-black/10",
+          "z-50 min-w-44 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
           className,
         )}
         {...props}
@@ -62,7 +62,7 @@ export function ContextMenuSubContent({ className, children, ...props }: Compone
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.SubContent
         className={cn(
-          "z-50 min-w-48 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] shadow-xl shadow-black/10",
+          "z-50 min-w-48 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
           className,
         )}
         {...props}

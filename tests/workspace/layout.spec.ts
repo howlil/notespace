@@ -6,10 +6,18 @@ test("pane tree splits, enters focus mode, and restores layout", async ({ page, 
   try {
     for (let index = 0; index < 2; index += 1) {
       await page.getByRole("button", { name: "New note", exact: true }).click();
+      // New Note now intentionally enters inline rename: complete it before
+      // creating the next note so the subsequent pane action is deterministic.
+      const title = page.getByRole("textbox", { name: "Note title" });
+      await expect(title).toBeFocused();
+      await title.fill(`Pane Note ${index + 2}`);
+      await title.press("Enter");
+      await expect(page.locator("details.pane-note-switcher > summary").first()).toContainText(`Pane Note ${index + 2}`);
     }
 
     await openPaneMenu(page);
     await page.getByRole("button", { name: "Split right", exact: true }).click();
+    await expect(page.locator('section[aria-label$="note pane"]')).toHaveCount(2);
     await openPaneMenu(page);
     await page.getByRole("button", { name: "Split down", exact: true }).click();
     await expect(page.locator('section[aria-label$="note pane"]')).toHaveCount(3);

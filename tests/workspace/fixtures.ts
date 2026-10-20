@@ -1,5 +1,5 @@
 import { test as base, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { createWorkspace, deleteWorkspace } from "../helpers";
+import { deleteWorkspace } from "../helpers";
 
 export async function createViaAPI(page: Page, request: APIRequestContext, title: string) {
   const response = await request.post("/api/workspaces", { data: { title } });
@@ -74,7 +74,9 @@ type WorkspaceFixtures = {
 export const test = base.extend<WorkspaceFixtures>({
   workspaceId: async ({ page, request }, provide, testInfo) => {
     const title = `Workspace ${testInfo.workerIndex}-${testInfo.testId}`;
-    const id = await createWorkspace(page, title);
+    // Persistence/authoring fixture: create via API to avoid coupling tests to
+    // Library creation flows, which are verified separately in Library E2E.
+    const id = await createViaAPI(page, request, title);
 
     try {
       await provide(id);

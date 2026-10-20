@@ -24,16 +24,19 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await expect(settings).toHaveCount(0);
 });
 
-test("Settings is accessible from an open Workspace, without a floating backup", async ({ page, request }) => {
+test("Workspace keeps Settings in Library without duplicating the Workspace rail", async ({ page, request }) => {
   const response = await request.post("/api/workspaces", { data: { title: `Settings navigation ${Date.now()}` } });
   expect(response.status()).toBe(201);
   const item = await response.json() as { id: string };
   try {
     await page.goto(`/workspaces/${item.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open Notespace settings" })).toHaveCount(0);
+    await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
+    await page.getByRole("link", { name: "Back to library" }).click();
+    await expect(page).toHaveURL(/\\/$/);
     await page.getByRole("button", { name: "Open Notespace settings" }).click();
     await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
-    await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
   } finally {
     await deleteWorkspace(request, item.id);
     await request.delete(`/api/trash/${item.id}`).catch(() => undefined);

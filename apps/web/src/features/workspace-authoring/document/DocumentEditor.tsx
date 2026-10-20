@@ -191,6 +191,7 @@ export default function DocumentEditor({
   const openCanvasFrameRef = useRef(onOpenCanvasFrame);
   openCanvasFrameRef.current = onOpenCanvasFrame;
   const navigatePanelRef = useRef<HTMLElement>(null);
+  const navigateOpenRef = useRef(false);
   const navigateTriggerRef = useRef<HTMLButtonElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -200,6 +201,7 @@ export default function DocumentEditor({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [navigateOpen, setNavigateOpen] = useState(false);
+  navigateOpenRef.current = navigateOpen;
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setNavigateRevision] = useState(0);
   const [findTerm, setFindTerm] = useState("");
@@ -292,6 +294,11 @@ export default function DocumentEditor({
   }
 
   function syncSelectionMenu(nextEditor: Editor) {
+    if (navigateOpenRef.current) {
+      setSelectionMenu(null);
+      setLinkEditing(false);
+      return;
+    }
     const { selection } = nextEditor.state;
     if (selection.empty || !nextEditor.state.doc.textBetween(selection.from, selection.to, " ").trim()) {
       setSelectionMenu(null);

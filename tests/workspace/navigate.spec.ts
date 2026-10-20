@@ -35,8 +35,10 @@ test("M4 Navigate combines Outline and Tiptap Find/Replace without a duplicate C
     const find = navigate.getByRole("searchbox", { name: "Find" });
     await expect(find).toBeFocused();
     await find.fill("Core");
-    await expect(navigate.getByText(/matches/)).toBeVisible();
+    await expect(navigate.locator('span[aria-live="polite"]')).toContainText(/matches/);
     await expect(navigate.getByRole("button", { name: "Next result" })).toBeEnabled();
+    await navigate.getByRole("button", { name: "Search result 1" }).click();
+    await expect(pane.getByRole("button", { name: "Bold", exact: true })).toHaveCount(0);
     await navigate.getByRole("button", { name: "Next result" }).click();
     await navigate.getByRole("button", { name: "Previous result" }).click();
     await navigate.getByRole("textbox", { name: "Replace with" }).fill("System");

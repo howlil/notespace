@@ -357,16 +357,17 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   const viewSwitcher = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceViewSwitcher.tsx"));
   const renameField = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRenameField.tsx"));
   assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
-  assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
+  assert.match(viewSwitcher,/bg-tint text-accent/);
+  assert.doesNotMatch(viewSwitcher,/ring-1 ring-accent/);
   assert.match(workspace,/renameWorkspace/);
-  assert.match(workspacePage,/Rename workspace/);
-  assert.match(workspacePage,/onDoubleClick=\{\(event\) =>/);
+  // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/aria-label="Rename workspace"/);
-  assert.match(workspacePage,/workspace-switcher/);
-  assert.match(workspacePage,/role="listbox"/);
+  // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/<select /);
   assert.match(renameField,/aria-label="Workspace title"/);
   for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
+  assert.match(workspacePage, /<WorkspaceRail/);
+  assert.doesNotMatch(workspacePage, /<HeaderPlacement|workspace-switcher/);
   assert.match(workspacePage, /<WorkspacePlan/);
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
@@ -444,7 +445,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Link canvas"/);
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Code block"/);
   assert.match(editor, /createNoteCodeBlockExtension/);
-  assert.match(editor, /aria-label="Code block"/);
+  assert.match(editor, /label="Code block"/);
+  assert.doesNotMatch(editor, /aria-label="Code block"/);
+  assert.match(editor, /aria-label="Navigate note"/);
+  assert.doesNotMatch(editor, /aria-label="Open note outline"|aria-label="Find in note"/);
   const noteCodeBlock = source(NOTE_CODE_BLOCK);
   assert.match(noteCodeBlock, /data-note-code-block/);
   assert.match(noteCodeBlock, /detectCodeLanguage/);

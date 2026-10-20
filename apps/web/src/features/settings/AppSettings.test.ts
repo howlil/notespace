@@ -14,7 +14,7 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.match(root, /<AppSettings renderDesktopRecovery=/);
   assert.match(root, /<DesktopRecoveryTools onBusyChange=\{onBusyChange\} \/>/);
   assert.match(sidebar, /<SettingsTrigger showLabel/);
-  assert.match(workspace, /<SettingsTrigger/);
+  assert.doesNotMatch(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
   assert.match(settings, /Data &amp; backup/);
   assert.match(settings, /renderDesktopRecovery\(onBusyChange\)/);

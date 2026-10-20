@@ -14,14 +14,22 @@ const stylesheet = read("apps/web/src/features/workspace-authoring/workspace-aut
 const plan = read("apps/web/src/features/planning/WorkspacePlan.tsx");
 const contract = read("DESIGN.md");
 
-test("Workspace authoring is full-bleed and keeps its existing view switcher and save/plan flows", () => {
+test("Workspace authoring is full-bleed with a single vertical rail and accessible save/plan flows", () => {
   assert.match(ws, /flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0/);
   assert.doesNotMatch(ws, /overflow-hidden p-3 max-\[760px\]:p-\[7px\]/);
-  assert.match(ws, /<WorkspaceViewSwitcher/);
+  assert.match(ws, /<WorkspaceRail/);
   assert.match(ws, /authoring\.selectView\(mode\)/);
   assert.match(ws, /<WorkspacePlan/);
   assert.match(ws, /authoring\.status\.state/);
-  assert.match(ws, /<HeaderPlacement/);
+  assert.doesNotMatch(ws, /<HeaderPlacement|<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
+  const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
+  assert.match(rail, /workspace-rail/);
+  assert.match(rail, /w-10/);
+  assert.match(rail, /<WorkspaceViewSwitcher/);
+  assert.match(rail, /\{activityControl\}/);
+  assert.match(ws, /<ActivityIndicator rail/);
+  assert.match(rail, /Back to library/);
+  assert.match(rail, /Focus mode/);
 });
 
 test("split is border-only with 7px pointer area and keyboard-accessible bounded resize", () => {

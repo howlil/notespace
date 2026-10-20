@@ -6,22 +6,35 @@ test("pane tree splits, enters focus mode, and restores layout", async ({ page, 
   try {
     for (let index = 0; index < 2; index += 1) {
       await page.getByRole("button", { name: "New note", exact: true }).click();
+      // New Note now intentionally enters inline rename: complete it before
+      // creating the next note so the subsequent pane action is deterministic.
+      const title = page.getByRole("textbox", { name: "Note title" });
+      await expect(title).toBeFocused();
+      await title.fill(`Pane Note ${index + 2}`);
+      await title.press("Enter");
+      await expect(page.locator("details.pane-note-switcher > summary").first()).toContainText(`Pane Note ${index + 2}`);
     }
 
     await openPaneMenu(page);
     await page.getByRole("button", { name: "Split right", exact: true }).click();
+    await expect(page.locator('section[aria-label$="note pane"]')).toHaveCount(2);
     await openPaneMenu(page);
     await page.getByRole("button", { name: "Split down", exact: true }).click();
     await expect(page.locator('section[aria-label$="note pane"]')).toHaveCount(3);
 
-    const maximize = page.getByRole("button", { name: /Maximize active (pane|split)/ });
-    await expect(maximize).toBeVisible();
-    await maximize.click();
+    const focus = page.getByRole("button", { name: "Focus mode" });
+    await expect(focus).toBeVisible();
+    await focus.click();
     await expect(page.locator(".workspace-main.is-focus-mode")).toBeVisible();
-    await expect(page.locator(".workspace-header")).toBeHidden();
+    await expect(page.locator(".workspace-rail")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Restore layout" })).toBeVisible();
 
     await page.keyboard.press("Escape");
-    await expect(page.locator(".workspace-header")).toBeVisible();
+    await expect(page.locator(".workspace-rail")).toBeVisible();
+    await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Plan" }).click();
+    await expect(page.getByRole("button", { name: "Focus mode" })).toBeDisabled();
+    await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Note" }).click();
+    await expect(page.getByRole("button", { name: "Focus mode" })).toBeEnabled();
   } finally {
     await cleanupWorkspace(request, id);
   }

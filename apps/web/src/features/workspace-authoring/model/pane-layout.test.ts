@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_WORKSPACE_PANES, canAddPane, defaultLayout, findPane, hasCanvasPane, layoutForViewMode, leafCount, leaves, mapNode, normalizeCanvasPosition, paneFocusTarget, paneInteractionState, removeNode, updateSplit, workspaceViewMode } from "./pane-layout.ts";
+import { MAX_WORKSPACE_PANES, canAddPane, defaultLayout, findPane, hasCanvasPane, layoutForViewMode, leafCount, leaves, mapNode, normalizeCanvasPosition, paneFocusTarget, paneInteractionState, removeNode, reconcileDeletedNoteLayout, updateSplit, workspaceViewMode } from "./pane-layout.ts";
 import type { PaneNode } from "./pane-layout.ts";
 
 test("default workspace layout owns one note pane and one canvas pane", () => {
@@ -126,4 +126,40 @@ test("focus target follows the active pane's containing split and falls back to 
 
   const single: PaneNode = { kind: "leaf", pane: { id: "only", kind: "note", noteId: "note-1" } };
   assert.deepEqual(paneFocusTarget(single, "only"), { kind: "pane", id: "only" });
+});
+
+test("deleting an unopened Note keeps unrelated split nodes and note ownership intact", () => {
+  const layout = defaultLayout("n1");
+  const originalCanvasId = leaves(layout).find((pane) => pane.kind === "canvas")?.id;
+  const next = reconcileDeletedNoteLayout(layout, "unused", ["n1", "n3"]);
+  assert.equal(findPane(next, originalCanvasId ?? "")?.kind, "canvas");
+  assert.equal(leaves(next).find((pane) => pane.kind === "note")?.noteId, "n1");
+});
+
+test("deleting an active Note replaces it with an unopened Note while preserving pane IDs", () => {
+  const layout = defaultLayout("n1");
+  const before = leaves(layout);
+  const after = reconcileDeletedNoteLayout(layout, "n1", ["n2", "n3"]);
+  assert.deepEqual(leaves(after).map((pane) => pane.id), before.map((pane) => pane.id));
+  assert.equal(leaves(after).find((pane) => pane.kind === "note")?.noteId, "n2");
+});
+
+test("deletion in multi-pane layouts drops redundant panes rather than duplicating an opened Note", () => {
+  const layout: PaneNode = {
+    kind: "split", id: "root", direction: "row", ratio: .5,
+    first: { kind: "split", id: "notes", direction: "column", ratio: .6,
+      first: { kind: "leaf", pane: { id: "p1", kind: "note", noteId: "n1" } },
+      second: { kind: "leaf", pane: { id: "p2", kind: "note", noteId: "n2" } } },
+    second: { kind: "leaf", pane: { id: "p3", kind: "canvas" } },
+  };
+  const next = reconcileDeletedNoteLayout(layout, "n1", ["n2"]);
+  assert.deepEqual(leaves(next).map((pane) => pane.id), ["p2", "p3"]);
+  assert.deepEqual(leaves(next).filter((pane) => pane.kind === "note").map((pane) => pane.noteId), ["n2"]);
+  assert.equal(leaves(next).some((pane) => pane.noteId === "n1"), false);
+});
+
+test("deletion recovers a valid editor when the entire layout referenced the removed Note", () => {
+  const layout: PaneNode = { kind: "leaf", pane: { id: "old", kind: "note", noteId: "n1" } };
+  const next = reconcileDeletedNoteLayout(layout, "n1", ["n2"]);
+  assert.deepEqual(leaves(next), [{ id: "old", kind: "note", noteId: "n2" }]);
 });

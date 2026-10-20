@@ -24,8 +24,10 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.match(workspace, /matchMedia\("\(max-width: 760px\)"\)/);
   assert.match(workspace, /node\.direction === "row" && compactPanes \? "column" : node\.direction/);
   assert.match(workspace, /max-\[760px\]:!grid-cols-1/);
-  assert.match(workspacePage, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)_auto\]/);
-  assert.match(workspacePage, /max-\[560px\]:grid-rows-\[30px_32px\]/);
+  assert.match(workspacePage, /<WorkspaceRail/);
+  const rail = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRail.tsx"));
+  assert.match(rail, /w-10/);
+  assert.match(rail, /top-1\/2/);
   assert.doesNotMatch(workspace, /keepsCanvasOnRight/);
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });

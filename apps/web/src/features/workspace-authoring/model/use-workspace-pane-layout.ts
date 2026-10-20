@@ -10,6 +10,7 @@ import {
   paneFocusTarget,
   paneInteractionState,
   removeNode,
+  reconcileDeletedNoteLayout,
   restoreLayout,
   updateSplit,
   workspaceViewMode,
@@ -111,6 +112,17 @@ export function useWorkspacePaneLayout({
     setSelectedTextPaneId(null);
     setHighlightRequest(null);
   }, [layout]);
+
+  const reconcileDeletedNote = useCallback((deletedId: string, remainingNoteIds: readonly string[]) => {
+    const next = reconcileDeletedNoteLayout(layout, deletedId, remainingNoteIds);
+    const remaining = leaves(next);
+    setLayout(next);
+    setActivePaneId((id) => remaining.some((pane) => pane.id === id) ? id : (remaining[0]?.id ?? ""));
+    if (maximizedPaneId && !findPane(next, maximizedPaneId)) setMaximizedPaneId(null);
+    if (maximizedSplitId && !findSplit(next, maximizedSplitId)) setMaximizedSplitId(null);
+    setSelectedTextPaneId((id) => id && remaining.some((pane) => pane.id === id) ? id : null);
+    setHighlightRequest((request) => request && remaining.some((pane) => pane.id === request.paneId) ? request : null);
+  }, [layout, maximizedPaneId, maximizedSplitId]);
 
   const closePane = useCallback((paneId: string) => {
     if (leaves(layout).length <= 1) return;
@@ -252,6 +264,7 @@ export function useWorkspacePaneLayout({
     activeViewMode,
     splitPane,
     switchPaneNote,
+    reconcileDeletedNote,
     closePane,
     selectView,
     activateNote,

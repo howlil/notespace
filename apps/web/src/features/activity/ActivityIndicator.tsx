@@ -27,11 +27,13 @@ export function ActivityIndicator({
   workspaceId,
   workspaceTitle,
   compact = false,
+  rail = false,
 }: {
   activity: ActivitySessionState;
   workspaceId: string;
   workspaceTitle: string;
   compact?: boolean;
+  rail?: boolean;
 }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -87,12 +89,12 @@ export function ActivityIndicator({
       : "No active activity";
 
   return (
-    <div ref={indicatorRef} className="relative flex items-center gap-1">
+    <div ref={indicatorRef} className={cn("relative flex items-center gap-1", rail && "h-[34px] w-[34px]")}>
       <Button
         type="button"
         variant="ghost"
         size="sm"
-        className="min-h-8 gap-1.5 px-2 py-1 text-[11px] text-muted hover:text-ink focus-visible:bg-tint focus-visible:text-ink"
+        className={cn("min-h-8 gap-1.5 px-2 py-1 text-[11px] text-muted hover:text-ink focus-visible:bg-tint focus-visible:text-ink", rail && "!size-[34px] !min-h-[34px] justify-center rounded-md p-0 hover:bg-tint hover:text-accent")}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Activity, today ${formatDuration(activity.todaySeconds)}`}
@@ -101,14 +103,16 @@ export function ActivityIndicator({
           setOpen((value) => !value);
         }}
       >
-        <span className={cn(
-          "text-[10px] leading-none not-italic",
-          activity.status === "running" ? "text-success" : "text-muted",
-        )}>●</span>
-        {formatDuration(activity.todaySeconds)}
+        {rail ? <>
+          {activity.status === "idle" ? <Play size={17} strokeWidth={1.9} aria-hidden="true" /> : <Timer size={17} strokeWidth={1.9} aria-hidden="true" />}
+          {activity.status !== "idle" && <span className="absolute right-0.5 top-0.5 size-[5px] rounded-full bg-success" aria-hidden="true" />}
+        </> : <>
+          <span className={cn("text-[10px] leading-none not-italic", activity.status === "running" ? "text-success" : "text-muted")}>●</span>
+          {formatDuration(activity.todaySeconds)}
+        </>}
       </Button>
 
-      {activity.status === "idle" && (
+      {!rail && activity.status === "idle" && (
         <Button
           variant="secondary"
           size="sm"
@@ -129,7 +133,7 @@ export function ActivityIndicator({
 
       {startOpen && activity.status === "idle" && (
         <ActivityTypeMenu
-          className="absolute top-[calc(100%+8px)] right-0"
+          className={rail ? "absolute bottom-0 left-[calc(100%+8px)]" : "absolute top-[calc(100%+8px)] right-0"}
           onSelect={(activityType) => {
             setStartOpen(false);
             activity.start({
@@ -144,7 +148,7 @@ export function ActivityIndicator({
 
       {open && (
         <PopupSurface
-          className="absolute top-[calc(100%+8px)] right-0 z-25 w-[320px] p-3 max-[520px]:right-[-8px] max-[520px]:w-[min(320px,calc(100vw_-_24px))]"
+          className={cn("absolute z-25 w-[320px] max-w-[calc(100vw_-_64px)] max-h-[calc(100dvh_-_24px)] overflow-y-auto p-3 shadow-none", rail ? "bottom-0 left-[calc(100%+8px)]" : "top-[calc(100%+8px)] right-0 max-[520px]:right-[-8px] max-[520px]:w-[min(320px,calc(100vw_-_24px))]")}
           role="dialog"
           aria-label="Activity"
         >
@@ -152,6 +156,11 @@ export function ActivityIndicator({
             <span>Activity</span>
             <Timer size={16} className="text-muted" />
           </div>
+          {rail && activity.status === "idle" && (
+            <Button type="button" variant="secondary" size="sm" className="mt-2 w-full !min-h-8 justify-center text-[11px]" disabled={!activity.ready || !activity.canStart} onClick={() => { setOpen(false); setStartOpen(true); }}>
+              <Play size={14} aria-hidden="true" /> Start activity
+            </Button>
+          )}
 
           {activity.activeContext && (
             <div className="mt-3 border-b border-line pb-2.5">

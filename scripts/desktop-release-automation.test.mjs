@@ -123,7 +123,9 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   }
   assert.match(beta, /cancel-in-progress: false/);
-  assert.match(basic, /name: Run full browser suite\s+if: github\.event_name == 'push'\s+run: pnpm exec playwright test/);
+  // Full E2E is required on PRs as well as master; retain PR-only cancellation
+  // so new PR commits cancel obsolete runs without interrupting release CI.
+  assert.match(basic, /name: Run full browser suite[\s\S]*?if: github\.event_name == 'pull_request' \|\| github\.event_name == 'push'\s+run: pnpm exec playwright test/);
 });
 
 test("free beta produces signed Tauri updater artifacts without Azure publisher certificates", () => {

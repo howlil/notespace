@@ -3,29 +3,25 @@ import { Button, cn } from "../../../shared/ui";
 import type { WorkspaceViewMode } from "../model/pane-layout";
 
 export function WorkspaceViewSwitcher({
-  activeViewMode,
-  planActive,
-  onSelect,
-  onPlanSelect,
+  activeViewMode, planActive, onSelect, onPlanSelect,
 }: {
   activeViewMode: WorkspaceViewMode;
   planActive: boolean;
   onSelect: (mode: WorkspaceViewMode) => void;
   onPlanSelect: () => void;
 }) {
-  const buttonClass = "relative !size-8 !min-h-8 rounded-md p-0 text-muted";
-  const selectedClass = "bg-tint text-accent ring-1 ring-accent/15 hover:bg-tint hover:text-accent";
-
+  const buttonClass = "grid !size-[34px] !min-h-[34px] place-items-center rounded-md p-0 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
+  const selectedClass = "bg-tint text-accent";
   return (
-    <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 bg-transparent max-[760px]:relative max-[760px]:inset-auto max-[760px]:order-2 max-[760px]:self-center max-[760px]:translate-x-0 max-[760px]:translate-y-0 max-[560px]:order-none max-[560px]:col-start-1 max-[560px]:row-start-2 max-[560px]:justify-self-start max-[560px]:self-center max-[560px]:shrink-0" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
+    <div className="flex flex-col items-center gap-[3px]" data-testid="workspace-view-switcher" role="group" aria-label="Workspace view">
       {(["canvas", "note", "split"] as const).map((mode) => {
         const label = mode === "canvas" ? "Canvas" : mode === "note" ? "Note" : "Split";
         const selected = !planActive && activeViewMode === mode;
-        const icon = mode === "canvas" ? <LayoutGrid size={22} strokeWidth={2.1} /> : mode === "note" ? <FileText size={22} strokeWidth={2.1} /> : <Columns2 size={22} strokeWidth={2.1} />;
+        const icon = mode === "canvas" ? <LayoutGrid size={17} strokeWidth={1.9} /> : mode === "note" ? <FileText size={17} strokeWidth={1.9} /> : <Columns2 size={17} strokeWidth={1.9} />;
         return <Button key={mode} type="button" variant="ghost" size="sm" className={cn(buttonClass, selected && selectedClass)} aria-label={label} title={label} aria-pressed={selected} onClick={() => onSelect(mode)}>{icon}</Button>;
       })}
       <Button type="button" variant="ghost" size="sm" className={cn(buttonClass, planActive && selectedClass)} aria-label="Plan" title="Plan" aria-pressed={planActive} onClick={onPlanSelect}>
-        <ListTodo size={22} strokeWidth={2.1} />
+        <ListTodo size={17} strokeWidth={1.9} />
       </Button>
     </div>
   );

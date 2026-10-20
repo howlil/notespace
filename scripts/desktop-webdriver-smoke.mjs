@@ -144,6 +144,14 @@ async function assertDesktopChrome(session, workspace) {
   const result = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
+    const rail = document.querySelector(".workspace-rail");
+    const slot = document.querySelector(".desktop-workspace-rail-slot");
+    const shell = document.querySelector(".desktop-shell");
+    const pane = document.querySelector(".workspace-main");
+    const chromeBox = chrome?.getBoundingClientRect();
+    const railBox = rail?.getBoundingClientRect();
+    const paneBox = pane?.getBoundingClientRect();
+    const noteHeader = document.querySelector('section[aria-label$="note pane"] > header');
     return {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
@@ -153,7 +161,21 @@ async function assertDesktopChrome(session, workspace) {
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
       settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
       theme: Boolean(header?.querySelector('[aria-label="Use dark theme"], [aria-label="Use light theme"]')),
-      views: header?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
+      railWidth: railBox?.width ?? 0,
+      railX: railBox?.x ?? -1,
+      railY: railBox?.y ?? -1,
+      railHeight: railBox?.height ?? 0,
+      railParentIsSlot: Boolean(rail && rail.parentElement === slot),
+      shellWorkspace: shell?.classList.contains("desktop-shell--workspace") ?? false,
+      chromeX: chromeBox?.x ?? -1,
+      paneX: paneBox?.x ?? -1,
+      paneY: paneBox?.y ?? -1,
+      viewportHeight: window.innerHeight,
+      views: rail?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
+      noteHeaderHeight: noteHeader?.getBoundingClientRect().height ?? 0,
+      noteNewCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="New note"]').length,
+      noteNavigateCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Navigate note"]').length,
+      legacyNoteToolCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Code block"], section[aria-label$="note pane"] button[aria-label="Find in note"], section[aria-label$="note pane"] button[aria-label="Open note outline"]').length,
     };
   `);
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
@@ -161,10 +183,35 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
-    assert.equal(result.workspaceHeader, true, "Workspace header must be placed in the title bar");
+    assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
+    assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
+    assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
+    assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");
+    assert.equal(result.railHeight, result.viewportHeight, "M2 rail must run to the bottom of the native window");
+    assert.equal(result.railParentIsSlot, true, "M2 rail must be owned by the full-height shell portal");
+    assert.equal(result.shellWorkspace, true, "M2 custom desktop shell must use workspace grid layout");
+    assert.equal(result.chromeX, 40, "M2 desktop titlebar must start after the rail, not above it");
+    assert.equal(result.paneX, 40, "M2 authoring content must start after the rail");
+    assert.equal(result.paneY, 38, "M2 authoring content must start below the 38px native titlebar");
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
+    assert.equal(result.noteHeaderHeight, 34, "M5 native Note header must be exactly 34px");
+    assert.equal(result.noteNewCount, 1, "M5 native Note header must have one permanent New note entry");
+    assert.equal(result.noteNavigateCount, 1, "M5 native Note header must have exactly one Navigate entry");
+    assert.equal(result.legacyNoteToolCount, 0, "M5 native Note header must not duplicate Code/Find/Outline");
+
+    // Native-only geometry regression: maximize/Focus must remove the 40px
+    // gutter without changing the editor's React-owned pane state.
+    const focusButton = await visibleElement(session, By.css('.workspace-rail button[aria-label="Focus mode"]'));
+    await focusButton.click();
+    const restore = await visibleElement(session, By.css('button[aria-label="Restore layout"]'));
+    const focusedX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
+    assert.equal(focusedX, 0, "Focused desktop workspace must use full window width with no empty rail column");
+    await restore.click();
+    await visibleElement(session, By.css('.workspace-rail'));
+    const restoredX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
+    assert.equal(restoredX, 40, "Restored desktop Workspace must bring back the full-height rail column");
   } else {
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
     assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");

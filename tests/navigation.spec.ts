@@ -55,27 +55,22 @@ test.describe("Production-Safe Navigation & Reload", () => {
 
     const assertWorkspaceLoaded = async () => {
       await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-      await expect(page.locator(".workspace-header")).toBeVisible();
-      const switcher = page.locator('summary[aria-label="Switch workspace"]');
-      await expect(switcher).toContainText(title);
-      await switcher.click();
-      const options = page.getByRole("listbox", { name: "Workspaces in this category" });
-      await expect(options.getByRole("option", { selected: true })).toHaveText(title);
-      await switcher.click();
+      await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Back to library" })).toBeVisible();
+      await expect(page.locator(".workspace-header")).toHaveCount(0);
     };
 
     try {
       await page.goto(`/workspaces/${workspace.id}`);
       await assertWorkspaceLoaded();
 
-      const switcher = page.locator('summary[aria-label="Switch workspace"]');
-      await switcher.click();
-      const options = page.getByRole("listbox", { name: "Workspaces in this category" });
-      const siblingOption = options.getByRole("option", { name: siblingTitle, exact: true });
-      await expect(siblingOption).toBeVisible();
-      await siblingOption.click();
+      // Workspaces are selected in Library, never from a duplicate workspace toolbar.
+      await page.getByRole("link", { name: "Back to library" }).click();
+      const siblingLink = page.getByRole("link", { name: `Open ${siblingTitle}` });
+      await expect(siblingLink).toBeVisible();
+      await siblingLink.click();
       await expect(page).toHaveURL(new RegExp(`/workspaces/${sibling.id}$`));
-      await expect(page.locator('summary[aria-label="Switch workspace"]')).toContainText(siblingTitle);
+      await assertWorkspaceLoaded();
 
       await page.goto(`/workspaces/${workspace.id}`);
       await page.reload();

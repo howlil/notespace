@@ -135,6 +135,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     highlightSelectedText,
   } = paneLayout;
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
   const [renamingNote, setRenamingNote] = useState<{ paneId: string; noteId: string } | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [renamingWorkspace, setRenamingWorkspace] = useState(false);
@@ -145,7 +146,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
   const noteRenameResolved = useRef(false);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
-  useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
+  useExclusivePopup(!!deletingNote, () => { if (!deletePending) setDeletingNote(null); });
   const currentWorkspaceTitle = current.current.title;
 
   useEffect(() => {
@@ -263,7 +264,6 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     commands.renameNote(noteId, value);
     setRenamingNote(null);
   }
-  const [deletePending, setDeletePending] = useState(false);
   async function removeNote() {
     if (!deletingNote || deletePending || current.current.notes.length <= 1) return;
     setDeletePending(true);

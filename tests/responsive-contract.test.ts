@@ -70,7 +70,7 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(authoringStyles, /\.main-menu-trigger/);
   assert.match(authoringStyles, /\[data-testid="main-menu-trigger"\]/);
   assert.match(authoringStyles, /\.undo-redo-buttons/);
-  assert.match(authoringStyles, /\.notespace-canvas-bottom-chrome[\s\S]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important/);
+  assert.match(authoringStyles, /\.notespace-canvas-bottom-chrome[\s\S]*bottom: env\(safe-area-inset-bottom\) !important;\s*width: 100%/);
   assert.doesNotMatch(authoringStyles, /\.notespace-selection-actions[\s\S]*bottom: calc\(50px/);
   assert.match(authoringStyles, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
   assert.match(chrome, /nativeActionIcon/);

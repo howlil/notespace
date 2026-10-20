@@ -632,7 +632,7 @@ export default function DocumentEditor({
       />
 
       {toolbarTarget ? createPortal(<div className="flex items-center gap-0.5">{toolbarButtons}</div>, toolbarTarget) : !toolbarTargetId ? (
-        <motion.div layout className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-md border border-line bg-surface/90 p-0.5 opacity-70 shadow-sm backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
+        <motion.div layout className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-none border-0 border-b border-l border-line bg-surface p-0.5 opacity-70 shadow-none transition-opacity hover:opacity-100 focus-within:opacity-100">
           {toolbarButtons}
         </motion.div>
       ) : null}
@@ -646,7 +646,7 @@ export default function DocumentEditor({
             exit={{ opacity: 0, y: -6, scale: 0.985 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
             className={cn(
-              "absolute right-3 top-3 z-30 w-[min(330px,calc(100%_-_24px))] rounded-lg border border-line bg-surface p-2 [box-shadow:var(--shadow-popup)]",
+              "absolute right-3 top-3 z-30 w-[min(330px,calc(100%_-_24px))] rounded-lg border border-line bg-surface p-2 shadow-none",
               toolbarTarget && "top-2",
             )}
             role="dialog"
@@ -699,7 +699,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 6 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
-            className={cn("absolute right-3 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 [box-shadow:var(--shadow-popup)]", toolbarTarget ? "top-2" : "top-12")}
+            className={cn("absolute right-3 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-none", toolbarTarget ? "top-2" : "top-12")}
             aria-label="Note outline"
           >
             <div className="px-2 py-1.5 text-[10px] font-medium text-muted">Outline</div>
@@ -730,7 +730,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className={cn("fixed z-40 rounded-lg border border-line bg-surface p-1 [box-shadow:var(--shadow-popup)]", linkEditing ? "w-[312px]" : "w-[188px]")}
+            className={cn("fixed z-40 rounded-lg border border-line bg-surface p-1 shadow-none", linkEditing ? "w-[312px]" : "w-[188px]")}
             style={{ left: selectionMenu.x, top: selectionMenu.y }}
           >
             {!linkEditing ? (
@@ -788,7 +788,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.985 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(300px,calc(100vw_-_24px))] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-1.5 [box-shadow:var(--shadow-popup)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0"
+            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(300px,calc(100vw_-_24px))] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-1.5 shadow-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0"
             role="listbox"
             aria-label="Insert block"
             data-placement={slashMenu.placement}
@@ -823,7 +823,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.985 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(320px,calc(100vw_-_24px))] overflow-y-auto rounded-lg border border-line bg-surface p-1.5 [box-shadow:var(--shadow-popup)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="fixed z-30 max-h-[min(360px,calc(100vh_-_24px))] w-[min(320px,calc(100vw_-_24px))] overflow-y-auto rounded-lg border border-line bg-surface p-1.5 shadow-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             role="listbox"
             aria-label="Canvas frames"
             data-placement={framePicker.placement}
@@ -860,7 +860,7 @@ export default function DocumentEditor({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.985 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
-            className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface/95 p-1 [box-shadow:var(--shadow-popup)] backdrop-blur"
+            className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-none"
             aria-label="Table tools"
           >
             <Button type="button" variant="ghost" size="sm" className="!min-h-0 whitespace-nowrap px-2 py-1 text-[10px]" onClick={() => editor.chain().focus().addRowAfter().run()}><Plus size={11} />Row</Button>

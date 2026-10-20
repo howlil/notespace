@@ -157,7 +157,7 @@ export function WorkspacePage({ workspace, categoryTitle, categoryWorkspaces }: 
           </div>
         </HeaderPlacement>
 
-        <div className={cn("flex h-auto min-h-0 flex-1 overflow-hidden p-3 max-[760px]:p-[7px]", authoring.focusMode && "p-0")}>{visible}</div>
+        <div className="flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0">{visible}</div>
       </main>
       {authoring.overlays}
     </div>

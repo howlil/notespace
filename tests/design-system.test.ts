@@ -58,16 +58,21 @@ test("filled destructive actions have readable foreground in both themes", () =>
   assert.match(read("apps/web/src/shared/ui/button.tsx"), /text-\[var\(--danger-foreground\)\]/);
 });
 
-test("standard transient surfaces share one popup elevation contract", () => {
-  const surfaces = [
+test("shared transient surfaces keep tokenized elevation while Workspace chrome stays flat", () => {
+  for (const path of [
     "apps/web/src/shared/ui/popup-surface.tsx",
     "apps/web/src/shared/ui/context-menu.tsx",
+    "apps/web/src/features/activity/ActivityDock.tsx",
+  ]) {
+    assert.ok(read(path).includes("[box-shadow:var(--shadow-popup)]"), path);
+  }
+  for (const path of [
     "apps/web/src/features/workspace-authoring/ui/workspace-ui-classes.ts",
     "apps/web/src/features/workspace-authoring/document/DocumentEditor.tsx",
-    "apps/web/src/features/activity/ActivityDock.tsx",
-  ];
-  for (const path of surfaces) {
-    assert.ok(read(path).includes("[box-shadow:var(--shadow-popup)]"), path);
+  ]) {
+    const workspaceChrome = read(path);
+    assert.ok(workspaceChrome.includes("shadow-none"), path);
+    assert.ok(!workspaceChrome.includes("[box-shadow:var(--shadow-popup)]"), path);
   }
 });
 

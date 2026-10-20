@@ -122,7 +122,7 @@ function TaskRow({
   }
 
   return (
-    <div className="group flex min-h-9 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-tint/60">
+    <div className="group flex min-h-9 items-center gap-2 border-b border-line px-1.5 py-1 hover:bg-tint/60">
       <button
         type="button"
         className={cn("grid size-6 shrink-0 place-items-center rounded-md text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", task.completedAt && "text-success")}
@@ -317,7 +317,7 @@ export function WorkspacePlan({
   const looseTasks = tasksForMilestone(plan);
 
   return (
-    <section className="mx-auto h-full w-full max-w-[760px] overflow-y-auto px-2 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace plan">
+    <section className="mx-auto h-full min-h-0 w-full max-w-[760px] overflow-y-auto px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Workspace plan">
       <header className="mb-5 flex items-end justify-between gap-3 border-b border-line pb-3">
         <div>
           <h2 className="m-0 text-[14px] font-semibold text-ink">Plan</h2>

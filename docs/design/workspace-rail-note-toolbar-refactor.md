@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1 and M2 verified; M3 code complete, CI pending (2026-10-21). M4–M5 pending.
+Status: APPROVED DESIGN; M1–M3 implemented and verified by CI (2026-10-21). M4–M5 pending.
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -101,4 +101,14 @@ Never claim a gate passed if it was not run. Record issues and exact follow-up a
 - Create Note still goes through existing HTTP command; on success switches pane and focuses inline rename; on failure leaves existing note unchanged.
 - Delete confirms exact note ID, guards last Note and pending clicks, flushes editor snapshots before persistence, keeps dialog open on failure, reconciles all panes on success using a pure helper that avoids duplicate Note assignment. No Tiptap Navigate changes (M4).
 - `pane-layout.test.ts`: pure reconciliation tests; `tests/workspace/note-picker.spec.ts`: browser E2E for UI ownership, inline title rename, creation and destructive rollback.
-- CI must pass before declaring M3 accepted. M4 remains separate.
+- M3 ACCEPTED after completed Verify and Verify Desktop runs below. M4 remains separate.
+
+## M3 $code-review and verification handoff (2026-10-21)
+- **Final M3 code SHA:** `305f501cf93d6c21983e2dd951448e80756c9f82`. Branch `refactor/workspace-rail-note-toolbar`, draft PR #137, unmerged.
+- UI ownership reviewed: New Note **only** the 28px + by title; Rename via inline title (double click/F2/Enter/blur, Escape aborts without side effect); Delete only individual visible 28px trash with target Note ID and a confirmation. No Rename/Move/Delete context menu in picker, no duplicate Delete Note inside pane layout actions. Other editor formatting/navigation behavior unchanged pending M4.
+- Correctness reviewed: failed create does not switch Note; multiple pane references reconciled after confirmed server success using a deterministic pure helper; deleted Note cannot be the last; every pending editor snapshot and granular autosave flushed before delete; dialog cannot dismiss while mutation is pending; delete API failure keeps active Note/layout/data intact and dialog remains retryable. The Enter/blur race and Escape cancel race were fixed using `noteRenameResolved` ref.
+- Unit/contract tests include split-pane reconciliation, no invalid Note IDs, preservation of unaffected IDs, and last-note fallback. Critical Playwright Note picker E2E validates inline rename, Escape, + header placement, trash per row, deleting a *different* Note without changing active editor, last-note protection, persisted reload and server 500 rollback.
+- [Verify run #39500735008](https://github.com/howlil/notespace/actions/runs/39500735008) **success**, with Web build, typecheck/lint/unit/contract, critical Playwright journeys, Go/server and container persistence restart smoke.
+- [Verify Desktop run #39500735011](https://github.com/howlil/notespace/actions/runs/39500735011) **success**, including Linux, Windows and Windows-latest jobs; Windows native WebDriver parity/runtime/close smoke.
+- Full browser suite was **skipped** by workflow configuration. Comprehensive screenshot/keyboard/a11y audit is still M5; it is not falsely recorded as executed.
+- **M3 complete. Next M4** on same branch: unify Find/Outline into one popover, remove permanent Code Block header action, and keep Pane Actions layout-only with Tiptap Find & Replace semantics. Do not rewrite editor domain or add duplicate menus.

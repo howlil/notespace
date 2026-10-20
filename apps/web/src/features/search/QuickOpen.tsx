@@ -131,13 +131,13 @@ export function QuickOpen() {
                 if (event.key === "Enter") { event.preventDefault(); openDestination(destinations[selected] ?? destinations[0]); }
               }}
             />
-            <kbd className="rounded border border-line px-1.5 py-0.5 text-[9px] text-muted">Esc</kbd>
+            <kbd className="rounded border border-line px-1.5 py-0.5 text-[10px] text-muted">Esc</kbd>
           </div>
 
           <div className="max-h-[min(64dvh,520px)] overflow-y-auto p-2">
             {!query.trim() && currentWorkspace?.notes.length ? (
               <section className="mb-2 border-b border-line pb-2">
-                <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[.08em] text-muted">Recall from current workspace</div>
+                <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">Recall from current workspace</div>
                 {currentWorkspace.notes.slice(0, 6).map((note) => (
                   <Button variant="ghost" size="sm" key={note.id} className="!min-h-0 w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left" onClick={() => beginRecall(note)}>
                     <FileText size={14} className="text-accent" />
@@ -147,7 +147,7 @@ export function QuickOpen() {
               </section>
             ) : null}
 
-            <div className="px-2 py-1 text-[9px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
+            <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
             {destinations.length ? destinations.map((destination, index) => (
               <Button
                 variant="ghost"
@@ -158,8 +158,8 @@ export function QuickOpen() {
                 onClick={() => openDestination(destination)}
               >
                 {destination.kind === "category" ? <Folder size={15} className="shrink-0 text-accent" /> : <FileText size={15} className="shrink-0 text-accent" />}
-                <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{destination.context}</span></span>
-                <span className="text-[9px] text-muted">↵</span>
+                <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{destination.context}</span></span>
+                <span className="text-[10px] text-muted">↵</span>
               </Button>
             )) : <p className="m-0 px-2.5 py-5 text-[10px] text-muted">{query.trim().length >= 2 ? "No matching knowledge." : "No recent workspaces."}</p>}
           </div>

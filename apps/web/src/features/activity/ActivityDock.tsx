@@ -3,7 +3,7 @@ import { Button, IconButton, cn } from "../../shared/ui";
 import { formatDuration } from "./activity-timer";
 import { useActivityRuntime } from "./activity-runtime-provider";
 
-const dockClass = "fixed right-1/2 bottom-[max(16px,env(safe-area-inset-bottom))] z-[180] w-[min(520px,calc(100vw_-_32px))] translate-x-1/2 rounded-lg border border-line bg-surface px-3 py-2.5 shadow-[0_12px_32px_#0002] max-[560px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[560px]:w-[calc(100vw_-_24px)]";
+const dockClass = "fixed right-1/2 bottom-[max(16px,env(safe-area-inset-bottom))] z-[180] w-[min(520px,calc(100vw_-_32px))] translate-x-1/2 rounded-lg border border-line bg-surface px-3 py-2.5 [box-shadow:var(--shadow-popup)] max-[560px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[560px]:w-[calc(100vw_-_24px)]";
 
 export function ActivityDock() {
   const activity = useActivityRuntime();
@@ -35,7 +35,7 @@ export function ActivityDock() {
             <div className="truncate text-[11px] font-medium text-ink">
               {activity.activeContext?.title ?? "Activity"}
             </div>
-            <div className="mt-0.5 text-[9px] capitalize text-muted">
+            <div className="mt-0.5 text-[10px] capitalize text-muted">
               {activity.activeContext?.activityType ?? "other"} · {formatDuration(activity.currentSeconds)}
             </div>
           </div>
@@ -63,7 +63,7 @@ export function ActivityDock() {
       {activity.finalizingCount > 0 && (
         <div
           className={cn(
-            "flex min-h-7 items-center gap-2 text-[9px] text-muted",
+            "flex min-h-7 items-center gap-2 text-[10px] text-muted",
             active && "mt-2 border-t border-line pt-2",
           )}
           role="status"
@@ -97,9 +97,9 @@ export function ActivityDock() {
           aria-label="Task completion handoff"
         >
           <div className="min-w-0 flex-1">
-            <div className="text-[9px] font-medium uppercase tracking-[.08em] text-muted">Activity ended</div>
+            <div className="text-[10px] font-medium uppercase tracking-[.08em] text-muted">Activity ended</div>
             <div className="mt-0.5 truncate text-[11px] font-medium text-ink">{activity.handoffTask.title}</div>
-            <div className="mt-0.5 text-[9px] text-muted">Mark task done?</div>
+            <div className="mt-0.5 text-[10px] text-muted">Mark task done?</div>
           </div>
           <Button
             type="button"

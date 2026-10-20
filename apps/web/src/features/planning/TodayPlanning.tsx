@@ -108,12 +108,12 @@ function TodayTaskRow({
           <Link
             to="/workspaces/$workspaceId"
             params={{ workspaceId: task.workspaceId }}
-            className="mt-0.5 block w-fit max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted hover:text-accent"
+            className="mt-0.5 block w-fit max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted hover:text-accent"
           >
             {context || "Workspace task"}{carriedForward ? " · carried forward" : ""}
           </Link>
         ) : (
-          <span className="mt-0.5 block text-[9px] text-muted">
+          <span className="mt-0.5 block text-[10px] text-muted">
             Standalone{carriedForward ? " · carried forward" : ""}
           </span>
         )}
@@ -305,7 +305,7 @@ export function TodayPlanning({
         <section aria-labelledby="today-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
             <h2 id="today-open-title" className="m-0 text-[11px] font-semibold text-ink">Now</h2>
-            <span className="text-[9px] tabular-nums text-muted">{openTasks.length}</span>
+            <span className="text-[10px] tabular-nums text-muted">{openTasks.length}</span>
           </div>
           {openTasks.length ? (
             <div>
@@ -336,7 +336,7 @@ export function TodayPlanning({
           <section className="mt-6" aria-labelledby="today-done-title">
             <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
               <h2 id="today-done-title" className="m-0 text-[11px] font-medium text-muted">Done</h2>
-              <span className="text-[9px] tabular-nums text-muted">{completedTasks.length}</span>
+              <span className="text-[10px] tabular-nums text-muted">{completedTasks.length}</span>
             </div>
             {completedTasks.map((task) => (
               <TodayTaskRow

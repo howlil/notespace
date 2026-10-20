@@ -38,14 +38,15 @@ test("split is border-only with 7px pointer area and keyboard-accessible bounded
   assert.match(authoring, /onKeyDown=/);
 });
 
-test("Canvas toolbar and view controls attach to edges and remain interactive", () => {
+test("Canvas toolbar and view controls float over full-bleed Workspace", () => {
   assert.match(canvas, /Canvas tools".*onPointerDown/);
   assert.match(canvas, /Canvas view controls".*onPointerDown/);
-  assert.match(canvas, /border-t border-line bg-surface p-1 shadow-none/);
-  assert.match(canvas, /border-b border-l border-line bg-surface p-1 shadow-none/);
-  assert.match(canvas, /notespace-canvas-bottom-chrome.*absolute inset-x-0 bottom-0/);
+  assert.match(canvas, /rounded-lg border border-line bg-surface p-1 shadow-none/);
+  assert.match(canvas, /notespace-canvas-bottom-chrome.*absolute bottom-2 left-1\/2/);
+  assert.match(canvas, /max-w-\[calc\(100vw-16px\)\]/);
   assert.match(canvas, /overflow-x-auto/);
-  assert.match(stylesheet, /notespace-canvas-bottom-chrome\s*\{\s*bottom: env\(safe-area-inset-bottom\) !important;\s*width: 100%;/);
+  assert.match(canvas, /pointer-events-auto absolute top-2 right-2 z-20/);
+  assert.match(stylesheet, /notespace-canvas-bottom-chrome\s*\{\s*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important;\s*width: calc\(100% - 16px\);/);
 });
 
 test("Note actions, editor and Workspace menus use borders without decorative shadows", () => {

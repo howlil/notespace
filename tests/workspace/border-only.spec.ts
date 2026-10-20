@@ -22,7 +22,23 @@ test("border-only Workspace chrome and keyboard splitter remain usable @critical
 
     const tools = page.getByRole("toolbar", { name: "Canvas tools" });
     await expect(tools).toHaveCSS("border-top-width", "1px");
+    await expect(tools).toHaveClass(/rounded-lg/);
     await expect(tools).toHaveClass(/shadow-none/);
+    const floatingGaps = await page.evaluate(() => {
+      const canvas = document.querySelector(".notespace-canvas-surface");
+      const toolRail = document.querySelector('[aria-label="Canvas tools"]');
+      const viewControls = document.querySelector('[aria-label="Canvas view controls"]');
+      if (!(canvas instanceof HTMLElement) || !(toolRail instanceof HTMLElement) || !(viewControls instanceof HTMLElement)) return null;
+      const surface = canvas.getBoundingClientRect();
+      const bottom = toolRail.getBoundingClientRect();
+      const top = viewControls.getBoundingClientRect();
+      return { bottom: surface.bottom - bottom.bottom, top: top.top - surface.top, right: surface.right - top.right, railWidth: bottom.width, canvasWidth: surface.width };
+    });
+    expect(floatingGaps).not.toBeNull();
+    expect(floatingGaps!.bottom).toBeGreaterThanOrEqual(6);
+    expect(floatingGaps!.top).toBeGreaterThanOrEqual(6);
+    expect(floatingGaps!.right).toBeGreaterThanOrEqual(6);
+    expect(floatingGaps!.railWidth).toBeLessThan(floatingGaps!.canvasWidth);
     const visibleShadow = await tools.evaluate((element) => {
       const computed = getComputedStyle(element).boxShadow;
       if (computed === "none") return false;
@@ -57,6 +73,7 @@ test("border-only Workspace keeps narrow Split accessible @critical", async ({ p
     const tools = page.getByRole("toolbar", { name: "Canvas tools" });
     await expect(tools).toBeVisible();
     await expect(tools).toHaveCSS("border-top-width", "1px");
+    await expect(tools).toHaveClass(/rounded-lg/);
     const separator = page.getByRole("separator", { name: /Resize vertical panes/ }).first();
     await expect(separator).toHaveAttribute("aria-orientation", "horizontal");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

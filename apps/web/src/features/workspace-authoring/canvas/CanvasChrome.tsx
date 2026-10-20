@@ -342,7 +342,7 @@ export function CanvasToolRail(props: {
   }, [diagramOpen, onDiagramToggle]);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto relative flex w-full min-w-0 max-w-full items-center gap-0.5 overflow-visible rounded-none border-0 border-t border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
+    <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto relative flex max-w-[calc(100vw-16px)] items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
         <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
@@ -365,7 +365,7 @@ export function CanvasToolRail(props: {
 
 export function CanvasBottomChrome({ contextual, tools }: { contextual: ReactNode; tools: ReactNode }) {
   return (
-    <div className="notespace-canvas-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-[90] flex w-full max-w-full flex-col items-center gap-2">
+    <div className="notespace-canvas-bottom-chrome pointer-events-none absolute bottom-2 left-1/2 z-[90] flex max-w-[calc(100%-16px)] -translate-x-1/2 flex-col items-center gap-2">
       {contextual}
       {tools}
     </div>
@@ -427,7 +427,7 @@ export function CanvasViewControls({ api, zoom, gridModeEnabled, objectsSnapMode
   };
 
   return (
-    <motion.aside initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto absolute top-0 right-0 z-20 flex max-w-full items-center gap-0.5 rounded-none border-0 border-b border-l border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas view controls" onPointerDown={(event) => event.stopPropagation()}>
+    <motion.aside initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas view controls" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex items-center rounded-md bg-canvas/70">
         <NativeViewAction api={api} name="zoomOut" label="Zoom out" onClick={() => onAction("zoomOut")} />
         <button type="button" className="h-8 min-w-11 shrink-0 rounded-md px-1.5 text-[9px] font-medium tabular-nums text-ink hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Reset zoom from ${zoomLabel} to 100%`} title="Reset zoom" onClick={() => onAction("resetZoom")}>{zoomLabel}</button>

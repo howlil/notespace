@@ -1,7 +1,7 @@
 import { test, expect, cleanupWorkspace, createViaAPI, frameCanvasSnapshot, frameClipboardPayload, selectView } from "./fixtures";
 import { deferred } from "../helpers";
 
-test("flowchart spawn previews, chains, auto-connects, and switches shape type", async ({ page, request }) => {
+test("flowchart spawn previews, chains, auto-connects, and switches shape type @critical", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Directional spawn ${Date.now()}`);
 
   try {

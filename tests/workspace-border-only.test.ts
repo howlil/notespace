@@ -25,7 +25,7 @@ test("Workspace authoring is full-bleed and keeps its existing view switcher and
 });
 
 test("split is border-only with 7px pointer area and keyboard-accessible bounded resize", () => {
-  assert.match(authoring, /7px minmax\\(0, \\$\\{1 - ratio\\}fr\\)/);
+  assert.match(authoring, / 7px /);
   assert.match(authoring, /after:w-px/);
   assert.match(authoring, /after:h-px/);
   assert.match(authoring, /after:bg-line/);

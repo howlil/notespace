@@ -191,6 +191,18 @@ async function assertDesktopChrome(session, workspace) {
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
+
+    // Native-only geometry regression: maximize/Focus must remove the 40px
+    // gutter without changing the editor's React-owned pane state.
+    const focusButton = await visibleElement(session, By.css('.workspace-rail button[aria-label="Focus mode"]'));
+    await focusButton.click();
+    const restore = await visibleElement(session, By.css('button[aria-label="Restore layout"]'));
+    const focusedX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
+    assert.equal(focusedX, 0, "Focused desktop workspace must use full window width with no empty rail column");
+    await restore.click();
+    await visibleElement(session, By.css('.workspace-rail'));
+    const restoredX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
+    assert.equal(restoredX, 40, "Restored desktop Workspace must bring back the full-height rail column");
   } else {
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
     assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");

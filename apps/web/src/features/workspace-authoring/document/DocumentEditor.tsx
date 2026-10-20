@@ -28,7 +28,6 @@ import {
   Link2,
   List,
   ListOrdered,
-  ListTree,
   Plus,
   Search,
   Strikethrough,
@@ -416,6 +415,7 @@ export default function DocumentEditor({
         if (!currentEditor) return false;
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
           event.preventDefault();
+          closeHeaderMenus();
           setNavigateOpen(true);
           dismissSlashMenu();
           setSelectionMenu(null);
@@ -560,7 +560,13 @@ export default function DocumentEditor({
     if (restoreFocus) navigateTriggerRef.current?.focus();
   }
 
+  function closeHeaderMenus() {
+    const pane = documentRef.current?.closest('section[aria-label$="note pane"]');
+    pane?.querySelectorAll("details.pane-note-switcher, details.pane-actions").forEach((details) => details.removeAttribute("open"));
+  }
+
   function toggleNavigate() {
+    closeHeaderMenus();
     dismissSlashMenu();
     setSelectionMenu(null);
     if (navigateOpen) closeNavigate();
@@ -623,10 +629,10 @@ export default function DocumentEditor({
   const tableActive = editor.isActive("table");
 
   const toolbarButtons = (
-    <IconButton
+    <button
       ref={navigateTriggerRef}
       type="button"
-      className="!size-7 rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
       aria-label="Navigate note"
       title="Find & outline (Ctrl/Cmd+F)"
       aria-expanded={navigateOpen}
@@ -634,7 +640,7 @@ export default function DocumentEditor({
       onClick={toggleNavigate}
     >
       <Search size={15} aria-hidden="true" />
-    </IconButton>
+    </button>
   );
 
   return (

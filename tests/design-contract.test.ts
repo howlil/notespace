@@ -445,7 +445,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Link canvas"/);
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Code block"/);
   assert.match(editor, /createNoteCodeBlockExtension/);
-  assert.match(editor, /aria-label="Code block"/);
+  assert.match(editor, /label="Code block"/);
+  assert.doesNotMatch(editor, /aria-label="Code block"/);
+  assert.match(editor, /aria-label="Navigate note"/);
+  assert.doesNotMatch(editor, /aria-label="Open note outline"|aria-label="Find in note"/);
   const noteCodeBlock = source(NOTE_CODE_BLOCK);
   assert.match(noteCodeBlock, /data-note-code-block/);
   assert.match(noteCodeBlock, /detectCodeLanguage/);

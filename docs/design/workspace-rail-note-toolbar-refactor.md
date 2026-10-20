@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1–M3 verified; M4 Navigate implementation committed, CI pending (2026-10-21). M5 pending.
+Status: APPROVED DESIGN; M1–M4 implemented and verified by CI (2026-10-21). M5 pending.
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -119,4 +119,15 @@ Never claim a gate passed if it was not run. Record issues and exact follow-up a
 - Escape, outside pointer, Close, and heading navigation close the panel (Escape restores trigger focus); opening the Navigate popover closes Note selector and pane-action details. Search highlights are cleared on dismissal. Per-pane max width and height are constrained to avoid mobile/split overflow.
 - Pane Actions retains only Split right/down and Close pane as of M3; no Delete. Popup ownership is unique.
 - `tests/workspace/navigate.spec.ts` verifies heading jump, Ctrl/Cmd+F, replace all, match case, result navigation, keyboard close/restore, menu ownership and 390px split containment. M5 carries cross-platform screenshot and keyboard a11y audit.
-- CI must be verified before marking M4 complete.
+- M4 **ACCEPTED** after passing Verify/Verify Desktop on runtime commit (details below). M5 remains separate.
+
+## M4 $code-review and CI acceptance (2026-10-21)
+- **Final runtime commit:** `a5ba493122bd25130e308fa30b6e044b9671249f`. Source: `apps/web/src/features/workspace-authoring/document/DocumentEditor.tsx`; tests `tests/workspace/navigate.spec.ts`, `tests/design-contract.test.ts`, and `DESIGN.md`. PR #137 remains **draft/unmerged**.
+- **Graph and UI ownership review:** WorkspaceRail and M3 Note picker remain unchanged; per-Note `DocumentEditor` now owns one **Navigate note** header trigger (28px), one `navigateOpen` state and one contained border-only popover. Heading outline is derived from Tiptap heading block IDs; search/replacement operates solely through Tiptap `FindAndReplace` extension. No additional store, persistence path, standalone search, or separate Web/Desktop UX.
+- **No redundant command:** permanent Code Block button removed; contextual selection Code Block and slash `/code` remain. Original duplicate Find and Outline header buttons and independent popovers removed. Pane Actions remains Split Right / Split Down / Close Pane only; opening Navigate dismisses open header menus.
+- **Interaction and failure review:** Ctrl/Cmd+F from editor opens Navigate; search input focuses/selects; blank input shows outline; typed query shows matches and previous/next, Match Case, Replace and Replace All. Escape/Close returns focus to trigger; outside click dismisses; heading click focuses editor block. Search extension highlights clear on dismissal; selection bubble is suppressed while Navigate open. Popover constrained within Note pane at narrow/Split widths.
+- **Findings fixed during review:** TS effect cleanup returned the Editor object instead of `void` (fixed `198eaa0`); an initial ambiguous Playwright locator matched multiple "matches" labels (fixed `a5ba493`); selecting search hits could reopen contextual format actions over Navigate (suppressed via Navigate-open ref and tested). Existing code action tests remain intact.
+- [**Verify run #39507089254**](https://github.com/howlil/notespace/actions/runs/39507089254): **success** — Web build, TypeScript, ESLint, unit/contract tests, Go/server checks, critical browser journeys (including M4 Navigate tests), container persistence smoke.
+- [**Verify Desktop run #39507089213**](https://github.com/howlil/notespace/actions/runs/39507089213): **success** — Linux and both Windows desktop jobs, native WebDriver parity and lifecycle/SQLite relaunch smoke.
+- Full browser suite was **skipped** by CI workflow configuration, not claimed as executed. Final desktop/Web visual review, full browser suite, keyboard/a11y coverage, reduced motion, and release readiness remain explicitly scoped to **M5**.
+- **M4 complete. Next M5** on this branch: pixel comparisons versus approved Web/Desktop preview, full browser suite, accessibility and keyboard paths, mobile/Split, autosave conflict and native Close/Restore review, then final code review before PR can be marked ready.

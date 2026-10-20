@@ -362,3 +362,45 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* M5: a Split Canvas can be narrower than the browser viewport.
+ * Use the Canvas pane's inline size, not `max-width: 560px` viewport
+ * assumptions, so tool rails stay inside their own panel on tablet Split.
+ */
+.notespace-canvas-surface {
+  container: notespace-canvas / inline-size;
+}
+
+@container notespace-canvas (max-width: 560px) {
+  .notespace-canvas-bottom-chrome {
+    width: calc(100% - 16px);
+    max-width: calc(100% - 16px);
+  }
+
+  [aria-label="Canvas tools"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  [aria-label="Canvas tools"] > div:first-child {
+    min-width: 0;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  [aria-label="Canvas tools"] > div:first-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  [aria-label="Canvas view controls"] {
+    right: 8px;
+    max-width: calc(100% - 16px);
+  }
+
+  [aria-label="Canvas view controls"] button[aria-label="Browse library"],
+  [aria-label="Canvas view controls"] > span {
+    display: none;
+  }
+}

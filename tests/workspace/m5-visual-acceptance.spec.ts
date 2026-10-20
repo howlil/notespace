@@ -53,6 +53,21 @@ for (const viewport of [
         await expect(pane.getByRole("button", { name: "Find in note" })).toHaveCount(0);
         await expect(pane.getByRole("button", { name: "Open note outline" })).toHaveCount(0);
         await expect(pane.getByRole("button", { name: "Code block", exact: true })).toHaveCount(0);
+        if (view === "Split") {
+          const canvasBounds = await page.evaluate(() => {
+            const host = document.querySelector(".notespace-canvas-surface");
+            const tools = host?.querySelector('[aria-label="Canvas tools"]');
+            const controls = host?.querySelector('[aria-label="Canvas view controls"]');
+            if (!(host instanceof HTMLElement) || !(tools instanceof HTMLElement) || !(controls instanceof HTMLElement)) return null;
+            const h = host.getBoundingClientRect(), t = tools.getBoundingClientRect(), c = controls.getBoundingClientRect();
+            return { left: h.left, right: h.right, toolLeft: t.left, toolRight: t.right, controlsLeft: c.left, controlsRight: c.right };
+          });
+          expect(canvasBounds).not.toBeNull();
+          expect(canvasBounds!.toolLeft).toBeGreaterThanOrEqual(canvasBounds!.left - 1);
+          expect(canvasBounds!.toolRight).toBeLessThanOrEqual(canvasBounds!.right + 1);
+          expect(canvasBounds!.controlsLeft).toBeGreaterThanOrEqual(canvasBounds!.left - 1);
+          expect(canvasBounds!.controlsRight).toBeLessThanOrEqual(canvasBounds!.right + 1);
+        }
         await page.screenshot({ path: `test-results/m5-${viewport.label}-${view.toLowerCase()}.png`, animations: "disabled" });
 
         // All three controls share a 34px pane toolbar but have distinct owners.

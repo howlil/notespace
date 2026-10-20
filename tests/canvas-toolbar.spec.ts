@@ -373,6 +373,7 @@ test.describe("Canvas chrome", () => {
       const editor = page.locator(".excalidraw").first();
       await expect(editor).toBeFocused();
       const addRight = page.getByRole("button", { name: "Add connected shape right" });
+      await page.mouse.move(bounds.x + 354, bounds.y + 215);
       await expect(addRight).toBeVisible();
 
       const actions = page.getByRole("toolbar", { name: "Selected shape actions" });
@@ -396,6 +397,7 @@ test.describe("Canvas chrome", () => {
 
       await actions.getByRole("button", { name: "Drawing properties" }).click();
       await expect(page.getByRole("dialog", { name: "properties properties" })).toHaveCount(0);
+      await page.mouse.move(bounds.x + 354, bounds.y + 215);
       await expect(addRight).toBeVisible();
     } finally {
       await cleanup(request, id);

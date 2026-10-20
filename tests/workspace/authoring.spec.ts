@@ -1,7 +1,7 @@
 import { test, expect, cleanupWorkspace, createViaAPI, frameCanvasSnapshot, frameClipboardPayload, selectView } from "./fixtures";
 import { deferred } from "../helpers";
 
-test("flowchart spawn previews, chains, auto-connects, and switches shape type", async ({ page, request }) => {
+test("flowchart spawn previews, chains, auto-connects, and switches shape type @critical", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `Directional spawn ${Date.now()}`);
 
   try {
@@ -29,8 +29,17 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
     const editor = page.locator(".excalidraw").first();
     await expect(editor).toBeFocused();
 
+    const handles = page.getByRole("button", { name: /Add connected shape/ });
     const addRight = page.getByRole("button", { name: "Add connected shape right" });
+    // Drawing ends at a shape corner, so move away before asserting idle state.
+    await page.mouse.move(bounds.x + 40, bounds.y + 40);
+    await expect(handles).toHaveCount(0);
+    await page.mouse.move(left + 60, top + 4);
+    await expect(page.getByRole("button", { name: "Add connected shape up" })).toBeVisible();
+    await expect(handles).toHaveCount(1);
+    await page.mouse.move(left + 115, top + 35);
     await expect(addRight).toBeVisible();
+    await expect(handles).toHaveCount(1);
     await addRight.hover();
     await expect(page.getByText("Alt", { exact: true })).toBeVisible();
 
@@ -42,6 +51,7 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
     expect(previewLive.filter((element) => element.type === "arrow")).toHaveLength(0);
 
     await page.mouse.move(bounds.x + 40, bounds.y + 40);
+    await expect(handles).toHaveCount(0);
     await editor.press("Alt+ArrowRight");
 
     await expect.poll(async () => {

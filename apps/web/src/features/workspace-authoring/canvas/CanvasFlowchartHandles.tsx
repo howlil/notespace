@@ -9,8 +9,6 @@ export type CanvasFlowchartAnchor = {
   bottom: number;
 };
 
-const directions: readonly DirectionalSpawnDirection[] = ["up", "right", "down", "left"];
-
 function arrowFor(direction: DirectionalSpawnDirection) {
   if (direction === "up") return "↑";
   if (direction === "right") return "→";
@@ -37,51 +35,49 @@ function hintPosition(anchor: CanvasFlowchartAnchor, direction: DirectionalSpawn
 
 export function CanvasFlowchartHandles({
   anchor,
+  activeDirection,
   previewDirection,
   onPreviewStart,
   onPreviewCancel,
   onCommit,
 }: {
   anchor: CanvasFlowchartAnchor | null;
+  activeDirection: DirectionalSpawnDirection | null;
   previewDirection: DirectionalSpawnDirection | null;
   onPreviewStart: (direction: DirectionalSpawnDirection) => void;
   onPreviewCancel: () => void;
   onCommit: (direction: DirectionalSpawnDirection) => void;
 }) {
-  if (!anchor) return null;
+  if (!anchor || !activeDirection) return null;
+  const position = handlePosition(anchor, activeDirection);
 
   return (
     <>
-      {directions.map((direction) => {
-        const position = handlePosition(anchor, direction);
-        const active = previewDirection === direction;
-        return (
-          <motion.button
-            key={direction}
-            type="button"
-            className="fixed z-[95] grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-[14px] leading-none text-muted shadow-sm transition-colors hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-            style={{ left: position.left, top: position.top }}
-            initial={false}
-            animate={{ scale: active ? 1.08 : 1, opacity: active ? 1 : 0.82 }}
-            transition={{ duration: 0.12 }}
-            aria-label={`Add connected shape ${direction}`}
-            title={`Add connected shape ${direction} (Alt + ${arrowFor(direction)})`}
-            onPointerEnter={() => onPreviewStart(direction)}
-            onPointerLeave={() => onPreviewCancel()}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onCommit(direction);
-            }}
-          >
-            +
-          </motion.button>
-        );
-      })}
+      <motion.button
+        key={`${anchor.id}:${activeDirection}`}
+        data-flowchart-handle="true"
+        type="button"
+        className="fixed z-[95] grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-[14px] leading-none text-muted shadow-sm transition-colors hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+        style={{ left: position.left, top: position.top }}
+        initial={false}
+        animate={{ scale: previewDirection === activeDirection ? 1.08 : 1, opacity: 1 }}
+        transition={{ duration: 0.12 }}
+        aria-label={`Add connected shape ${activeDirection}`}
+        title={`Add connected shape ${activeDirection} (Alt + ${arrowFor(activeDirection)})`}
+        onPointerEnter={() => onPreviewStart(activeDirection)}
+        onPointerLeave={onPreviewCancel}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onCommit(activeDirection);
+        }}
+      >
+        +
+      </motion.button>
 
       <AnimatePresence>
         {previewDirection && (() => {

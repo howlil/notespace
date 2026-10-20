@@ -203,7 +203,10 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
 
   const {
     anchor: flowchartAnchor,
+    activeDirection: flowchartActiveDirection,
     previewDirection: flowchartPreviewDirection,
+    trackPointer: trackFlowchartPointer,
+    clearHover: clearFlowchartHover,
     beginPreview: beginNativeFlowchartPreview,
     cancelPreview: cancelNativeFlowchartPreview,
     commitPreview: commitNativeFlowchartPreview,
@@ -673,7 +676,18 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       ref={surfaceRef}
       className="notespace-canvas-surface relative min-h-0 w-full flex-1"
       aria-label="Workspace canvas"
+      onPointerMoveCapture={(event) => {
+        if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+        const target = event.target;
+        if (target instanceof Element && target.closest(".excalidraw__canvas, [data-flowchart-handle]")) {
+          trackFlowchartPointer(event.clientX, event.clientY, event.pointerType);
+        } else {
+          clearFlowchartHover();
+        }
+      }}
+      onPointerLeave={clearFlowchartHover}
       onPointerDownCapture={(event) => {
+        if (event.pointerType === "touch") trackFlowchartPointer(event.clientX, event.clientY, "touch");
         const target = event.target;
         if (!(target instanceof Element) || !target.closest(".excalidraw__canvas")) return;
         focusCanvasEditor();
@@ -820,6 +834,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
       />
       <CanvasFlowchartHandles
         anchor={canvasOverlayInteractionActive ? null : flowchartAnchor}
+        activeDirection={canvasOverlayInteractionActive ? null : flowchartActiveDirection}
         previewDirection={flowchartPreviewDirection}
         onPreviewStart={beginNativeFlowchartPreview}
         onPreviewCancel={cancelNativeFlowchartPreview}

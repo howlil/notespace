@@ -11,6 +11,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  hoveredFlowchartDirection,
   isNativeFlowchartShapeType,
   keyFromDirection,
   type DirectionalSpawnDirection,
@@ -18,6 +19,8 @@ import {
 import type { CanvasFlowchartAnchor } from "./CanvasFlowchartHandles";
 
 type FlowchartAppState = AppState & { editingLinearElement?: unknown };
+
+type HoveredFlowchartHandle = { elementId: string; direction: DirectionalSpawnDirection };
 
 type FlowchartSemanticPreview = {
   sourceId: string;
@@ -38,6 +41,9 @@ export function useCanvasFlowchart({
   ) => OrderedExcalidrawElement;
 }) {
   const [anchor, setAnchor] = useState<CanvasFlowchartAnchor | null>(null);
+  const anchorRef = useRef<CanvasFlowchartAnchor | null>(null);
+  const [hoveredHandle, setHoveredHandle] = useState<HoveredFlowchartHandle | null>(null);
+  const [touchInput, setTouchInput] = useState(false);
   const [previewDirection, setPreviewDirection] =
     useState<DirectionalSpawnDirection | null>(null);
   const previewRef = useRef<DirectionalSpawnDirection | null>(null);
@@ -65,6 +71,30 @@ export function useCanvasFlowchart({
     setPreviewDirection(null);
   }, [apiRef]);
 
+  const trackPointer = useCallback((clientX: number, clientY: number, pointerType: string) => {
+    if (pointerType === "touch") {
+      setTouchInput(true);
+      setHoveredHandle(null);
+      return;
+    }
+    if (pointerType !== "mouse" && pointerType !== "pen") return;
+    setTouchInput(false);
+    const selected = anchorRef.current;
+    const previous = selected && hoveredHandle?.elementId === selected.id ? hoveredHandle.direction : null;
+    const direction = selected ? hoveredFlowchartDirection(selected, clientX, clientY, previous) : null;
+    if (previewRef.current && previewRef.current !== direction) cancelPreview();
+    setHoveredHandle((current) => {
+      if (!selected || !direction) return current === null ? current : null;
+      if (current?.elementId === selected.id && current.direction === direction) return current;
+      return { elementId: selected.id, direction };
+    });
+  }, [cancelPreview, hoveredHandle]);
+
+  const clearHover = useCallback(() => {
+    setHoveredHandle(null);
+    cancelPreview();
+  }, [cancelPreview]);
+
   const beginPreview = useCallback(
     (direction: DirectionalSpawnDirection) => {
       const api = apiRef.current;
@@ -91,17 +121,9 @@ export function useCanvasFlowchart({
             element.id === selectedIds[0] && !element.isDeleted,
         );
       if (!source || !isNativeFlowchartShapeType(source.type)) return false;
+      if (previewRef.current === direction && semanticPreviewRef.current?.sourceId === source.id) return true;
+      if (previewRef.current) cancelPreview();
       const beforeIds = new Set(api.getSceneElementsIncludingDeleted().map((element) => element.id));
-
-      if (previewRef.current && previewRef.current !== direction) {
-        api.app.flowchart.handleKeyEvent(
-          new KeyboardEvent("keydown", {
-            key: "Escape",
-            bubbles: false,
-            cancelable: true,
-          }),
-        );
-      }
 
       const handled = api.app.flowchart.handleKeyEvent(
         new KeyboardEvent("keydown", {
@@ -148,7 +170,7 @@ export function useCanvasFlowchart({
       setPreviewDirection(direction);
       return true;
     },
-    [apiRef, decorateTarget],
+    [apiRef, cancelPreview, decorateTarget],
   );
 
   const commitPreview = useCallback(
@@ -265,29 +287,39 @@ export function useCanvasFlowchart({
           },
           state,
         );
-        setAnchor({
+        const nextAnchor = {
           id: selectedElement.id,
           left: Math.min(topLeft.x, bottomRight.x),
           top: Math.min(topLeft.y, bottomRight.y),
           right: Math.max(topLeft.x, bottomRight.x),
           bottom: Math.max(topLeft.y, bottomRight.y),
-        });
+        };
+        if (anchorRef.current?.id !== nextAnchor.id) setHoveredHandle(null);
+        const activePreview = semanticPreviewRef.current;
+        if (previewRef.current && activePreview && selectedElement.id !== activePreview.sourceId && selectedElement.id !== activePreview.targetId) cancelPreview();
+        anchorRef.current = nextAnchor;
+        setAnchor(nextAnchor);
         return;
       }
 
+      anchorRef.current = null;
       setAnchor(null);
-      if (previewRef.current) {
-        previewRef.current = null;
-        semanticPreviewRef.current = null;
-        setPreviewDirection(null);
-      }
+      setHoveredHandle(null);
+      cancelPreview();
     },
-    [],
+    [cancelPreview],
   );
+
+  const activeDirection = anchor
+    ? (hoveredHandle?.elementId === anchor.id ? hoveredHandle.direction : touchInput ? "right" : null)
+    : null;
 
   return {
     anchor,
+    activeDirection,
     previewDirection,
+    trackPointer,
+    clearHover,
     beginPreview,
     cancelPreview,
     commitPreview,

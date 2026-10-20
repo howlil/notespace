@@ -142,6 +142,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState(workspace.title);
   const [workspaceRenamePending, setWorkspaceRenamePending] = useState(false);
   const noteRenameInput = useRef<HTMLInputElement>(null);
+  const noteRenameResolved = useRef(false);
   const workspaceRenameInput = useRef<HTMLInputElement>(null);
   const workspaceRenameSubmitting = useRef(false);
   useExclusivePopup(!!deletingNote, () => setDeletingNote(null));
@@ -219,6 +220,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     if (!noteId) return;
     const note = current.current.notes.find((item) => item.id === noteId);
     if (!note) return;
+    noteRenameResolved.current = false;
     setNoteTitle(note.title);
     setRenamingNote({ paneId: pane.id, noteId });
   }
@@ -253,6 +255,8 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     }
   }
   function commitRenameNote(pane: Pane) {
+    if (noteRenameResolved.current) return;
+    noteRenameResolved.current = true;
     const value = noteTitle.trim();
     const noteId = renamingNote?.paneId === pane.id ? renamingNote.noteId : pane.noteId;
     if (!noteId || !value) { setRenamingNote(null); return; }
@@ -315,7 +319,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
             onBlur={() => commitRenameNote(pane)}
             onKeyDown={(event) => {
               if (event.key === "Enter") { event.preventDefault(); commitRenameNote(pane); }
-              if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setRenamingNote(null); }
+              if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); noteRenameResolved.current = true; setRenamingNote(null); }
             }}
           />
         ) : (

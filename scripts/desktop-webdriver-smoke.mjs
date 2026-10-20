@@ -145,6 +145,12 @@ async function assertDesktopChrome(session, workspace) {
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
     const rail = document.querySelector(".workspace-rail");
+    const slot = document.querySelector(".desktop-workspace-rail-slot");
+    const shell = document.querySelector(".desktop-shell");
+    const pane = document.querySelector(".workspace-main");
+    const chromeBox = chrome?.getBoundingClientRect();
+    const railBox = rail?.getBoundingClientRect();
+    const paneBox = pane?.getBoundingClientRect();
     return {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
@@ -154,7 +160,16 @@ async function assertDesktopChrome(session, workspace) {
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
       settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
       theme: Boolean(header?.querySelector('[aria-label="Use dark theme"], [aria-label="Use light theme"]')),
-      railWidth: rail?.getBoundingClientRect().width ?? 0,
+      railWidth: railBox?.width ?? 0,
+      railX: railBox?.x ?? -1,
+      railY: railBox?.y ?? -1,
+      railHeight: railBox?.height ?? 0,
+      railParentIsSlot: Boolean(rail && rail.parentElement === slot),
+      shellWorkspace: shell?.classList.contains("desktop-shell--workspace") ?? false,
+      chromeX: chromeBox?.x ?? -1,
+      paneX: paneBox?.x ?? -1,
+      paneY: paneBox?.y ?? -1,
+      viewportHeight: window.innerHeight,
       views: rail?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
     };
   `);
@@ -164,7 +179,15 @@ async function assertDesktopChrome(session, workspace) {
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
-    assert.equal(result.railWidth, 40, "M1 Workspace navigation rail must be 40px wide");
+    assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
+    assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
+    assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");
+    assert.equal(result.railHeight, result.viewportHeight, "M2 rail must run to the bottom of the native window");
+    assert.equal(result.railParentIsSlot, true, "M2 rail must be owned by the full-height shell portal");
+    assert.equal(result.shellWorkspace, true, "M2 custom desktop shell must use workspace grid layout");
+    assert.equal(result.chromeX, 40, "M2 desktop titlebar must start after the rail, not above it");
+    assert.equal(result.paneX, 40, "M2 authoring content must start after the rail");
+    assert.equal(result.paneY, 38, "M2 authoring content must start below the 38px native titlebar");
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");

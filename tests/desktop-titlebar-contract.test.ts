@@ -10,6 +10,7 @@ const title = source(web + "shared/ui/desktop-titlebar/DesktopTitleBar.tsx");
 const header = source(web + "shared/ui/desktop-titlebar/HeaderPlacement.tsx");
 const provider = source(web + "shared/ui/desktop-titlebar/DesktopChromeProvider.tsx");
 const workspace = source(web + "pages/workspace/WorkspacePage.tsx");
+const stylesheet = source(web + "shared/ui/desktop-titlebar/desktop-titlebar.css");
 
 test("desktop title bar preserves existing per-page React handlers and web header fallback", () => {
   assert.match(header, /createPortal\(header, headerHost\)/);
@@ -47,4 +48,18 @@ test("Theme controls only exist in Settings; desktop Workspace hides its Setting
   }
   assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \{dark \? "light" : "dark"\} theme/);
   assert.doesNotMatch(workspace, /SettingsTrigger|WorkspaceGuide/);
+});
+
+test("M2 desktop Workspace rail occupies its own full-height shell column and native fallback stays safe", () => {
+  assert.match(provider, /workspaceRailHost/);
+  assert.match(provider, /desktop-workspace-rail-slot/);
+  assert.match(provider, /desktop-shell-content/);
+  assert.match(provider, /customChromeActive && isWorkspace/);
+  assert.match(stylesheet, /grid-template-columns: 40px minmax\(0, 1fr\)/);
+  assert.match(stylesheet, /\.desktop-shell--native \.desktop-shell-content \{ height: 100dvh; \}/);
+  assert.match(stylesheet, /\.desktop-shell--workspace:has\(\.workspace-main\.is-focus-mode\)/);
+  assert.match(source(web + "shared/ui/desktop-titlebar/HeaderPlacement.tsx"), /workspaceRailHost: HTMLElement \| null/);
+  assert.match(workspace, /railHostActive \? createPortal\(rail, workspaceRailHost\) : rail/);
+  assert.match(title, /data-tauri-drag-region/);
+  assert.doesNotMatch(stylesheet, /\.desktop-placed-header\.workspace-header/);
 });

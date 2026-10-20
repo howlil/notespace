@@ -1,6 +1,6 @@
 # Notespace Workspace Rail & Note Toolbar — Design Freeze
 
-Status: APPROVED DESIGN; M1 in progress (2026-10-21).
+Status: APPROVED DESIGN; M1 passed CI (PR #137); M2 desktop-shell refactor in progress (2026-10-21).
 Repository: howlil/notespace; branch `refactor/workspace-rail-note-toolbar`.
 Basis: design research and interactive prototype approved in conversation. This is the authoritative continuation contract for M1–M5. Do not alter scope or skip milestones.
 
@@ -77,3 +77,11 @@ Surfaces: WorkspaceRail; NotePaneHeader; NotePicker; NotePickerRow; NavigatePopo
 ## Execution notes
 Test scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e:critical`, `pnpm test:desktop:critical`, `pnpm test:desktop:lifecycle`. Native + E2E require configured runners.
 Never claim a gate passed if it was not run. Record issues and exact follow-up at each milestone.
+
+## M2 implementation handoff (2026-10-21)
+- `DesktopChromeProvider` owns a persistent `desktop-workspace-rail-slot` and stable `desktop-shell-content` wrapper. Workspace route detection comes from the existing TanStack Router, not a new domain state.
+- `DesktopChromeContext` exposes `workspaceRailHost`. `WorkspacePage` portals the very same rail only while native custom chrome is active; native-decorations fallback and Web keep the normal in-page rail.
+- Desktop Workspace shell is a 40px + flexible grid, with a right-hand 38px native titlebar and ordinary content column; Library/Inbox/Today keep their original horizontal titlebar and layout.
+- Focus uses existing `workspace-main.is-focus-mode` and CSS `:has` to collapse the 40px desktop rail column to zero; restoring Focus restores rail width without duplicating state.
+- Existing `WindowControls` uses `request_desktop_close` for graceful-close durability. Titlebar drag host `data-tauri-drag-region` stays interactive only on the non-button area; no window-control logic changed.
+- M2 acceptance: rail x=0,y=0,w=40,h=window.innerHeight; desktop titlebar x=40,y=0,h=38 with 3 native controls; Note pane starts x=40 and y=38; true view-center in rail; no extra headers or Saved/Java label; focus collapses rail gutter; pages other than Workspace unchanged; native fallback retains in-page navigation.

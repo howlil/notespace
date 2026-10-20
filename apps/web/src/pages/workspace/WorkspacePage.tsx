@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { Maximize2 } from "lucide-react";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
@@ -8,6 +9,7 @@ import { useActivityRuntime } from "../../features/activity/activity-runtime-pro
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceRail } from "../../features/workspace-authoring/ui/WorkspaceRail";
 import { IconButton, cn } from "../../shared/ui";
+import { useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 
 type Props = {
   workspace: Workspace;
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export function WorkspacePage({ workspace }: Props) {
+  const { customChromeActive, workspaceRailHost } = useDesktopChrome();
   const activity = useActivityRuntime();
   const { adoptLegacyWorkspace } = activity;
   const [planOpen, setPlanOpen] = useState(false);
@@ -39,6 +42,18 @@ export function WorkspacePage({ workspace }: Props) {
         : authoring.status.state === "error"
           ? "Not saved"
           : "Unsaved";
+
+  const rail = !authoring.focusMode ? (
+    <WorkspaceRail
+      activeViewMode={authoring.activeViewMode}
+      planActive={planOpen}
+      onSelectView={(mode) => { setPlanOpen(false); authoring.selectView(mode); }}
+      onPlanSelect={() => { setPlanOpen(true); authoring.clearMaximize(); }}
+      onFocus={authoring.toggleActiveMaximize}
+      activityControl={<ActivityIndicator rail activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />}
+    />
+  ) : null;
+  const railHostActive = customChromeActive && workspaceRailHost !== null;
 
   const visible = planOpen ? (
     <WorkspacePlan
@@ -66,16 +81,7 @@ export function WorkspacePage({ workspace }: Props) {
   return (
     <div className="h-dvh min-w-0 overflow-hidden">
       <main className={cn("workspace-main relative flex h-dvh min-h-0 min-w-0 overflow-hidden bg-surface", authoring.focusMode && "is-focus-mode")}>
-        {!authoring.focusMode && (
-          <WorkspaceRail
-            activeViewMode={authoring.activeViewMode}
-            planActive={planOpen}
-            onSelectView={(mode) => { setPlanOpen(false); authoring.selectView(mode); }}
-            onPlanSelect={() => { setPlanOpen(true); authoring.clearMaximize(); }}
-            onFocus={authoring.toggleActiveMaximize}
-            activityControl={<ActivityIndicator rail activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />}
-          />
-        )}
+        {railHostActive ? createPortal(rail, workspaceRailHost) : rail}
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
           <div className="flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0">{visible}</div>
           {authoring.focusMode && (

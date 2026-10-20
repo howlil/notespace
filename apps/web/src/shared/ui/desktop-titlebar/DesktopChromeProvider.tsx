@@ -1,11 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useRouterState } from "@tanstack/react-router";
 import { DesktopChromeContext } from "./HeaderPlacement";
 import { DesktopTitleBar } from "./DesktopTitleBar";
 
 export function DesktopChromeProvider({ children }: { children: ReactNode }) {
   const desktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const isWorkspace = useRouterState({ select: (state) => state.location.pathname.startsWith("/workspaces/") });
   const [headerHost, setHeaderHost] = useState<HTMLElement | null>(null);
+  const [workspaceRailHost, setWorkspaceRailHost] = useState<HTMLElement | null>(null);
   const [customChromeActive, setCustomChromeActive] = useState(false);
 
   useEffect(() => {
@@ -23,11 +26,20 @@ export function DesktopChromeProvider({ children }: { children: ReactNode }) {
 
   if (!desktop) return <>{children}</>;
 
+  // Keep the Outlet under a stable parent when chrome activates or routes change.
+  // Only the workspace rail moves to the shell slot; editor state stays page-owned.
   return (
-    <DesktopChromeContext.Provider value={{ customChromeActive, headerHost }}>
-      <div className={customChromeActive ? "desktop-shell desktop-shell--custom" : "desktop-shell desktop-shell--native"}>
-        <DesktopTitleBar headerHostRef={setHeaderHost} active={customChromeActive} />
-        <div className="desktop-page-viewport">{children}</div>
+    <DesktopChromeContext.Provider value={{ customChromeActive, headerHost, workspaceRailHost }}>
+      <div className={[
+        "desktop-shell",
+        customChromeActive ? "desktop-shell--custom" : "desktop-shell--native",
+        customChromeActive && isWorkspace ? "desktop-shell--workspace" : "",
+      ].filter(Boolean).join(" ")}>
+        <div ref={setWorkspaceRailHost} className="desktop-workspace-rail-slot" />
+        <div className="desktop-shell-content">
+          <DesktopTitleBar headerHostRef={setHeaderHost} active={customChromeActive} />
+          <div className="desktop-page-viewport">{children}</div>
+        </div>
       </div>
     </DesktopChromeContext.Provider>
   );

@@ -4,11 +4,13 @@ import { createPortal } from "react-dom";
 export type DesktopChromeContextValue = {
   customChromeActive: boolean;
   headerHost: HTMLElement | null;
+  workspaceRailHost: HTMLElement | null;
 };
 
 export const DesktopChromeContext = createContext<DesktopChromeContextValue>({
   customChromeActive: false,
   headerHost: null,
+  workspaceRailHost: null,
 });
 
 export const useDesktopChrome = () => useContext(DesktopChromeContext);

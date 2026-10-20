@@ -1,4 +1,57 @@
 /* Scoped to the Tauri-only React shell. The web app retains its original layout. */
+/* Desktop Workspace shell: a single uninterrupted 40px rail alongside the
+ * 38px native drag/titlebar column. Other routes preserve the original chrome.
+ * The slot is present but hidden until custom chrome activates on a workspace.
+ */
+.desktop-shell-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.desktop-workspace-rail-slot { display: none; }
+.desktop-shell--native .desktop-shell-content { height: 100dvh; }
+.desktop-shell--custom.desktop-shell--workspace {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.desktop-shell--workspace > .desktop-workspace-rail-slot {
+  display: block;
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  border: 0;
+  background: var(--surface);
+}
+.desktop-shell--workspace > .desktop-shell-content {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.desktop-shell--workspace .desktop-workspace-rail-slot > .workspace-rail {
+  height: 100%;
+  width: 40px;
+}
+.desktop-shell--workspace .desktop-page-viewport,
+.desktop-shell--workspace .desktop-page-viewport > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+/* Reuse the editor's existing maximize state; never leave a blank rail gutter
+ * during Focus mode, and never create another focus state in the provider. */
+.desktop-shell--workspace:has(.workspace-main.is-focus-mode) {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.desktop-shell--workspace:has(.workspace-main.is-focus-mode) > .desktop-workspace-rail-slot {
+  width: 0;
+}
+
 .desktop-shell--native .desktop-titlebar {
   position: absolute;
   pointer-events: none;
@@ -75,23 +128,6 @@
   min-width: 140px;
   max-width: 320px;
 }
-.desktop-placed-header.workspace-header {
-  min-height: 37px !important;
-  gap: 4px;
-  padding: 0 7px !important;
-}
-.desktop-placed-header.workspace-header > div:first-child { flex: 1; min-width: 0; }
-.desktop-placed-header.workspace-header > div:last-child { flex: 1; min-width: 0; justify-content: flex-end; }
-.desktop-workspace-drag { flex: 1; min-width: 8px; height: 100%; }
-.desktop-placed-header.workspace-header > div:last-child > button,
-.desktop-placed-header.workspace-header > div:first-child > a { width: 29px; height: 29px; min-height: 29px; }
-.desktop-placed-header.workspace-header [aria-label="Start activity"] { width: 28px !important; height: 28px !important; min-height: 28px !important; }
-.desktop-placed-header.workspace-header [aria-label="Start activity"] svg,
-.desktop-placed-header.workspace-header > div:first-child > a svg,
-.desktop-placed-header.workspace-header > div:last-child > button svg { width: 17px; height: 17px; }
-.desktop-placed-header.workspace-header [data-testid="workspace-view-switcher"] > button {
-  width: 30px !important; height: 30px !important; min-height: 30px !important;
-}
 .desktop-window-controls {
   height: 100%;
   display: flex;
@@ -127,8 +163,4 @@
   color: var(--danger);
   font-size: 11px;
   z-index: 80;
-}
-@media (max-width: 1100px) {
-  .desktop-placed-header.workspace-header > div:first-child > span { display: none; }
-  .desktop-placed-header.workspace-header > div:first-child > div { max-width: 185px; }
 }

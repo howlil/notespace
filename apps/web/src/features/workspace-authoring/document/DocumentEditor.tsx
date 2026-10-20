@@ -191,7 +191,8 @@ export default function DocumentEditor({
   const selectedCommandRef = useRef(0);
   const openCanvasFrameRef = useRef(onOpenCanvasFrame);
   openCanvasFrameRef.current = onOpenCanvasFrame;
-  const outlineOpenRef = useRef(false);
+  const navigatePanelRef = useRef<HTMLElement>(null);
+  const navigateTriggerRef = useRef<HTMLButtonElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
 
@@ -199,12 +200,9 @@ export default function DocumentEditor({
   const [framePicker, setFramePicker] = useState<FramePicker | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
-  const [outlineOpen, setOutlineOpen] = useState(false);
-  outlineOpenRef.current = outlineOpen;
+  const [navigateOpen, setNavigateOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
-  const [, setOutlineRevision] = useState(0);
-  const [, setFindRevision] = useState(0);
-  const [findOpen, setFindOpen] = useState(false);
+  const [, setNavigateRevision] = useState(0);
   const [findTerm, setFindTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
   const [linkEditing, setLinkEditing] = useState(false);
@@ -234,22 +232,37 @@ export default function DocumentEditor({
   }, [toolbarTargetId]);
 
   useEffect(() => {
-    if (!outlineOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
+    if (!navigateOpen) return;
+    const closeFromOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (documentRef.current?.contains(target) || toolbarTarget?.contains(target)) return;
-      setOutlineOpen(false);
+      if (navigatePanelRef.current?.contains(target) || navigateTriggerRef.current?.contains(target)) return;
+      editorRef.current?.commands.clearSearch();
+      setFindTerm("");
+      setNavigateOpen(false);
     };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [outlineOpen, toolbarTarget]);
+    const escapeNavigate = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      editorRef.current?.commands.clearSearch();
+      setFindTerm("");
+      setNavigateOpen(false);
+      navigateTriggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    document.addEventListener("keydown", escapeNavigate, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      document.removeEventListener("keydown", escapeNavigate, true);
+    };
+  }, [navigateOpen]);
 
   useEffect(() => {
-    if (!findOpen) return;
+    if (!navigateOpen) return;
     findInputRef.current?.focus();
     findInputRef.current?.select();
-  }, [findOpen]);
+  }, [navigateOpen]);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -269,7 +282,9 @@ export default function DocumentEditor({
       { prefer: "bottom" },
     );
     const next = { from, query: match[1], ...position };
-    setOutlineOpen(false);
+    setNavigateOpen(false);
+    editorRef.current?.commands.clearSearch();
+    setFindTerm("");
     setSelectionMenu(null);
     slashMenuRef.current = next;
     setSlashMenu(next);
@@ -401,7 +416,7 @@ export default function DocumentEditor({
         if (!currentEditor) return false;
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
           event.preventDefault();
-          setFindOpen(true);
+          setNavigateOpen(true);
           dismissSlashMenu();
           setSelectionMenu(null);
           return true;
@@ -446,7 +461,7 @@ export default function DocumentEditor({
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
       syncSelectionMenu(changed);
-      if (outlineOpenRef.current) setOutlineRevision((value) => value + 1);
+      setNavigateRevision((value) => value + 1);
     },
     onBlur: () => {
       emitPendingSnapshot();
@@ -471,11 +486,11 @@ export default function DocumentEditor({
   }, [editor, hasPendingSnapshot, initial.data]);
 
   useEffect(() => {
-    if (!editor || !findOpen) return;
-    const onTransaction = () => setFindRevision((value) => value + 1);
+    if (!editor || !navigateOpen) return;
+    const onTransaction = () => setNavigateRevision((value) => value + 1);
     editor.on("transaction", onTransaction);
-    return () => { editor.off("transaction", onTransaction); };
-  }, [editor, findOpen]);
+    return () => editor.off("transaction", onTransaction);
+  }, [editor, navigateOpen]);
 
   useEffect(() => {
     if (!editor) return;
@@ -521,7 +536,9 @@ export default function DocumentEditor({
     const position = findBlockPosition(editor, blockId);
     if (position === null) return;
     editor.chain().focus().setTextSelection(position).scrollIntoView().run();
-    setOutlineOpen(false);
+    editor.commands.clearSearch();
+    setFindTerm("");
+    setNavigateOpen(false);
   }
 
   function updateSearchTerm(value: string) {
@@ -536,9 +553,18 @@ export default function DocumentEditor({
     editor.commands.setReplaceTerm(value);
   }
 
-  function closeFind() {
-    if (editor) editor.commands.clearSearch();
-    setFindOpen(false);
+  function closeNavigate(restoreFocus = true) {
+    editor?.commands.clearSearch();
+    setFindTerm("");
+    setNavigateOpen(false);
+    if (restoreFocus) navigateTriggerRef.current?.focus();
+  }
+
+  function toggleNavigate() {
+    dismissSlashMenu();
+    setSelectionMenu(null);
+    if (navigateOpen) closeNavigate();
+    else setNavigateOpen(true);
   }
 
   function applyLink() {
@@ -590,30 +616,26 @@ export default function DocumentEditor({
   if (!editor) return <div className="grid flex-1 place-items-center p-10 text-center text-xs text-muted" role="status">Opening document…</div>;
 
   const filteredCommands = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes((slashMenu?.query ?? "").toLowerCase()));
-  const outline = outlineOpen ? outlineItems(editor) : [];
+  const outline = navigateOpen && !findTerm.trim() ? outlineItems(editor) : [];
   const findStorage = editor.storage.findAndReplace as FindStorage;
   const findTotal = findStorage.results.length;
   const findCurrent = findStorage.currentIndex === null ? 0 : findStorage.currentIndex + 1;
   const tableActive = editor.isActive("table");
-  const codeBlockActive = editor.isActive("codeBlock");
 
-  const toolbarButtons = <>
+  const toolbarButtons = (
     <IconButton
+      ref={navigateTriggerRef}
       type="button"
-      aria-pressed={codeBlockActive || undefined}
-      className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
-      aria-label="Code block"
-      onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+      className="!size-7 rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
+      aria-label="Navigate note"
+      title="Find & outline (Ctrl/Cmd+F)"
+      aria-expanded={navigateOpen}
+      aria-controls={`note-navigate-${toolbarTargetId ?? "floating"}`}
+      onClick={toggleNavigate}
     >
-      <Code2 size={14} aria-hidden="true" />
+      <Search size={15} aria-hidden="true" />
     </IconButton>
-    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Find in note" aria-expanded={findOpen} onClick={() => { dismissSlashMenu(); setFindOpen((value) => !value); }}>
-      <Search size={14} aria-hidden="true" />
-    </IconButton>
-    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-ink" aria-label="Open note outline" aria-expanded={outlineOpen} onClick={() => { dismissSlashMenu(); setOutlineOpen((value) => !value); }}>
-      <ListTree size={14} aria-hidden="true" />
-    </IconButton>
-  </>;
+  );
 
   return (
     <div ref={documentRef} className="relative h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
@@ -638,85 +660,65 @@ export default function DocumentEditor({
       ) : null}
 
       <AnimatePresence initial={false}>
-        {findOpen && (
-          <motion.section
-            key="find-replace"
-            initial={{ opacity: 0, y: -6, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.985 }}
-            transition={{ duration: 0.14, ease: "easeOut" }}
-            className={cn(
-              "absolute right-3 top-3 z-30 w-[min(330px,calc(100%_-_24px))] rounded-lg border border-line bg-surface p-2 shadow-none",
-              toolbarTarget && "top-2",
-            )}
-            role="dialog"
-            aria-label="Find and replace"
-          >
-            <div className="flex items-center gap-1.5">
-              <Search size={13} className="shrink-0 text-muted" />
-              <Input
-                ref={findInputRef}
-                value={findTerm}
+        {navigateOpen && (
+          <motion.section ref={navigatePanelRef} key="note-navigate" id={`note-navigate-${toolbarTargetId ?? "floating"}`}
+            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            className="absolute right-2 top-2 z-30 flex max-h-[calc(100%_-_16px)] w-[min(320px,calc(100%_-_16px))] min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-1.5 shadow-none"
+            role="dialog" aria-label="Navigate note">
+            <div className="flex min-h-7 items-center justify-between gap-2 px-1 text-[11px] font-semibold text-ink">
+              <span>Navigate</span>
+              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent" aria-label="Close navigate" onClick={() => closeNavigate()}><X size={13} /></IconButton>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-line bg-background px-2">
+              <Search size={13} className="shrink-0 text-muted" aria-hidden="true" />
+              <Input ref={findInputRef} type="search" value={findTerm}
                 onChange={(event) => updateSearchTerm(event.target.value)}
-                className="min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 text-[11px]"
-                placeholder="Find in this note"
-                aria-label="Find"
-              />
-              <span className="min-w-10 text-right text-[10px] tabular-nums text-muted" aria-live="polite">{findCurrent} / {findTotal}</span>
-              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Previous result" disabled={!findTotal} onClick={() => editor.commands.goToPreviousResult()}><ChevronUp size={13} /></IconButton>
-              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink disabled:opacity-40" aria-label="Next result" disabled={!findTotal} onClick={() => editor.commands.goToNextResult()}><ChevronDown size={13} /></IconButton>
-              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-ink" aria-label="Close find and replace" onClick={closeFind}><X size={13} /></IconButton>
+                className="!min-h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-[11px]"
+                placeholder="Find in note…" aria-label="Find" />
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5 border-t border-line pt-1.5">
-              <Input
-                value={replaceTerm}
-                onChange={(event) => updateReplaceTerm(event.target.value)}
-                className="min-h-0 min-w-0 flex-1 bg-background px-2 py-1 text-[10px]"
-                placeholder="Replace with"
-                aria-label="Replace with"
-              />
-              <IconButton
-                type="button"
-                aria-pressed={findStorage.caseSensitive}
-                className="!size-7 text-muted hover:bg-tint hover:text-ink aria-pressed:bg-tint aria-pressed:text-accent"
-                aria-label="Match case"
-                onClick={() => editor.commands.setCaseSensitive(!findStorage.caseSensitive)}
-              >
-                <CaseSensitive size={14} />
-              </IconButton>
-              <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replace()}>Replace</Button>
-              <Button type="button" variant="ghost" size="sm" className="!min-h-0 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replaceAll()}>All</Button>
-            </div>
+            {findTerm.trim() ? (
+              <div className="min-h-0 overflow-auto">
+                <div className="flex items-center justify-between gap-1 px-1 py-1">
+                  <span className="text-[10px] tabular-nums text-muted" aria-live="polite">{findCurrent} / {findTotal} matches</span>
+                  <div className="flex items-center gap-0.5">
+                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-accent disabled:opacity-40" aria-label="Previous result" disabled={!findTotal} onClick={() => editor.commands.goToPreviousResult()}><ChevronUp size={14} /></IconButton>
+                    <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-accent disabled:opacity-40" aria-label="Next result" disabled={!findTotal} onClick={() => editor.commands.goToNextResult()}><ChevronDown size={14} /></IconButton>
+                  </div>
+                </div>
+                <div className="max-h-32 min-h-0 overflow-y-auto">
+                  {findTotal ? findStorage.results.slice(0, 30).map((result, index) => (
+                    <Button key={`${result.from}:${result.to}:${index}`} type="button" variant="ghost" size="sm"
+                      className="!min-h-7 flex w-full min-w-0 justify-start rounded-md px-2 py-1 text-left text-[11px] text-ink hover:bg-tint"
+                      aria-label={`Search result ${index + 1}`}
+                      onClick={() => editor.chain().focus().setTextSelection({ from: result.from, to: result.to }).scrollIntoView().run()}>
+                      <span className="mr-2 shrink-0 text-[10px] tabular-nums text-muted">{index + 1}</span>
+                      <span className="min-w-0 truncate">{editor.state.doc.textBetween(Math.max(0, result.from - 24), Math.min(editor.state.doc.content.size, result.to + 24), " ")}</span>
+                    </Button>
+                  )) : <div className="px-2 py-2 text-[10px] text-muted">No matches</div>}
+                </div>
+                <div className="mt-1 flex min-w-0 items-center gap-1 border-t border-line pt-1.5">
+                  <Input value={replaceTerm} onChange={(event) => updateReplaceTerm(event.target.value)}
+                    className="!min-h-8 min-w-0 flex-1 bg-background px-2 py-1 text-[10px]" placeholder="Replace with" aria-label="Replace with" />
+                  <IconButton type="button" aria-pressed={findStorage.caseSensitive} className="!size-7 text-muted hover:bg-tint hover:text-accent aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Match case" onClick={() => editor.commands.setCaseSensitive(!findStorage.caseSensitive)}><CaseSensitive size={14} /></IconButton>
+                </div>
+                <div className="mt-1 flex justify-end gap-1">
+                  <Button type="button" variant="ghost" size="sm" className="!min-h-7 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replace()}>Replace</Button>
+                  <Button type="button" variant="ghost" size="sm" className="!min-h-7 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replaceAll()}>Replace all</Button>
+                </div>
+              </div>
+            ) : (
+              <nav className="min-h-0 overflow-y-auto pt-1" aria-label="Note outline">
+                <div className="px-2 py-1 text-[10px] font-medium text-muted">Outline</div>
+                {outline.length ? outline.map((item) => (
+                  <Button key={item.id} type="button" variant="ghost" size="sm"
+                    className="!min-h-7 block w-full truncate rounded-md px-2 py-1.5 text-left text-[11px] text-ink hover:bg-tint"
+                    style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 10}px` }}
+                    onClick={() => focusHeading(item.id)}>{item.text}</Button>
+                )) : <p className="m-0 px-2 py-3 text-[10px] leading-4 text-muted">Add headings to navigate long notes.</p>}
+              </nav>
+            )}
           </motion.section>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence initial={false}>
-        {outlineOpen && (
-          <motion.nav
-            key="outline"
-            initial={{ opacity: 0, x: 6 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 6 }}
-            transition={{ duration: 0.14, ease: "easeOut" }}
-            className={cn("absolute right-3 z-20 max-h-[min(360px,60vh)] w-[min(260px,calc(100%_-_24px))] overflow-auto rounded-lg border border-line bg-surface p-1.5 shadow-none", toolbarTarget ? "top-2" : "top-12")}
-            aria-label="Note outline"
-          >
-            <div className="px-2 py-1.5 text-[10px] font-medium text-muted">Outline</div>
-            {outline.length ? outline.map((item) => (
-              <Button
-                variant="ghost"
-                size="sm"
-                key={item.id}
-                type="button"
-                className="!min-h-0 block w-full truncate rounded px-2 py-1.5 text-left text-[11px] text-ink"
-                style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 10}px` }}
-                onClick={() => focusHeading(item.id)}
-              >
-                {item.text}
-              </Button>
-            )) : <p className="m-0 px-2 py-3 text-[10px] leading-4 text-muted">Add headings to navigate long notes.</p>}
-          </motion.nav>
         )}
       </AnimatePresence>
 

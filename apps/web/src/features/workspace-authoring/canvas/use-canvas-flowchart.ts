@@ -80,7 +80,7 @@ export function useCanvasFlowchart({
     if (pointerType !== "mouse" && pointerType !== "pen") return;
     setTouchInput(false);
     const selected = anchorRef.current;
-    const previous = hoveredHandle?.elementId === selected?.id ? hoveredHandle.direction : null;
+    const previous = selected && hoveredHandle?.elementId === selected.id ? hoveredHandle.direction : null;
     const direction = selected ? hoveredFlowchartDirection(selected, clientX, clientY, previous) : null;
     if (previewRef.current && previewRef.current !== direction) cancelPreview();
     setHoveredHandle((current) => {

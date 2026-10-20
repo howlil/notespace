@@ -194,7 +194,7 @@ test.describe("Canvas chrome", () => {
       await expect(embedSection.getByRole("button", { name: "Edit embed URL" })).toBeVisible();
       await expect(embedSection.getByRole("button", { name: "Open embed source" })).toBeVisible();
 
-      await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+      await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
       const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
         canvas: { data: { elements: Array<{ type?: string; link?: string; isDeleted?: boolean }> } };

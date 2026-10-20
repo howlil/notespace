@@ -27,7 +27,7 @@ test("failed autosave blocks navigation and retry preserves content", async ({ p
 
     await page.unroute(noteSaveRoute);
     await page.getByRole("button", { name: "Retry save" }).first().click();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("Keep this thought");
   } finally {

@@ -68,7 +68,8 @@ test("design contract: workspace creation stays in Library and authoring shell i
   try {
     await page.goto(`/workspaces/${workspace.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-    await expect(page.locator(".workspace-header")).toBeVisible();
+    await expect(page.locator(".workspace-rail")).toBeVisible();
+    await expect(page.locator(".workspace-header")).toHaveCount(0);
     await expect(page.getByText("Capture source URL", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "History", exact: true })).toHaveCount(0);
   } finally {

@@ -17,15 +17,13 @@ test("activity opens current session controls and recent history", async ({
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
 
     const activity = page.getByRole("button", { name: /^Activity,/ });
-    const start = page.getByRole("button", { name: "Start activity" });
     await expect(activity).toBeVisible();
-    await expect(start).toBeVisible();
-
     await activity.click();
-    await expect(page.getByRole("dialog", { name: "Activity" })).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: "Activity" });
+    await expect(dialog).toBeVisible();
     await expect(page.getByText("Recent sessions", { exact: true })).toBeVisible();
 
-    await start.click();
+    await dialog.getByRole("button", { name: "Start activity" }).click();
     const typeMenu = page.getByRole("menu", { name: "Choose activity type" });
     await expect(typeMenu).toBeVisible();
     await typeMenu.getByRole("menuitem", { name: "Build" }).click();
@@ -33,7 +31,8 @@ test("activity opens current session controls and recent history", async ({
     await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(page.getByRole("button", { name: "Start activity" })).toBeVisible();
+    await activity.click();
+    await expect(page.getByRole("dialog", { name: "Activity" }).getByRole("button", { name: "Start activity" })).toBeVisible();
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=20");

@@ -144,6 +144,7 @@ async function assertDesktopChrome(session, workspace) {
   const result = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
+    const rail = document.querySelector(".workspace-rail");
     return {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
@@ -153,7 +154,8 @@ async function assertDesktopChrome(session, workspace) {
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
       settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
       theme: Boolean(header?.querySelector('[aria-label="Use dark theme"], [aria-label="Use light theme"]')),
-      views: header?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
+      railWidth: rail?.getBoundingClientRect().width ?? 0,
+      views: rail?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
     };
   `);
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
@@ -161,7 +163,8 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
-    assert.equal(result.workspaceHeader, true, "Workspace header must be placed in the title bar");
+    assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
+    assert.equal(result.railWidth, 40, "M1 Workspace navigation rail must be 40px wide");
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");

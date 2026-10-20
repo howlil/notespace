@@ -30,6 +30,14 @@ type UseWorkspaceAuthoringOptions = {
 
 const editorLoadingClass = "grid flex-1 place-items-center p-10 text-center text-xs text-muted";
 
+/** Keep Note selector and Pane Actions mutually exclusive within each pane. */
+function closeSiblingPaneDetails(summary: HTMLElement) {
+  const active = summary.closest("details");
+  active?.closest("header")?.querySelectorAll("details[open]").forEach((details) => {
+    if (details !== active) details.removeAttribute("open");
+  });
+}
+
 function useCompactPaneLayout() {
   const [compact, setCompact] = useState(false);
   useEffect(() => {
@@ -326,6 +334,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
           <details className="pane-note-switcher relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
             <summary className="flex h-7 min-w-0 cursor-pointer list-none items-center gap-1 rounded-md px-1 text-[11px] font-semibold text-ink hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
               aria-label="Choose note" title="Switch note; double-click or F2 to rename"
+              onClick={(event) => closeSiblingPaneDetails(event.currentTarget)}
               onDoubleClick={(event) => { event.preventDefault(); beginRenameNote(pane); }}
               onKeyDown={(event) => { if (event.key === "F2") { event.preventDefault(); beginRenameNote(pane); } }}>
               <span className="max-w-[190px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-[760px]:max-w-[110px]">{note?.title ?? "Untitled"}</span>
@@ -373,7 +382,7 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             <div id={toolbarTargetId} className="flex items-center gap-0.5" />
             <details className="pane-actions relative min-w-0 [&>summary::-webkit-details-marker]:hidden">
-              <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${note?.title ?? "Note"}`}><MoreHorizontal size={17} /></summary>
+              <summary className="grid size-[26px] cursor-pointer list-none place-items-center text-muted hover:text-ink" aria-label={`Actions for ${note?.title ?? "Note"}`} onClick={(event) => closeSiblingPaneDetails(event.currentTarget)}><MoreHorizontal size={17} /></summary>
               <div className={cn(popupClass, "pane-menu top-7 right-0")}>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "row")}>Split right</Button>
                 <Button variant="ghost" size="sm" className={cn("!min-h-0 w-full justify-start", paneMenuButtonClass)} disabled={!interaction.canSplitNote} title={paneCapacityTitle ?? noUnusedNoteTitle} onClick={() => splitPane(pane.id, "column")}>Split down</Button>

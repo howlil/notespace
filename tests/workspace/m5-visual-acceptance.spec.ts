@@ -74,6 +74,16 @@ for (const viewport of [
         await pane.getByRole("dialog", { name: "Navigate note" }).getByRole("button", { name: "Close navigate" }).click();
         await expect(pane.getByRole("dialog", { name: "Navigate note" })).toHaveCount(0);
 
+        // Either header details menu must close its sibling (pointer and keyboard).
+        const chooser = pane.locator("details.pane-note-switcher");
+        const actions = pane.locator("details.pane-actions");
+        await chooser.locator("summary").click();
+        await actions.locator("summary").click();
+        await expect(chooser).not.toHaveAttribute("open", "");
+        await chooser.locator("summary").click();
+        await expect(actions).not.toHaveAttribute("open", "");
+        await chooser.locator("summary").click();
+
         // Save semantics must remain available to assistive technology.
         await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveCount(1);
         await expect(header).toHaveCSS("height", "34px");

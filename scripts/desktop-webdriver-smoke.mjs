@@ -151,6 +151,7 @@ async function assertDesktopChrome(session, workspace) {
     const chromeBox = chrome?.getBoundingClientRect();
     const railBox = rail?.getBoundingClientRect();
     const paneBox = pane?.getBoundingClientRect();
+    const noteHeader = document.querySelector('section[aria-label$="note pane"] > header');
     return {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
@@ -171,6 +172,10 @@ async function assertDesktopChrome(session, workspace) {
       paneY: paneBox?.y ?? -1,
       viewportHeight: window.innerHeight,
       views: rail?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
+      noteHeaderHeight: noteHeader?.getBoundingClientRect().height ?? 0,
+      noteNewCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="New note"]').length,
+      noteNavigateCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Navigate note"]').length,
+      legacyNoteToolCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Code block"], section[aria-label$="note pane"] button[aria-label="Find in note"], section[aria-label$="note pane"] button[aria-label="Open note outline"]').length,
     };
   `);
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
@@ -191,6 +196,10 @@ async function assertDesktopChrome(session, workspace) {
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
     assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
+    assert.equal(result.noteHeaderHeight, 34, "M5 native Note header must be exactly 34px");
+    assert.equal(result.noteNewCount, 1, "M5 native Note header must have one permanent New note entry");
+    assert.equal(result.noteNavigateCount, 1, "M5 native Note header must have exactly one Navigate entry");
+    assert.equal(result.legacyNoteToolCount, 0, "M5 native Note header must not duplicate Code/Find/Outline");
 
     // Native-only geometry regression: maximize/Focus must remove the 40px
     // gutter without changing the editor's React-owned pane state.

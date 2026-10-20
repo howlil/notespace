@@ -59,6 +59,20 @@ A category detail page exists for scale. Prefer dense rows, search/filter/sort, 
 
 The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are authored views of the same workspace, not separate top-level products. Plan is a workspace-owned secondary execution surface for milestones and concrete tasks; it is not a pane, dashboard, kanban board, or replacement for authored content. Keep Plan outline-first, compact, and progressively disclosed. Focus mode may hide workspace chrome, but must remain immediately reversible.
 
+### Border-only Workspace implementation
+
+Workspace authoring is a **full-bleed, border-only** focus surface. The Workspace header is the only application-level chrome; the active Canvas/Note/Split surface begins immediately beneath it. Do not wrap authored panes in cards, apply outside gutters, place decorative shadow behind editor panes, or change the source-of-truth editor behaviors. Preserve editor-internal reading padding and user-authored Canvas objects: they are content, not decorative cards.
+
+- Keep the existing header structure and icon-only Canvas / Note / Split / Plan switcher. Web header height remains 44px and the compact mobile header remains 76px. Desktop's existing HeaderPlacement / window drag region and native titlebar geometry remain authoritative; do not add a second workspace header or logo.
+- Canvas and Note occupy contiguous panes. The split owns a 7px **interactive hit area** with a visually centered 1px `--line` divider. Preserve pane state, draggable and keyboard resizing, orientation change on compact viewports, focus/maximize, pane limit, and the persisted ratio clamp.
+- Note header remains 34px. Keep the existing note selector, new/linked note actions, Code / Find / Outline toolbar portal, and pane actions. Preserve Tiptap reading padding, editable content, autosave/conflict recovery, popup keyboard behavior, and focus visibility.
+- Canvas keeps its existing Excalidraw tools/actions and custom Notespace chrome. Tool rail spans the bottom edge with a top border; view controls align against the top/right edges and use borders instead of a floating outlined card. Selection/context overlays may remain layered over Canvas where their interaction requires it, but carry no decorative shadow.
+- Plan stays a full-workspace, **secondary outline surface**, not a pane in Split. Milestones, tasks and loose tasks are structured as compact rows with dividers, not tiles. Keep its API, activity, completion and deletion behaviors.
+- Use existing semantic tokens (`--bg`, `--surface`, `--ink`, `--muted`, `--line`, `--accent`, `--tint`, `--canvas`) and Open Sans. Preserve light/dark theme, 32px compact icon controls, and focus affordances. Workspace-scoped popups use borders and `shadow-none`; unrelated Home, dialogs, and the intentionally different Library workspace-card composition retain their contracts.
+- Responsive and native desktop behavior are distinct projections of the same behavior. No layout changes may disable a user move, conceal recovery/status messages, or introduce another source of truth for editing state.
+
+Acceptance: each view remains reachable, content and autosave survive switches, split ratio can be changed by pointer and keyboard, narrow widths do not clip critical controls, Canvas and editor tools remain operable, Plan milestone/task workflows remain intact, and there are no decorative cards/shadows/gutters around Workspace authored panes. Re-check web and desktop independently.
+
 ### Linked Note artifacts on Canvas
 
 Canvas may reference Notes from the same Workspace as live linked artifacts. The Note remains the source of truth; Canvas stores only the Note identity plus presentation state such as compact versus preview mode. Do not copy Note title or document content into Canvas persistence.

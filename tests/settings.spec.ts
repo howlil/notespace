@@ -34,7 +34,7 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
     await expect(page.getByRole("button", { name: "Open Notespace settings" })).toHaveCount(0);
     await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
     await page.getByRole("link", { name: "Back to library" }).click();
-    await expect(page).toHaveURL(/\\/$/);
+    await expect(page).toHaveURL(/\/$/);
     await page.getByRole("button", { name: "Open Notespace settings" }).click();
     await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
   } finally {

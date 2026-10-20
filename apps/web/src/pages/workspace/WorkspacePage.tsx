@@ -3,6 +3,7 @@ import { Maximize2 } from "lucide-react";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
 import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
+import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceRail } from "../../features/workspace-authoring/ui/WorkspaceRail";
@@ -72,9 +73,7 @@ export function WorkspacePage({ workspace }: Props) {
             onSelectView={(mode) => { setPlanOpen(false); authoring.selectView(mode); }}
             onPlanSelect={() => { setPlanOpen(true); authoring.clearMaximize(); }}
             onFocus={authoring.toggleActiveMaximize}
-            activity={activity}
-            workspaceId={workspace.id}
-            workspaceTitle={authoring.currentWorkspaceTitle}
+            activityControl={<ActivityIndicator rail activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />}
           />
         )}
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">

@@ -357,12 +357,11 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   const viewSwitcher = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceViewSwitcher.tsx"));
   const renameField = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRenameField.tsx"));
   assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
-  assert.match(viewSwitcher,/bg-tint text-accent ring-1 ring-accent\/15/);
+  assert.match(viewSwitcher,/bg-tint text-accent/);
+  assert.doesNotMatch(viewSwitcher,/ring-1 ring-accent/);
   assert.match(workspace,/renameWorkspace/);
   // Workspace title and category switcher are owned by Library, not Workspace chrome.
-  // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/aria-label="Rename workspace"/);
-  // Workspace title and category switcher are owned by Library, not Workspace chrome.
   // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/<select /);
   assert.match(renameField,/aria-label="Workspace title"/);

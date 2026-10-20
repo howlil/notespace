@@ -1,7 +1,6 @@
-import type { ComponentProps } from "react";
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Scan } from "lucide-react";
-import { ActivityIndicator } from "../../activity/ActivityIndicator";
 import type { WorkspaceViewMode } from "../model/pane-layout";
 import { WorkspaceViewSwitcher } from "./WorkspaceViewSwitcher";
 
@@ -11,14 +10,12 @@ type Props = {
   onSelectView: (mode: WorkspaceViewMode) => void;
   onPlanSelect: () => void;
   onFocus: () => void;
-  activity: ComponentProps<typeof ActivityIndicator>["activity"];
-  workspaceId: string;
-  workspaceTitle: string;
+  activityControl: ReactNode;
 };
 
 export function WorkspaceRail({
   activeViewMode, planActive, onSelectView, onPlanSelect, onFocus,
-  activity, workspaceId, workspaceTitle,
+  activityControl,
 }: Props) {
   const buttonClass = "grid !size-[34px] !min-h-[34px] place-items-center rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
   return (
@@ -39,7 +36,7 @@ export function WorkspaceRail({
       </div>
 
       <div className="absolute bottom-2 left-[3px] flex flex-col items-center gap-[3px]">
-        <ActivityIndicator rail activity={activity} workspaceId={workspaceId} workspaceTitle={workspaceTitle} />
+        {activityControl}
         <button type="button" className={buttonClass} aria-label="Focus mode" title={planActive ? "Focus is available in Canvas, Note or Split" : "Focus mode"} disabled={planActive} onClick={onFocus}>
           <Scan size={17} strokeWidth={1.9} aria-hidden="true" />
         </button>

@@ -26,7 +26,8 @@ test("Workspace authoring is full-bleed with a single vertical rail and accessib
   assert.match(rail, /workspace-rail/);
   assert.match(rail, /w-10/);
   assert.match(rail, /<WorkspaceViewSwitcher/);
-  assert.match(rail, /<ActivityIndicator rail/);
+  assert.match(rail, /\{activityControl\}/);
+  assert.match(ws, /<ActivityIndicator rail/);
   assert.match(rail, /Back to library/);
   assert.match(rail, /Focus mode/);
 });

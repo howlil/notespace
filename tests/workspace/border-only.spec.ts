@@ -22,7 +22,13 @@ test("border-only Workspace chrome and keyboard splitter remain usable @critical
 
     const tools = page.getByRole("toolbar", { name: "Canvas tools" });
     await expect(tools).toHaveCSS("border-top-width", "1px");
-    await expect(tools).toHaveCSS("box-shadow", "none");
+    await expect(tools).toHaveClass(/shadow-none/);
+    const visibleShadow = await tools.evaluate((element) => {
+      const computed = getComputedStyle(element).boxShadow;
+      if (computed === "none") return false;
+      return computed.split(/,(?![^()]*\))/).some((layer) => !/rgba\([^)]*,\s*0(?:\.0+)?\)/.test(layer));
+    });
+    expect(visibleShadow).toBe(false);
 
     const splitter = page.getByRole("separator", { name: /Resize horizontal panes/ }).first();
     await expect(splitter).toHaveAttribute("aria-orientation", "vertical");

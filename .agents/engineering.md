@@ -730,7 +730,7 @@ Rules:
 - Keep web → server communication on the existing same-origin HTTP contract; do not introduce Tauri IPC for ordinary product operations.
 - The desktop shell may own only OS-specific concerns such as application-data/resource paths, sidecar lifecycle, single-instance behavior, and window lifecycle.
 - Prefer compatibility with existing browser APIs inside the WebView; add native adapters only when target-platform verification proves an existing browser capability is insufficient.
-- Desktop runtime must bind the embedded server to loopback only, use its stable app-owned port (`127.0.0.1:49832`), surface a clear startup error when that port is unavailable, and shut down its owned child process with the app.
+- Desktop runtime must bind the embedded server to loopback only. On the first launch it prefers `127.0.0.1:49832`, selects a fallback only when necessary, and durably pins the selected port in app-owned OS configuration. All later launches must reuse that exact origin; if occupied, show actionable recovery and Retry rather than switching origin and hiding localStorage/IndexedDB state. Shut down the owned child process with the app.
 
 ## 25. Stop rule
 

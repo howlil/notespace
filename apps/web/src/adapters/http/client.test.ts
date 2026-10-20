@@ -92,3 +92,39 @@ test("propagates malformed JSON from a successful response", async () => {
     (error: unknown) => error instanceof SyntaxError && error.message === "malformed JSON",
   );
 });
+
+// Use the production transport to prove that HTTP status validation is inside
+// desktop's outstanding-write barrier. A mocked HttpTransport alone bypasses
+// that boundary.
+test("desktop flush rejects HTTP mutation errors including 409 and 500", async () => {
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { __TAURI_INTERNALS__: {} },
+  });
+  try {
+    const { flushDesktopState } = await import("../browser/desktop-lifecycle.ts");
+    for (const status of [409, 500]) {
+      let respond!: (response: Response) => void;
+      globalThis.fetch = () => new Promise<Response>((resolve) => { respond = resolve; });
+      const mutationResult = request("/api/workspaces/a", {
+        method: "PATCH",
+        body: "{}",
+      }).then(() => null, error => error);
+      const flushResult = flushDesktopState().then(() => null, error => error);
+      respond(jsonResponse({ error: "Save rejected" }, status));
+      const mutationError = await mutationResult;
+      assert.ok(mutationError instanceof APIError);
+      assert.equal(mutationError.status, status);
+      const flushError = await flushResult;
+      assert.ok(flushError instanceof APIError);
+      assert.equal(flushError.status, status);
+    }
+    await flushDesktopState();
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});

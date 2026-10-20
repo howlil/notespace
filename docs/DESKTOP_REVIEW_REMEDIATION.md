@@ -21,7 +21,8 @@ Design Thinking graph: shapes → success path → execution → failure → cap
 ```text
 Tauri spawn
   -> Go SQLite safety gates (M1)
-  -> Go tries stable loopback ports 49832 → 41371 → 41372 → OS-assigned fallback
+  -> first launch: Go tries loopback ports 49832 → 41371 → 41372 → OS-assigned fallback, then persists chosen port
+  -> later launches: Go binds only the pinned port (error + recovery on collision; never silently changes origin)
   -> cryptographic bootstrap and session secrets
   -> install Host/Origin/Cookie guards on private API
   -> stdout readiness URL (parent-only pipe)

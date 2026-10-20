@@ -69,14 +69,16 @@ compatibility fence protects this boundary.
 
 ## Runner requirements / known limitation
 
-The app currently binds the fixed loopback port `127.0.0.1:49832` on Windows.
-Some GitHub-hosted Windows runners reserve this port; the M1 Windows native
-workflow reported `bind: An attempt was made to access a socket in a way
-forbidden by its access permissions`. This is an **environment/runtime
-blocker**, not evidence of successful or failed SQLite migration.
+The desktop first-run listener prefers `127.0.0.1:49832`, then tries
+`41371`, `41372`, and an OS-assigned loopback port if necessary. It
+persistently pins the successful port to keep WebView localStorage/IndexedDB
+visible across restarts. Later starts refuse to change this origin when the
+pinned port is unavailable and expose a recoverable startup error.
 
-The MSI proof MUST run on an isolated Windows runner that permits this port
-(or after a separately validated desktop loopback-port design change).
+Windows MSI acceptance must test close/reopen with the same pinned origin and
+must separately exercise startup recovery when that port is temporarily
+occupied. A reserved first-choice port on a fresh installation is not by
+itself a SQLite migration failure.
 Do not skip the native test, silently use only a debug executable, or mark
 the MSI upgrade as verified in the presence of port binding failure.
 

@@ -2,7 +2,6 @@ type FlushDesktopState = () => Promise<void>;
 
 let registeredFlush: FlushDesktopState | null = null;
 const pendingMutations = new Set<Promise<unknown>>();
-const failedMutations: unknown[] = [];
 let quiescenceActive = false;
 let sealed = false;
 
@@ -24,16 +23,19 @@ export function trackDesktopMutation<T>(operation: () => Promise<T>): Promise<T>
   if (sealed) return Promise.reject(new Error("Notespace is installing an update; writes are paused"));
   const task = operation();
   pendingMutations.add(task);
-  void task.then(() => pendingMutations.delete(task), (error) => {
-    pendingMutations.delete(task);
-    failedMutations.push(error);
-  });
+  // Only the outstanding operation belongs to this barrier. Completed errors
+  // remain the responsibility of the caller (for example Autosave's dirty
+  // snapshot or Activity's durable finalization outbox). Retaining every error
+  // globally would permanently block closing after a recoverable network blip.
+  void task.then(
+    () => { pendingMutations.delete(task); },
+    () => { pendingMutations.delete(task); },
+  );
   return task;
 }
 
 export async function flushDesktopState() {
   if (registeredFlush) await registeredFlush();
-  if (failedMutations.length) throw failedMutations[0];
   // Wait for every in-flight HTTP mutation, not just active editor operations.
   // Settlement matters; rejected writes must fail the flush, not be ignored.
   while (pendingMutations.size) {
@@ -41,7 +43,6 @@ export async function flushDesktopState() {
     const result = await Promise.allSettled(batch);
     const failed = result.find((value) => value.status === "rejected");
     if (failed?.status === "rejected") throw failed.reason;
-    if (failedMutations.length) throw failedMutations[0];
   }
 }
 

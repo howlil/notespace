@@ -14,20 +14,20 @@ const workspace = source(web + "pages/workspace/WorkspacePage.tsx");
 test("desktop title bar preserves existing per-page React handlers and web header fallback", () => {
   assert.match(header, /createPortal\(header, headerHost\)/);
   assert.match(header, /return customChromeActive && headerHost \? createPortal/);
-  for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx", "workspace/WorkspacePage.tsx"]) {
+  for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
     assert.match(source(web + "pages/" + page), /<HeaderPlacement/);
   }
+  assert.doesNotMatch(workspace, /<HeaderPlacement/);
+  assert.match(workspace, /<WorkspaceRail/);
   assert.match(provider, /if \(!desktop\) return/);
   assert.match(provider, /activate_desktop_titlebar/);
 });
 
-test("workspace has no logo and suppresses Guide only when custom chrome is active", () => {
+test("M1 Workspace uses a dedicated rail without duplicate titlebar controls", () => {
   assert.match(title, /!isWorkspace &&/);
   assert.match(title, /NotespaceLogo/);
-  assert.match(source(web + "shared/ui/desktop-titlebar/desktop-titlebar.css"), /desktop-workspace-drag/);
-  assert.match(workspace, /data-tauri-drag-region/);
-  assert.match(workspace, /!customChromeActive && <WorkspaceGuide \/>/);
-  assert.match(workspace, /compact=\{customChromeActive\}/);
+  assert.match(workspace, /<WorkspaceRail/);
+  assert.doesNotMatch(workspace, /WorkspaceGuide|SettingsTrigger|workspace-switcher|desktop-workspace-drag/);
 });
 
 test("native window close retains the durability handshake and recovery frame", () => {
@@ -46,6 +46,5 @@ test("Theme controls only exist in Settings; desktop Workspace hides its Setting
     assert.doesNotMatch(content, /ThemeToggle/);
   }
   assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \{dark \? "light" : "dark"\} theme/);
-  assert.match(workspace, /!customChromeActive && <SettingsTrigger/);
-  assert.match(workspace, /!customChromeActive && <WorkspaceGuide/);
+  assert.doesNotMatch(workspace, /SettingsTrigger|WorkspaceGuide/);
 });

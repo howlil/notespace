@@ -40,7 +40,7 @@ export async function createWorkspace(
 
 /** Wait for autosave to complete. */
 export async function waitSaved(page: Page): Promise<void> {
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 }
 
 /** Open the pane actions menu for the first pane. */

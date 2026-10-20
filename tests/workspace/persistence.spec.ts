@@ -4,7 +4,7 @@ import { waitSaved } from "../helpers";
 test("@critical create → edit note and canvas → reload", async ({ page, request, workspaceId: id }) => {
   const editor = page.getByRole("textbox", { name: "Workspace document" });
   await editor.fill("Consensus\nRaft\nPaxos\nquorum = majority(nodes)");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
   await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
   const canvas = page.locator(".excalidraw__canvas.interactive");
@@ -17,7 +17,7 @@ test("@critical create → edit note and canvas → reload", async ({ page, requ
   await page.mouse.down();
   await page.mouse.move(bounds.x + 360, bounds.y + 250, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
   const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
     canvas: { data: { elements: Array<{ isDeleted?: boolean }> } };

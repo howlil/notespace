@@ -138,7 +138,7 @@ test("Note code blocks auto-detect JavaScript and run with ephemeral output", as
     await expect(output).toContainText("note-ok");
     await expect(output).toContainText("42");
     await expect(output).toContainText(/Done/);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
     const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
       notes: Array<{ document: { data: { content?: Array<{ type?: string; attrs?: { theme?: string }; content?: Array<{ text?: string }> }> } } }>;
@@ -190,7 +190,7 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     const previewImage = preview.locator('image[data-canvas-frame-preview-image="service-logo"]');
     await expect(previewImage).toHaveCount(1);
     await expect(previewImage).toHaveAttribute("href", /^blob:/);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
     await preview.click();
     await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
@@ -230,7 +230,7 @@ test("Note can embed Canvas frames by slash command or pasted Excalidraw frame a
     firstPatchRelease.resolve();
     await expect.poll(() => notePatchCount).toBeGreaterThanOrEqual(2);
     await expect(linkedFrames).toHaveCount(1);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
     expect(notePatchCount).toBeGreaterThanOrEqual(2);
     await page.unroute(`**/api/workspaces/${id}/notes/*`);
 

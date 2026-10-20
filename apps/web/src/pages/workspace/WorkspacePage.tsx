@@ -85,7 +85,7 @@ export function WorkspacePage({ workspace }: Props) {
             </IconButton>
           )}
         </div>
-        <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{saveLabel}</span>
+        <span className="sr-only" role="status" aria-label="Workspace save status" aria-live="polite" aria-atomic="true">{saveLabel}</span>
       </main>
       {authoring.overlays}
     </div>

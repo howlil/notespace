@@ -80,7 +80,7 @@ export function WorkspacePage({ workspace }: Props) {
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
           <div className="flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0">{visible}</div>
           {authoring.focusMode && (
-            <IconButton type="button" className="absolute top-2 right-2 z-40 !size-8 border border-line bg-surface text-muted hover:bg-tint hover:text-accent" aria-label="Restore layout" title="Restore layout" onClick={authoring.clearMaximize}>
+            <IconButton type="button" className="absolute bottom-2 left-2 z-40 !size-8 border border-line bg-surface text-muted hover:bg-tint hover:text-accent" aria-label="Restore layout" title="Restore layout" onClick={authoring.clearMaximize}>
               <Maximize2 size={17} aria-hidden="true" />
             </IconButton>
           )}

@@ -40,7 +40,7 @@ export function WorkspaceRail({
 
       <div className="absolute bottom-2 left-[3px] flex flex-col items-center gap-[3px]">
         <ActivityIndicator rail activity={activity} workspaceId={workspaceId} workspaceTitle={workspaceTitle} />
-        <button type="button" className={buttonClass} aria-label="Focus mode" title="Focus mode" onClick={onFocus}>
+        <button type="button" className={buttonClass} aria-label="Focus mode" title={planActive ? "Focus is available in Canvas, Note or Split" : "Focus mode"} disabled={planActive} onClick={onFocus}>
           <Scan size={17} strokeWidth={1.9} aria-hidden="true" />
         </button>
       </div>

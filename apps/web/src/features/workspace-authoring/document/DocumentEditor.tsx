@@ -461,7 +461,6 @@ export default function DocumentEditor({
       onBlockSelect?.(selectedBlockId(changed), !changed.state.selection.empty);
       syncSlashMenu(changed);
       syncSelectionMenu(changed);
-      setNavigateRevision((value) => value + 1);
     },
     onBlur: () => {
       emitPendingSnapshot();
@@ -489,7 +488,7 @@ export default function DocumentEditor({
     if (!editor || !navigateOpen) return;
     const onTransaction = () => setNavigateRevision((value) => value + 1);
     editor.on("transaction", onTransaction);
-    return () => editor.off("transaction", onTransaction);
+    return () => { editor.off("transaction", onTransaction); };
   }, [editor, navigateOpen]);
 
   useEffect(() => {

@@ -4,7 +4,6 @@ test("border-only Workspace chrome and keyboard splitter remain usable @critical
   const id = await createViaAPI(page, request, `Border-only ${Date.now()}`);
   try {
     const pageArea = page.locator(".workspace-main");
-    const surface = page.locator(".workspace-main > div").last();
     await expect(page.getByRole("toolbar", { name: "Canvas tools" })).toBeVisible();
     await expect(page.locator('section[aria-label$="note pane"]').first()).toBeVisible();
 

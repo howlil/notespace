@@ -31,6 +31,8 @@ test("flowchart spawn previews, chains, auto-connects, and switches shape type",
 
     const handles = page.getByRole("button", { name: /Add connected shape/ });
     const addRight = page.getByRole("button", { name: "Add connected shape right" });
+    // Drawing ends at a shape corner, so move away before asserting idle state.
+    await page.mouse.move(bounds.x + 40, bounds.y + 40);
     await expect(handles).toHaveCount(0);
     await page.mouse.move(left + 60, top + 4);
     await expect(page.getByRole("button", { name: "Add connected shape up" })).toBeVisible();

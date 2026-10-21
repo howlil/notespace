@@ -21,6 +21,23 @@ Notespace is a focused self-hosted knowledge workspace for writing and spatial t
 
 The UI is not a marketing site, analytics dashboard, generic SaaS admin, file explorer, or AI productivity template.
 
+## Layout archetypes
+
+Notespace uses **one semantic design system** and four task-specific layout archetypes. These are compositions of shared tokens and primitives, not separate themes or visual brands.
+
+| Archetype | Surfaces | Structural owner | Visual contract |
+| --- | --- | --- | --- |
+| **Discovery** | Home / Recent / All / selected Category | `LibraryPageShell`, `WorkspaceLibrary` | Shared 224px library sidebar and search header. Recent/All use square 18px paper-stack cards; a selected category uses dense rows with server-side query, sort, notes/canvas filters, and bounded pagination. |
+| **Execution** | Inbox / Today / Workspace Plan | `LibraryPageShell`, planning features | Compact border-divided task rows, inline capture/rename, no decorative card wrappers. Workspace Plan keeps its own authoring shell. |
+| **Authoring** | Workspace Note / Canvas / Split | `WorkspacePage`, `WorkspaceRail`, authoring features | Full-bleed border-first panes, 40px rail, 34px Note header, 7px interactive split target / 1px visible line; do not adopt the Discovery sidebar. |
+| **Utility** | Settings / Quick Open / Activity overlays / Library Tools | Existing shared Dialog, popover and feature components | Contextual, keyboard-operable, focus-owning surfaces with explicit pending/error states; avoid creating new routes purely for configuration. |
+
+Shared across archetypes: Cobalt/White brand assets, semantic CSS tokens, Open Sans, 4px spacing scale, 6/8/12px control/surface/dialog radius, reusable `Button`, `Input`, `IconButton` and `Dialog` semantics.
+
+**Marketing exception:** the Astro landing page may use Geist, editorial display typography and pill calls to action. It shares approved brand colors and logos, not application chrome or interaction density.
+
+**Implementation invariant:** Home, Today and Inbox render the same `LibraryPageShell`; individual pages still own their domain state, task operations and failure recovery. Category filters use `listCategoryWorkspaces` with server pagination; never filter only the current 50 loaded cards and present that as complete results.
+
 ## Canonical hierarchy
 
 ### Home

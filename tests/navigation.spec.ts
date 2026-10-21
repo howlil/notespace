@@ -35,6 +35,45 @@ test.describe("Production-Safe Navigation & Reload", () => {
     }
   });
 
+  test("category detail filters the complete server results and preserves direct links", async ({ page, request }) => {
+    const categoryRes = await request.post("/api/categories", {
+      data: { title: `Browse Category ${Date.now()}` },
+    });
+    expect(categoryRes.status()).toBe(201);
+    const category = await categoryRes.json();
+    const stamp = Date.now();
+    const names = [`Beta Navigation ${stamp}`, `Alpha Navigation ${stamp}`];
+    const workspaces: Array<{ id: string }> = [];
+    try {
+      for (const title of names) {
+        const response = await request.post("/api/workspaces", {
+          data: { title, categoryId: category.id },
+        });
+        expect(response.status()).toBe(201);
+        workspaces.push(await response.json());
+      }
+      await page.goto(`/?category=${category.id}`);
+      const list = page.getByRole("list", { name: "Category workspaces" });
+      await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toBeVisible();
+      await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
+
+      await page.getByRole("searchbox", { name: "Search category workspaces" }).fill("Alpha Navigation");
+      await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
+      await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toHaveCount(0);
+
+      await page.getByRole("searchbox", { name: "Search category workspaces" }).clear();
+      await page.getByRole("combobox", { name: "Sort category workspaces" }).selectOption("name");
+      await expect(list.getByRole("link")).toHaveCount(2);
+      await expect(list.getByRole("link").first()).toHaveAttribute("aria-label", `Open ${names[1]}`);
+    } finally {
+      for (const workspace of workspaces) {
+        await deleteWorkspace(request, workspace.id);
+        await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+      }
+      await request.delete(`/api/categories/${category.id}`);
+    }
+  });
+
   test("direct navigation, sibling switching, and reload on workspace (/workspaces/:id)", async ({
     page,
     request,

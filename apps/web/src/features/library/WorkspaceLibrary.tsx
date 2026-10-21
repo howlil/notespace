@@ -273,6 +273,8 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
     categoryItems,
     page,
     pageLoading,
+    categoryLoadError,
+    retryCategory,
     categorySearch,
     setCategorySearch,
     categoryFilters,
@@ -338,7 +340,12 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
         </div>
       )}
       <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : items.length ? (
+        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : view === "category" && categoryLoadError ? (
+          <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 border-y border-line bg-surface px-4 py-5">
+            <p className="m-0 text-[11px] text-danger">Category workspaces could not be loaded. {categoryLoadError}</p>
+            <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
+          </div>
+        ) : items.length ? (
           view === "category" ? (
             <div className="divide-y divide-line border-y border-line bg-surface" role="list" aria-label="Category workspaces">
               {items.map((workspace) => (

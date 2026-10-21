@@ -31,7 +31,7 @@ export function renderStructuredDiagram(
 ): OrderedExcalidrawElement[] {
   const strokeColor = dark ? "#91b1ff" : "#2858d8";
   const backgroundColor = dark ? "#23345a" : "#eaf0ff";
-  const groupStroke = dark ? "#6c8a7c" : "#9cb7aa";
+  const groupStroke = dark ? "#799be8" : "#6b91eb";
   const skeletons: ExcalidrawElementSkeleton[] = [];
 
   for (const group of diagram.groups) {

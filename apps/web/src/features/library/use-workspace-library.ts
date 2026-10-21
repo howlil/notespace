@@ -9,8 +9,8 @@ import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
 
 export type LibraryView = "recent" | "all" | "category";
-export type CategoryWorkspaceFilters = { query: string; sort: "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
-const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "created", hasCanvas: false, hasNotes: false, offset: 0 };
+export type CategoryWorkspaceFilters = { query: string; sort: "" | "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
+const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "", hasCanvas: false, hasNotes: false, offset: 0 };
 
 export type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
@@ -25,6 +25,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
   const pageRequestGeneration = useRef(0);
+  const useInitialCategoryPage = useRef(Boolean(initialSelectedCategoryId && initialCategoryPage));
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
@@ -167,6 +168,10 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   // not just the first loaded 50 items.
   useEffect(() => {
     if (view !== "category" || !selectedCategoryId) return;
+    if (useInitialCategoryPage.current) {
+      useInitialCategoryPage.current = false;
+      return; // The route loader already returned the unfiltered first page.
+    }
     const generation = ++pageRequestGeneration.current;
     setPageLoading(true);
     setPage(null);

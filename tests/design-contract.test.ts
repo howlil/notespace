@@ -95,7 +95,7 @@ test("design token contract: DESIGN.md documents the runtime semantic tokens", (
   assert.match(globals, /--accent:\s*#2858d8/i); assert.match(globals, /--tint:\s*#eaf0ff/i); assert.match(globals, /--font-sans:\s*"Open Sans"/);
 });
 
-test("muted jade identity: landing and runtime use the same accent/tint", () => {
+test("Fox Spirit Cobalt identity: landing and runtime use the same accent/tint", () => {
   const landing = source(join(ROOT, "landing", "src", "styles", "global.css"));
   const hero = source(join(ROOT, "landing", "src", "styles", "white-hero.css"));
   const design = source(DESIGN);
@@ -116,7 +116,7 @@ test("muted jade identity: landing and runtime use the same accent/tint", () => 
     assert.match(asset("favicon.svg"), /#2858d8/i);
     assert.match(asset("favicon.svg"), /#fff(?:fff)?\b/i);
   }
-  assert.match(hero, /\\.ns-white-primary:hover\\s*\\{\\s*background:\\s*color-mix\\(/);
+  assert.match(hero, /\.ns-white-primary:hover\s*\{\s*background:\s*color-mix\(/);
 });
 
 test("frontend styling contract: Tailwind v4 uses the official Vite and CSS-first setup", () => {

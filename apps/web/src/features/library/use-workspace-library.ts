@@ -32,6 +32,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
   const [pageLoading, setPageLoading] = useState(false);
+  const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryWorkspaceFilters>(defaultCategoryFilters);
   const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
@@ -154,6 +155,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     pageRequestGeneration.current += 1;
     setSelectedCategoryId(id);
     setView("category");
+    setCategoryLoadError(null);
     setPageLoading(true);
     setPage(null);
     setCategorySearch("");
@@ -177,13 +179,16 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     const generation = ++pageRequestGeneration.current;
     setPageLoading(true);
     setPage(null);
+    setCategoryLoadError(null);
     void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, limit: 50 })
       .then((result) => {
         if (pageRequestGeneration.current === generation) setPage(result);
       })
       .catch((err) => {
         if (pageRequestGeneration.current === generation) {
-          showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." });
+          const message = err instanceof Error ? err.message : "Could not load category workspaces.";
+          setCategoryLoadError(message);
+          showToast({ kind: "error", message });
         }
       })
       .finally(() => {
@@ -305,6 +310,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     categoryItems,
     page,
     pageLoading,
+    categoryLoadError,
+    retryCategory: () => setCategoryFilters((current) => ({ ...current })),
     categorySearch,
     setCategorySearch,
     categoryFilters,

@@ -13,6 +13,7 @@ const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "works
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const WORKSPACE_LIBRARY_MODEL = join(WEB_SRC, "features", "library", "use-workspace-library.ts");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
@@ -315,7 +316,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(ACTIVITY_DASHBOARD), /<Button/); assert.match(source(ACTIVITY_INDICATOR), /<Button/);
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(DASHBOARD), /w-\[min\(320px,42vw\)\]/); assert.match(source(DASHBOARD), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.match(source(WORKSPACE_LIBRARY), /after:bg-accent/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
   assert.match(source(ACTIVITY_DASHBOARD), /rounded-lg border border-line bg-surface/); assert.match(source(ACTIVITY_DASHBOARD), /auto-cols-\[12px\]/);

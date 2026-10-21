@@ -335,8 +335,8 @@ test("layout archetypes: application pages share search shell and category queri
   assert.match(library, /aria-label="Search category workspaces"/);
   assert.match(library, /aria-label="Sort category workspaces"/);
   assert.match(library, /updateCategoryFilters/);
-  assert.match(model, /listCategoryWorkspaces\\(selectedCategoryId, \\{ \\.\\.\\.categoryFilters, limit: 50 \\}\\)/);
-  assert.match(model, /pageRequestGeneration\\.current === generation/);
+  assert.match(model, /listCategoryWorkspaces\(selectedCategoryId, \{ \.\.\.categoryFilters, limit: 50 \}\)/);
+  assert.match(model, /pageRequestGeneration\.current === generation/);
   assert.match(library, /role="list"/);
 });
 

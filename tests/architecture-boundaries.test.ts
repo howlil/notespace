@@ -269,11 +269,13 @@ test("HTTP client stays transport-only", () => {
 
 test("browser event and asset initialization stay behind explicit boundaries", () => {
   const dashboard = source("pages/home/HomePage.tsx");
+  const shell = source("pages/_shared/LibraryPageShell.tsx");
   const quickOpen = source("features/search/QuickOpen.tsx");
   const canvas = source("features/workspace-authoring/canvas/CanvasEditor.tsx");
-  assert.match(dashboard, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.match(dashboard, /<LibraryPageShell/);
   assert.match(quickOpen, /OPEN_QUICK_SEARCH_EVENT/);
-  assert.doesNotMatch(dashboard, /new Event\("open-quick-search"\)/);
+  assert.doesNotMatch(shell, /new Event\("open-quick-search"\)/);
   assert.doesNotMatch(quickOpen, /addEventListener\("open-quick-search"/);
   assert.doesNotMatch(canvas, /^window\.EXCALIDRAW_ASSET_PATH/m);
   assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
@@ -420,7 +422,8 @@ test("home page owns the library screen composition", () => {
   const library = source("features/library/WorkspaceLibrary.tsx");
   const model = source("features/library/use-workspace-library.ts");
 
-  assert.match(home, /dashboard-shell/);
+  assert.match(home, /<LibraryPageShell dashboard/);
+  assert.match(source("pages/_shared/LibraryPageShell.tsx"), /dashboard-shell/);
   assert.match(home, /LibrarySidebar/);
   assert.match(home, /useWorkspaceLibrary/);
   assert.match(home, /WorkspaceLibrary/);

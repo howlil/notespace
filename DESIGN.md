@@ -130,7 +130,7 @@ The application uses semantic colors so the same component can remain coherent i
 | `--muted` | `#636979` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
 | `--accent` | `#2858D8` | `#91B1FF` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
-| `--tint` | `#EAF0FF` | `#23345A` | Hover background, active background, selected rows, and soft emphasis |
+| `--tint` | `#EAF0FF` | `#223254` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
@@ -307,7 +307,7 @@ Every interactive component needs an accessible name and a keyboard path. Icon-o
 Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the approved restrained cobalt-blue identity:
 
 - Light accent/focus: `#2858D8` (`--accent`); light active tint: `#EAF0FF` (`--tint`).
-- Dark accent/focus: `#91B1FF` (`--accent`); dark active tint: `#23345A` (`--tint`).
+- Dark accent/focus: `#91B1FF` (`--accent`); dark active tint: `#223254` (`--tint`).
 - Neutral backgrounds, ink, supporting text, and status colors remain the semantic tokens in the table above.
 
 The brand accent colors theme-aware navigation, focus, selected states, and new diagram presets. Existing user-authored Canvas colors are content and must not be rewritten during a theme change.

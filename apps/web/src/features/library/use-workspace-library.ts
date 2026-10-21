@@ -9,6 +9,8 @@ import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
 
 export type LibraryView = "recent" | "all" | "category";
+export type CategoryWorkspaceFilters = { query: string; sort: "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
+const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "created", hasCanvas: false, hasNotes: false, offset: 0 };
 
 export type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
@@ -29,6 +31,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
   const [pageLoading, setPageLoading] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryFilters, setCategoryFilters] = useState<CategoryWorkspaceFilters>(defaultCategoryFilters);
   const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
 
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
@@ -144,24 +148,50 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     }
   }
 
-  async function selectCategory(id: string, force = false) {
+  function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
-    const generation = ++pageRequestGeneration.current;
+    pageRequestGeneration.current += 1;
     setSelectedCategoryId(id);
     setView("category");
-    setPageLoading(true);
+    setPage(null);
+    setCategorySearch("");
+    setCategoryFilters({ ...defaultCategoryFilters });
     void navigate({ to: "/", search: { category: id }, replace: true });
-    try {
-      const result = await listCategoryWorkspaces(id, { limit: 50 });
-      if (pageRequestGeneration.current === generation) setPage(result);
-    } catch (err) {
-      if (pageRequestGeneration.current === generation) {
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." });
-      }
-    } finally {
-      if (pageRequestGeneration.current === generation) setPageLoading(false);
-    }
   }
+
+  function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
+    setCategoryFilters((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
+  }
+
+  // Filters and pagination are applied by the server against the complete category,
+  // not just the first loaded 50 items.
+  useEffect(() => {
+    if (view !== "category" || !selectedCategoryId) return;
+    const generation = ++pageRequestGeneration.current;
+    setPageLoading(true);
+    setPage(null);
+    void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, limit: 50 })
+      .then((result) => {
+        if (pageRequestGeneration.current === generation) setPage(result);
+      })
+      .catch((err) => {
+        if (pageRequestGeneration.current === generation) {
+          showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load category workspaces." });
+        }
+      })
+      .finally(() => {
+        if (pageRequestGeneration.current === generation) setPageLoading(false);
+      });
+  }, [selectedCategoryId, view, categoryFilters, showToast]);
+
+  useEffect(() => {
+    if (view !== "category") return;
+    const timeout = window.setTimeout(() => {
+      const query = categorySearch.trim();
+      setCategoryFilters((current) => current.query === query ? current : { ...current, query, offset: 0 });
+    }, 240);
+    return () => window.clearTimeout(timeout);
+  }, [categorySearch, view]);
 
   function openRecent() {
     pageRequestGeneration.current += 1;
@@ -226,7 +256,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
           void navigate({ to: "/" });
           return;
         }
-        void listCategoryWorkspaces(selectedCategoryId, { limit: 50 })
+        void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, limit: 50 })
           .then((result) => {
             if (generation === pageRequestGeneration.current) setPage(result);
           })
@@ -245,7 +275,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
           showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
         }
       });
-  }, [navigate, selectedCategoryId, showToast, view]);
+  }, [categoryFilters, navigate, selectedCategoryId, showToast, view]);
 
   useEffect(() => {
     if (handledLibraryRevision.current === libraryRevision) return;
@@ -268,6 +298,10 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     categoryItems,
     page,
     pageLoading,
+    categorySearch,
+    setCategorySearch,
+    categoryFilters,
+    updateCategoryFilters,
     creatingWorkspace,
     newWorkspaceTitle,
     createLoading,

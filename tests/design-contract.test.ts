@@ -140,7 +140,7 @@ test("frontend styling contract: global, authoring, and desktop chrome CSS have 
 
 test("frontend styling contract: globals owns tokens and document defaults, not feature selectors", () => {
   const globals = source(GLOBALS);
-  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#2858d8/i); assert.match(globals, /--tint:\s*#eaf0ff/i); assert.match(globals, /--accent:\s*#91b1ff/i); assert.match(globals, /--tint:\s*#23345a/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
+  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#2858d8/i); assert.match(globals, /--tint:\s*#eaf0ff/i); assert.match(globals, /--accent:\s*#91b1ff/i); assert.match(globals, /--tint:\s*#223254/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(globals, selector, `feature selector ${selector} leaked into globals.css`);
 });
 

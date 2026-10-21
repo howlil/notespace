@@ -30,7 +30,7 @@ export function renderStructuredDiagram(
   availableEraserIcons: ReadonlySet<string> = new Set(),
 ): OrderedExcalidrawElement[] {
   const strokeColor = dark ? "#91b1ff" : "#2858d8";
-  const backgroundColor = dark ? "#23345a" : "#eaf0ff";
+  const backgroundColor = dark ? "#223254" : "#eaf0ff";
   const groupStroke = dark ? "#799be8" : "#6b91eb";
   const skeletons: ExcalidrawElementSkeleton[] = [];
 

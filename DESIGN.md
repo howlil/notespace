@@ -49,7 +49,7 @@ Today must not become a calendar, backlog dashboard, habit tracker, kanban board
 
 ### Workspace cards
 
-Workspace cards retain the compact square paper-stack composition used by the library. The card background is the muted-jade `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
+Workspace cards retain the compact square paper-stack composition used by the library. The card background is the cobalt-blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
 
 ### Category detail
 
@@ -99,7 +99,7 @@ Default direction:
 - subtle motion only when it explains state or continuity;
 - light and dark modes must remain coherent.
 
-Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained muted-jade thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
+Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained cobalt-blue thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
 
 ## Design tokens
 
@@ -129,8 +129,8 @@ The application uses semantic colors so the same component can remain coherent i
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
 | `--muted` | `#636979` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
 | `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#3F6D61` | `#A6D1BC` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
-| `--tint` | `#EBF2EE` | `#20352E` | Hover background, active background, selected rows, and soft emphasis |
+| `--accent` | `#2858D8` | `#91B1FF` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
+| `--tint` | `#EAF0FF` | `#23345A` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
@@ -304,10 +304,10 @@ Every interactive component needs an accessible name and a keyboard path. Icon-o
 
 ## Color and emphasis
 
-Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the existing restrained muted-jade identity:
+Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the approved restrained cobalt-blue identity:
 
-- Light accent/focus: `#3F6D61` (`--accent`); light active tint: `#EBF2EE` (`--tint`).
-- Dark accent/focus: `#A6D1BC` (`--accent`); dark active tint: `#20352E` (`--tint`).
+- Light accent/focus: `#2858D8` (`--accent`); light active tint: `#EAF0FF` (`--tint`).
+- Dark accent/focus: `#91B1FF` (`--accent`); dark active tint: `#23345A` (`--tint`).
 - Neutral backgrounds, ink, supporting text, and status colors remain the semantic tokens in the table above.
 
 The brand accent colors theme-aware navigation, focus, selected states, and new diagram presets. Existing user-authored Canvas colors are content and must not be rewritten during a theme change.
@@ -339,7 +339,7 @@ The current runtime defines color values directly in semantic tokens; **do not i
 - **Selected, active, or focused:** pair `--tint` with `--accent` where needed; preserve the shared keyboard focus outline. Hover uses restrained tint.
 - **Destructive or success feedback:** use `--danger` or `--success` only for their state meaning; accompany color with clear text, icons, or labels when needed.
 - **Exceptional fixed colors:** allowed for user-authored content, illustrations, syntax/data palettes, logos, or deliberate terminal previews; keep them scoped and document why a semantic token is unsuitable.
-- Do not introduce electric blue, purple-blue gradients, blue glow, neon accents, or decorative color noise without a product reason.
+- Do not introduce additional accent hues, gradients, glow, neon, or decorative color noise into functional UI surfaces.
 
 Emphasis should come primarily from information hierarchy, density, typography, spacing, and state—not saturation.
 
@@ -348,7 +348,18 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
 - **Resolved baseline contrast:** light `--muted: #636979` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
-- Preserve the muted-jade identity unless product evidence or an explicit user decision calls for a palette change. Do not treat a concept palette experiment as an approved design-system change.
+- Preserve the approved Cobalt / White Fox Spirit identity unless an explicit product decision changes it; brand illustrations never override semantic UI state colors.
+
+### Fox Spirit brand asset contract
+
+The approved rebrand uses **Cobalt `#2858D8` and White `#FFFFFF`** for the fox character. Functional components continue to use semantic tokens, not hard-coded brand values.
+
+- `/brand/notespace-fox-head.svg` — compact rounded-square mark for navigation and wordmarks at 24–32px; consistent across light and dark UI.
+- `/brand/notespace-fox-full.svg` — full-body mascot for marketing illustration and desktop app-icon source artwork. Keep outside authored Workspace panes.
+- `/brand/notespace-fox-micro.svg` — reduced-details fallback used by `/favicon.svg` at 16–32px.
+- The web and Astro landing `public/brand` copies must remain byte-identical; `NotespaceLogo` owns application logo rendering. Existing Foldling files are temporary legacy assets, not active brand references.
+- Preserve the real 6/8/12/18px radius hierarchy, compact icon controls, neutral-first primary buttons, border-only Workspace and user-authored Canvas colors. Do not add decorative foxes to editor or Canvas tool chrome.
+- Before replacing desktop `.ico`, `.icns` and `.png` packaging assets, regenerate all resolutions from the reviewed master logo and run native desktop acceptance. The binary icon update is a separate release-sensitive step.
 
 ## Component and interaction rules
 

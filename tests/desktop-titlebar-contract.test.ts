@@ -15,8 +15,10 @@ const stylesheet = source(web + "shared/ui/desktop-titlebar/desktop-titlebar.css
 test("desktop title bar preserves existing per-page React handlers and web header fallback", () => {
   assert.match(header, /createPortal\(header, headerHost\)/);
   assert.match(header, /return customChromeActive && headerHost \? createPortal/);
+  const shell = source(web + "pages/_shared/LibraryPageShell.tsx");
+  assert.match(shell, /<HeaderPlacement/);
   for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
-    assert.match(source(web + "pages/" + page), /<HeaderPlacement/);
+    assert.match(source(web + "pages/" + page), /<LibraryPageShell/);
   }
   assert.doesNotMatch(workspace, /<HeaderPlacement/);
   assert.match(workspace, /<WorkspaceRail/);

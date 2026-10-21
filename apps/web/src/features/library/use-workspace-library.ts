@@ -154,6 +154,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     pageRequestGeneration.current += 1;
     setSelectedCategoryId(id);
     setView("category");
+    setPageLoading(true);
     setPage(null);
     setCategorySearch("");
     setCategoryFilters({ ...defaultCategoryFilters });
@@ -161,6 +162,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   }
 
   function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
+    setPageLoading(true);
     setCategoryFilters((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
   }
 

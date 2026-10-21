@@ -324,6 +324,22 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(WORKSPACE_LIBRARY), /<WorkspaceListSkeleton/);
 });
 
+test("layout archetypes: application pages share search shell and category queries are server-filtered", () => {
+  const shell = source(PAGE_SHELL);
+  const library = source(WORKSPACE_LIBRARY);
+  const model = source(WORKSPACE_LIBRARY_MODEL);
+  for (const page of [DASHBOARD, INBOX, TODAY]) assert.match(source(page), /<LibraryPageShell/);
+  assert.match(shell, /<HeaderPlacement/);
+  assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.match(library, /aria-label="Category workspaces"/);
+  assert.match(library, /aria-label="Search category workspaces"/);
+  assert.match(library, /aria-label="Sort category workspaces"/);
+  assert.match(library, /updateCategoryFilters/);
+  assert.match(model, /listCategoryWorkspaces\\(selectedCategoryId, \\{ \\.\\.\\.categoryFilters, limit: 50 \\}\\)/);
+  assert.match(model, /pageRequestGeneration\\.current === generation/);
+  assert.match(library, /role="list"/);
+});
+
 test("frontend styling contract: application surfaces are utility-first", () => {
   for (const file of [ROUTE_PENDING, DASHBOARD, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX, INBOX_PLANNING, TODAY, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
@@ -481,7 +497,7 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(DASHBOARD),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
+  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.match(source(TOAST_PROVIDER),/requestExclusivePopup\(\)/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(PAGE_SHELL),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#2858d8/); });

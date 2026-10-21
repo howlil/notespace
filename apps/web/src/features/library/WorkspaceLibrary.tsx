@@ -321,9 +321,10 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
                 className="!min-h-7 min-w-0 w-full rounded-none border-0 bg-transparent px-0 text-[11px] focus:outline-none" />
             </label>
             <select aria-label="Sort category workspaces" value={categoryFilters.sort}
-              onChange={(event) => updateCategoryFilters({ sort: event.target.value as "created" | "name" | "notes" })}
+              onChange={(event) => updateCategoryFilters({ sort: event.target.value as "" | "created" | "name" | "notes" })}
               className="min-h-8 rounded-md border border-line bg-surface px-2 text-[11px] text-ink focus-visible:outline-2 focus-visible:outline-accent">
-              <option value="created">Newest</option>
+              <option value="">Recently updated</option>
+              <option value="created">Recently created</option>
               <option value="name">Name</option>
               <option value="notes">Most notes</option>
             </select>

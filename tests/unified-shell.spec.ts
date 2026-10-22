@@ -66,7 +66,7 @@ test("@critical Data & Recovery is a single reusable dialog from rail or Setting
   await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Settings" }).click();
-  const settings = page.getByRole("dialog", { name: "Notespace settings" });
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await expect(settings).toBeVisible();
   await settings.getByRole("button", { name: "Data & backup" }).click();
   await settings.getByRole("button", { name: "Open Data & Recovery" }).click();

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("shared rail navigates Library, Inbox and Today while Explorer remains optional", async ({ page }) => {
+test("@critical shared rail navigates Library, Inbox and Today while Explorer remains optional", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
   const rail = page.getByRole("navigation", { name: "Primary navigation" });
@@ -22,7 +22,7 @@ test("shared rail navigates Library, Inbox and Today while Explorer remains opti
   await expect(rail.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
 });
 
-test("mobile Explorer is initially closed, can be opened and dismissed by Escape", async ({ page }) => {
+test("@critical mobile Explorer is initially closed, can be opened and dismissed by Escape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
   const rail = page.getByRole("navigation", { name: "Primary navigation" });
@@ -37,7 +37,7 @@ test("mobile Explorer is initially closed, can be opened and dismissed by Escape
   await expect(toggle).toBeFocused();
 });
 
-test("Create menu delegates to existing Explorer form and global capture survives page changes", async ({ page }) => {
+test("@critical Create menu delegates to existing Explorer form and global capture survives page changes", async ({ page }) => {
   await page.goto("/inbox");
   const create = page.getByRole("button", { name: "Create", exact: true });
   await create.click();
@@ -58,7 +58,7 @@ test("Create menu delegates to existing Explorer form and global capture survive
   await page.keyboard.press("Escape");
 });
 
-test("Data & Recovery is a single reusable dialog from rail or Settings", async ({ page }) => {
+test("@critical Data & Recovery is a single reusable dialog from rail or Settings", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Data and recovery" }).click();
   await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();

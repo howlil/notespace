@@ -189,3 +189,18 @@ test("@critical cancelling full-library restore never sends a destructive restor
   await expect(confirmation).toHaveCount(0);
   expect(restoreRequests).toBe(0);
 });
+
+test("@critical Explorer remembers expanded categories across page navigation", async ({ page }) => {
+  await page.goto("/");
+  const categories = page.getByRole("navigation", { name: "Categories" });
+  const expand = categories.getByRole("button", { name: /^Expand / }).first();
+  await expect(expand).toBeVisible();
+  const label = await expand.getAttribute("aria-label");
+  const categoryName = label?.replace(/^Expand /, "") ?? "";
+  await expand.click();
+  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Inbox" }).click();
+  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Today" }).click();
+  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
+});

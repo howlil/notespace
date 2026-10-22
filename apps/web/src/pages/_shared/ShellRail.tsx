@@ -5,7 +5,7 @@ import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT, requestLibraryCreate } from "../../features/shell/shell-events";
+import { OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT, requestLibraryCreate } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";

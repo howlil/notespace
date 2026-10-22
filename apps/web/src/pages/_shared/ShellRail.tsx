@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarCheck2, ChevronDown, FolderTree, Home, Inbox, Plus, Search, Settings2, SquarePen, ArchiveRestore, FolderPlus, Folder, X } from "lucide-react";
+import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, SquarePen, ArchiveRestore, FolderPlus, Folder } from "lucide-react";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
@@ -15,13 +15,12 @@ type Props = {
   onToggleExplorer: () => void;
   onOpenExplorer: () => void;
   selectedCategoryId?: string;
-  headerActions?: ReactNode;
 };
 
 const control = "relative grid !size-[34px] !min-h-[34px] shrink-0 place-items-center rounded-md border-0 p-0 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
 const active = "bg-tint text-accent";
 
-export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer, selectedCategoryId, headerActions }: Props) {
+export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer, selectedCategoryId }: Props) {
   const navigate = useNavigate();
   const activity = useActivityRuntime();
   const [creating, setCreating] = useState(false);
@@ -77,7 +76,6 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer
         <button type="button" className={control} aria-label="Data and recovery" title="Data & Recovery" onClick={() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT))}><ArchiveRestore size={17}/></button>
         <button type="button" className={control} aria-label="Settings" title="Settings" onClick={() => window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS))}><Settings2 size={17}/></button>
       </div>
-      <span className="sr-only">{headerActions ? "Context actions available in the page header" : ""}</span>
     </nav>
   );
 }

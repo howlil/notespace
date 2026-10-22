@@ -8,6 +8,7 @@ const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
 const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
@@ -34,20 +35,21 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
 
 test("responsive contract: mobile library keeps persistent navigation without a drawer toggle", () => {
   const dashboard = source(DASHBOARD);
+  const shell = source(PAGE_SHELL);
   const sidebar = source(SIDEBAR);
   const library = source(WORKSPACE_LIBRARY);
   assert.doesNotMatch(dashboard, /mobileLibraryOpen/);
   assert.doesNotMatch(dashboard, /Open library navigation/);
   assert.doesNotMatch(dashboard, /Close library navigation/);
   assert.doesNotMatch(dashboard, /max-\[560px\]:-translate-x-full/);
-  assert.match(dashboard, /aria-label="Search Notespace with Control K or Command K"/);
-  assert.match(dashboard, /w-\[min\(320px,42vw\)\]/);
-  assert.match(dashboard, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
+  assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
+  assert.match(shell, /w-\[min\(320px,42vw\)\]/);
+  assert.match(shell, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
   assert.match(library, /overflow-x-auto overscroll-x-contain/);
   assert.match(library, /function WorkspaceFolderCard/);
   assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
   assert.match(library, /max-\[560px\]:grid-cols-\[repeat\(auto-fill,minmax\(156px,180px\)\)\]/);
-  assert.match(library, /<WorkspaceListSkeleton variant="cards" \/>/);
+  assert.match(library, /<WorkspaceListSkeleton variant=\{view === "category" \? "list" : "cards"\} \/>/);
   assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
   assert.match(sidebar, /max-\[560px\]:relative/);
   assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);

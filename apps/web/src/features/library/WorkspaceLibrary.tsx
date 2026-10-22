@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Folder, Pencil, Plus, Trash2 } from "lucide-react";
+import { FileText, Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { FormEvent, ReactNode } from "react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
@@ -130,6 +130,52 @@ function WorkspaceFolderCard({
   );
 }
 
+/** The category detail is an information-dense list, not another discovery grid. */
+function CategoryWorkspaceRow(props: WorkspaceFolderCardProps) {
+  const { workspace, editing, editingTitle = "", editLoading, onEditingTitleChange, onCommitTitle,
+    onCancelTitle, onRename, onDelete } = props;
+  const meta = [`${workspace.noteCount ?? 0} notes`, workspace.hasCanvas ? "Canvas" : null]
+    .filter(Boolean).join(" · ");
+  const content = (
+    <div className="flex min-h-[58px] min-w-0 items-center gap-3 px-3 py-2 hover:bg-tint/50">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md border border-line bg-background text-accent"><FileText size={16} /></span>
+      <span className="min-w-0 flex-1">
+        {editing ? (
+          <Input autoFocus aria-label="Workspace title" value={editingTitle} disabled={editLoading}
+            onChange={(event) => onEditingTitleChange?.(event.target.value)}
+            onBlur={() => onCommitTitle?.()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") { event.preventDefault(); onCommitTitle?.(); }
+              if (event.key === "Escape") { event.preventDefault(); onCancelTitle?.(); }
+            }}
+            className="!min-h-7 w-full max-w-[340px] rounded-md px-2 text-[12px]" />
+        ) : (
+          <strong className="block truncate text-[12px] font-medium text-ink">{workspace.title}</strong>
+        )}
+        <span className="block truncate text-[10px] text-muted">{meta}</span>
+      </span>
+      <time className="shrink-0 text-[10px] tabular-nums text-muted" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+    </div>
+  );
+  return (
+    <div role="listitem">
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {editing ? <div>{content}</div> : (
+            <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }}
+              className="block min-w-0 text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+              aria-label={`Open ${workspace.title}`}>{content}</Link>
+          )}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={onRename}><Pencil size={13} /> Edit title</ContextMenuItem>
+          <ContextMenuItem className="text-danger" onSelect={onDelete}><Trash2 size={13} /> Delete</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </div>
+  );
+}
+
 type NewWorkspaceCardProps = {
   editing: boolean;
   value: string;
@@ -227,6 +273,12 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
     categoryItems,
     page,
     pageLoading,
+    categoryLoadError,
+    retryCategory,
+    categorySearch,
+    setCategorySearch,
+    categoryFilters,
+    updateCategoryFilters,
     creatingWorkspace,
     newWorkspaceTitle,
     createLoading,
@@ -257,59 +309,122 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
         <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
         <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
       </nav>
-      <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton variant="cards" /> : items.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
-            {items.map((workspace) => (
-              <WorkspaceFolderCard
-                key={workspace.id}
-                workspace={workspace}
-                categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
-                entering={workspace.id === recentlyCreatedWorkspaceId}
-                editing={editingWorkspaceId === workspace.id}
-                editingTitle={workspaceTitleDraft}
-                editLoading={savingWorkspaceId === workspace.id}
-                onEditingTitleChange={setWorkspaceTitleDraft}
-                onCommitTitle={() => void saveWorkspaceTitle(workspace)}
-                onCancelTitle={cancelWorkspaceRename}
-                onRename={() => beginWorkspaceRename(workspace)}
-                onDelete={() => setDeletingWorkspace(workspace)}
-              />
-            ))}
-            <NewWorkspaceCard
-              editing={creatingWorkspace}
-              value={newWorkspaceTitle}
-              loading={createLoading}
-              onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
-              onChange={setNewWorkspaceTitle}
-              onSubmit={(event) => { void handleCreateWorkspace(event); }}
-              onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
-            />
+      {view === "category" && (
+        <div className="mb-4 grid gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="m-0 truncate text-[17px] font-semibold text-ink">{heading}</h2>
+            <span className="text-[10px] tabular-nums text-muted">{page?.total ?? 0} workspaces</span>
           </div>
-        ) : (
-          <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
-            <div>
-              <span className="mb-4 grid size-10 place-items-center rounded-md bg-tint text-accent mx-auto"><Folder size={20} /></span>
-              <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
-              <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Category filters">
+            <label className="flex min-h-8 min-w-[180px] flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5 focus-within:outline-2 focus-within:outline-accent">
+              <Search size={14} className="shrink-0 text-muted" aria-hidden="true" />
+              <Input type="search" aria-label="Search category workspaces" value={categorySearch}
+                onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search in category…"
+                className="!min-h-7 min-w-0 w-full rounded-none border-0 bg-transparent px-0 text-[11px] focus:outline-none" />
+            </label>
+            <select aria-label="Sort category workspaces" value={categoryFilters.sort}
+              onChange={(event) => updateCategoryFilters({ sort: event.target.value as "" | "created" | "name" | "notes" })}
+              className="min-h-8 rounded-md border border-line bg-surface px-2 text-[11px] text-ink focus-visible:outline-2 focus-visible:outline-accent">
+              <option value="">Recently updated</option>
+              <option value="created">Recently created</option>
+              <option value="name">Name</option>
+              <option value="notes">Most notes</option>
+            </select>
+            <Button type="button" variant="ghost" size="sm" aria-pressed={categoryFilters.hasNotes}
+              className={cn("border border-line text-[10px]", categoryFilters.hasNotes && "bg-tint text-accent")}
+              onClick={() => updateCategoryFilters({ hasNotes: !categoryFilters.hasNotes })}>Has notes</Button>
+            <Button type="button" variant="ghost" size="sm" aria-pressed={categoryFilters.hasCanvas}
+              className={cn("border border-line text-[10px]", categoryFilters.hasCanvas && "bg-tint text-accent")}
+              onClick={() => updateCategoryFilters({ hasCanvas: !categoryFilters.hasCanvas })}>Has canvas</Button>
+          </div>
+        </div>
+      )}
+      <section className="min-w-0" aria-labelledby="library-list-title">
+        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : view === "category" && categoryLoadError ? (
+          <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 border-y border-line bg-surface px-4 py-5">
+            <p className="m-0 text-[11px] text-danger">Category workspaces could not be loaded. {categoryLoadError}</p>
+            <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
+          </div>
+        ) : items.length ? (
+          view === "category" ? (
+            <div className="divide-y divide-line border-y border-line bg-surface" role="list" aria-label="Category workspaces">
+              {items.map((workspace) => (
+                <CategoryWorkspaceRow key={workspace.id} workspace={workspace}
+                  editing={editingWorkspaceId === workspace.id}
+                  editingTitle={workspaceTitleDraft} editLoading={savingWorkspaceId === workspace.id}
+                  onEditingTitleChange={setWorkspaceTitleDraft}
+                  onCommitTitle={() => void saveWorkspaceTitle(workspace)}
+                  onCancelTitle={cancelWorkspaceRename}
+                  onRename={() => beginWorkspaceRename(workspace)}
+                  onDelete={() => setDeletingWorkspace(workspace)} />
+              ))}
             </div>
-            <NewWorkspaceCard
-              editing={creatingWorkspace}
-              value={newWorkspaceTitle}
-              loading={createLoading}
-              onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
-              onChange={setNewWorkspaceTitle}
-              onSubmit={(event) => { void handleCreateWorkspace(event); }}
-              onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }}
-            />
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
+              {items.map((workspace) => (
+                <WorkspaceFolderCard key={workspace.id} workspace={workspace}
+                  categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
+                  entering={workspace.id === recentlyCreatedWorkspaceId}
+                  editing={editingWorkspaceId === workspace.id} editingTitle={workspaceTitleDraft}
+                  editLoading={savingWorkspaceId === workspace.id}
+                  onEditingTitleChange={setWorkspaceTitleDraft}
+                  onCommitTitle={() => void saveWorkspaceTitle(workspace)}
+                  onCancelTitle={cancelWorkspaceRename}
+                  onRename={() => beginWorkspaceRename(workspace)}
+                  onDelete={() => setDeletingWorkspace(workspace)} />
+              ))}
+              <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
+                onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+                onChange={setNewWorkspaceTitle}
+                onSubmit={(event) => { void handleCreateWorkspace(event); }}
+                onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
+            </div>
+          )
+        ) : (
+          view === "category" ? (
+            <div className="border-y border-line px-3 py-8 text-center text-[11px] text-muted">
+              No workspaces match this category view.
+            </div>
+          ) : (
+            <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
+              <div>
+                <span className="mb-4 mx-auto grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
+                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
+              </div>
+              <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
+                onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+                onChange={setNewWorkspaceTitle}
+                onSubmit={(event) => { void handleCreateWorkspace(event); }}
+                onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
+            </div>
+          )
+        )}
+        {view === "category" && (
+          <div className="mt-2">
+            {creatingWorkspace ? (
+              <form className="flex items-center gap-2" onSubmit={(event) => { void handleCreateWorkspace(event); }}>
+                <Input autoFocus aria-label="New workspace name" placeholder="Workspace name"
+                  className="min-h-8 flex-1 text-[11px]" value={newWorkspaceTitle}
+                  onChange={(event) => setNewWorkspaceTitle(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Escape") setCreatingWorkspace(false); }} />
+                <Button size="sm" type="submit" disabled={createLoading || !newWorkspaceTitle.trim()}>{createLoading ? "Creating…" : "Create"}</Button>
+                <Button size="sm" variant="ghost" type="button" disabled={createLoading} onClick={() => setCreatingWorkspace(false)}>Cancel</Button>
+              </form>
+            ) : (
+              <Button type="button" variant="ghost" size="sm" className="text-accent"
+                onClick={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}>
+                <Plus size={14} /> New workspace
+              </Button>
+            )}
           </div>
         )}
       </section>
-      {view === "all" && page && page.total > page.limit && (
+      {(view === "all" || view === "category") && page && page.total > page.limit && (
         <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
           <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => void openAll(page.nextOffset ?? page.offset)}>Next</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset)}>Next</Button>
         </nav>
       )}
       {afterList}

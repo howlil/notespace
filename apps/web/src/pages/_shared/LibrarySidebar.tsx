@@ -50,7 +50,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
     startCreate(
       createRequest.kind,
       createRequest.kind === "workspace"
-        ? (createRequest.categoryId ?? selectedCategoryId ?? defaultCategoryId)
+        ? (createRequest.categoryId || selectedCategoryId || defaultCategoryId)
         : undefined,
     );
   }, [categories, createRequest, selectedCategoryId, startCreate]);

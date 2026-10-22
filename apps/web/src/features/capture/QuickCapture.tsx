@@ -1,4 +1,4 @@
-import { OPEN_QUICK_CAPTURE_EVENT } from "../shell/shell-events";
+import { OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";

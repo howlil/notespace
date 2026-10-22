@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test("Workspace creation keeps whitespace-only input disabled", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /New workspace/ }).first().click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Workspace", exact: true }).click();
 
   const input = page.getByRole("textbox", { name: "Workspace title" });
   await input.fill("   \n  ");
@@ -14,7 +15,8 @@ test("Workspace creation keeps whitespace-only input disabled", async ({ page })
 test("Workspace creation rejects an oversized title without creating partial state", async ({ page, request }) => {
   const title = `oversized-${"x".repeat(161)}`;
   await page.goto("/");
-  await page.getByRole("button", { name: /New workspace/ }).first().click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Workspace", exact: true }).click();
 
   const input = page.getByRole("textbox", { name: "Workspace title" });
   await input.fill(title);

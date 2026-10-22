@@ -1,5 +1,6 @@
+import { useLibraryCreateRequest } from "./library-create-context";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { FileText, Folder, FolderOpen, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -7,7 +8,6 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSu
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
-import { OPEN_LIBRARY_CREATE_EVENT, type LibraryCreateTarget } from "../../shared/browser/shell-events";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -41,15 +41,19 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
     toggleCategory,
   } = useLibraryNavigation({ categories, onSelectCategory, onChanged });
 
+  const createRequest = useLibraryCreateRequest();
+  const handledCreateRequest = useRef(0);
   useEffect(() => {
-    const onCreate = (event: Event) => {
-      const { kind, categoryId } = (event as CustomEvent<LibraryCreateTarget>).detail;
-      const defaultCategoryId = categories.find(item => item.id === "legacy")?.id ?? categories[0]?.id;
-      startCreate(kind, kind === "workspace" ? (categoryId ?? selectedCategoryId ?? defaultCategoryId) : undefined);
-    };
-    window.addEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);
-    return () => window.removeEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);
-  }, [categories, startCreate, selectedCategoryId]);
+    if (!createRequest || createRequest.sequence === handledCreateRequest.current) return;
+    handledCreateRequest.current = createRequest.sequence;
+    const defaultCategoryId = categories.find(item => item.id === "legacy")?.id ?? categories[0]?.id;
+    startCreate(
+      createRequest.kind,
+      createRequest.kind === "workspace"
+        ? (createRequest.categoryId ?? selectedCategoryId ?? defaultCategoryId)
+        : undefined,
+    );
+  }, [categories, createRequest, selectedCategoryId, startCreate]);
 
   function dropWorkspace(categoryId: string, event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -72,6 +76,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
     <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden border-r border-line bg-sidebar px-2 py-2" aria-label="Category explorer">
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
+        {creating?.kind === "workspace" && !categories.some(item => item.id === creating.categoryId) && <motion.div key="workspace-create-top" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace")}</motion.div>}
       </AnimatePresence>
       <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto pt-0.5 max-[560px]:min-h-0">
         {categories.map((category) => {

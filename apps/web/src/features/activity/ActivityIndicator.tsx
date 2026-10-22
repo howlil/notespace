@@ -30,7 +30,7 @@ export function ActivityIndicator({
   rail = false,
 }: {
   activity: ActivitySessionState;
-  workspaceId: string;
+  workspaceId?: string;
   workspaceTitle: string;
   compact?: boolean;
   rail?: boolean;
@@ -139,8 +139,7 @@ export function ActivityIndicator({
             activity.start({
               title: workspaceTitle,
               activityType,
-              workspaceId,
-              workspaceTitleSnapshot: workspaceTitle,
+              ...(workspaceId ? { workspaceId, workspaceTitleSnapshot: workspaceTitle } : {}),
             });
           }}
         />

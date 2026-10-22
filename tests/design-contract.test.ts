@@ -371,7 +371,9 @@ test("global utility contract: capture, search, recovery and activity are single
   const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
   assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
   assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
-  assert.match(rail, /requestLibraryCreate/);
+  assert.match(rail, /onCreate\(\{ kind, categoryId:/);
+  assert.match(source(PAGE_SHELL), /<LibraryCreateContext.Provider value=\{createRequest\}>/);
+  assert.match(sidebar, /useLibraryCreateRequest/);
   assert.match(rail, /<ActivityIndicator rail/);
   assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
   assert.match(root, /<LibraryTools showTrigger=\{false\} \/>/);

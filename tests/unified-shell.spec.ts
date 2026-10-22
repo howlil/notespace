@@ -72,3 +72,16 @@ test("@critical Data & Recovery is a single reusable dialog from rail or Setting
   await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
   await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
 });
+
+test("@critical global Create focuses the existing Inbox and Today task composers", async ({ page }) => {
+  await page.goto("/");
+  const create = page.getByRole("button", { name: "Create", exact: true });
+  await create.click();
+  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
+  await expect(page).toHaveURL(/\/inbox#new-task$/);
+  await expect(page.getByRole("textbox", { name: "New inbox task" })).toBeFocused();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Task in Today" }).click();
+  await expect(page).toHaveURL(/\/today#new-task$/);
+  await expect(page.getByRole("textbox", { name: "New standalone task" })).toBeFocused();
+});

@@ -85,3 +85,51 @@ test("@critical global Create focuses the existing Inbox and Today task composer
   await expect(page).toHaveURL(/\/today#new-task$/);
   await expect(page.getByRole("textbox", { name: "New standalone task" })).toBeFocused();
 });
+
+test("@critical Explorer visibility remains stable between Library, Inbox and Today", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  const rail = page.getByRole("navigation", { name: "Primary navigation" });
+  const toggle = rail.getByRole("button", { name: "Toggle category explorer" });
+  const categories = page.getByRole("navigation", { name: "Categories" });
+
+  await toggle.click();
+  await expect(categories).toBeHidden();
+  await rail.getByRole("link", { name: "Inbox" }).click();
+  await expect(categories).toBeHidden();
+  await rail.getByRole("link", { name: "Today" }).click();
+  await expect(categories).toBeHidden();
+  await toggle.click();
+  await expect(categories).toBeVisible();
+  await rail.getByRole("link", { name: "Library" }).click();
+  await expect(categories).toBeVisible();
+});
+
+test("@critical Escape cancels mobile Explorer title entry without hiding Explorer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto("/");
+  const rail = page.getByRole("navigation", { name: "Primary navigation" });
+  await rail.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Category", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Category title" });
+  await expect(input).toBeVisible();
+  await input.fill("Uncommitted category");
+  await input.press("Escape");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
+  await expect(rail.getByRole("button", { name: "Toggle category explorer" })).toHaveAttribute("aria-expanded", "true");
+});
+
+test("@critical selecting Create Task twice focuses the same Inbox composer each time", async ({ page }) => {
+  await page.goto("/");
+  const create = page.getByRole("button", { name: "Create", exact: true });
+  await create.click();
+  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
+  const composer = page.getByRole("textbox", { name: "New inbox task" });
+  await expect(composer).toBeFocused();
+
+  await create.click();
+  await expect(composer).not.toBeFocused();
+  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
+  await expect(composer).toBeFocused();
+});

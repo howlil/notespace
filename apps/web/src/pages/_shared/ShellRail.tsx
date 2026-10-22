@@ -59,7 +59,7 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer
         <Link to="/today" className={cn(control, page === "today" && active)} aria-label="Today" title="Today" aria-current={page === "today" ? "page" : undefined}><CalendarCheck2 size={17} /></Link>
         <span className="my-1 h-px w-5 bg-line" aria-hidden="true" />
         <button ref={explorerTriggerRef} type="button" className={cn(control, explorerOpen && "text-accent")} aria-label="Toggle category explorer" title="Toggle Explorer" aria-expanded={explorerOpen} onClick={onToggleExplorer}><FolderTree size={17} /></button>
-        <button type="button" className={control} aria-label="Search Notespace" title="Quick Open (Ctrl/⌘ K)" onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}><Search size={17} /></button>
+        <button type="button" className={control} aria-label="Quick Open" title="Quick Open (Ctrl/⌘ K)" onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}><Search size={17} /></button>
         <div className="relative">
           <button ref={openerRef} type="button" className={cn(control, creating && active)} aria-label="Create" aria-expanded={creating} aria-haspopup="menu" title="Create" onClick={() => setCreating(v => !v)}><Plus size={18} /></button>
           {creating && (

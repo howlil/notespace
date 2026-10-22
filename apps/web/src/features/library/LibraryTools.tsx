@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { OPEN_LIBRARY_TOOLS_EVENT } from "../shell/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
@@ -22,9 +24,15 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { importVaultFiles } from "./vault-import-workflow";
 
-export function LibraryTools() {
+export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } = {}) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
+  }, []);
+
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoryId, setCategoryId] = useState("");
@@ -139,7 +147,7 @@ export function LibraryTools() {
 
   return (
     <>
-      <IconButton
+      {showTrigger && <IconButton
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
         onClick={() => setOpen(true)}
@@ -147,7 +155,7 @@ export function LibraryTools() {
         title="Library tools"
       >
         <ArchiveRestore size={16} aria-hidden="true" />
-      </IconButton>
+      </IconButton>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,620px)]">

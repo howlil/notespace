@@ -1,16 +1,13 @@
 import { AnimatePresence, motion } from "motion/react";
-import { type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarCheck2, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Inbox as InboxIcon, Plus, Trash2 } from "lucide-react";
+import { FileText, Folder, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
-import { QuickCapture } from "../../features/capture/QuickCapture";
-import { LibraryTools } from "../../features/library/LibraryTools";
-import { SettingsTrigger } from "../../features/settings/AppSettings";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
-import { useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
+import { OPEN_LIBRARY_CREATE_EVENT, type LibraryCreateTarget } from "../../features/shell/shell-events";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -21,7 +18,6 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inbox
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
 export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
-  const { customChromeActive } = useDesktopChrome();
   const {
     children,
     creating,
@@ -31,7 +27,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
     expanded,
     loading,
     title,
-    uncategorized,
     confirmDelete,
     moveWorkspaceToCategory,
     saveCategory,
@@ -45,6 +40,15 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
     submitCreate,
     toggleCategory,
   } = useLibraryNavigation({ categories, onSelectCategory, onChanged });
+
+  useEffect(() => {
+    const onCreate = (event: Event) => {
+      const { kind, categoryId } = (event as CustomEvent<LibraryCreateTarget>).detail;
+      startCreate(kind, categoryId ?? (kind === "workspace" ? selectedCategoryId : undefined));
+    };
+    window.addEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);
+    return () => window.removeEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);
+  }, [startCreate, selectedCategoryId]);
 
   function dropWorkspace(categoryId: string, event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -64,40 +68,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
   function handleTriggerContextMenu(event: MouseEvent<HTMLDivElement>) { event.stopPropagation(); clearTransientState(); }
 
   return <>
-    <aside className="sticky top-0 flex h-dvh min-w-0 flex-col gap-1.5 overflow-hidden border-r border-line bg-sidebar px-3 py-3.5 max-[560px]:relative max-[560px]:h-auto max-[560px]:max-h-[190px] max-[560px]:w-full max-[560px]:border-r-0 max-[560px]:border-b max-[560px]:px-4 max-[560px]:pt-3 max-[560px]:pb-2.5">
-      {!customChromeActive && <div className="flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0">
-        <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>
-      </div>}
-      <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">
-        <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
-        <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
-        <QuickCapture />
-        <LibraryTools />
-      </div>
-      <div className="grid gap-0.5">
-        <Link
-          to="/inbox"
-          className={cn(
-            "flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent",
-            inboxActive && "bg-tint text-accent",
-          )}
-          aria-current={inboxActive ? "page" : undefined}
-        >
-          <InboxIcon size={15} />
-          <span>Inbox</span>
-        </Link>
-        <Link
-          to="/today"
-          className={cn(
-            "flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent",
-            todayActive && "bg-tint text-accent",
-          )}
-          aria-current={todayActive ? "page" : undefined}
-        >
-          <CalendarCheck2 size={15} />
-          <span>Today</span>
-        </Link>
-      </div>
+    <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden border-r border-line bg-sidebar px-2 py-2" aria-label="Category explorer">
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
       </AnimatePresence>
@@ -164,9 +135,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
           );
         })}
       </nav>
-      <div className="mt-auto shrink-0 border-t border-line pt-2">
-        <SettingsTrigger showLabel className="w-full justify-start gap-2 px-2 text-[11px]" />
-      </div>
     </aside>
     <ConfirmDialog open={!!deleting} title={deleting?.kind === "category" ? "Delete this category?" : "Delete this workspace?"} description={deleting ? `“${deleting.item.title}” will be removed.` : ""} confirmLabel="Delete" onOpenChange={(open) => { if (!open) setDeleting(null); }} onConfirm={() => void confirmDelete()} />
   </>;

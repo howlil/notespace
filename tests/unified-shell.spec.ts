@@ -133,3 +133,36 @@ test("@critical selecting Create Task twice focuses the same Inbox composer each
   await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
   await expect(composer).toBeFocused();
 });
+
+test("@critical Activity runtime and dock survive Library/Inbox/Today navigation", async ({ page, request }) => {
+  const title = `Cross-route activity ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    const active = page.getByRole("status", { name: "Active activity" });
+    await expect(active).toContainText(title);
+
+    const rail = page.getByRole("navigation", { name: "Primary navigation" });
+    await rail.getByRole("link", { name: "Inbox" }).click();
+    await expect(active).toContainText(title);
+    await rail.getByRole("link", { name: "Library" }).click();
+    await expect(active).toContainText(title);
+    await rail.getByRole("link", { name: "Today" }).click();
+    await expect(active).toContainText(title);
+
+    await page.getByRole("button", { name: "Pause activity" }).click();
+    await expect(page.getByRole("button", { name: "Resume activity" })).toBeVisible();
+    await page.getByRole("button", { name: "Resume activity" }).click();
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(active).toHaveCount(0);
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const sessions = await response.json() as Array<{ id: string; title: string }>;
+      for (const session of sessions.filter(item => item.title === title)) {
+        await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
+      }
+    }
+  }
+});

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
 import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -182,6 +183,12 @@ export function TodayPlanning({
   useEffect(() => {
     if (routeHash === "new-task" || routeHash === "#new-task") taskInputRef.current?.focus();
   }, [routeHash]);
+  useEffect(() => {
+    const onFocus = () => taskInputRef.current?.focus();
+    window.addEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
+    return () => window.removeEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
+  }, []);
+
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [title, setTitle] = useState("");

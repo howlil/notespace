@@ -1,4 +1,4 @@
-/* Notespace ambient editorial hero: matches the approved layout while retaining Muted Jade semantics below the fold. */
+/* Notespace ambient editorial hero: matches the approved layout while retaining the Cobalt brand semantics below the fold. */
 .ns-ambient-landing { --ambient-ink:#111216; --ambient-muted:#636777; --ambient-line:#dadde3; background:#fdfdfd; }
 .ns-ambient-shell { width:100%; max-width:1560px; margin-inline:auto; padding-inline:clamp(24px,2.07vw,33px); }
 .ns-ambient-shell,.ns-ambient-shell * { box-sizing:border-box; }

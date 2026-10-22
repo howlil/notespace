@@ -1,5 +1,4 @@
 import { cn } from "./class-names";
-import { useTheme } from "./theme-provider";
 
 type LogoSize = "sm" | "md";
 type LogoGap = "sm" | "md";
@@ -29,12 +28,10 @@ export function NotespaceLogo({
   gap = "md",
   showWordmark = true,
 }: Props) {
-  const { dark } = useTheme();
-
   return (
     <span className={cn("inline-flex items-center text-lg font-semibold tracking-[-.7px] text-ink", gapClasses[gap], className)}>
       <img
-        src={dark ? "/brand/notespace-foldling-light.svg" : "/brand/notespace-foldling.svg"}
+        src="/brand/notespace-fox-head.svg"
         alt=""
         aria-hidden="true"
         className={cn("block shrink-0 object-contain", sizeClasses[size], markClassName)}

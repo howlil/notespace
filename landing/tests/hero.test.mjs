@@ -16,10 +16,10 @@ test('approved ambient hero is emitted with truthful self-hosted copy and access
   assert.doesNotMatch(html, /Sign in|Join for Free/)
 })
 
-test('navbar uses the canonical Notespace Foldling brand asset', () => {
-  const officialLogo = new URL('../public/brand/notespace-foldling.svg', import.meta.url)
+test('navbar uses the canonical Notespace Fox Spirit brand asset', () => {
+  const officialLogo = new URL('../public/brand/notespace-fox-head.svg', import.meta.url)
   assert.ok(existsSync(officialLogo), 'canonical Notespace logo asset missing')
-  assert.match(html, /class="ns-ambient-brand-icon" src="\/brand\/notespace-foldling\.svg"/)
+  assert.match(html, /class="ns-ambient-brand-icon" src="\/brand\/notespace-fox-head\.svg"/)
   assert.doesNotMatch(html, /viewBox="0 0 29 33"/)
 })
 

@@ -166,3 +166,26 @@ test("@critical Activity runtime and dock survive Library/Inbox/Today navigation
     }
   }
 });
+
+test("@critical cancelling full-library restore never sends a destructive restore request", async ({ page }) => {
+  let restoreRequests = 0;
+  await page.route("**/api/backup/restore", async (route) => {
+    restoreRequests += 1;
+    await route.fulfill({ status: 500, body: "Unexpected restore call" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Data and recovery" }).click();
+  const tools = page.getByRole("dialog", { name: "Data & Recovery" });
+  await expect(tools).toBeVisible();
+  await tools.locator('input[type="file"][accept*=".zip"]').setInputFiles({
+    name: "existing-library-backup.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("not an actual backup"),
+  });
+  const confirmation = page.getByRole("dialog", { name: "Replace the entire library?" });
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation).toContainText("replace your current categories");
+  await confirmation.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirmation).toHaveCount(0);
+  expect(restoreRequests).toBe(0);
+});

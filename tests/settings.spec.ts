@@ -5,7 +5,7 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Backups", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Open Notespace settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 
   // Radix names the dialog from DialogTitle ("Settings"), not the wrapper aria-label.
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
@@ -14,14 +14,21 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await expect(settings.getByRole("button", { name: /^Use (dark|light) theme$/ })).toBeVisible();
   await settings.getByRole("button", { name: "Data & backup" }).click();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
-  const exportLink = settings.getByRole("link", { name: "Export ZIP" });
-  await expect(exportLink).toHaveAttribute("href", "/api/backup");
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveCount(0);
   await expect(settings.getByText("Verified SQLite snapshots are available in the Windows desktop app.")).toBeVisible();
 
-  await settings.getByRole("button", { name: "General" }).click();
-  await expect(settings.getByRole("heading", { name: "Appearance" })).toBeVisible();
-  await settings.getByRole("button", { name: "Close settings" }).click();
-  await expect(settings).toHaveCount(0);
+  await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
+  const recovery = page.getByRole("dialog", { name: "Data & Recovery" });
+  await expect(recovery).toBeVisible();
+  await expect(recovery.getByRole("link", { name: "Backup" })).toHaveAttribute("href", "/api/backup");
+  await page.keyboard.press("Escape");
+  await expect(recovery).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const reopened = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(reopened.getByRole("heading", { name: "Appearance" })).toBeVisible();
+  await reopened.getByRole("button", { name: "Close settings" }).click();
+  await expect(reopened).toHaveCount(0);
 });
 
 test("Workspace keeps Settings in Library without duplicating the Workspace rail", async ({ page, request }) => {
@@ -31,11 +38,11 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
   try {
     await page.goto(`/workspaces/${item.id}`);
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open Notespace settings" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
     await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
     await page.getByRole("link", { name: "Back to library" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await page.getByRole("button", { name: "Open Notespace settings" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
   } finally {
     await deleteWorkspace(request, item.id);
@@ -47,7 +54,7 @@ test("Theme is only inside Settings on Home, Inbox and Today", async ({ page }) 
   for (const path of ["/", "/inbox", "/today"]) {
     await page.goto(path);
     await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
-    await page.getByRole("button", { name: "Open Notespace settings" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Settings", exact: true });
     await expect(settings.getByRole("heading", { name: "Appearance" })).toBeVisible();
     const toggle = settings.getByRole("button", { name: /^Use (dark|light) theme$/ });

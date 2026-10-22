@@ -1,3 +1,4 @@
+import { LibraryCreateContext, type LibraryCreateRequest } from "./library-create-context";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Search, PanelLeftClose } from "lucide-react";
 import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
@@ -20,6 +21,8 @@ export function LibraryPageShell({
   sidebar, children, headerActions, dashboard = false, page = "library", selectedCategoryId,
 }: Props) {
   const [preference, setPreference] = useState<ExplorerPreference>("auto");
+  const [createRequest, setCreateRequest] = useState<LibraryCreateRequest | null>(null);
+  const sequence = useRef(0);
   const [compact, setCompact] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -49,7 +52,10 @@ export function LibraryPageShell({
         selectedCategoryId={selectedCategoryId}
         explorerTriggerRef={toggleRef}
         onToggleExplorer={toggle}
-        onOpenExplorer={() => setPreference("open")}
+        onCreate={({ kind, categoryId }) => {
+          setPreference("open");
+          setCreateRequest({ sequence: ++sequence.current, kind, categoryId });
+        }}
       />
       {compact && expanded && (
         <button
@@ -68,7 +74,7 @@ export function LibraryPageShell({
           <button type="button" className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent" onClick={() => setPreference("closed")} aria-label="Close Explorer" title="Close Explorer"><PanelLeftClose size={15} /></button>
         </div>
         <div className="h-[calc(100%-36px)] min-h-0 overflow-hidden bg-sidebar">
-          {sidebar}
+          <LibraryCreateContext.Provider value={createRequest}>{sidebar}</LibraryCreateContext.Provider>
         </div>
       </div>
       <main className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">

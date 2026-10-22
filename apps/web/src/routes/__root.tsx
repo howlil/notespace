@@ -19,6 +19,7 @@ import { QuickCapture } from "../features/capture/QuickCapture";
 import { LibraryTools } from "../features/library/LibraryTools";
 import { DesktopUpdateControl } from "../features/desktop-updates/DesktopUpdateControl";
 import { DesktopChromeProvider } from "../shared/ui/desktop-titlebar/DesktopChromeProvider";
+import { LibraryExplorerProvider } from "../shared/ui/library-explorer-provider";
 import { AppSettings } from "../features/settings/AppSettings";
 import { DesktopRecoveryTools } from "../features/desktop-recovery/DesktopRecoveryTools";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
@@ -55,7 +56,7 @@ export const Route = createRootRoute({
               <QuickCapture showTrigger={false} />
               <LibraryTools showTrigger={false} />
               <ConflictRecoveryDialog />
-              <DesktopChromeProvider><Outlet /></DesktopChromeProvider>
+              <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
               <ActivityDock />
             </ActivityRuntimeProvider>
           </ThemeProvider>

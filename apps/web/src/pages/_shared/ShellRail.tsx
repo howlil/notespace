@@ -5,7 +5,7 @@ import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
+import { FOCUS_TASK_COMPOSER_EVENT, OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";
@@ -42,6 +42,16 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
     return () => { window.removeEventListener("pointerdown", dismissPointer); window.removeEventListener("keydown", dismissKey); };
   }, [creating]);
 
+  const openTaskComposer = (destination: "inbox" | "today") => {
+    setCreating(false);
+    const pathname = `/${destination}`;
+    if (window.location.pathname === pathname && window.location.hash === "#new-task") {
+      window.dispatchEvent(new Event(FOCUS_TASK_COMPOSER_EVENT));
+      return;
+    }
+    void navigate({ to: pathname, hash: "new-task" });
+  };
+
   const create = (kind: "category" | "workspace") => {
     setCreating(false);
     onCreate({ kind, categoryId: kind === "workspace" ? (selectedCategoryId || undefined) : undefined });
@@ -74,8 +84,8 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("workspace")}><Folder size={15}/> Workspace</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("category")}><FolderPlus size={15}/> Category</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => {setCreating(false);window.dispatchEvent(new Event(OPEN_QUICK_CAPTURE_EVENT));}}><SquarePen size={15}/> Quick capture</button>
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => {setCreating(false);void navigate({to:"/inbox",hash:"new-task"});}}><Inbox size={15}/> Task in Inbox</button>
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => {setCreating(false);void navigate({to:"/today",hash:"new-task"});}}><CalendarCheck2 size={15}/> Task in Today</button>
+              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer("inbox")}><Inbox size={15}/> Task in Inbox</button>
+              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer("today")}><CalendarCheck2 size={15}/> Task in Today</button>
             </div>
           )}
         </div>

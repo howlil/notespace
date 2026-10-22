@@ -1,4 +1,4 @@
-import { OPEN_LIBRARY_TOOLS_EVENT } from "../shell/shell-events";
+import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";

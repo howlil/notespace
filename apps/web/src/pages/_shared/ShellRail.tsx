@@ -44,7 +44,7 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
 
   const create = (kind: "category" | "workspace") => {
     setCreating(false);
-    onCreate({ kind, categoryId: kind === "workspace" ? selectedCategoryId : undefined });
+    onCreate({ kind, categoryId: kind === "workspace" ? (selectedCategoryId || undefined) : undefined });
   };
 
   return (

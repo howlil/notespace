@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -177,6 +177,11 @@ export function TodayPlanning({
   renderActivity?: ReactNode;
   renderTaskAction?: (task: TodayTask) => ReactNode;
 }) {
+  const taskInputRef = useRef<HTMLInputElement>(null);
+  const routeHash = useRouterState({ select: state => state.location.hash });
+  useEffect(() => {
+    if (routeHash === "new-task" || routeHash === "#new-task") taskInputRef.current?.focus();
+  }, [routeHash]);
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [title, setTitle] = useState("");
@@ -291,6 +296,7 @@ export function TodayPlanning({
           <Plus size={16} className="shrink-0 text-muted" aria-hidden="true" />
           <Input
             className="min-h-9 flex-1 rounded-none border-0 bg-transparent px-0 text-[12px] focus:border-transparent"
+            ref={taskInputRef}
             aria-label="New standalone task"
             placeholder="Add something you need to do today"
             value={title}

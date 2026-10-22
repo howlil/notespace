@@ -150,15 +150,15 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
         onClick={() => setOpen(true)}
-        aria-label="Library tools"
-        title="Library tools"
+        aria-label="Data and recovery"
+        title="Data & Recovery"
       >
         <ArchiveRestore size={16} aria-hidden="true" />
       </IconButton>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,620px)]">
-          <DialogTitle>Library tools</DialogTitle>
+          <DialogTitle>Data &amp; Recovery</DialogTitle>
           <DialogDescription>Recover deleted work, own a complete backup, or migrate an existing Markdown vault.</DialogDescription>
 
           <div className="mt-4 grid gap-0 border-y border-line">

@@ -83,6 +83,26 @@
   align-items: center;
   padding: 0 12px;
 }
+/* Unified Library shell: align the native header with the Explorer's optional width.
+ * Workspace custom chrome keeps its dedicated 40px rail unchanged.
+ * Native-decorations fallback also retains the web layout. */
+.desktop-shell--custom:has(#notespace-library-explorer) .desktop-titlebar-brand {
+  width: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+}
+.desktop-shell--custom:has(#notespace-library-explorer:not(.hidden)) .desktop-titlebar-brand {
+  width: 272px;
+  min-width: 272px;
+  padding: 0 12px;
+}
+.desktop-shell--custom:has(#notespace-library-explorer.hidden) .desktop-titlebar-brand-label > span {
+  display: none;
+}
+.desktop-shell--custom:has(#notespace-library-explorer) nav[aria-label="Primary navigation"] > a[aria-label="Notespace home"] {
+  visibility: hidden;
+  pointer-events: none;
+}
 .desktop-titlebar-brand-label { font-size: 12px !important; letter-spacing: -.4px; }
 .desktop-titlebar-mark { width: 22px !important; height: 22px !important; }
 .desktop-titlebar-header-slot {

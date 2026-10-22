@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { FileText, Folder, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { FileText, Folder, FolderOpen, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
@@ -90,7 +90,10 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                       isSystemCategory && "bg-[color-mix(in_srgb,var(--surface)_55%,transparent)]",
                     )}
                     onContextMenu={handleTriggerContextMenu}
-                    onKeyDown={handleTriggerKeyDown}
+                    onKeyDown={(event) => {
+                      handleTriggerKeyDown(event);
+                      if (event.key === "F2" && !isSystemCategory) { event.preventDefault(); setEditingCategory(category.id); }
+                    }}
                   >
                     <IconButton className={cn("grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-ink/70", isSelected && "text-accent")} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
                     {editingCategory === category.id && !isSystemCategory ? (
@@ -105,6 +108,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onSelect={() => startCreate("workspace", category.id)}><Plus size={13} /> New workspace</ContextMenuItem>
+                  {!isSystemCategory && <ContextMenuItem onSelect={() => setEditingCategory(category.id)}><Pencil size={13} /> Rename category</ContextMenuItem>}
                   {!isSystemCategory && <ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "category", item: category })}><Trash2 size={13} /> Delete</ContextMenuItem>}
                 </ContextMenuContent>
               </ContextMenu>
@@ -117,7 +121,10 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                   {items.map((workspace) => (
                     <ContextMenu key={workspace.id} onOpenChange={(open) => { if (open) clearTransientState(); }}>
                       <ContextMenuTrigger asChild>
-                        <div className="flex min-h-7 min-w-0 items-center gap-0.5 pl-[9px]" draggable tabIndex={0} onDragStart={(event) => event.dataTransfer.setData("text/notespace-workspace", workspace.id)} onContextMenu={handleTriggerContextMenu} onKeyDown={handleTriggerKeyDown}>
+                        <div className="flex min-h-7 min-w-0 items-center gap-0.5 pl-[9px]" draggable tabIndex={0} onDragStart={(event) => event.dataTransfer.setData("text/notespace-workspace", workspace.id)} onContextMenu={handleTriggerContextMenu} onKeyDown={(event) => {
+                            handleTriggerKeyDown(event);
+                            if (event.key === "F2") { event.preventDefault(); setEditingWorkspace(workspace.id); }
+                          }}>
                           {editingWorkspace === workspace.id ? (
                             <Input className={inlineInputClass} autoFocus defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => void saveWorkspace(workspace, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(workspace, event.currentTarget.value); if (event.key === "Escape") setEditingWorkspace(null); }} />
                           ) : (
@@ -125,7 +132,18 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                           )}
                         </div>
                       </ContextMenuTrigger>
-                      <ContextMenuContent><ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem></ContextMenuContent>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => setEditingWorkspace(workspace.id)}><Pencil size={13} /> Rename workspace</ContextMenuItem>
+                        <ContextMenuSub>
+                          <ContextMenuSubTrigger><MoveRight size={13} /> Move to category</ContextMenuSubTrigger>
+                          <ContextMenuSubContent>
+                            {categories.filter((target) => target.id !== category.id).map((target) => (
+                              <ContextMenuItem key={target.id} onSelect={() => void moveWorkspaceToCategory(target.id, workspace.id)}>{target.title}</ContextMenuItem>
+                            ))}
+                          </ContextMenuSubContent>
+                        </ContextMenuSub>
+                        <ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem>
+                      </ContextMenuContent>
                     </ContextMenu>
                   ))}
                   {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}

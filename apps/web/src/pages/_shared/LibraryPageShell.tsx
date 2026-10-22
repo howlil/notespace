@@ -47,6 +47,7 @@ export function LibraryPageShell({
         page={page}
         explorerOpen={expanded}
         selectedCategoryId={selectedCategoryId}
+        explorerTriggerRef={toggleRef}
         onToggleExplorer={toggle}
         onOpenExplorer={() => setPreference("open")}
       />
@@ -64,7 +65,7 @@ export function LibraryPageShell({
       >
         <div className="flex h-9 shrink-0 items-center justify-between border-b border-line bg-sidebar px-3">
           <span className="text-[11px] font-semibold text-ink">Explorer</span>
-          <button ref={toggleRef} type="button" className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent" onClick={() => setPreference("closed")} aria-label="Close Explorer" title="Close Explorer"><PanelLeftClose size={15} /></button>
+          <button type="button" className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent" onClick={() => setPreference("closed")} aria-label="Close Explorer" title="Close Explorer"><PanelLeftClose size={15} /></button>
         </div>
         <div className="h-[calc(100%-36px)] min-h-0 overflow-hidden bg-sidebar">
           {sidebar}

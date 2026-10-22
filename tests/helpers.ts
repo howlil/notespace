@@ -14,7 +14,7 @@ export function deferred<T>() {
 }
 
 /**
- * Create a workspace via the Library sidebar and navigate into it.
+ * Create a workspace through the shared Create command and navigate into it.
  * Returns the workspace ID extracted from the URL.
  */
 export async function createWorkspace(
@@ -22,10 +22,8 @@ export async function createWorkspace(
   title: string,
 ): Promise<string> {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: /New workspace/ })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Workspace", exact: true }).click();
   const titleInput = page.getByRole("textbox", { name: "Workspace title" });
   await titleInput.fill(title);
   await titleInput.press("Enter");

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { OPEN_LIBRARY_TOOLS_EVENT } from "../shell/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";

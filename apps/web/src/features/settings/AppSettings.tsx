@@ -172,7 +172,7 @@ export function AppSettings({ renderDesktopRecovery }: {
                   </div>
                   <Button type="button" variant="secondary" size="sm" disabled={backupBusy} onClick={() => {
                     onChangeOpen(false);
-                    window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT));
+                    window.requestAnimationFrame(() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT)));
                   }}>Open Data &amp; Recovery</Button>
                 </div>
                 {native ? (

@@ -7,7 +7,7 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSu
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
-import { OPEN_LIBRARY_CREATE_EVENT, type LibraryCreateTarget } from "../../features/shell/shell-events";
+import { OPEN_LIBRARY_CREATE_EVENT, type LibraryCreateTarget } from "../../shared/browser/shell-events";
 
 export function Brand() {
   return <NotespaceLogo />;

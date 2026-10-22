@@ -9,7 +9,8 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
 
   try {
     await page.goto("/");
-    await page.getByRole("button", { name: "Quick capture" }).click();
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Quick capture" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     await expect(dialog).toBeVisible();
@@ -30,7 +31,8 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
       return current.notes.find((note) => note.title === "MVCC in PostgreSQL") ?? null;
     }).not.toBeNull();
 
-    await page.getByRole("button", { name: "Quick capture" }).click();
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Quick capture" }).click();
     const reopened = page.getByRole("dialog", { name: "Quick capture" });
     await expect(reopened).toBeVisible();
     await expect(reopened.locator("select")).toHaveValue(workspace.id);

@@ -1,16 +1,13 @@
+import { useLibraryCreateRequest } from "./library-create-context";
 import { AnimatePresence, motion } from "motion/react";
-import { type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarCheck2, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Inbox as InboxIcon, Plus, Trash2 } from "lucide-react";
+import { FileText, Folder, FolderOpen, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
-import { QuickCapture } from "../../features/capture/QuickCapture";
-import { LibraryTools } from "../../features/library/LibraryTools";
-import { SettingsTrigger } from "../../features/settings/AppSettings";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
-import { useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -20,8 +17,7 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inbox
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
-export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
-  const { customChromeActive } = useDesktopChrome();
+export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategory, onChanged }: Props) {
   const {
     children,
     creating,
@@ -31,7 +27,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
     expanded,
     loading,
     title,
-    uncategorized,
     confirmDelete,
     moveWorkspaceToCategory,
     saveCategory,
@@ -46,6 +41,20 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
     toggleCategory,
   } = useLibraryNavigation({ categories, onSelectCategory, onChanged });
 
+  const createRequest = useLibraryCreateRequest();
+  const handledCreateRequest = useRef(0);
+  useEffect(() => {
+    if (!createRequest || createRequest.sequence === handledCreateRequest.current) return;
+    handledCreateRequest.current = createRequest.sequence;
+    const defaultCategoryId = categories.find(item => item.id === "legacy")?.id ?? categories[0]?.id;
+    startCreate(
+      createRequest.kind,
+      createRequest.kind === "workspace"
+        ? (createRequest.categoryId || selectedCategoryId || defaultCategoryId)
+        : undefined,
+    );
+  }, [categories, createRequest, selectedCategoryId, startCreate]);
+
   function dropWorkspace(categoryId: string, event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     const workspaceId = event.dataTransfer.getData("text/notespace-workspace");
@@ -54,7 +63,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
 
   const inlineCreate = (kind: "category" | "workspace", categoryId?: string) => (
     <form data-category-id={categoryId} className="mx-[5px] mt-[3px] mb-[5px] flex w-[calc(100%_-_14px)] min-w-0 items-center gap-[3px]" onSubmit={(event) => { event.preventDefault(); void submitCreate(); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
-      <Input className={cn(inlineInputClass, "w-px")} autoFocus aria-label={kind === "category" ? "Category title" : "Workspace title"} placeholder={kind === "category" ? "Category name" : "Workspace name"} value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setCreating(null); }} />
+      <Input className={cn(inlineInputClass, "w-px")} autoFocus aria-label={kind === "category" ? "Category title" : "Workspace title"} placeholder={kind === "category" ? "Category name" : "Workspace name"} value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setCreating(null); } }} />
       <IconButton type="button" className="size-6 shrink-0 text-ink/70" aria-label={`Cancel new ${kind}`} title={`Cancel new ${kind}`} onClick={() => setCreating(null)}><span aria-hidden="true">×</span></IconButton>
     </form>
   );
@@ -64,42 +73,10 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
   function handleTriggerContextMenu(event: MouseEvent<HTMLDivElement>) { event.stopPropagation(); clearTransientState(); }
 
   return <>
-    <aside className="sticky top-0 flex h-dvh min-w-0 flex-col gap-1.5 overflow-hidden border-r border-line bg-sidebar px-3 py-3.5 max-[560px]:relative max-[560px]:h-auto max-[560px]:max-h-[190px] max-[560px]:w-full max-[560px]:border-r-0 max-[560px]:border-b max-[560px]:px-4 max-[560px]:pt-3 max-[560px]:pb-2.5">
-      {!customChromeActive && <div className="flex min-h-8 items-center justify-between gap-2 border-b border-line px-0.5 pb-2.5 max-[560px]:shrink-0">
-        <Link to="/" className="min-w-0" aria-label="Notespace home"><Brand /></Link>
-      </div>}
-      <div className="flex items-center gap-[3px] border-b border-line py-2 max-[560px]:mb-[3px]" aria-label="Library actions">
-        <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New category" title="New category" onClick={() => startCreate("category")}><FolderPlus size={16} /></IconButton>
-        <IconButton className="size-[30px] text-ink/70 hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent" aria-label="New workspace" title={uncategorized ? "New workspace in Uncategorized" : "New workspace"} onClick={() => startCreate("workspace", uncategorized?.id)}><FilePlus2 size={16} /></IconButton>
-        <QuickCapture />
-        <LibraryTools />
-      </div>
-      <div className="grid gap-0.5">
-        <Link
-          to="/inbox"
-          className={cn(
-            "flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent",
-            inboxActive && "bg-tint text-accent",
-          )}
-          aria-current={inboxActive ? "page" : undefined}
-        >
-          <InboxIcon size={15} />
-          <span>Inbox</span>
-        </Link>
-        <Link
-          to="/today"
-          className={cn(
-            "flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent",
-            todayActive && "bg-tint text-accent",
-          )}
-          aria-current={todayActive ? "page" : undefined}
-        >
-          <CalendarCheck2 size={15} />
-          <span>Today</span>
-        </Link>
-      </div>
+    <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden border-r border-line bg-sidebar px-2 py-2" aria-label="Category explorer">
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
+        {creating?.kind === "workspace" && !categories.some(item => item.id === creating.categoryId) && <motion.div key="workspace-create-top" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace")}</motion.div>}
       </AnimatePresence>
       <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto pt-0.5 max-[560px]:min-h-0">
         {categories.map((category) => {
@@ -118,13 +95,16 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                       isSystemCategory && "bg-[color-mix(in_srgb,var(--surface)_55%,transparent)]",
                     )}
                     onContextMenu={handleTriggerContextMenu}
-                    onKeyDown={handleTriggerKeyDown}
+                    onKeyDown={(event) => {
+                      handleTriggerKeyDown(event);
+                      if (event.key === "F2" && !isSystemCategory) { event.preventDefault(); setEditingCategory(category.id); }
+                    }}
                   >
                     <IconButton className={cn("grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-ink/70", isSelected && "text-accent")} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
                     {editingCategory === category.id && !isSystemCategory ? (
-                      <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") setEditingCategory(null); }} />
+                      <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
                     ) : (
-                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => { onSelectCategory(category.id); if (!isOpen) void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => { if (isOpen) onSelectCategory(category.id); else void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
                         <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                         <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSelected && "text-accent", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                       </Button>
@@ -133,6 +113,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onSelect={() => startCreate("workspace", category.id)}><Plus size={13} /> New workspace</ContextMenuItem>
+                  {!isSystemCategory && <ContextMenuItem onSelect={() => setEditingCategory(category.id)}><Pencil size={13} /> Rename category</ContextMenuItem>}
                   {!isSystemCategory && <ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "category", item: category })}><Trash2 size={13} /> Delete</ContextMenuItem>}
                 </ContextMenuContent>
               </ContextMenu>
@@ -145,15 +126,29 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                   {items.map((workspace) => (
                     <ContextMenu key={workspace.id} onOpenChange={(open) => { if (open) clearTransientState(); }}>
                       <ContextMenuTrigger asChild>
-                        <div className="flex min-h-7 min-w-0 items-center gap-0.5 pl-[9px]" draggable tabIndex={0} onDragStart={(event) => event.dataTransfer.setData("text/notespace-workspace", workspace.id)} onContextMenu={handleTriggerContextMenu} onKeyDown={handleTriggerKeyDown}>
+                        <div className="flex min-h-7 min-w-0 items-center gap-0.5 pl-[9px]" draggable tabIndex={0} onDragStart={(event) => event.dataTransfer.setData("text/notespace-workspace", workspace.id)} onContextMenu={handleTriggerContextMenu} onKeyDown={(event) => {
+                            handleTriggerKeyDown(event);
+                            if (event.key === "F2") { event.preventDefault(); setEditingWorkspace(workspace.id); }
+                          }}>
                           {editingWorkspace === workspace.id ? (
-                            <Input className={inlineInputClass} autoFocus defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => void saveWorkspace(workspace, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(workspace, event.currentTarget.value); if (event.key === "Escape") setEditingWorkspace(null); }} />
+                            <Input className={inlineInputClass} autoFocus defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => void saveWorkspace(workspace, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveWorkspace(workspace, event.currentTarget.value); if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = workspace.title; setEditingWorkspace(null); } }} />
                           ) : (
                             <Link className="flex min-w-0 flex-1 items-center gap-[7px] px-[3px] py-[5px] text-[11px] text-ink/70 hover:text-accent" to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} onDoubleClick={(event) => { event.preventDefault(); setEditingWorkspace(workspace.id); }}><FileText size={14} /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspace.title}</span></Link>
                           )}
                         </div>
                       </ContextMenuTrigger>
-                      <ContextMenuContent><ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem></ContextMenuContent>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => setEditingWorkspace(workspace.id)}><Pencil size={13} /> Rename workspace</ContextMenuItem>
+                        <ContextMenuSub>
+                          <ContextMenuSubTrigger><MoveRight size={13} /> Move to category</ContextMenuSubTrigger>
+                          <ContextMenuSubContent>
+                            {categories.filter((target) => target.id !== category.id).map((target) => (
+                              <ContextMenuItem key={target.id} onSelect={() => void moveWorkspaceToCategory(target.id, workspace.id)}>{target.title}</ContextMenuItem>
+                            ))}
+                          </ContextMenuSubContent>
+                        </ContextMenuSub>
+                        <ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "workspace", item: workspace })}><Trash2 size={13} /> Delete</ContextMenuItem>
+                      </ContextMenuContent>
                     </ContextMenu>
                   ))}
                   {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}
@@ -164,9 +159,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
           );
         })}
       </nav>
-      <div className="mt-auto shrink-0 border-t border-line pt-2">
-        <SettingsTrigger showLabel className="w-full justify-start gap-2 px-2 text-[11px]" />
-      </div>
     </aside>
     <ConfirmDialog open={!!deleting} title={deleting?.kind === "category" ? "Delete this category?" : "Delete this workspace?"} description={deleting ? `“${deleting.item.title}” will be removed.` : ""} confirmLabel="Delete" onOpenChange={(open) => { if (!open) setDeleting(null); }} onConfirm={() => void confirmDelete()} />
   </>;

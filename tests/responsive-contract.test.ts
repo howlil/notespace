@@ -33,30 +33,27 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
 
-test("responsive contract: mobile library keeps persistent navigation without a drawer toggle", () => {
+test("responsive contract: mobile keeps rail while Explorer is dismissible", () => {
   const dashboard = source(DASHBOARD);
   const shell = source(PAGE_SHELL);
   const sidebar = source(SIDEBAR);
+  const rail = source(join(WEB_SRC, "pages", "_shared", "ShellRail.tsx"));
   const library = source(WORKSPACE_LIBRARY);
-  assert.doesNotMatch(dashboard, /mobileLibraryOpen/);
-  assert.doesNotMatch(dashboard, /Open library navigation/);
-  assert.doesNotMatch(dashboard, /Close library navigation/);
-  assert.doesNotMatch(dashboard, /max-\[560px\]:-translate-x-full/);
+  assert.match(shell, /<ShellRail/);
+  assert.match(shell, /max-width: 760px/);
+  assert.match(shell, /aria-label="Close category explorer"/);
+  assert.match(shell, /max-\[760px\]:fixed/);
   assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
-  assert.match(shell, /w-\[min\(320px,42vw\)\]/);
-  assert.match(shell, /max-\[560px\]:grid-cols-\[minmax\(0,1fr\)\]/);
+  assert.match(rail, /Toggle category explorer/);
+  assert.match(rail, /w-11/);
+  assert.match(sidebar, /aria-label="Category explorer"/);
   assert.match(library, /overflow-x-auto overscroll-x-contain/);
   assert.match(library, /function WorkspaceFolderCard/);
   assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
-  assert.match(library, /max-\[560px\]:grid-cols-\[repeat\(auto-fill,minmax\(156px,180px\)\)\]/);
   assert.match(library, /<WorkspaceListSkeleton variant=\{view === "category" \? "list" : "cards"\} \/>/);
-  assert.doesNotMatch(dashboard, /<Brand\s*\/>/);
-  assert.match(sidebar, /max-\[560px\]:relative/);
-  assert.match(sidebar, /max-\[560px\]:max-h-\[190px\]/);
-  assert.match(sidebar, /return <NotespaceLogo \/>/);
-  assert.match(sidebar, /<Brand \/>/);
   assert.match(dashboard, /afterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
 });
+
 
 test("responsive contract: mobile activity is summary-first", () => {
   const activity = source(ACTIVITY);

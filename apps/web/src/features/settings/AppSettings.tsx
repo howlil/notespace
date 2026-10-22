@@ -11,7 +11,7 @@ import {
   IconButton,
 } from "../../shared/ui";
 import { useTheme } from "../../shared/ui/theme-provider";
-import { exportLibraryBackup } from "../../adapters/http/workspace-api";
+import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
@@ -167,18 +167,13 @@ export function AppSettings({ renderDesktopRecovery }: {
                 </p>
                 <div className="mt-4 flex items-center justify-between gap-3 border-y border-line py-3">
                   <div>
-                    <p className="font-medium text-ink">Full-library backup</p>
-                    <p className="mt-1 leading-4 text-muted">
-                      Export notes, canvases, workspaces, assets, and activity in one ZIP.
-                    </p>
+                    <p className="font-medium text-ink">Portable library &amp; Trash</p>
+                    <p className="mt-1 leading-4 text-muted">Export, restore, import Markdown and recover deleted work in one place.</p>
                   </div>
-                  {backupBusy ? (
-                    <Button variant="secondary" size="sm" disabled>Export ZIP</Button>
-                  ) : (
-                    <Button asChild variant="secondary" size="sm">
-                      <a href={exportLibraryBackup()} download>Export ZIP</a>
-                    </Button>
-                  )}
+                  <Button type="button" variant="secondary" size="sm" disabled={backupBusy} onClick={() => {
+                    onChangeOpen(false);
+                    window.requestAnimationFrame(() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT)));
+                  }}>Open Data &amp; Recovery</Button>
                 </div>
                 {native ? (
                   renderDesktopRecovery(onBusyChange)
@@ -188,7 +183,7 @@ export function AppSettings({ renderDesktopRecovery }: {
                   </p>
                 )}
                 <p className="mt-4 text-muted">
-                  To restore a portable ZIP or import Markdown, use Library tools from the Home sidebar.
+                  Portable backup, restore, import and Trash are managed in Data & Recovery.
                   Restoring an entire library replaces its current content.
                 </p>
               </section>

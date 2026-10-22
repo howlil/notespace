@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useLibraryExplorer } from "../../shared/ui/library-explorer-provider";
 import {
   createCategory,
   createWorkspace,
@@ -28,8 +29,7 @@ type Options = {
 export function useLibraryNavigation({ categories, onSelectCategory, onChanged }: Options) {
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
-  const handledLibraryRevision = useRef(libraryRevision);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
@@ -47,8 +47,6 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
   }
 
   useEffect(() => {
-    if (handledLibraryRevision.current === libraryRevision) return;
-    handledLibraryRevision.current = libraryRevision;
     if (!expanded.size) return;
 
     let active = true;

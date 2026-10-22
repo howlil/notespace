@@ -1,3 +1,4 @@
+import { OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";
@@ -13,7 +14,7 @@ import type { CaptureWorkspaceOption } from "./workspace-options";
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
 const recentWorkspaceLimit = 20;
 
-export function QuickCapture() {
+export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } = {}) {
   const { showToast } = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -26,6 +27,12 @@ export function QuickCapture() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const [body, setBody] = useState("");
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -136,7 +143,7 @@ export function QuickCapture() {
 
   return (
     <>
-      <IconButton
+      {showTrigger && <IconButton
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
         onClick={() => setOpen(true)}
@@ -144,7 +151,7 @@ export function QuickCapture() {
         title="Quick capture (Ctrl/Cmd + Shift + N)"
       >
         <SquarePen size={16} aria-hidden="true" />
-      </IconButton>
+      </IconButton>}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,520px)]">
           <DialogTitle>Quick capture</DialogTitle>

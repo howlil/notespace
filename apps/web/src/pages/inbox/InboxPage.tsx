@@ -17,7 +17,7 @@ export function InboxPage({
   const { categories: categoryItems, refreshCategories } = useLibraryCategories(categories);
 
   return (
-    <LibraryPageShell
+    <LibraryPageShell page="inbox"
       sidebar={<LibrarySidebar categories={categoryItems} inboxActive onChanged={refreshCategories}
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >

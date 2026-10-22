@@ -19,7 +19,7 @@ export function HomePage(props: Props) {
   const library = useWorkspaceLibrary(props);
 
   return (
-    <LibraryPageShell dashboard
+    <LibraryPageShell dashboard page="library" selectedCategoryId={library.selectedCategoryId}
       sidebar={<LibrarySidebar categories={library.categoryItems} selectedCategoryId={library.selectedCategoryId}
         onSelectCategory={(id) => { void library.selectCategory(id); }} onChanged={library.refreshLibrary} />}
       headerActions={<WorkspaceGuide />}

@@ -34,7 +34,7 @@ export function TodayPage({
   }
 
   return (
-    <LibraryPageShell
+    <LibraryPageShell page="today"
       sidebar={<LibrarySidebar categories={categoryItems} todayActive onChanged={refreshCategories}
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >

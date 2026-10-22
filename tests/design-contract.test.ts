@@ -14,6 +14,7 @@ const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
+const SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const WORKSPACE_LIBRARY_MODEL = join(WEB_SRC, "features", "library", "use-workspace-library.ts");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
@@ -330,6 +331,9 @@ test("layout archetypes: application pages share search shell and category queri
   const model = source(WORKSPACE_LIBRARY_MODEL);
   for (const page of [DASHBOARD, INBOX, TODAY]) assert.match(source(page), /<LibraryPageShell/);
   assert.match(shell, /<HeaderPlacement/);
+  assert.match(shell, /<ShellRail/);
+  assert.match(shell, /aria-label="Close category explorer"/);
+  assert.match(source(SHELL_RAIL), /w-11/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(library, /aria-label="Category workspaces"/);
   assert.match(library, /aria-label="Search category workspaces"/);
@@ -363,14 +367,27 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("capture contract: Quick Capture and Library Tools are direct sidebar actions", () => {
-  const sidebar=source(SIDEBAR), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
-  assert.match(sidebar,/aria-label="New workspace"[\s\S]*<QuickCapture \/>[\s\S]*<LibraryTools \/>/);
-  assert.match(capture,/aria-label="Quick capture"/); assert.match(capture,/Ctrl\/Cmd \+ Shift \+ N/);
-  assert.match(capture,/listRecentWorkspaces\(recentWorkspaceLimit\)/); assert.match(capture,/listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/); assert.doesNotMatch(capture,/listProjects\(/); assert.doesNotMatch(capture,/searchNotespace\(/);
-  assert.doesNotMatch(capture,/fixed bottom-4 right-4/); assert.doesNotMatch(root,/<QuickCapture \/>|<LibraryTools \/>/);
-  assert.doesNotMatch(tools,/createPortal|MutationObserver|querySelector|useRouterState/);
+test("global utility contract: capture, search, recovery and activity are single-owner surfaces", () => {
+  const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
+  assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.match(rail, /onCreate\(\{ kind, categoryId:/);
+  assert.match(source(PAGE_SHELL), /<LibraryCreateContext.Provider value=\{createRequest\}>/);
+  assert.match(sidebar, /useLibraryCreateRequest/);
+  assert.match(rail, /<ActivityIndicator rail/);
+  assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
+  assert.match(root, /<LibraryTools showTrigger=\{false\} \/>/);
+  assert.match(root, /<QuickOpen \/>/);
+  assert.match(root, /<ActivityDock \/>/);
+  assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
+  assert.match(capture, /OPEN_QUICK_CAPTURE_EVENT/);
+  assert.match(capture, /Ctrl\/Cmd \+ Shift \+ N/);
+  assert.match(capture, /listRecentWorkspaces\(recentWorkspaceLimit\)/);
+  assert.match(capture, /listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/);
+  assert.match(tools, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
 });
+
 
 test("workspace contract: bounded panes and explicit Canvas frame embeds remain user-facing behavior", () => {
   const workspace=source(WORKSPACE), workspacePage=source(WORKSPACE_PAGE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
@@ -398,8 +415,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(WORKSPACE_PAGE), /ActivityTypeTrigger/);
   assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
-  assert.match(source(SIDEBAR), /to="\/inbox"/);
-  assert.match(source(SIDEBAR), /to="\/today"/);
+  assert.match(source(SHELL_RAIL), /to="\/inbox"/);
+  assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(INBOX_PLANNING), /Capture first\. Decide when to do it later\./);
   assert.match(source(INBOX_PLANNING), /New inbox task/);
   assert.match(source(INBOX_PLANNING), /Move .* to Today/);

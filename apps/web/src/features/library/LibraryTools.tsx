@@ -1,3 +1,4 @@
+import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
@@ -22,14 +23,21 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { importVaultFiles } from "./vault-import-workflow";
 
-export function LibraryTools() {
+export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } = {}) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
+  }, []);
+
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<TrashWorkspace | null>(null);
+  const [pendingBackupRestore, setPendingBackupRestore] = useState<File | null>(null);
   const restoreInput = useRef<HTMLInputElement>(null);
   const vaultInput = useRef<HTMLInputElement | null>(null);
 
@@ -139,19 +147,19 @@ export function LibraryTools() {
 
   return (
     <>
-      <IconButton
+      {showTrigger && <IconButton
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
         onClick={() => setOpen(true)}
-        aria-label="Library tools"
-        title="Library tools"
+        aria-label="Data and recovery"
+        title="Data & Recovery"
       >
         <ArchiveRestore size={16} aria-hidden="true" />
-      </IconButton>
+      </IconButton>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,620px)]">
-          <DialogTitle>Library tools</DialogTitle>
+          <DialogTitle>Data &amp; Recovery</DialogTitle>
           <DialogDescription>Recover deleted work, own a complete backup, or migrate an existing Markdown vault.</DialogDescription>
 
           <div className="mt-4 grid gap-0 border-y border-line">
@@ -161,7 +169,7 @@ export function LibraryTools() {
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
               </div>
-              <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => void restoreBackup(event.target.files?.[0] ?? null)} />
+              <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />
             </section>
 
             <section className="grid gap-2 border-b border-line py-3">
@@ -197,6 +205,26 @@ export function LibraryTools() {
         </DialogContent>
       </Dialog>
 
+      <ConfirmDialog
+        open={pendingBackupRestore !== null}
+        title="Replace the entire library?"
+        description={pendingBackupRestore
+          ? `Restoring "${pendingBackupRestore.name}" will replace your current categories, workspaces, notes, canvas, tasks, activity history and Trash. Download a backup of your current library first. This cannot be undone.`
+          : ""}
+        confirmLabel="Replace library"
+        onOpenChange={(next) => {
+          if (!next && !loading) {
+            setPendingBackupRestore(null);
+            if (restoreInput.current) restoreInput.current.value = "";
+          }
+        }}
+        onConfirm={() => {
+          if (!pendingBackupRestore || loading) return;
+          const selected = pendingBackupRestore;
+          setPendingBackupRestore(null);
+          void restoreBackup(selected);
+        }}
+      />
       <ConfirmDialog
         open={permanentTarget !== null}
         title="Delete permanently?"

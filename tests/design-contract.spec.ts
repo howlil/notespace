@@ -7,8 +7,12 @@ test("design contract: Library keeps a persistent category tree and global quick
   await expect(page.getByRole("heading", { name: "Recent workspaces", exact: true })).toBeVisible();
   const categories = page.getByRole("navigation", { name: "Categories" });
   await expect(categories).toBeVisible();
-  await expect(page.getByRole("button", { name: "New category" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /New workspace/ }).first()).toBeVisible();
+  const create = page.getByRole("button", { name: "Create", exact: true });
+  await expect(create).toBeVisible();
+  await create.click();
+  await expect(page.getByRole("menuitem", { name: "Category" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Workspace" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Collapse sidebar" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Expand sidebar" })).toHaveCount(0);
 

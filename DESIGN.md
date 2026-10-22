@@ -27,14 +27,24 @@ Notespace uses **one semantic design system** and four task-specific layout arch
 
 | Archetype | Surfaces | Structural owner | Visual contract |
 | --- | --- | --- | --- |
-| **Discovery** | Home / Recent / All / selected Category | `LibraryPageShell`, `WorkspaceLibrary` | Shared 224px library sidebar and search header. Recent/All use square 18px paper-stack cards; a selected category uses dense rows with server-side query, sort, notes/canvas filters, and bounded pagination. |
-| **Execution** | Inbox / Today / Workspace Plan | `LibraryPageShell`, planning features | Compact border-divided task rows, inline capture/rename, no decorative card wrappers. Workspace Plan keeps its own authoring shell. |
+| **Discovery** | Home / Recent / All / selected Category | `LibraryPageShell`, `WorkspaceLibrary` | Shared 44px primary rail with optional 228px Explorer and a 46px context header. Recent/All use square 18px paper-stack cards; a selected category uses dense rows with server-side query, sort, notes/canvas filters, and bounded pagination. |
+| **Execution** | Inbox / Today / Workspace Plan | `LibraryPageShell`, planning features | Shared 44px rail and optional Explorer with compact border-divided task rows, inline capture/rename, no decorative card wrappers. Workspace Plan keeps its own authoring shell. |
 | **Authoring** | Workspace Note / Canvas / Split | `WorkspacePage`, `WorkspaceRail`, authoring features | Full-bleed border-first panes, 40px rail, 34px Note header, 7px interactive split target / 1px visible line; do not adopt the Discovery sidebar. |
 | **Utility** | Settings / Quick Open / Activity overlays / Library Tools | Existing shared Dialog, popover and feature components | Contextual, keyboard-operable, focus-owning surfaces with explicit pending/error states; avoid creating new routes purely for configuration. |
 
 Shared across archetypes: Cobalt/White brand assets, semantic CSS tokens, Open Sans, 4px spacing scale, 6/8/12px control/surface/dialog radius, reusable `Button`, `Input`, `IconButton` and `Dialog` semantics.
 
 **Marketing exception:** the Astro landing page may use Geist, editorial display typography and pill calls to action. It shares approved brand colors and logos, not application chrome or interaction density.
+
+### Unified Precision Shell v2
+
+- **Navigation ownership:** Library, Inbox and Today use one 44px `ShellRail` composed by `LibraryPageShell`. The 228px `LibrarySidebar` is an optional category **Explorer**, not a second primary navigation. The 46px context header owns search/status actions. The authoring Workspace keeps its established 40px `WorkspaceRail`, including Tauri's portal and focus behavior; do not remount authoring providers when switching shells.
+- **Explorer behavior:** desktop may show it by default and toggle it; at <=760px it starts hidden and appears as an independently dismissible overlay. Category expand/collapse, inline rename, contextual create/delete, drag-and-drop move, server paging, and error recovery keep their existing feature hooks and API contracts. Escape dismisses an open mobile Explorer and focus returns to the rail trigger.
+- **Single action owners:** Create is a navigation command into the existing category/workspace feature hook, not another workspace creation API. Quick Capture is mounted once at root with its existing note-ingestion workflow. Data & Recovery (`LibraryTools`) is also root-mounted once and owns portable export/restore, Markdown vault import, and Trash; Settings links to that surface and retains native SQLite recovery and updater controls. Global search and category search are distinct scopes.
+- **Activity semantics:** one `ActivityRuntimeProvider` and `ActivityDock` persist across route transitions. Library rail uses `ActivityIndicator` for viewing/starting standalone sessions (explicit title/type), while Workspace retains contextual sessions. Task ownership remains with Workspace Plan or standalone planning; Today is only a projection, not a new task store.
+- **Input/attention:** the Create menu supports Escape and arrow keyboard navigation; global dialogs own focus when open, close to their trigger, and never duplicate background instances. Keep existing save-conflict, unsaved-draft, interrupted activity and recovery guarantees.
+- **Environments:** browser desktop, native Tauri titlebar, narrow touch layouts, dark mode and reduced motion represent the same product jobs with potentially different navigation projection. Compact controls remain keyboard-visible; mobile Explorer never obstructs initial Home rendering.
+- **Verification:** deep links and browser Back/Forward, category rename/move/delete, creating from Inbox/Today, Quick Capture save-error retention, search+Recall, Today/Plan task ownership, Activity start/pause/resume/end/handoff, backup/restore/Trash, and native desktop lifecycle must pass before merge.
 
 **Implementation invariant:** Home, Today and Inbox render the same `LibraryPageShell`; individual pages still own their domain state, task operations and failure recovery. Category filters use `listCategoryWorkspaces` with server pagination; never filter only the current 50 loaded cards and present that as complete results.
 

@@ -11,15 +11,15 @@ const ExplorerContext = createContext<{
 /** Preserve Explorer visibility across Library/Inbox/Today route remounts. */
 export function LibraryExplorerProvider({ children }: { children: ReactNode }) {
   const [preference, setPreference] = useState<ExplorerPreference>("auto");
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const previousPathname = useRef(pathname);
+  const locationKey = useRouterState({ select: (state) => `${state.location.pathname}|${JSON.stringify(state.location.search)}` });
+  const previousLocationKey = useRef(locationKey);
 
   useEffect(() => {
-    if (pathname === previousPathname.current) return;
-    previousPathname.current = pathname;
+    if (locationKey === previousLocationKey.current) return;
+    previousLocationKey.current = locationKey;
     // A mobile Explorer is a transient overlay: never cover the next page after navigation.
     if (window.matchMedia("(max-width: 760px)").matches) setPreference("closed");
-  }, [pathname]);
+  }, [locationKey]);
 
   return (
     <ExplorerContext.Provider value={{ preference, setPreference }}>

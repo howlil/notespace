@@ -45,7 +45,7 @@ export function LibraryPageShell({
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
-  }, [compact, expanded]);
+  }, [compact, expanded, setPreference]);
 
   return (
     <div className={`${dashboard ? "dashboard-shell " : ""}flex h-dvh min-h-0 min-w-0 overflow-hidden bg-background`}>

@@ -5,7 +5,7 @@ import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT, requestLibraryCreate } from "../../shared/browser/shell-events";
+import { OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";
@@ -14,14 +14,14 @@ type Props = {
   explorerOpen: boolean;
   onToggleExplorer: () => void;
   explorerTriggerRef?: RefObject<HTMLButtonElement>;
-  onOpenExplorer: () => void;
+  onCreate: (target: { kind: "category" | "workspace"; categoryId?: string }) => void;
   selectedCategoryId?: string;
 };
 
 const control = "relative grid !size-[34px] !min-h-[34px] shrink-0 place-items-center rounded-md border-0 p-0 text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent";
 const active = "bg-tint text-accent";
 
-export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer, selectedCategoryId, explorerTriggerRef }: Props) {
+export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, selectedCategoryId, explorerTriggerRef }: Props) {
   const navigate = useNavigate();
   const activity = useActivityRuntime();
   const [creating, setCreating] = useState(false);
@@ -44,8 +44,7 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onOpenExplorer
 
   const create = (kind: "category" | "workspace") => {
     setCreating(false);
-    onOpenExplorer();
-    requestLibraryCreate({ kind, categoryId: kind === "workspace" ? selectedCategoryId : undefined });
+    onCreate({ kind, categoryId: kind === "workspace" ? selectedCategoryId : undefined });
   };
 
   return (

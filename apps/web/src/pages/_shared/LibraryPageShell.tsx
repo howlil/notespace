@@ -4,6 +4,7 @@ import { Search, PanelLeftClose } from "lucide-react";
 import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { ShellRail } from "./ShellRail";
+import { useLibraryExplorer } from "../../shared/ui/library-explorer-provider";
 
 type Props = {
   sidebar: ReactNode;
@@ -14,13 +15,11 @@ type Props = {
   selectedCategoryId?: string;
 };
 
-type ExplorerPreference = "auto" | "open" | "closed";
-
 /** Library, Inbox and Today share navigation but retain their independent feature state. */
 export function LibraryPageShell({
   sidebar, children, headerActions, dashboard = false, page = "library", selectedCategoryId,
 }: Props) {
-  const [preference, setPreference] = useState<ExplorerPreference>("auto");
+  const { preference, setPreference } = useLibraryExplorer();
   const [createRequest, setCreateRequest] = useState<LibraryCreateRequest | null>(null);
   const sequence = useRef(0);
   const [compact, setCompact] = useState(false);
@@ -38,7 +37,11 @@ export function LibraryPageShell({
   useEffect(() => {
     if (!(compact && expanded)) return;
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPreference("closed"); toggleRef.current?.focus(); }
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+      setPreference("closed");
+      toggleRef.current?.focus();
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);

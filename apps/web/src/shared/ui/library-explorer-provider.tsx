@@ -6,11 +6,14 @@ export type ExplorerPreference = "auto" | "open" | "closed";
 const ExplorerContext = createContext<{
   preference: ExplorerPreference;
   setPreference: (value: ExplorerPreference) => void;
+  expandedCategories: Set<string>;
+  setExpandedCategories: React.Dispatch<React.SetStateAction<Set<string>>>;
 } | null>(null);
 
 /** Preserve Explorer visibility across Library/Inbox/Today route remounts. */
 export function LibraryExplorerProvider({ children }: { children: ReactNode }) {
   const [preference, setPreference] = useState<ExplorerPreference>("auto");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const locationKey = useRouterState({ select: (state) => `${state.location.pathname}|${JSON.stringify(state.location.search)}` });
   const previousLocationKey = useRef(locationKey);
 
@@ -22,7 +25,7 @@ export function LibraryExplorerProvider({ children }: { children: ReactNode }) {
   }, [locationKey]);
 
   return (
-    <ExplorerContext.Provider value={{ preference, setPreference }}>
+    <ExplorerContext.Provider value={{ preference, setPreference, expandedCategories, setExpandedCategories }}>
       {children}
     </ExplorerContext.Provider>
   );

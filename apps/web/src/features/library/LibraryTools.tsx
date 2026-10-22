@@ -37,6 +37,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
   const [categoryId, setCategoryId] = useState("");
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<TrashWorkspace | null>(null);
+  const [pendingBackupRestore, setPendingBackupRestore] = useState<File | null>(null);
   const restoreInput = useRef<HTMLInputElement>(null);
   const vaultInput = useRef<HTMLInputElement | null>(null);
 
@@ -168,7 +169,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
               </div>
-              <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => void restoreBackup(event.target.files?.[0] ?? null)} />
+              <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />
             </section>
 
             <section className="grid gap-2 border-b border-line py-3">
@@ -204,6 +205,26 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
         </DialogContent>
       </Dialog>
 
+      <ConfirmDialog
+        open={pendingBackupRestore !== null}
+        title="Replace the entire library?"
+        description={pendingBackupRestore
+          ? `Restoring "${pendingBackupRestore.name}" will replace your current categories, workspaces, notes, canvas, tasks, activity history and Trash. Download a backup of your current library first. This cannot be undone.`
+          : ""}
+        confirmLabel="Replace library"
+        onOpenChange={(next) => {
+          if (!next && !loading) {
+            setPendingBackupRestore(null);
+            if (restoreInput.current) restoreInput.current.value = "";
+          }
+        }}
+        onConfirm={() => {
+          if (!pendingBackupRestore || loading) return;
+          const selected = pendingBackupRestore;
+          setPendingBackupRestore(null);
+          void restoreBackup(selected);
+        }}
+      />
       <ConfirmDialog
         open={permanentTarget !== null}
         title="Delete permanently?"

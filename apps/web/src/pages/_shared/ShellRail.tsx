@@ -48,7 +48,7 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
   };
 
   return (
-    <nav className="relative z-40 flex h-dvh w-11 shrink-0 flex-col items-center border-r border-line bg-surface py-2 max-[760px]:h-dvh" aria-label="Primary navigation">
+    <nav className="relative z-40 flex h-full min-h-0 w-11 shrink-0 flex-col items-center border-r border-line bg-surface py-2" aria-label="Primary navigation">
       <Link to="/" className={cn(control, "!mb-4")} aria-label="Notespace home" title="Home">
         <img src="/brand/notespace-fox-head.svg" alt="" className="size-[27px]" />
       </Link>

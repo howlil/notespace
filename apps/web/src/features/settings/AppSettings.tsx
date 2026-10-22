@@ -135,6 +135,38 @@ export function AppSettings({ renderDesktopRecovery }: {
                 <p className="mt-1 text-muted">Choose how Notespace looks on this device.</p>
                 <div className="mt-4 flex items-center justify-between gap-3 border-y border-line py-3">
                   <div>
+                    <p className="font-medium text-ink">Theme</p>
+                    <p className="mt-1 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={toggle}>
+                    Use {dark ? "light" : "dark"} theme
+                  </Button>
+                </div>
+                <p className="mt-4 text-muted">
+                  {native ? "Desktop library data is stored on this device." : "Notespace is running in your browser."}
+                </p>
+                {updaterEnabled && (
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4">
+                    <div>
+                      <p className="font-medium text-ink">Desktop updates</p>
+                      <p className="mt-1 text-muted">Check for signed Notespace updates.</p>
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => {
+                      onChangeOpen(false);
+                      window.dispatchEvent(new Event(REQUEST_DESKTOP_UPDATE_CHECK));
+                    }}>Check for updates</Button>
+                  </div>
+                )}
+              </section>
+            ) : (
+              <section aria-label="Data and backup settings">
+                <h3 className="text-sm font-medium text-ink">Data &amp; backup</h3>
+                <p className="mt-1 leading-5 text-muted">
+                  Download a portable ZIP copy of your library. On desktop you can also create
+                  a verified SQLite snapshot without interrupting your workspace.
+                </p>
+                <div className="mt-4 flex items-center justify-between gap-3 border-y border-line py-3">
+                  <div>
                     <p className="font-medium text-ink">Portable library &amp; Trash</p>
                     <p className="mt-1 leading-4 text-muted">Export, restore, import Markdown and recover deleted work in one place.</p>
                   </div>

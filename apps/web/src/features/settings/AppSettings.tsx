@@ -11,7 +11,7 @@ import {
   IconButton,
 } from "../../shared/ui";
 import { useTheme } from "../../shared/ui/theme-provider";
-import { OPEN_LIBRARY_TOOLS_EVENT } from "../shell/shell-events";
+import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";

@@ -77,7 +77,7 @@ export function LibraryPageShell({
           <LibraryCreateContext.Provider value={createRequest}>{sidebar}</LibraryCreateContext.Provider>
         </div>
       </div>
-      <main className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <HeaderPlacement className="relative z-30 flex min-h-[46px] shrink-0 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
           <button
             type="button"

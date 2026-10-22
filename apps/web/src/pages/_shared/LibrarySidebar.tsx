@@ -44,7 +44,8 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
   useEffect(() => {
     const onCreate = (event: Event) => {
       const { kind, categoryId } = (event as CustomEvent<LibraryCreateTarget>).detail;
-      startCreate(kind, categoryId ?? (kind === "workspace" ? selectedCategoryId : undefined));
+      const defaultCategoryId = categories.find(item => item.id === "legacy")?.id ?? categories[0]?.id;
+      startCreate(kind, kind === "workspace" ? (categoryId ?? selectedCategoryId ?? defaultCategoryId) : undefined);
     };
     window.addEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);
     return () => window.removeEventListener(OPEN_LIBRARY_CREATE_EVENT, onCreate);

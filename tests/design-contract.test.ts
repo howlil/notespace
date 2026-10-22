@@ -413,8 +413,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(WORKSPACE_PAGE), /ActivityTypeTrigger/);
   assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
-  assert.match(source(SIDEBAR), /to="\/inbox"/);
-  assert.match(source(SIDEBAR), /to="\/today"/);
+  assert.match(source(SHELL_RAIL), /to="\/inbox"/);
+  assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(INBOX_PLANNING), /Capture first\. Decide when to do it later\./);
   assert.match(source(INBOX_PLANNING), /New inbox task/);
   assert.match(source(INBOX_PLANNING), /Move .* to Today/);

@@ -1,6 +1,6 @@
 import { Play, Timer, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, IconButton, PopupSurface, Skeleton, cn } from "../../shared/ui";
+import { Button, IconButton, Input, PopupSurface, Skeleton, cn } from "../../shared/ui";
 import {
   listActivitySessions,
   type ActivitySession,
@@ -38,6 +38,7 @@ export function ActivityIndicator({
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
+  const [standaloneTitle, setStandaloneTitle] = useState("");
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -137,10 +138,11 @@ export function ActivityIndicator({
           onSelect={(activityType) => {
             setStartOpen(false);
             activity.start({
-              title: workspaceTitle,
+              title: workspaceId ? workspaceTitle : standaloneTitle.trim(),
               activityType,
               ...(workspaceId ? { workspaceId, workspaceTitleSnapshot: workspaceTitle } : {}),
             });
+            if (!workspaceId) setStandaloneTitle("");
           }}
         />
       )}
@@ -155,8 +157,16 @@ export function ActivityIndicator({
             <span>Activity</span>
             <Timer size={16} className="text-muted" />
           </div>
+          {rail && !workspaceId && activity.status === "idle" && (
+            <label className="mt-3 block text-[10px] text-muted">
+              Activity title
+              <Input className="mt-1 min-h-8 w-full text-[11px]" aria-label="Standalone activity title"
+                placeholder="What are you doing?" value={standaloneTitle}
+                onChange={(event) => setStandaloneTitle(event.target.value)} />
+            </label>
+          )}
           {rail && activity.status === "idle" && (
-            <Button type="button" variant="secondary" size="sm" className="mt-2 w-full !min-h-8 justify-center text-[11px]" disabled={!activity.ready || !activity.canStart} onClick={() => { setOpen(false); setStartOpen(true); }}>
+            <Button type="button" variant="secondary" size="sm" className="mt-2 w-full !min-h-8 justify-center text-[11px]" disabled={!activity.ready || !activity.canStart || (!workspaceId && !standaloneTitle.trim())} onClick={() => { setOpen(false); setStartOpen(true); }}>
               <Play size={14} aria-hidden="true" /> Start activity
             </Button>
           )}

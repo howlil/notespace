@@ -27,9 +27,9 @@ async function loadAllWorkspaceOptions(): Promise<WorkspaceSummary[]> {
  * Queue-only view. Legacy standalone Tasks retain their own InboxPlanning owner
  * during M2. The server is authoritative; no second browser persistence store.
  */
-export function CaptureQueue({ initial }: { initial: CaptureItem[] }) {
+export function CaptureQueue() {
   const { showToast } = useToast();
-  const [items, setItems] = useState(initial);
+  const [items, setItems] = useState<CaptureItem[]>([]);
   const [body, setBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,7 +46,6 @@ export function CaptureQueue({ initial }: { initial: CaptureItem[] }) {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CaptureItem | null>(null);
 
-  useEffect(() => setItems(initial), [initial]);
   useEffect(() => {
     const onChange = () => { void refresh(); };
     window.addEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);

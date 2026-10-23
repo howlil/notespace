@@ -10,7 +10,8 @@ const tauriRoot = resolve(root, "apps/desktop/src-tauri");
 const iconDir = resolve(tauriRoot, "icons", "fox-spirit");
 const svgPath = resolve(root, "apps/web/public/brand/notespace-fox-full.svg");
 // Keep the source in Git and rebuild assets before *every* native package.
-// Generated into an ignored directory: building without this preparation must fail\n// instead of silently using the old checked-in Foldling icons.
+// Generated into an ignored directory: building without this preparation must fail
+// instead of silently using the old checked-in Foldling icons.
 const legacyIcoBlob = "d362692ebdded8a40151c853125a904169e1754a";
 const legacyPngBlob = "81929fe324ef1472575d3d060976d7fd2cc11177";
 const expectedOutputs = ["icon.ico", "icon.icns", "icon.png", "32x32.png", "128x128.png", "128x128@2x.png"];

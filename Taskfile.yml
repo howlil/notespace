@@ -140,6 +140,7 @@ tasks:
     desc: Build web assets and prepare the native Go sidecar for the current Rust host target
     cmds:
       - task: build:web
+      - pnpm desktop:icons
       - node scripts/prepare-desktop-sidecar.mjs
 
   desktop:test-shell:
@@ -171,5 +172,4 @@ tasks:
       - desktop:prepare
     dir: apps/desktop/src-tauri
     cmds:
-      - pnpm desktop:icons
       - cargo tauri build -- --locked

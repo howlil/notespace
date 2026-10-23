@@ -15,7 +15,9 @@ test("desktop icon source and bundle identity remain canonical", () => {
   assert.match(svg, /#2858D8/);
   assert.equal(config.identifier, "com.howlil.notespace");
   assert.deepEqual(config.bundle.icon, ["icons/fox-spirit/icon.ico", "icons/fox-spirit/icon.icns", "icons/fox-spirit/icon.png"]);
-  assert.match(source, /icons", "fox-spirit"/);\n  assert.match(read(".gitignore"), /fox-spirit/);\n  assert.match(source, /legacyIcoBlob/);
+  assert.match(source, /icons", "fox-spirit"/);
+  assert.match(read(".gitignore"), /fox-spirit/);
+  assert.match(source, /legacyIcoBlob/);
   assert.match(source, /legacyPngBlob/);
   assert.match(source, /assertDesktopIcons/);
   assert.match(pe, /ExtractAssociatedIcon/);

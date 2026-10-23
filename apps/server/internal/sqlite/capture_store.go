@@ -12,6 +12,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/planning"
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 const captureColumns = "id,content,status,version,created_at,updated_at,COALESCE(target_kind,''),COALESCE(target_workspace_id,''),COALESCE(target_id,''),COALESCE(converted_at,'')"
@@ -189,7 +190,8 @@ func captureDocument(content string) ([]byte, error) {
 }
 
 func (s *Store) OrganizeCapture(ctx context.Context, id string, req capture.Organize) (capture.Item, error) {
-	if req.Version < 1 || req.WorkspaceID == "" || (req.Kind != "note" && req.Kind != "task") {
+	if req.Version < 1 || req.WorkspaceID == "" || (req.Kind != "note" && req.Kind != "task") ||
+		(req.Document != nil && (req.Kind != "note" || !workspace.ValidDocumentSnapshot(*req.Document))) {
 		return capture.Item{}, capture.ErrInvalid
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -255,6 +257,10 @@ func (s *Store) OrganizeCapture(ctx context.Context, id string, req capture.Orga
 		document, errDoc := captureDocument(item.Content)
 		if errDoc != nil {
 			return capture.Item{}, errDoc
+		}
+		if req.Document != nil {
+			document, errDoc = json.Marshal(req.Document)
+			if errDoc != nil { return capture.Item{}, errDoc }
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO workspace_notes(workspace_id,id,title,document_state,created_at,updated_at,version)
 		VALUES (?,?,?,?,?,?,1)`, req.WorkspaceID, targetID, captureNoteTitle(item.Content), string(document), now, now)

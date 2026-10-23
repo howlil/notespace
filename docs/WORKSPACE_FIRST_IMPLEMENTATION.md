@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0 and M1 backend implemented on a feature branch; **not yet shipped or merged**. M2–M7 remain planned. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M2 implemented on a feature branch; **not yet shipped or merged**. M3–M7 remain planned. Final CI/desktop acceptance is required before merge. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -162,6 +162,33 @@ For Task conversion the first nonempty line provides the title and the original 
 Backup archive schema version advances to 15, and JSON backup version to 2; legacy JSON v1 and earlier archive schema versions remain readable. Both pending Captures and converted receipts round-trip through backup and restore. Old builds should reject new backup versions instead of silently dropping new data.
 
 Focused Go tests exercise CRUD/version conflicts, atomic convert-to-Task and convert-to-Note, duplicate request handling, concurrent same-request conversion, invalid receipt rejection, and archive/legacy-JSON restoration. The full Go race/build/test verification remains governed by CI.
+
+
+## M2 implemented transition (branch)
+
+M2 introduces the Queue on the existing `/inbox` surface while **retaining** legacy InboxPlanning below it. The legacy task-create route and controls remain until the dedicated Workspace-owned Task migration in M3; this avoids silently hiding existing standalone Tasks or invalidating deep links. It is an explicit transitional UI, not the final M6 sitemap.
+
+`C/V/N`:
+- `CaptureQueue`: pending records / loading-empty-error-edit-organize/delete / backend reachable.
+- `QuickCapture`: direct Workspace Note vs Queue intake / saving-success-unconfirmed / content valid; Workspace required only for direct Note.
+- `Organize`: Note or Task destination / loading-conflict-confirmed-unconfirmed / selected live Workspace.
+
+`A`:
+```text
+Global Quick Capture → destination?
+  Workspace → existing markdownToSnapshot + existing Note API
+  Queue     → POST /api/captures → /inbox Queue
+Queue item → choose Workspace and target type
+  Note → markdownToSnapshot(raw content) → transactional POST organize(document)
+  Task → transactional POST organize (full text retained as description)
+On unknown response → GET /api/captures/{id} → reconcile receipt
+```
+
+`E`: preserve unsaved text on failed global create; never auto-replay ambiguous POST create; preserve item/edit draft on conversion/patch error; reconcile committed organizer via receipt before reporting failure; keep legacy tasks visible; user can retry failed workspace list.
+
+`R`: one root-mounted QuickCapture, typed `capture-api` adapter, single backend Capture table; no duplicated Queue persistence or new standalone Task pathway. For Notes, the server validates the same Tiptap snapshot shape as existing authored Note creation; the browser uses the existing Markdown importer and supplies its parsed snapshot to the same atomic SQLite conversion. Captured raw content remains stored as the converted receipt for idempotent recovery.
+
+Verification: client adapter tests, UTF-8 byte-size tests, Playwright Queue CRUD/refresh and global shortcut flow, rich Markdown-to-Note E2E, Go race and backup tests, and the existing Inbox/Today/Quick Capture navigation regression suite.
 
 ## M0 verification and handoff
 

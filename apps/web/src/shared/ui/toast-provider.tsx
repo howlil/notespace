@@ -67,8 +67,14 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
       {toast.action && <Button
         type="button" variant="ghost" size="sm"
         className="mt-1.5 min-h-7 border border-line px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-tint"
-        onClick={() => {
+        onClick={(event) => {
           const action = toast.action;
+          // Keyboard focus remains inside the notification after Retry morphs to Loading.
+          if (action?.dismissOnClick === false && event.detail === 0) {
+            event.currentTarget.closest("article")?.querySelector<HTMLButtonElement>(
+              'button[aria-label="Dismiss notification"]',
+            )?.focus();
+          }
           action?.onClick();
           if (action?.dismissOnClick !== false) dismiss(toast.id);
         }}

@@ -33,9 +33,9 @@ type Item struct {
 }
 
 type Organize struct {
-	Version     int    `json:"version"`
-	WorkspaceID string `json:"workspaceId"`
-	Kind        string `json:"kind"`
+	Version     int                 `json:"version"`
+	WorkspaceID string              `json:"workspaceId"`
+	Kind        string              `json:"kind"`
 	Document    *workspace.Snapshot `json:"document,omitempty"`
 }
 

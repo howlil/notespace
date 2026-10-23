@@ -12,7 +12,6 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/planning"
-	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 const captureColumns = "id,content,status,version,created_at,updated_at,COALESCE(target_kind,''),COALESCE(target_workspace_id,''),COALESCE(target_id,''),COALESCE(converted_at,'')"

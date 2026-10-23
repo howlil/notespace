@@ -4,13 +4,14 @@ import (
 	"context"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"github.com/howlil/notespace/apps/server/migrations"
 )
 
 func validateLibraryBackup(backup libraryBackup) error {
-	if backup.Format != libraryBackupFormat || backup.Version != libraryBackupVersion {
+	if backup.Format != libraryBackupFormat || (backup.Version != 1 && backup.Version != libraryBackupVersion) {
 		return workspacepkg.ErrInvalid
 	}
 	if len(backup.Categories) == 0 {
@@ -51,6 +52,13 @@ func validateLibraryBackup(backup libraryBackup) error {
 		}
 		activeTaskIDs[task.ID] = true
 	}
+	captureIDs := map[string]bool{}
+	for _, item := range backup.Captures {
+		if !capture.ValidItem(item) || captureIDs[item.ID] {
+			return workspacepkg.ErrInvalid
+		}
+		captureIDs[item.ID] = true
+	}
 	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
 		if err := activity.ValidateSession(session); err != nil {
@@ -88,6 +96,7 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup libraryBackup) 
 		`DELETE FROM workspace_history_payload`,
 		`DELETE FROM workspace_history`,
 		`DELETE FROM workspace_assets`,
+		`DELETE FROM capture_items`,
 		`DELETE FROM planning_tasks`,
 		`DELETE FROM workspace_milestones`,
 		`DELETE FROM workspace_notes`,
@@ -136,6 +145,20 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup libraryBackup) 
 		`, session.ID, "", session.WorkspaceID, session.WorkspaceTitleSnapshot,
 			session.TaskID, session.TaskTitleSnapshot, session.Title, session.ActivityType,
 			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
+			return err
+		}
+	}
+	for _, item := range backup.Captures {
+		var kind, workspaceID, targetID, convertedAt any
+		if item.Status == "converted" {
+			kind, workspaceID, targetID, convertedAt = item.TargetKind, item.TargetWorkspaceID, item.TargetID, item.ConvertedAt
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO capture_items(
+			id,content,status,version,created_at,updated_at,
+			target_kind,target_workspace_id,target_id,converted_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			item.ID, item.Content, item.Status, item.Version, item.CreatedAt, item.UpdatedAt,
+			kind, workspaceID, targetID, convertedAt); err != nil {
 			return err
 		}
 	}

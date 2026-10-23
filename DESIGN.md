@@ -435,3 +435,10 @@ Automated browser tests should protect stable interaction/design contracts, not 
 ## Change rule
 
 When a requested visual change conflicts with this file, prefer the explicit current user instruction. Otherwise preserve this contract and make the smallest coherent design change that improves the requested user outcome.
+
+## Planned Workspace-first evolution (not shipped)
+
+The current layout and behavior contracts above describe the **implemented app**.
+The future Workspace-first + Capture Queue product behavior, migration baseline, implementation graphs, and M0–M7 acceptance gates are documented in [`docs/WORKSPACE_FIRST_IMPLEMENTATION.md`](docs/WORKSPACE_FIRST_IMPLEMENTATION.md).
+
+Do not treat the future flow as already available or remove Inbox, standalone Task creation, or Activity compatibility before their owning milestones ship with migration/backup/recovery verification. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative throughout the transition.

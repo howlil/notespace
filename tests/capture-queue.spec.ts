@@ -59,3 +59,40 @@ test("Quick Capture can save to Queue without a Workspace", async ({ page, reque
     }
   }
 });
+
+test("Organizing Markdown Capture creates one Workspace-owned rich Note", async ({ page, request }) => {
+  const title = `M2 Rich Note ${Date.now()}`;
+  const markdown = `# Heading ${title}\n\n**Important** details`;
+  const created = await request.post("/api/workspaces", { data: { title } });
+  expect(created.ok()).toBe(true);
+  const workspace = await created.json() as { id: string };
+  const captured = await request.post("/api/captures", { data: { content: markdown } });
+  expect(captured.ok()).toBe(true);
+  const item = await captured.json() as { id: string };
+  try {
+    await page.goto("/inbox");
+    const row = page.getByText(markdown, { exact: true }).locator("..").locator("..");
+    await row.getByRole("button", { name: "Organize" }).click();
+    const dialog = page.getByRole("dialog", { name: "Organize capture" });
+    await dialog.getByRole("combobox", { name: "Save as" }).selectOption("note");
+    await dialog.getByRole("combobox", { name: /Workspace \(required\)/ }).selectOption(workspace.id);
+    await dialog.getByRole("button", { name: "Organize" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(markdown, { exact: true })).toHaveCount(0);
+
+    const result = await request.get(`/api/workspaces/${workspace.id}`);
+    expect(result.ok()).toBe(true);
+    const hydrated = await result.json() as { notes: Array<{ document: { data: { content: Array<{ type: string }> } } }> };
+    expect(hydrated.notes.some((note) => note.document.data.content.some((block) => block.type === "heading"))).toBe(true);
+    const receiptResponse = await request.get(`/api/captures/${item.id}`);
+    const receipt = await receiptResponse.json() as { status: string; targetWorkspaceId: string };
+    expect(receipt).toMatchObject({ status: "converted", targetWorkspaceId: workspace.id });
+  } finally {
+    const current = await request.get(`/api/workspaces/${workspace.id}`);
+    if (current.ok()) {
+      const ws = await current.json() as { version: number };
+      await request.delete(`/api/workspaces/${workspace.id}`, { headers: { "If-Match": `"${ws.version}"` } }).catch(() => undefined);
+    }
+    // Converted receipts intentionally remain immutable; this fixture uses a unique ID.
+  }
+});

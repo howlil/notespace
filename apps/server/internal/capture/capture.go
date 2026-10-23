@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 var (
@@ -34,6 +36,7 @@ type Organize struct {
 	Version     int    `json:"version"`
 	WorkspaceID string `json:"workspaceId"`
 	Kind        string `json:"kind"`
+	Document    *workspace.Snapshot `json:"document,omitempty"`
 }
 
 type Store interface {
@@ -100,7 +103,8 @@ func (s Service) Delete(ctx context.Context, id string, version int) error {
 }
 func (s Service) Organize(ctx context.Context, id string, req Organize) (Item, error) {
 	if strings.TrimSpace(id) == "" || req.Version < 1 || strings.TrimSpace(req.WorkspaceID) == "" ||
-		(req.Kind != "note" && req.Kind != "task") {
+		(req.Kind != "note" && req.Kind != "task") ||
+		(req.Document != nil && (req.Kind != "note" || !workspace.ValidDocumentSnapshot(*req.Document))) {
 		return Item{}, ErrInvalid
 	}
 	return s.store.OrganizeCapture(ctx, id, req)

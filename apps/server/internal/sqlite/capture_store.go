@@ -229,19 +229,21 @@ func (s *Store) OrganizeCapture(ctx context.Context, id string, req capture.Orga
 		if count >= planning.MaxTasksPerWorkspace {
 			return capture.Item{}, capture.ErrInvalid
 		}
-		title := strings.TrimSpace(item.Content)
-		if utf8.RuneCountInString(title) > 160 {
-			// Task title is a summary; do not silently discard the Capture body.
+		// Preserve the complete Capture body as the Task description. Use its
+		// first nonempty line as the human-readable Task title.
+		description := item.Content
+		if utf8.RuneCountInString(description) > 4000 {
 			return capture.Item{}, capture.ErrInvalid
 		}
-		if err := planning.ValidateTask(planning.Task{ID: targetID, WorkspaceID: &req.WorkspaceID, Title: title, Description: "", Position: position, Version: 1}); err != nil {
+		title := captureNoteTitle(item.Content)
+		if err := planning.ValidateTask(planning.Task{ID: targetID, WorkspaceID: &req.WorkspaceID, Title: title, Description: description, Position: position, Version: 1}); err != nil {
 			return capture.Item{}, capture.ErrInvalid
 		}
 		if err := tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(position),-1)+1 FROM planning_tasks WHERE workspace_id=? AND milestone_id IS NULL", req.WorkspaceID).Scan(&position); err != nil {
 			return capture.Item{}, err
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO planning_tasks(id,workspace_id,milestone_id,title,description,position,planned_for,completed_at,created_at,updated_at,version)
-		VALUES (?,?,NULL,?,?,?,NULL,NULL,?,?,1)`, targetID, req.WorkspaceID, title, "", position, now, now)
+		VALUES (?,?,NULL,?,?,?,NULL,NULL,?,?,1)`, targetID, req.WorkspaceID, title, description, position, now, now)
 	} else {
 		var count int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=?", req.WorkspaceID).Scan(&count); err != nil {

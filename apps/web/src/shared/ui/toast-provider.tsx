@@ -123,10 +123,11 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
   }, [toasts]);
   useEffect(() => {
     if (!active) return;
-    let clock = clocks.current.get(active.id);
+    const lifetime = clocks.current;
+    let clock = lifetime.get(active.id);
     if (!clock || clock.version !== active.version) {
       clock = { version: active.version, remaining: active.duration };
-      clocks.current.set(active.id, clock);
+      lifetime.set(active.id, clock);
     }
     if (paused || !Number.isFinite(clock.remaining)) return;
     const remaining = clock.remaining;
@@ -135,7 +136,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
     const handle = window.setTimeout(() => dismiss(active.id), remaining);
     return () => {
       window.clearTimeout(handle);
-      const current = clocks.current.get(active.id);
+      const current = lifetime.get(active.id);
       if (current === clock) current.remaining = Math.max(0, remaining - (performance.now() - started));
     };
   }, [active, paused, dismiss]);

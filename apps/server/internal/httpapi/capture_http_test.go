@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/howlil/notespace/apps/server/internal/capture"
-	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -113,5 +112,4 @@ func TestCaptureVersionAndMissingDestination(t *testing.T) {
 	expect(t,call(t,api,http.MethodPost,"/api/captures/"+item.ID+"/organize",capture.Organize{Version:1,WorkspaceID:"not-a-workspace",Kind:"task"}),http.StatusConflict)
 	updated:=captureFromResponse(t,old.Body.Bytes())
 	if updated.Version!=2 {t.Fatalf("version not advanced: %+v",updated)}
-	_ = planning.ErrConflict
 }

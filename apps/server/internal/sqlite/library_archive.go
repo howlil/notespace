@@ -5,12 +5,13 @@ import (
 	"encoding/hex"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 const libraryArchiveVersion = 2
-const libraryArchiveSchemaVersion = 14
+const libraryArchiveSchemaVersion = 15
 const archiveManifestPath = "manifest.json"
 const maxArchiveManifestBytes = 16 << 20
 
@@ -52,6 +53,7 @@ type libraryArchiveManifest struct {
 	Categories    []workspacepkg.CategorySummary `json:"categories"`
 	Workspaces    []archiveWorkspaceEnvelope     `json:"workspaces"`
 	Tasks         []planning.Task                `json:"standaloneTasks,omitempty"`
+	Captures      []capture.Item                 `json:"captures,omitempty"`
 	Trash         []archiveTrashRecord           `json:"trash"`
 	Activity      []activity.Session             `json:"studySessions"`
 	Blobs         []archiveBlob                  `json:"blobs"`

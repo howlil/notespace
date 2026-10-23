@@ -1,159 +1,159 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
-import { Button, cn, IconButton } from ".";
-import { POPUP_OPEN_EVENT, requestExclusivePopup } from "./dismissable";
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { Button, IconButton, cn } from ".";
+import { enqueueToast, MAX_VISIBLE_TOASTS, updateToastItem } from "./toast-state";
+import type { ToastInput, ToastItem, ToastKind, ToastPatch } from "./toast-state";
 
-export type ToastKind = "success" | "error" | "info";
-export type ToastAction = { label: string; onClick: () => void };
-export type ToastInput = { message: string; kind?: ToastKind; action?: ToastAction; duration?: number };
+export type { ToastAction, ToastInput, ToastKind } from "./toast-state";
 
-type ToastItem = ToastInput & { id: number };
-type ToastContextValue = { showToast: (input: ToastInput) => void };
-
-const ToastContext = createContext<ToastContextValue | null>(null);
-const DEFAULT_TOAST_DURATION = 4200;
-
-const kindStyles: Record<ToastKind, { label: string; root: string; icon: string; progress: string }> = {
-  info: {
-    label: "Notice",
-    root: "before:bg-accent",
-    icon: "bg-tint text-accent",
-    progress: "bg-accent",
-  },
-  error: {
-    label: "Error",
-    root: "before:bg-danger",
-    icon: "bg-tint text-danger",
-    progress: "bg-danger",
-  },
-  success: {
-    label: "Done",
-    root: "before:bg-success",
-    icon: "bg-tint text-success",
-    progress: "bg-success",
-  },
+type ToastContextValue = {
+  showToast: (input: ToastInput) => string;
+  updateToast: (id: string, patch: ToastPatch) => void;
+  dismissToast: (id: string) => void;
 };
+const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const dismiss = useCallback((id: number) => setToasts((current) => current.filter((toast) => toast.id !== id)), []);
-
-  useEffect(() => {
-    const closeToastWhenAnotherPopupOpens = () => setToasts([]);
-    document.addEventListener(POPUP_OPEN_EVENT, closeToastWhenAnotherPopupOpens);
-    return () => document.removeEventListener(POPUP_OPEN_EVENT, closeToastWhenAnotherPopupOpens);
+  const sequence = useRef(0);
+  const dismissToast = useCallback((id: string) => {
+    setToasts((items) => items.filter((item) => item.id !== id));
   }, []);
-
+  const updateToast = useCallback((id: string, patch: ToastPatch) => {
+    setToasts((items) => updateToastItem(items, id, patch));
+  }, []);
   const showToast = useCallback((input: ToastInput) => {
-    const toast = { ...input, id: Date.now() + Math.random() };
-    requestExclusivePopup();
-    setToasts([toast]);
+    const id = input.id ?? `toast-${++sequence.current}`;
+    setToasts((items) => enqueueToast(items, input, id));
+    return id;
   }, []);
-
-  const value = useMemo(() => ({ showToast }), [showToast]);
-
-  return (
-    <ToastContext.Provider value={value}>
-      {children}
-      <ToastViewport toasts={toasts} dismiss={dismiss} />
-    </ToastContext.Provider>
-  );
+  const value = useMemo(() => ({ showToast, updateToast, dismissToast }), [showToast, updateToast, dismissToast]);
+  return <ToastContext.Provider value={value}>
+    {children}
+    <ToastViewport toasts={toasts} dismiss={dismissToast} />
+  </ToastContext.Provider>;
 }
 
-function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id: number) => void }) {
-  const activeToastId = toasts[0]?.id;
-  const activeToastDuration = toasts[0]?.duration;
-  const [paused, setPaused] = useState(false);
+function ToastGlyph({ kind }: { kind: ToastKind }) {
+  const className = cn("mt-0.5 shrink-0",
+    kind === "error" ? "text-danger" : kind === "success" ? "text-success" :
+    kind === "warning" ? "text-warning" : "text-accent");
+  if (kind === "loading") return <LoaderCircle size={18} className={cn(className, "animate-spin motion-reduce:animate-none")} aria-hidden="true" />;
+  if (kind === "error") return <AlertCircle size={18} className={className} aria-hidden="true" />;
+  if (kind === "warning") return <AlertTriangle size={18} className={className} aria-hidden="true" />;
+  if (kind === "success") return <CheckCircle2 size={18} className={className} aria-hidden="true" />;
+  return <Info size={18} className={className} aria-hidden="true" />;
+}
 
-  useEffect(() => {
-    setPaused(false);
-  }, [activeToastId]);
-
-  useEffect(() => {
-    if (activeToastId === undefined || paused) return;
-
-    const duration = activeToastDuration ?? DEFAULT_TOAST_DURATION;
-    if (!Number.isFinite(duration)) return;
-    if (duration <= 0) {
-      dismiss(activeToastId);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => dismiss(activeToastId), duration);
-    return () => window.clearTimeout(timeoutId);
-  }, [activeToastDuration, activeToastId, dismiss, paused]);
-
-  return (
-    <div
-      className="pointer-events-none fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] m-0 flex w-[min(360px,calc(100vw_-_32px))] flex-col gap-2 outline-none max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-3 max-[480px]:w-auto"
-      aria-label="Notifications"
-      onPointerEnter={() => setPaused(true)}
-      onPointerLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false);
-      }}
-    >
-      <AnimatePresence initial={false}>
-        {toasts.map((toast) => {
-          const kind = toast.kind ?? "info";
-          const styles = kindStyles[kind];
-          const duration = toast.duration ?? DEFAULT_TOAST_DURATION;
-          const progressDuration = Number.isFinite(duration) && duration > 0 ? duration : DEFAULT_TOAST_DURATION;
-
-          return (
-            <motion.article
-              key={toast.id}
-              layout
-              role={kind === "error" ? "alert" : "status"}
-              aria-live={kind === "error" ? "assertive" : "polite"}
-              aria-atomic="true"
-              initial={{ opacity: 0, y: 10, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
-              transition={{ duration: 0.16, ease: "easeOut" }}
-              className={cn(
-                "pointer-events-auto relative grid min-h-14 grid-cols-[28px_minmax(0,1fr)_24px] gap-x-2 overflow-hidden rounded-lg border border-line bg-surface px-3 py-2.5 text-ink shadow-[0_12px_32px_#0002] before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:content-['']",
-                styles.root,
-              )}
-            >
-              <span className={cn("row-span-2 mt-0.5 grid size-7 place-items-center rounded-md", styles.icon)} aria-hidden="true">
-                {kind === "error" ? <AlertCircle size={16} /> : kind === "success" ? <CheckCircle2 size={16} /> : <Info size={16} />}
-              </span>
-              <div className="min-w-0 self-center">
-                <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{styles.label}</p>
-                <p className="m-0 mt-0.5 text-xs font-medium leading-[1.35] text-ink">{toast.message}</p>
-              </div>
-              <IconButton type="button" variant="ghost" className="row-start-1 !size-6 justify-self-end self-start text-muted hover:bg-tint hover:text-ink focus-visible:bg-tint focus-visible:text-ink" aria-label="Dismiss notification" title="Dismiss" onClick={() => dismiss(toast.id)}>
-                <X size={14} />
-              </IconButton>
-              {toast.action && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  className="col-start-2 min-h-0 justify-self-start border-0 px-0 py-0.5 text-[11px] font-semibold text-accent hover:text-ink focus-visible:text-ink"
-                  onClick={() => { toast.action?.onClick(); dismiss(toast.id); }}
-                >
-                  {toast.action.label}
-                </Button>
-              )}
-              <span
-                className={cn("absolute right-0 bottom-0 left-0 h-0.5 origin-left animate-toast-progress opacity-50 motion-reduce:animate-none", styles.progress)}
-                style={{
-                  "--toast-duration": `${progressDuration}ms`,
-                  animationPlayState: paused ? "paused" : "running",
-                } as CSSProperties}
-                aria-hidden="true"
-              />
-            </motion.article>
-          );
-        })}
-      </AnimatePresence>
+function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string) => void }) {
+  const kind = toast.kind;
+  return <motion.article
+    layout
+    role={kind === "error" ? "alert" : "status"}
+    aria-live={kind === "error" ? "assertive" : "polite"}
+    aria-atomic="true"
+    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, y: 7, scale: 0.98 }}
+    transition={{ duration: 0.16, ease: "easeOut" }}
+    className="pointer-events-auto relative flex min-w-0 items-start gap-3 rounded-lg border border-line bg-surface px-3 py-3 text-ink shadow-[var(--shadow-popup)]"
+  >
+    <ToastGlyph kind={kind} />
+    <div className="min-w-0 flex-1">
+      <p className="m-0 break-words text-xs font-semibold leading-[1.5]">{toast.message}</p>
+      {toast.description && <p className="m-0 mt-0.5 break-words text-[11px] leading-[1.55] text-muted">{toast.description}</p>}
+      {toast.action && <Button
+        type="button" variant="ghost" size="sm"
+        className="mt-1.5 min-h-7 border border-line px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-tint"
+        onClick={() => {
+          const action = toast.action;
+          action?.onClick();
+          if (action?.dismissOnClick !== false) dismiss(toast.id);
+        }}
+      >{toast.action.label}</Button>}
     </div>
-  );
+    <IconButton type="button" variant="ghost" className="!size-7 shrink-0 text-muted hover:bg-tint hover:text-ink"
+      aria-label="Dismiss notification" title="Dismiss" onClick={() => dismiss(toast.id)}>
+      <X size={15} aria-hidden="true" />
+    </IconButton>
+  </motion.article>;
+}
+
+function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id: string) => void }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [expandedByClick, setExpandedByClick] = useState(false);
+  const [pageHidden, setPageHidden] = useState(false);
+  const clocks = useRef(new Map<string, { version: number; remaining: number }>());
+  const expanded = hovered || focused || expandedByClick;
+  const paused = expanded || pageHidden;
+  const active = toasts[0];
+
+  useEffect(() => {
+    const onVisibility = () => setPageHidden(document.visibilityState === "hidden");
+    onVisibility();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  useEffect(() => {
+    const live = new Set(toasts.map((toast) => toast.id));
+    for (const id of clocks.current.keys()) if (!live.has(id)) clocks.current.delete(id);
+    if (toasts.length === 0) setExpandedByClick(false);
+  }, [toasts]);
+  useEffect(() => {
+    if (!active) return;
+    let clock = clocks.current.get(active.id);
+    if (!clock || clock.version !== active.version) {
+      clock = { version: active.version, remaining: active.duration };
+      clocks.current.set(active.id, clock);
+    }
+    if (paused || !Number.isFinite(clock.remaining)) return;
+    const remaining = clock.remaining;
+    if (remaining <= 0) { dismiss(active.id); return; }
+    const started = performance.now();
+    const handle = window.setTimeout(() => dismiss(active.id), remaining);
+    return () => {
+      window.clearTimeout(handle);
+      const current = clocks.current.get(active.id);
+      if (current === clock) current.remaining = Math.max(0, remaining - (performance.now() - started));
+    };
+  }, [active, paused, dismiss]);
+
+  if (toasts.length === 0) return null;
+  const visible = toasts.slice(0, MAX_VISIBLE_TOASTS);
+  const hiddenCount = toasts.length - visible.length;
+
+  return <section aria-label="Notifications"
+    className="pointer-events-none fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] w-[min(360px,calc(100vw_-_32px))] max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-[max(12px,env(safe-area-inset-left))] max-[480px]:w-auto">
+    <div className="pointer-events-auto"
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") setHovered(true); }}
+      onPointerLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}>
+      {toasts.length > 1 && <button type="button"
+        className="mb-2 ml-auto block rounded-md bg-surface px-2 py-1 text-[11px] font-medium text-muted shadow-sm hover:text-ink focus-visible:text-accent"
+        aria-expanded={expanded}
+        aria-label={expanded ? "Collapse notifications" : `Expand ${toasts.length} notifications`}
+        onClick={() => setExpandedByClick((open) => !open)}>
+        {expanded ? "Collapse notifications" : `${toasts.length} notifications`}
+        {hiddenCount > 0 ? ` · +${hiddenCount} queued` : ""}
+      </button>}
+      <div className="relative">
+        {!expanded && visible.length > 1 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-3 -top-3 h-10 rounded-lg border border-line bg-surface shadow-sm" />}
+        {!expanded && visible.length > 2 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-6 -top-6 h-10 rounded-lg border border-line bg-surface shadow-sm" />}
+        <div className={cn("relative flex flex-col gap-2", expanded && "flex-col-reverse")}>
+          <AnimatePresence initial={false} mode="popLayout">
+            {(expanded ? visible : visible.slice(0, 1)).map((toast) =>
+              <ToastCard key={toast.id} toast={toast} dismiss={dismiss} />)}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  </section>;
 }
 
 export function useToast() {

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button, IconButton, cn } from ".";
 import { enqueueToast, MAX_VISIBLE_TOASTS, updateToastItem } from "./toast-state";
@@ -51,6 +51,8 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
   const kind = toast.kind;
   return <motion.article
     layout
+    data-toast-id={toast.id}
+    onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); dismiss(toast.id); } }}
     role={kind === "error" ? "alert" : "status"}
     aria-live={kind === "error" ? "assertive" : "polite"}
     aria-atomic="true"
@@ -93,6 +95,17 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
   const [expandedByClick, setExpandedByClick] = useState(false);
   const [pageHidden, setPageHidden] = useState(false);
   const clocks = useRef(new Map<string, { version: number; remaining: number }>());
+  const regionRef = useRef<HTMLElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const restoreAfterDismiss = useRef<string | null>(null);
+  const dismissWithFocus = useCallback((id: string) => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement &&
+      activeElement.closest("[data-toast-id]")?.getAttribute("data-toast-id") === id) {
+      restoreAfterDismiss.current = id;
+    }
+    dismiss(id);
+  }, [dismiss]);
   const expanded = hovered || focused || expandedByClick;
   const paused = expanded || pageHidden;
   const active = toasts[0];
@@ -127,16 +140,31 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
     };
   }, [active, paused, dismiss]);
 
+  useLayoutEffect(() => {
+    const removedId = restoreAfterDismiss.current;
+    if (!removedId) return;
+    restoreAfterDismiss.current = null;
+    const next = Array.from(regionRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[data-toast-id] button[aria-label="Dismiss notification"]',
+    ) ?? []).find((button) => button.closest("[data-toast-id]")?.getAttribute("data-toast-id") !== removedId);
+    if (next) next.focus();
+    else if (returnFocus.current?.isConnected) returnFocus.current.focus();
+  }, [toasts]);
+
   if (toasts.length === 0) return null;
   const visible = toasts.slice(0, MAX_VISIBLE_TOASTS);
   const hiddenCount = toasts.length - visible.length;
 
-  return <section aria-label="Notifications"
+  return <section ref={regionRef} aria-label="Notifications"
     className="pointer-events-none fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] w-[min(360px,calc(100vw_-_32px))] max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-[max(12px,env(safe-area-inset-left))] max-[480px]:w-auto">
     <div className="pointer-events-auto"
       onPointerEnter={(event) => { if (event.pointerType === "mouse") setHovered(true); }}
       onPointerLeave={() => setHovered(false)}
-      onFocusCapture={() => setFocused(true)}
+      onFocusCapture={(event) => {
+        if (event.relatedTarget instanceof HTMLElement &&
+          !event.currentTarget.contains(event.relatedTarget)) returnFocus.current = event.relatedTarget;
+        setFocused(true);
+      }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
       }}>
@@ -154,7 +182,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
         <div className={cn("relative flex flex-col gap-2", expanded && "flex-col-reverse")}>
           <AnimatePresence initial={false} mode="popLayout">
             {(expanded ? visible : visible.slice(0, 1)).map((toast) =>
-              <ToastCard key={toast.id} toast={toast} dismiss={dismiss} />)}
+              <ToastCard key={toast.id} toast={toast} dismiss={dismissWithFocus} />)}
           </AnimatePresence>
         </div>
       </div>

@@ -33,14 +33,6 @@ jobs:
       - run: pnpm typecheck && pnpm lint && pnpm test
       - name: Verify Workspace-first read-only baseline
         run: python3 -m unittest discover -s scripts -p 'test_workspace_first_baseline.py' -v
-      - name: M2 formatter snapshot (temporary)
-        run: |
-          for file in apps/server/internal/capture/capture.go apps/server/internal/sqlite/capture_store.go apps/server/internal/workspace/validation.go apps/server/internal/architecture/architecture_test.go; do
-            echo "FMT_M2_BEGIN:$file"
-            gofmt "$file" | base64 -w0
-            echo ""
-            echo "FMT_M2_END:$file"
-          done
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium

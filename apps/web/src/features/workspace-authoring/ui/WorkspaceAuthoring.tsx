@@ -79,7 +79,7 @@ class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolea
 
 export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorkspaceAuthoringOptions) {
   const { dark } = useTheme();
-  const { showToast } = useToast();
+  const { showToast, updateToast } = useToast();
   const compactPanes = useCompactPaneLayout();
   const [normalized] = useState(() => normalizeWorkspaceContent(workspaceContentOf(workspace)));
   const initial = normalized.content;
@@ -167,14 +167,38 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     if (!normalized.changed) return;
     for (const note of current.current.notes) scheduleNote(note);
   }, [current, normalized.changed, scheduleNote]);
+  const saveToastId = `workspace-save-${workspace.id}`;
+  const saveFailureSeen = useRef(false);
+  const retrySave = useCallback(() => {
+    updateToast(saveToastId, { kind: "loading", message: "Retrying save…", action: undefined });
+    void flushAll().catch(() => {});
+  }, [flushAll, saveToastId, updateToast]);
+
   useEffect(() => {
     if (status.state === "error") {
-      showToast({ kind: "error", message: status.message ?? "Save failed. Please retry.", action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) } });
+      saveFailureSeen.current = true;
+      showToast({
+        id: saveToastId,
+        kind: "error",
+        message: status.message ?? "Save failed. Please retry.",
+        action: { label: "Retry save", onClick: retrySave, dismissOnClick: false },
+      });
+    } else if (status.state === "conflict") {
+      showToast({
+        id: `workspace-conflict-${workspace.id}`,
+        kind: "error",
+        message: status.message ?? "Autosave paused. Preserve the local draft before reloading.",
+        duration: Infinity,
+      });
+    } else if (saveFailureSeen.current) {
+      if (status.state === "saved") {
+        updateToast(saveToastId, { kind: "success", message: "Changes saved", action: undefined });
+        saveFailureSeen.current = false;
+      } else {
+        updateToast(saveToastId, { kind: "loading", message: "Saving changes…", action: undefined });
+      }
     }
-    if (status.state === "conflict") {
-      showToast({ kind: "error", message: status.message ?? "Autosave paused. Preserve the local draft before reloading." });
-    }
-  }, [flushAll, showToast, status]);
+  }, [retrySave, saveToastId, showToast, status, updateToast, workspace.id]);
   useEffect(() => {
     setWorkspaceTitle(workspace.title);
     setWorkspaceTitleDraft(workspace.title);
@@ -197,10 +221,12 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
         await flushAll();
         return false;
       } catch (error) {
+        saveFailureSeen.current = true;
         showToast({
+          id: saveToastId,
           kind: "error",
           message: error instanceof Error ? error.message : "Save failed. Please retry.",
-          action: { label: "Retry save", onClick: () => void flushAll().catch(() => {}) },
+          action: { label: "Retry save", onClick: retrySave, dismissOnClick: false },
         });
         return true;
       }

@@ -28,7 +28,7 @@
   "bundle": {
     "active": true,
     "targets": ["msi"],
-    "icon": ["icons/icon.ico", "icons/icon.icns", "icons/icon.png"],
+    "icon": ["icons/fox-spirit/icon.ico", "icons/fox-spirit/icon.icns", "icons/fox-spirit/icon.png"],
     "externalBin": [
       "binaries/notespace-server"
     ],

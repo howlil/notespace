@@ -387,7 +387,7 @@ The approved rebrand uses **Cobalt `#2858D8` and White `#FFFFFF`** for the fox c
 - `/brand/notespace-fox-micro.svg` — reduced-details fallback used by `/favicon.svg` at 16–32px.
 - The web and Astro landing `public/brand` copies must remain byte-identical; `NotespaceLogo` owns application logo rendering. Existing Foldling files are temporary legacy assets, not active brand references.
 - Preserve the real 6/8/12/18px radius hierarchy, compact icon controls, neutral-first primary buttons, border-only Workspace and user-authored Canvas colors. Do not add decorative foxes to editor or Canvas tool chrome.
-- Before any native build or release, run `pnpm desktop:icons` to regenerate ICO, ICNS and PNG packaging assets from the reviewed `notespace-fox-full.svg`. Windows CI verifies the actual EXE icon resource is cobalt Fox Spirit. Preserve `com.howlil.notespace` so MSI upgrades do not create a new application or orphan user data.
+- Before any native build or release, run `pnpm desktop:icons` to regenerate ICO, ICNS and PNG packaging assets into ignored `icons/fox-spirit/` from the reviewed `notespace-fox-full.svg`; builds without regeneration must fail instead of using checked-in legacy icons. Windows CI verifies the actual EXE icon resource is cobalt Fox Spirit. Preserve `com.howlil.notespace` so MSI upgrades do not create a new application or orphan user data.
 
 ## Component and interaction rules
 

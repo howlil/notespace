@@ -46,12 +46,6 @@ export function CaptureQueue() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CaptureItem | null>(null);
 
-  useEffect(() => {
-    const onChange = () => { void refresh(); };
-    window.addEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
-    void refresh();
-    return () => window.removeEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
-  }, [refresh]);
   const options = useMemo(() => workspaces.filter((item) =>
     item.title.toLowerCase().includes(search.toLowerCase())), [search, workspaces]);
 
@@ -65,6 +59,13 @@ export function CaptureQueue() {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not refresh captures." });
     } finally { setRefreshing(false); }
   }, [showToast]);
+
+  useEffect(() => {
+    const onChange = () => { void refresh(); };
+    window.addEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
+    void refresh();
+    return () => window.removeEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
+  }, [refresh]);
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

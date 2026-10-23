@@ -146,6 +146,7 @@ jobs:
           python-version: "3.13"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Smoke sidecar parent lifecycle
         run: pnpm test:desktop:lifecycle
@@ -181,6 +182,9 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         shell: pwsh
         run: pnpm dlx @tauri-apps/cli@2.12.3 build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
+      - name: Validate embedded Fox Spirit executable icon
+        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
+        shell: pwsh
       - name: Reject Windows console-subsystem builds before signing
         run: >-
           node scripts/assert-windows-pe-subsystem.mjs
@@ -365,6 +369,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
       - run: node scripts/prepare-desktop-sidecar.mjs
       - working-directory: apps/desktop/src-tauri
         run: cargo test --locked

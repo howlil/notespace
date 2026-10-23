@@ -105,6 +105,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
       - run: node scripts/prepare-desktop-sidecar.mjs
 
       - name: Build updater-signed Windows MSI (no Authenticode)
@@ -131,6 +132,9 @@ jobs:
           pnpm dlx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked
           if ($LASTEXITCODE -ne 0) { throw "Signed-updater beta MSI build failed" }
 
+      - name: Validate embedded Fox Spirit executable icon
+        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
+        shell: pwsh
       - name: Reject Windows console-subsystem builds before publishing
         run: >-
           node scripts/assert-windows-pe-subsystem.mjs

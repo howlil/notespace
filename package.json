@@ -14,7 +14,8 @@
     "test:server:process": "node scripts/server-process-integration.mjs",
     "test:desktop:native": "node scripts/desktop-webdriver-smoke.mjs",
     "test:desktop:critical": "node scripts/desktop-webdriver-smoke.mjs --critical",
-    "test:desktop:lifecycle": "node scripts/smoke-desktop-sidecar-lifecycle.mjs"
+    "test:desktop:lifecycle": "node scripts/smoke-desktop-sidecar-lifecycle.mjs",
+    "desktop:icons": "node scripts/prepare-desktop-icons.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

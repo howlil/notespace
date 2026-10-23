@@ -40,6 +40,10 @@ on:
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/prepare-desktop-icons.mjs"
+      - "scripts/assert-desktop-icon.ps1"
+      - "scripts/desktop-icon-contract.test.mjs"
+      - "apps/web/public/brand/notespace-fox-full.svg"
       - "scripts/assert-windows-pe-subsystem.mjs"
       - "scripts/assert-windows-pe-subsystem.test.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
@@ -85,6 +89,10 @@ on:
       - "apps/server/cmd/notespace/desktop_boundary.go"
       - "apps/server/cmd/notespace/desktop_boundary_test.go"
       - "scripts/prepare-desktop-sidecar.mjs"
+      - "scripts/prepare-desktop-icons.mjs"
+      - "scripts/assert-desktop-icon.ps1"
+      - "scripts/desktop-icon-contract.test.mjs"
+      - "apps/web/public/brand/notespace-fox-full.svg"
       - "scripts/assert-windows-pe-subsystem.mjs"
       - "scripts/assert-windows-pe-subsystem.test.mjs"
       - "scripts/smoke-desktop-sidecar-lifecycle.mjs"
@@ -167,6 +175,8 @@ jobs:
             librsvg2-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
+      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Validate MSI upgrade PowerShell syntax
         if: runner.os == 'Windows'
@@ -240,6 +250,8 @@ jobs:
           cache-bin: "false"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
+      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
@@ -258,6 +270,9 @@ jobs:
       - name: Build debug executable for native parity
         working-directory: apps/desktop/src-tauri
         run: pnpm dlx @tauri-apps/cli@2.12.3 build --debug --no-bundle -- --locked
+      - name: Validate branded icon in Windows EXE resource
+        shell: pwsh
+        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/debug/notespace-desktop.exe
       - name: Parse Windows native driver PowerShell helpers
         shell: pwsh
         run: |
@@ -316,6 +331,8 @@ jobs:
           cache-bin: "false"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
+      - run: pnpm desktop:icons
+      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
@@ -325,3 +342,6 @@ jobs:
       - name: Build desktop on current Windows
         working-directory: apps/desktop/src-tauri
         run: cargo build --locked
+      - name: Validate Windows EXE icon resource
+        shell: pwsh
+        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/debug/notespace-desktop.exe

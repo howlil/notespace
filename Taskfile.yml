@@ -171,4 +171,5 @@ tasks:
       - desktop:prepare
     dir: apps/desktop/src-tauri
     cmds:
+      - pnpm desktop:icons
       - cargo tauri build -- --locked

@@ -1,6 +1,7 @@
 """Targeted proof of the Workspace-first M0 read-only baseline inventory."""
 from __future__ import annotations
 
+from contextlib import closing
 import importlib.util
 import json
 import sqlite3
@@ -22,7 +23,7 @@ class WorkspaceFirstBaselineTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "notespace.db"
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.executescript(
                 """
                 CREATE TABLE projects (id TEXT PRIMARY KEY);
@@ -45,7 +46,7 @@ class WorkspaceFirstBaselineTests(unittest.TestCase):
             )
 
     def test_inventory_separates_legacy_ownership_and_dates(self) -> None:
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             result = baseline.collect_baseline(db)
             self.assertEqual(result["workspaces"], 1)
             self.assertEqual(result["tasks"], {
@@ -81,7 +82,7 @@ class WorkspaceFirstBaselineTests(unittest.TestCase):
         self.assertEqual(before, self.path.read_bytes())
 
     def test_missing_required_schema_is_actionable(self) -> None:
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("DROP TABLE activity_sessions")
             with self.assertRaisesRegex(ValueError, "activity_sessions"):
                 baseline.collect_baseline(db)

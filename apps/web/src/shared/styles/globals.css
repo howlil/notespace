@@ -15,6 +15,7 @@
   --color-accent: var(--accent);
   --color-tint: var(--tint);
   --color-danger: var(--danger);
+  --color-warning: var(--warning);
   --color-button: var(--button);
   --color-button-text: var(--button-text);
   --color-canvas: var(--canvas);
@@ -80,6 +81,7 @@
   --button-text: #fff;
   --canvas: #f8f9fc;
   --danger: #b13e4b;
+  --warning: #98651a;
   --danger-foreground: #ffffff;
   --success: #4d765d;
   --shadow-popup: 0 12px 32px #0002;
@@ -99,6 +101,7 @@
   --button-text: #22232a;
   --canvas: #1d1e24;
   --danger: #ff9aa5;
+  --warning: #f3bc6a;
   --danger-foreground: #22232a;
   --success: #8fc3a0;
 }

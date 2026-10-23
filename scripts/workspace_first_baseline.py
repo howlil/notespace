@@ -7,6 +7,7 @@ The script reports aggregate counts only; it does not print titles or content.
 """
 from __future__ import annotations
 
+from contextlib import closing
 import argparse
 import json
 import sqlite3
@@ -99,8 +100,11 @@ def main(argv: list[str] | None = None) -> int:
         path = args.database.resolve(strict=True)
         if not path.is_file():
             raise ValueError("Database path is not a file")
-        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5) as db:
+        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)) as db:
+            db.execute("PRAGMA query_only = ON")
+            db.execute("BEGIN")  # Keep counts in one consistent read snapshot.
             result = collect_baseline(db)
+            db.rollback()
     except (OSError, ValueError, sqlite3.Error) as error:
         print("Baseline audit failed: " + str(error), file=sys.stderr)
         return 2

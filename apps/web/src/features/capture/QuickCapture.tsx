@@ -1,4 +1,4 @@
-import { OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
+import { CAPTURE_QUEUE_CHANGED_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";
@@ -6,6 +6,8 @@ import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/w
 import { createWorkspaceNote, getWorkspace, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../adapters/http/workspace-api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../shared/ui/toast-provider";
+import { createCapture } from "../../adapters/http/capture-api";
+import { validCaptureContent } from "../../domain/capture/capture";
 import { readLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
@@ -25,6 +27,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   const [searchWorkspaces, setSearchWorkspaces] = useState<CaptureWorkspaceOption[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
+  const [destination, setDestination] = useState<"workspace" | "queue">("workspace");
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const [body, setBody] = useState("");
 
@@ -107,9 +110,17 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
 
   async function capture() {
     const value = body.trim();
-    if (!value || !effectiveWorkspaceId || saving) return;
+    if (!validCaptureContent(body) || (destination === "workspace" && !effectiveWorkspaceId) || saving) return;
     setSaving(true);
     try {
+      if (destination === "queue") {
+        await createCapture(body);
+        setBody("");
+        setOpen(false);
+        window.dispatchEvent(new Event(CAPTURE_QUEUE_CHANGED_EVENT));
+        showToast({ kind: "success", message: "Saved to Capture Queue." });
+        return;
+      }
       const workspace = await getWorkspace(effectiveWorkspaceId);
       const document = markdownToSnapshot(value);
       await createWorkspaceNote(workspace.id, {
@@ -124,7 +135,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       notifyLibraryChanged();
       showToast({ kind: "success", message: `Captured to ${workspace.title}.` });
     } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not save this capture." });
+      showToast({ kind: "error", message: destination === "queue" ? "Save status unconfirmed. Check Capture Queue before retrying; draft retained." : error instanceof Error ? error.message : "Could not save this capture." });
     } finally {
       setSaving(false);
     }
@@ -152,13 +163,20 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       >
         <SquarePen size={16} aria-hidden="true" />
       </IconButton>}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(next) => { if (!saving) setOpen(next); }}>
         <DialogContent className="w-[min(94vw,520px)]">
           <DialogTitle>Quick capture</DialogTitle>
-          <DialogDescription>Capture a note without opening a workspace first. Shortcut: Ctrl/Cmd + Shift + N.</DialogDescription>
+          <DialogDescription>Save a Note to a Workspace, or capture it for organizing later. Shortcut: Ctrl/Cmd + Shift + N.</DialogDescription>
 
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1.5 text-[11px] font-medium text-ink">
+            <label className="grid gap-1.5 text-[11px] font-medium text-ink">Destination
+              <select className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
+                value={destination} onChange={(event) => setDestination(event.target.value as "workspace" | "queue")} disabled={saving}>
+                <option value="workspace">Save Note in Workspace</option>
+                <option value="queue">Capture Queue · Organize later</option>
+              </select>
+            </label>
+            {destination === "workspace" && <label className="grid gap-1.5 text-[11px] font-medium text-ink">
               Workspace
               <span className="relative block">
                 <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
@@ -184,10 +202,10 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
 
             <label className="grid gap-1.5 text-[11px] font-medium text-ink">
-              Note
+              {destination === "queue" ? "Capture" : "Note"}
               <textarea
                 autoFocus
                 className="min-h-44 resize-y rounded-md border border-line bg-background px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-muted focus:border-accent"
@@ -218,10 +236,11 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
             </div>
           </div>
 
+          {body.trim() && !validCaptureContent(body) && <p role="alert" className="text-xs text-danger">Content must fit within 64 KiB.</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button type="button" onClick={() => void capture()} disabled={saving || loading || searching || !body.trim() || !effectiveWorkspaceId}>
-              {saving ? "Saving…" : "Capture"}
+            <Button type="button" onClick={() => void capture()} disabled={saving || !validCaptureContent(body) || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))}>
+              {saving ? "Saving…" : destination === "queue" ? "Save to Queue" : "Capture"}
             </Button>
           </DialogFooter>
         </DialogContent>

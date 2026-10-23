@@ -260,7 +260,9 @@ func (s *Store) OrganizeCapture(ctx context.Context, id string, req capture.Orga
 		}
 		if req.Document != nil {
 			document, errDoc = json.Marshal(req.Document)
-			if errDoc != nil { return capture.Item{}, errDoc }
+			if errDoc != nil {
+				return capture.Item{}, errDoc
+			}
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO workspace_notes(workspace_id,id,title,document_state,created_at,updated_at,version)
 		VALUES (?,?,?,?,?,?,1)`, req.WorkspaceID, targetID, captureNoteTitle(item.Content), string(document), now, now)

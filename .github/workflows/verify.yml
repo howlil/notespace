@@ -33,14 +33,6 @@ jobs:
       - run: pnpm typecheck && pnpm lint && pnpm test
       - name: Verify Workspace-first read-only baseline
         run: python3 -m unittest discover -s scripts -p 'test_workspace_first_baseline.py' -v
-      - name: M1 gofmt diagnostic (temporary)
-        run: |
-          for f in apps/server/internal/capture/capture.go apps/server/internal/sqlite/capture_store.go apps/server/internal/httpapi/capture_handlers.go apps/server/internal/httpapi/capture_http_test.go apps/server/internal/httpapi/router.go apps/server/internal/httpapi/errors.go apps/server/internal/httpapi/api_test_helpers_test.go apps/server/cmd/notespace/server.go apps/server/internal/sqlite/library_state.go apps/server/internal/sqlite/library_backup_snapshot.go apps/server/internal/sqlite/library_archive.go apps/server/internal/sqlite/library_archive_export.go apps/server/internal/sqlite/library_archive_restore.go apps/server/internal/sqlite/library_restore.go; do
-            echo "GFMT_START:$f"
-            gofmt "$f" | base64 -w0
-            echo ""
-            echo "GFMT_END:$f"
-          done
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium

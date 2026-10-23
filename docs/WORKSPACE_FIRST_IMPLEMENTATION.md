@@ -52,6 +52,7 @@ Shapes:
 ```text
 read-only SQLite path
   → connect mode=ro + PRAGMA query_only
+  → begin one consistent SQLite read snapshot
   → verify existing projects/planning_tasks/activity_sessions tables
   → count aggregate ownership classes
   → emit JSON to stdout without Note/Task titles or content

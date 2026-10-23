@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ArrowRight, Check, Inbox, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -50,13 +50,13 @@ export function CaptureQueue({ initial }: { initial: CaptureItem[] }) {
   useEffect(() => {
     const onChange = () => { void refresh(); };
     window.addEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
+    void refresh();
     return () => window.removeEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
-  // The event callback intentionally reads current Capture Queue state from the server.
-  });
+  }, [refresh]);
   const options = useMemo(() => workspaces.filter((item) =>
     item.title.toLowerCase().includes(search.toLowerCase())), [search, workspaces]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
       setItems(await listCaptures());
@@ -65,7 +65,7 @@ export function CaptureQueue({ initial }: { initial: CaptureItem[] }) {
       setLoadError(true);
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not refresh captures." });
     } finally { setRefreshing(false); }
-  }
+  }, [showToast]);
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

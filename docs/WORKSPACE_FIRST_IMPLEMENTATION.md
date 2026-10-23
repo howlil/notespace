@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0 baseline / planned behavior, **not yet implemented**. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0 and M1 backend implemented on a feature branch; **not yet shipped or merged**. M2–M7 remain planned. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -137,6 +137,31 @@ Proof: keyboard and screen-reader semantics, category expansion state, focus ret
 Verify actual SQLite migration and backup archives (including legacy JSON/ZIP), queue retention, Trash, Activity history/recovery, Today projection, Search, versioned mutation races, accessibility, native desktop startup/restart and rollback documentation.
 
 **Do not claim** end-to-end acceptance solely from component tests or static review.
+
+
+## M1 backend implementation contract (branch)
+
+The M1 backend is additive; existing Inbox, standalone Task HTTP commands, Quick Capture UI, and Activity behavior remain untouched until later milestones.
+
+Endpoints:
+
+```text
+GET    /api/captures                    list pending only
+POST   /api/captures                    {content}
+GET    /api/captures/{captureId}        read pending or converted receipt
+PATCH  /api/captures/{captureId}        {version, content}
+DELETE /api/captures/{captureId}        If-Match: "<version>"
+POST   /api/captures/{captureId}/organize
+                                       {version, workspaceId, kind: "note"|"task"}
+```
+
+Successful conversion is serialized within one SQLite transaction: read Capture → validate optimistic version and destination Workspace → create Note/Task with existing table semantics → mark Capture converted and persist target identity → commit. Retrying the original request after a lost response reads the existing receipt and returns its target ID; altered conversion parameters or versions conflict. The converted Capture is deliberately retained as an idempotency receipt, including its original content, in backup/restore. The retention/compaction strategy is deferred until real volume data justifies it.
+
+For Task conversion the first nonempty line provides the title and the original full text is retained as the Task description, within the existing 4,000-rune description limit. Oversized input remains pending with an actionable error. For Note conversion the full original text is persisted in text paragraphs in a Tiptap snapshot; rich Markdown interpretation is **not implemented in M1**, and must be reconciled against the browser's `markdownToSnapshot` behavior before enabling the M2 Organize-as-Note UI. Conversion never discards a pending Capture on failure.
+
+Backup archive schema version advances to 15, and JSON backup version to 2; legacy JSON v1 and earlier archive schema versions remain readable. Both pending Captures and converted receipts round-trip through backup and restore. Old builds should reject new backup versions instead of silently dropping new data.
+
+Focused Go tests exercise CRUD/version conflicts, atomic convert-to-Task and convert-to-Note, duplicate request handling, concurrent same-request conversion, invalid receipt rejection, and archive/legacy-JSON restoration. The full Go race/build/test verification remains governed by CI.
 
 ## M0 verification and handoff
 

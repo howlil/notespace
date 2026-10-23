@@ -78,7 +78,7 @@ export async function assertDesktopIcons() {
 async function main() {
   const result = spawnSync(
     process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-    ["dlx", "@tauri-apps/cli@2.12.3", "icon", svgPath, "--output", iconDir],
+    ["dlx", "@tauri-apps/cli@2.12.3", "icon", "../../web/public/brand/notespace-fox-full.svg", "--output", "icons/fox-spirit"],
     { cwd: tauriRoot, stdio: "inherit", shell: process.platform === "win32" },
   );
   if (result.error) throw result.error;

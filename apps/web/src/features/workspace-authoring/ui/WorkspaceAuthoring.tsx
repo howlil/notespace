@@ -79,7 +79,7 @@ class EditorBoundary extends Component<{ children: ReactNode }, { failed: boolea
 
 export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorkspaceAuthoringOptions) {
   const { dark } = useTheme();
-  const { showToast, updateToast } = useToast();
+  const { showToast, updateToast, dismissToast } = useToast();
   const compactPanes = useCompactPaneLayout();
   const [normalized] = useState(() => normalizeWorkspaceContent(workspaceContentOf(workspace)));
   const initial = normalized.content;
@@ -168,13 +168,19 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
     for (const note of current.current.notes) scheduleNote(note);
   }, [current, normalized.changed, scheduleNote]);
   const saveToastId = `workspace-save-${workspace.id}`;
+  const conflictToastId = `workspace-conflict-${workspace.id}`;
   const saveFailureSeen = useRef(false);
+  const conflictWasShown = useRef(false);
   const retrySave = useCallback(() => {
     updateToast(saveToastId, { kind: "loading", message: "Retrying save…", action: undefined });
     void flushAll().catch(() => {});
   }, [flushAll, saveToastId, updateToast]);
 
   useEffect(() => {
+    if (status.state !== "conflict" && conflictWasShown.current) {
+      conflictWasShown.current = false;
+      dismissToast(conflictToastId);
+    }
     if (status.state === "error") {
       saveFailureSeen.current = true;
       showToast({
@@ -184,8 +190,9 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
         action: { label: "Retry save", onClick: retrySave, dismissOnClick: false },
       });
     } else if (status.state === "conflict") {
+      conflictWasShown.current = true;
       showToast({
-        id: `workspace-conflict-${workspace.id}`,
+        id: conflictToastId,
         kind: "error",
         message: status.message ?? "Autosave paused. Preserve the local draft before reloading.",
         duration: Infinity,
@@ -198,7 +205,11 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
         updateToast(saveToastId, { kind: "loading", message: "Saving changes…", action: undefined });
       }
     }
-  }, [retrySave, saveToastId, showToast, status, updateToast, workspace.id]);
+  }, [conflictToastId, dismissToast, retrySave, saveToastId, showToast, status, updateToast]);
+  useEffect(() => () => {
+    dismissToast(saveToastId);
+    dismissToast(conflictToastId);
+  }, [conflictToastId, dismissToast, saveToastId]);
   useEffect(() => {
     setWorkspaceTitle(workspace.title);
     setWorkspaceTitleDraft(workspace.title);

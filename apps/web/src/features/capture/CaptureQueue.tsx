@@ -8,6 +8,7 @@ import { createCapture, deleteCapture, getCapture, listCaptures, organizeCapture
 import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { markdownToSnapshot } from "../../domain/document/markdown";
 import { validCaptureContent } from "../../domain/capture/capture";
+import { CAPTURE_QUEUE_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import type { CaptureItem } from "../../domain/capture/capture";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 
@@ -46,6 +47,12 @@ export function CaptureQueue({ initial }: { initial: CaptureItem[] }) {
   const [deleteTarget, setDeleteTarget] = useState<CaptureItem | null>(null);
 
   useEffect(() => setItems(initial), [initial]);
+  useEffect(() => {
+    const onChange = () => { void refresh(); };
+    window.addEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
+  // The event callback intentionally reads current Capture Queue state from the server.
+  });
   const options = useMemo(() => workspaces.filter((item) =>
     item.title.toLowerCase().includes(search.toLowerCase())), [search, workspaces]);
 

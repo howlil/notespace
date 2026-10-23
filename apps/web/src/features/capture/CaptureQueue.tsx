@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Check, Inbox, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -30,6 +30,8 @@ async function loadAllWorkspaceOptions(): Promise<WorkspaceSummary[]> {
 export function CaptureQueue() {
   const { showToast } = useToast();
   const [items, setItems] = useState<CaptureItem[]>([]);
+  const writeRevision = useRef(0);
+  const readSequence = useRef(0);
   const [body, setBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,9 +52,12 @@ export function CaptureQueue() {
     item.title.toLowerCase().includes(search.toLowerCase())), [search, workspaces]);
 
   const refresh = useCallback(async () => {
+    const revision = writeRevision.current;
+    const readId = ++readSequence.current;
     setRefreshing(true);
     try {
-      setItems(await listCaptures());
+      const current = await listCaptures();
+      if (readId === readSequence.current && revision === writeRevision.current) setItems(current);
       setLoadError(false);
     } catch (error) {
       setLoadError(true);
@@ -73,6 +78,7 @@ export function CaptureQueue() {
     setCreating(true);
     try {
       const created = await createCapture(body);
+      writeRevision.current++;
       setItems((current) => [created, ...current]);
       setBody("");
       showToast({ kind: "success", message: "Saved to Capture Queue." });
@@ -108,6 +114,7 @@ export function CaptureQueue() {
     setSubmitting(true);
     try {
       const updated = await updateCapture(target.id, target.version, editBody);
+      writeRevision.current++;
       setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
       setTarget(null);
       showToast({ kind: "success", message: "Capture updated." });
@@ -130,6 +137,7 @@ export function CaptureQueue() {
         ...(requestedKind === "note" ? { document: markdownToSnapshot(current.content) } : {}),
       });
       if (result.status !== "converted") throw new Error("Capture conversion was not confirmed.");
+      writeRevision.current++;
       setItems((previous) => previous.filter((item) => item.id !== current.id));
       setTarget(null);
       notifyLibraryChanged();
@@ -139,6 +147,7 @@ export function CaptureQueue() {
       try {
         const actual = await getCapture(current.id);
         if (actual.status === "converted" && actual.targetWorkspaceId === destination && actual.targetKind === requestedKind) {
+          writeRevision.current++;
           setItems((previous) => previous.filter((item) => item.id !== current.id));
           setTarget(null);
           notifyLibraryChanged();
@@ -166,6 +175,7 @@ export function CaptureQueue() {
     setSubmitting(true);
     try {
       await deleteCapture(selected.id, selected.version);
+      writeRevision.current++;
       setItems((previous) => previous.filter((item) => item.id !== selected.id));
       setDeleteTarget(null);
       showToast({ kind: "success", message: "Capture deleted." });

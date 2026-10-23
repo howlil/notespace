@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
@@ -21,6 +22,12 @@ func fail(w http.ResponseWriter, err error) {
 		send(w, 409, map[string]string{"error": "This workspace changed in another tab. Your edits remain here; reload only after preserving them.", "code": "workspace_conflict"})
 	case errors.Is(err, workspace.ErrNotEmpty):
 		send(w, 409, map[string]string{"error": "Delete or move the workspaces in this category first."})
+	case errors.Is(err, capture.ErrNotFound):
+		send(w, 404, map[string]string{"error": "Capture or destination workspace not found"})
+	case errors.Is(err, capture.ErrInvalid):
+		send(w, 400, map[string]string{"error": "Invalid capture content, version, or conversion target"})
+	case errors.Is(err, capture.ErrConflict):
+		send(w, 409, map[string]string{"error": "Capture changed or is already converted. Refresh its status before retrying.", "code": "capture_conflict"})
 	case errors.Is(err, planning.ErrNotFound):
 		send(w, 404, map[string]string{"error": "Planning item not found"})
 	case errors.Is(err, planning.ErrInvalid):

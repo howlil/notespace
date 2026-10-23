@@ -161,6 +161,7 @@ The application uses semantic colors so the same component can remain coherent i
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
 | `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
+| `--warning` | `#98651A` | `#F3BC6A` | Non-blocking warnings and partial operation results |
 | `--danger-foreground` | `#FFFFFF` | `#22232A` | Readable text/icon on a filled destructive button |
 | `--success` | `#4D765D` | `#8FC3A0` | Saved, completed, or healthy state; readable over light/dark tinted surfaces |
 

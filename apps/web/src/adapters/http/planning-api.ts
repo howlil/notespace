@@ -61,6 +61,12 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
     getAnyTask: (taskId: string) =>
       request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`, undefined, transport),
 
+    assignStandaloneTask: (taskId: string, workspaceId: string, version: number) =>
+      request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}/assign-workspace`, {
+        method: "POST",
+        ...json({ workspaceId, version }),
+      }, transport),
+
     updateAnyTask: (
       taskId: string,
       input: { title?: string; description?: string; completed?: boolean; plannedFor?: string; version: number },

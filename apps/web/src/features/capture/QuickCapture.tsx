@@ -179,12 +179,13 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 <option value="queue">Capture Queue · Organize later</option>
               </select>
             </label>
-            {destination === "workspace" && <label className="grid gap-1.5 text-[11px] font-medium text-ink">
-              Workspace
+            {destination === "workspace" && <div className="grid gap-1.5 text-[11px] font-medium text-ink">
+              <span>Workspace</span>
               <span className="relative block">
                 <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
                 <Input
                   type="search"
+                  aria-label="Search workspaces"
                   className="h-9 bg-background pl-8 pr-2.5 text-xs"
                   placeholder={`Search, or choose from ${recentWorkspaceLimit} recent workspaces`}
                   value={workspaceQuery}
@@ -193,7 +194,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 />
               </span>
               <select
-                aria-label="Capture Workspace"
+                aria-label="Workspace"
                 className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
                 value={effectiveWorkspaceId}
                 onChange={(event) => setWorkspaceId(event.target.value)}
@@ -206,7 +207,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                   </option>
                 ))}
               </select>
-            </label>}
+            </div>}
 
             <label className="grid gap-1.5 text-[11px] font-medium text-ink">
               {destination === "queue" ? "Capture" : "Note"}

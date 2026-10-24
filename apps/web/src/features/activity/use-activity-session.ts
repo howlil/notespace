@@ -296,7 +296,8 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
   function start(contextOverride?: ActivityStart) {
     if (!ready || sessionRef.current || leaseRef.current || acquiringLease.current) return;
     const context = contextOverride ?? defaultContextRef.current;
-    if (!context?.title.trim()) return;
+    // Only fresh starts require ownership. Restored legacy sessions bypass start().
+    if (!context?.title.trim() || !context.workspaceId?.trim()) return;
 
     acquiringLease.current = true;
     void acquireActivityLease().then((lease) => {

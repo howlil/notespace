@@ -11,6 +11,7 @@ import { validCaptureContent } from "../../domain/capture/capture";
 import { readLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
@@ -208,7 +209,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 {options.length === 0 ? <option value="">{loading ? "Loading…" : searching ? "Searching…" : workspaceQuery.trim() ? "No matching workspace" : "No workspace available"}</option> : null}
                 {options.map((workspace) => (
                   <option key={workspace.id} value={workspace.id}>
-                    {workspace.categoryTitle ? `${workspace.categoryTitle} / ` : ""}{workspace.title}
+                    {workspace.categoryTitle ? `${workspace.categoryTitle} / ` : ""}{workspaceOptionLabel(workspace, options)}
                   </option>
                 ))}
               </select>

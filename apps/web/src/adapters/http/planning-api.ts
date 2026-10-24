@@ -61,17 +61,6 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
     getAnyTask: (taskId: string) =>
       request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`, undefined, transport),
 
-    createStandaloneTask: (title: string, plannedFor?: string) =>
-      request<PlanningTask>("/api/tasks", {
-        method: "POST",
-        ...json({ title, ...(plannedFor ? { plannedFor } : {}) }),
-      }, transport),
-
-    assignStandaloneTask: (taskId: string, workspaceId: string, version: number) =>
-      request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}/assign-workspace`, {
-        method: "POST", ...json({ workspaceId, version }),
-      }, transport),
-
     updateAnyTask: (
       taskId: string,
       input: { title?: string; description?: string; completed?: boolean; plannedFor?: string; version: number },
@@ -100,7 +89,6 @@ export const deleteTask = defaultPlanningClient.deleteTask;
 export const getToday = defaultPlanningClient.getToday;
 export const getInbox = defaultPlanningClient.getInbox;
 export const getAnyTask = defaultPlanningClient.getAnyTask;
-export const createStandaloneTask = defaultPlanningClient.createStandaloneTask;
 export const updateAnyTask = defaultPlanningClient.updateAnyTask;
 export const deleteAnyTask = defaultPlanningClient.deleteAnyTask;
 

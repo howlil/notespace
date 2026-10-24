@@ -88,6 +88,7 @@ export function CaptureQueue() {
       const created = await createCapture(body);
       writeRevision.current++;
       setItems((current) => [created, ...current]);
+      setLoaded(true);
       setBody("");
       showToast({ kind: "success", message: "Saved to Capture Queue." });
     } catch {
@@ -110,7 +111,7 @@ export function CaptureQueue() {
     try {
       const all = await loadAllWorkspaceOptions();
       setWorkspaces(all);
-      setWorkspaceId(all[0]?.id ?? "");
+      setWorkspaceId("");
     } catch {
       setWorkspaceError(true);
       showToast({ kind: "error", message: "Unable to load workspaces. Retry before organizing." });
@@ -132,7 +133,7 @@ export function CaptureQueue() {
   }
 
   async function organize() {
-    if (!target || !workspaceId || submitting || workspaceLoading) return;
+    if (!target || !options.some((item) => item.id === workspaceId) || submitting || workspaceLoading || workspaceError) return;
     const current = target;
     const requestedKind = kind;
     const destination = workspaceId;
@@ -260,7 +261,7 @@ export function CaptureQueue() {
                   </select>
                 </label>
                 <label className="mt-3 grid gap-1.5 text-[11px] font-medium">Find Workspace
-                  <Input type="search" placeholder="Filter workspaces…" className="min-h-9 text-xs" value={search} onChange={(event) => setSearch(event.target.value)} disabled={submitting} />
+                  <Input type="search" placeholder="Filter workspaces…" className="min-h-9 text-xs" value={search} onChange={(event) => { setSearch(event.target.value); setWorkspaceId(""); }} disabled={submitting} />
                 </label>
                 <label className="mt-3 grid gap-1.5 text-[11px] font-medium">Workspace (required)
                   <select value={options.some((item) => item.id === workspaceId) ? workspaceId : ""} onChange={(event) => setWorkspaceId(event.target.value)}
@@ -277,7 +278,7 @@ export function CaptureQueue() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setTarget(null)} disabled={submitting}>Cancel</Button>
             <Button onClick={() => void (mode === "edit" ? saveEdit() : organize())}
-              disabled={submitting || (mode === "edit" ? !validCaptureContent(editBody) : !workspaceId || workspaceLoading || workspaceError || (kind === "task" && [...(target?.content ?? "")].length > 4000))}>
+              disabled={submitting || (mode === "edit" ? !validCaptureContent(editBody) : !options.some((item) => item.id === workspaceId) || workspaceLoading || workspaceError || (kind === "task" && [...(target?.content ?? "")].length > 4000))}>
               {submitting ? <LoaderCircle className="animate-spin" size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
               {submitting ? "Saving…" : mode === "edit" ? "Save changes" : "Organize"}
             </Button>

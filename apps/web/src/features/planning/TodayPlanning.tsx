@@ -300,7 +300,6 @@ export function TodayPlanning({
                   renderTaskAction={renderTaskAction}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}
-                onAssign={setAssignTarget}
                   onAssign={setAssignTarget}
                 />
               ))}
@@ -331,6 +330,7 @@ export function TodayPlanning({
                 renderTaskAction={renderTaskAction}
                 onUpdate={patchTask}
                 onDelete={setDeleteTarget}
+                onAssign={setAssignTarget}
               />
             ))}
           </section>

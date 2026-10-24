@@ -11,6 +11,7 @@ import { validCaptureContent } from "../../domain/capture/capture";
 import { CAPTURE_QUEUE_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import type { CaptureItem } from "../../domain/capture/capture";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 
 async function loadAllWorkspaceOptions(): Promise<WorkspaceSummary[]> {
   const results: WorkspaceSummary[] = [];
@@ -258,7 +259,7 @@ export function CaptureQueue() {
                     disabled={workspaceLoading || submitting || workspaceError}
                     className="min-h-9 rounded-md border border-line bg-background px-3 text-xs">
                     <option value="">{workspaceLoading ? "Loading workspaces…" : options.length === 0 ? "No matching Workspace" : "Select Workspace"}</option>
-                    {options.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.title}</option>)}
+                    {options.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspaceOptionLabel(workspace, workspaces)}</option>)}
                   </select>
                 </label>
                 {workspaceError && <Button className="mt-3" variant="secondary" onClick={() => { if (target) void open(target, "organize"); }}>Retry loading Workspaces</Button>}

@@ -102,10 +102,25 @@ ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_second
     WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.task_title_snapshot
     ELSE activity_sessions.task_title_snapshot
   END
-WHERE activity_sessions.workspace_id=excluded.workspace_id
-  AND activity_sessions.task_id=excluded.task_id
+WHERE activity_sessions.task_id=excluded.task_id
   AND activity_sessions.activity_type=excluded.activity_type
-  AND activity_sessions.activity_date=excluded.activity_date`,
+  AND activity_sessions.activity_date=excluded.activity_date
+  AND (
+    activity_sessions.workspace_id=excluded.workspace_id
+    OR (
+      -- A historical unowned session may still be running while its legacy
+      -- Task is assigned to a Workspace. Retain its original attribution,
+      -- but allow heartbeat/finalization after the Task ownership changes.
+      activity_sessions.workspace_id=''
+      AND activity_sessions.task_id<>''
+      AND activity_sessions.ended_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM planning_tasks p
+        WHERE p.id=activity_sessions.task_id
+          AND p.workspace_id=excluded.workspace_id
+      )
+    )
+  )`,
 		session.ID,
 		session.WorkspaceID,
 		session.WorkspaceTitleSnapshot,

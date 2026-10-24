@@ -80,7 +80,7 @@ test("@critical global Create routes unorganized capture and Workspace-owned Tod
   await page.getByRole("menuitem", { name: "Capture for later" }).click();
   const capture = page.getByRole("dialog", { name: "Quick capture" });
   await expect(capture).toBeVisible();
-  await capture.getByRole("combobox", { name: "Destination" }).selectOption("queue");
+  await expect(capture.getByRole("combobox", { name: "Destination" })).toHaveValue("queue");
   await page.keyboard.press("Escape");
 
   await create.click();

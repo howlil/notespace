@@ -26,7 +26,7 @@ type Options = {
   onChanged?: () => void;
 };
 
-export function useLibraryNavigation({ categories, onSelectCategory, onChanged }: Options) {
+export function useLibraryNavigation({ categories, onChanged }: Options) {
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();

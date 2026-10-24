@@ -5,6 +5,7 @@ import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { createTask } from "../../adapters/http/planning-api";
 import type { PlanningTask } from "../../domain/planning/planning";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import { useToast } from "../../shared/ui/toast-provider";
 
 type Props = {
@@ -87,7 +88,7 @@ export function TaskComposer({ workspaceId, milestoneId, plannedFor, titleLabel 
         <select aria-label="Task Workspace" className="min-h-8 max-w-[220px] rounded-md border border-line bg-background px-2 text-[11px] text-ink"
           value={selected} onChange={(event) => setSelected(event.target.value)} disabled={loading || saving || loadError}>
           <option value="">{loading ? "Loading…" : options.length ? "Choose Workspace…" : "No Workspace"}</option>
-          {options.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}
+          {options.map((item) => <option value={item.id} key={item.id}>{workspaceOptionLabel(item, options)}</option>)}
         </select>
         {loadError && <Button variant="secondary" size="sm" type="button" onClick={() => setReloadKey((n) => n + 1)}>Retry</Button>}
       </>}

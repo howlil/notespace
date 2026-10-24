@@ -73,7 +73,7 @@ test("@critical carried-forward workspace task can be removed from Today", async
   try {
     await page.goto("/today");
     await expect(page.getByText("Remove carried-forward task", { exact: true })).toBeVisible();
-    await expect(page.getByText("carried forward", { exact: false })).toBeVisible();
+    await expect(page.getByText("Remove carried-forward task", { exact: true }).locator("..").getByText("carried forward", { exact: false })).toBeVisible();
 
     await page.getByText("Remove carried-forward task", { exact: true }).hover();
     await page.getByRole("button", { name: "Remove Remove carried-forward task from Today" }).click();

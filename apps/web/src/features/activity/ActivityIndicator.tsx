@@ -9,6 +9,7 @@ import { useDismissablePopup } from "../../shared/ui/dismissable";
 import { useToast } from "../../shared/ui/toast-provider";
 import { getWorkspace } from "../../adapters/http/workspace-api";
 import { useActivityWorkspaceChoices } from "./activity-workspaces";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import type { ActivitySessionState } from "./use-activity-session";
 import { formatDay, formatDuration } from "./activity-timer";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";
@@ -189,7 +190,7 @@ export function ActivityIndicator({
                 onChange={(event) => setSelectedWorkspaceId(event.target.value)}
               >
                 <option value="">{workspaceChoices.loading ? "Loading…" : "Choose Workspace…"}</option>
-                {workspaceChoices.items.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                {workspaceChoices.items.map((item) => <option key={item.id} value={item.id}>{workspaceOptionLabel(item, workspaceChoices.items)}</option>)}
               </select>
               {workspaceChoices.error && <Button type="button" size="sm" variant="secondary" className="mt-2" onClick={workspaceChoices.retry}>Retry Workspaces</Button>}
             </label>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLibraryExplorer } from "../../shared/ui/library-explorer-provider";
 import {
   createCategory,
@@ -31,7 +31,9 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   const libraryRevision = useLibraryRevision();
   const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
-  const [loading, setLoading] = useState<string | null>(null);
+  const [loading, setLoading] = useState<Set<string>>(() => new Set());
+  const categoryRequestIds = useRef(new Map<string, number>());
+  const expandedSnapshot = useRef(expanded);
   const [categoryErrors, setCategoryErrors] = useState<Set<string>>(() => new Set());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
@@ -47,37 +49,44 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     onChanged?.();
   }
 
-  useEffect(() => {
-    if (!expanded.size) return;
+  // The Explorer remounts across routes, while the expanded categories live in
+  // its shared provider. Re-fetch on mount/library changes, not on disclosure:
+  // expanding a category has its own single explicit request below.
+  useEffect(() => { expandedSnapshot.current = expanded; }, [expanded]);
 
-    let active = true;
-    for (const categoryId of expanded) {
-      void listCategoryWorkspaces(categoryId, { limit: 5 })
-        .then((page) => {
-          if (!active) return;
-          setChildren((current) => ({ ...current, [categoryId]: page.items }));
-          setCategoryErrors((current) => { const next = new Set(current); next.delete(categoryId); return next; });
-        })
-        .catch(() => { if (active) setCategoryErrors((current) => new Set(current).add(categoryId)); });
-    }
-    return () => {
-      active = false;
-    };
-  }, [expanded, libraryRevision]);
-
-  async function loadCategoryWorkspaces(categoryId: string) {
-    setLoading(categoryId);
-    setCategoryErrors((current) => { const next = new Set(current); next.delete(categoryId); return next; });
+  const loadCategoryWorkspaces = useCallback(async (categoryId: string) => {
+    const requestId = (categoryRequestIds.current.get(categoryId) ?? 0) + 1;
+    categoryRequestIds.current.set(categoryId, requestId);
+    setLoading((current) => new Set(current).add(categoryId));
+    setCategoryErrors((current) => {
+      const next = new Set(current);
+      next.delete(categoryId);
+      return next;
+    });
     try {
       const page = await listCategoryWorkspaces(categoryId, { limit: 5 });
+      if (categoryRequestIds.current.get(categoryId) !== requestId) return;
       setChildren((current) => ({ ...current, [categoryId]: page.items }));
     } catch (error) {
+      if (categoryRequestIds.current.get(categoryId) !== requestId) return;
       setCategoryErrors((current) => new Set(current).add(categoryId));
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
     } finally {
-      setLoading(null);
+      if (categoryRequestIds.current.get(categoryId) === requestId) {
+        setLoading((current) => {
+          const next = new Set(current);
+          next.delete(categoryId);
+          return next;
+        });
+      }
     }
-  }
+  }, [showToast]);
+
+  useEffect(() => {
+    for (const categoryId of expandedSnapshot.current) {
+      void loadCategoryWorkspaces(categoryId);
+    }
+  }, [libraryRevision, loadCategoryWorkspaces]);
 
   async function toggleCategory(category: CategorySummary) {
     if (expanded.has(category.id)) {

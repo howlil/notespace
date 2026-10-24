@@ -73,17 +73,21 @@ test("@critical Data & Recovery is a single reusable dialog from rail or Setting
   await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
 });
 
-test("@critical global Create focuses the existing Inbox and Today task composers", async ({ page }) => {
+test("@critical global Create routes unorganized capture and Workspace-owned Today tasks", async ({ page }) => {
   await page.goto("/");
   const create = page.getByRole("button", { name: "Create", exact: true });
   await create.click();
-  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
-  await expect(page).toHaveURL(/\/inbox#new-task$/);
-  await expect(page.getByRole("textbox", { name: "New inbox task" })).toBeFocused();
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Capture for later" }).click();
+  const capture = page.getByRole("dialog", { name: "Quick capture" });
+  await expect(capture).toBeVisible();
+  await capture.getByRole("combobox", { name: "Destination" }).selectOption("queue");
+  await page.keyboard.press("Escape");
+
+  await create.click();
   await page.getByRole("menuitem", { name: "Task in Today" }).click();
   await expect(page).toHaveURL(/\/today#new-task$/);
-  await expect(page.getByRole("textbox", { name: "New standalone task" })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "New task" })).toBeFocused();
+  await expect(page.getByRole("combobox", { name: "Task Workspace" })).toBeVisible();
 });
 
 test("@critical Explorer visibility remains stable between Library, Inbox and Today", async ({ page }) => {
@@ -120,17 +124,16 @@ test("@critical Escape cancels mobile Explorer title entry without hiding Explor
   await expect(rail.getByRole("button", { name: "Toggle category explorer" })).toHaveAttribute("aria-expanded", "true");
 });
 
-test("@critical selecting Create Task twice focuses the same Inbox composer each time", async ({ page }) => {
+test("@critical selecting Create Task twice focuses the same Today composer", async ({ page }) => {
   await page.goto("/");
   const create = page.getByRole("button", { name: "Create", exact: true });
   await create.click();
-  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
-  const composer = page.getByRole("textbox", { name: "New inbox task" });
+  await page.getByRole("menuitem", { name: "Task in Today" }).click();
+  const composer = page.getByRole("textbox", { name: "New task" });
   await expect(composer).toBeFocused();
-
   await create.click();
   await expect(composer).not.toBeFocused();
-  await page.getByRole("menuitem", { name: "Task in Inbox" }).click();
+  await page.getByRole("menuitem", { name: "Task in Today" }).click();
   await expect(composer).toBeFocused();
 });
 

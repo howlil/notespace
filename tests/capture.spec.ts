@@ -41,3 +41,26 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("Queue size limit does not restrict direct Workspace Quick Capture", async ({ page, request }) => {
+  const created = await request.post("/api/workspaces", { data: { title: `Capture validation ${Date.now()}` } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    const dialog = page.getByRole("dialog", { name: "Quick capture" });
+    await dialog.getByRole("combobox", { name: "Capture Workspace" }).selectOption(workspace.id);
+    await dialog.getByRole("textbox", { name: "Note" }).fill("a".repeat(65537));
+    await expect(dialog.getByRole("button", { name: "Capture", exact: true })).toBeEnabled();
+    await dialog.getByRole("combobox", { name: "Destination" }).selectOption("queue");
+    await expect(dialog.getByRole("button", { name: "Save to Queue" })).toBeDisabled();
+    await expect(dialog.getByText("Content must fit within 64 KiB.")).toBeVisible();
+    await dialog.getByRole("combobox", { name: "Destination" }).selectOption("workspace");
+    await expect(dialog.getByRole("button", { name: "Capture", exact: true })).toBeEnabled();
+  } finally {
+    await deleteWorkspace(request, workspace.id);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

@@ -45,7 +45,7 @@ test("Quick Capture can save to Queue without a Workspace", async ({ page, reque
     await dialog.getByRole("textbox", { name: "Capture", exact: true }).fill(content);
     await dialog.getByRole("button", { name: "Save to Queue" }).click();
     await expect(dialog).toHaveCount(0);
-    await page.getByRole("link", { name: "Capture Queue", exact: true }).click();
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Capture Queue" }).click();
     await expect(page.getByText(content, { exact: true })).toBeVisible();
     const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
     id = pending.find((x) => x.content === content)?.id ?? "";

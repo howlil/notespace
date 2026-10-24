@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("@critical Capture Queue creates and edits pending items without standalone Tasks", async ({ page, request }) => {
   const first = `M2 Queue ${Date.now()}`;
@@ -44,7 +45,7 @@ test("Quick Capture can save to Queue without a Workspace", async ({ page, reque
     await dialog.getByRole("textbox", { name: "Capture", exact: true }).fill(content);
     await dialog.getByRole("button", { name: "Save to Queue" }).click();
     await expect(dialog).toHaveCount(0);
-    await page.getByRole("link", { name: "Inbox", exact: true }).click();
+    await page.getByRole("link", { name: "Capture Queue", exact: true }).click();
     await expect(page.getByText(content, { exact: true })).toBeVisible();
     const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
     id = pending.find((x) => x.content === content)?.id ?? "";
@@ -94,5 +95,38 @@ test("Organizing Markdown Capture creates one Workspace-owned rich Note", async 
       await request.delete(`/api/workspaces/${workspace.id}`, { headers: { "If-Match": `"${ws.version}"` } }).catch(() => undefined);
     }
     // Converted receipts intentionally remain immutable; this fixture uses a unique ID.
+  }
+});
+
+test("Organize cannot submit a Workspace hidden by a changed search filter", async ({ page, request }) => {
+  const id = Date.now();
+  const alpha = await request.post("/api/workspaces", { data: { title: `Alpha destination ${id}` } });
+  const beta = await request.post("/api/workspaces", { data: { title: `Beta destination ${id}` } });
+  expect(alpha.status()).toBe(201);
+  expect(beta.status()).toBe(201);
+  const first = await alpha.json() as { id: string };
+  const second = await beta.json() as { id: string };
+  const capture = await request.post("/api/captures", { data: { content: `Unorganized selection ${id}` } });
+  expect(capture.status()).toBe(201);
+  const item = await capture.json() as { id: string; version: number };
+  try {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: "Organize", exact: true }).filter({ visible: true }).last().click();
+    const dialog = page.getByRole("dialog", { name: "Organize capture" });
+    const select = dialog.getByRole("combobox", { name: /Workspace \(required\)/ });
+    await select.selectOption(first.id);
+    await expect(dialog.getByRole("button", { name: "Organize", exact: true })).toBeEnabled();
+    await dialog.getByRole("searchbox", { name: "Find Workspace" }).fill(`Beta destination ${id}`);
+    await expect(select).toHaveValue("");
+    await expect(dialog.getByRole("button", { name: "Organize", exact: true })).toBeDisabled();
+    await select.selectOption(second.id);
+    await expect(dialog.getByRole("button", { name: "Organize", exact: true })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+  } finally {
+    await request.delete(`/api/captures/${item.id}`, { headers: { "If-Match": `"${item.version}"` } }).catch(() => undefined);
+    for (const workspaceId of [first.id, second.id]) {
+      await deleteWorkspace(request, workspaceId).catch(() => undefined);
+      await request.delete(`/api/trash/${workspaceId}`).catch(() => undefined);
+    }
   }
 });

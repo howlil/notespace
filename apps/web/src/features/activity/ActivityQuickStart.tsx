@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { getWorkspace } from "../../adapters/http/workspace-api";
 import { useToast } from "../../shared/ui/toast-provider";
 import { useActivityWorkspaceChoices } from "./activity-workspaces";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import { Play } from "lucide-react";
 import { Button, Input } from "../../shared/ui";
 import type { ActivityType } from "../../adapters/http/activity-api";
@@ -86,7 +87,7 @@ export function ActivityQuickStart() {
             disabled={!activity.canStart || starting || workspaces.loading || workspaces.error}
           >
             <option value="">{workspaces.loading ? "Loading…" : "Choose Workspace…"}</option>
-            {workspaces.items.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+            {workspaces.items.map((item) => <option key={item.id} value={item.id}>{workspaceOptionLabel(item, workspaces.items)}</option>)}
           </select>
           {workspaces.error && <Button type="button" variant="secondary" size="sm" onClick={workspaces.retry}>Retry Workspaces</Button>}
           <Button

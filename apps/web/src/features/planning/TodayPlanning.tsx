@@ -224,6 +224,7 @@ export function TodayPlanning({
       const latest = await getToday(projection.date);
       if (read === requestSequence.current && epoch === mutationEpoch.current) setProjection(latest);
     } catch (error) {
+      if (read !== requestSequence.current || epoch !== mutationEpoch.current) return;
       showToast({
         kind: "error",
         message: error instanceof Error ? error.message : "Could not refresh Today.",

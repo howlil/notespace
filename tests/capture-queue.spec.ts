@@ -131,3 +131,82 @@ test("Organize cannot submit a Workspace hidden by a changed search filter", asy
     }
   }
 });
+
+test("@critical Capture edit conflict preserves draft and requires explicit overwrite", async ({ page, request }) => {
+  const label = `Capture conflict ${Date.now()}`;
+  const created = await request.post("/api/captures", { data: { content: label } });
+  expect(created.status()).toBe(201);
+  const capture = await created.json() as { id: string; version: number };
+  const localDraft = `${label} local draft`;
+  const remoteChange = `${label} remote change`;
+  try {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: `Edit capture ${capture.id}` }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit capture" });
+    const field = dialog.getByRole("textbox", { name: "Captured content" });
+    await field.fill(localDraft);
+    const concurrent = await request.patch(`/api/captures/${capture.id}`, {
+      data: { version: capture.version, content: remoteChange },
+    });
+    expect(concurrent.ok()).toBe(true);
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("changed in another session");
+    await expect(field).toHaveValue(localDraft);
+    await expect(dialog.getByText(`Latest saved: ${remoteChange}`)).toBeVisible();
+    const beforeOverwrite = await (await request.get(`/api/captures/${capture.id}`)).json() as { content: string };
+    expect(beforeOverwrite.content).toBe(remoteChange);
+
+    await dialog.getByRole("button", { name: "Overwrite latest" }).click();
+    await expect(dialog).toHaveCount(0);
+    const saved = await (await request.get(`/api/captures/${capture.id}`)).json() as { content: string };
+    expect(saved.content).toBe(localDraft);
+  } finally {
+    const current = await request.get(`/api/captures/${capture.id}`);
+    if (current.ok()) {
+      const item = await current.json() as { version: number; status: string };
+      if (item.status === "pending") await request.delete(`/api/captures/${capture.id}`, {
+        headers: { "If-Match": `"${item.version}"` },
+      });
+    }
+  }
+});
+
+test("Capture Queue refreshes after a create invalidates its initial read", async ({ page, request }) => {
+  const stamp = Date.now();
+  const original = await request.post("/api/captures", { data: { content: `Prior queue item ${stamp}` } });
+  expect(original.status()).toBe(201);
+  const oldItem = await original.json() as { id: string };
+  const newContent = `New queue item ${stamp}`;
+  let unblock!: () => void;
+  const held = new Promise<void>((resolve) => { unblock = resolve; });
+  let reads = 0;
+  await page.route("**/api/captures", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    reads++;
+    if (reads === 1) {
+      await held;
+      await route.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify([{ id: oldItem.id, content: `Prior queue item ${stamp}`, version: 1, status: "pending", createdAt: new Date().toISOString() }]) });
+      return;
+    }
+    await route.continue();
+  });
+  try {
+    await page.goto("/inbox");
+    const field = page.getByRole("textbox", { name: "Capture an unorganized thought" });
+    await field.fill(newContent);
+    await page.getByRole("button", { name: "Capture", exact: true }).click();
+    await expect(page.getByText(newContent, { exact: true })).toBeVisible();
+    unblock();
+    await expect(page.getByText(`Prior queue item ${stamp}`, { exact: true })).toBeVisible();
+    expect(reads).toBeGreaterThanOrEqual(2);
+  } finally {
+    unblock();
+    const captures = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
+    for (const item of captures.filter((item) =>
+      item.id === oldItem.id || item.content === newContent
+    )) {
+      await request.delete(`/api/captures/${item.id}`, { headers: { "If-Match": `"${item.version}"` } }).catch(() => undefined);
+    }
+  }
+});

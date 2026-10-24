@@ -32,7 +32,10 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   const [body, setBody] = useState("");
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail === "queue") setDestination("queue");
+      setOpen(true);
+    };
     window.addEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
   }, []);

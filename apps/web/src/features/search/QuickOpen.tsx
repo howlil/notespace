@@ -20,7 +20,14 @@ export function QuickOpen() {
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<WorkspaceSummary[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchState, setSearchState] = useState<{
+    query: string;
+    status: "loading" | "ready" | "error";
+    results: SearchResult[];
+  }>({ query: "", status: "loading", results: [] });
+  const [recentStatus, setRecentStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [recentRevision, setRecentRevision] = useState(0);
+  const [searchRevision, setSearchRevision] = useState(0);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [selected, setSelected] = useState(0);
   const [recallNote, setRecallNote] = useState<Note | null>(null);
@@ -34,10 +41,11 @@ export function QuickOpen() {
         if (canvasOwnsShortcut) return;
         event.preventDefault();
         event.stopImmediatePropagation();
+        setRecentStatus("loading");
         setOpen(true);
       }
     };
-    const customHandler = () => setOpen(true);
+    const customHandler = () => { setRecentStatus("loading"); setOpen(true); };
 
     window.addEventListener("keydown", handler, true);
     window.addEventListener(OPEN_QUICK_SEARCH_EVENT, customHandler);
@@ -51,7 +59,7 @@ export function QuickOpen() {
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    setResults([]);
+    setRecentStatus("loading");
     setSelected(0);
     let active = true;
     const workspaceMatch = pathname.match(/^\/(?:workspaces|projects)\/([^/]+)$/);
@@ -62,34 +70,49 @@ export function QuickOpen() {
         setRecent(nextRecent);
         setCategories(nextCategories);
         setCurrentWorkspace(workspace);
+        setRecentStatus("ready");
       })
       .catch((error) => {
-        if (active) showToast({ kind: "error", message: error instanceof Error ? error.message : "Quick Open is unavailable." });
+        if (!active) return;
+        setRecentStatus("error");
+        showToast({ kind: "error", message: error instanceof Error ? error.message : "Quick Open is unavailable." });
       });
     return () => { active = false; };
-  }, [open, pathname, showToast]);
+  }, [open, pathname, recentRevision, showToast]);
 
   useEffect(() => {
     if (!open) return;
     const value = query.trim();
     setSelected(0);
-    if (value.length < 2) {
-      setResults([]);
-      return;
-    }
+    if (value.length < 2) return;
+    setSearchState({ query: value, status: "loading", results: [] });
     let active = true;
     const timer = window.setTimeout(() => {
       void searchNotespace(value)
-        .then((next) => { if (active) setResults(next.slice(0, 20)); })
+        .then((next) => {
+          if (active) setSearchState({ query: value, status: "ready", results: next.slice(0, 20) });
+        })
         .catch((error) => {
-          if (active) showToast({ kind: "error", message: error instanceof Error ? error.message : "Search is unavailable." });
+          if (!active) return;
+          setSearchState({ query: value, status: "error", results: [] });
+          showToast({ kind: "error", message: error instanceof Error ? error.message : "Search is unavailable." });
         });
     }, 140);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [open, query, showToast]);
+  }, [open, query, searchRevision, showToast]);
+
+  const searching = query.trim().length >= 2;
+  const resultStatus = searching
+    ? searchState.query === query.trim() ? searchState.status : "loading"
+    : recentStatus;
 
   const destinations = useMemo<QuickOpenDestination[]>(() => {
-    if (query.trim().length >= 2) return results.map(destinationFromSearchResult);
+    if (query.trim().length >= 2) {
+      return searchState.query === query.trim() && searchState.status === "ready"
+        ? searchState.results.map(destinationFromSearchResult)
+        : [];
+    }
+    if (recentStatus !== "ready") return [];
     const categoryNames = new Map(categories.map((category) => [category.id, category.title]));
     return recent.map((workspace) => ({
       key: `recent-${workspace.id}`,
@@ -98,7 +121,7 @@ export function QuickOpen() {
       href: `/workspaces/${encodeURIComponent(workspace.id)}`,
       kind: "workspace" as const,
     }));
-  }, [categories, query, recent, results]);
+  }, [categories, query, recent, recentStatus, searchState]);
 
   function openDestination(destination: QuickOpenDestination | undefined) {
     if (!destination) return;
@@ -148,7 +171,19 @@ export function QuickOpen() {
             ) : null}
 
             <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
-            {destinations.length ? destinations.map((destination, index) => (
+            {resultStatus === "loading" ? (
+              <p className="m-0 px-2.5 py-5 text-[11px] text-muted" role="status" aria-live="polite">
+                {searching ? "Searching Notespace…" : "Loading recent workspaces…"}
+              </p>
+            ) : resultStatus === "error" ? (
+              <div role="alert" className="flex items-center justify-between gap-3 px-2.5 py-5 text-[11px] text-danger">
+                <span>{searching ? "Search could not be loaded." : "Recent workspaces could not be loaded."}</span>
+                <Button size="sm" variant="secondary" type="button" onClick={() => {
+                  if (searching) setSearchRevision((value) => value + 1);
+                  else setRecentRevision((value) => value + 1);
+                }}>Retry</Button>
+              </div>
+            ) : destinations.length ? destinations.map((destination, index) => (
               <Button
                 variant="ghost"
                 size="sm"

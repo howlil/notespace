@@ -128,14 +128,17 @@ func (a API) getAnyTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) createStandaloneTask(w http.ResponseWriter, r *http.Request) {
+	// Compatibility route: existing clients may use /api/tasks, but all new
+	// writes need an explicit Workspace destination.
 	var body struct {
-		Title      string `json:"title"`
-		PlannedFor string `json:"plannedFor"`
+		Title       string `json:"title"`
+		WorkspaceID string `json:"workspaceId"`
+		PlannedFor  string `json:"plannedFor"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	item, err := a.planning.CreateStandaloneTask(r.Context(), body.Title, body.PlannedFor)
+	item, err := a.planning.CreateTaskWithDate(r.Context(), body.WorkspaceID, nil, body.Title, body.PlannedFor)
 	if err != nil {
 		fail(w, err)
 		return

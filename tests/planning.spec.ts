@@ -44,7 +44,7 @@ test("@critical workspace plan persists milestones and tasks across reload", asy
     expect(renameResponse.status()).toBe(200);
 
     await page.getByRole("link", { name: "Back to library" }).click();
-    await page.getByRole("link", { name: "Today", exact: true }).click();
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Today" }).click();
     await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText("Finish planning flow");
 

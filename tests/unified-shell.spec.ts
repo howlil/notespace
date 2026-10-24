@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("@critical shared rail navigates Library, Inbox and Today while Explorer remains optional", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });

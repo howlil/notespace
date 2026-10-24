@@ -2,6 +2,18 @@
 
 This file is the repository-level source of truth for user-facing design decisions. It complements `.agents/PROJECT.md`; it does not authorize new product scope.
 
+## Workspace-first navigation contract — M6 feature branch
+
+This section is the proposed replacement for the historical Inbox/standalone-Activity navigation language below. It becomes shipped design only once the Workspace-first PR merges.
+
+- **Destinations:** Library (`/`), Today (`/today`), and Capture Queue (`/inbox`) are one set of routes. Keep `/inbox` for deep-link compatibility; label the UI **Capture Queue**. Existing legacy Inbox tasks appear only when present and can be assigned to a Workspace.
+- **Navigation surfaces:** the 44px `ShellRail` provides compact route shortcuts and global utilities; the optional 228px Explorer provides the same destinations with visible names, followed by independent Category disclosure and Workspace links. They share route state; there is no separate sidebar navigation store.
+- **Interaction:** category disclosure toggles only visibility; choosing the category title navigates to its filtered Library. Expand/collapse survives route transitions. On narrow screens the Explorer is an overlay; Escape, backdrop and close control dismiss it and restore focus to the Explorer trigger.
+- **Create:** global Create has Workspace, Category, Quick Capture and Task in Today. Quick Capture owns the Workspace/Queue destination selection; do not expose a duplicate entry to the same modal. Queue retains its own inline capture composer.
+- **States:** Queue must distinguish initial loading, empty, stale/error, and in-flight saves. Error never appears as an empty queue. A Workspace selector must distinguish same-title Workspaces without changing IDs.
+- **Boundaries:** the root mounts one Quick Capture, global Search, ActivityRuntime, ActivityDock, Data/Recovery and Settings; existing 40px `WorkspaceRail` remains separate for focused authoring. New Task/Activity require a Workspace. Historic standalone records remain readable and are never silently assigned or removed.
+- **Proof:** navigation/deep links, focus, disclosure vs selection, mobile dismissal, empty/error states, duplicate Workspace names, global create, Today/Queue/Activity, and desktop regression must pass before merge.
+
 ## Decision order
 
 Every visual change must follow this order:

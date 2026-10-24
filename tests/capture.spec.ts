@@ -14,7 +14,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
 
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     await expect(dialog).toBeVisible();
-    await dialog.locator("select").selectOption(workspace.id);
+    await dialog.getByRole("combobox", { name: "Workspace" }).selectOption(workspace.id);
     await dialog.getByRole("textbox", { name: "Note" }).fill(
       "## MVCC in PostgreSQL\n\nSnapshots keep readers isolated from concurrent writers.",
     );
@@ -35,7 +35,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
     await page.getByRole("menuitem", { name: "Quick capture" }).click();
     const reopened = page.getByRole("dialog", { name: "Quick capture" });
     await expect(reopened).toBeVisible();
-    await expect(reopened.locator("select")).toHaveValue(workspace.id);
+    await expect(reopened.getByRole("combobox", { name: "Workspace" })).toHaveValue(workspace.id);
   } finally {
     await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);

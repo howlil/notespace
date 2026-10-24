@@ -365,3 +365,27 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
     }
   }
 });
+
+test("Today Quick Activity requires a Workspace before starting", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  try {
+    await page.goto("/today");
+    const input = page.getByRole("textbox", { name: "Quick activity" });
+    await input.fill("Unassigned activity must not run");
+    const start = page.getByRole("button", { name: "Start", exact: true });
+    await expect(start).toBeDisabled();
+    await chooseActivityWorkspace(page, workspace.id);
+    await expect(start).toBeEnabled();
+    await start.click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    const sessions = await (await request.get("/api/activity/sessions?limit=100")).json() as ActivitySessionRecord[];
+    const found = sessions.find((item) => item.title === "Unassigned activity must not run");
+    expect(found?.workspaceId).toBe(workspace.id);
+    if (found) await request.delete(`/api/activity/sessions/${found.id}`);
+  } finally {
+    await deleteWorkspace(request, workspace.id);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

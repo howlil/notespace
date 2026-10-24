@@ -33,7 +33,9 @@ func (s Service) CreateTaskWithDate(ctx context.Context, workspaceID string, mil
 		normalizedMilestone = &value
 	}
 	date, err := normalizePlannedFor(plannedFor)
-	if err != nil { return Task{}, err }
+	if err != nil {
+		return Task{}, err
+	}
 	now := s.now().Format(time.RFC3339Nano)
 	workspace := workspaceID
 	return s.store.CreateTask(ctx, Task{
@@ -61,9 +63,13 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 
 // AssignStandaloneTask changes only the owner of a legacy Task, never its identity.
 func (s Service) AssignStandaloneTask(ctx context.Context, taskID, workspaceID string, version int) (Task, error) {
-	if strings.TrimSpace(taskID)=="" || version<1 { return Task{}, ErrInvalid }
-	if err:=s.requireWorkspace(ctx,workspaceID);err!=nil{return Task{},err}
-	return s.store.AssignStandaloneTask(ctx,taskID,workspaceID,version,s.now().Format(time.RFC3339Nano))
+	if strings.TrimSpace(taskID) == "" || version < 1 {
+		return Task{}, ErrInvalid
+	}
+	if err := s.requireWorkspace(ctx, workspaceID); err != nil {
+		return Task{}, err
+	}
+	return s.store.AssignStandaloneTask(ctx, taskID, workspaceID, version, s.now().Format(time.RFC3339Nano))
 }
 
 func applyTaskPatch(current Task, patch TaskPatch, now string) (Task, error) {

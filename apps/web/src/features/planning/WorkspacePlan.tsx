@@ -223,16 +223,19 @@ export function WorkspacePlan({
       if (initialLoad) setLoadError(message);
       showToast({ kind: "error", message });
     } finally {
-      if (initialLoad && read === readSequence.current) setLoading(false);
+      if (read === readSequence.current) setLoading(false);
     }
   }, [showToast, workspaceId]);
 
   useEffect(() => {
     setPlan(emptyPlan(workspaceId));
+  }, [workspaceId]);
+
+  useEffect(() => {
     void refreshPlan(true);
     // Invalidate any request that belongs to the previous Workspace on cleanup.
     return () => { ++readSequence.current; };
-  }, [workspaceId, refreshKey, refreshPlan]);
+  }, [refreshKey, refreshPlan]);
 
   useEffect(() => {
     const onChange = () => { void refreshPlan(); };

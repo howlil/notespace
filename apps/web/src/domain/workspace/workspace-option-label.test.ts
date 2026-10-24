@@ -12,4 +12,6 @@ test("Workspace destinations disambiguate same-name choices while retaining iden
   assert.equal(workspaceOptionLabel(items[0], items), "Research · ab12ef90");
   assert.equal(workspaceOptionLabel(items[1], items), "research · ab12ef91");
   assert.equal(workspaceOptionLabel(items[2], items), "Writing");
+  const samePrefix = [workspace("sameprefix-1", "Plan"), workspace("sameprefix-2", "Plan")];
+  assert.notEqual(workspaceOptionLabel(samePrefix[0], samePrefix), workspaceOptionLabel(samePrefix[1], samePrefix));
 });

@@ -1,5 +1,5 @@
-import { APIError } from "../../adapters/http/client";
-import { getAnyTask } from "../../adapters/http/planning-api";
+import { APIError } from "../../adapters/http/client.ts";
+import { getAnyTask } from "../../adapters/http/planning-api.ts";
 import type { PlanningTask } from "../../domain/planning/planning";
 
 /** No automatic replay of an ambiguous mutation: that can reverse a later edit. */

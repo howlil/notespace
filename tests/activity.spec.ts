@@ -380,10 +380,12 @@ test("Today Quick Activity requires a Workspace before starting", async ({ page,
     await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
-    const sessions = await (await request.get("/api/activity/sessions?limit=100")).json() as ActivitySessionRecord[];
-    const found = sessions.find((item) => item.title === "Unassigned activity must not run");
-    expect(found?.workspaceId).toBe(workspace.id);
-    if (found) await request.delete(`/api/activity/sessions/${found.id}`);
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return "";
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.find((item) => item.title === "Unassigned activity must not run")?.workspaceId ?? "";
+    }).toBe(workspace.id);
   } finally {
     await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);

@@ -5,6 +5,7 @@ import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { useToast } from "../../shared/ui/toast-provider";
 import type { PlanningTask } from "../../domain/planning/planning";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 
 export function LegacyTaskAssign({ task, onClose, onAssigned }: {
   task: PlanningTask | null;
@@ -87,7 +88,7 @@ export function LegacyTaskAssign({ task, onClose, onAssigned }: {
         <select aria-label="Destination Workspace" className="min-h-9 rounded-md border border-line bg-background px-2.5 text-xs"
           value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)} disabled={saving || loading || failed}>
           <option value="">{loading ? "Loading…" : "Select Workspace"}</option>
-          {items.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+          {items.map((item) => <option key={item.id} value={item.id}>{workspaceOptionLabel(item, items)}</option>)}
         </select>
       </label>
       {failed && <Button type="button" size="sm" variant="secondary" className="mt-3" onClick={() => setAttempt((value) => value + 1)}>Retry loading workspaces</Button>}

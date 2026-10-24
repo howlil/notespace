@@ -54,7 +54,9 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     for (const categoryId of expanded) {
       void listCategoryWorkspaces(categoryId, { limit: 5 })
         .then((page) => {
-          if (active) setChildren((current) => ({ ...current, [categoryId]: page.items }));
+          if (!active) return;
+          setChildren((current) => ({ ...current, [categoryId]: page.items }));
+          setCategoryErrors((current) => { const next = new Set(current); next.delete(categoryId); return next; });
         })
         .catch(() => { if (active) setCategoryErrors((current) => new Set(current).add(categoryId)); });
     }

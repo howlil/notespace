@@ -177,7 +177,9 @@ func captureDocument(content string) ([]byte, error) {
 	lines := strings.Split(strings.ReplaceAll(strings.ReplaceAll(content, "\r\n", "\n"), "\r", "\n"), "\n")
 	blocks := make([]any, 0, len(lines))
 	for _, line := range lines {
-		paragraph := map[string]any{"type": "paragraph"}
+		// The search index identifies blocks by durable blockId, including
+		// for API clients that do not supply their own rich document snapshot.
+		paragraph := map[string]any{"type": "paragraph", "attrs": map[string]any{"blockId": rand.Text()}}
 		if line != "" {
 			paragraph["content"] = []any{map[string]any{"type": "text", "text": line}}
 		}

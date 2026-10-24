@@ -32,6 +32,7 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
   const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
@@ -55,7 +56,7 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
         .then((page) => {
           if (active) setChildren((current) => ({ ...current, [categoryId]: page.items }));
         })
-        .catch(() => {});
+        .catch(() => { if (active) setCategoryError(categoryId); });
     }
     return () => {
       active = false;
@@ -72,14 +73,16 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
 
     next.add(category.id);
     setExpanded(next);
-    onSelectCategory(category.id);
+    // Disclosure only changes Explorer expansion. Category navigation has its own control.
     if (children[category.id]) return;
 
     setLoading(category.id);
+    setCategoryError(null);
     try {
       const page = await listCategoryWorkspaces(category.id, { limit: 5 });
       setChildren((current) => ({ ...current, [category.id]: page.items }));
     } catch (error) {
+      setCategoryError(category.id);
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
     } finally {
       setLoading(null);
@@ -199,6 +202,7 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
 
   return {
     children,
+    categoryError,
     creating,
     deleting,
     editingCategory,

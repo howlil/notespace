@@ -90,7 +90,11 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   }, [destination, open, showToast]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || destination !== "workspace") {
+      setSearching(false);
+      setSearchWorkspaces([]);
+      return;
+    }
     const query = workspaceQuery.trim();
     if (!query) {
       setSearching(false);
@@ -98,8 +102,11 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       return;
     }
     let active = true;
+    // Invalidate old suggestions as soon as the query changes. During the
+    // debounce and HTTP request, never offer a stale Workspace as a target.
+    setSearching(true);
+    setSearchWorkspaces([]);
     const timer = window.setTimeout(() => {
-      setSearching(true);
       void listAllWorkspaces({ query, limit: recentWorkspaceLimit })
         .then((page) => { if (active) setSearchWorkspaces(workspaceOptions(page.items, categories)); })
         .catch((error) => {
@@ -111,7 +118,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       active = false;
       window.clearTimeout(timer);
     };
-  }, [categories, open, showToast, workspaceQuery]);
+  }, [categories, destination, open, showToast, workspaceQuery]);
 
   const recentOptions = useMemo(() => workspaceOptions(workspaces, categories), [categories, workspaces]);
   const options = workspaceQuery.trim() ? searchWorkspaces : recentOptions;
@@ -119,7 +126,8 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
 
   async function capture() {
     const value = body.trim();
-    if (!validBody || (destination === "workspace" && !effectiveWorkspaceId) || saving) return;
+    // Keyboard shortcuts call this directly, bypassing the disabled button.
+    if (!validBody || saving || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))) return;
     setSaving(true);
     try {
       if (destination === "queue") {

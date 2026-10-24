@@ -128,12 +128,20 @@ func TestPlanningAssignLegacyTaskAndAtomicTodayCreation(t *testing.T) {
 	service := planning.NewService(store,store,nil)
 	legacy,err:=service.CreateStandaloneTask(context.Background(),"Preserve identity",date)
 	if err!=nil{t.Fatal(err)}
+	createdAt := legacy.CreatedAt
+	description := "Legacy description with context"
+	completed := true
+	legacy,err=service.UpdateAnyTask(context.Background(),legacy.ID,planning.TaskPatch{
+		Description: &description, Completed: &completed, Version: legacy.Version,
+	})
+	if err!=nil{t.Fatal(err)}
 	assign := map[string]any{"workspaceId":workspace.ID,"version":legacy.Version}
 	first:=call(t,api,http.MethodPost,"/api/tasks/"+legacy.ID+"/assign-workspace",assign)
 	expect(t,first,http.StatusOK)
 	var moved planning.Task
 	if err:=json.Unmarshal(first.Body.Bytes(),&moved);err!=nil{t.Fatal(err)}
-	if moved.ID!=legacy.ID || moved.Version!=legacy.Version+1 || moved.WorkspaceID==nil || *moved.WorkspaceID!=workspace.ID || moved.PlannedFor==nil || *moved.PlannedFor!=date {
+	if moved.ID!=legacy.ID || moved.Version!=legacy.Version+1 || moved.WorkspaceID==nil || *moved.WorkspaceID!=workspace.ID || moved.PlannedFor==nil || *moved.PlannedFor!=date || moved.CompletedAt==nil ||
+		moved.CreatedAt!=createdAt || moved.Description!=description {
 		t.Fatalf("migration changed task identity or dates: %+v",moved)
 	}
 	expect(t,call(t,api,http.MethodPost,"/api/tasks/"+legacy.ID+"/assign-workspace",assign),http.StatusOK)

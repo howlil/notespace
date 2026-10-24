@@ -1,4 +1,4 @@
-"""Exercise a running production instance; only removes the project it creates."""
+"""Exercise disposable Workspace-first records through a running HTTP instance."""
 import argparse
 from datetime import date
 import uuid
@@ -157,3 +157,9 @@ finally:
         current = None
     if current is not None:
         call(path, 'DELETE', headers={'If-Match': f'"{current["version"]}"'})
+    # Workspace DELETE moves the fixture into Trash; purge only its own ID.
+    try:
+        call('/api/trash/' + project['id'], 'DELETE')
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise

@@ -1,5 +1,7 @@
 """Exercise a running production instance; only removes the project it creates."""
 import argparse
+from datetime import date
+import uuid
 from html.parser import HTMLParser
 import json
 import subprocess
@@ -84,14 +86,69 @@ try:
     update['references'] = [{'id': 'raft-client', 'blockId': 'raft', 'elementId': 'client'}]
     update['splitRatio'] = .6
     saved = call(path, 'PATCH', update)
+
+    # Workspace-first persistence proof uses the same real HTTP server and
+    # SQLite volume as the Note/Canvas smoke. All fixtures are disposable.
+    date_key = date.today().isoformat()
+    task = call(path + '/tasks', 'POST', {
+        'title': 'Workspace-first persistence task ' + project['id'],
+        'plannedFor': date_key,
+    })
+    capture = call('/api/captures', 'POST', {
+        'content': 'Unorganized persistence capture ' + project['id'],
+    })
+    session_id = 'smoke-' + uuid.uuid4().hex
+    session = call('/api/activity/sessions/' + session_id, 'PUT', {
+        'title': 'Workspace-first persistence activity',
+        'activityType': 'read',
+        'workspaceId': project['id'],
+        'taskId': task['id'],
+        'activityDate': date_key,
+        'activeSeconds': 37,
+        'finish': True,
+    })
+    assert session['workspaceId'] == project['id']
+    assert session['taskId'] == task['id']
+    assert session['endedAt'] is not None
+
     if args.compose_restart:
         subprocess.run(['docker', 'compose', 'restart', 'notespace'], check=True)
         wait_ready()
     assert call(path) == saved, 'Persisted project changed across reopen/restart'
+    restored_task = call('/api/tasks/' + task['id'])
+    assert restored_task['workspaceId'] == project['id'], 'Task ownership lost on restart'
+    assert restored_task['plannedFor'] == date_key, 'Task scheduled date lost on restart'
+    plan = call(path + '/plan')
+    assert sum(item['id'] == task['id'] for item in plan['tasks']) == 1, 'Plan Task changed on restart'
+    today = call('/api/tasks/today?date=' + date_key)
+    assert sum(item['id'] == task['id'] for item in today['tasks']) == 1, 'Today projection lost Task'
+    restored_capture = call('/api/captures/' + capture['id'])
+    assert restored_capture['status'] == 'pending' and restored_capture['content'] == capture['content'], 'Capture Queue data lost'
+    assert sum(item['id'] == capture['id'] for item in call('/api/captures')) == 1, 'Queue lists duplicate/missing Capture'
+    activity = call('/api/activity/sessions?limit=100')
+    assert any(item['id'] == session_id and item['workspaceId'] == project['id']
+               and item['taskId'] == task['id'] and item['endedAt'] is not None
+               for item in activity), 'Activity history lost on restart'
     with urllib.request.urlopen(args.url + '/projects/' + project['id'], timeout=10) as page:
         assert b'Notespace' in page.read(), 'Direct project URL does not serve app shell'
-    print('PASS: production stylesheet, create, edit both surfaces, persist reference, reopen, direct project URL' + (', container restart' if args.compose_restart else ''))
+    print('PASS: production stylesheet, Note/Canvas, Task/Today, Capture Queue, Activity history, reopen, direct URL' + (', container restart' if args.compose_restart else ''))
 finally:
+    # Clean up only the records created here; never reset another user's data.
+    if 'session_id' in locals():
+        try:
+            call('/api/activity/sessions/' + session_id, 'DELETE')
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+    if 'capture' in locals():
+        try:
+            current_capture = call('/api/captures/' + capture['id'])
+            if current_capture['status'] == 'pending':
+                call('/api/captures/' + capture['id'], 'DELETE',
+                     headers={'If-Match': f'"{current_capture["version"]}"'})
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
     try:
         current = call(path)
     except urllib.error.HTTPError as error:

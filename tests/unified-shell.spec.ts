@@ -10,14 +10,15 @@ test("@critical shared rail navigates Library, Inbox and Today while Explorer re
 
   await expect(rail).toBeVisible();
   await expect(categories).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
   await toggle.click();
   await expect(categories).toBeHidden();
   await toggle.click();
   await expect(categories).toBeVisible();
 
-  await rail.getByRole("link", { name: "Inbox" }).click();
+  await rail.getByRole("link", { name: "Capture Queue" }).click();
   await expect(page).toHaveURL(/\/inbox$/);
-  await expect(rail.getByRole("link", { name: "Inbox" })).toHaveAttribute("aria-current", "page");
+  await expect(rail.getByRole("link", { name: "Capture Queue" })).toHaveAttribute("aria-current", "page");
   await rail.getByRole("link", { name: "Today" }).click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(rail.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
@@ -78,9 +79,11 @@ test("@critical global Create routes unorganized capture and Workspace-owned Tod
   await page.goto("/");
   const create = page.getByRole("button", { name: "Create", exact: true });
   await create.click();
-  await page.getByRole("menuitem", { name: "Capture for later" }).click();
+  await expect(page.getByRole("menuitem", { name: "Capture for later" })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Quick capture" }).click();
   const capture = page.getByRole("dialog", { name: "Quick capture" });
   await expect(capture).toBeVisible();
+  await capture.getByRole("combobox", { name: "Destination" }).selectOption("queue");
   await expect(capture.getByRole("combobox", { name: "Destination" })).toHaveValue("queue");
   await page.keyboard.press("Escape");
 
@@ -106,7 +109,7 @@ test("@critical Explorer visibility remains stable between Library, Inbox and To
 
   await toggle.click();
   await expect(categories).toBeHidden();
-  await rail.getByRole("link", { name: "Inbox" }).click();
+  await rail.getByRole("link", { name: "Capture Queue" }).click();
   await expect(categories).toBeHidden();
   await rail.getByRole("link", { name: "Today" }).click();
   await expect(categories).toBeHidden();
@@ -158,7 +161,7 @@ test("@critical Activity runtime and dock survive Library/Inbox/Today navigation
     await expect(active).toContainText(title);
 
     const rail = page.getByRole("navigation", { name: "Primary navigation" });
-    await rail.getByRole("link", { name: "Inbox" }).click();
+    await rail.getByRole("link", { name: "Capture Queue" }).click();
     await expect(active).toContainText(title);
     await rail.getByRole("link", { name: "Library" }).click();
     await expect(active).toContainText(title);
@@ -215,7 +218,7 @@ test("@critical Explorer remembers expanded categories across page navigation", 
   const categoryName = label?.replace(/^Expand /, "") ?? "";
   await expand.click();
   await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
-  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Inbox" }).click();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Capture Queue" }).click();
   await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Today" }).click();
   await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();

@@ -30,6 +30,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   const [destination, setDestination] = useState<"workspace" | "queue">("workspace");
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const [body, setBody] = useState("");
+  const validBody = destination === "queue" ? validCaptureContent(body) : body.trim().length > 0;
 
   useEffect(() => {
     const onOpen = (event: Event) => {
@@ -117,7 +118,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
 
   async function capture() {
     const value = body.trim();
-    if (!validCaptureContent(body) || (destination === "workspace" && !effectiveWorkspaceId) || saving) return;
+    if (!validBody || (destination === "workspace" && !effectiveWorkspaceId) || saving) return;
     setSaving(true);
     try {
       if (destination === "queue") {
@@ -245,10 +246,10 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
             </div>
           </div>
 
-          {body.trim() && !validCaptureContent(body) && <p role="alert" className="text-xs text-danger">Content must fit within 64 KiB.</p>}
+          {destination === "queue" && body.trim() && !validBody && <p role="alert" className="text-xs text-danger">Content must fit within 64 KiB.</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button type="button" onClick={() => void capture()} disabled={saving || !validCaptureContent(body) || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))}>
+            <Button type="button" onClick={() => void capture()} disabled={saving || !validBody || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))}>
               {saving ? "Saving…" : destination === "queue" ? "Save to Queue" : "Capture"}
             </Button>
           </DialogFooter>

@@ -84,6 +84,12 @@ test("@critical global Create routes unorganized capture and Workspace-owned Tod
   await page.keyboard.press("Escape");
 
   await create.click();
+  await page.getByRole("menuitem", { name: "Quick capture" }).click();
+  await expect(capture.getByRole("combobox", { name: "Destination" })).toHaveValue("workspace");
+  await expect(capture.getByRole("combobox", { name: "Capture Workspace" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await create.click();
   await page.getByRole("menuitem", { name: "Task in Today" }).click();
   await expect(page).toHaveURL(/\/today#new-task$/);
   await expect(page.getByRole("textbox", { name: "New task" })).toBeFocused();

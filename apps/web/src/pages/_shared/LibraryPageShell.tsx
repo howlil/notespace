@@ -50,8 +50,13 @@ export function LibraryPageShell({
       if (event.defaultPrevented) return;
       const target = event.target;
       if (event.key === "Escape") {
-        // Nested dialogs, menus and inline fields own their own Escape behavior.
-        if (target instanceof Element && target.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+        // The Explorer itself has role=dialog. Only defer Escape to
+        // nested/portaled dialogs, menus, or an active inline editor.
+        if (target instanceof Element) {
+          const owningDialog = target.closest('[role="dialog"]');
+          if (owningDialog && owningDialog !== explorer) return;
+          if (target.closest('input, textarea, [contenteditable="true"], [role="menu"]')) return;
+        }
         setPreference("closed");
         toggleRef.current?.focus();
         return;

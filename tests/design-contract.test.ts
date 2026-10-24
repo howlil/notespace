@@ -418,13 +418,16 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(SHELL_RAIL), /to="\/inbox"/);
   assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(INBOX_PLANNING), /Capture first\. Decide when to do it later\./);
-  assert.match(source(INBOX_PLANNING), /New inbox task/);
+  assert.match(source(INBOX_PLANNING), /LegacyTaskAssign/);
+  assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);
   assert.match(source(INBOX_PLANNING), /Move .* to Today/);
   assert.doesNotMatch(source(INBOX_PLANNING), /priority|kanban|milestone|recurrence|productivity score/i);
   assert.match(source(WORKSPACE_PLAN), /Add .* to Today/);
   assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
   assert.match(source(TODAY_PLANNING), /Standalone/);
   assert.match(source(TODAY_PLANNING), /Move .* to Inbox/);
+  assert.match(source(TODAY_PLANNING), /TaskComposer/);
+  assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
   assert.match(source(ACTIVITY_QUICK_START), /What are you doing\?/);
   assert.match(source(ACTIVITY_QUICK_START), /Activity type/);
   assert.match(source(TODAY), /Start activity for/);

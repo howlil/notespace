@@ -99,3 +99,28 @@ test("Expanding one category issues one Workspace fetch and shows its loading st
   await expect(explorer.getByRole("status", { name: `Loading ${category.title}` })).toHaveCount(0);
   expect(requests).toBe(1);
 });
+
+test("Quick Open does not report an empty result during pending search or retryable failure", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/api/search?q=**", async (route) => {
+    requests++;
+    await route.fulfill({
+      status: requests === 1 ? 503 : 200,
+      contentType: "application/json",
+      body: requests === 1 ? '{"error":"offline"}' : "[]",
+    });
+  });
+  await page.goto("/");
+  await page.keyboard.press("Control+k");
+
+  const quickOpen = page.getByRole("dialog", { name: "Quick Open" });
+  await expect(quickOpen).toBeVisible();
+  const search = quickOpen.getByPlaceholder("Open workspace, note, block, or category…");
+  await search.fill("no-results-for-quick-open-m6");
+  await expect(quickOpen.getByRole("status").filter({ hasText: "Searching Notespace" })).toBeVisible();
+  await expect(quickOpen.getByText("No matching knowledge.")).toHaveCount(0);
+  await expect(quickOpen.getByRole("alert").filter({ hasText: "Search could not be loaded." })).toBeVisible();
+  await quickOpen.getByRole("button", { name: "Retry" }).click();
+  await expect(quickOpen.getByText("No matching knowledge.")).toBeVisible();
+  expect(requests).toBe(2);
+});

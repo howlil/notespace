@@ -35,7 +35,7 @@ test("planning client serializes workspace task routes and versioned delete prec
   assert.equal(new Headers(calls[2]?.init?.headers).get("If-Match"), '"5"');
 });
 
-test("planning client owns Today, Inbox, and standalone task routes", async () => {
+test("planning client owns Today, legacy Inbox reads, and Task assignment", async () => {
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
   const transport: HttpTransport = {
     fetch: async (input, init) => {
@@ -48,13 +48,13 @@ test("planning client owns Today, Inbox, and standalone task routes", async () =
 
   await client.getToday("2026-09-24");
   await client.getInbox();
-  await client.createStandaloneTask("Read", "2026-09-25");
+  await client.assignStandaloneTask("task/a", "workspace/1", 2);
   await client.deleteAnyTask("task/a", 3);
 
   assert.equal(calls[0]?.input, "/api/tasks/today?date=2026-09-24");
   assert.equal(calls[1]?.input, "/api/tasks/inbox");
-  assert.equal(calls[2]?.input, "/api/tasks");
-  assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), { title: "Read", plannedFor: "2026-09-25" });
+  assert.equal(calls[2]?.input, "/api/tasks/task%2Fa/assign-workspace");
+  assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), { workspaceId: "workspace/1", version: 2 });
   assert.equal(calls[3]?.input, "/api/tasks/task%2Fa");
   assert.equal(new Headers(calls[3]?.init?.headers).get("If-Match"), '"3"');
 });

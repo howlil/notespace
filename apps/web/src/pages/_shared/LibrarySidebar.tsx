@@ -20,7 +20,7 @@ const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transp
 export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
   const {
     children,
-    categoryError,
+    categoryErrors,
     creating,
     deleting,
     editingCategory,
@@ -168,9 +168,9 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
-                  {categoryError === category.id && <div role="alert" className="mx-2 my-1 text-[10px] text-danger">Could not load Workspaces. <Button type="button" size="sm" variant="ghost" onClick={() => void retryCategory(category.id)}>Retry</Button></div>}
+                  {categoryErrors.has(category.id) && <div role="alert" className="mx-2 my-1 text-[10px] text-danger">Could not load Workspaces. <Button type="button" size="sm" variant="ghost" onClick={() => void retryCategory(category.id)}>Retry</Button></div>}
                   {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}
-                  {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
+                  {!loading && !categoryErrors.has(category.id) && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
                 </div>
               )}
             </div>

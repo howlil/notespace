@@ -32,7 +32,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
-  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryErrors, setCategoryErrors] = useState<Set<string>>(() => new Set());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
@@ -56,7 +56,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
         .then((page) => {
           if (active) setChildren((current) => ({ ...current, [categoryId]: page.items }));
         })
-        .catch(() => { if (active) setCategoryError(categoryId); });
+        .catch(() => { if (active) setCategoryErrors((current) => new Set(current).add(categoryId)); });
     }
     return () => {
       active = false;
@@ -65,12 +65,12 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
 
   async function loadCategoryWorkspaces(categoryId: string) {
     setLoading(categoryId);
-    setCategoryError(null);
+    setCategoryErrors((current) => { const next = new Set(current); next.delete(categoryId); return next; });
     try {
       const page = await listCategoryWorkspaces(categoryId, { limit: 5 });
       setChildren((current) => ({ ...current, [categoryId]: page.items }));
     } catch (error) {
-      setCategoryError(categoryId);
+      setCategoryErrors((current) => new Set(current).add(categoryId));
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
     } finally {
       setLoading(null);
@@ -87,7 +87,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
       return;
     }
     setExpanded((current) => new Set(current).add(category.id));
-    if (!children[category.id] || categoryError === category.id) await loadCategoryWorkspaces(category.id);
+    if (!children[category.id] || categoryErrors.has(category.id)) await loadCategoryWorkspaces(category.id);
   }
 
   function startCreate(kind: CreateTarget["kind"], categoryId?: string) {
@@ -203,7 +203,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
 
   return {
     children,
-    categoryError,
+    categoryErrors,
     creating,
     deleting,
     editingCategory,

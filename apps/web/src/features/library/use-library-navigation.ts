@@ -104,7 +104,10 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   function startCreate(kind: CreateTarget["kind"], categoryId?: string) {
     setTitle("");
     setCreating({ kind, categoryId });
-    if (categoryId) setExpanded((current) => new Set(current).add(categoryId));
+    if (categoryId) {
+      setExpanded((current) => new Set(current).add(categoryId));
+      if (!children[categoryId] || categoryErrors.has(categoryId)) void loadCategoryWorkspaces(categoryId);
+    }
   }
 
   async function submitCreate() {

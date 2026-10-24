@@ -109,6 +109,24 @@ func TestCaptureToNoteAndBackupRestore(t *testing.T) {
 	if !found {
 		t.Fatal("converted Note does not exist")
 	}
+	// Server-side conversion is also used by clients that omit the optional
+	// rich document. The content must be searchable without an editor save.
+	search := call(t, api, http.MethodGet, "/api/search?q=indexes", nil)
+	expect(t, search, http.StatusOK)
+	var matches []workspacepkg.SearchResult
+	if err := json.Unmarshal(search.Body.Bytes(), &matches); err != nil {
+		t.Fatal(err)
+	}
+	indexed := false
+	for _, result := range matches {
+		if result.Type == "block" && result.WorkspaceID == w.ID &&
+			result.NoteID == converted.TargetID && result.BlockID != "" {
+			indexed = true
+		}
+	}
+	if !indexed {
+		t.Fatalf("converted Note body was not indexed by block ID: %+v", matches)
+	}
 	draft := call(t, api, http.MethodPost, "/api/captures", map[string]string{"content": "Unorganized task"})
 	expect(t, draft, http.StatusCreated)
 	backup, err := store.ExportBackupArchive(context.Background())

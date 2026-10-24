@@ -226,7 +226,7 @@ func TestAssignLegacyTaskWhileActivityRunningPreservesFinalization(t *testing.T)
 	recorder := activity.NewService(store, store, now)
 	first, err := recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
 		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 60},
-		Title: "Running legacy activity", ActivityType: "read", TaskID: task.ID,
+		Title:     "Running legacy activity", ActivityType: "read", TaskID: task.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestAssignLegacyTaskWhileActivityRunningPreservesFinalization(t *testing.T)
 	}
 	second, err := recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
 		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 120, Finish: true},
-		Title: "Running legacy activity", ActivityType: "read", TaskID: task.ID,
+		Title:     "Running legacy activity", ActivityType: "read", TaskID: task.ID,
 	})
 	if err != nil {
 		t.Fatalf("legacy finalization lost after task assignment: %v", err)
@@ -250,7 +250,7 @@ func TestAssignLegacyTaskWhileActivityRunningPreservesFinalization(t *testing.T)
 	// New sessions started after assignment follow the Task's new owner.
 	fresh, err := recorder.RecordActivity(ctx, "new-assigned-session", activity.ActivityHeartbeat{
 		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 20},
-		Title: "New owned activity", ActivityType: "read", TaskID: task.ID,
+		Title:     "New owned activity", ActivityType: "read", TaskID: task.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestAssignLegacyTaskWhileActivityRunningPreservesFinalization(t *testing.T)
 	// Historical completed session cannot be repurposed under the new owner.
 	_, err = recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
 		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 150, Finish: true},
-		Title: "Reused activity", ActivityType: "read", TaskID: task.ID,
+		Title:     "Reused activity", ActivityType: "read", TaskID: task.ID,
 	})
 	if !errors.Is(err, activity.ErrConflict) {
 		t.Fatalf("completed historical session reused: %v", err)

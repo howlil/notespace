@@ -12,6 +12,7 @@ import { CAPTURE_QUEUE_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import type { CaptureItem } from "../../domain/capture/capture";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
+import { APIError } from "../../adapters/http/client";
 
 async function loadAllWorkspaceOptions(): Promise<WorkspaceSummary[]> {
   const results: WorkspaceSummary[] = [];
@@ -33,6 +34,7 @@ export function CaptureQueue() {
   const [items, setItems] = useState<CaptureItem[]>([]);
   const writeRevision = useRef(0);
   const readSequence = useRef(0);
+  const organizerRequest = useRef(0);
   const [body, setBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +43,7 @@ export function CaptureQueue() {
   const [target, setTarget] = useState<CaptureItem | null>(null);
   const [mode, setMode] = useState<"organize" | "edit">("organize");
   const [editBody, setEditBody] = useState("");
+  const [editConflict, setEditConflict] = useState<string | null>(null);
   const [kind, setKind] = useState<"note" | "task">("note");
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
@@ -63,6 +66,10 @@ export function CaptureQueue() {
         setItems(current);
         setLoadError(false);
         setLoaded(true);
+      } else if (readId === readSequence.current) {
+        // A mutation superseded this fetch; fetch the complete authoritative
+        // queue again instead of rendering only the optimistic new item.
+        void refresh();
       }
     } catch (error) {
       if (readId === readSequence.current && revision === writeRevision.current) {
@@ -99,9 +106,11 @@ export function CaptureQueue() {
   }
 
   async function open(item: CaptureItem, nextMode: "organize" | "edit") {
+    const requestId = ++organizerRequest.current;
     setTarget(item);
     setMode(nextMode);
     setEditBody(item.content);
+    setEditConflict(null);
     setKind("note");
     setWorkspaceId("");
     setSearch("");
@@ -110,12 +119,14 @@ export function CaptureQueue() {
     setWorkspaceLoading(true);
     try {
       const all = await loadAllWorkspaceOptions();
+      if (organizerRequest.current !== requestId) return;
       setWorkspaces(all);
       setWorkspaceId("");
     } catch {
+      if (organizerRequest.current !== requestId) return;
       setWorkspaceError(true);
       showToast({ kind: "error", message: "Unable to load workspaces. Retry before organizing." });
-    } finally { setWorkspaceLoading(false); }
+    } finally { if (organizerRequest.current === requestId) setWorkspaceLoading(false); }
   }
 
   async function saveEdit() {
@@ -126,8 +137,29 @@ export function CaptureQueue() {
       writeRevision.current++;
       setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
       setTarget(null);
+      setEditConflict(null);
       showToast({ kind: "success", message: "Capture updated." });
     } catch (error) {
+      if (error instanceof APIError && error.status === 409) {
+        try {
+          const latest = await getCapture(target.id);
+          if (latest.status !== "pending") {
+            setTarget(null);
+            void refresh();
+            showToast({ kind: "error", message: "Capture was organized elsewhere. Your local draft was not saved." });
+            return;
+          }
+          // Keep the user's unsaved text; a second explicit click is required
+          // before overwriting the now-current server version.
+          setTarget(latest);
+          setEditConflict(latest.content);
+          showToast({ kind: "error", message: "Capture changed in another session. Review both versions before choosing Overwrite latest." });
+          return;
+        } catch {
+          showToast({ kind: "error", message: "Could not reload the conflicting capture. Your draft is preserved." });
+          return;
+        }
+      }
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Update failed. Your edit is preserved." });
     } finally { setSubmitting(false); }
   }
@@ -243,7 +275,7 @@ export function CaptureQueue() {
               </div>
             </div>)}
           </div>}
-      <Dialog open={target !== null} onOpenChange={(next) => { if (!next && !submitting) setTarget(null); }}>
+      <Dialog open={target !== null} onOpenChange={(next) => { if (!next && !submitting) { organizerRequest.current++; setTarget(null); setEditConflict(null); } }}>
         <DialogContent className="w-[min(94vw,520px)]">
           <DialogTitle>{mode === "edit" ? "Edit capture" : "Organize capture"}</DialogTitle>
           <DialogDescription>{mode === "edit" ? "Save the revised intake item." : "Convert to a Note or Task owned by a Workspace."}</DialogDescription>
@@ -275,12 +307,17 @@ export function CaptureQueue() {
                 {kind === "task" && target && [...target.content].length > 4000 &&
                   <p className="mt-2 text-xs text-danger" role="alert">Task descriptions are limited to 4,000 characters. Edit this capture first or save it as a Note.</p>}
               </>}
+          {mode === "edit" && editConflict !== null && <div role="alert" className="mt-3 grid gap-2 text-xs text-danger">
+            <p>This Capture changed in another session. Your unsaved draft is still above.</p>
+            <p className="whitespace-pre-wrap rounded-md border border-line bg-canvas p-2 text-ink">Latest saved: {editConflict}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={() => { setEditBody(editConflict); setEditConflict(null); }}>Use latest saved version</Button>
+          </div>}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setTarget(null)} disabled={submitting}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { organizerRequest.current++; setTarget(null); setEditConflict(null); }} disabled={submitting}>Cancel</Button>
             <Button onClick={() => void (mode === "edit" ? saveEdit() : organize())}
               disabled={submitting || (mode === "edit" ? !validCaptureContent(editBody) : !options.some((item) => item.id === workspaceId) || workspaceLoading || workspaceError || (kind === "task" && [...(target?.content ?? "")].length > 4000))}>
               {submitting ? <LoaderCircle className="animate-spin" size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-              {submitting ? "Saving…" : mode === "edit" ? "Save changes" : "Organize"}
+              {submitting ? "Saving…" : mode === "edit" ? editConflict !== null ? "Overwrite latest" : "Save changes" : "Organize"}
             </Button>
           </DialogFooter>
         </DialogContent>

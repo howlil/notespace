@@ -20,6 +20,7 @@ const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transp
 export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategory, onChanged }: Props) {
   const {
     children,
+    categoryError,
     creating,
     deleting,
     editingCategory,
@@ -104,7 +105,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                     {editingCategory === category.id && !isSystemCategory ? (
                       <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
                     ) : (
-                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => { if (isOpen) onSelectCategory(category.id); else void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => onSelectCategory(category.id)} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
                         <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                         <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSelected && "text-accent", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                       </Button>
@@ -151,6 +152,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
+                  {categoryError === category.id && <div role="alert" className="mx-2 my-1 text-[10px] text-danger">Could not load Workspaces. <Button type="button" size="sm" variant="ghost" onClick={() => void toggleCategory(category)}>Retry</Button></div>}
                   {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}
                   {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
                 </div>

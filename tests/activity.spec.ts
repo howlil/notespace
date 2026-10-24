@@ -401,7 +401,7 @@ test("Global Activity rail requires Workspace and preserves dock controls", asyn
     await rail.getByRole("button", { name: /^Activity, today/ }).click();
     const panel = page.getByRole("dialog", { name: "Activity" });
     await expect(panel).toBeVisible();
-    await panel.getByRole("textbox", { name: "Standalone activity title" }).fill(title);
+    await panel.getByRole("textbox", { name: "Activity title" }).fill(title);
     const button = panel.getByRole("button", { name: "Start activity" });
     await expect(button).toBeDisabled();
     await panel.getByRole("combobox", { name: "Global Activity Workspace" }).selectOption(workspace.id);

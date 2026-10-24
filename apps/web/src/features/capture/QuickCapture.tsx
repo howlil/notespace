@@ -33,7 +33,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
 
   useEffect(() => {
     const onOpen = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail === "queue") setDestination("queue");
+      setDestination(event instanceof CustomEvent && event.detail === "queue" ? "queue" : "workspace");
       setOpen(true);
     };
     window.addEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
@@ -44,6 +44,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
+        setDestination("workspace");
         setOpen(true);
       }
     };
@@ -52,7 +53,10 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || destination !== "workspace") {
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
     setWorkspaceQuery("");
@@ -81,7 +85,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, showToast]);
+  }, [destination, open, showToast]);
 
   useEffect(() => {
     if (!open) return;
@@ -160,7 +164,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       {showTrigger && <IconButton
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
-        onClick={() => setOpen(true)}
+        onClick={() => { setDestination("workspace"); setOpen(true); }}
         aria-label="Quick capture"
         title="Quick capture (Ctrl/Cmd + Shift + N)"
       >

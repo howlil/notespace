@@ -60,7 +60,7 @@ func (a API) createTask(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title       string  `json:"title"`
 		MilestoneID *string `json:"milestoneId"`
-		PlannedFor string `json:"plannedFor"`
+		PlannedFor  string  `json:"plannedFor"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -147,11 +147,19 @@ func (a API) createStandaloneTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a API) assignStandaloneTask(w http.ResponseWriter, r *http.Request) {
-	var body struct { WorkspaceID string `json:"workspaceId"`; Version int `json:"version"` }
-	if !decode(w,r,&body){return}
-	item,err:=a.planning.AssignStandaloneTask(r.Context(),r.PathValue("taskId"),body.WorkspaceID,body.Version)
-	if err!=nil{fail(w,err);return}
-	send(w,http.StatusOK,item)
+	var body struct {
+		WorkspaceID string `json:"workspaceId"`
+		Version     int    `json:"version"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	item, err := a.planning.AssignStandaloneTask(r.Context(), r.PathValue("taskId"), body.WorkspaceID, body.Version)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, item)
 }
 
 func (a API) updateAnyTask(w http.ResponseWriter, r *http.Request) {

@@ -12,7 +12,7 @@ type Props = {
   milestoneId?: string;
   plannedFor?: string;
   titleLabel?: string;
-  inputRef?: RefObject<HTMLInputElement | null>;
+  inputRef?: RefObject<HTMLInputElement>;
   onCreated: (task: PlanningTask) => void | Promise<void>;
   onCancel?: () => void;
 };

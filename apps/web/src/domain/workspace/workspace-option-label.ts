@@ -1,9 +1,11 @@
 import type { WorkspaceSummary } from "./workspace";
 
+type WorkspaceOption = Pick<WorkspaceSummary, "id" | "title">;
+
 /** Distinguish same-name Workspaces in destination pickers without changing IDs. */
 export function workspaceOptionLabel(
-  workspace: WorkspaceSummary,
-  allWorkspaces: readonly WorkspaceSummary[],
+  workspace: WorkspaceOption,
+  allWorkspaces: readonly WorkspaceOption[],
 ): string {
   const duplicated = allWorkspaces.some((other) =>
     other.id !== workspace.id &&

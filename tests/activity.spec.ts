@@ -389,3 +389,42 @@ test("Today Quick Activity requires a Workspace before starting", async ({ page,
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("Global Activity rail requires Workspace and preserves dock controls", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Global M5 activity ${Date.now()}`;
+  try {
+    await page.goto("/");
+    const rail = page.getByRole("navigation", { name: "Primary navigation" });
+    await rail.getByRole("button", { name: /^Activity, today/ }).click();
+    const panel = page.getByRole("dialog", { name: "Activity" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("textbox", { name: "Standalone activity title" }).fill(title);
+    const button = panel.getByRole("button", { name: "Start activity" });
+    await expect(button).toBeDisabled();
+    await panel.getByRole("combobox", { name: "Global Activity Workspace" }).selectOption(workspace.id);
+    await expect(button).toBeEnabled();
+    await button.click();
+    await page.getByRole("menu", { name: "Choose activity type" }).getByRole("menuitem", { name: "Build" }).click();
+    const active = page.getByRole("status", { name: "Active activity" });
+    await expect(active).toContainText(title);
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(active).toHaveCount(0);
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return "";
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.find((item) => item.title === title)?.workspaceId ?? "";
+    }).toBe(workspace.id);
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const item of sessions.filter((row) => row.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

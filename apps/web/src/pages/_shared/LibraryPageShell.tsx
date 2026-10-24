@@ -32,7 +32,8 @@ export function LibraryPageShell({
     return () => media.removeEventListener("change", sync);
   }, []);
   const expanded = preference === "open" || (preference === "auto" && !compact);
-  const toggle = () => setPreference(expanded ? "closed" : "open");
+  const closeExplorer = () => { setPreference("closed"); toggleRef.current?.focus(); };
+  const toggle = () => { if (expanded) closeExplorer(); else setPreference("open"); };
 
   useEffect(() => {
     if (!(compact && expanded)) return;
@@ -65,7 +66,7 @@ export function LibraryPageShell({
           type="button"
           className="fixed inset-0 z-40 bg-[#111827]/25"
           aria-label="Close category explorer"
-          onClick={() => setPreference("closed")}
+          onClick={closeExplorer}
         />
       )}
       <div
@@ -74,7 +75,7 @@ export function LibraryPageShell({
       >
         <div className="flex h-9 shrink-0 items-center justify-between border-b border-line bg-sidebar px-3">
           <span className="text-[11px] font-semibold text-ink">Explorer</span>
-          <button type="button" className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent" onClick={() => setPreference("closed")} aria-label="Close Explorer" title="Close Explorer"><PanelLeftClose size={15} /></button>
+          <button type="button" className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent" onClick={closeExplorer} aria-label="Close Explorer" title="Close Explorer"><PanelLeftClose size={15} /></button>
         </div>
         <div className="h-[calc(100%-36px)] min-h-0 overflow-hidden bg-sidebar">
           <LibraryCreateContext.Provider value={createRequest}>{sidebar}</LibraryCreateContext.Provider>

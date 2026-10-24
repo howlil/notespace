@@ -111,7 +111,8 @@ test("Organize cannot submit a Workspace hidden by a changed search filter", asy
   const item = await capture.json() as { id: string; version: number };
   try {
     await page.goto("/inbox");
-    await page.getByRole("button", { name: "Organize", exact: true }).filter({ visible: true }).last().click();
+    const row = page.getByText(`Unorganized selection ${id}`, { exact: true }).locator("..").locator("..");
+    await row.getByRole("button", { name: "Organize", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Organize capture" });
     const select = dialog.getByRole("combobox", { name: /Workspace \(required\)/ });
     await select.selectOption(first.id);

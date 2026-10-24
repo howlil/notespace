@@ -257,6 +257,7 @@ export function WorkspacePlan({
       const item = await createMilestone(workspaceId, title);
       setPlan((current) => ({ ...current, milestones: [...current.milestones, item] }));
       setAddingMilestone(false);
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not add milestone." });
     }
@@ -266,6 +267,7 @@ export function WorkspacePlan({
     try {
       const updated = await updateMilestone(workspaceId, item.id, { ...patch, version: item.version });
       setPlan((current) => ({ ...current, milestones: current.milestones.map((value) => value.id === updated.id ? updated : value) }));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not update milestone." });
     }
@@ -324,14 +326,18 @@ export function WorkspacePlan({
     try {
       if (deleteTarget.kind === "task") {
         await deleteTask(workspaceId, deleteTarget.item.id, deleteTarget.item.version);
+        ++mutationEpoch.current;
         setPlan((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== deleteTarget.item.id) }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
       } else {
         await deleteMilestone(workspaceId, deleteTarget.item.id, deleteTarget.item.version);
+        ++mutationEpoch.current;
         setPlan((current) => ({
           ...current,
           milestones: current.milestones.filter((item) => item.id !== deleteTarget.item.id),
           tasks: current.tasks.map((task) => task.milestoneId === deleteTarget.item.id ? { ...task, milestoneId: undefined } : task),
         }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
       }
       setDeleteTarget(null);
     } catch (error) {

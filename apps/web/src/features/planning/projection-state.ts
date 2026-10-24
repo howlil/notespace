@@ -13,6 +13,8 @@ export function applyTodayTaskUpdate(
   projection: TodayProjection,
   updated: PlanningTask,
 ): TodayProjection {
+  const current = projection.tasks.find((task) => task.id === updated.id);
+  if (current && updated.version < current.version) return projection;
   if (!belongsToToday(updated, projection.date)) {
     return {
       ...projection,

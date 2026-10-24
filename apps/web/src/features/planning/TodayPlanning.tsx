@@ -232,6 +232,11 @@ export function TodayPlanning({
   }, [projection.date, showToast]);
 
   useEffect(() => {
+    // Route loaders can be cached on Back/Forward navigation. Re-read at mount.
+    void refreshToday();
+  }, [refreshToday]);
+
+  useEffect(() => {
     if (refreshKey) void refreshToday();
   }, [refreshKey, refreshToday]);
 

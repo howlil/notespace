@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M3 implemented on a feature branch; **not yet shipped or merged**. M4–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M4 implemented on a feature branch; **not yet shipped or merged**. M5–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -163,6 +163,20 @@ Backup archive schema version advances to 15, and JSON backup version to 2; lega
 
 Focused Go tests exercise CRUD/version conflicts, atomic convert-to-Task and convert-to-Note, duplicate request handling, concurrent same-request conversion, invalid receipt rejection, and archive/legacy-JSON restoration. The full Go race/build/test verification remains governed by CI.
 
+
+## M4 implemented — Today projection hardening
+
+**Shapes:** `TaskMutationOutcome = confirmed(task,reconciled) | conflict(task) | missing | unknown`, `TaskPatch`, `PlanningTask(version)`, `TodayProjection(date,tasks)`. No new Task table or local persistence.
+
+**A:** UI Task edit → one versioned Planning API PATCH → response authoritative Task → update existing Today/Plan projection with version guard → emit in-memory Planning invalidation event → mounted sibling projection queries SQLite-backed HTTP API. On navigation or visibility resume, Today fetches the authoritative projection.
+
+**E:** when response fails after commit, GET Task by ID. If its version is exactly previous version + 1 and requested title/completion/planned date matches, treat as confirmed without a second PATCH. If version or values differ, report conflict and display latest state; if missing, remove stale UI entry; if GET fails, label outcome unknown and preserve the UI until a later refresh. Never blindly replay a write with an ambiguous outcome.
+
+**R:** existing Planning service and SQLite task rows remain source of truth. The browser's `PLANNING_TASK_CHANGED_EVENT` only invalidates mounted Today and Plan; no second persistence store or background data worker.
+
+**Execution:** per-Task in-flight guard blocks duplicate local updates; request sequence + mutation epoch rejects obsolete projection fetch responses. Workspace Plan retains current state during refresh. Back/Forward and tab visibility refresh requery the server.
+
+**Verification:** pure reconciliation unit tests (success, response loss, conflict, missing, unknown); projection-version tests; Playwright tests for response lost after commit and Task consistency across two Workspaces; existing Activity handoff and carry-forward test suites. Full CI/desktop gates remain required before merge.
 
 ## M3 implemented — Task ownership and legacy assignment
 

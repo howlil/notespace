@@ -9,7 +9,7 @@ test("Inbox routes new unsorted work to Capture Queue, not standalone Tasks", as
 
     await page.goto("/inbox");
     await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Legacy Inbox tasks" })).toBeVisible();
+    // Legacy section is hidden when there are no historical standalone Tasks.
     await page.getByRole("textbox", { name: "Capture an unorganized thought" }).fill(content);
     await page.getByRole("button", { name: "Capture", exact: true }).click();
     await expect(page.getByText(content, { exact: true })).toBeVisible();

@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
+import { FOCUS_TASK_COMPOSER_EVENT, PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import {
   deleteAnyTask,
   getToday,
+  getAnyTask,
   updateAnyTask,
 } from "../../adapters/http/planning-api";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
@@ -14,6 +15,7 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
 import { LegacyTaskAssign } from "./LegacyTaskAssign";
 import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
+import { reconcileTaskPatch } from "./task-mutation";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -211,39 +213,70 @@ export function TodayPlanning({
     [projection.tasks],
   );
 
-  useEffect(() => {
-    if (!refreshKey) return;
-    let cancelled = false;
-    void getToday(projection.date)
-      .then((latest) => {
-        if (!cancelled) setProjection(latest);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          showToast({
-            kind: "error",
-            message: error instanceof Error ? error.message : "Could not refresh Today.",
-          });
-        }
+  // A late projection response must not overwrite a newer Task mutation.
+  const mutationEpoch = useRef(0);
+  const requestSequence = useRef(0);
+  const pendingTaskIds = useRef(new Set<string>());
+  const refreshToday = useCallback(async () => {
+    const read = ++requestSequence.current;
+    const epoch = mutationEpoch.current;
+    try {
+      const latest = await getToday(projection.date);
+      if (read === requestSequence.current && epoch === mutationEpoch.current) setProjection(latest);
+    } catch (error) {
+      showToast({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not refresh Today.",
       });
-    return () => { cancelled = true; };
-  }, [projection.date, refreshKey, showToast]);
+    }
+  }, [projection.date, showToast]);
+
+  useEffect(() => {
+    if (refreshKey) void refreshToday();
+  }, [refreshKey, refreshToday]);
+
+  useEffect(() => {
+    const onChange = () => { void refreshToday(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshToday(); };
+    window.addEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshToday]);
 
   async function patchTask(
     task: TodayTask,
     patch: { title?: string; completed?: boolean; plannedFor?: string },
   ) {
+    if (pendingTaskIds.current.has(task.id)) return;
+    pendingTaskIds.current.add(task.id);
+    ++mutationEpoch.current;
     try {
-      const updated = await updateAnyTask(task.id, {
-        ...patch,
-        version: task.version,
-      });
-      setProjection((current) => applyTodayTaskUpdate(current, updated));
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not update task.",
-      });
+      const outcome = await reconcileTaskPatch(
+        task, patch,
+        () => updateAnyTask(task.id, { ...patch, version: task.version }),
+        getAnyTask,
+      );
+      if (outcome.status === "confirmed") {
+        setProjection((current) => applyTodayTaskUpdate(current, outcome.task));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        return;
+      }
+      if (outcome.status === "conflict") {
+        setProjection((current) => applyTodayTaskUpdate(current, outcome.task));
+        showToast({ kind: "error", message: "Task changed elsewhere. Latest saved state was restored; retry your edit if needed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (outcome.status === "missing") {
+        setProjection((current) => ({ ...current, tasks: current.tasks.filter((value) => value.id !== task.id) }));
+        showToast({ kind: "error", message: "Task was deleted elsewhere. Today has been refreshed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else {
+        showToast({ kind: "error", message: "Task update could not be confirmed. Check its status before retrying." });
+      }
+    } finally {
+      pendingTaskIds.current.delete(task.id);
     }
   }
 
@@ -282,7 +315,7 @@ export function TodayPlanning({
 
         <div className="mb-6 border-b border-line pb-4">
           <TaskComposer inputRef={taskInputRef} plannedFor={projection.date} titleLabel="New task"
-            onCreated={async () => { setProjection(await getToday(projection.date)); }} />
+            onCreated={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
         </div>
 
         <section aria-labelledby="today-open-title">
@@ -338,7 +371,7 @@ export function TodayPlanning({
       </div>
 
       <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
-        onAssigned={async () => { setProjection(await getToday(projection.date)); }} />
+        onAssigned={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this standalone task?"

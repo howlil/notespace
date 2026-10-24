@@ -417,6 +417,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
   assert.match(source(SHELL_RAIL), /to="\/inbox"/);
   assert.match(source(SHELL_RAIL), /to="\/today"/);
+  assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
+  assert.doesNotMatch(source(SHELL_RAIL), /Capture for later/);
+  assert.match(source(SIDEBAR), /aria-label="Workspace navigation"/);
+  assert.match(source(SIDEBAR), /aria-label="Categories"/);
   assert.match(source(INBOX_PLANNING), /Legacy Inbox tasks/);
   assert.match(source(INBOX_PLANNING), /LegacyTaskAssign/);
   assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);

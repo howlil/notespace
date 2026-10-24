@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
 type ActivitySessionRecord = {
@@ -18,7 +18,16 @@ function localDateKey(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-test("Activity starts standalone or from a Today task with context preserved", async ({ page, request }) => {
+async function createActivityWorkspace(request: APIRequestContext) {
+  const response = await request.post("/api/workspaces", { data: { title: `Activity context ${Date.now()}` } });
+  expect(response.status()).toBe(201);
+  return await response.json() as { id: string };
+}
+async function chooseActivityWorkspace(page: Page, workspaceId: string) {
+  await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspaceId);
+}
+
+test("Activity starts in a Workspace or from a Workspace Task with context preserved", async ({ page, request }) => {
   const date = localDateKey();
   const suffix = Date.now();
   const workspaceResponse = await request.post("/api/workspaces", {
@@ -51,6 +60,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
     await expect(quickActivity).toBeVisible();
 
     await quickActivity.fill(standaloneTitle);
+    await chooseActivityWorkspace(page, workspace.id);
     await activityType.selectOption("read");
     await page.getByRole("button", { name: "Start", exact: true }).click();
 
@@ -75,7 +85,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
     }).toEqual({
       title: standaloneTitle,
       activityType: "read",
-      workspaceId: "",
+      workspaceId: workspace.id,
       taskId: "",
     });
 
@@ -159,6 +169,7 @@ test("Activity starts standalone or from a Today task with context preserved", a
 
 
 test("activity End retries after the final heartbeat fails before server commit", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover uncommitted activity ${suffix}`;
   const heartbeatUrl = "**/api/activity/sessions/*";
@@ -167,6 +178,7 @@ test("activity End retries after the final heartbeat fails before server commit"
     await page.goto("/today");
     const input = page.getByRole("textbox", { name: "Quick activity" });
     await input.fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
@@ -201,6 +213,8 @@ test("activity End retries after the final heartbeat fails before server commit"
     }).not.toBeNull();
     await expect(page.getByRole("status", { name: "Activity sync" })).toHaveCount(0);
   } finally {
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await page.unroute(heartbeatUrl).catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
@@ -215,6 +229,7 @@ test("activity End retries after the final heartbeat fails before server commit"
 });
 
 test("@critical activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover committed activity ${suffix}`;
   const heartbeatUrl = "**/api/activity/sessions/*";
@@ -223,6 +238,7 @@ test("@critical activity End reconciles when server commits but the response is 
     await page.goto("/today");
     const input = page.getByRole("textbox", { name: "Quick activity" });
     await input.fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
@@ -284,6 +300,8 @@ test("@critical activity End reconciles when server commits but the response is 
       return sessions.filter((item) => item.title === title && item.endedAt).length;
     }).toBe(1);
   } finally {
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await page.unroute(heartbeatUrl).catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
@@ -299,6 +317,7 @@ test("@critical activity End reconciles when server commits but the response is 
 
 
 test("blocked tab can retry the global activity lease after the owner ends", async ({ page, context, request }) => {
+  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const firstTitle = `Owner activity ${suffix}`;
   const secondTitle = `Retry activity ${suffix}`;
@@ -308,6 +327,7 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
     await page.goto("/today");
     const firstInput = page.getByRole("textbox", { name: "Quick activity" });
     await firstInput.fill(firstTitle);
+    await chooseActivityWorkspace(page, workspace.id);
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
 
@@ -319,6 +339,7 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
     await expect(firstInput).toBeVisible();
 
     await secondInput.fill(secondTitle);
+    await chooseActivityWorkspace(secondPage, workspace.id);
     await secondPage.getByRole("button", { name: "Start", exact: true }).click();
     await expect(secondPage.getByText(secondTitle, { exact: true })).toBeVisible();
     await secondPage.getByRole("button", { name: "End activity" }).click();
@@ -330,6 +351,8 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
       return sessions.some((session) => session.title === secondTitle);
     }).toBe(true);
   } finally {
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await secondPage.close().catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {

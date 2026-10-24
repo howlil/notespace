@@ -15,7 +15,6 @@ import {
 } from "../../shared/ui";
 import {
   createMilestone,
-  createTask,
   deleteMilestone,
   deleteTask,
   getWorkspacePlan,
@@ -31,6 +30,7 @@ import {
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
+import { TaskComposer } from "./TaskComposer";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }
@@ -229,16 +229,6 @@ export function WorkspacePlan({
     }
   }
 
-  async function addTask(title: string, milestoneId?: string) {
-    try {
-      const item = await createTask(workspaceId, title, milestoneId);
-      setPlan((current) => ({ ...current, tasks: [...current.tasks, item] }));
-      setTaskTarget(null);
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not add task." });
-    }
-  }
-
   async function patchMilestone(item: PlanningMilestone, patch: { title?: string; completed?: boolean }) {
     try {
       const updated = await updateMilestone(workspaceId, item.id, { ...patch, version: item.version });
@@ -370,7 +360,7 @@ export function WorkspacePlan({
               <div className="pt-1.5">
                 {tasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
-                  <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title, milestone.id)} onCancel={() => setTaskTarget(null)} />
+                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); }} onCancel={() => setTaskTarget(null)} />
                 ) : (
                   <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({ milestoneId: milestone.id })}><Plus size={13} /> Add task</Button>
                 )}
@@ -395,7 +385,7 @@ export function WorkspacePlan({
           <div className="pt-1.5">
             {looseTasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
-              <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title)} onCancel={() => setTaskTarget(null)} />
+              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); }} onCancel={() => setTaskTarget(null)} />
             ) : (
               <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({})}><Plus size={13} /> Add task</Button>
             )}

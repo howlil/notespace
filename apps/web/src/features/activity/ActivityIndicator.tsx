@@ -197,7 +197,7 @@ export function ActivityIndicator({
           {rail && !workspaceId && activity.status === "idle" && (
             <label className="mt-3 block text-[10px] text-muted">
               Activity title
-              <Input className="mt-1 min-h-8 w-full text-[11px]" aria-label="Standalone activity title"
+              <Input className="mt-1 min-h-8 w-full text-[11px]" aria-label="Activity title"
                 placeholder="What are you doing?" value={standaloneTitle}
                 onChange={(event) => setStandaloneTitle(event.target.value)} />
             </label>

@@ -44,23 +44,36 @@ export function LegacyTaskAssign({ task, onClose, onAssigned }: {
   async function assign() {
     if (!task || !workspaceId || saving) return;
     setSaving(true);
+    let updated: PlanningTask | null = null;
+    let reconciled = false;
     try {
-      const updated = await assignStandaloneTask(task.id, workspaceId, task.version);
-      await onAssigned(updated);
-      onClose();
-    } catch (error) {
       try {
-        const current = await getAnyTask(task.id);
-        if (current.workspaceId === workspaceId && current.version === task.version + 1) {
-          await onAssigned(current);
-          onClose();
-          showToast({ kind: "success", message: "Task was already assigned; no duplicate was made." });
+        updated = await assignStandaloneTask(task.id, workspaceId, task.version);
+      } catch (error) {
+        // A dropped response is ambiguous: the mutation may have committed.
+        try {
+          const current = await getAnyTask(task.id);
+          if (current.workspaceId === workspaceId && current.version === task.version + 1) {
+            updated = current;
+            reconciled = true;
+          }
+        } catch {
+          // Keep original selection and Task visible until status is known.
+        }
+        if (!updated) {
+          showToast({ kind: "error", message: error instanceof Error ? error.message : "Assignment not confirmed. Refresh before retrying." });
           return;
         }
-      } catch {
-        // Unknown response: retain Task and destination, require manual retry/reload.
       }
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not confirm assignment. Check Task status before retrying." });
+      try {
+        await onAssigned(updated);
+      } catch {
+        // A successful mutation must not be presented as a failed assignment
+        // just because a local projection refresh subsequently failed.
+        showToast({ kind: "error", message: "Task assigned, but the view could not refresh. Reload to see its new Workspace." });
+      }
+      onClose();
+      if (reconciled) showToast({ kind: "success", message: "Task already assigned; no duplicate was made." });
     } finally { setSaving(false); }
   }
 

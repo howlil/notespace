@@ -90,7 +90,9 @@ func TestPlanningTodayAndStandaloneHTTPContract(t *testing.T) {
 	expect(t, call(t, api, http.MethodPost, "/api/tasks", map[string]string{"title": "Unowned"}), http.StatusBadRequest)
 	service := planning.NewService(store, store, nil)
 	task, err := service.CreateStandaloneTask(context.Background(), "Legacy Inbox task", "")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	expect(t, call(t, api, http.MethodGet, "/api/tasks/"+task.ID, nil), http.StatusOK)
 	inbox := call(t, api, http.MethodGet, "/api/tasks/inbox", nil)
@@ -113,42 +115,60 @@ func TestPlanningTodayAndStandaloneHTTPContract(t *testing.T) {
 
 func TestPlanningAssignLegacyTaskAndAtomicTodayCreation(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "planning-assignment-http.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := newAPI(store)
-	workspace := decodeWorkspace(t, call(t,api,http.MethodPost,"/api/workspaces",map[string]string{"title":"Destination"}))
+	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Destination"}))
 	date := "2026-10-25"
-	res := call(t,api,http.MethodPost,"/api/workspaces/"+workspace.ID+"/tasks",map[string]any{"title":"Scheduled at creation","plannedFor":date})
-	expect(t,res,http.StatusCreated)
+	res := call(t, api, http.MethodPost, "/api/workspaces/"+workspace.ID+"/tasks", map[string]any{"title": "Scheduled at creation", "plannedFor": date})
+	expect(t, res, http.StatusCreated)
 	var owned planning.Task
-	if err:=json.Unmarshal(res.Body.Bytes(),&owned);err!=nil{t.Fatal(err)}
-	if owned.WorkspaceID==nil || *owned.WorkspaceID!=workspace.ID || owned.PlannedFor==nil || *owned.PlannedFor!=date || owned.Version!=1 {
-		t.Fatalf("atomic create mismatch: %+v",owned)
+	if err := json.Unmarshal(res.Body.Bytes(), &owned); err != nil {
+		t.Fatal(err)
 	}
-	service := planning.NewService(store,store,nil)
-	legacy,err:=service.CreateStandaloneTask(context.Background(),"Preserve identity",date)
-	if err!=nil{t.Fatal(err)}
+	if owned.WorkspaceID == nil || *owned.WorkspaceID != workspace.ID || owned.PlannedFor == nil || *owned.PlannedFor != date || owned.Version != 1 {
+		t.Fatalf("atomic create mismatch: %+v", owned)
+	}
+	service := planning.NewService(store, store, nil)
+	legacy, err := service.CreateStandaloneTask(context.Background(), "Preserve identity", date)
+	if err != nil {
+		t.Fatal(err)
+	}
 	createdAt := legacy.CreatedAt
 	description := "Legacy description with context"
 	completed := true
-	legacy,err=service.UpdateAnyTask(context.Background(),legacy.ID,planning.TaskPatch{
+	legacy, err = service.UpdateAnyTask(context.Background(), legacy.ID, planning.TaskPatch{
 		Description: &description, Completed: &completed, Version: legacy.Version,
 	})
-	if err!=nil{t.Fatal(err)}
-	assign := map[string]any{"workspaceId":workspace.ID,"version":legacy.Version}
-	first:=call(t,api,http.MethodPost,"/api/tasks/"+legacy.ID+"/assign-workspace",assign)
-	expect(t,first,http.StatusOK)
-	var moved planning.Task
-	if err:=json.Unmarshal(first.Body.Bytes(),&moved);err!=nil{t.Fatal(err)}
-	if moved.ID!=legacy.ID || moved.Version!=legacy.Version+1 || moved.WorkspaceID==nil || *moved.WorkspaceID!=workspace.ID || moved.PlannedFor==nil || *moved.PlannedFor!=date || moved.CompletedAt==nil ||
-		moved.CreatedAt!=createdAt || moved.Description!=description {
-		t.Fatalf("migration changed task identity or dates: %+v",moved)
+	if err != nil {
+		t.Fatal(err)
 	}
-	expect(t,call(t,api,http.MethodPost,"/api/tasks/"+legacy.ID+"/assign-workspace",assign),http.StatusOK)
-	expect(t,call(t,api,http.MethodPost,"/api/tasks/"+legacy.ID+"/assign-workspace",map[string]any{"workspaceId":workspace.ID,"version":moved.Version}),http.StatusConflict)
-	plan,err:=store.GetPlan(context.Background(),workspace.ID)
-	if err!=nil{t.Fatal(err)}
-	count:=0
-	for _,task:=range plan.Tasks{if task.ID==legacy.ID{count++}}
-	if count!=1{t.Fatalf("expected one migrated task, got %d",count)}
+	assign := map[string]any{"workspaceId": workspace.ID, "version": legacy.Version}
+	first := call(t, api, http.MethodPost, "/api/tasks/"+legacy.ID+"/assign-workspace", assign)
+	expect(t, first, http.StatusOK)
+	var moved planning.Task
+	if err := json.Unmarshal(first.Body.Bytes(), &moved); err != nil {
+		t.Fatal(err)
+	}
+	if moved.ID != legacy.ID || moved.Version != legacy.Version+1 || moved.WorkspaceID == nil || *moved.WorkspaceID != workspace.ID || moved.PlannedFor == nil || *moved.PlannedFor != date || moved.CompletedAt == nil ||
+		moved.CreatedAt != createdAt || moved.Description != description {
+		t.Fatalf("migration changed task identity or dates: %+v", moved)
+	}
+	expect(t, call(t, api, http.MethodPost, "/api/tasks/"+legacy.ID+"/assign-workspace", assign), http.StatusOK)
+	expect(t, call(t, api, http.MethodPost, "/api/tasks/"+legacy.ID+"/assign-workspace", map[string]any{"workspaceId": workspace.ID, "version": moved.Version}), http.StatusConflict)
+	plan, err := store.GetPlan(context.Background(), workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, task := range plan.Tasks {
+		if task.ID == legacy.ID {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one migrated task, got %d", count)
+	}
 }

@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M4 implemented on a feature branch; **not yet shipped or merged**. M5–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M5 implemented on a feature branch; **not yet shipped or merged**. M6–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -163,6 +163,33 @@ Backup archive schema version advances to 15, and JSON backup version to 2; lega
 
 Focused Go tests exercise CRUD/version conflicts, atomic convert-to-Task and convert-to-Note, duplicate request handling, concurrent same-request conversion, invalid receipt rejection, and archive/legacy-JSON restoration. The full Go race/build/test verification remains governed by CI.
 
+
+## M5 implemented — Activity Workspace ownership, recovery compatibility
+
+**Shapes:** `ActivityStart { title, activityType, workspaceId, workspaceTitleSnapshot, taskId?, taskTitleSnapshot? }` for new starts, `ManualActivitySession` with optional Workspace on historical recovery only, `PendingActivityFinalization` unchanged.
+
+**A — fresh start and recovery graphs:**
+
+```text
+Today Quick Activity → select Workspace from paginated existing Workspace API
+                     → verify Workspace still exists via GET
+                     → ActivityRuntime.start → useActivitySession.start → single browser lease
+                     → durable local active session → idempotent heartbeat → global dock
+Today Task Activity → read latest Task → require Task Workspace and incomplete Task
+                    → verify referenced Workspace → same ActivityRuntime.start
+Workspace rail/global rail Activity → verify Workspace → same ActivityRuntime.start
+End → durable outbox → PUT finish/retry → Activity session receipt
+    → optional Task completion handoff (same taskId)
+Restore legacy unowned session → existing storage decoder + lease + heartbeat recovery
+                              → continue/pause/end without injecting fictitious Workspace
+Historic unowned Activity DB rows → unchanged read APIs, stats, daily details and exports
+```
+
+**E:** no Workspace selected disables fresh start; missing or stale Workspace blocks start without discarding input; missing, completed or legacy unowned Task cannot initiate new Task-linked Activity; errors show a toast and permit explicit retry. Storage/lease/heartbeat failures use existing recovery policy, not a new parallel outbox. Historic queued heartbeats with no owner stay replayable, so backend heartbeat compatibility is retained intentionally.
+
+**R & boundary:** Activity runtime/session hook enforce Workspace required for **fresh** session creation; Workspace picker uses existing paginated API; GET verifies a live Workspace at button action; server reference resolution remains authoritative for Task/Workspace identity. No new SQLite migration, Activity store, timer implementation, or session storage key.
+
+**Proof:** Today Quick Activity requires Workspace and persists owner, global cross-route timer remains durable, Task activity preserves Task ID and Workspace, legacy recovery and no-workspace database rows remain readable; heartbeat response-loss, offline finalization and multiple-tab lease tests remain active.
 
 ## M4 implemented — Today projection hardening
 

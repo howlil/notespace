@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CalendarPlus, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
-import { Button, IconButton, Input } from "../../shared/ui";
+import { IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import {
   deleteAnyTask,

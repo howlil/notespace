@@ -87,3 +87,30 @@ test("Today aggregates different Workspaces and refetches their authoritative ta
     }
   }
 });
+
+test("Workspace Plan treats incomplete carried-forward Tasks as already in Today", async ({ page, request }) => {
+  const title = `M4 carried Plan ${Date.now()}`;
+  const created = await request.post("/api/workspaces", { data: { title } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const date = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const taskResponse = await request.post(`/api/workspaces/${workspace.id}/tasks`, { data: { title, plannedFor: date } });
+  expect(taskResponse.status()).toBe(201);
+  const task = await taskResponse.json() as { id: string };
+  try {
+    await page.goto(`/workspaces/${workspace.id}`);
+    await page.getByRole("button", { name: "Plan" }).click();
+    await expect(page.getByText(title, { exact: true })).toBeVisible();
+    await page.getByText(title, { exact: true }).hover();
+    await page.getByRole("button", { name: `Remove ${title} from Today` }).click();
+    await expect.poll(async () => {
+      const response = await request.get(`/api/tasks/${task.id}`);
+      return (await response.json() as { plannedFor?: string | null }).plannedFor ?? "";
+    }).toBe("");
+  } finally {
+    await deleteWorkspace(request, workspace.id);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

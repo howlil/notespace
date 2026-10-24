@@ -63,30 +63,31 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
     };
   }, [expanded, libraryRevision]);
 
-  async function toggleCategory(category: CategorySummary) {
-    const next = new Set(expanded);
-    if (next.has(category.id)) {
-      next.delete(category.id);
-      setExpanded(next);
-      return;
-    }
-
-    next.add(category.id);
-    setExpanded(next);
-    // Disclosure only changes Explorer expansion. Category navigation has its own control.
-    if (children[category.id]) return;
-
-    setLoading(category.id);
+  async function loadCategoryWorkspaces(categoryId: string) {
+    setLoading(categoryId);
     setCategoryError(null);
     try {
-      const page = await listCategoryWorkspaces(category.id, { limit: 5 });
-      setChildren((current) => ({ ...current, [category.id]: page.items }));
+      const page = await listCategoryWorkspaces(categoryId, { limit: 5 });
+      setChildren((current) => ({ ...current, [categoryId]: page.items }));
     } catch (error) {
-      setCategoryError(category.id);
+      setCategoryError(categoryId);
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
     } finally {
       setLoading(null);
     }
+  }
+
+  async function toggleCategory(category: CategorySummary) {
+    if (expanded.has(category.id)) {
+      setExpanded((current) => {
+        const next = new Set(current);
+        next.delete(category.id);
+        return next;
+      });
+      return;
+    }
+    setExpanded((current) => new Set(current).add(category.id));
+    if (!children[category.id] || categoryError === category.id) await loadCategoryWorkspaces(category.id);
   }
 
   function startCreate(kind: CreateTarget["kind"], categoryId?: string) {
@@ -223,5 +224,6 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
     startCreate,
     submitCreate,
     toggleCategory,
+    retryCategory: loadCategoryWorkspaces,
   };
 }

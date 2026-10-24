@@ -35,7 +35,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
     await page.getByRole("menuitem", { name: "Quick capture" }).click();
     const reopened = page.getByRole("dialog", { name: "Quick capture" });
     await expect(reopened).toBeVisible();
-    await expect(reopened.getByRole("combobox", { name: "Workspace" })).toHaveValue(workspace.id);
+    await expect(reopened.getByRole("combobox", { name: "Capture Workspace" })).toHaveValue(workspace.id);
   } finally {
     await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);

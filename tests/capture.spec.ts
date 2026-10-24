@@ -64,3 +64,62 @@ test("Queue size limit does not restrict direct Workspace Quick Capture", async 
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+
+test("@critical Quick Capture cannot use stale Workspace search results during debounce or pending request", async ({ page, request }) => {
+  const stamp = Date.now();
+  const firstResponse = await request.post("/api/workspaces", { data: { title: `M6 destination A ${stamp}` } });
+  expect(firstResponse.status()).toBe(201);
+  const first = await firstResponse.json() as { id: string; title: string };
+  const secondResponse = await request.post("/api/workspaces", { data: { title: `M6 destination B ${stamp}` } });
+  expect(secondResponse.status()).toBe(201);
+  const second = await secondResponse.json() as { id: string; title: string };
+
+  let releaseSearch!: () => void;
+  const blockedSearch = new Promise<void>((resolve) => { releaseSearch = resolve; });
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    const dialog = page.getByRole("dialog", { name: "Quick capture" });
+    const search = dialog.getByRole("searchbox", { name: "Search workspaces" });
+    const picker = dialog.getByRole("combobox", { name: "Capture Workspace" });
+    const save = dialog.getByRole("button", { name: "Capture", exact: true });
+    const noteTitle = `M6 search-safe note ${stamp}`;
+
+    await dialog.getByRole("textbox", { name: "Note" }).fill(noteTitle);
+    await search.fill(first.title);
+    await expect(picker).toHaveValue(first.id);
+    await expect(save).toBeEnabled();
+
+    await page.route("**/api/workspaces?**", async (route) => {
+      if (new URL(route.request().url()).searchParams.get("q") === second.title) {
+        await blockedSearch;
+      }
+      await route.continue();
+    });
+    await search.fill(second.title);
+    // The old result must be unusable immediately, including before debounce.
+    await expect(save).toBeDisabled();
+    await dialog.getByRole("textbox", { name: "Note" }).press("Control+Enter");
+    await expect(dialog).toBeVisible();
+    await expect(save).toBeDisabled();
+
+    releaseSearch();
+    await expect(picker).toHaveValue(second.id);
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(page.getByText(`Captured to ${second.title}.`, { exact: true })).toBeVisible();
+
+    const previous = await request.get(`/api/workspaces/${first.id}`);
+    expect(previous.ok()).toBe(true);
+    const workspace = await previous.json() as { notes: Array<{ title: string }> };
+    expect(workspace.notes.some((note) => note.title === noteTitle)).toBe(false);
+  } finally {
+    releaseSearch();
+    await deleteWorkspace(request, first.id);
+    await deleteWorkspace(request, second.id);
+    await request.delete(`/api/trash/${first.id}`).catch(() => undefined);
+    await request.delete(`/api/trash/${second.id}`).catch(() => undefined);
+  }
+});

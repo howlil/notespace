@@ -69,7 +69,7 @@ export function CaptureQueue() {
       } else if (readId === readSequence.current) {
         // A mutation superseded this fetch; fetch the complete authoritative
         // queue again instead of rendering only the optimistic new item.
-        void refresh();
+        window.dispatchEvent(new Event(CAPTURE_QUEUE_CHANGED_EVENT));
       }
     } catch (error) {
       if (readId === readSequence.current && revision === writeRevision.current) {

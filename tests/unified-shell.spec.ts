@@ -145,9 +145,13 @@ test("@critical selecting Create Task twice focuses the same Today composer", as
 
 test("@critical Activity runtime and dock survive Library/Inbox/Today navigation", async ({ page, request }) => {
   const title = `Cross-route activity ${Date.now()}`;
+  const response = await request.post("/api/workspaces", { data: { title: `Activity owner ${Date.now()}` } });
+  expect(response.status()).toBe(201);
+  const workspace = await response.json() as { id: string };
   try {
     await page.goto("/today");
     await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspace.id);
     await page.getByRole("button", { name: "Start", exact: true }).click();
     const active = page.getByRole("status", { name: "Active activity" });
     await expect(active).toContainText(title);
@@ -166,6 +170,8 @@ test("@critical Activity runtime and dock survive Library/Inbox/Today navigation
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(active).toHaveCount(0);
   } finally {
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
       const sessions = await response.json() as Array<{ id: string; title: string }>;

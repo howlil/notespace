@@ -15,14 +15,18 @@ const modulePath = "github.com/howlil/notespace/apps/server/internal/"
 
 var allowedDependencies = map[string]map[string]bool{
 	"workspace": {},
-	"planning":  {},
-	"activity":  {},
-	"asset":     {},
-	"icon":      {},
+	"capture": {
+		"workspace": true,
+	},
+	"planning": {},
+	"activity": {},
+	"asset":    {},
+	"icon":     {},
 	"library": {
 		"workspace": true,
 	},
 	"httpapi": {
+		"capture":   true,
 		"workspace": true,
 		"planning":  true,
 		"activity":  true,
@@ -31,6 +35,7 @@ var allowedDependencies = map[string]map[string]bool{
 		"icon":      true,
 	},
 	"sqlite": {
+		"capture":   true,
 		"workspace": true,
 		"planning":  true,
 		"activity":  true,

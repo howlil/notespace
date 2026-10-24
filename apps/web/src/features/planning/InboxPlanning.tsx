@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouterState } from "@tanstack/react-router";
-import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
-import { CalendarPlus, Inbox as InboxIcon, Pencil, Plus, Trash2 } from "lucide-react";
-import { Button, IconButton, Input } from "../../shared/ui";
+import { useEffect, useState } from "react";
+import { CalendarPlus, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
+import { IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import {
-  createStandaloneTask,
   deleteAnyTask,
   updateAnyTask,
 } from "../../adapters/http/planning-api";
@@ -16,15 +13,19 @@ import {
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import { applyInboxTaskUpdate } from "./projection-state";
+import { LegacyTaskAssign } from "./LegacyTaskAssign";
+import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 function InboxTaskRow({
   task,
   onUpdate,
   onDelete,
+  onAssign,
 }: {
   task: PlanningTask;
   onUpdate: (task: PlanningTask, patch: { title?: string; plannedFor?: string }) => Promise<void>;
   onDelete: (task: PlanningTask) => void;
+  onAssign: (task: PlanningTask) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -80,7 +81,8 @@ function InboxTaskRow({
         <span className="mt-0.5 block text-[9px] text-muted">Standalone · not scheduled</span>
       </div>
 
-      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="flex items-center gap-0.5 group-hover:opacity-100 group-focus-within:opacity-100">
+        <button type="button" className="rounded-md px-2 py-1 text-[10px] text-accent hover:bg-tint" onClick={() => onAssign(task)} aria-label={`Assign ${task.title} to Workspace`}>Assign</button>
         <IconButton
           className="!size-7 text-muted hover:text-accent"
           aria-label={`Move ${task.title} to Today`}
@@ -111,48 +113,14 @@ function InboxTaskRow({
 }
 
 export function InboxPlanning({ initial }: { initial: InboxProjection }) {
-  const taskInputRef = useRef<HTMLInputElement>(null);
-  const routeHash = useRouterState({ select: state => state.location.hash });
-  useEffect(() => {
-    if (routeHash === "new-task" || routeHash === "#new-task") taskInputRef.current?.focus();
-  }, [routeHash]);
-  useEffect(() => {
-    const onFocus = () => taskInputRef.current?.focus();
-    window.addEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
-    return () => window.removeEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
-  }, []);
-
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
-  const [title, setTitle] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<PlanningTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PlanningTask | null>(null);
 
   useEffect(() => {
     setProjection(initial);
   }, [initial]);
-
-  async function addTask(event: FormEvent) {
-    event.preventDefault();
-    const next = title.trim();
-    if (!next || creating) return;
-    setCreating(true);
-    try {
-      const created = await createStandaloneTask(next);
-      setProjection((current) => ({
-        ...current,
-        tasks: [...current.tasks, created],
-      }));
-      setTitle("");
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not add task.",
-      });
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function patchTask(
     task: PlanningTask,
@@ -164,6 +132,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         version: task.version,
       });
       setProjection((current) => applyInboxTaskUpdate(current, updated));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({
         kind: "error",
@@ -182,6 +151,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         ...current,
         tasks: current.tasks.filter((task) => task.id !== target.id),
       }));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({
         kind: "error",
@@ -198,27 +168,13 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
             <InboxIcon size={15} aria-hidden="true" />
             <p className="m-0 text-[10px] font-medium uppercase tracking-[.12em]">Capture</p>
           </div>
-          <h1 className="mt-2 mb-0 text-[28px] font-medium tracking-[-.7px] text-ink">Inbox</h1>
+          <h1 className="mt-2 mb-0 text-[28px] font-medium tracking-[-.7px] text-ink">Legacy Inbox tasks</h1>
           <p className="mt-2 mb-0 text-[11px] text-muted">
-            Capture first. Decide when to do it later.
+            Existing standalone tasks remain here until you explicitly assign each one to a Workspace. For new ideas, use Capture Queue above.
           </p>
         </header>
 
-        <form className="mb-6 flex items-center gap-2 border-b border-line pb-4" onSubmit={addTask}>
-          <Plus size={16} className="shrink-0 text-muted" aria-hidden="true" />
-          <Input
-            className="min-h-9 flex-1 rounded-none border-0 bg-transparent px-0 text-[12px] focus:border-transparent"
-            ref={taskInputRef}
-            aria-label="New inbox task"
-            placeholder="Capture something without scheduling it"
-            value={title}
-            disabled={creating}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <Button size="sm" className="!min-h-8 px-3 text-[10px]" disabled={!title.trim() || creating}>
-            {creating ? "Adding…" : "Add"}
-          </Button>
-        </form>
+
 
         <section aria-labelledby="inbox-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
@@ -234,6 +190,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
                   task={task}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}
+                  onAssign={setAssignTarget}
                 />
               ))}
             </div>
@@ -242,7 +199,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
               <div>
                 <p className="m-0 text-[12px] font-medium text-ink">Inbox clear.</p>
                 <p className="mt-1.5 mb-0 text-[10px] text-muted">
-                  Capture something when it appears. Scheduling can wait.
+                  No legacy tasks remain. Use Capture Queue for new unorganized work.
                 </p>
               </div>
             </div>
@@ -250,6 +207,8 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         </section>
       </div>
 
+      <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
+        onAssigned={(updated) => { setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== updated.id) })); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this inbox task?"

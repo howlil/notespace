@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
-import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { FOCUS_TASK_COMPOSER_EVENT, PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
+import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import {
-  createStandaloneTask,
   deleteAnyTask,
   getToday,
+  getAnyTask,
   updateAnyTask,
 } from "../../adapters/http/planning-api";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
+import { TaskComposer } from "./TaskComposer";
+import { LegacyTaskAssign } from "./LegacyTaskAssign";
 import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
+import { reconcileTaskPatch } from "./task-mutation";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -28,12 +31,14 @@ function TodayTaskRow({
   renderTaskAction,
   onUpdate,
   onDelete,
+  onAssign,
 }: {
   task: TodayTask;
   date: string;
   renderTaskAction?: (task: TodayTask) => ReactNode;
   onUpdate: (task: TodayTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) => Promise<void>;
   onDelete: (task: TodayTask) => void;
+  onAssign: (task: TodayTask) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -141,6 +146,7 @@ function TodayTaskRow({
               <CalendarX2 size={13} />
             </IconButton>
           )}
+          {!task.workspaceId && <Button variant="ghost" size="sm" onClick={() => onAssign(task)} aria-label={`Assign ${task.title} to Workspace`}>Assign Workspace</Button>}
           {!task.workspaceId && !task.completedAt && (
             <IconButton
               className="!size-7 text-muted hover:text-accent"
@@ -191,13 +197,8 @@ export function TodayPlanning({
 
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
-  const [title, setTitle] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<TodayTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
-
-  useEffect(() => {
-    setProjection(initial);
-  }, [initial]);
 
   const openTasks = useMemo(
     () => projection.tasks.filter((task) => !task.completedAt),
@@ -208,61 +209,86 @@ export function TodayPlanning({
     [projection.tasks],
   );
 
-  useEffect(() => {
-    if (!refreshKey) return;
-    let cancelled = false;
-    void getToday(projection.date)
-      .then((latest) => {
-        if (!cancelled) setProjection(latest);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          showToast({
-            kind: "error",
-            message: error instanceof Error ? error.message : "Could not refresh Today.",
-          });
-        }
-      });
-    return () => { cancelled = true; };
-  }, [projection.date, refreshKey, showToast]);
-
-  async function addTask(event: FormEvent) {
-    event.preventDefault();
-    const next = title.trim();
-    if (!next || creating) return;
-    setCreating(true);
+  // A late projection response must not overwrite a newer Task mutation.
+  const mutationEpoch = useRef(0);
+  const requestSequence = useRef(0);
+  const pendingTaskIds = useRef(new Set<string>());
+  const refreshToday = useCallback(async () => {
+    const read = ++requestSequence.current;
+    const epoch = mutationEpoch.current;
     try {
-      const created = await createStandaloneTask(next, projection.date);
-      setProjection((current) => ({
-        ...current,
-        tasks: [...current.tasks, created as TodayTask],
-      }));
-      setTitle("");
+      const latest = await getToday(projection.date);
+      if (read === requestSequence.current && epoch === mutationEpoch.current) setProjection(latest);
     } catch (error) {
+      if (read !== requestSequence.current || epoch !== mutationEpoch.current) return;
       showToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Could not add task.",
+        message: error instanceof Error ? error.message : "Could not refresh Today.",
       });
-    } finally {
-      setCreating(false);
     }
-  }
+  }, [projection.date, showToast]);
+
+  useEffect(() => {
+    // A delayed route-loader prop must not replace data changed by this view.
+    // A real calendar-day change still swaps the target projection date.
+    if (mutationEpoch.current !== 0 && initial.date === projection.date) {
+      void refreshToday();
+    } else {
+      setProjection(initial);
+    }
+  }, [initial, projection.date, refreshToday]);
+
+  useEffect(() => {
+    // Route loaders can be cached on Back/Forward navigation. Re-read at mount.
+    void refreshToday();
+  }, [refreshToday]);
+
+  useEffect(() => {
+    if (refreshKey) void refreshToday();
+  }, [refreshKey, refreshToday]);
+
+  useEffect(() => {
+    const onChange = () => { void refreshToday(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshToday(); };
+    window.addEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshToday]);
 
   async function patchTask(
     task: TodayTask,
     patch: { title?: string; completed?: boolean; plannedFor?: string },
   ) {
+    if (pendingTaskIds.current.has(task.id)) return;
+    pendingTaskIds.current.add(task.id);
+    ++mutationEpoch.current;
     try {
-      const updated = await updateAnyTask(task.id, {
-        ...patch,
-        version: task.version,
-      });
-      setProjection((current) => applyTodayTaskUpdate(current, updated));
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not update task.",
-      });
+      const outcome = await reconcileTaskPatch(
+        task, patch,
+        () => updateAnyTask(task.id, { ...patch, version: task.version }),
+        getAnyTask,
+      );
+      if (outcome.status === "confirmed") {
+        setProjection((current) => applyTodayTaskUpdate(current, outcome.task));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        return;
+      }
+      if (outcome.status === "conflict") {
+        setProjection((current) => applyTodayTaskUpdate(current, outcome.task));
+        showToast({ kind: "error", message: "Task changed elsewhere. Latest saved state was restored; retry your edit if needed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (outcome.status === "missing") {
+        setProjection((current) => ({ ...current, tasks: current.tasks.filter((value) => value.id !== task.id) }));
+        showToast({ kind: "error", message: "Task was deleted elsewhere. Today has been refreshed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else {
+        showToast({ kind: "error", message: "Task update could not be confirmed. Check its status before retrying." });
+      }
+    } finally {
+      pendingTaskIds.current.delete(task.id);
     }
   }
 
@@ -299,21 +325,10 @@ export function TodayPlanning({
 
         {renderActivity}
 
-        <form className="mb-6 flex items-center gap-2 border-b border-line pb-4" onSubmit={addTask}>
-          <Plus size={16} className="shrink-0 text-muted" aria-hidden="true" />
-          <Input
-            className="min-h-9 flex-1 rounded-none border-0 bg-transparent px-0 text-[12px] focus:border-transparent"
-            ref={taskInputRef}
-            aria-label="New standalone task"
-            placeholder="Add something you need to do today"
-            value={title}
-            disabled={creating}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <Button size="sm" className="!min-h-8 px-3 text-[10px]" disabled={!title.trim() || creating}>
-            {creating ? "Adding…" : "Add"}
-          </Button>
-        </form>
+        <div className="mb-6 border-b border-line pb-4">
+          <TaskComposer inputRef={taskInputRef} plannedFor={projection.date} titleLabel="New task"
+            onCreated={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
+        </div>
 
         <section aria-labelledby="today-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
@@ -330,6 +345,7 @@ export function TodayPlanning({
                   renderTaskAction={renderTaskAction}
                   onUpdate={patchTask}
                   onDelete={setDeleteTarget}
+                  onAssign={setAssignTarget}
                 />
               ))}
             </div>
@@ -338,7 +354,7 @@ export function TodayPlanning({
               <div>
                 <p className="m-0 text-[12px] font-medium text-ink">Nothing queued for today.</p>
                 <p className="mt-1.5 mb-0 text-[10px] text-muted">
-                  Add a standalone task here or pull a task from a workspace Plan.
+                  Add a Workspace-owned task or choose one from a Workspace Plan.
                 </p>
               </div>
             </div>
@@ -359,12 +375,15 @@ export function TodayPlanning({
                 renderTaskAction={renderTaskAction}
                 onUpdate={patchTask}
                 onDelete={setDeleteTarget}
+                onAssign={setAssignTarget}
               />
             ))}
           </section>
         )}
       </div>
 
+      <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
+        onAssigned={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this standalone task?"

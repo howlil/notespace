@@ -6,6 +6,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/planning"
@@ -16,6 +17,7 @@ type API struct {
 	workspace   *workspace.Service
 	planning    *planning.Service
 	activities  *activity.Service
+	captures    *capture.Service
 	assets      *asset.Service
 	library     *library.Service
 	health      func(context.Context) error
@@ -26,6 +28,7 @@ type Dependencies struct {
 	Workspace *workspace.Service
 	Planning  *planning.Service
 	Activity  *activity.Service
+	Capture   *capture.Service
 	Assets    *asset.Service
 	Library   *library.Service
 	Icons     icon.Source
@@ -42,6 +45,9 @@ func New(deps Dependencies) http.Handler {
 	if deps.Activity == nil {
 		panic("httpapi: activity service is required")
 	}
+	if deps.Capture == nil {
+		panic("httpapi: capture service is required")
+	}
 	if deps.Assets == nil {
 		panic("httpapi: asset service is required")
 	}
@@ -54,7 +60,7 @@ func New(deps Dependencies) http.Handler {
 	if deps.Health == nil {
 		panic("httpapi: health check is required")
 	}
-	a := API{workspace: deps.Workspace, planning: deps.Planning, activities: deps.Activity, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: deps.Icons}
+	a := API{workspace: deps.Workspace, planning: deps.Planning, activities: deps.Activity, captures: deps.Capture, assets: deps.Assets, library: deps.Library, health: deps.Health, eraserIcons: deps.Icons}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.health(r.Context()); err != nil {
@@ -89,10 +95,17 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /api/workspaces/{id}/tasks", a.createTask)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/tasks/{taskId}", a.updateTask)
 	mux.HandleFunc("DELETE /api/workspaces/{id}/tasks/{taskId}", a.deleteTask)
+	mux.HandleFunc("GET /api/captures", a.listCaptures)
+	mux.HandleFunc("POST /api/captures", a.createCapture)
+	mux.HandleFunc("GET /api/captures/{captureId}", a.getCapture)
+	mux.HandleFunc("PATCH /api/captures/{captureId}", a.updateCapture)
+	mux.HandleFunc("DELETE /api/captures/{captureId}", a.deleteCapture)
+	mux.HandleFunc("POST /api/captures/{captureId}/organize", a.organizeCapture)
 	mux.HandleFunc("GET /api/tasks/today", a.todayTasks)
 	mux.HandleFunc("GET /api/tasks/inbox", a.inboxTasks)
 	mux.HandleFunc("GET /api/tasks/{taskId}", a.getAnyTask)
 	mux.HandleFunc("POST /api/tasks", a.createStandaloneTask)
+	mux.HandleFunc("POST /api/tasks/{taskId}/assign-workspace", a.assignStandaloneTask)
 	mux.HandleFunc("PATCH /api/tasks/{taskId}", a.updateAnyTask)
 	mux.HandleFunc("DELETE /api/tasks/{taskId}", a.deleteAnyTask)
 	mux.HandleFunc("PATCH /api/projects/{id}/title", a.rename)

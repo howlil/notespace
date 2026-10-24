@@ -131,7 +131,7 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
   }, [reconcileRecovery]);
 
   function start(context?: ActivityStart) {
-    if (!activity.canStart) return;
+    if (!activity.canStart || !context?.workspaceId?.trim() || !context.title.trim()) return;
     activity.start(context);
   }
 

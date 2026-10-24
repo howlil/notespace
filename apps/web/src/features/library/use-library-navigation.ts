@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLibraryExplorer } from "../../shared/ui/library-explorer-provider";
 import {
   createCategory,
@@ -26,12 +26,15 @@ type Options = {
   onChanged?: () => void;
 };
 
-export function useLibraryNavigation({ categories, onSelectCategory, onChanged }: Options) {
+export function useLibraryNavigation({ categories, onChanged }: Options) {
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const { expandedCategories: expanded, setExpandedCategories: setExpanded } = useLibraryExplorer();
   const [children, setChildren] = useState<Record<string, WorkspaceSummary[]>>({});
-  const [loading, setLoading] = useState<string | null>(null);
+  const [loading, setLoading] = useState<Set<string>>(() => new Set());
+  const categoryRequestIds = useRef(new Map<string, number>());
+  const expandedSnapshot = useRef(expanded);
+  const [categoryErrors, setCategoryErrors] = useState<Set<string>>(() => new Set());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
@@ -46,50 +49,65 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
     onChanged?.();
   }
 
-  useEffect(() => {
-    if (!expanded.size) return;
+  // The Explorer remounts across routes, while the expanded categories live in
+  // its shared provider. Re-fetch on mount/library changes, not on disclosure:
+  // expanding a category has its own single explicit request below.
+  useEffect(() => { expandedSnapshot.current = expanded; }, [expanded]);
 
-    let active = true;
-    for (const categoryId of expanded) {
-      void listCategoryWorkspaces(categoryId, { limit: 5 })
-        .then((page) => {
-          if (active) setChildren((current) => ({ ...current, [categoryId]: page.items }));
-        })
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
-  }, [expanded, libraryRevision]);
-
-  async function toggleCategory(category: CategorySummary) {
-    const next = new Set(expanded);
-    if (next.has(category.id)) {
-      next.delete(category.id);
-      setExpanded(next);
-      return;
-    }
-
-    next.add(category.id);
-    setExpanded(next);
-    onSelectCategory(category.id);
-    if (children[category.id]) return;
-
-    setLoading(category.id);
+  const loadCategoryWorkspaces = useCallback(async (categoryId: string) => {
+    const requestId = (categoryRequestIds.current.get(categoryId) ?? 0) + 1;
+    categoryRequestIds.current.set(categoryId, requestId);
+    setLoading((current) => new Set(current).add(categoryId));
+    setCategoryErrors((current) => {
+      const next = new Set(current);
+      next.delete(categoryId);
+      return next;
+    });
     try {
-      const page = await listCategoryWorkspaces(category.id, { limit: 5 });
-      setChildren((current) => ({ ...current, [category.id]: page.items }));
+      const page = await listCategoryWorkspaces(categoryId, { limit: 5 });
+      if (categoryRequestIds.current.get(categoryId) !== requestId) return;
+      setChildren((current) => ({ ...current, [categoryId]: page.items }));
     } catch (error) {
+      if (categoryRequestIds.current.get(categoryId) !== requestId) return;
+      setCategoryErrors((current) => new Set(current).add(categoryId));
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
     } finally {
-      setLoading(null);
+      if (categoryRequestIds.current.get(categoryId) === requestId) {
+        setLoading((current) => {
+          const next = new Set(current);
+          next.delete(categoryId);
+          return next;
+        });
+      }
     }
+  }, [showToast]);
+
+  useEffect(() => {
+    for (const categoryId of expandedSnapshot.current) {
+      void loadCategoryWorkspaces(categoryId);
+    }
+  }, [libraryRevision, loadCategoryWorkspaces]);
+
+  async function toggleCategory(category: CategorySummary) {
+    if (expanded.has(category.id)) {
+      setExpanded((current) => {
+        const next = new Set(current);
+        next.delete(category.id);
+        return next;
+      });
+      return;
+    }
+    setExpanded((current) => new Set(current).add(category.id));
+    if (!children[category.id] || categoryErrors.has(category.id)) await loadCategoryWorkspaces(category.id);
   }
 
   function startCreate(kind: CreateTarget["kind"], categoryId?: string) {
     setTitle("");
     setCreating({ kind, categoryId });
-    if (categoryId) setExpanded((current) => new Set(current).add(categoryId));
+    if (categoryId) {
+      setExpanded((current) => new Set(current).add(categoryId));
+      if (!children[categoryId] || categoryErrors.has(categoryId)) void loadCategoryWorkspaces(categoryId);
+    }
   }
 
   async function submitCreate() {
@@ -199,6 +217,7 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
 
   return {
     children,
+    categoryErrors,
     creating,
     deleting,
     editingCategory,
@@ -219,5 +238,6 @@ export function useLibraryNavigation({ categories, onSelectCategory, onChanged }
     startCreate,
     submitCreate,
     toggleCategory,
+    retryCategory: loadCategoryWorkspaces,
   };
 }

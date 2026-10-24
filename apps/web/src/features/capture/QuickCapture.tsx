@@ -1,4 +1,4 @@
-import { OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
+import { CAPTURE_QUEUE_CHANGED_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Search, SquarePen } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input } from "../../shared/ui";
@@ -6,9 +6,12 @@ import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/w
 import { createWorkspaceNote, getWorkspace, listAllWorkspaces, listCategories, listRecentWorkspaces } from "../../adapters/http/workspace-api";
 import { captureTitle, markdownToSnapshot } from "../../domain/document/markdown";
 import { useToast } from "../../shared/ui/toast-provider";
+import { createCapture } from "../../adapters/http/capture-api";
+import { validCaptureContent } from "../../domain/capture/capture";
 import { readLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { workspaceOptions } from "./workspace-options";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import type { CaptureWorkspaceOption } from "./workspace-options";
 
 const lastWorkspaceKey = "notespace.quick-capture.workspace";
@@ -25,11 +28,16 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   const [searchWorkspaces, setSearchWorkspaces] = useState<CaptureWorkspaceOption[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
+  const [destination, setDestination] = useState<"workspace" | "queue">("workspace");
   const [workspaceQuery, setWorkspaceQuery] = useState("");
   const [body, setBody] = useState("");
+  const validBody = destination === "queue" ? validCaptureContent(body) : body.trim().length > 0;
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = (event: Event) => {
+      setDestination(event instanceof CustomEvent && event.detail === "queue" ? "queue" : "workspace");
+      setOpen(true);
+    };
     window.addEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_QUICK_CAPTURE_EVENT, onOpen);
   }, []);
@@ -38,6 +46,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
+        setDestination("workspace");
         setOpen(true);
       }
     };
@@ -46,7 +55,10 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || destination !== "workspace") {
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
     setWorkspaceQuery("");
@@ -75,10 +87,14 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, showToast]);
+  }, [destination, open, showToast]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || destination !== "workspace") {
+      setSearching(false);
+      setSearchWorkspaces([]);
+      return;
+    }
     const query = workspaceQuery.trim();
     if (!query) {
       setSearching(false);
@@ -86,8 +102,11 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       return;
     }
     let active = true;
+    // Invalidate old suggestions as soon as the query changes. During the
+    // debounce and HTTP request, never offer a stale Workspace as a target.
+    setSearching(true);
+    setSearchWorkspaces([]);
     const timer = window.setTimeout(() => {
-      setSearching(true);
       void listAllWorkspaces({ query, limit: recentWorkspaceLimit })
         .then((page) => { if (active) setSearchWorkspaces(workspaceOptions(page.items, categories)); })
         .catch((error) => {
@@ -99,7 +118,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       active = false;
       window.clearTimeout(timer);
     };
-  }, [categories, open, showToast, workspaceQuery]);
+  }, [categories, destination, open, showToast, workspaceQuery]);
 
   const recentOptions = useMemo(() => workspaceOptions(workspaces, categories), [categories, workspaces]);
   const options = workspaceQuery.trim() ? searchWorkspaces : recentOptions;
@@ -107,9 +126,18 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
 
   async function capture() {
     const value = body.trim();
-    if (!value || !effectiveWorkspaceId || saving) return;
+    // Keyboard shortcuts call this directly, bypassing the disabled button.
+    if (!validBody || saving || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))) return;
     setSaving(true);
     try {
+      if (destination === "queue") {
+        await createCapture(body);
+        setBody("");
+        setOpen(false);
+        window.dispatchEvent(new Event(CAPTURE_QUEUE_CHANGED_EVENT));
+        showToast({ kind: "success", message: "Saved to Capture Queue." });
+        return;
+      }
       const workspace = await getWorkspace(effectiveWorkspaceId);
       const document = markdownToSnapshot(value);
       await createWorkspaceNote(workspace.id, {
@@ -124,7 +152,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       notifyLibraryChanged();
       showToast({ kind: "success", message: `Captured to ${workspace.title}.` });
     } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not save this capture." });
+      showToast({ kind: "error", message: destination === "queue" ? "Save status unconfirmed. Check Capture Queue before retrying; draft retained." : error instanceof Error ? error.message : "Could not save this capture." });
     } finally {
       setSaving(false);
     }
@@ -146,24 +174,32 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
       {showTrigger && <IconButton
         type="button"
         className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
-        onClick={() => setOpen(true)}
+        onClick={() => { setDestination("workspace"); setOpen(true); }}
         aria-label="Quick capture"
         title="Quick capture (Ctrl/Cmd + Shift + N)"
       >
         <SquarePen size={16} aria-hidden="true" />
       </IconButton>}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(next) => { if (!saving) setOpen(next); }}>
         <DialogContent className="w-[min(94vw,520px)]">
           <DialogTitle>Quick capture</DialogTitle>
-          <DialogDescription>Capture a note without opening a workspace first. Shortcut: Ctrl/Cmd + Shift + N.</DialogDescription>
+          <DialogDescription>Save a Note to a Workspace, or capture it for organizing later. Shortcut: Ctrl/Cmd + Shift + N.</DialogDescription>
 
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1.5 text-[11px] font-medium text-ink">
-              Workspace
+            <label className="grid gap-1.5 text-[11px] font-medium text-ink">Destination
+              <select className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
+                value={destination} onChange={(event) => setDestination(event.target.value as "workspace" | "queue")} disabled={saving}>
+                <option value="workspace">Save Note in Workspace</option>
+                <option value="queue">Capture Queue · Organize later</option>
+              </select>
+            </label>
+            {destination === "workspace" && <div className="grid gap-1.5 text-[11px] font-medium text-ink">
+              <span>Workspace</span>
               <span className="relative block">
                 <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
                 <Input
                   type="search"
+                  aria-label="Search workspaces"
                   className="h-9 bg-background pl-8 pr-2.5 text-xs"
                   placeholder={`Search, or choose from ${recentWorkspaceLimit} recent workspaces`}
                   value={workspaceQuery}
@@ -172,6 +208,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 />
               </span>
               <select
+                aria-label="Capture Workspace"
                 className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
                 value={effectiveWorkspaceId}
                 onChange={(event) => setWorkspaceId(event.target.value)}
@@ -180,14 +217,14 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 {options.length === 0 ? <option value="">{loading ? "Loading…" : searching ? "Searching…" : workspaceQuery.trim() ? "No matching workspace" : "No workspace available"}</option> : null}
                 {options.map((workspace) => (
                   <option key={workspace.id} value={workspace.id}>
-                    {workspace.categoryTitle ? `${workspace.categoryTitle} / ` : ""}{workspace.title}
+                    {workspace.categoryTitle ? `${workspace.categoryTitle} / ` : ""}{workspaceOptionLabel(workspace, options)}
                   </option>
                 ))}
               </select>
-            </label>
+            </div>}
 
             <label className="grid gap-1.5 text-[11px] font-medium text-ink">
-              Note
+              {destination === "queue" ? "Capture" : "Note"}
               <textarea
                 autoFocus
                 className="min-h-44 resize-y rounded-md border border-line bg-background px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-muted focus:border-accent"
@@ -218,10 +255,11 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
             </div>
           </div>
 
+          {destination === "queue" && body.trim() && !validBody && <p role="alert" className="text-xs text-danger">Content must fit within 64 KiB.</p>}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button type="button" onClick={() => void capture()} disabled={saving || loading || searching || !body.trim() || !effectiveWorkspaceId}>
-              {saving ? "Saving…" : "Capture"}
+            <Button type="button" onClick={() => void capture()} disabled={saving || !validBody || (destination === "workspace" && (loading || searching || !effectiveWorkspaceId))}>
+              {saving ? "Saving…" : destination === "queue" ? "Save to Queue" : "Capture"}
             </Button>
           </DialogFooter>
         </DialogContent>

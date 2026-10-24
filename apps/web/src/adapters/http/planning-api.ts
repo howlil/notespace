@@ -30,10 +30,10 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
         headers: { "If-Match": `"${version}"` },
       }, transport),
 
-    createTask: (workspaceId: string, title: string, milestoneId?: string) =>
+    createTask: (workspaceId: string, title: string, milestoneId?: string, plannedFor?: string) =>
       request<PlanningTask>(`${workspacePath(workspaceId)}/tasks`, {
         method: "POST",
-        ...json({ title, ...(milestoneId ? { milestoneId } : {}) }),
+        ...json({ title, ...(milestoneId ? { milestoneId } : {}), ...(plannedFor ? { plannedFor } : {}) }),
       }, transport),
 
     updateTask: (
@@ -61,10 +61,10 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
     getAnyTask: (taskId: string) =>
       request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`, undefined, transport),
 
-    createStandaloneTask: (title: string, plannedFor?: string) =>
-      request<PlanningTask>("/api/tasks", {
+    assignStandaloneTask: (taskId: string, workspaceId: string, version: number) =>
+      request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}/assign-workspace`, {
         method: "POST",
-        ...json({ title, ...(plannedFor ? { plannedFor } : {}) }),
+        ...json({ workspaceId, version }),
       }, transport),
 
     updateAnyTask: (
@@ -95,6 +95,7 @@ export const deleteTask = defaultPlanningClient.deleteTask;
 export const getToday = defaultPlanningClient.getToday;
 export const getInbox = defaultPlanningClient.getInbox;
 export const getAnyTask = defaultPlanningClient.getAnyTask;
-export const createStandaloneTask = defaultPlanningClient.createStandaloneTask;
 export const updateAnyTask = defaultPlanningClient.updateAnyTask;
 export const deleteAnyTask = defaultPlanningClient.deleteAnyTask;
+
+export const assignStandaloneTask = defaultPlanningClient.assignStandaloneTask;

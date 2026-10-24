@@ -1,9 +1,9 @@
 import { LibraryPageShell } from "../_shared/LibraryPageShell";
 import { useNavigate } from "@tanstack/react-router";
+import { useTaskActivityStart } from "../../features/activity/use-task-activity-start";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
-import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
-import type { ActivityType } from "../../domain/activity/activity";
+import type { TodayProjection } from "../../domain/planning/planning";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { ActivityQuickStart } from "../../features/activity/ActivityQuickStart";
@@ -20,18 +20,7 @@ export function TodayPage({
   const navigate = useNavigate();
   const { categories: categoryItems, refreshCategories } = useLibraryCategories(categories);
   const activity = useActivityRuntime();
-
-  function startTaskActivity(task: TodayTask, activityType: ActivityType) {
-    if (!activity.canStart) return;
-    activity.start({
-      title: task.title,
-      activityType,
-      taskId: task.id,
-      taskTitleSnapshot: task.title,
-      ...(task.workspaceId ? { workspaceId: task.workspaceId } : {}),
-      ...(task.workspaceTitle ? { workspaceTitleSnapshot: task.workspaceTitle } : {}),
-    });
-  }
+  const startTaskActivity = useTaskActivityStart(activity);
 
   return (
     <LibraryPageShell page="today"
@@ -42,8 +31,9 @@ export function TodayPage({
         renderActivity={<ActivityQuickStart />}
         renderTaskAction={(task) => (
           <ActivityTypeTrigger ariaLabel={`Start activity for ${task.title}`}
-            disabled={activity.status !== "idle" || !activity.canStart}
-            onSelect={(activityType) => startTaskActivity(task, activityType)} />
+            disabled={activity.status !== "idle" || !activity.canStart || !task.workspaceId}
+            disabledTitle={!task.workspaceId ? "Assign this legacy Task to a Workspace first" : "End the active activity first"}
+            onSelect={(activityType) => { void startTaskActivity(task, activityType); }} />
         )}
       />
     </LibraryPageShell>

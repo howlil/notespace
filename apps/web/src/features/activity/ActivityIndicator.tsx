@@ -7,6 +7,9 @@ import {
 } from "../../adapters/http/activity-api";
 import { useDismissablePopup } from "../../shared/ui/dismissable";
 import { useToast } from "../../shared/ui/toast-provider";
+import { getWorkspace } from "../../adapters/http/workspace-api";
+import { useActivityWorkspaceChoices } from "./activity-workspaces";
+import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 import type { ActivitySessionState } from "./use-activity-session";
 import { formatDay, formatDuration } from "./activity-timer";
 import { ActivityTypeMenu } from "./ActivityTypeMenu";
@@ -39,6 +42,9 @@ export function ActivityIndicator({
   const [open, setOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [standaloneTitle, setStandaloneTitle] = useState("");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [starting, setStarting] = useState(false);
+  const workspaceChoices = useActivityWorkspaceChoices(!workspaceId && activity.status === "idle" && (open || startOpen));
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -65,6 +71,30 @@ export function ActivityIndicator({
       .finally(() => { if (active) setSessionsLoading(false); });
     return () => { active = false; };
   }, [open, activity.status]);
+
+  async function startWithType(activityType: ActivitySession["activityType"]) {
+    if (!activity.canStart || starting) return;
+    const nextTitle = workspaceId ? workspaceTitle : standaloneTitle.trim();
+    const destination = workspaceId || selectedWorkspaceId;
+    if (!nextTitle || !destination) return;
+    setStarting(true);
+    try {
+      const workspace = await getWorkspace(destination);
+      activity.start({
+        title: nextTitle,
+        activityType,
+        workspaceId: workspace.id,
+        workspaceTitleSnapshot: workspace.title,
+      });
+      setStandaloneTitle("");
+      setStartOpen(false);
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Workspace is unavailable. Choose another destination." });
+      workspaceChoices.retry();
+    } finally {
+      setStarting(false);
+    }
+  }
 
   async function removeSession(session: ActivitySession) {
     if (activity.status !== "idle" || deletingSessionId) return;
@@ -118,7 +148,7 @@ export function ActivityIndicator({
           variant="secondary"
           size="sm"
           className={compact ? "!size-7 !min-h-7 shrink-0 p-0 text-muted hover:text-accent focus-visible:bg-tint focus-visible:text-accent" : timerActionClass}
-          disabled={!activity.ready || !activity.canStart}
+          disabled={!activity.ready || !activity.canStart || starting}
           aria-label="Start activity"
           aria-haspopup="menu"
           aria-expanded={startOpen}
@@ -135,15 +165,7 @@ export function ActivityIndicator({
       {startOpen && activity.status === "idle" && (
         <ActivityTypeMenu
           className={rail ? "absolute bottom-0 left-[calc(100%+8px)]" : "absolute top-[calc(100%+8px)] right-0"}
-          onSelect={(activityType) => {
-            setStartOpen(false);
-            activity.start({
-              title: workspaceId ? workspaceTitle : standaloneTitle.trim(),
-              activityType,
-              ...(workspaceId ? { workspaceId, workspaceTitleSnapshot: workspaceTitle } : {}),
-            });
-            if (!workspaceId) setStandaloneTitle("");
-          }}
+          onSelect={(activityType) => { void startWithType(activityType); }}
         />
       )}
 
@@ -157,16 +179,32 @@ export function ActivityIndicator({
             <span>Activity</span>
             <Timer size={16} className="text-muted" />
           </div>
+          {!workspaceId && activity.status === "idle" && (
+            <label className="mt-3 block text-[10px] text-muted">
+              Workspace (required)
+              <select
+                aria-label="Global Activity Workspace"
+                className="mt-1 min-h-8 w-full rounded-md border border-line bg-surface px-2 text-[11px] text-ink"
+                value={selectedWorkspaceId}
+                disabled={starting || workspaceChoices.loading || workspaceChoices.error}
+                onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+              >
+                <option value="">{workspaceChoices.loading ? "Loading…" : "Choose Workspace…"}</option>
+                {workspaceChoices.items.map((item) => <option key={item.id} value={item.id}>{workspaceOptionLabel(item, workspaceChoices.items)}</option>)}
+              </select>
+              {workspaceChoices.error && <Button type="button" size="sm" variant="secondary" className="mt-2" onClick={workspaceChoices.retry}>Retry Workspaces</Button>}
+            </label>
+          )}
           {rail && !workspaceId && activity.status === "idle" && (
             <label className="mt-3 block text-[10px] text-muted">
               Activity title
-              <Input className="mt-1 min-h-8 w-full text-[11px]" aria-label="Standalone activity title"
+              <Input className="mt-1 min-h-8 w-full text-[11px]" aria-label="Activity title"
                 placeholder="What are you doing?" value={standaloneTitle}
                 onChange={(event) => setStandaloneTitle(event.target.value)} />
             </label>
           )}
           {rail && activity.status === "idle" && (
-            <Button type="button" variant="secondary" size="sm" className="mt-2 w-full !min-h-8 justify-center text-[11px]" disabled={!activity.ready || !activity.canStart || (!workspaceId && !standaloneTitle.trim())} onClick={() => { setOpen(false); setStartOpen(true); }}>
+            <Button type="button" variant="secondary" size="sm" className="mt-2 w-full !min-h-8 justify-center text-[11px]" disabled={!activity.ready || !activity.canStart || starting || (!workspaceId && (!selectedWorkspaceId || !standaloneTitle.trim()))} onClick={() => { setOpen(false); setStartOpen(true); }}>
               <Play size={14} aria-hidden="true" /> Start activity
             </Button>
           )}

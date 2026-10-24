@@ -15,6 +15,11 @@ func (s Service) GetTask(ctx context.Context, taskID string) (Task, error) {
 }
 
 func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID *string, title string) (Task, error) {
+	return s.CreateTaskWithDate(ctx, workspaceID, milestoneID, title, "")
+}
+
+// CreateTaskWithDate atomically persists the Workspace and planned date.
+func (s Service) CreateTaskWithDate(ctx context.Context, workspaceID string, milestoneID *string, title, plannedFor string) (Task, error) {
 	title = strings.TrimSpace(title)
 	if err := s.requireWorkspace(ctx, workspaceID); err != nil || !validTitle(title) {
 		if err != nil {
@@ -27,11 +32,15 @@ func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID
 		value := strings.TrimSpace(*milestoneID)
 		normalizedMilestone = &value
 	}
+	date, err := normalizePlannedFor(plannedFor)
+	if err != nil {
+		return Task{}, err
+	}
 	now := s.now().Format(time.RFC3339Nano)
 	workspace := workspaceID
 	return s.store.CreateTask(ctx, Task{
 		ID: rand.Text(), WorkspaceID: &workspace, MilestoneID: normalizedMilestone,
-		Title: title, Description: "",
+		Title: title, Description: "", PlannedFor: date,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 }
@@ -50,6 +59,17 @@ func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor str
 		ID: rand.Text(), Title: title, Description: "", PlannedFor: date,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
+}
+
+// AssignStandaloneTask changes only the owner of a legacy Task, never its identity.
+func (s Service) AssignStandaloneTask(ctx context.Context, taskID, workspaceID string, version int) (Task, error) {
+	if strings.TrimSpace(taskID) == "" || version < 1 {
+		return Task{}, ErrInvalid
+	}
+	if err := s.requireWorkspace(ctx, workspaceID); err != nil {
+		return Task{}, err
+	}
+	return s.store.AssignStandaloneTask(ctx, taskID, workspaceID, version, s.now().Format(time.RFC3339Nano))
 }
 
 func applyTaskPatch(current Task, patch TaskPatch, now string) (Task, error) {

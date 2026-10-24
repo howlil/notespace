@@ -4,6 +4,7 @@ import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { InboxProjection } from "../../domain/planning/planning";
 import { InboxPlanning } from "../../features/planning/InboxPlanning";
+import { CaptureQueue } from "../../features/capture/CaptureQueue";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
 
 export function InboxPage({
@@ -21,7 +22,10 @@ export function InboxPage({
       sidebar={<LibrarySidebar categories={categoryItems} inboxActive onChanged={refreshCategories}
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >
-      <InboxPlanning initial={initial} />
+      <CaptureQueue />
+      {initial.tasks.length > 0 && <section aria-label="Legacy standalone tasks" className="mt-8 border-t border-line">
+        <InboxPlanning initial={initial} />
+      </section>}
     </LibraryPageShell>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CalendarCheck2, CalendarPlus, Check, CheckCircle2, Circle, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
@@ -15,10 +15,10 @@ import {
 } from "../../shared/ui";
 import {
   createMilestone,
-  createTask,
   deleteMilestone,
   deleteTask,
   getWorkspacePlan,
+  getAnyTask,
   updateMilestone,
   updateTask,
 } from "../../adapters/http/planning-api";
@@ -31,6 +31,10 @@ import {
   type WorkspacePlan as WorkspacePlanModel,
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
+import { TaskComposer } from "./TaskComposer";
+import { belongsToToday } from "./projection-state";
+import { reconcileTaskPatch } from "./task-mutation";
+import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 type DeleteTarget =
   | { kind: "milestone"; item: PlanningMilestone }
@@ -121,6 +125,8 @@ function TaskRow({
     }
   }
 
+  const inToday = belongsToToday(task, localDateKey());
+
   return (
     <div className="group flex min-h-9 items-center gap-2 border-b border-line px-1.5 py-1 hover:bg-tint/60">
       <button
@@ -159,12 +165,12 @@ function TaskRow({
         {!task.completedAt && renderTaskAction?.(task)}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <IconButton
-            className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
-            aria-label={task.plannedFor === localDateKey() ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
-            title={task.plannedFor === localDateKey() ? "Remove from Today" : "Add to Today"}
-            onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === localDateKey() ? "" : localDateKey() })}
+            className={cn("!size-7 text-muted hover:text-accent", inToday && "text-accent")}
+            aria-label={inToday ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
+            title={inToday ? "Remove from Today" : "Add to Today"}
+            onClick={() => void onUpdate(task, { plannedFor: inToday ? "" : localDateKey() })}
           >
-            {task.plannedFor === localDateKey() ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
+            {inToday ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
           </IconButton>
           <IconButton className="!size-7 text-muted hover:text-accent" aria-label={`Rename ${task.title}`} title="Rename task" onClick={() => setEditing(true)}>
             <Pencil size={13} />
@@ -198,21 +204,55 @@ export function WorkspacePlan({
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const mutationEpoch = useRef(0);
+  const readSequence = useRef(0);
+  const pendingTaskIds = useRef(new Set<string>());
+
+  const refreshPlan = useCallback(async (initialLoad = false) => {
+    const read = ++readSequence.current;
+    const epoch = mutationEpoch.current;
+    if (initialLoad) {
+      setLoading(true);
+      setLoadError(null);
+    }
+    try {
+      const value = await getWorkspacePlan(workspaceId);
+      if (read !== readSequence.current || epoch !== mutationEpoch.current) return;
+      setPlan(value);
+      setLoadError(null);
+    } catch (error) {
+      if (read !== readSequence.current || epoch !== mutationEpoch.current) return;
+      const message = error instanceof Error ? error.message : "Could not load workspace plan.";
+      if (initialLoad) setLoadError(message);
+      showToast({ kind: "error", message });
+    } finally {
+      if (read === readSequence.current) setLoading(false);
+    }
+  }, [showToast, workspaceId]);
+
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-    void getWorkspacePlan(workspaceId)
-      .then((value) => { if (!cancelled) setPlan(value); })
-      .catch((error) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Could not load workspace plan.";
-        setLoadError(message);
-        showToast({ kind: "error", message });
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [refreshKey, showToast, workspaceId]);
+    setPlan(emptyPlan(workspaceId));
+  }, [workspaceId]);
+
+  useEffect(() => {
+    const sequence = readSequence;
+    void refreshPlan(true);
+    // Cancel stale read deliveries when this Workspace effect is replaced.
+    return () => { sequence.current += 1; };
+  }, [refreshKey, refreshPlan]);
+
+  useEffect(() => {
+    const onChange = () => { void refreshPlan(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshPlan();
+    };
+    window.addEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshPlan]);
 
   const milestones = useMemo(
     () => [...plan.milestones].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
@@ -224,18 +264,9 @@ export function WorkspacePlan({
       const item = await createMilestone(workspaceId, title);
       setPlan((current) => ({ ...current, milestones: [...current.milestones, item] }));
       setAddingMilestone(false);
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not add milestone." });
-    }
-  }
-
-  async function addTask(title: string, milestoneId?: string) {
-    try {
-      const item = await createTask(workspaceId, title, milestoneId);
-      setPlan((current) => ({ ...current, tasks: [...current.tasks, item] }));
-      setTaskTarget(null);
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not add task." });
     }
   }
 
@@ -243,17 +274,41 @@ export function WorkspacePlan({
     try {
       const updated = await updateMilestone(workspaceId, item.id, { ...patch, version: item.version });
       setPlan((current) => ({ ...current, milestones: current.milestones.map((value) => value.id === updated.id ? updated : value) }));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not update milestone." });
     }
   }
 
   async function patchTask(item: PlanningTask, patch: { title?: string; completed?: boolean; plannedFor?: string }) {
+    if (pendingTaskIds.current.has(item.id)) return;
+    pendingTaskIds.current.add(item.id);
+    ++mutationEpoch.current;
     try {
-      const updated = await updateTask(workspaceId, item.id, { ...patch, version: item.version });
-      setPlan((current) => ({ ...current, tasks: current.tasks.map((value) => value.id === updated.id ? updated : value) }));
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not update task." });
+      const outcome = await reconcileTaskPatch(
+        item, patch,
+        () => updateTask(workspaceId, item.id, { ...patch, version: item.version }),
+        getAnyTask,
+      );
+      if (outcome.status === "confirmed" || outcome.status === "conflict") {
+        setPlan((current) => ({
+          ...current,
+          tasks: current.tasks.map((value) =>
+            value.id === item.id && value.version <= outcome.task.version ? outcome.task : value),
+        }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        if (outcome.status === "conflict") {
+          showToast({ kind: "error", message: "Task changed elsewhere. Reloaded its latest version; retry if needed." });
+        }
+      } else if (outcome.status === "missing") {
+        setPlan((current) => ({ ...current, tasks: current.tasks.filter((value) => value.id !== item.id) }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        showToast({ kind: "error", message: "Task was removed elsewhere." });
+      } else {
+        showToast({ kind: "error", message: "Task update not confirmed. Check its saved state before retrying." });
+      }
+    } finally {
+      pendingTaskIds.current.delete(item.id);
     }
   }
 
@@ -278,14 +333,18 @@ export function WorkspacePlan({
     try {
       if (deleteTarget.kind === "task") {
         await deleteTask(workspaceId, deleteTarget.item.id, deleteTarget.item.version);
+        ++mutationEpoch.current;
         setPlan((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== deleteTarget.item.id) }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
       } else {
         await deleteMilestone(workspaceId, deleteTarget.item.id, deleteTarget.item.version);
+        ++mutationEpoch.current;
         setPlan((current) => ({
           ...current,
           milestones: current.milestones.filter((item) => item.id !== deleteTarget.item.id),
           tasks: current.tasks.map((task) => task.milestoneId === deleteTarget.item.id ? { ...task, milestoneId: undefined } : task),
         }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
       }
       setDeleteTarget(null);
     } catch (error) {
@@ -370,7 +429,7 @@ export function WorkspacePlan({
               <div className="pt-1.5">
                 {tasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
-                  <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title, milestone.id)} onCancel={() => setTaskTarget(null)} />
+                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
                 ) : (
                   <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({ milestoneId: milestone.id })}><Plus size={13} /> Add task</Button>
                 )}
@@ -395,7 +454,7 @@ export function WorkspacePlan({
           <div className="pt-1.5">
             {looseTasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
-              <InlineCreate placeholder="Task title" onCreate={(title) => addTask(title)} onCancel={() => setTaskTarget(null)} />
+              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
             ) : (
               <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({})}><Plus size={13} /> Add task</Button>
             )}

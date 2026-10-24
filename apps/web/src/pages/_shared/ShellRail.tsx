@@ -42,9 +42,9 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
     return () => { window.removeEventListener("pointerdown", dismissPointer); window.removeEventListener("keydown", dismissKey); };
   }, [creating]);
 
-  const openTaskComposer = (destination: "inbox" | "today") => {
+  const openTaskComposer = () => {
     setCreating(false);
-    const pathname = `/${destination}`;
+    const pathname = "/today";
     if (window.location.pathname === pathname && window.location.hash === "#new-task") {
       window.dispatchEvent(new Event(FOCUS_TASK_COMPOSER_EVENT));
       return;
@@ -64,7 +64,7 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
       </Link>
       <div className="flex flex-col items-center gap-1" aria-label="Main pages">
         <Link to="/" className={cn(control, page === "library" && active)} aria-label="Library" title="Library" aria-current={page === "library" ? "page" : undefined}><Home size={17} /></Link>
-        <Link to="/inbox" className={cn(control, page === "inbox" && active)} aria-label="Inbox" title="Inbox" aria-current={page === "inbox" ? "page" : undefined}><Inbox size={17} /></Link>
+        <Link to="/inbox" className={cn(control, page === "inbox" && active)} aria-label="Capture Queue" title="Capture Queue" aria-current={page === "inbox" ? "page" : undefined}><Inbox size={17} /></Link>
         <Link to="/today" className={cn(control, page === "today" && active)} aria-label="Today" title="Today" aria-current={page === "today" ? "page" : undefined}><CalendarCheck2 size={17} /></Link>
         <span className="my-1 h-px w-5 bg-line" aria-hidden="true" />
         <button ref={explorerTriggerRef} type="button" className={cn(control, explorerOpen && "text-accent")} aria-label="Toggle category explorer" title="Toggle Explorer" aria-expanded={explorerOpen} onClick={onToggleExplorer}><FolderTree size={17} /></button>
@@ -84,14 +84,14 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("workspace")}><Folder size={15}/> Workspace</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("category")}><FolderPlus size={15}/> Category</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => {setCreating(false);window.dispatchEvent(new Event(OPEN_QUICK_CAPTURE_EVENT));}}><SquarePen size={15}/> Quick capture</button>
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer("inbox")}><Inbox size={15}/> Task in Inbox</button>
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer("today")}><CalendarCheck2 size={15}/> Task in Today</button>
+              
+              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer()}><CalendarCheck2 size={15}/> Task in Today</button>
             </div>
           )}
         </div>
       </div>
       <div className="mt-auto flex flex-col items-center gap-1">
-        <ActivityIndicator rail activity={activity} workspaceTitle="Standalone activity" />
+        <ActivityIndicator rail activity={activity} workspaceTitle="Activity" />
         <button type="button" className={control} aria-label="Data and recovery" title="Data & Recovery" onClick={() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT))}><ArchiveRestore size={17}/></button>
         <button type="button" className={control} aria-label="Settings" title="Settings" onClick={() => window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS))}><Settings2 size={17}/></button>
       </div>

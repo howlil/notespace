@@ -11,6 +11,7 @@ type Store interface {
 	UpdateMilestone(context.Context, Milestone) (Milestone, error)
 	DeleteMilestone(context.Context, string, string, int) error
 	CreateTask(context.Context, Task) (Task, error)
+	AssignStandaloneTask(context.Context, string, string, int, string) (Task, error)
 	UpdateTask(context.Context, Task) (Task, error)
 	DeleteTask(context.Context, string, int) error
 }

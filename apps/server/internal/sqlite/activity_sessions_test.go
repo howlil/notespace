@@ -5,8 +5,11 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
+	"github.com/howlil/notespace/apps/server/internal/planning"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {
@@ -199,5 +202,68 @@ func TestActivityTimestampsCanonicalizeAndLegacyOffsetsOrderByInstant(t *testing
 	}
 	if legacy == nil || legacy.Title != "Actually later" || legacy.LastHeartbeatAt != "2026-09-10T23:00:00Z" {
 		t.Fatalf("legacy offset ordering = %#v, want actual latest instant", legacy)
+	}
+}
+
+func TestAssignLegacyTaskWhileActivityRunningPreservesFinalization(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "legacy-activity-assignment.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	now := func() time.Time { return time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC) }
+
+	owner, err := workspacepkg.NewService(store).Create(ctx, "Assigned Workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	planner := planning.NewService(store, store, now)
+	task, err := planner.CreateStandaloneTask(ctx, "Legacy session task", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := activity.NewService(store, store, now)
+	first, err := recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
+		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 60},
+		Title:     "Running legacy activity", ActivityType: "read", TaskID: task.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.WorkspaceID != "" {
+		t.Fatalf("legacy session incorrectly has Workspace %q", first.WorkspaceID)
+	}
+	if _, err := planner.AssignStandaloneTask(ctx, task.ID, owner.ID, task.Version); err != nil {
+		t.Fatal(err)
+	}
+	second, err := recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
+		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 120, Finish: true},
+		Title:     "Running legacy activity", ActivityType: "read", TaskID: task.ID,
+	})
+	if err != nil {
+		t.Fatalf("legacy finalization lost after task assignment: %v", err)
+	}
+	if second.WorkspaceID != "" || second.ActiveSeconds != 120 || second.EndedAt == nil {
+		t.Fatalf("session attribution/time/finalization changed: %+v", second)
+	}
+	// New sessions started after assignment follow the Task's new owner.
+	fresh, err := recorder.RecordActivity(ctx, "new-assigned-session", activity.ActivityHeartbeat{
+		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 20},
+		Title:     "New owned activity", ActivityType: "read", TaskID: task.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.WorkspaceID != owner.ID {
+		t.Fatalf("new Activity Workspace = %q, want %q", fresh.WorkspaceID, owner.ID)
+	}
+	// Historical completed session cannot be repurposed under the new owner.
+	_, err = recorder.RecordActivity(ctx, "assigned-legacy-session", activity.ActivityHeartbeat{
+		Heartbeat: activity.Heartbeat{ActivityDate: "2026-10-25", ActiveSeconds: 150, Finish: true},
+		Title:     "Reused activity", ActivityType: "read", TaskID: task.ID,
+	})
+	if !errors.Is(err, activity.ErrConflict) {
+		t.Fatalf("completed historical session reused: %v", err)
 	}
 }

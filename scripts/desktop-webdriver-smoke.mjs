@@ -302,6 +302,9 @@ async function seedDurableDomains(session) {
   assert.ok(milestone.id);
   const task = await requestLocal(`${prefix}/tasks`, "POST", { title: "Preserved task", milestoneId: milestone.id });
   assert.ok(task.id);
+  // This request is executed against the previously installed MSI during
+  // --upgrade-seed. Its historical API accepts title/plannedFor only; the
+  // candidate must still preserve that unowned Task after migration.
   const standalone = await requestLocal("/api/tasks", "POST", { title: "Upgrade inbox task" });
   assert.ok(standalone.id);
   const assetId = `upgrade-proof-asset-${Date.now()}`;
@@ -343,6 +346,7 @@ async function assertDurableDomains(marker) {
   assert.equal(task.title, "Preserved task");
   const standalone = await requestLocal(`/api/tasks/${encodeURIComponent(marker.standaloneTaskId)}`);
   assert.equal(standalone.title, "Upgrade inbox task");
+  assert.equal(standalone.workspaceId ?? null, null, "Legacy Task must not be auto-assigned");
   const asset = await requestLocal(`${prefix}/assets/${encodeURIComponent(marker.assetId)}`);
   assert.deepEqual(Array.from(asset), [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   const canvas = await requestLocal(`/api/workspaces/${encodeURIComponent(marker.canvasWorkspaceId)}/canvas`);

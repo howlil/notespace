@@ -7,12 +7,13 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 const libraryBackupFormat = "notespace-backup"
-const libraryBackupVersion = 1
+const libraryBackupVersion = 2
 
 type workspaceEnvelope struct {
 	Project workspacepkg.Workspace         `json:"project"`
@@ -43,6 +44,7 @@ type libraryBackup struct {
 	Categories  []workspacepkg.CategorySummary `json:"categories"`
 	Workspaces  []workspaceEnvelope            `json:"workspaces"`
 	Tasks       []planning.Task                `json:"standaloneTasks,omitempty"`
+	Captures    []capture.Item                 `json:"captures,omitempty"`
 	Trash       []trashRecord                  `json:"trash"`
 	Activity    []activity.Session             `json:"studySessions"`
 }

@@ -115,10 +115,14 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) 
 	if err != nil {
 		return libraryBackup{}, err
 	}
+	captures, err := listCapturesTx(ctx, tx)
+	if err != nil {
+		return libraryBackup{}, err
+	}
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions,
+		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions, Captures: captures,
 	}
 	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 		return libraryBackup{}, err

@@ -59,3 +59,13 @@ test("Inbox projection keeps only incomplete standalone unscheduled tasks", () =
   assert.equal(applyInboxTaskUpdate(projection, task({ title: "Renamed", plannedFor: undefined, version: 2 })).tasks[0]?.title, "Renamed");
   assert.deepEqual(applyInboxTaskUpdate(projection, task({ plannedFor: "2026-09-24", version: 2 })).tasks, []);
 });
+
+test("stale update cannot revert or remove a newer Today task version", () => {
+  const current: TodayProjection = { date: "2026-09-24", tasks: [
+    { ...task({ version: 5, title: "Latest" }), workspaceTitle: "Owned Workspace" },
+  ] };
+  const staleEdit = applyTodayTaskUpdate(current, task({ version: 4, title: "Old" }));
+  const staleRemoval = applyTodayTaskUpdate(current, task({ version: 4, plannedFor: undefined }));
+  assert.deepEqual(staleEdit, current);
+  assert.deepEqual(staleRemoval, current);
+});

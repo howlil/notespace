@@ -1,82 +1,36 @@
 import { expect, test } from "@playwright/test";
 
-function localDateKey(value = new Date()) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-test("Inbox captures standalone work and moves it to Today without changing ownership", async ({ page, request }) => {
-  const title = `Inbox capture ${Date.now()}`;
-  const date = localDateKey();
-
+test("Inbox routes new unsorted work to Capture Queue, not standalone Tasks", async ({ page, request }) => {
+  const content = `Legacy Inbox transition ${Date.now()}`;
+  let captureId = "";
   try {
+    const rejected = await request.post("/api/tasks", { data: { title: content } });
+    expect(rejected.status()).toBe(400);
+
     await page.goto("/inbox");
-    await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
+    // Legacy section is hidden when there are no historical standalone Tasks.
+    await page.getByRole("textbox", { name: "Capture an unorganized thought" }).fill(content);
+    await page.getByRole("button", { name: "Capture", exact: true }).click();
+    await expect(page.getByText(content, { exact: true })).toBeVisible();
 
-    await page.getByRole("textbox", { name: "New inbox task" }).fill(title);
-    await page.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(page.getByText(title, { exact: true })).toBeVisible();
-
-    await expect.poll(async () => {
-      const response = await request.get("/api/tasks/inbox");
-      if (!response.ok()) return null;
-      const inbox = await response.json() as { tasks: Array<{ title: string; workspaceId?: string; plannedFor?: string }> };
-      return inbox.tasks.find((task) => task.title === title) ?? null;
-    }).toMatchObject({
-      title,
-    });
-
-    await page.getByText(title, { exact: true }).hover();
-    await page.getByRole("button", { name: `Move ${title} to Today` }).click();
-    await expect(page.getByText(title, { exact: true })).toHaveCount(0);
-
-    await expect.poll(async () => {
-      const response = await request.get(`/api/tasks/today?date=${date}`);
-      if (!response.ok()) return false;
-      const today = await response.json() as { tasks: Array<{ title: string; workspaceId?: string; plannedFor?: string }> };
-      const task = today.tasks.find((item) => item.title === title);
-      return Boolean(task && !task.workspaceId && task.plannedFor === date);
-    }).toBe(true);
-
-    await page.getByRole("link", { name: "Today", exact: true }).click();
-    await expect(page.getByText(title, { exact: true })).toBeVisible();
-
-    await page.getByText(title, { exact: true }).hover();
-    await page.getByRole("button", { name: `Move ${title} to Inbox` }).click();
-    await expect(page.getByText(title, { exact: true })).toHaveCount(0);
-
-    await page.getByRole("link", { name: "Inbox", exact: true }).click();
-    await expect(page.getByText(title, { exact: true })).toBeVisible();
-
-    await expect.poll(async () => {
-      const response = await request.get("/api/tasks/inbox");
-      if (!response.ok()) return false;
-      const inbox = await response.json() as { tasks: Array<{ title: string; workspaceId?: string; plannedFor?: string }> };
-      const task = inbox.tasks.find((item) => item.title === title);
-      return Boolean(task && !task.workspaceId && !task.plannedFor);
-    }).toBe(true);
+    const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string }>;
+    captureId = pending.find((item) => item.content === content)?.id ?? "";
+    expect(captureId).not.toBe("");
+    const inbox = await (await request.get("/api/tasks/inbox")).json() as {
+      tasks: Array<{ title: string }>;
+    };
+    expect(inbox.tasks.some((item) => item.title === content)).toBe(false);
+    await page.reload();
+    await expect(page.getByText(content, { exact: true })).toBeVisible();
   } finally {
-    const response = await request.get("/api/tasks/inbox");
-    if (response.ok()) {
-      const inbox = await response.json() as { tasks: Array<{ id: string; title: string; version: number }> };
-      for (const task of inbox.tasks) {
-        if (task.title === title) {
-          await request.delete(`/api/tasks/${task.id}`, {
-            headers: { "If-Match": `"${task.version}"` },
-          }).catch(() => undefined);
-        }
-      }
-    }
-
-    const todayResponse = await request.get(`/api/tasks/today?date=${date}`);
-    if (todayResponse.ok()) {
-      const today = await todayResponse.json() as { tasks: Array<{ id: string; title: string; workspaceId?: string; version: number }> };
-      for (const task of today.tasks) {
-        if (task.title === title && !task.workspaceId) {
-          await request.delete(`/api/tasks/${task.id}`, {
-            headers: { "If-Match": `"${task.version}"` },
+    if (captureId) {
+      const res = await request.get(`/api/captures/${captureId}`);
+      if (res.ok()) {
+        const item = await res.json() as { version: number; status: string };
+        if (item.status === "pending") {
+          await request.delete(`/api/captures/${captureId}`, {
+            headers: { "If-Match": `"${item.version}"` },
           }).catch(() => undefined);
         }
       }

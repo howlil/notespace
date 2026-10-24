@@ -2,7 +2,7 @@ import { useLibraryCreateRequest } from "./library-create-context";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { FileText, Folder, FolderOpen, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
+import { CalendarCheck2, FileText, Folder, FolderOpen, Home, Inbox, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
@@ -17,9 +17,10 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inbox
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
-export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategory, onChanged }: Props) {
+export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
   const {
     children,
+    categoryErrors,
     creating,
     deleting,
     editingCategory,
@@ -39,6 +40,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
     startCreate,
     submitCreate,
     toggleCategory,
+    retryCategory,
   } = useLibraryNavigation({ categories, onSelectCategory, onChanged });
 
   const createRequest = useLibraryCreateRequest();
@@ -74,6 +76,21 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
 
   return <>
     <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden border-r border-line bg-sidebar px-2 py-2" aria-label="Category explorer">
+      <nav aria-label="Workspace navigation" className="grid shrink-0 gap-0.5 border-b border-line pb-2">
+        <Link to="/" aria-current={!inboxActive && !todayActive ? "page" : undefined}
+          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", !inboxActive && !todayActive && "bg-tint font-semibold text-accent")}>
+          <Home size={14} aria-hidden="true" />Library
+        </Link>
+        <Link to="/today" aria-current={todayActive ? "page" : undefined}
+          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", todayActive && "bg-tint font-semibold text-accent")}>
+          <CalendarCheck2 size={14} aria-hidden="true" />Today
+        </Link>
+        <Link to="/inbox" aria-current={inboxActive ? "page" : undefined}
+          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", inboxActive && "bg-tint font-semibold text-accent")}>
+          <Inbox size={14} aria-hidden="true" />Capture Queue
+        </Link>
+      </nav>
+      <div className="flex min-h-8 shrink-0 items-center px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">Workspaces</div>
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
         {creating?.kind === "workspace" && !categories.some(item => item.id === creating.categoryId) && <motion.div key="workspace-create-top" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace")}</motion.div>}
@@ -104,7 +121,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                     {editingCategory === category.id && !isSystemCategory ? (
                       <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
                     ) : (
-                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => { if (isOpen) onSelectCategory(category.id); else void toggleCategory(category); }} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => onSelectCategory(category.id)} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
                         <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                         <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSelected && "text-accent", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                       </Button>
@@ -119,7 +136,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
               </ContextMenu>
               {isOpen && (
                 <div className="ml-[27px] grid gap-px border-l border-line pt-0.5 pb-1">
-                  {loading === category.id && <div className="mx-[5px] mt-1 ml-[9px] grid gap-2 px-[3px] py-[5px]" role="status" aria-label={`Loading ${category.title}`}><span className="sr-only">Loading {category.title}…</span><Skeleton className="h-2 w-[min(76%,130px)]" /><Skeleton className="h-2 w-[min(52%,90px)] opacity-70" /></div>}
+                  {loading.has(category.id) && <div className="mx-[5px] mt-1 ml-[9px] grid gap-2 px-[3px] py-[5px]" role="status" aria-label={`Loading ${category.title}`}><span className="sr-only">Loading {category.title}…</span><Skeleton className="h-2 w-[min(76%,130px)]" /><Skeleton className="h-2 w-[min(52%,90px)] opacity-70" /></div>}
                   <AnimatePresence initial={false}>
                     {creating?.kind === "workspace" && creating.categoryId === category.id && <motion.div key={`workspace-create-${category.id}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace", category.id)}</motion.div>}
                   </AnimatePresence>
@@ -151,8 +168,9 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
+                  {categoryErrors.has(category.id) && <div role="alert" className="mx-2 my-1 text-[10px] text-danger">Could not load Workspaces. <Button type="button" size="sm" variant="ghost" onClick={() => void retryCategory(category.id)}>Retry</Button></div>}
                   {items.length >= 5 && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] font-medium text-accent" onClick={() => onSelectCategory(category.id)}>View all</Button>}
-                  {!loading && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
+                  {!loading.has(category.id) && !categoryErrors.has(category.id) && !items.length && !creating && <Button type="button" variant="ghost" size="sm" className="mx-[5px] mt-0.5 ml-[9px] w-auto justify-start px-[3px] py-[5px] text-[10px] text-accent" onClick={() => startCreate("workspace", category.id)}>+ New workspace</Button>}
                 </div>
               )}
             </div>

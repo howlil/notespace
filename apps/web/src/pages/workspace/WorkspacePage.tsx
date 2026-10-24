@@ -5,6 +5,7 @@ import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspa
 import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
 import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
+import { useTaskActivityStart } from "../../features/activity/use-task-activity-start";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceRail } from "../../features/workspace-authoring/ui/WorkspaceRail";
@@ -20,6 +21,7 @@ type Props = {
 export function WorkspacePage({ workspace }: Props) {
   const { customChromeActive, workspaceRailHost } = useDesktopChrome();
   const activity = useActivityRuntime();
+  const startTaskActivity = useTaskActivityStart(activity);
   const { adoptLegacyWorkspace } = activity;
   const [planOpen, setPlanOpen] = useState(false);
 
@@ -63,16 +65,7 @@ export function WorkspacePage({ workspace }: Props) {
         <ActivityTypeTrigger
           ariaLabel={`Start activity for ${task.title}`}
           disabled={activity.status !== "idle" || !activity.canStart}
-          onSelect={(activityType) => {
-            activity.start({
-              title: task.title,
-              activityType,
-              taskId: task.id,
-              taskTitleSnapshot: task.title,
-              workspaceId: workspace.id,
-              workspaceTitleSnapshot: authoring.currentWorkspaceTitle,
-            });
-          }}
+          onSelect={(activityType) => { void startTaskActivity(task, activityType); }}
         />
       )}
     />

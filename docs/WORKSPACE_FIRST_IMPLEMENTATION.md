@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M2 implemented on a feature branch; **not yet shipped or merged**. M3–M7 remain planned. Final CI/desktop acceptance is required before merge. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M3 implemented on a feature branch; **not yet shipped or merged**. M4–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -163,6 +163,38 @@ Backup archive schema version advances to 15, and JSON backup version to 2; lega
 
 Focused Go tests exercise CRUD/version conflicts, atomic convert-to-Task and convert-to-Note, duplicate request handling, concurrent same-request conversion, invalid receipt rejection, and archive/legacy-JSON restoration. The full Go race/build/test verification remains governed by CI.
 
+
+## M3 implemented — Task ownership and legacy assignment
+
+**Shapes:** `PlanningTask {id, workspaceId?, milestoneId?, title, plannedFor?, completedAt?, version}`; `AssignLegacyTask {taskId, workspaceId, version}`.
+
+**A — success graph:**
+
+```text
+Today new Task → shared TaskComposer (Workspace picker required)
+              → POST /api/workspaces/{id}/tasks
+                 {title, plannedFor: Today date}
+              → one server create / one SQLite INSERT
+              → refetch Today projection
+
+Workspace Plan → same TaskComposer (Workspace preselected, milestone optional)
+               → same Workspace task endpoint
+               → update Plan
+
+Legacy Inbox/Today Task → select destination Workspace
+                        → POST /api/tasks/{taskId}/assign-workspace
+                        → SELECT Task + Workspace/version/capacity validation in one SQLite transaction
+                        → UPDATE original Task row (same ID, plannedFor, completedAt and description)
+                        → reload projected view; Activity references remain attached to same task ID
+```
+
+**E — errors:** invalid Workspace/Date/Task; stale version; duplicate assignment; destination capacity; server commit with lost HTTP response. Retries with original version and same destination reconcile the already-owned Task when its version is exactly one greater; differing versions/ownership conflict. Task create does not auto-retry unknown outcomes, preserving the unsent draft and asking user to inspect the destination before manual retry.
+
+**R — owners:** Planning service validates, SQLite Store owns atomic reassignment, HTTP adapter serializes contract, UI owns selection/focus only. Legacy Workspace-less tasks remain readable and editable, while new external create through `POST /api/tasks` requires `workspaceId` (compatibility route). Direct domain fixture creation of legacy tasks remains available for backup/migration regression tests, not normal user-facing creation.
+
+**Preserved:** Task ID, description, createdAt, completedAt, plannedFor, taskId links from Activity, and existing Today carry-forward projection. Workspace Plan remains the single source of Task state; the Queue remains separate from Planning.
+
+**Acceptance:** HTTP create rejects no-Workspace; Today composer selects Workspace; atomic planned date; repeated legacy assignment yields one Task; old Inbox and Today Tasks remain observable; Plan/Today reflect same Task; native desktop tests and historic backup import remain valid.
 
 ## M2 implemented transition (branch)
 

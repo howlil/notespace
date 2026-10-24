@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M6 implemented on a feature branch; **not yet shipped or merged**. M7 remains planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M6 implemented on a feature branch; M7 persistence acceptance and rollback documentation added, but latest-head CI and native desktop acceptance are **not yet verified**. **Not shipped or merged.** This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -149,6 +149,20 @@ Proof: keyboard and screen-reader semantics, category expansion state, focus ret
 Verify actual SQLite migration and backup archives (including legacy JSON/ZIP), queue retention, Trash, Activity history/recovery, Today projection, Search, versioned mutation races, accessibility, native desktop startup/restart and rollback documentation.
 
 **Do not claim** end-to-end acceptance solely from component tests or static review.
+
+### M7 implementation — operational proof and rollback
+
+**Shapes:** `Snapshot{SQLite database + WAL/SHM + assets}`, `DurabilityProbe{workspaceId, taskId, captureId, activitySessionId, date}`, `AcceptanceEvidence{commitSHA, verifyRun, desktopRun, failedChecks}`.
+
+**A:** write disposable Workspace/Note/Canvas + owned Task + pending Capture + completed Activity → restart the Docker Compose server over the existing persistent volume → reread the exact Note/Canvas snapshot and authoritative Task/Plan/Today, Capture Queue and Activity history → clean up only the created fixtures (including Trash). Independent SQLite/HTTP tests exercise atomic Capture conversion, converted receipts, legacy JSON, archive ZIP and invalid restore.
+
+**E:** a restart can fail readiness, a resource can disappear/change identity, an HTTP response can fail after commit, a corrupted archive can be rejected, an older build can reject schema-15 ZIP, or an operator can lose post-snapshot writes on rollback. Stop the release on any missing acceptance evidence. Never validate rollback destructively on live data.
+
+**R:** reuse `scripts/smoke-persistence.py` under the existing Compose CI step, `Verify Desktop` for native gates, and the tested SQLite restore code. No alternative production state store or new migration.
+
+**Runbook:** `docs/WORKSPACE_FIRST_ROLLBACK.md` contains the acceptance matrix, offline whole-volume snapshot, immutable pre-upgrade deployment requirement, isolated new-volume rollback and desktop recovery caveats.
+
+**Gate:** distinguish committed acceptance instrumentation from passing evidence. M7 cannot be marked accepted until **Verify** and **Verify Desktop** complete successfully on the same final HEAD and the changes pass a final review.
 
 
 ## M1 backend implementation contract (branch)

@@ -193,6 +193,7 @@ export function QuickCapture({ showTrigger = true }: { showTrigger?: boolean } =
                 />
               </span>
               <select
+                aria-label="Capture Workspace"
                 className="h-9 rounded-md border border-line bg-background px-2.5 text-xs text-ink outline-none focus:border-accent"
                 value={effectiveWorkspaceId}
                 onChange={(event) => setWorkspaceId(event.target.value)}

@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0-beta.7",
+  "notes": "Signature-verified Notespace Desktop beta. The Windows installer remains Authenticode-unsigned.",
+  "pub_date": "2026-10-24T23:55:24.662Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUTjNYeDZqMTVOOVZYd1ZRT3F4dmY1a0ltd3FKZTlLL2VqaGtYa1J6WjZsT0EyM3FXd3U5cWRRTndlOUVOaHdKTTZhZlZVQ0tUN3Rrb0xuM2FrV0QzWDlLa1Y5a2k5WEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODg2MDcwCWZpbGU6Tm90ZXNwYWNlXzAuMS4wLWJldGEuN194NjRfZW4tVVMubXNpCXZlcnNpb246MC4xLjAtYmV0YS43Cm9VMjVOVzN0Z0xCU2tQT1EyTmZnY282cnlZQ1d2emE1UENVVXJiR3B1VDQrdmx3Y1pxTzN2L2czOWZMYkpiNWNwK0U4NFlFOTg1di8xN3BtVk5yS0NBPT0K",
+      "url": "https://github.com/howlil/notespace/releases/download/v0.1.0-beta.7/Notespace_0.1.0-beta.7_x64_en-US.msi"
+    }
+  }
+}

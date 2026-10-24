@@ -200,10 +200,6 @@ export function TodayPlanning({
   const [assignTarget, setAssignTarget] = useState<TodayTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TodayTask | null>(null);
 
-  useEffect(() => {
-    setProjection(initial);
-  }, [initial]);
-
   const openTasks = useMemo(
     () => projection.tasks.filter((task) => !task.completedAt),
     [projection.tasks],
@@ -231,6 +227,16 @@ export function TodayPlanning({
       });
     }
   }, [projection.date, showToast]);
+
+  useEffect(() => {
+    // A delayed route-loader prop must not replace data changed by this view.
+    // A real calendar-day change still swaps the target projection date.
+    if (mutationEpoch.current !== 0 && initial.date === projection.date) {
+      void refreshToday();
+    } else {
+      setProjection(initial);
+    }
+  }, [initial, projection.date, refreshToday]);
 
   useEffect(() => {
     // Route loaders can be cached on Back/Forward navigation. Re-read at mount.

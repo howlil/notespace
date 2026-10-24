@@ -14,6 +14,7 @@ import {
 import { useToast } from "../../shared/ui/toast-provider";
 import { applyInboxTaskUpdate } from "./projection-state";
 import { LegacyTaskAssign } from "./LegacyTaskAssign";
+import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 function InboxTaskRow({
   task,
@@ -131,6 +132,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         version: task.version,
       });
       setProjection((current) => applyInboxTaskUpdate(current, updated));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({
         kind: "error",
@@ -149,6 +151,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         ...current,
         tasks: current.tasks.filter((task) => task.id !== target.id),
       }));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
       showToast({
         kind: "error",
@@ -205,7 +208,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
       </div>
 
       <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
-        onAssigned={(updated) => { setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== updated.id) })); }} />
+        onAssigned={(updated) => { setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== updated.id) })); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this inbox task?"

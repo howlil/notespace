@@ -32,6 +32,7 @@ import {
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
+import { belongsToToday } from "./projection-state";
 import { reconcileTaskPatch } from "./task-mutation";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
@@ -124,6 +125,8 @@ function TaskRow({
     }
   }
 
+  const inToday = belongsToToday(task, localDateKey());
+
   return (
     <div className="group flex min-h-9 items-center gap-2 border-b border-line px-1.5 py-1 hover:bg-tint/60">
       <button
@@ -162,12 +165,12 @@ function TaskRow({
         {!task.completedAt && renderTaskAction?.(task)}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <IconButton
-            className={cn("!size-7 text-muted hover:text-accent", task.plannedFor === localDateKey() && "text-accent")}
-            aria-label={task.plannedFor === localDateKey() ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
-            title={task.plannedFor === localDateKey() ? "Remove from Today" : "Add to Today"}
-            onClick={() => void onUpdate(task, { plannedFor: task.plannedFor === localDateKey() ? "" : localDateKey() })}
+            className={cn("!size-7 text-muted hover:text-accent", inToday && "text-accent")}
+            aria-label={inToday ? `Remove ${task.title} from Today` : `Add ${task.title} to Today`}
+            title={inToday ? "Remove from Today" : "Add to Today"}
+            onClick={() => void onUpdate(task, { plannedFor: inToday ? "" : localDateKey() })}
           >
-            {task.plannedFor === localDateKey() ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
+            {inToday ? <CalendarCheck2 size={13} /> : <CalendarPlus size={13} />}
           </IconButton>
           <IconButton className="!size-7 text-muted hover:text-accent" aria-label={`Rename ${task.title}`} title="Rename task" onClick={() => setEditing(true)}>
             <Pencil size={13} />

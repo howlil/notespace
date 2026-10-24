@@ -23,13 +23,9 @@ export function InboxPage({
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >
       <CaptureQueue />
-      <section aria-label="Legacy standalone tasks" className="mt-8 border-t border-line">
-        <div className="mx-auto max-w-[820px] px-6 pt-5 text-[11px] text-muted max-[560px]:px-4">
-          <strong className="text-ink">Existing standalone Inbox tasks</strong>
-          <p className="mt-1">Legacy tasks remain available while Workspace assignment is prepared in M3.</p>
-        </div>
+      {initial.tasks.length > 0 && <section aria-label="Legacy standalone tasks" className="mt-8 border-t border-line">
         <InboxPlanning initial={initial} />
-      </section>
+      </section>}
     </LibraryPageShell>
   );
 }

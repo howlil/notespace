@@ -14,7 +14,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
 
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("combobox", { name: "Workspace" }).selectOption(workspace.id);
+    await dialog.getByRole("combobox", { name: "Capture Workspace" }).selectOption(workspace.id);
     await dialog.getByRole("textbox", { name: "Note" }).fill(
       "## MVCC in PostgreSQL\n\nSnapshots keep readers isolated from concurrent writers.",
     );

@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M5 implemented on a feature branch; **not yet shipped or merged**. M6–M7 remain planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M6 implemented on a feature branch; **not yet shipped or merged**. M7 remains planned. Full CI and desktop acceptance remain required. This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
 
 ## Intent, non-goals, and compatibility
 
@@ -121,6 +121,18 @@ Proof: Today↔Plan consistency, plan/remove/complete, reload/back navigation, c
 `E`: second-tab lease blocked, Workspace removed while active, offline heartbeat, finalized server write with failed response, stale Task version. Keep existing finalization/recovery queue and historic standalone sessions, without falsifying historic Workspace attribution.
 
 Proof: cross-tab lock, pause/resume and day boundaries, cross-route continuation, restart recovery, no new Workspace-less session, legacy record display and deletion.
+
+## M6 implementation — navigation and interaction graph
+
+**Shapes:** `ShellDestination = library | today | queue`, `ExplorerState = auto | open | closed`, `CategoryExpansion`, `CaptureQueueState = loading | empty | error | ready`, `WorkspaceOptionLabel`.
+
+**A:** route (`/`, `/today`, `/inbox`) → shared `LibraryPageShell` → compact `ShellRail` shortcuts + labeled `LibrarySidebar` links → category disclosure (no navigation side effect) → explicit category title selection → Library category route → Workspace authoring uses existing 40px rail. Create owns one Quick Capture trigger with explicit destination inside its dialog. Explorer open/closed survives shared-shell navigation.
+
+**E:** failed category fetch shows local retry without collapsing; Capture Queue initial fetch does not pretend an empty queue, error retains explicit Refresh; stale list responses cannot replace newer mutations; empty Workspace pickers explain why destination-dependent Save/Start is disabled; duplicate names show disambiguating ID prefixes; narrow-screen dismissal returns focus to trigger.
+
+**R / scope:** only existing `ShellRail`, `LibraryPageShell`, `LibrarySidebar`, library-navigation feature hook, Capture Queue and Workspace destination UI. Root utilities and Workspace authoring are not duplicated or remounted; no new persistence layer, routes or schema.
+
+**Proof:** pure Workspace option identity test; Playwright labeled route links, independent category disclosure/selection, Queue loading/error/empty; updated global Create and legacy Inbox E2E, existing mobile keyboard, Today/Activity/desktop tests. M7 remains the cross-subsystem acceptance/rollback milestone.
 
 ### M6 — Accessible unified navigation
 

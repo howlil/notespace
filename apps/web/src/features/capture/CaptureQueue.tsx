@@ -36,6 +36,7 @@ export function CaptureQueue() {
   const [body, setBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [target, setTarget] = useState<CaptureItem | null>(null);
   const [mode, setMode] = useState<"organize" | "edit">("organize");
@@ -58,12 +59,18 @@ export function CaptureQueue() {
     setRefreshing(true);
     try {
       const current = await listCaptures();
-      if (readId === readSequence.current && revision === writeRevision.current) setItems(current);
-      setLoadError(false);
+      if (readId === readSequence.current && revision === writeRevision.current) {
+        setItems(current);
+        setLoadError(false);
+        setLoaded(true);
+      }
     } catch (error) {
-      setLoadError(true);
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not refresh captures." });
-    } finally { setRefreshing(false); }
+      if (readId === readSequence.current && revision === writeRevision.current) {
+        setLoadError(true);
+        setLoaded(true);
+        showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not refresh captures." });
+      }
+    } finally { if (readId === readSequence.current) setRefreshing(false); }
   }, [showToast]);
 
   useEffect(() => {
@@ -217,7 +224,8 @@ export function CaptureQueue() {
       {loadError && <p role="alert" className="mb-3 text-xs text-danger">Queue may be out of date. Refresh to reconcile the server state.</p>}
       <div className="mb-2 flex items-center justify-between"><h2 className="m-0 text-[11px] font-semibold text-ink">Waiting to organize</h2>
         <span className="text-[10px] text-muted">{items.length} items</span></div>
-      {items.length === 0
+      {!loaded ? <p role="status" aria-live="polite" className="border-t border-line py-6 text-center text-xs text-muted">Loading Capture Queue…</p> : loadError && items.length === 0
+        ? <div role="alert" className="border-t border-line py-6 text-center text-xs text-danger">Queue could not be loaded. Use Refresh to retry.</div> : items.length === 0
         ? <div className="rounded-lg border border-dashed border-line p-7 text-center">
             <Inbox size={24} className="mx-auto text-muted" aria-hidden="true" />
             <p className="mt-2 text-[12px] font-medium text-ink">Queue is clear</p>

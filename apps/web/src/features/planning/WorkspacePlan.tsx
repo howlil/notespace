@@ -232,9 +232,10 @@ export function WorkspacePlan({
   }, [workspaceId]);
 
   useEffect(() => {
+    const sequence = readSequence;
     void refreshPlan(true);
-    // Invalidate any request that belongs to the previous Workspace on cleanup.
-    return () => { ++readSequence.current; };
+    // Cancel stale read deliveries when this Workspace effect is replaced.
+    return () => { sequence.current += 1; };
   }, [refreshKey, refreshPlan]);
 
   useEffect(() => {

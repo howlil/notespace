@@ -93,7 +93,9 @@ func (s *planningTestStore) CreateTask(_ context.Context, item Task) (Task, erro
 	return item, nil
 }
 func (s *planningTestStore) AssignStandaloneTask(_ context.Context, taskID, workspaceID string, version int, updatedAt string) (Task, error) {
-	if s.getTaskErr != nil { return Task{}, s.getTaskErr }
+	if s.getTaskErr != nil {
+		return Task{}, s.getTaskErr
+	}
 	item := s.task
 	item.WorkspaceID = &workspaceID
 	item.Version = version + 1

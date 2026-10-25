@@ -69,6 +69,10 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
 	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
 	orderBy := "p.updated_at DESC, p.id"
+	if query.CategoryID != "" {
+		// Stable category browsing: autosave should not shuffle offset pages.
+		orderBy = "p.title COLLATE NOCASE ASC, p.id"
+	}
 	switch query.Sort {
 	case "created":
 		orderBy = "p.created_at DESC, p.id"

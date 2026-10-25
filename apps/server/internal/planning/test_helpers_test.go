@@ -12,6 +12,8 @@ type planningTestStore struct {
 	listTodayCalls             int
 	inbox                      []Task
 	listInboxErr               error
+	unassigned                []Task
+	listUnassignedErr         error
 	createMilestoneInput       Milestone
 	createMilestoneErr         error
 	updateMilestoneInput       Milestone
@@ -65,6 +67,9 @@ func (s *planningTestStore) ListToday(context.Context, string) ([]TodayTask, err
 }
 func (s *planningTestStore) ListInbox(context.Context) ([]Task, error) {
 	return s.inbox, s.listInboxErr
+}
+func (s *planningTestStore) ListUnassignedTasks(context.Context) ([]Task, error) {
+  return s.unassigned, s.listUnassignedErr
 }
 func (s *planningTestStore) CreateMilestone(_ context.Context, item Milestone) (Milestone, error) {
 	s.createMilestoneInput = item

@@ -118,6 +118,12 @@ func (a API) inboxTasks(w http.ResponseWriter, r *http.Request) {
 	send(w, http.StatusOK, inbox)
 }
 
+func (a API) unassignedTasks(w http.ResponseWriter, r *http.Request) {
+  projection, err := a.planning.Unassigned(r.Context())
+  if err != nil { fail(w, err); return }
+  send(w, http.StatusOK, projection)
+}
+
 func (a API) getAnyTask(w http.ResponseWriter, r *http.Request) {
 	item, err := a.planning.GetTask(r.Context(), r.PathValue("taskId"))
 	if err != nil {

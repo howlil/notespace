@@ -103,6 +103,7 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /api/captures/{captureId}/organize", a.organizeCapture)
 	mux.HandleFunc("GET /api/tasks/today", a.todayTasks)
 	mux.HandleFunc("GET /api/tasks/inbox", a.inboxTasks)
+	mux.HandleFunc("GET /api/tasks/unassigned", a.unassignedTasks)
 	mux.HandleFunc("GET /api/tasks/{taskId}", a.getAnyTask)
 	mux.HandleFunc("POST /api/tasks", a.createStandaloneTask)
 	mux.HandleFunc("POST /api/tasks/{taskId}/assign-workspace", a.assignStandaloneTask)

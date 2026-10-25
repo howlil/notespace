@@ -212,6 +212,10 @@ func standaloneTasksTx(ctx context.Context, tx *sql.Tx) ([]planning.Task, error)
 	return readStandaloneTasks(ctx, tx)
 }
 
+func (s *Store) ListUnassignedTasks(ctx context.Context) ([]planning.Task, error) {
+  return readStandaloneTasks(ctx, s.db)
+}
+
 func (s *Store) standaloneTasks(ctx context.Context) ([]planning.Task, error) {
 	return readStandaloneTasks(ctx, s.db)
 }

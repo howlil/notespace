@@ -132,6 +132,45 @@ test("Organize cannot submit a Workspace hidden by a changed search filter", asy
   }
 });
 
+test("@critical Capture edit reconciles a committed PATCH with a lost response", async ({ page, request }) => {
+  const content = `Capture edit lost response ${Date.now()}`;
+  const created = await request.post("/api/captures", { data: { content } });
+  expect(created.status()).toBe(201);
+  const capture = await created.json() as { id: string; version: number };
+  const draft = content + " revised";
+  let commits = 0;
+  const routePattern = `**/api/captures/${capture.id}`;
+  await page.route(routePattern, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    // Let the real server commit, then conceal the successful response from the UI.
+    const result = await route.fetch();
+    expect(result.status()).toBe(200);
+    commits++;
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Response unavailable" }) });
+  });
+  try {
+    await page.goto("/inbox");
+    await page.getByRole("button", { name: `Edit capture ${capture.id}` }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit capture" });
+    await dialog.getByRole("textbox", { name: "Captured content" }).fill(draft);
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(draft, { exact: true })).toBeVisible();
+    expect(commits).toBe(1);
+    const receipt = await (await request.get(`/api/captures/${capture.id}`)).json() as { content: string; version: number };
+    expect(receipt).toMatchObject({ content: draft, version: capture.version + 1 });
+  } finally {
+    await page.unroute(routePattern);
+    const existing = await request.get(`/api/captures/${capture.id}`);
+    if (existing.ok()) {
+      const latest = await existing.json() as { version: number; status: string };
+      if (latest.status === "pending") await request.delete(`/api/captures/${capture.id}`, {
+        headers: { "If-Match": `"${latest.version}"` },
+      }).catch(() => undefined);
+    }
+  }
+});
+
 test("@critical Capture edit conflict preserves draft and requires explicit overwrite", async ({ page, request }) => {
   const label = `Capture conflict ${Date.now()}`;
   const created = await request.post("/api/captures", { data: { content: label } });

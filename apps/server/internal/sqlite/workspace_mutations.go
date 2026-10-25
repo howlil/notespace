@@ -112,3 +112,18 @@ func (s *Store) Update(ctx context.Context, id string, u workspace.Update) (work
 	}
 	return p, nil
 }
+
+func (s *Store) RenameWorkspace(ctx context.Context, id, title string) (workspace.Workspace, error) {
+ now := time.Now().UTC().Format(time.RFC3339Nano)
+ tx, err := s.db.BeginTx(ctx, nil)
+ if err != nil { return workspace.Workspace{}, err }
+ defer tx.Rollback()
+ value, err := readProject(tx.QueryRowContext(ctx,
+  `UPDATE projects SET title=?,updated_at=?,version=version+1 WHERE id=? RETURNING `+columns,
+  title, now, id))
+ if err != nil { return workspace.Workspace{}, err }
+ value, err = hydrateGranularProject(ctx, tx, value)
+ if err != nil { return workspace.Workspace{}, err }
+ if err := tx.Commit(); err != nil { return workspace.Workspace{}, err }
+ return value, nil
+}

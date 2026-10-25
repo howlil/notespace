@@ -68,6 +68,9 @@ export function createWorkspaceHttpClient(
         transport,
       ),
 
+    getWorkspaceNote: (workspaceId, noteId) =>
+      request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, undefined, transport),
+
     createWorkspaceNote: (workspaceId, input) =>
       request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes`, {
         method: "POST",

@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -71,4 +72,34 @@ func TestCreateNoteRejectsDuplicateIDWithoutOverwriting(t *testing.T) {
 			t.Fatalf("duplicate create overwrote note: %#v", note)
 		}
 	}
+}
+
+func TestGranularCreateEnforcesNoteCapacityAcrossAllEntryPoints(t *testing.T) {
+ ctx := context.Background()
+ store, err := Open(ctx, filepath.Join(t.TempDir(), "note-capacity.db"))
+ if err != nil { t.Fatal(err) }
+ defer store.Close()
+ service := workspacepkg.NewService(store)
+ created, err := service.Create(ctx, "Capacity")
+ if err != nil { t.Fatal(err) }
+ for n := 1; n < workspacepkg.MaxNotesPerWorkspace; n++ {
+   _, err := service.CreateNote(ctx, created.ID, workspacepkg.NoteCreate{
+     ID: fmt.Sprintf("note-%03d", n),
+     Title: "Note",
+     Document: created.Notes[0].Document,
+   })
+   if err != nil { t.Fatalf("creating note %d: %v", n, err) }
+ }
+ before, err := service.Get(ctx, created.ID)
+ if err != nil { t.Fatal(err) }
+ if len(before.Notes) != workspacepkg.MaxNotesPerWorkspace { t.Fatalf("notes = %d", len(before.Notes)) }
+ _, err = service.CreateNote(ctx, created.ID, workspacepkg.NoteCreate{
+   ID: "note-over-capacity", Title: "Overflow", Document: created.Notes[0].Document,
+ })
+ if !errors.Is(err, workspacepkg.ErrInvalid) { t.Fatalf("overflow = %v, want invalid", err) }
+ after, err := service.Get(ctx, created.ID)
+ if err != nil { t.Fatal(err) }
+ if len(after.Notes) != workspacepkg.MaxNotesPerWorkspace || after.Version != before.Version {
+   t.Fatalf("rejected overflow changed durable state: notes=%d version=%d", len(after.Notes), after.Version)
+ }
 }

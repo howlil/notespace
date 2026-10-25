@@ -16,9 +16,11 @@ func (s Service) Today(ctx context.Context, date string) (Today, error) {
 // Unassigned lists every historical Task without Workspace ownership,
 // including completed and scheduled items. This is read-only inventory.
 func (s Service) Unassigned(ctx context.Context) (Inbox, error) {
-  tasks, err := s.store.ListUnassignedTasks(ctx)
-  if err != nil { return Inbox{}, err }
-  return Inbox{Tasks: tasks}, nil
+	tasks, err := s.store.ListUnassignedTasks(ctx)
+	if err != nil {
+		return Inbox{}, err
+	}
+	return Inbox{Tasks: tasks}, nil
 }
 
 func (s Service) Inbox(ctx context.Context) (Inbox, error) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import type { CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { useLibraryRevision } from "./use-library-revision";
@@ -50,7 +50,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   const newWorkspaceCategoryId = useMemo(() => {
     if (view === "category" && selectedCategoryId) return selectedCategoryId;
-    return (categoryItems.find((c) => c.id === "legacy") ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
+    return (categoryItems.find((c) => c.id === UNCATEGORIZED_CATEGORY_ID) ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
   }, [view, selectedCategoryId, categoryItems]);
 
   async function handleCreateWorkspace(event: FormEvent) {

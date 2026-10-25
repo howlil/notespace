@@ -11,7 +11,7 @@ import {
   updateCategory,
 } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
-import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
@@ -41,7 +41,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
   const uncategorized =
-    categories.find((category) => category.id === "legacy") ??
+    categories.find((category) => category.id === UNCATEGORIZED_CATEGORY_ID) ??
     categories.find((category) => category.title.toLowerCase() === "uncategorized");
 
   function signalLibraryChanged() {

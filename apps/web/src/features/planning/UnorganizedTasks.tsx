@@ -227,13 +227,13 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
         </header>
 
 
-
         <section aria-labelledby="inbox-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
             <h2 id="inbox-open-title" className="m-0 text-[11px] font-semibold text-ink">Awaiting Workspace</h2>
             <span className="text-[9px] tabular-nums text-muted">{projection.tasks.length}</span>
           </div>
 
+          {readError && <p role="alert" className="py-2 text-[11px] text-danger">Task list may be outdated. <button type="button" className="underline" onClick={() => void refreshTasks()}>Retry</button></p>}
           {projection.tasks.length ? (
             <div>
               {projection.tasks.map((task) => (
@@ -260,7 +260,7 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
       </div>
 
       <TaskWorkspaceAssign task={assignTarget} onClose={() => setAssignTarget(null)}
-        onAssigned={(updated) => { setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== updated.id) })); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
+        onAssigned={(updated) => { ++mutationEpoch.current; setProjection((current) => applyUnassignedTaskUpdate(current, updated)); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this task?"

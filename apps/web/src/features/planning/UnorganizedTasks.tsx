@@ -160,6 +160,8 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
     }
   }
 
+  if (projection.tasks.length === 0) return null;
+
   return (
     <>
       <div className="mx-auto w-full max-w-[820px] px-6 pt-6 pb-12 max-[800px]:px-5 max-[560px]:px-4">

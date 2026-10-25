@@ -8,8 +8,9 @@ The user-facing model is:
 Today
 └── Tasks[]  ← planned today + incomplete carry-over
 
-Inbox
-└── Tasks[]  ← standalone unscheduled work
+Capture Queue
+├── unorganized ideas → Workspace Notes or Tasks
+└── existing unassigned Tasks (only when present; move into a Workspace)
 
 Category
 └── Workspace
@@ -29,9 +30,9 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Category → Workspace library with recent-first Home and scalable category browsing.
 - Multiple durable Tiptap Notes plus one Excalidraw Canvas per Workspace.
 - Workspace Plan with lightweight milestones and tasks; tasks may belong to a milestone or remain loose.
-- Today projection for tasks planned for the day plus incomplete planned tasks carried forward from earlier dates; standalone tasks may also be scheduled into Today.
-- Inbox projection for incomplete standalone tasks that have not been scheduled yet.
-- Global Activity sessions for Build, Learn, Read, Write, Exercise, or Other work; a session may link to a Today task/Workspace or remain standalone.
+- Today projection for Workspace Tasks planned for the day and incomplete planned Tasks carried forward; historical unassigned Tasks remain readable until explicitly moved.
+- Capture Queue for unorganized ideas, with existing unassigned Tasks shown in the same destination under **Tasks to organize**. New Task creation requires a Workspace.
+- Global Activity sessions for Build, Learn, Read, Write, Exercise, or Other work, with required Workspace ownership for new sessions; previously saved sessions remain readable.
 - Split authoring with up to four panes and one Canvas pane.
 - Quick Capture and Markdown ingestion.
 - Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
@@ -39,7 +40,7 @@ Notespace is intentionally not a generic Notion clone, collaboration platform, A
 - Recoverable Workspace Trash with explicit permanent deletion.
 - Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Workspace Plans, standalone tasks, Trash, images, activity sessions, and legacy history data when present.
 - Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
-- Explicit Start / Pause / Resume / End activity sessions, optionally linked to a Workspace or Today task.
+- Explicit Start / Pause / Resume / End activity sessions, owned by a Workspace and optionally linked to a Task.
 - Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
 
 ## Windows Desktop

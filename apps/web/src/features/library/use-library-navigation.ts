@@ -11,7 +11,7 @@ import {
   updateCategory,
 } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
-import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary } from "../../domain/workspace/workspace";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";

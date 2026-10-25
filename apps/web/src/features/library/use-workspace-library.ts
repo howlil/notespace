@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, WorkspaceSummary, WorkspacePage } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary, type WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { useLibraryRevision } from "./use-library-revision";

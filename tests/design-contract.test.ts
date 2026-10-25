@@ -430,7 +430,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(WORKSPACE_PLAN), /Add .* to Today/);
   assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
   assert.match(source(TODAY_PLANNING), /Needs Workspace/);
-  assert.match(source(TODAY_PLANNING), /Return .* to Capture Queue/);
+  assert.match(source(TODAY_PLANNING), /Remove .* from Today/);
   assert.match(source(TODAY_PLANNING), /TaskComposer/);
   assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
   assert.match(source(ACTIVITY_QUICK_START), /What are you doing\?/);

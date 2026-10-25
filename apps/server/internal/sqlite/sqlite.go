@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/howlil/notespace/apps/server/migrations"
 	_ "modernc.org/sqlite"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db *sql.DB
+	pagingMu sync.Mutex
+	pagingSnapshots map[string]workspacePagingSession
+}
 
 func Open(ctx context.Context, path string) (*Store, error) {
 	absolute, err := filepath.Abs(path)

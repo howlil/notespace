@@ -35,6 +35,7 @@ import { TaskComposer } from "./TaskComposer";
 import { creationIdentity, confirmCreation, confirmKeyedPost, pendingCreation } from "../../adapters/browser/planning-create-identity";
 import { belongsToToday } from "./projection-state";
 import { mergeCreatedTask, reconcileTaskPatch } from "./task-mutation";
+import { reconcileMilestonePatch } from "./milestone-mutation";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 type DeleteTarget =
@@ -218,6 +219,7 @@ export function WorkspacePlan({
   const mutationEpoch = useRef(0);
   const readSequence = useRef(0);
   const pendingTaskIds = useRef(new Set<string>());
+  const pendingMilestoneIds = useRef(new Set<string>());
 
   const refreshPlan = useCallback(async (initialLoad = false) => {
     const read = ++readSequence.current;
@@ -285,12 +287,45 @@ export function WorkspacePlan({
   }
 
   async function patchMilestone(item: PlanningMilestone, patch: { title?: string; completed?: boolean }) {
+    if (pendingMilestoneIds.current.has(item.id)) return false;
+    pendingMilestoneIds.current.add(item.id);
+    ++mutationEpoch.current;
     try {
-      const updated = await updateMilestone(workspaceId, item.id, { ...patch, version: item.version });
-      setPlan((current) => ({ ...current, milestones: current.milestones.map((value) => value.id === updated.id ? updated : value) }));
-      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not update milestone." });
+      const outcome = await reconcileMilestonePatch(
+        item, patch,
+        () => updateMilestone(workspaceId, item.id, { ...patch, version: item.version }),
+        () => getWorkspacePlan(workspaceId),
+      );
+      if (outcome.status === "confirmed" || outcome.status === "conflict" || outcome.status === "not-applied") {
+        const updated = outcome.milestone;
+        setPlan((current) => ({
+          ...current,
+          milestones: current.milestones.map((value) =>
+            value.id === updated.id && value.version <= updated.version ? updated : value),
+        }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        if (outcome.status === "conflict") {
+          showToast({ kind: "error", message: "Milestone changed elsewhere. Latest saved version restored; retry if needed." });
+        } else if (outcome.status === "not-applied") {
+          showToast({ kind: "error", message: "Milestone was not saved. Your draft is preserved; retry when ready." });
+        }
+      } else if (outcome.status === "missing") {
+        setPlan((current) => ({
+          ...current,
+          milestones: current.milestones.filter((value) => value.id !== item.id),
+          tasks: current.tasks.map((task) =>
+            task.milestoneId === item.id ? { ...task, milestoneId: undefined } : task),
+        }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+        showToast({ kind: "error", message: "Milestone was deleted elsewhere. Tasks remain in the Workspace." });
+        void refreshPlan();
+      } else {
+        showToast({ kind: "error", message: "Milestone update not confirmed. Refresh the Plan before retrying." });
+        void refreshPlan();
+      }
+      return outcome.status === "confirmed";
+    } finally {
+      pendingMilestoneIds.current.delete(item.id);
     }
   }
 
@@ -333,12 +368,12 @@ export function WorkspacePlan({
 
   async function commitMilestoneRename(item: PlanningMilestone) {
     const next = milestoneTitle.trim();
-    setEditingMilestoneId(null);
     if (!next || next === item.title) {
       setMilestoneTitle(item.title);
+      setEditingMilestoneId(null);
       return;
     }
-    await patchMilestone(item, { title: next });
+    if (await patchMilestone(item, { title: next })) setEditingMilestoneId(null);
   }
 
   async function confirmDelete() {

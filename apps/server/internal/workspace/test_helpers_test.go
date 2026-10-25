@@ -90,6 +90,15 @@ func (s *workspaceTestStore) ListRecent(context.Context, int) ([]Summary, error)
 func (s *workspaceTestStore) ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error) {
 	return WorkspacePage{}, nil
 }
+func (s *workspaceTestStore) RenameWorkspace(_ context.Context, id, title string) (Workspace, error) {
+ s.updateID = id
+ s.updateInput.Title = title
+ if s.updateErr != nil { return Workspace{}, s.updateErr }
+ value := s.record
+ value.Title = title
+ value.Version++
+ return value, nil
+}
 func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string) (Workspace, error) {
 	s.moveID, s.moveCategoryID = id, categoryID
 	if s.moveErr != nil {

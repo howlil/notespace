@@ -94,7 +94,11 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title)
+	var expected []string
+	if body.ExpectedTitle != nil {
+		expected = append(expected, *body.ExpectedTitle)
+	}
+	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title, expected...)
 	if err != nil {
 		fail(w, err)
 		return

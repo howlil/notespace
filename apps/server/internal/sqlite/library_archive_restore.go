@@ -122,7 +122,7 @@ func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
 
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Activity: manifest.Activity, Tasks: manifest.Tasks, Captures: manifest.Captures,
+		Categories: manifest.Categories, Activity: manifest.Activity, DeletedActivitySessionIDs: manifest.DeletedActivitySessionIDs, Tasks: manifest.Tasks, Captures: manifest.Captures,
 		Workspaces: make([]workspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:      make([]trashRecord, 0, len(manifest.Trash)),
 	}

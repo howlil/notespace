@@ -749,3 +749,13 @@ Do not continue reorganizing code merely to make the tree look symmetrical.
 - Pages may compose multiple features and domain types, but must not call HTTP adapters directly.
 - CRUD state, mutation flows, and reusable screen behavior belong to the owning feature.
 - When two sibling features meet on one screen, compose them in the page through props or render slots instead of importing one feature from the other.
+
+## Workspace library pagination consistency
+
+The Workspace application service owns the paged query contract. SQLite owns query ordering, filters, and optional ephemeral snapshot sessions; HTTP parses the opt-in `snapshot` parameter. Web Library owns the active token and resets traversal on filters/refresh. The domain model carries the token without owning its lifetime.
+
+`snapshot=start` captures one ordered Workspace summary list at the query serialization point. Later `snapshot=<opaque-token>` requests use the captured projection and must match the original category/query/sort/filter contract. In-memory sessions are bounded and expire; unknown/expired tokens return conflict, and the UI restarts from page one. Do not hold a database transaction open across user navigation, introduce a second persistent library source of truth, or silently downgrade a failed snapshot to live offsets.
+
+The legacy `offset` API remains live and unchanged for compatibility. Session expiration and in-memory eviction are not durable user state. Snapshot projections can become stale for renamed/deleted Workspace details; individual Workspace routes still read current authored records.
+
+Verify query correctness using real SQLite and HTTP, including mutable default recent ordering, note-count sort, and filter/token mismatch. Test UI restart on expired sessions at the smallest faithful boundary.

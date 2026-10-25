@@ -115,7 +115,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     workspaceRenameSubmitting.current = true;
     setSavingWorkspaceId(workspace.id);
     try {
-      const renamed = await renameWorkspace(workspace.id, value);
+      const renamed = await renameWorkspace(workspace.id, value, workspace.title);
       replaceWorkspaceInLists(renamed);
       setEditingWorkspaceId(null);
       setWorkspaceTitleDraft("");

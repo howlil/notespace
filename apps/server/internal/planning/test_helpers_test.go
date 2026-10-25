@@ -12,8 +12,8 @@ type planningTestStore struct {
 	listTodayCalls             int
 	inbox                      []Task
 	listInboxErr               error
-	unassigned                []Task
-	listUnassignedErr         error
+	unassigned                 []Task
+	listUnassignedErr          error
 	createMilestoneInput       Milestone
 	createMilestoneErr         error
 	updateMilestoneInput       Milestone

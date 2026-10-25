@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
@@ -83,7 +84,10 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 		return activity.Session{}, err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+	result, err := tx.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`)
+SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (
+  SELECT 1 FROM activity_deleted_sessions WHERE logical_session_id=?
+)
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
   last_heartbeat_at=CASE
@@ -133,6 +137,7 @@ WHERE activity_sessions.task_id=excluded.task_id
 		endedAt,
 		session.ActiveSeconds,
 		session.LastHeartbeatAt,
+		strings.SplitN(session.ID, ":", 2)[0],
 	)
 	if err != nil {
 		return activity.Session{}, err
@@ -142,6 +147,15 @@ WHERE activity_sessions.task_id=excluded.task_id
 		return activity.Session{}, err
 	}
 	if affected == 0 {
+		var deleted bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+			SELECT 1 FROM activity_deleted_sessions WHERE logical_session_id=?
+		)`, strings.SplitN(session.ID, ":", 2)[0]).Scan(&deleted); err != nil {
+			return activity.Session{}, err
+		}
+		if deleted {
+			return activity.Session{}, activity.ErrDeleted
+		}
 		return activity.Session{}, activity.ErrConflict
 	}
 	stored, err := scanActivitySession(tx.QueryRowContext(ctx, `SELECT `+activityColumns+` FROM activity_sessions WHERE id=?`, session.ID))

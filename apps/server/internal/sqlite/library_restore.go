@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/capture"
@@ -59,11 +60,20 @@ func validateLibraryBackup(backup libraryBackup) error {
 		}
 		captureIDs[item.ID] = true
 	}
+	activeLogicalIDs := map[string]bool{}
 	for _, raw := range backup.Activity {
 		session := normalizeActivitySession(raw)
 		if err := activity.ValidateSession(session); err != nil {
 			return workspacepkg.ErrInvalid
 		}
+		activeLogicalIDs[strings.SplitN(session.ID, ":", 2)[0]] = true
+	}
+	deletedIDs := map[string]bool{}
+	for _, id := range backup.DeletedActivitySessionIDs {
+		if id == "" || deletedIDs[id] || activeLogicalIDs[id] {
+			return workspacepkg.ErrInvalid
+		}
+		deletedIDs[id] = true
 	}
 
 	trashIDs := map[string]bool{}
@@ -104,6 +114,7 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup libraryBackup) 
 		`DELETE FROM projects`,
 		`DELETE FROM workspace_trash`,
 		`DELETE FROM activity_sessions`,
+		`DELETE FROM activity_deleted_sessions`,
 		`DELETE FROM categories`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -145,6 +156,11 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup libraryBackup) 
 		`, session.ID, "", session.WorkspaceID, session.WorkspaceTitleSnapshot,
 			session.TaskID, session.TaskTitleSnapshot, session.Title, session.ActivityType,
 			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
+			return err
+		}
+	}
+	for _, id := range backup.DeletedActivitySessionIDs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO activity_deleted_sessions(logical_session_id) VALUES (?)`, id); err != nil {
 			return err
 		}
 	}

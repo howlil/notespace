@@ -17,7 +17,7 @@ func (s *Store) ExportBackupArchive(ctx context.Context) ([]byte, error) {
 	catalog := map[string]archiveBlob{}
 	manifest := libraryArchiveManifest{
 		Format: libraryBackupFormat, Version: libraryArchiveVersion, SchemaVersion: libraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Activity: backup.Activity, Tasks: backup.Tasks, Captures: backup.Captures,
+		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Activity: backup.Activity, DeletedActivitySessionIDs: backup.DeletedActivitySessionIDs, Tasks: backup.Tasks, Captures: backup.Captures,
 		Workspaces: make([]archiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:      make([]archiveTrashRecord, 0, len(backup.Trash)),
 	}

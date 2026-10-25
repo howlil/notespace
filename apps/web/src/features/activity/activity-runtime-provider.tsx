@@ -7,6 +7,7 @@ import { useToast } from "../../shared/ui/toast-provider";
 import {
   ACTIVITY_RECOVERY_PENDING_EVENT,
   acknowledgeActivityFinalization,
+  discardDeletedActivitySession,
   readActivityRecovery,
   removeActivityHandoff,
 } from "./activity-recovery";
@@ -60,8 +61,12 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
             finalization.sessionId,
             finalization.handoffTaskId,
           );
-        } catch {
-          // The durable outbox keeps the user intent for the next retry trigger.
+        } catch (error) {
+          if (error instanceof APIError && error.status === 410) {
+            // Deleted sessions are permanently gone; retries cannot restore them.
+            discardDeletedActivitySession(finalization.sessionId);
+          }
+          // Other failures retain the durable outbox for the next retry trigger.
         }
       }
 

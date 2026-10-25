@@ -13,6 +13,7 @@ import {
 } from "./activity-session-storage";
 import {
   acknowledgeActivityFinalization,
+  discardDeletedActivitySession,
   enqueueActivityFinalization,
   type PendingActivityFinalization,
 } from "./activity-recovery";
@@ -433,6 +434,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       throw new Error("End the active activity before deleting session history.");
     }
     await deleteActivitySession(sessionId);
+    discardDeletedActivitySession(sessionId);
     const now = Date.now();
     const date = localDate(new Date(now));
     const stats = await getActivityStats(date);

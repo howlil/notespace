@@ -35,7 +35,9 @@ func (s *Store) GetCanvasState(ctx context.Context, workspaceID string) (workspa
 
 func canvasElementCount(canvas workspace.Snapshot) (int, error) {
 	var scene struct {
-		Elements []json.RawMessage `json:"elements"`
+		Elements []struct {
+			IsDeleted bool `json:"isDeleted"`
+		} `json:"elements"`
 	}
 	if err := json.Unmarshal(canvas.Data, &scene); err != nil {
 		return 0, err

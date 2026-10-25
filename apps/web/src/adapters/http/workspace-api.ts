@@ -143,7 +143,7 @@ export function createWorkspaceHttpClient(
         method: "DELETE",
       }, transport),
 
-    renameWorkspace: (id, title) =>
+    renameWorkspace: (id, title, expectedTitle) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/title`, {
         method: "PATCH",
         ...json({ title }),

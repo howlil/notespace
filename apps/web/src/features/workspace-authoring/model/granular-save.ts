@@ -1,5 +1,6 @@
 import {
   getWorkspaceCanvas,
+  getWorkspaceNote,
   updateWorkspaceCanvas,
   updateWorkspaceNote,
 } from "../../../adapters/http/workspace-api";

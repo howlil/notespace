@@ -71,7 +71,13 @@ func scanLogicalActivityRows(rows interface {
 }
 
 func (s *Store) DeleteActivitySession(ctx context.Context, sessionID string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM activity_sessions WHERE logical_session_id=?`, sessionID)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `DELETE FROM activity_sessions WHERE logical_session_id=?`, sessionID)
 	if err != nil {
 		return err
 	}
@@ -82,5 +88,8 @@ func (s *Store) DeleteActivitySession(ctx context.Context, sessionID string) err
 	if count == 0 {
 		return activity.ErrNotFound
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, `INSERT INTO activity_deleted_sessions(logical_session_id) VALUES (?)`, sessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

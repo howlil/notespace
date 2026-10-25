@@ -64,7 +64,7 @@ func (s *IndexedWorkspaceStore) DeleteNote(ctx context.Context, workspaceID, not
 }
 
 func (s *IndexedWorkspaceStore) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (workspace.Workspace, error) {
-	value, err := s.Store.Move(ctx, id, categoryID)
+	value, err := s.Store.Move(ctx, id, categoryID, expectedCategory...)
 	if err != nil {
 		return value, err
 	}

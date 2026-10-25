@@ -42,7 +42,7 @@ func TestServiceRenameDoesNotRewriteGranularAuthoredState(t *testing.T) {
 	current := validWorkspaceFixture()
 	store := &workspaceTestStore{
 		record: current,
-		notes: append([]Note(nil), current.Notes...),
+		notes:  append([]Note(nil), current.Notes...),
 		canvas: CanvasState{Canvas: current.Canvas, Version: current.CanvasVersion},
 	}
 	got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ", current.Title)

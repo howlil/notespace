@@ -108,7 +108,16 @@ export function useWorkspaceCommands({
       await flushNote(noteId);
       const persisted = current.current.notes.find((note) => note.id === noteId);
       if (!persisted) return null;
-      await deleteWorkspaceNote(workspaceId, persisted.id, persisted.version);
+      try {
+        await deleteWorkspaceNote(workspaceId, persisted.id, persisted.version);
+      } catch (error) {
+        try {
+          await getWorkspaceNote(workspaceId, persisted.id);
+          throw error; // A present Note means deletion was not confirmed.
+        } catch (readError) {
+          if (!(readError instanceof APIError && readError.status === 404)) throw error;
+        }
+      }
       const notes = current.current.notes.filter((note) => note.id !== persisted.id);
       const replacement = notes[0];
       current.current = {

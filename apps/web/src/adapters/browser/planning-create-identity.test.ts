@@ -59,3 +59,27 @@ test("deterministic 409 does not retry with a conflicting key or show false succ
   );
   assert.equal(requests, 1);
 });
+
+test("blocked session storage still preserves the same identity for repeated manual submissions", () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: {
+      getItem: () => { throw new Error("SecurityError"); },
+      setItem: () => { throw new Error("QuotaExceededError"); },
+      removeItem: () => { throw new Error("SecurityError"); },
+    },
+  });
+  try {
+    const scope = "task:storage-blocked";
+    const draft = JSON.stringify({ title: "Ambiguous save" });
+    const key = creationIdentity(scope, draft);
+    assert.equal(creationIdentity(scope, draft), key);
+    assert.equal(pendingCreation(scope)?.key, key);
+    confirmCreation(scope, key);
+    assert.notEqual(creationIdentity(scope, draft), key);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "sessionStorage", previous);
+    else Reflect.deleteProperty(globalThis, "sessionStorage");
+  }
+});

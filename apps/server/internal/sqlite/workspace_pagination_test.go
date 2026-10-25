@@ -52,9 +52,9 @@ func TestWorkspaceSnapshotTraversalDoesNotSkipOrRepeatOnConcurrentMutations(t *t
 			// Edit an off-page Workspace in ways that change the live sort.
 			oldest := entries[0]
 			if _, err := service.UpdateNote(ctx, oldest.ID, oldest.Notes[0].ID, workspacepkg.NoteUpdate{
-				Title: oldest.Notes[0].Title,
+				Title:    oldest.Notes[0].Title,
 				Document: granularDocument("autosaved"),
-				Version: oldest.Notes[0].Version,
+				Version:  oldest.Notes[0].Version,
 			}); err != nil {
 				t.Fatal(err)
 			}

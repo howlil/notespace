@@ -67,6 +67,23 @@ func activitySessionsTx(ctx context.Context, tx *sql.Tx) ([]activity.Session, er
 	return sessions, rows.Err()
 }
 
+func deletedActivitySessionIDsTx(ctx context.Context, tx *sql.Tx) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT logical_session_id FROM activity_deleted_sessions ORDER BY logical_session_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -111,6 +128,10 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) 
 	if err != nil {
 		return libraryBackup{}, err
 	}
+	deletedIDs, err := deletedActivitySessionIDsTx(ctx, tx)
+	if err != nil {
+		return libraryBackup{}, err
+	}
 	tasks, err := standaloneTasksTx(ctx, tx)
 	if err != nil {
 		return libraryBackup{}, err
@@ -122,7 +143,7 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (libraryBackup, error) 
 	backup := libraryBackup{
 		Format: libraryBackupFormat, Version: libraryBackupVersion,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions, Captures: captures,
+		Categories: categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions, DeletedActivitySessionIDs: deletedIDs, Captures: captures,
 	}
 	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 		return libraryBackup{}, err

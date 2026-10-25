@@ -118,7 +118,14 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     try {
       const target = creating;
       if (target.kind === "category") await createCategory(next);
-      else await createWorkspace(next, target.categoryId);
+      else {
+        const pending = pendingWorkspaceCreate.current;
+        const draft = pending?.title === next && pending.categoryId === target.categoryId
+          ? pending : { id: crypto.randomUUID(), title: next, categoryId: target.categoryId };
+        pendingWorkspaceCreate.current = draft;
+        await createWorkspace(next, target.categoryId, draft.id);
+        pendingWorkspaceCreate.current = null;
+      }
 
       setTitle("");
       setCreating(null);

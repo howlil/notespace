@@ -14,6 +14,7 @@ type WorkspaceStore interface {
 	List(context.Context) ([]Summary, error)
 	ListRecent(context.Context, int) ([]Summary, error)
 	ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error)
+	RenameWorkspace(context.Context, string, string) (Workspace, error)
 	Move(context.Context, string, string) (Workspace, error)
 	Update(context.Context, string, Update) (Workspace, error)
 }

@@ -242,11 +242,11 @@ test("@critical activity End reconciles when server commits but the response is 
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
-    // The final PUT must actually reach and commit on the server before we
-    // replace its HTTP response with 503. route.fetch() forwards precisely the
-    // intercepted request without racing a separate Playwright API context.
-    // Synchronize teardown with route.fulfill so unroute/reload cannot dispose
-    // the handler while its asynchronous upstream request is still pending.
+    // Intercept the browser's final PUT, commit its exact body through the
+    // real HTTP API, and only then return 503 to the browser. This proves
+    // durable server commit plus lost client response without the route.fetch()
+    // interception race seen in the full Playwright suite.
+    // Wait until the synthetic response has been sent before unroute/reload.
     let resolveResponseLost!: () => void;
     let rejectResponseLost!: (reason?: unknown) => void;
     const responseLost = new Promise<void>((resolve, reject) => {
@@ -264,8 +264,10 @@ test("@critical activity End reconciles when server commits but the response is 
         return;
       }
       try {
-        const committed = await route.fetch();
-        expect(committed.ok()).toBe(true);
+        const committed = await request.put(route.request().url(), {
+          data: body,
+        });
+        expect(committed.status()).toBe(200);
         await route.fulfill({
           status: 503,
           contentType: "application/json",

@@ -38,6 +38,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
   const uncategorized =

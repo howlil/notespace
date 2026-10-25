@@ -11,24 +11,24 @@ import (
 
 const (
 	workspaceSnapshotLifetime = 10 * time.Minute
-	maxWorkspaceSnapshots = 8
-	maxWorkspaceSnapshotRows = 20000
+	maxWorkspaceSnapshots     = 8
+	maxWorkspaceSnapshotRows  = 20000
 )
 
 // A pagination snapshot freezes only the listing projection. It does not hold
 // a database transaction or prevent authors from editing Workspaces.
 type workspacePagingSession struct {
-	key workspacePagingKey
-	items []workspace.Summary
+	key       workspacePagingKey
+	items     []workspace.Summary
 	expiresAt time.Time
 }
 
 type workspacePagingKey struct {
 	categoryID string
-	query string
-	sort string
-	hasCanvas bool
-	hasNotes bool
+	query      string
+	sort       string
+	hasCanvas  bool
+	hasNotes   bool
 }
 
 func pagingKey(query workspace.WorkspaceQuery) workspacePagingKey {
@@ -85,8 +85,10 @@ func snapshotPage(items []workspace.Summary, token string, query workspace.Works
 		end = len(items)
 	}
 	page := workspace.WorkspacePage{
-		Items: append([]workspace.Summary{}, items[offset:end]...),
-		Total: len(items), Offset: query.Offset, Limit: query.Limit,
+		Items:    append([]workspace.Summary{}, items[offset:end]...),
+		Total:    len(items),
+		Offset:   query.Offset,
+		Limit:    query.Limit,
 		Snapshot: token,
 	}
 	if end < len(items) {

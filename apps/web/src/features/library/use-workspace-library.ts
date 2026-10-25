@@ -40,6 +40,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
   const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");

@@ -60,7 +60,12 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     if (!title) return;
     setCreateLoading(true);
     try {
-      const workspace = await createWorkspace(title, newWorkspaceCategoryId);
+      const pending = pendingWorkspaceCreate.current;
+      const draft = pending?.title === title && pending.categoryId === newWorkspaceCategoryId
+        ? pending : { id: crypto.randomUUID(), title, categoryId: newWorkspaceCategoryId };
+      pendingWorkspaceCreate.current = draft;
+      const workspace = await createWorkspace(title, newWorkspaceCategoryId, draft.id);
+      pendingWorkspaceCreate.current = null;
       setRecentlyCreatedWorkspaceId(workspace.id);
 
       if (view === "recent") {

@@ -34,7 +34,7 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
 import { creationIdentity, confirmCreation, confirmKeyedPost, pendingCreation } from "../../adapters/browser/planning-create-identity";
 import { belongsToToday } from "./projection-state";
-import { reconcileTaskPatch } from "./task-mutation";
+import { mergeCreatedTask, reconcileTaskPatch } from "./task-mutation";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 type DeleteTarget =
@@ -443,7 +443,7 @@ export function WorkspacePlan({
               <div className="pt-1.5">
                 {tasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
-                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
+                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: mergeCreatedTask(current.tasks, task) })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
                 ) : (
                   <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({ milestoneId: milestone.id })}><Plus size={13} /> Add task</Button>
                 )}
@@ -468,7 +468,7 @@ export function WorkspacePlan({
           <div className="pt-1.5">
             {looseTasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
-              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
+              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: mergeCreatedTask(current.tasks, task) })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
             ) : (
               <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({})}><Plus size={13} /> Add task</Button>
             )}

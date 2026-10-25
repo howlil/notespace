@@ -6,6 +6,7 @@ import "context"
 // compatibility whole-workspace aggregate.
 type GranularStore interface {
 	ListNotes(context.Context, string) ([]Note, error)
+	GetNote(context.Context, string, string) (Note, error)
 	GetCanvasState(context.Context, string) (CanvasState, error)
 	CreateNote(context.Context, string, NoteCreate) (Note, error)
 	UpdateNote(context.Context, string, string, NoteUpdate) (Note, error)

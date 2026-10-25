@@ -1,3 +1,4 @@
+import { UNCATEGORIZED_CATEGORY_ID } from "../../domain/workspace/workspace";
 import type {
   CategorySummary,
   Note,
@@ -33,7 +34,7 @@ export interface WorkspaceHttpClient {
   listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number }): Promise<WorkspacePage>;
   listCategories(): Promise<CategorySummary[]>;
   listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number }): Promise<WorkspacePage>;
-  createWorkspace(title: string, categoryId?: string): Promise<Workspace>;
+  createWorkspace(title: string, categoryId?: string, creationId?: string): Promise<Workspace>;
   createCategory(title: string): Promise<CategorySummary>;
   updateCategory(id: string, title: string): Promise<CategorySummary>;
   deleteCategory(id: string): Promise<void>;
@@ -124,11 +125,22 @@ export function createWorkspaceHttpClient(
       );
     },
 
-    createWorkspace: (title, categoryId) =>
-      request<Workspace>("/api/workspaces", {
-        method: "POST",
-        ...json({ title, ...(categoryId ? { categoryId } : {}) }),
-      }, transport),
+    createWorkspace: async (title, categoryId, creationId = crypto.randomUUID()) => {
+      try {
+        return await request<Workspace>("/api/workspaces", {
+          method: "POST",
+          ...json({ id: creationId, title, ...(categoryId ? { categoryId } : {}) }),
+        }, transport);
+      } catch (error) {
+        try {
+          const saved = await request<Workspace>(`/api/workspaces/${encodeURIComponent(creationId)}`, undefined, transport);
+          if (saved.title === title.trim() && saved.categoryId === (categoryId || UNCATEGORIZED_CATEGORY_ID)) {
+            return saved;
+          }
+        } catch { /* Unknown read: caller must keep its creation ID for retry. */ }
+        throw error;
+      }
+    },
 
     createCategory: (title) =>
       request<CategorySummary>("/api/categories", {

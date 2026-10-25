@@ -3,7 +3,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 )
 
@@ -39,30 +38,20 @@ func TestServiceCreateRejectsUnknownCategory(t *testing.T) {
 	}
 }
 
-func TestServiceRenameBuildsCompleteUpdateFromCurrentWorkspace(t *testing.T) {
-	current := validWorkspaceFixture()
-	current.References = []Reference{{ID: "ref-1", BlockID: "block-1", ElementID: "element-1"}}
-	store := &workspaceTestStore{
-		record: current,
-		notes:  append([]Note(nil), current.Notes...),
-		canvas: CanvasState{Canvas: current.Canvas, Version: current.CanvasVersion},
-	}
-	got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if store.updateID != current.ID || store.updateInput.Title != "Renamed" {
-		t.Fatalf("update call = %#v", store.updateInput)
-	}
-	if store.updateInput.Version != current.Version {
-		t.Fatalf("version = %d", store.updateInput.Version)
-	}
-	if !reflect.DeepEqual(store.updateInput.Notes, current.Notes) || !reflect.DeepEqual(store.updateInput.References, current.References) {
-		t.Fatalf("rename lost authored state: %#v", store.updateInput)
-	}
-	if got.Title != "Renamed" {
-		t.Fatalf("renamed title = %q", got.Title)
-	}
+func TestServiceRenameChangesMetadataWithoutWritingNotesOrCanvas(t *testing.T) {
+ current := validWorkspaceFixture()
+ store := &workspaceTestStore{record: current}
+ got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ")
+ if err != nil { t.Fatal(err) }
+ if store.updateID != current.ID || store.updateInput.Title != "Renamed" {
+  t.Fatalf("rename command = %+v", store.updateInput)
+ }
+ if store.listNotesCalls != 0 || store.getCanvasCalls != 0 {
+  t.Fatal("rename must not hydrate or overwrite authored Note/Canvas state")
+ }
+ if got.Title != "Renamed" || got.Version != current.Version+1 {
+  t.Fatalf("renamed = %+v", got.Summary)
+ }
 }
 
 func TestServiceMoveRequiresExistingCategory(t *testing.T) {

@@ -166,3 +166,51 @@ func TestGranularWriteInvalidatesStaleAggregateSnapshot(t *testing.T) {
 		t.Fatalf("aggregate revision = %d, want > stale %d", reloaded.Version, stale.Version)
 	}
 }
+
+func TestWorkspaceMetadataMutationsPreserveGranularStateAndRejectStaleFields(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "metadata-invariants.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := workspacepkg.NewService(store)
+	created, err := service.Create(ctx, "Original")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := service.UpdateNote(ctx, created.ID, created.Notes[0].ID, workspacepkg.NoteUpdate{
+		Title: "Edited", Document: granularDocument("save must survive rename"), Version: created.Notes[0].Version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed, err := service.Rename(ctx, created.ID, "Renamed", "Original")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renamed.Version != created.Version+2 || renamed.Notes[0].Version != note.Version || string(renamed.Notes[0].Document.Data) != string(note.Document.Data) {
+		t.Fatalf("rename rewrote granular authored state: %#v", renamed)
+	}
+	if _, err := service.Rename(ctx, created.ID, "Concurrent overwrite", "Original"); !errors.Is(err, workspacepkg.ErrConflict) {
+		t.Fatalf("stale rename = %v, want conflict", err)
+	}
+	category, err := service.CreateCategory(ctx, "Second category")
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved, err := service.Move(ctx, created.ID, category.ID, workspacepkg.UncategorizedCategoryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved.Version != renamed.Version+1 || moved.CategoryID != category.ID {
+		t.Fatalf("move must increment metadata revision: %+v", moved.Summary)
+	}
+	if _, err := service.Move(ctx, created.ID, workspacepkg.UncategorizedCategoryID, workspacepkg.UncategorizedCategoryID); !errors.Is(err, workspacepkg.ErrConflict) {
+		t.Fatalf("stale move = %v, want conflict", err)
+	}
+	reloaded, err := service.Get(ctx, created.ID)
+	if err != nil || reloaded.Notes[0].Title != note.Title || string(reloaded.Notes[0].Document.Data) != string(note.Document.Data) {
+		t.Fatalf("metadata corrupted Note: %+v (%v)", reloaded, err)
+	}
+}

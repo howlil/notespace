@@ -134,13 +134,21 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 // transaction to avoid mixing different committed revisions.
 func (s *Store) GetWorkspaceSnapshot(ctx context.Context, id string) (workspace.Workspace, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil { return workspace.Workspace{}, err }
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
 	defer tx.Rollback()
 	value, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
-	if err != nil { return workspace.Workspace{}, err }
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
 	value, err = hydrateGranularProject(ctx, tx, value)
-	if err != nil { return workspace.Workspace{}, err }
-	if err := tx.Commit(); err != nil { return workspace.Workspace{}, err }
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return workspace.Workspace{}, err
+	}
 	return value, nil
 }
 

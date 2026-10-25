@@ -13,7 +13,7 @@ import {
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
-import { LegacyTaskAssign } from "./LegacyTaskAssign";
+import { TaskWorkspaceAssign } from "./TaskWorkspaceAssign";
 import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
 import { reconcileTaskPatch } from "./task-mutation";
 
@@ -120,7 +120,7 @@ function TodayTaskRow({
           </Link>
         ) : (
           <span className="mt-0.5 block text-[10px] text-muted">
-            Standalone{carriedForward ? " · carried forward" : ""}
+            Needs Workspace{carriedForward ? " · carried forward" : ""}
           </span>
         )}
       </div>
@@ -146,12 +146,12 @@ function TodayTaskRow({
               <CalendarX2 size={13} />
             </IconButton>
           )}
-          {!task.workspaceId && <Button variant="ghost" size="sm" onClick={() => onAssign(task)} aria-label={`Assign ${task.title} to Workspace`}>Assign Workspace</Button>}
+          {!task.workspaceId && <Button variant="ghost" size="sm" onClick={() => onAssign(task)} aria-label={`Move ${task.title} to Workspace`}>Move to Workspace</Button>}
           {!task.workspaceId && !task.completedAt && (
             <IconButton
               className="!size-7 text-muted hover:text-accent"
-              aria-label={`Move ${task.title} to Inbox`}
-              title="Move to Inbox"
+              aria-label={`Return ${task.title} to Capture Queue`}
+              title="Return to Capture Queue"
               onClick={() => void onUpdate(task, { plannedFor: "" })}
             >
               <InboxIcon size={13} />
@@ -382,11 +382,11 @@ export function TodayPlanning({
         )}
       </div>
 
-      <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
+      <TaskWorkspaceAssign task={assignTarget} onClose={() => setAssignTarget(null)}
         onAssigned={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete this standalone task?"
+        title="Delete this task?"
         description={deleteTarget ? `“${deleteTarget.title}” will be removed.` : ""}
         confirmLabel="Delete"
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}

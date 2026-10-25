@@ -4,9 +4,9 @@ This file is the repository-level source of truth for user-facing design decisio
 
 ## Workspace-first navigation contract — M6 feature branch
 
-This section is the proposed replacement for the historical Inbox/standalone-Activity navigation language below. It becomes shipped design only once the Workspace-first PR merges.
+This section is the shipped Workspace-first navigation contract (PR #141). Earlier Inbox/standalone-Activity passages below are retained as historical design context, not current behavior.
 
-- **Destinations:** Library (`/`), Today (`/today`), and Capture Queue (`/inbox`) are one set of routes. Keep `/inbox` for deep-link compatibility; label the UI **Capture Queue**. Existing legacy Inbox tasks appear only when present and can be assigned to a Workspace.
+- **Destinations:** Library (`/`), Today (`/today`), and Capture Queue (`/inbox`) are one set of routes. Keep `/inbox` for deep-link compatibility; label the UI **Capture Queue**. Existing unassigned Tasks appear inside the Capture Queue destination as “Tasks to organize” until moved to a Workspace.
 - **Navigation surfaces:** the 44px `ShellRail` provides compact route shortcuts and global utilities; the optional 228px Explorer provides the same destinations with visible names, followed by independent Category disclosure and Workspace links. They share route state; there is no separate sidebar navigation store.
 - **Interaction:** category disclosure toggles only visibility; choosing the category title navigates to its filtered Library. Expand/collapse survives route transitions. On narrow screens the Explorer is an overlay; Escape, backdrop and close control dismiss it and restore focus to the Explorer trigger.
 - **Create:** global Create has Workspace, Category, Quick Capture and Task in Today. Quick Capture owns the Workspace/Queue destination selection; do not expose a duplicate entry to the same modal. Queue retains its own inline capture composer.
@@ -451,6 +451,6 @@ When a requested visual change conflicts with this file, prefer the explicit cur
 ## Planned Workspace-first evolution (not shipped)
 
 The current layout and behavior contracts above describe the **implemented app**.
-The future Workspace-first + Capture Queue product behavior, migration baseline, implementation graphs, and M0–M7 acceptance gates are documented in [`docs/WORKSPACE_FIRST_IMPLEMENTATION.md`](docs/WORKSPACE_FIRST_IMPLEMENTATION.md).
+The shipped Workspace-first + Capture Queue product behavior, migration baseline, implementation graphs, and M0–M7 acceptance gates are documented in [`docs/WORKSPACE_FIRST_IMPLEMENTATION.md`](docs/WORKSPACE_FIRST_IMPLEMENTATION.md).
 
-Do not treat the future flow as already available or remove Inbox, standalone Task creation, or Activity compatibility before their owning milestones ship with migration/backup/recovery verification. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative throughout the transition.
+Do not resurrect standalone Task or Activity creation in the current product. Preserve reads, backup restoration, session recovery, and explicit Task reassignment for historical data. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative.

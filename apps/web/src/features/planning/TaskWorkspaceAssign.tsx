@@ -7,7 +7,7 @@ import type { PlanningTask } from "../../domain/planning/planning";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
 
-export function LegacyTaskAssign({ task, onClose, onAssigned }: {
+export function TaskWorkspaceAssign({ task, onClose, onAssigned }: {
   task: PlanningTask | null;
   onClose: () => void;
   onAssigned: (updated: PlanningTask) => void | Promise<void>;
@@ -80,8 +80,8 @@ export function LegacyTaskAssign({ task, onClose, onAssigned }: {
 
   return <Dialog open={task !== null} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
     <DialogContent className="w-[min(94vw,470px)]">
-      <DialogTitle>Assign legacy Task to Workspace</DialogTitle>
-      <DialogDescription>Keep the same Task ID, completion, planned date and Activity references. No copy will be created.</DialogDescription>
+      <DialogTitle>Move task to Workspace</DialogTitle>
+      <DialogDescription>Move this task without changing its identity, completion state, planned date, or Activity history.</DialogDescription>
       <p className="mt-3 rounded-md border border-line bg-canvas px-3 py-2 text-xs">{task?.title}</p>
       <label className="mt-3 grid gap-1.5 text-[11px] font-medium text-ink">
         Destination Workspace
@@ -94,7 +94,7 @@ export function LegacyTaskAssign({ task, onClose, onAssigned }: {
       {failed && <Button type="button" size="sm" variant="secondary" className="mt-3" onClick={() => setAttempt((value) => value + 1)}>Retry loading workspaces</Button>}
       <DialogFooter>
         <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button onClick={() => void assign()} disabled={saving || !workspaceId || loading || failed}>{saving ? "Assigning…" : "Assign Workspace"}</Button>
+        <Button onClick={() => void assign()} disabled={saving || !workspaceId || loading || failed}>{saving ? "Moving…" : "Move to Workspace"}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

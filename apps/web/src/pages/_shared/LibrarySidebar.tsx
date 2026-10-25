@@ -6,7 +6,7 @@ import { CalendarCheck2, FileText, Folder, FolderOpen, Home, Inbox, Pencil, Plus
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
-import type { CategorySummary } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary } from "../../domain/workspace/workspace";
 import { NotespaceLogo } from "./NotespaceLogo";
 
 export function Brand() {
@@ -48,7 +48,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
   useEffect(() => {
     if (!createRequest || createRequest.sequence === handledCreateRequest.current) return;
     handledCreateRequest.current = createRequest.sequence;
-    const defaultCategoryId = categories.find(item => item.id === "legacy")?.id ?? categories[0]?.id;
+    const defaultCategoryId = categories.find(item => item.id === UNCATEGORIZED_CATEGORY_ID)?.id ?? categories[0]?.id;
     startCreate(
       createRequest.kind,
       createRequest.kind === "workspace"

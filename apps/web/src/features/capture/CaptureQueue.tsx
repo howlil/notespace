@@ -26,8 +26,8 @@ async function loadAllWorkspaceOptions(): Promise<WorkspaceSummary[]> {
 }
 
 /**
- * Queue-only view. Legacy standalone Tasks retain their own InboxPlanning owner
- * during M2. The server is authoritative; no second browser persistence store.
+ * The server owns durable capture items. Existing unassigned Tasks retain their
+ * original IDs and appear as Tasks to organize within this destination.
  */
 export function CaptureQueue() {
   const { showToast } = useToast();

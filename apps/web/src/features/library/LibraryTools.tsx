@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
-import type { CategorySummary } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary } from "../../domain/workspace/workspace";
 import {
   APIError,
   createWorkspace,
@@ -52,7 +52,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
         if (!active) return;
         setCategories(nextCategories);
         setTrash(nextTrash);
-        setCategoryId((current) => current || nextCategories.find((category) => category.id !== "legacy")?.id || nextCategories[0]?.id || "");
+        setCategoryId((current) => current || nextCategories.find((category) => category.id !== UNCATEGORIZED_CATEGORY_ID)?.id || nextCategories[0]?.id || "");
       })
       .catch((error) => {
         if (active) showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load library tools." });

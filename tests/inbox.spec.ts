@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("Inbox routes new unsorted work to Capture Queue, not standalone Tasks", async ({ page, request }) => {
-  const content = `Legacy Inbox transition ${Date.now()}`;
+  const content = `Capture transition ${Date.now()}`;
   let captureId = "";
   try {
     const rejected = await request.post("/api/tasks", { data: { title: content } });
@@ -9,7 +9,7 @@ test("Inbox routes new unsorted work to Capture Queue, not standalone Tasks", as
 
     await page.goto("/inbox");
     await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
-    // Legacy section is hidden when there are no historical standalone Tasks.
+    await expect(page.getByRole("heading", { name: /Legacy Inbox/i })).toHaveCount(0);
     await page.getByRole("textbox", { name: "Capture an unorganized thought" }).fill(content);
     await page.getByRole("button", { name: "Capture", exact: true }).click();
     await expect(page.getByText(content, { exact: true })).toBeVisible();

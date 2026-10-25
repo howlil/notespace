@@ -301,7 +301,7 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   const inbox = source("pages/inbox/InboxPage.tsx");
   const today = source("pages/today/TodayPage.tsx");
   assert.match(home, /WorkspaceLibrary/);
-  assert.match(inbox, /InboxPlanning/);
+  assert.match(inbox, /UnorganizedTasks/);
   assert.match(today, /TodayPlanning/);
   for (const page of [home, inbox, today]) {
     assert.doesNotMatch(page, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);

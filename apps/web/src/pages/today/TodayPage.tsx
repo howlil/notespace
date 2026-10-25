@@ -32,7 +32,7 @@ export function TodayPage({
         renderTaskAction={(task) => (
           <ActivityTypeTrigger ariaLabel={`Start activity for ${task.title}`}
             disabled={activity.status !== "idle" || !activity.canStart || !task.workspaceId}
-            disabledTitle={!task.workspaceId ? "Assign this legacy Task to a Workspace first" : "End the active activity first"}
+            disabledTitle={!task.workspaceId ? "Move this task to a Workspace before starting Activity" : "End the active activity first"}
             onSelect={(activityType) => { void startTaskActivity(task, activityType); }} />
         )}
       />

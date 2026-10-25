@@ -40,8 +40,9 @@ Today
     ├── tasks planned for today
     └── incomplete planned tasks carried forward from earlier dates
 
-Inbox
-└── standalone unscheduled Tasks[]
+Capture Queue
+├── Captures[] (unorganized, not Tasks/Notes)
+└── existing unassigned Tasks[] (migrated explicitly)
 
 Category
 └── Workspace
@@ -97,8 +98,8 @@ Current routed surfaces include:
 - Category view
 - Workspace
 - Today
-- Inbox
-- legacy `/projects/:id` redirect compatibility
+- Capture Queue (`/inbox` deep-link retained)
+- `/projects/:id` redirect for historical links
 
 Routes should not own editor workflows or mutation orchestration.
 
@@ -312,8 +313,8 @@ Owns:
 
 - Milestones;
 - Tasks;
-- standalone Tasks;
-- Today and Inbox semantics;
+- historical unassigned Tasks (read/assign only);
+- Today and Capture Queue semantics;
 - planning state transitions and validation.
 
 #### `activity`
@@ -392,7 +393,7 @@ Current persistence covers:
 - granular Canvas;
 - Workspace references;
 - planning milestones/tasks;
-- standalone tasks;
+- historical unassigned Tasks (no new creation);
 - activity sessions;
 - durable assets and asset lifecycle;
 - Trash snapshots;

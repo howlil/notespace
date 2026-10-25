@@ -1,6 +1,6 @@
 # Workspace-first product contract and implementation plan
 
-**Status:** M0–M6 implemented on a feature branch; M7 persistence acceptance and rollback documentation added, but latest-head CI and native desktop acceptance are **not yet verified**. **Not shipped or merged.** This document is not a description of the current runtime. `DESIGN.md` and `docs/ARCHITECTURE.md` continue to describe the shipped shell/domain until the relevant slices land.
+**Status:** M0–M7 shipped in PR #141 (merged into `master`, commit `f448bd8`); Verify and Verify Desktop completed successfully for the merged implementation. The graphs below are historical milestones. The active Capture Queue presents remaining unassigned Tasks under “Tasks to organize”, without a separate legacy-branded experience. Data and desktop upgrade compatibility remain intentionally supported.
 
 ## Intent, non-goals, and compatibility
 

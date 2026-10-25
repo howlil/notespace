@@ -13,7 +13,7 @@ import {
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import { applyInboxTaskUpdate } from "./projection-state";
-import { LegacyTaskAssign } from "./LegacyTaskAssign";
+import { TaskWorkspaceAssign } from "./TaskWorkspaceAssign";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 function InboxTaskRow({
@@ -55,7 +55,7 @@ function InboxTaskRow({
           <Input
             autoFocus
             className="min-h-7 w-full rounded-none border-0 bg-transparent px-0 text-[12px]"
-            aria-label="Inbox task title"
+            aria-label="Task title"
             value={title}
             disabled={saving}
             onChange={(event) => setTitle(event.target.value)}
@@ -78,11 +78,11 @@ function InboxTaskRow({
             {task.title}
           </button>
         )}
-        <span className="mt-0.5 block text-[9px] text-muted">Standalone · not scheduled</span>
+        <span className="mt-0.5 block text-[9px] text-muted">Needs Workspace · not scheduled</span>
       </div>
 
       <div className="flex items-center gap-0.5 group-hover:opacity-100 group-focus-within:opacity-100">
-        <button type="button" className="rounded-md px-2 py-1 text-[10px] text-accent hover:bg-tint" onClick={() => onAssign(task)} aria-label={`Assign ${task.title} to Workspace`}>Assign</button>
+        <button type="button" className="rounded-md px-2 py-1 text-[10px] text-accent hover:bg-tint" onClick={() => onAssign(task)} aria-label={`Move ${task.title} to Workspace`}>Move</button>
         <IconButton
           className="!size-7 text-muted hover:text-accent"
           aria-label={`Move ${task.title} to Today`}
@@ -112,7 +112,7 @@ function InboxTaskRow({
   );
 }
 
-export function InboxPlanning({ initial }: { initial: InboxProjection }) {
+export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [assignTarget, setAssignTarget] = useState<PlanningTask | null>(null);
@@ -160,17 +160,19 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
     }
   }
 
+  if (projection.tasks.length === 0) return null;
+
   return (
     <>
-      <div className="mx-auto w-full max-w-[820px] px-6 pt-8 pb-12 max-[800px]:px-5 max-[560px]:p-4 max-[560px]:pt-5">
-        <header className="mb-6 border-b border-line pb-4">
+      <div className="mx-auto w-full max-w-[820px] px-6 pt-6 pb-12 max-[800px]:px-5 max-[560px]:px-4">
+        <header className="mb-4 border-b border-line pb-3">
           <div className="flex items-center gap-2 text-accent">
             <InboxIcon size={15} aria-hidden="true" />
-            <p className="m-0 text-[10px] font-medium uppercase tracking-[.12em]">Capture</p>
+            <p className="m-0 text-[10px] font-medium uppercase tracking-[.12em]">Workspace assignment</p>
           </div>
-          <h1 className="mt-2 mb-0 text-[28px] font-medium tracking-[-.7px] text-ink">Legacy Inbox tasks</h1>
+          <h2 className="mt-2 mb-0 text-[16px] font-medium tracking-[-.2px] text-ink">Tasks to organize</h2>
           <p className="mt-2 mb-0 text-[11px] text-muted">
-            Existing standalone tasks remain here until you explicitly assign each one to a Workspace. For new ideas, use Capture Queue above.
+            These existing tasks need a Workspace. Moving a task preserves its history, date, and completion state.
           </p>
         </header>
 
@@ -199,7 +201,7 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
               <div>
                 <p className="m-0 text-[12px] font-medium text-ink">Inbox clear.</p>
                 <p className="mt-1.5 mb-0 text-[10px] text-muted">
-                  No legacy tasks remain. Use Capture Queue for new unorganized work.
+                  All existing tasks have a Workspace. Capture new ideas above.
                 </p>
               </div>
             </div>
@@ -207,11 +209,11 @@ export function InboxPlanning({ initial }: { initial: InboxProjection }) {
         </section>
       </div>
 
-      <LegacyTaskAssign task={assignTarget} onClose={() => setAssignTarget(null)}
+      <TaskWorkspaceAssign task={assignTarget} onClose={() => setAssignTarget(null)}
         onAssigned={(updated) => { setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== updated.id) })); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete this inbox task?"
+        title="Delete this task?"
         description={deleteTarget ? `“${deleteTarget.title}” will be removed.` : ""}
         confirmLabel="Delete"
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}

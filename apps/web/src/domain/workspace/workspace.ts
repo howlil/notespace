@@ -1,3 +1,7 @@
+// Stable persisted category key used by older SQLite libraries and backups.
+// This is a schema identifier, not a user-facing product label.
+export const UNCATEGORIZED_CATEGORY_ID = "legacy";
+
 export interface Snapshot {
   format: string;
   version: number;

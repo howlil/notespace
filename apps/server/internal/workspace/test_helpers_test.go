@@ -157,6 +157,11 @@ func (s *workspaceTestStore) UpdateCanvas(_ context.Context, workspaceID string,
 	}
 	return CanvasState{Canvas: input.Canvas, Version: input.Version + 1}, nil
 }
+func (s *workspaceTestStore) GetWorkspaceSnapshot(ctx context.Context, id string) (Workspace, error) {
+	value, err := s.GetWorkspaceRecord(ctx, id)
+	if err != nil { return Workspace{}, err }
+	return NewService(s).hydrateGranularState(ctx, value)
+}
 func (s *workspaceTestStore) GetWorkspaceRecord(context.Context, string) (Workspace, error) {
 	return s.record, s.recordErr
 }

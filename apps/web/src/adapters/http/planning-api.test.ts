@@ -60,3 +60,19 @@ test("planning client owns Today, legacy Inbox reads, and Task assignment", asyn
   assert.equal(calls[4]?.input, "/api/tasks/task%2Fa");
   assert.equal(new Headers(calls[4]?.init?.headers).get("If-Match"), '"3"');
 });
+
+test("planning client sends the caller's stable idempotency key for both create routes", async () => {
+  const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const transport: HttpTransport = { fetch: async (input, init) => {
+    calls.push({ input, init });
+    return response({ id: "persisted" });
+  } };
+  const client = createPlanningHttpClient(transport);
+  await client.createTask("workspace/a", "Stable task", undefined, "2026-10-26", "client-task-key");
+  await client.createMilestone("workspace/a", "Stable milestone", "client-milestone-key");
+  assert.equal(new Headers(calls[0]?.init?.headers).get("Idempotency-Key"), "client-task-key");
+  assert.equal(new Headers(calls[1]?.init?.headers).get("Idempotency-Key"), "client-milestone-key");
+  assert.equal(new Headers(calls[0]?.init?.headers).get("Content-Type"), "application/json");
+  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), { title: "Stable task", plannedFor: "2026-10-26" });
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { title: "Stable milestone" });
+});

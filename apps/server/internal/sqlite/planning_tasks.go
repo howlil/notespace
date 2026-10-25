@@ -7,11 +7,33 @@ import (
 )
 
 func (s *Store) CreateTask(ctx context.Context, item planning.Task) (planning.Task, error) {
+	return s.createTask(ctx, item, "")
+}
+
+func (s *Store) CreateTaskIdempotent(ctx context.Context, item planning.Task, key string) (planning.Task, error) {
+	return s.createTask(ctx, item, key)
+}
+
+func (s *Store) createTask(ctx context.Context, item planning.Task, key string) (planning.Task, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return planning.Task{}, err
 	}
 	defer tx.Rollback()
+
+	claimedID, isNew, err := claimPlanningCreate(ctx, tx, "task", key, item.ID,
+		struct {
+			WorkspaceID *string
+			MilestoneID *string
+			Title       string
+			PlannedFor  *string
+		}{item.WorkspaceID, item.MilestoneID, item.Title, item.PlannedFor})
+	if err != nil {
+		return planning.Task{}, err
+	}
+	if !isNew {
+		return replayTask(ctx, tx, claimedID)
+	}
 
 	if item.WorkspaceID != nil {
 		var workspaceExists, taskCount int

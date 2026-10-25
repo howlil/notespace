@@ -78,6 +78,12 @@ func (s *planningTestStore) CreateMilestone(_ context.Context, item Milestone) (
 	}
 	return item, nil
 }
+func (s *planningTestStore) CreateMilestoneIdempotent(ctx context.Context, item Milestone, _ string) (Milestone, error) {
+	return s.CreateMilestone(ctx, item)
+}
+func (s *planningTestStore) CreateTaskIdempotent(ctx context.Context, item Task, _ string) (Task, error) {
+	return s.CreateTask(ctx, item)
+}
 func (s *planningTestStore) UpdateMilestone(_ context.Context, item Milestone) (Milestone, error) {
 	s.updateMilestoneInput = item
 	if s.updateMilestoneErr != nil {

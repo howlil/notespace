@@ -8,6 +8,13 @@ import (
 )
 
 func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string) (Milestone, error) {
+	return s.CreateMilestoneIdempotent(ctx, workspaceID, title, "")
+}
+
+func (s Service) CreateMilestoneIdempotent(ctx context.Context, workspaceID, title, key string) (Milestone, error) {
+	if key != "" && !validCreationKey(key) {
+		return Milestone{}, ErrInvalid
+	}
 	title = strings.TrimSpace(title)
 	if err := s.requireWorkspace(ctx, workspaceID); err != nil || !validTitle(title) {
 		if err != nil {
@@ -16,10 +23,14 @@ func (s Service) CreateMilestone(ctx context.Context, workspaceID, title string)
 		return Milestone{}, ErrInvalid
 	}
 	now := s.now().Format(time.RFC3339Nano)
-	return s.store.CreateMilestone(ctx, Milestone{
+	item := Milestone{
 		ID: rand.Text(), WorkspaceID: workspaceID, Title: title,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
-	})
+	}
+	if key != "" {
+		return s.store.CreateMilestoneIdempotent(ctx, item, key)
+	}
+	return s.store.CreateMilestone(ctx, item)
 }
 
 func (s Service) UpdateMilestone(ctx context.Context, workspaceID, milestoneID string, patch MilestonePatch) (Milestone, error) {

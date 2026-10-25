@@ -22,7 +22,7 @@ func (a API) createMilestone(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	item, err := a.planning.CreateMilestone(r.Context(), r.PathValue("id"), body.Title)
+	item, err := a.planning.CreateMilestoneIdempotent(r.Context(), r.PathValue("id"), body.Title, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -65,7 +65,7 @@ func (a API) createTask(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	item, err := a.planning.CreateTaskWithDate(r.Context(), r.PathValue("id"), body.MilestoneID, body.Title, body.PlannedFor)
+	item, err := a.planning.CreateTaskWithDateIdempotent(r.Context(), r.PathValue("id"), body.MilestoneID, body.Title, body.PlannedFor, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		fail(w, err)
 		return
@@ -147,7 +147,7 @@ func (a API) createStandaloneTask(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	item, err := a.planning.CreateTaskWithDate(r.Context(), body.WorkspaceID, nil, body.Title, body.PlannedFor)
+	item, err := a.planning.CreateTaskWithDateIdempotent(r.Context(), body.WorkspaceID, nil, body.Title, body.PlannedFor, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		fail(w, err)
 		return

@@ -73,3 +73,10 @@ export async function reconcileTaskDelete(
     }
   }
 }
+
+/** A replayed successful creation must not duplicate an already-loaded row. */
+export function mergeCreatedTask(tasks: PlanningTask[], created: PlanningTask): PlanningTask[] {
+  if (!tasks.some((task) => task.id === created.id)) return [...tasks, created];
+  return tasks.map((task) =>
+    task.id === created.id && task.version <= created.version ? created : task);
+}

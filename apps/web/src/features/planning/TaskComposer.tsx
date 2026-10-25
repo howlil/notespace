@@ -3,6 +3,7 @@ import { Circle, Plus } from "lucide-react";
 import { Button, Input } from "../../shared/ui";
 import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { createTask } from "../../adapters/http/planning-api";
+import { creationIdentity, confirmCreation, confirmKeyedPost, pendingCreation } from "../../adapters/browser/planning-create-identity";
 import type { PlanningTask } from "../../domain/planning/planning";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 import { workspaceOptionLabel } from "../../domain/workspace/workspace-option-label";
@@ -20,8 +21,15 @@ type Props = {
 
 export function TaskComposer({ workspaceId, milestoneId, plannedFor, titleLabel = "Task title", inputRef, onCreated, onCancel }: Props) {
   const { showToast } = useToast();
-  const [title, setTitle] = useState("");
-  const [selected, setSelected] = useState("");
+  const scope = `task:${workspaceId ?? "global"}:${milestoneId ?? ""}:${plannedFor ?? ""}`;
+  const savedDraft = (() => {
+    try {
+      const value = pendingCreation(scope);
+      return value ? JSON.parse(value.payload) as { title: string; destination: string } : null;
+    } catch { return null; }
+  })();
+  const [title, setTitle] = useState(savedDraft?.title ?? "");
+  const [selected, setSelected] = useState(workspaceId ? "" : savedDraft?.destination ?? "");
   const [options, setOptions] = useState<WorkspaceSummary[]>([]);
   const [loading, setLoading] = useState(!workspaceId);
   const [loadError, setLoadError] = useState(false);
@@ -63,9 +71,11 @@ export function TaskComposer({ workspaceId, milestoneId, plannedFor, titleLabel 
     const name = title.trim();
     const destination = workspaceId ?? selected;
     if (!name || !destination || saving) return;
+    const key = creationIdentity(scope, JSON.stringify({ title: name, destination, milestoneId: milestoneId ?? "", plannedFor: plannedFor ?? "" }));
     setSaving(true);
     try {
-      const created = await createTask(destination, name, milestoneId, plannedFor);
+      const created = await confirmKeyedPost(() => createTask(destination, name, milestoneId, plannedFor, key));
+      confirmCreation(scope, key);
       setTitle("");
       try {
         await onCreated(created);
@@ -73,9 +83,8 @@ export function TaskComposer({ workspaceId, milestoneId, plannedFor, titleLabel 
         showToast({ kind: "error", message: "Task saved, but the view could not refresh. Reload to see it." });
       }
     } catch {
-      // A timeout after server commit is not evidence that Task creation failed.
-      // Keep the draft rather than blindly sending a potentially duplicate POST.
-      showToast({ kind: "error", message: "Task save not confirmed. Check the Workspace Plan before retrying; draft preserved." });
+      // Same draft keeps the original key even after remount/reload.
+      showToast({ kind: "error", message: "Task save not confirmed. Retry to reconcile this draft safely." });
     } finally { setSaving(false); }
   }
 

@@ -20,6 +20,15 @@ func (s Service) CreateTask(ctx context.Context, workspaceID string, milestoneID
 
 // CreateTaskWithDate atomically persists the Workspace and planned date.
 func (s Service) CreateTaskWithDate(ctx context.Context, workspaceID string, milestoneID *string, title, plannedFor string) (Task, error) {
+	return s.CreateTaskWithDateIdempotent(ctx, workspaceID, milestoneID, title, plannedFor, "")
+}
+
+// CreateTaskWithDateIdempotent uses the same key for an uncertain delivery.
+// The existing no-key contract remains unchanged.
+func (s Service) CreateTaskWithDateIdempotent(ctx context.Context, workspaceID string, milestoneID *string, title, plannedFor, key string) (Task, error) {
+	if key != "" && !validCreationKey(key) {
+		return Task{}, ErrInvalid
+	}
 	title = strings.TrimSpace(title)
 	if err := s.requireWorkspace(ctx, workspaceID); err != nil || !validTitle(title) {
 		if err != nil {
@@ -38,11 +47,15 @@ func (s Service) CreateTaskWithDate(ctx context.Context, workspaceID string, mil
 	}
 	now := s.now().Format(time.RFC3339Nano)
 	workspace := workspaceID
-	return s.store.CreateTask(ctx, Task{
+	item := Task{
 		ID: rand.Text(), WorkspaceID: &workspace, MilestoneID: normalizedMilestone,
 		Title: title, Description: "", PlannedFor: date,
 		CreatedAt: now, UpdatedAt: now, Version: 1,
-	})
+	}
+	if key != "" {
+		return s.store.CreateTaskIdempotent(ctx, item, key)
+	}
+	return s.store.CreateTask(ctx, item)
 }
 
 func (s Service) CreateStandaloneTask(ctx context.Context, title, plannedFor string) (Task, error) {

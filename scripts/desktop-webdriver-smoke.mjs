@@ -388,6 +388,19 @@ async function closeDesktopWindow(session) {
           message: element?.textContent || ''
         };
       `);
+      if (status === null) {
+        // WebView2 can close between getAllWindowHandles() and executeScript().
+        // A null script result is NOT success unless the window has vanished
+        // and the sidecar's actual shutdown is independently confirmed.
+        const remaining = await session.getAllWindowHandles();
+        if (!remaining.includes(originalHandle)) {
+          await waitForLocalServerExit();
+          return;
+        }
+        lastState = "close status unavailable while window remains open";
+        await delay(250);
+        continue;
+      }
       if (status.error) throw new Error(`Native desktop close command failed: ${status.error}`);
       lastState = `${status.state}: ${status.message}`;
       if (status.state === "error") {

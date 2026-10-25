@@ -32,8 +32,9 @@ import {
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
+import { creationIdentity, confirmCreation, confirmKeyedPost, pendingCreation } from "../../adapters/browser/planning-create-identity";
 import { belongsToToday } from "./projection-state";
-import { reconcileTaskPatch } from "./task-mutation";
+import { mergeCreatedTask, reconcileTaskPatch } from "./task-mutation";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
 type DeleteTarget =
@@ -47,14 +48,21 @@ function emptyPlan(workspaceId: string): WorkspacePlanModel {
 
 function InlineCreate({
   placeholder,
+  scope,
   onCreate,
   onCancel,
 }: {
   placeholder: string;
+  scope: string;
   onCreate: (title: string) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(() => {
+    try {
+      const draft = pendingCreation(scope);
+      return draft ? (JSON.parse(draft.payload) as { title: string }).title : "";
+    } catch { return ""; }
+  });
   const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -65,6 +73,8 @@ function InlineCreate({
     try {
       await onCreate(title);
       setValue("");
+    } catch {
+      // Owner shows the error toast; retain the draft and creation key.
     } finally {
       setSaving(false);
     }
@@ -197,7 +207,8 @@ export function WorkspacePlan({
   const [plan, setPlan] = useState<WorkspacePlanModel>(() => emptyPlan(workspaceId));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [addingMilestone, setAddingMilestone] = useState(false);
+  const milestoneCreateScope = `milestone:${workspaceId}`;
+  const [addingMilestone, setAddingMilestone] = useState(() => Boolean(pendingCreation(milestoneCreateScope)));
   const [taskTarget, setTaskTarget] = useState<{ milestoneId?: string } | null>(null);
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const [milestoneTitle, setMilestoneTitle] = useState("");
@@ -260,13 +271,16 @@ export function WorkspacePlan({
   );
 
   async function addMilestone(title: string) {
+    const key = creationIdentity(milestoneCreateScope, JSON.stringify({ title: title.trim() }));
     try {
-      const item = await createMilestone(workspaceId, title);
-      setPlan((current) => ({ ...current, milestones: [...current.milestones, item] }));
+      const item = await confirmKeyedPost(() => createMilestone(workspaceId, title, key));
+      confirmCreation(milestoneCreateScope, key);
+      setPlan((current) => ({ ...current, milestones: current.milestones.some((entry) => entry.id === item.id) ? current.milestones : [...current.milestones, item] }));
       setAddingMilestone(false);
       window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
     } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not add milestone." });
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Milestone not confirmed. Retry to reconcile." });
+      throw error;
     }
   }
 
@@ -429,7 +443,7 @@ export function WorkspacePlan({
               <div className="pt-1.5">
                 {tasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
                 {taskTarget?.milestoneId === milestone.id ? (
-                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
+                  <TaskComposer workspaceId={workspaceId} milestoneId={milestone.id} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: mergeCreatedTask(current.tasks, task) })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
                 ) : (
                   <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({ milestoneId: milestone.id })}><Plus size={13} /> Add task</Button>
                 )}
@@ -440,7 +454,7 @@ export function WorkspacePlan({
 
         {addingMilestone && (
           <section className="border-b border-line pb-3">
-            <InlineCreate placeholder="Milestone title" onCreate={addMilestone} onCancel={() => setAddingMilestone(false)} />
+            <InlineCreate placeholder="Milestone title" scope={milestoneCreateScope} onCreate={addMilestone} onCancel={() => setAddingMilestone(false)} />
           </section>
         )}
 
@@ -454,7 +468,7 @@ export function WorkspacePlan({
           <div className="pt-1.5">
             {looseTasks.map((task) => <TaskRow key={task.id} task={task} renderTaskAction={renderTaskAction} onUpdate={patchTask} onDelete={(item) => setDeleteTarget({ kind: "task", item })} />)}
             {taskTarget && !taskTarget.milestoneId ? (
-              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: [...current.tasks, task] })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
+              <TaskComposer workspaceId={workspaceId} titleLabel="Task title" onCreated={(task) => { ++mutationEpoch.current; setPlan((current) => ({ ...current, tasks: mergeCreatedTask(current.tasks, task) })); setTaskTarget(null); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} onCancel={() => setTaskTarget(null)} />
             ) : (
               <Button variant="ghost" size="sm" className="mt-1 !min-h-8 gap-1 px-1.5 text-[10px] text-muted hover:text-accent" onClick={() => setTaskTarget({})}><Plus size={13} /> Add task</Button>
             )}

@@ -8,10 +8,11 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
     getWorkspacePlan: (workspaceId: string) =>
       request<WorkspacePlan>(`${workspacePath(workspaceId)}/plan`, undefined, transport),
 
-    createMilestone: (workspaceId: string, title: string) =>
+    createMilestone: (workspaceId: string, title: string, requestKey?: string) =>
       request<PlanningMilestone>(`${workspacePath(workspaceId)}/milestones`, {
         method: "POST",
         ...json({ title }),
+        ...(requestKey ? { headers: { "Content-Type": "application/json", "Idempotency-Key": requestKey } } : {}),
       }, transport),
 
     updateMilestone: (
@@ -30,10 +31,11 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
         headers: { "If-Match": `"${version}"` },
       }, transport),
 
-    createTask: (workspaceId: string, title: string, milestoneId?: string, plannedFor?: string) =>
+    createTask: (workspaceId: string, title: string, milestoneId?: string, plannedFor?: string, requestKey?: string) =>
       request<PlanningTask>(`${workspacePath(workspaceId)}/tasks`, {
         method: "POST",
         ...json({ title, ...(milestoneId ? { milestoneId } : {}), ...(plannedFor ? { plannedFor } : {}) }),
+        ...(requestKey ? { headers: { "Content-Type": "application/json", "Idempotency-Key": requestKey } } : {}),
       }, transport),
 
     updateTask: (

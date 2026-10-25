@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { APIError } from "../../adapters/http/client.ts";
 import type { PlanningTask } from "../../domain/planning/planning.ts";
-import { matchesRequestedPatch, reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation.ts";
+import { matchesRequestedPatch, mergeCreatedTask, reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation.ts";
 
 const task = (version = 1): PlanningTask => ({
   id: "t1", workspaceId: "w1", title: "Review", description: "", position: 0,
@@ -80,4 +80,13 @@ test("delete reconciliation never claims success while Task exists or verificati
     throw Error("offline");
   });
   assert.equal(unknown.status, "unknown");
+});
+
+test("successful keyed Task replay upserts by ID and never reverts a newer state", () => {
+  const current = { ...task(3), title: "Edited elsewhere" };
+  const replayed = task(1);
+  assert.deepEqual(mergeCreatedTask([current], replayed), [current]);
+  assert.deepEqual(mergeCreatedTask([task(1)], task(2)), [task(2)]);
+  assert.deepEqual(mergeCreatedTask([], task(1)), [task(1)]);
+  assert.equal(mergeCreatedTask([current], replayed).length, 1);
 });

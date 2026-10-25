@@ -422,9 +422,9 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
       </section>
       {(view === "all" || view === "category") && page && page.total > page.limit && (
         <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit))}>Previous</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit), true)}>Previous</Button>
           <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset)}>Next</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
         </nav>
       )}
       {afterList}

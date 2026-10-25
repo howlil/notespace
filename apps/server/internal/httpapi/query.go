@@ -61,5 +61,6 @@ func workspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuer
 		HasNotes:   hasNotes,
 		Offset:     offset,
 		Limit:      limit,
+		Snapshot:   r.URL.Query().Get("snapshot"),
 	}, nil
 }

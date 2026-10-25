@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
       ? deps.categoryId
       : undefined;
     const initialCategoryPage = initialSelectedCategoryId
-      ? await listCategoryWorkspaces(initialSelectedCategoryId, { limit: 50 })
+      ? await listCategoryWorkspaces(initialSelectedCategoryId, { limit: 50, snapshot: "start" })
       : undefined;
 
     return { categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage };

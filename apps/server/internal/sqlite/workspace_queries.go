@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -54,6 +53,9 @@ FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 }
 
 func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQuery) (workspace.WorkspacePage, error) {
+	if query.Snapshot != "" {
+		return s.listWorkspaceSnapshot(ctx, query)
+	}
 	limit := query.Limit
 	offset := query.Offset
 	if limit < 1 || limit > 100 {
@@ -63,43 +65,8 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 		offset = 0
 	}
 
-	// Library summaries are derived from the granular authored tables. The
-	// legacy JSON columns in projects are compatibility projections and are no
-	// longer updated by high-frequency Note/Canvas autosaves.
-	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
-	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
-	orderBy := "p.updated_at DESC, p.id"
-	if query.CategoryID != "" {
-		// Stable category browsing: autosave should not shuffle offset pages.
-		orderBy = "p.title COLLATE NOCASE ASC, p.id"
-	}
-	switch query.Sort {
-	case "created":
-		orderBy = "p.created_at DESC, p.id"
-	case "name":
-		orderBy = "p.title COLLATE NOCASE ASC, p.id"
-	case "notes":
-		orderBy = noteCount + " DESC, p.updated_at DESC, p.id"
-	}
-
-	conditions := []string{"1=1"}
-	args := []any{}
-	if strings.TrimSpace(query.CategoryID) != "" {
-		conditions = append(conditions, "p.category_id=?")
-		args = append(args, query.CategoryID)
-	}
-	if strings.TrimSpace(query.Query) != "" {
-		conditions = append(conditions, "LOWER(p.title) LIKE ? ESCAPE '\\'")
-		args = append(args, containsLikeLiteral(query.Query))
-	}
-	if query.HasCanvas {
-		conditions = append(conditions, hasCanvasExpr)
-	}
-	if query.HasNotes {
-		conditions = append(conditions, noteCount+" > 0")
-	}
-
-	where := strings.Join(conditions, " AND ")
+	// Query semantics are shared with snapshot traversal; only consistency differs.
+	where, args, orderBy, noteCount, hasCanvasExpr := workspaceListingParts(query)
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects p WHERE `+where, args...).Scan(&total); err != nil {
 		return workspace.WorkspacePage{}, err

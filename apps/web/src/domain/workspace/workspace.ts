@@ -25,6 +25,7 @@ export interface WorkspacePage {
   offset: number;
   limit: number;
   nextOffset?: number;
+  snapshot?: string;
 }
 
 export interface CategorySummary {

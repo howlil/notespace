@@ -36,8 +36,10 @@ export function TaskComposer({ workspaceId, milestoneId, plannedFor, titleLabel 
     async function load() {
       const results: WorkspaceSummary[] = [];
       let offset = 0;
+      let snapshot = "start";
       for (;;) {
-        const page = await listAllWorkspaces({ offset, limit: 100 });
+        const page = await listAllWorkspaces({ offset, limit: 100, snapshot });
+        snapshot = page.snapshot ?? snapshot;
         results.push(...page.items);
         if (page.nextOffset == null || page.nextOffset <= offset) break;
         offset = page.nextOffset;

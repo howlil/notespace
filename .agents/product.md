@@ -85,3 +85,24 @@ Out:
 - Given the local runtime cannot start or stops unexpectedly, when the failure state appears, then the user can retry from the app without using a terminal or manually starting the server.
 - Given Notespace is already running, when it is opened again, then the existing window is focused and no second independent runtime is created.
 - Given the machine has no network connection after installation, when Notespace Desktop starts, then the core local library and authoring loop remain usable.
+
+## Workspace library pagination
+
+### Problem and outcome
+
+Browsing a large Workspace library should not repeat or omit entries when Note/Canvas autosave or another library mutation changes the sort order while the user navigates pages.
+
+### Behavior
+
+- Opening a paged All Workspaces or Category view creates a snapshot of the current matching Workspace summaries in the selected order.
+- Next and Previous use that same frozen list; changes made after the first page do not reorder it or change its membership.
+- Reloading, refreshing, changing the search/filter/sort, or returning to the first page starts a new traversal with current data.
+- A snapshot that expires or is evicted restarts at page one; no partial old/new traversal is presented as continuous.
+- Recent workspaces remains a live view; opening an individual Workspace always fetches current authored data.
+- Deleted Workspaces may appear in an older listing snapshot until refreshed; opening one follows the existing not-found handling.
+
+### Proof
+
+- A paged traversal shows the exact initial set of Workspace identities once, in order, despite a later autosave, rename, move, create, or delete.
+- Sorts including most notes honor their order at snapshot creation.
+- Refresh returns up-to-date membership. Old offset-only API consumers remain compatible.

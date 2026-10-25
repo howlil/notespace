@@ -158,7 +158,7 @@ export function createWorkspaceHttpClient(
     moveWorkspace: (id, categoryId, expectedCategoryId) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/category`, {
         method: "PATCH",
-        ...json({ categoryId }),
+        ...json({ categoryId, ...(expectedCategoryId === undefined ? {} : { expectedCategoryId }) }),
       }, transport),
 
     searchNotespace: (query) =>

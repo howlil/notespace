@@ -210,7 +210,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       })
       .catch((err) => {
         if (pageRequestGeneration.current === generation) {
-          if (err instanceof APIError && err.status === 409 && categoryFilters.offset > 0) {
+          if (err instanceof APIError && err.status === 409 && snapshot !== "start") {
             categorySnapshotRef.current = null;
             setCategoryFilters((current) => ({ ...current, offset: 0 }));
             return;
@@ -261,7 +261,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       }
     } catch (err) {
       if (pageRequestGeneration.current === generation) {
-        if (err instanceof APIError && err.status === 409 && requestedOffset > 0) {
+        if (err instanceof APIError && err.status === 409 && snapshot !== "start") {
           allSnapshotRef.current = null;
           void openAll(0);
           return;

@@ -125,3 +125,92 @@ test("@critical workspace plan persists milestones and tasks across reload", asy
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical Workspace Milestone confirms a committed PATCH when HTTP response is lost", async ({ page, request }) => {
+  const stamp = Date.now();
+  const created = await request.post("/api/workspaces", { data: { title: `Milestone PATCH recovery ${stamp}` } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  const milestoneCreated = await request.post(`/api/workspaces/${workspace.id}/milestones`, {
+    data: { title: `Ship ${stamp}` },
+  });
+  expect(milestoneCreated.status()).toBe(201);
+  const milestone = await milestoneCreated.json() as { id: string; version: number };
+  const url = `**/api/workspaces/${workspace.id}/milestones/${milestone.id}`;
+  let commits = 0;
+  try {
+    await page.goto(`/workspaces/${workspace.id}`);
+    await page.getByRole("button", { name: "Plan", exact: true }).click();
+    await expect(page.getByRole("button", { name: `Complete Ship ${stamp}` })).toBeVisible();
+    await page.route(url, async (route) => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      const result = await route.fetch();
+      expect(result.status()).toBe(200);
+      commits++;
+      await route.fulfill({
+        status: 503, contentType: "application/json",
+        body: JSON.stringify({ error: "Response lost after commit" }),
+      });
+    });
+    await page.getByRole("button", { name: `Complete Ship ${stamp}` }).click();
+    await expect(page.getByRole("button", { name: `Reopen Ship ${stamp}` })).toBeVisible();
+    expect(commits).toBe(1);
+    const saved = await request.get(`/api/workspaces/${workspace.id}/plan`);
+    expect(saved.status()).toBe(200);
+    const current = await saved.json() as { milestones: Array<{ id: string; version: number; completedAt: string | null }> };
+    expect(current.milestones.find((x) => x.id === milestone.id)).toMatchObject({ version: milestone.version + 1 });
+    expect(current.milestones.find((x) => x.id === milestone.id)?.completedAt).toBeTruthy();
+  } finally {
+    await page.unroute(url);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
+test("Workspace Milestone preserves rename draft when PATCH did not commit", async ({ page, request }) => {
+  const stamp = Date.now();
+  const created = await request.post("/api/workspaces", { data: { title: `Milestone retry ${stamp}` } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  const milestoneCreated = await request.post(`/api/workspaces/${workspace.id}/milestones`, {
+    data: { title: `Before ${stamp}` },
+  });
+  expect(milestoneCreated.status()).toBe(201);
+  const milestone = await milestoneCreated.json() as { id: string; version: number };
+  const url = `**/api/workspaces/${workspace.id}/milestones/${milestone.id}`;
+  const editedTitle = `After ${stamp}`;
+  try {
+    await page.goto(`/workspaces/${workspace.id}`);
+    await page.getByRole("button", { name: "Plan", exact: true }).click();
+    await page.getByRole("button", { name: `Rename Before ${stamp}` }).click();
+    const field = page.getByRole("textbox", { name: "Milestone title" });
+    await field.fill(editedTitle);
+    await page.route(url, async (route) => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      // Fail before sending to the server: this PATCH must not be mistaken for a conflict.
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Unavailable" }) });
+    });
+    await field.press("Enter");
+    await expect(page.getByText("Milestone was not saved. Your draft is preserved; retry when ready.")).toBeVisible();
+    await expect(field).toHaveValue(editedTitle);
+    const beforeRetry = await (await request.get(`/api/workspaces/${workspace.id}/plan`)).json() as {
+      milestones: Array<{ id: string; title: string; version: number }>;
+    };
+    expect(beforeRetry.milestones.find((m) => m.id === milestone.id)).toMatchObject({
+      title: `Before ${stamp}`, version: milestone.version,
+    });
+    await page.unroute(url);
+    await field.press("Enter");
+    await expect(page.getByRole("button", { name: editedTitle, exact: true })).toBeVisible();
+    const afterRetry = await (await request.get(`/api/workspaces/${workspace.id}/plan`)).json() as {
+      milestones: Array<{ id: string; title: string; version: number }>;
+    };
+    expect(afterRetry.milestones.find((m) => m.id === milestone.id)).toMatchObject({
+      title: editedTitle, version: milestone.version + 1,
+    });
+  } finally {
+    await page.unroute(url);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

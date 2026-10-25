@@ -200,7 +200,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       setCategoryFilters((current) => ({ ...current, offset: 0 }));
       return;
     }
-    const snapshot = categoryFilters.offset === 0 ? "start" : session!.token;
+    const snapshot = session?.key === key ? session.token : "start";
     void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, limit: 50, snapshot })
       .then((result) => {
         if (pageRequestGeneration.current === generation) {
@@ -245,10 +245,10 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     void navigate({ to: "/", search: {}, replace: true });
   }
 
-  async function openAll(offset = 0) {
+  async function openAll(offset = 0, preserveSnapshot = false) {
     const generation = ++pageRequestGeneration.current;
-    const requestedOffset = offset > 0 && allSnapshotRef.current ? offset : 0;
-    const snapshot = requestedOffset ? allSnapshotRef.current! : "start";
+    const snapshot = preserveSnapshot && allSnapshotRef.current ? allSnapshotRef.current : "start";
+    const requestedOffset = offset > 0 && snapshot !== "start" ? offset : 0;
     setView("all");
     setSelectedCategoryId("");
     setPageLoading(true);

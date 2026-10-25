@@ -7,7 +7,7 @@ import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { createCapture, deleteCapture, getCapture, listCaptures, organizeCapture, updateCapture } from "../../adapters/http/capture-api";
 import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { markdownToSnapshot } from "../../domain/document/markdown";
-import { isMatchingCaptureConversion, validCaptureContent } from "../../domain/capture/capture";
+import { isMatchingCaptureConversion, isMatchingCaptureUpdate, validCaptureContent } from "../../domain/capture/capture";
 import { CAPTURE_QUEUE_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import type { CaptureItem } from "../../domain/capture/capture";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -133,34 +133,49 @@ export function CaptureQueue() {
 
   async function saveEdit() {
     if (!target || !validCaptureContent(editBody) || submitting) return;
+    const current = target;
+    const draft = editBody;
     setSubmitting(true);
     try {
-      const updated = await updateCapture(target.id, target.version, editBody);
+      const updated = await updateCapture(current.id, current.version, draft);
       writeRevision.current++;
-      setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setItems((items) => items.map((item) => item.id === updated.id ? updated : item));
       setTarget(null);
       setEditConflict(null);
       showToast({ kind: "success", message: "Capture updated." });
     } catch (error) {
-      if (error instanceof APIError && error.status === 409) {
+      // A PATCH may commit even when its HTTP response is lost. Only a
+      // matching next revision with identical content proves this edit.
+      let latest: CaptureItem | null = null;
+      if (!(error instanceof APIError) || error.status === 409 || error.status >= 500) {
         try {
-          const latest = await getCapture(target.id);
-          if (latest.status !== "pending") {
-            setTarget(null);
-            void refresh();
-            showToast({ kind: "error", message: "Capture was organized elsewhere. Your local draft was not saved." });
-            return;
-          }
-          // Keep the user's unsaved text; a second explicit click is required
-          // before overwriting the now-current server version.
-          setTarget(latest);
-          setEditConflict(latest.content);
-          showToast({ kind: "error", message: "Capture changed in another session. Review both versions before choosing Overwrite latest." });
-          return;
+          latest = await getCapture(current.id);
         } catch {
-          showToast({ kind: "error", message: "Could not reload the conflicting capture. Your draft is preserved." });
+          showToast({ kind: "error", message: "Could not verify the update. Your draft is preserved; refresh the queue before retrying." });
           return;
         }
+      }
+      if (latest && isMatchingCaptureUpdate(latest, { version: current.version, content: draft })) {
+        const confirmed = latest;
+        writeRevision.current++;
+        setItems((items) => items.map((item) => item.id === confirmed.id ? confirmed : item));
+        setTarget(null);
+        setEditConflict(null);
+        showToast({ kind: "success", message: "Capture updated." });
+        return;
+      }
+      if (error instanceof APIError && error.status === 409 && latest) {
+        if (latest.status !== "pending") {
+          setTarget(null);
+          void refresh();
+          showToast({ kind: "error", message: "Capture was organized elsewhere. Your local draft was not saved." });
+          return;
+        }
+        // Require a second explicit action before overwriting a newer edit.
+        setTarget(latest);
+        setEditConflict(latest.content);
+        showToast({ kind: "error", message: "Capture changed in another session. Review both versions before choosing Overwrite latest." });
+        return;
       }
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Update failed. Your edit is preserved." });
     } finally { setSubmitting(false); }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAX_CAPTURE_BYTES, isMatchingCaptureConversion, validCaptureContent, type CaptureItem } from "./capture.ts";
+import { MAX_CAPTURE_BYTES, isMatchingCaptureConversion, isMatchingCaptureUpdate, validCaptureContent, type CaptureItem } from "./capture.ts";
 
 test("Capture rejects empty content and enforces UTF-8 byte limits", () => {
   assert.equal(validCaptureContent(""), false);
@@ -26,4 +26,16 @@ test("lost-response conversion only reconciles exact Capture version and destina
   assert.equal(isMatchingCaptureConversion(receipt, { version: 2, workspaceId: "workspace-1", kind: "task" }), false);
   assert.equal(isMatchingCaptureConversion({ ...receipt, targetId: "" }, { version: 2, workspaceId: "workspace-1", kind: "note" }), false);
   assert.equal(isMatchingCaptureConversion({ ...receipt, status: "pending" }, { version: 2, workspaceId: "workspace-1", kind: "note" }), false);
+});
+
+test("lost edit response reconciles only the exact next pending version and content", () => {
+  const receipt: CaptureItem = {
+    id: "capture-1", content: "Edited content", status: "pending", version: 2,
+    createdAt: "2026-10-26T00:00:00Z", updatedAt: "2026-10-26T00:01:00Z",
+  };
+  assert.equal(isMatchingCaptureUpdate(receipt, { version: 1, content: "Edited content" }), true);
+  assert.equal(isMatchingCaptureUpdate(receipt, { version: 2, content: "Edited content" }), false);
+  assert.equal(isMatchingCaptureUpdate({ ...receipt, version: 3 }, { version: 1, content: "Edited content" }), false);
+  assert.equal(isMatchingCaptureUpdate(receipt, { version: 1, content: "Different content" }), false);
+  assert.equal(isMatchingCaptureUpdate({ ...receipt, status: "converted" }, { version: 1, content: "Edited content" }), false);
 });

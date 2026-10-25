@@ -36,3 +36,13 @@ export function isMatchingCaptureConversion(
     && actual.targetKind === submitted.kind
     && Boolean(actual.targetId);
 }
+
+/** A failed PATCH can be confirmed only by the exact next pending revision. */
+export function isMatchingCaptureUpdate(
+  actual: CaptureItem,
+  submitted: { version: number; content: string },
+): boolean {
+  return actual.status === "pending"
+    && actual.version === submitted.version + 1
+    && actual.content === submitted.content;
+}

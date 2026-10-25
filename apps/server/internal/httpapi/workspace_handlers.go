@@ -88,7 +88,8 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 
 func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Title string `json:"title"`
+		Title         string  `json:"title"`
+		ExpectedTitle *string `json:"expectedTitle"`
 	}
 	if !decode(w, r, &body) {
 		return

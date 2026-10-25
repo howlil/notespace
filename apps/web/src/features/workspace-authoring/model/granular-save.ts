@@ -15,6 +15,7 @@ import {
 export { GranularConflictError } from "./granular-save-core";
 
 const defaultGranularSaveDependencies: GranularSaveDependencies = {
+  getNote: getWorkspaceNote,
   updateNote: updateWorkspaceNote,
   getCanvas: getWorkspaceCanvas,
   updateCanvas: updateWorkspaceCanvas,

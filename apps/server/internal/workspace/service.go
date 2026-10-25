@@ -43,7 +43,7 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 	return s.store.UpdateCategory(ctx, id, title)
 }
 
-func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error) {
+func (s Service) Rename(ctx context.Context, id, title string, expectedTitle ...string) (Workspace, error) {
 	title = strings.TrimSpace(title)
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return Workspace{}, ErrInvalid

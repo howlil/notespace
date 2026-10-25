@@ -38,16 +38,16 @@ type trashSummary struct {
 }
 
 type libraryBackup struct {
-	Format                    string                          `json:"format"`
-	Version                   int                             `json:"version"`
-	GeneratedAt               string                          `json:"generatedAt"`
-	Categories                []workspacepkg.CategorySummary  `json:"categories"`
-	Workspaces                []workspaceEnvelope             `json:"workspaces"`
-	Tasks                     []planning.Task                 `json:"standaloneTasks,omitempty"`
-	Captures                  []capture.Item                  `json:"captures,omitempty"`
-	Trash                     []trashRecord                   `json:"trash"`
-	Activity                  []activity.Session              `json:"studySessions"`
-	DeletedActivitySessionIDs []string                        `json:"deletedActivitySessionIds,omitempty"`
+	Format                    string                         `json:"format"`
+	Version                   int                            `json:"version"`
+	GeneratedAt               string                         `json:"generatedAt"`
+	Categories                []workspacepkg.CategorySummary `json:"categories"`
+	Workspaces                []workspaceEnvelope            `json:"workspaces"`
+	Tasks                     []planning.Task                `json:"standaloneTasks,omitempty"`
+	Captures                  []capture.Item                 `json:"captures,omitempty"`
+	Trash                     []trashRecord                  `json:"trash"`
+	Activity                  []activity.Session             `json:"studySessions"`
+	DeletedActivitySessionIDs []string                       `json:"deletedActivitySessionIds,omitempty"`
 }
 
 func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) error {

@@ -48,7 +48,7 @@ func (s Service) Rename(ctx context.Context, id, title string, expectedTitle ...
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return Workspace{}, ErrInvalid
 	}
-	return s.store.RenameMetadata(ctx, id, title)
+	return s.store.RenameMetadata(ctx, id, title, expectedTitle...)
 }
 
 func (s Service) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (Workspace, error) {

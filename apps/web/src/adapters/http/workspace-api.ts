@@ -31,9 +31,9 @@ export interface WorkspaceHttpClient {
   deleteWorkspaceNote(workspaceId: string, noteId: string, version: number): Promise<void>;
   getWorkspaceCanvas(workspaceId: string): Promise<CanvasState>;
   updateWorkspaceCanvas(workspaceId: string, canvas: Snapshot, version: number): Promise<CanvasState>;
-  listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number }): Promise<WorkspacePage>;
+  listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
   listCategories(): Promise<CategorySummary[]>;
-  listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number }): Promise<WorkspacePage>;
+  listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
   createWorkspace(title: string, categoryId?: string, creationId?: string): Promise<Workspace>;
   createCategory(title: string): Promise<CategorySummary>;
   updateCategory(id: string, title: string): Promise<CategorySummary>;
@@ -104,6 +104,7 @@ export function createWorkspaceHttpClient(
       if (params.query) search.set("q", params.query);
       if (params.offset) search.set("offset", String(params.offset));
       if (params.limit) search.set("limit", String(params.limit));
+      if (params.snapshot) search.set("snapshot", params.snapshot);
       return request<WorkspacePage>(`/api/workspaces?${search}`, undefined, transport);
     },
 
@@ -116,6 +117,7 @@ export function createWorkspaceHttpClient(
       if (params.sort) search.set("sort", params.sort);
       if (params.hasCanvas) search.set("hasCanvas", "true");
       if (params.hasNotes) search.set("hasNotes", "true");
+      if (params.snapshot) search.set("snapshot", params.snapshot);
       if (params.offset) search.set("offset", String(params.offset));
       if (params.limit) search.set("limit", String(params.limit));
       return request<WorkspacePage>(
@@ -246,12 +248,15 @@ export const getCategory = async (id: string) => {
 export async function listAllCategoryWorkspaces(categoryId: string) {
   const items: WorkspaceSummary[] = [];
   let offset = 0;
+  let snapshot = "start";
   while (true) {
     const page = await listCategoryWorkspaces(categoryId, {
       sort: "name",
       offset,
       limit: 100,
+      snapshot,
     });
+    snapshot = page.snapshot ?? snapshot;
     items.push(...page.items);
     if (page.nextOffset === undefined || page.nextOffset <= offset) return items;
     offset = page.nextOffset;

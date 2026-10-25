@@ -7,6 +7,7 @@ type Store interface {
 	GetTask(context.Context, string) (Task, error)
 	ListToday(context.Context, string) ([]TodayTask, error)
 	ListInbox(context.Context) ([]Task, error)
+	ListUnassignedTasks(context.Context) ([]Task, error)
 	CreateMilestone(context.Context, Milestone) (Milestone, error)
 	UpdateMilestone(context.Context, Milestone) (Milestone, error)
 	DeleteMilestone(context.Context, string, string, int) error

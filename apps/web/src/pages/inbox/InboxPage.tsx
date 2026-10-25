@@ -23,7 +23,7 @@ export function InboxPage({
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >
       <CaptureQueue />
-      {initial.tasks.length > 0 && <UnorganizedTasks initial={initial} />}
+      <UnorganizedTasks initial={initial} />
     </LibraryPageShell>
   );
 }

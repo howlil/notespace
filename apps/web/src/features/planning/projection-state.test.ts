@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyInboxTaskUpdate,
+  applyUnassignedTaskUpdate,
+  belongsToUnassigned,
   applyTodayTaskUpdate,
   belongsToInbox,
   belongsToToday,
@@ -68,4 +70,16 @@ test("stale update cannot revert or remove a newer Today task version", () => {
   const staleRemoval = applyTodayTaskUpdate(current, task({ version: 4, plannedFor: undefined }));
   assert.deepEqual(staleEdit, current);
   assert.deepEqual(staleRemoval, current);
+});
+
+test("unassigned projection keeps scheduled and completed history while removing assigned tasks", () => {
+  const scheduled = task({ plannedFor: "2026-10-26", version: 2 });
+  const completed = task({ id: "done", plannedFor: undefined, completedAt: "2026-10-25T09:00:00Z" });
+  assert.equal(belongsToUnassigned(scheduled), true);
+  assert.equal(belongsToUnassigned(completed), true);
+  const projection = { tasks: [scheduled, completed] };
+  const latest = applyUnassignedTaskUpdate(projection, { ...scheduled, title: "Renamed", version: 3 });
+  assert.equal(latest.tasks[0]?.title, "Renamed");
+  assert.deepEqual(applyUnassignedTaskUpdate(latest, scheduled), latest);
+  assert.deepEqual(applyUnassignedTaskUpdate(latest, { ...scheduled, workspaceId: "w1", version: 4 }).tasks.map(x => x.id), ["done"]);
 });

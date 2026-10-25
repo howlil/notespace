@@ -15,7 +15,7 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { TaskComposer } from "./TaskComposer";
 import { TaskWorkspaceAssign } from "./TaskWorkspaceAssign";
 import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
-import { reconcileTaskPatch } from "./task-mutation";
+import { reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation";
 
 function displayDate(date: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -150,8 +150,8 @@ function TodayTaskRow({
           {!task.workspaceId && !task.completedAt && (
             <IconButton
               className="!size-7 text-muted hover:text-accent"
-              aria-label={`Return ${task.title} to Capture Queue`}
-              title="Return to Capture Queue"
+              aria-label={`Remove ${task.title} from Today`}
+              title="Remove from Today"
               onClick={() => void onUpdate(task, { plannedFor: "" })}
             >
               <InboxIcon size={13} />
@@ -293,20 +293,28 @@ export function TodayPlanning({
   }
 
   async function confirmDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || pendingTaskIds.current.has(deleteTarget.id)) return;
     const target = deleteTarget;
     setDeleteTarget(null);
+    pendingTaskIds.current.add(target.id);
+    ++mutationEpoch.current;
     try {
-      await deleteAnyTask(target.id, target.version);
-      setProjection((current) => ({
-        ...current,
-        tasks: current.tasks.filter((task) => task.id !== target.id),
-      }));
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not delete task.",
-      });
+      const outcome = await reconcileTaskDelete(
+        target.id, () => deleteAnyTask(target.id, target.version), getAnyTask,
+      );
+      if (outcome.status === "confirmed") {
+        setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== target.id) }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (outcome.status === "exists") {
+        setProjection((current) => applyTodayTaskUpdate(current, outcome.task));
+        showToast({ kind: "error", message: "Task was not deleted. Latest saved state is shown." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else {
+        showToast({ kind: "error", message: "Delete not confirmed. Refresh before trying again." });
+        void refreshToday();
+      }
+    } finally {
+      pendingTaskIds.current.delete(target.id);
     }
   }
 

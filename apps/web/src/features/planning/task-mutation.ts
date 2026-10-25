@@ -49,3 +49,27 @@ export async function reconcileTaskPatch(
     }
   }
 }
+
+export type TaskDeletionOutcome =
+  | { status: "confirmed" }
+  | { status: "exists"; task: PlanningTask }
+  | { status: "unknown" };
+
+/** Verify absence after an ambiguous DELETE. Never retry the original request. */
+export async function reconcileTaskDelete(
+  taskId: string,
+  commit: () => Promise<void>,
+  read: (id: string) => Promise<PlanningTask> = getAnyTask,
+): Promise<TaskDeletionOutcome> {
+  try {
+    await commit();
+    return { status: "confirmed" };
+  } catch {
+    try {
+      return { status: "exists", task: await read(taskId) };
+    } catch (error) {
+      if (error instanceof APIError && error.status === 404) return { status: "confirmed" };
+      return { status: "unknown" };
+    }
+  }
+}

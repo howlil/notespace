@@ -172,3 +172,81 @@ func TestPlanningAssignLegacyTaskAndAtomicTodayCreation(t *testing.T) {
 		t.Fatalf("expected one migrated task, got %d", count)
 	}
 }
+
+func TestUnassignedTaskInventoryIncludesScheduledAndCompletedHistory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "unassigned-inventory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+	service := planning.NewService(store, store, nil)
+
+	unscheduled, err := service.CreateStandaloneTask(ctx, "Unscheduled", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduled, err := service.CreateStandaloneTask(ctx, "Scheduled", "2026-10-25")
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CreateStandaloneTask(ctx, "Completed without date", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := true
+	completed, err = service.UpdateAnyTask(ctx, completed.ID, planning.TaskPatch{
+		Version: completed.Version, Completed: &done,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response := call(t, api, http.MethodGet, "/api/tasks/unassigned", nil)
+	expect(t, response, http.StatusOK)
+	var projection planning.Inbox
+	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]planning.Task{}
+	for _, task := range projection.Tasks {
+		seen[task.ID] = task
+	}
+	if len(seen) != 3 || seen[unscheduled.ID].ID != unscheduled.ID ||
+		seen[scheduled.ID].PlannedFor == nil || seen[completed.ID].CompletedAt == nil {
+		t.Fatalf("historical Task inventory incomplete: %#v", projection.Tasks)
+	}
+	legacyInbox := call(t, api, http.MethodGet, "/api/tasks/inbox", nil)
+	expect(t, legacyInbox, http.StatusOK)
+	var inbox planning.Inbox
+	if err := json.Unmarshal(legacyInbox.Body.Bytes(), &inbox); err != nil {
+		t.Fatal(err)
+	}
+	if len(inbox.Tasks) != 1 || inbox.Tasks[0].ID != unscheduled.ID {
+		t.Fatalf("original Inbox contract changed: %#v", inbox.Tasks)
+	}
+
+	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Inventory destination"}))
+	assignment := call(t, api, http.MethodPost, "/api/tasks/"+completed.ID+"/assign-workspace",
+		map[string]any{"workspaceId": workspace.ID, "version": completed.Version})
+	expect(t, assignment, http.StatusOK)
+	var moved planning.Task
+	if err := json.Unmarshal(assignment.Body.Bytes(), &moved); err != nil {
+		t.Fatal(err)
+	}
+	if moved.ID != completed.ID || moved.CompletedAt == nil || moved.WorkspaceID == nil ||
+		*moved.WorkspaceID != workspace.ID {
+		t.Fatalf("assignment lost completed Task identity: %#v", moved)
+	}
+	response = call(t, api, http.MethodGet, "/api/tasks/unassigned", nil)
+	expect(t, response, http.StatusOK)
+	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range projection.Tasks {
+		if task.ID == completed.ID {
+			t.Fatalf("moved Task still in inventory: %#v", projection.Tasks)
+		}
+	}
+}

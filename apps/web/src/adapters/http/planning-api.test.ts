@@ -48,13 +48,15 @@ test("planning client owns Today, legacy Inbox reads, and Task assignment", asyn
 
   await client.getToday("2026-09-24");
   await client.getInbox();
+  await client.getUnassignedTasks();
   await client.assignStandaloneTask("task/a", "workspace/1", 2);
   await client.deleteAnyTask("task/a", 3);
 
   assert.equal(calls[0]?.input, "/api/tasks/today?date=2026-09-24");
   assert.equal(calls[1]?.input, "/api/tasks/inbox");
-  assert.equal(calls[2]?.input, "/api/tasks/task%2Fa/assign-workspace");
-  assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), { workspaceId: "workspace/1", version: 2 });
-  assert.equal(calls[3]?.input, "/api/tasks/task%2Fa");
-  assert.equal(new Headers(calls[3]?.init?.headers).get("If-Match"), '"3"');
+  assert.equal(calls[2]?.input, "/api/tasks/unassigned");
+  assert.equal(calls[3]?.input, "/api/tasks/task%2Fa/assign-workspace");
+  assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), { workspaceId: "workspace/1", version: 2 });
+  assert.equal(calls[4]?.input, "/api/tasks/task%2Fa");
+  assert.equal(new Headers(calls[4]?.init?.headers).get("If-Match"), '"3"');
 });

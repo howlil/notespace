@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCategories } from "../adapters/http/workspace-api";
-import { getInbox } from "../adapters/http/planning-api";
+import { getUnassignedTasks } from "../adapters/http/planning-api";
 import { RoutePending } from "../pages/_shared/RoutePending";
 import { InboxPage } from "../pages/inbox/InboxPage";
 
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/inbox")({
   loader: async () => {
     const [categories, initial] = await Promise.all([
       listCategories(),
-      getInbox(),
+      getUnassignedTasks(),
     ]);
     return { categories, initial };
   },

@@ -82,3 +82,15 @@ func ValidatePlan(plan Plan, workspaceID string) error {
 	}
 	return nil
 }
+
+func validCreationKey(key string) bool {
+	if len(key) < 1 || len(key) > 128 {
+		return false
+	}
+	for _, r := range key {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
+}

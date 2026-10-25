@@ -128,7 +128,7 @@ func TestPlanningCreateIdentityRejectsInvalidAndDeletedRecordReplay(t *testing.T
 	if err := json.Unmarshal(created.Body.Bytes(), &item); err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodDelete, url + "/" + item.ID, nil)
+	req := httptest.NewRequest(http.MethodDelete, url+"/"+item.ID, nil)
 	req.Header.Set("If-Match", `"1"`)
 	out := httptest.NewRecorder()
 	api.ServeHTTP(out, req)
@@ -159,7 +159,7 @@ func TestPlanningConcurrentDuplicatePostsPersistOnlyOneTaskAndMilestone(t *testi
 				go func() {
 					defer wg.Done()
 					<-start
-					results <- sendKeyedPlanningPost(api, url, "same-" + kind + "-key", data)
+					results <- sendKeyedPlanningPost(api, url, "same-"+kind+"-key", data)
 				}()
 			}
 			close(start)

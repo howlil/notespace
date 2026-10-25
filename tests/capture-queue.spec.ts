@@ -210,3 +210,47 @@ test("Capture Queue refreshes after a create invalidates its initial read", asyn
     }
   }
 });
+
+test("@critical Capture organize does not confirm a later-version conversion as its own lost response", async ({ page, request }) => {
+  const stamp = Date.now();
+  const created = await request.post("/api/workspaces", { data: { title: `Capture receipt owner ${stamp}` } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  const content = `Capture receipt race ${stamp}`;
+  const saved = await request.post("/api/captures", { data: { content } });
+  expect(saved.status()).toBe(201);
+  const capture = await saved.json() as { id: string; version: number };
+  try {
+    await page.goto("/inbox");
+    const row = page.getByText(content, { exact: true }).locator("..").locator("..");
+    await row.getByRole("button", { name: "Organize", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Organize capture" });
+    await dialog.getByRole("combobox", { name: "Save as" }).selectOption("task");
+    await dialog.getByRole("combobox", { name: /Workspace \(required\)/ }).selectOption(workspace.id);
+
+    // Another client edits v1 to v2, then converts v2 to v3 using the
+    // same destination and kind. A v1 submit must never claim that receipt.
+    const remoteEdit = await request.patch(`/api/captures/${capture.id}`, {
+      data: { version: capture.version, content: content + " remotely edited" },
+    });
+    expect(remoteEdit.status()).toBe(200);
+    const updated = await remoteEdit.json() as { version: number };
+    const remoteConvert = await request.post(`/api/captures/${capture.id}/organize`, {
+      data: { version: updated.version, workspaceId: workspace.id, kind: "task" },
+    });
+    expect(remoteConvert.status()).toBe(200);
+    const converted = await remoteConvert.json() as { version: number; targetId: string };
+    expect(converted.version).toBe(capture.version + 2);
+
+    await dialog.getByRole("button", { name: "Organize", exact: true }).click();
+    await expect(page.getByText("Capture was organized elsewhere. Queue refreshed.")).toBeVisible();
+    await expect(page.getByText("Capture already organized. No duplicate was created.")).toHaveCount(0);
+    const current = await (await request.get(`/api/captures/${capture.id}`)).json() as { targetId: string };
+    expect(current.targetId).toBe(converted.targetId);
+    const plan = await (await request.get(`/api/workspaces/${workspace.id}/plan`)).json() as { tasks: Array<{ id: string }> };
+    expect(plan.tasks.filter((task) => task.id === converted.targetId)).toHaveLength(1);
+  } finally {
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

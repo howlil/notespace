@@ -62,6 +62,13 @@ func (s *Store) CreateNote(ctx context.Context, workspaceID string, input worksp
 	if workspaceExists == 0 {
 		return workspace.Note{}, workspace.ErrNotFound
 	}
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=?`, workspaceID).Scan(&total); err != nil {
+		return workspace.Note{}, err
+	}
+	if total >= workspace.MaxNotesPerWorkspace {
+		return workspace.Note{}, workspace.ErrInvalid
+	}
 	var existing int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, input.ID).Scan(&existing); err != nil {
 		return workspace.Note{}, err

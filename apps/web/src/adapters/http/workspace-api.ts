@@ -24,6 +24,7 @@ export type TrashWorkspace = { id: string; categoryId: string; title: string; de
 export interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;
   updateWorkspaceSnapshot(id: string, content: WorkspaceContent, version: number): Promise<Workspace>;
+  getWorkspaceNote(workspaceId: string, noteId: string): Promise<Note>;
   createWorkspaceNote(workspaceId: string, input: { id: string; title: string; document: Snapshot }): Promise<Note>;
   updateWorkspaceNote(workspaceId: string, noteId: string, input: { title: string; document: Snapshot; version: number }): Promise<Note>;
   deleteWorkspaceNote(workspaceId: string, noteId: string, version: number): Promise<void>;

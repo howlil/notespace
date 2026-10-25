@@ -100,8 +100,11 @@ export function enqueueActivityFinalization(finalization: PendingActivityFinaliz
 
 export function acknowledgeActivityFinalization(sessionId: string, handoffTaskId?: string) {
   const current = readActivityRecovery();
+  const pending = current.finalizations.some((item) => item.sessionId === sessionId);
   const finalizations = current.finalizations.filter((item) => item.sessionId !== sessionId);
-  const handoffTaskIds = handoffTaskId && !current.handoffTaskIds.includes(handoffTaskId)
+  // An in-flight success response must not create a Task handoff after
+  // the user has deleted the Activity and discarded its recovery entry.
+  const handoffTaskIds = pending && handoffTaskId && !current.handoffTaskIds.includes(handoffTaskId)
     ? [...current.handoffTaskIds, handoffTaskId]
     : current.handoffTaskIds;
   return writeActivityRecovery({ finalizations, handoffTaskIds });
@@ -112,5 +115,20 @@ export function removeActivityHandoff(taskId: string) {
   return writeActivityRecovery({
     ...current,
     handoffTaskIds: current.handoffTaskIds.filter((id) => id !== taskId),
+  });
+}
+
+function logicalSessionId(sessionId: string) {
+  const separator = sessionId.indexOf(":");
+  return separator < 0 ? sessionId : sessionId.slice(0, separator);
+}
+
+/** Stop retrying any queued segments for a session deleted in the server. */
+export function discardDeletedActivitySession(sessionId: string) {
+  const current = readActivityRecovery();
+  const logicalId = logicalSessionId(sessionId);
+  return writeActivityRecovery({
+    ...current,
+    finalizations: current.finalizations.filter((item) => logicalSessionId(item.sessionId) !== logicalId),
   });
 }

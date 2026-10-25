@@ -7,11 +7,31 @@ import (
 )
 
 func (s *Store) CreateMilestone(ctx context.Context, item planning.Milestone) (planning.Milestone, error) {
+	return s.createMilestone(ctx, item, "")
+}
+
+func (s *Store) CreateMilestoneIdempotent(ctx context.Context, item planning.Milestone, key string) (planning.Milestone, error) {
+	return s.createMilestone(ctx, item, key)
+}
+
+func (s *Store) createMilestone(ctx context.Context, item planning.Milestone, key string) (planning.Milestone, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return planning.Milestone{}, err
 	}
 	defer tx.Rollback()
+
+	claimedID, isNew, err := claimPlanningCreate(ctx, tx, "milestone", key, item.ID,
+		struct {
+			WorkspaceID string
+			Title       string
+		}{item.WorkspaceID, item.Title})
+	if err != nil {
+		return planning.Milestone{}, err
+	}
+	if !isNew {
+		return replayMilestone(ctx, tx, claimedID)
+	}
 
 	var workspaceExists, count int
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM projects WHERE id=?),COUNT(*) FROM workspace_milestones WHERE workspace_id=?`, item.WorkspaceID, item.WorkspaceID).Scan(&workspaceExists, &count); err != nil {

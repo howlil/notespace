@@ -130,6 +130,17 @@ func (s *workspaceTestStore) GetCanvasState(context.Context, string) (CanvasStat
 	s.getCanvasCalls++
 	return s.canvas, s.canvasErr
 }
+func (s *workspaceTestStore) GetNote(_ context.Context, _, id string) (Note, error) {
+	if s.getNoteErr != nil {
+		return Note{}, s.getNoteErr
+	}
+	for _, note := range s.notes {
+		if note.ID == id {
+			return note, nil
+		}
+	}
+	return Note{}, ErrNotFound
+}
 func (s *workspaceTestStore) CreateNote(_ context.Context, workspaceID string, input NoteCreate) (Note, error) {
 	s.createNoteWorkspaceID, s.createNoteInput = workspaceID, input
 	if s.createNoteErr != nil {

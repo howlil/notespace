@@ -11,6 +11,7 @@ export type GranularCanvasState = {
 };
 
 export type GranularSaveDependencies = {
+  getNote: (workspaceId: string, noteId: string) => Promise<Note>;
   updateNote: (
     workspaceId: string,
     noteId: string,

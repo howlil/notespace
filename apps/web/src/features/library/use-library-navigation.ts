@@ -207,7 +207,8 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
 
   async function moveWorkspaceToCategory(categoryId: string, workspaceId: string) {
     try {
-      await moveWorkspace(workspaceId, categoryId);
+      const source = Object.values(children).flat().find((item) => item.id === workspaceId);
+      await moveWorkspace(workspaceId, categoryId, source?.categoryId);
       setChildren({});
       signalLibraryChanged();
     } catch (error) {

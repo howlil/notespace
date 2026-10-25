@@ -28,7 +28,13 @@ func (s Service) resolveReferences(ctx context.Context, input *ActivityHeartbeat
 		}
 		if found {
 			input.TaskTitleSnapshot = task.Title
-			if task.WorkspaceID != nil {
+			if task.WorkspaceID == nil {
+				// A legacy unassigned Task cannot be attributed to an
+				// unrelated Workspace by a caller-supplied context.
+				if input.WorkspaceID != "" {
+					return ErrTaskWorkspaceMismatch
+				}
+			} else {
 				if input.WorkspaceID != "" && input.WorkspaceID != *task.WorkspaceID {
 					return ErrTaskWorkspaceMismatch
 				}

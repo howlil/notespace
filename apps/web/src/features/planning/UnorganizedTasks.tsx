@@ -121,49 +121,96 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
   const [assignTarget, setAssignTarget] = useState<PlanningTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PlanningTask | null>(null);
 
-  useEffect(() => {
-    setProjection(initial);
-  }, [initial]);
 
-  async function patchTask(
-    task: PlanningTask,
-    patch: { title?: string; plannedFor?: string },
-  ) {
+  const [readError, setReadError] = useState(false);
+  const mutationEpoch = useRef(0);
+  const requestSequence = useRef(0);
+  const pendingTaskIds = useRef(new Set<string>());
+
+  const refreshTasks = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    const epoch = mutationEpoch.current;
     try {
-      const updated = await updateAnyTask(task.id, {
-        ...patch,
-        version: task.version,
-      });
-      setProjection((current) => applyInboxTaskUpdate(current, updated));
-      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not update task.",
-      });
+      const latest = await getUnassignedTasks();
+      if (sequence === requestSequence.current && epoch === mutationEpoch.current) {
+        setProjection(latest);
+        setReadError(false);
+      }
+    } catch {
+      if (sequence === requestSequence.current && epoch === mutationEpoch.current) {
+        setReadError(true);
+        showToast({ kind: "error", message: "Could not refresh tasks to organize." });
+      }
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void refreshTasks();
+    const onChange = () => { void refreshTasks(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshTasks(); };
+    window.addEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(PLANNING_TASK_CHANGED_EVENT, onChange);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshTasks]);
+
+  async function patchTask(task: PlanningTask, patch: { title?: string; plannedFor?: string }) {
+    if (pendingTaskIds.current.has(task.id)) return;
+    pendingTaskIds.current.add(task.id);
+    ++mutationEpoch.current;
+    try {
+      const result = await reconcileTaskPatch(
+        task, patch, () => updateAnyTask(task.id, { ...patch, version: task.version }), getAnyTask,
+      );
+      if (result.status === "confirmed") {
+        setProjection((current) => applyUnassignedTaskUpdate(current, result.task));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (result.status === "conflict") {
+        setProjection((current) => applyUnassignedTaskUpdate(current, result.task));
+        showToast({ kind: "error", message: "Task changed elsewhere. Latest state restored; retry if needed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (result.status === "missing") {
+        setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== task.id) }));
+        showToast({ kind: "error", message: "Task was removed elsewhere. List refreshed." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else {
+        showToast({ kind: "error", message: "Task update not confirmed. Refresh before retrying." });
+        void refreshTasks();
+      }
+    } finally {
+      pendingTaskIds.current.delete(task.id);
     }
   }
 
   async function confirmDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || pendingTaskIds.current.has(deleteTarget.id)) return;
     const target = deleteTarget;
     setDeleteTarget(null);
+    pendingTaskIds.current.add(target.id);
+    ++mutationEpoch.current;
     try {
-      await deleteAnyTask(target.id, target.version);
-      setProjection((current) => ({
-        ...current,
-        tasks: current.tasks.filter((task) => task.id !== target.id),
-      }));
-      window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
-    } catch (error) {
-      showToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not delete task.",
-      });
+      const result = await reconcileTaskDelete(
+        target.id, () => deleteAnyTask(target.id, target.version), getAnyTask,
+      );
+      if (result.status === "confirmed") {
+        setProjection((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== target.id) }));
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else if (result.status === "exists") {
+        setProjection((current) => applyUnassignedTaskUpdate(current, result.task));
+        showToast({ kind: "error", message: "Task was not deleted. Latest saved state is shown." });
+        window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT));
+      } else {
+        showToast({ kind: "error", message: "Delete not confirmed. Refresh before trying again." });
+        void refreshTasks();
+      }
+    } finally {
+      pendingTaskIds.current.delete(target.id);
     }
   }
 
-  if (projection.tasks.length === 0) return null;
+  if (projection.tasks.length === 0 && !readError) return null;
 
   return (
     <>

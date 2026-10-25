@@ -69,6 +69,13 @@ func (s *Store) CreateNote(ctx context.Context, workspaceID string, input worksp
 	if existing != 0 {
 		return workspace.Note{}, workspace.ErrConflict
 	}
+	var noteCount int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=?`, workspaceID).Scan(&noteCount); err != nil {
+		return workspace.Note{}, err
+	}
+	if noteCount >= workspace.MaxNotesPerWorkspace {
+		return workspace.Note{}, workspace.ErrInvalid
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_notes(workspace_id,id,title,document_state,created_at,updated_at,version)
 VALUES (?,?,?,?,?,?,1)`, workspaceID, input.ID, input.Title, document, now, now); err != nil {
 		return workspace.Note{}, err

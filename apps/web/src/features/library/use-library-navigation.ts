@@ -38,6 +38,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const [title, setTitle] = useState("");
   const uncategorized =
@@ -117,7 +118,14 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     try {
       const target = creating;
       if (target.kind === "category") await createCategory(next);
-      else await createWorkspace(next, target.categoryId);
+      else {
+        const pending = pendingWorkspaceCreate.current;
+        const draft = pending?.title === next && pending.categoryId === target.categoryId
+          ? pending : { id: crypto.randomUUID(), title: next, categoryId: target.categoryId };
+        pendingWorkspaceCreate.current = draft;
+        await createWorkspace(next, target.categoryId, draft.id);
+        pendingWorkspaceCreate.current = null;
+      }
 
       setTitle("");
       setCreating(null);
@@ -154,7 +162,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     }
 
     try {
-      await renameWorkspace(workspace.id, nextTitle);
+      await renameWorkspace(workspace.id, nextTitle, workspace.title);
       setEditingWorkspace(null);
       signalLibraryChanged();
     } catch (error) {
@@ -207,7 +215,8 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
 
   async function moveWorkspaceToCategory(categoryId: string, workspaceId: string) {
     try {
-      await moveWorkspace(workspaceId, categoryId);
+      const source = Object.values(children).flat().find((item) => item.id === workspaceId);
+      await moveWorkspace(workspaceId, categoryId, source?.categoryId);
       setChildren({});
       signalLibraryChanged();
     } catch (error) {

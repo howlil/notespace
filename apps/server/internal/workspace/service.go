@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 )
@@ -43,27 +44,15 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 	return s.store.UpdateCategory(ctx, id, title)
 }
 
-func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error) {
+func (s Service) Rename(ctx context.Context, id, title string, expectedTitle ...string) (Workspace, error) {
 	title = strings.TrimSpace(title)
 	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
 		return Workspace{}, ErrInvalid
 	}
-	current, err := s.Get(ctx, id)
-	if err != nil {
-		return Workspace{}, err
-	}
-	return s.Update(ctx, id, Update{
-		Title:      title,
-		Document:   current.Document,
-		Notes:      current.Notes,
-		Canvas:     current.Canvas,
-		References: current.References,
-		SplitRatio: current.SplitRatio,
-		Version:    current.Version,
-	})
+	return s.store.RenameMetadata(ctx, id, title, expectedTitle...)
 }
 
-func (s Service) Move(ctx context.Context, id, categoryID string) (Workspace, error) {
+func (s Service) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (Workspace, error) {
 	if strings.TrimSpace(id) == "" || strings.TrimSpace(categoryID) == "" {
 		return Workspace{}, ErrInvalid
 	}
@@ -74,15 +63,20 @@ func (s Service) Move(ctx context.Context, id, categoryID string) (Workspace, er
 	if !exists {
 		return Workspace{}, ErrNotFound
 	}
-	return s.store.Move(ctx, id, categoryID)
+	return s.store.Move(ctx, id, categoryID, expectedCategory...)
 }
 
-func (s Service) Create(
-	ctx context.Context,
-	title string,
-	categoryID ...string,
-) (Workspace, error) {
+func (s Service) Create(ctx context.Context, title string, categoryID ...string) (Workspace, error) {
+	return s.CreateWithID(ctx, "", title, categoryID...)
+}
+
+// CreateWithID supports a stable client-generated ID for retry after response loss.
+// Legacy callers without an ID retain the server-generated identity.
+func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID ...string) (Workspace, error) {
 	title = strings.TrimSpace(title)
+	if id != "" && (len(id) > 128 || strings.TrimSpace(id) != id || strings.ContainsAny(id, "/\\")) {
+		return Workspace{}, ErrInvalid
+	}
 	if !ValidTitle(title) {
 		return Workspace{}, ErrInvalid
 	}
@@ -97,10 +91,25 @@ func (s Service) Create(
 	if !exists {
 		return Workspace{}, ErrInvalid
 	}
+	if id != "" {
+		existing, err := s.Get(ctx, id)
+		if err == nil {
+			if existing.Title == title && existing.CategoryID == category {
+				return existing, nil
+			}
+			return Workspace{}, ErrConflict
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return Workspace{}, err
+		}
+	}
+	if id == "" {
+		id = rand.Text()
+	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	p := Workspace{
 		Summary: Summary{
-			ID:         rand.Text(),
+			ID:         id,
 			CategoryID: category,
 			Title:      title,
 			CreatedAt:  now,
@@ -115,6 +124,15 @@ func (s Service) Create(
 		SplitRatio:    0.45,
 	}
 	if err := s.store.Create(ctx, p); err != nil {
+		if id != "" {
+			existing, lookupErr := s.Get(ctx, id)
+			if lookupErr == nil {
+				if existing.Title == title && existing.CategoryID == category {
+					return existing, nil
+				}
+				return Workspace{}, ErrConflict
+			}
+		}
 		return Workspace{}, err
 	}
 	return s.Get(ctx, p.ID)

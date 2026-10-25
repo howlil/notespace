@@ -3,7 +3,9 @@ package sqlite
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/workspace"
@@ -39,7 +41,47 @@ func (s *Store) Create(ctx context.Context, p workspace.Workspace) error {
 	return tx.Commit()
 }
 
-func (s *Store) Move(ctx context.Context, id, categoryID string) (workspace.Workspace, error) {
+// Metadata changes never rewrite granular authored Note or Canvas rows.
+func workspaceReadError(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return workspace.ErrNotFound
+	}
+	return err
+}
+
+func (s *Store) RenameMetadata(ctx context.Context, id, title string, expectedTitle ...string) (workspace.Workspace, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	defer tx.Rollback()
+	var currentTitle string
+	if err := tx.QueryRowContext(ctx, `SELECT title FROM projects WHERE id=?`, id).Scan(&currentTitle); err != nil {
+		return workspace.Workspace{}, workspaceReadError(err)
+	}
+	if len(expectedTitle) > 0 && currentTitle != expectedTitle[0] {
+		return workspace.Workspace{}, workspace.ErrConflict
+	}
+	if currentTitle != title {
+		if _, err := tx.ExecContext(ctx, `UPDATE projects SET title=?,updated_at=?,version=version+1 WHERE id=?`, title, time.Now().UTC().Format(time.RFC3339Nano), id); err != nil {
+			return workspace.Workspace{}, err
+		}
+	}
+	value, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	value, err = hydrateGranularProject(ctx, tx, value)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return workspace.Workspace{}, err
+	}
+	return value, nil
+}
+
+func (s *Store) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (workspace.Workspace, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return workspace.Workspace{}, err
@@ -52,19 +94,30 @@ func (s *Store) Move(ctx context.Context, id, categoryID string) (workspace.Work
 	if categoryExists == 0 {
 		return workspace.Workspace{}, workspace.ErrNotFound
 	}
-	moved, err := readProject(tx.QueryRowContext(ctx, `UPDATE projects SET category_id=?,updated_at=? WHERE id=? RETURNING `+columns,
-		categoryID, time.Now().UTC().Format(time.RFC3339Nano), id))
+	var currentCategory string
+	if err := tx.QueryRowContext(ctx, `SELECT category_id FROM projects WHERE id=?`, id).Scan(&currentCategory); err != nil {
+		return workspace.Workspace{}, workspaceReadError(err)
+	}
+	if len(expectedCategory) > 0 && currentCategory != expectedCategory[0] {
+		return workspace.Workspace{}, workspace.ErrConflict
+	}
+	if currentCategory != categoryID {
+		if _, err := tx.ExecContext(ctx, `UPDATE projects SET category_id=?,updated_at=?,version=version+1 WHERE id=?`, categoryID, time.Now().UTC().Format(time.RFC3339Nano), id); err != nil {
+			return workspace.Workspace{}, err
+		}
+	}
+	value, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
-	moved, err = hydrateGranularProject(ctx, tx, moved)
+	value, err = hydrateGranularProject(ctx, tx, value)
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return workspace.Workspace{}, err
 	}
-	return moved, nil
+	return value, nil
 }
 
 func (s *Store) Update(ctx context.Context, id string, u workspace.Update) (workspace.Workspace, error) {

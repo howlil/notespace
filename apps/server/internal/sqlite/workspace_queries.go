@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/workspace"
@@ -68,6 +69,10 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
 	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
 	orderBy := "p.updated_at DESC, p.id"
+	if query.CategoryID != "" {
+		// Stable category browsing: autosave should not shuffle offset pages.
+		orderBy = "p.title COLLATE NOCASE ASC, p.id"
+	}
 	switch query.Sort {
 	case "created":
 		orderBy = "p.created_at DESC, p.id"
@@ -125,6 +130,28 @@ func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQue
 	return page, nil
 }
 
+// GetWorkspaceSnapshot reads metadata and granular authored state in one
+// transaction to avoid mixing different committed revisions.
+func (s *Store) GetWorkspaceSnapshot(ctx context.Context, id string) (workspace.Workspace, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	defer tx.Rollback()
+	value, err := readProject(tx.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	value, err = hydrateGranularProject(ctx, tx, value)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return workspace.Workspace{}, err
+	}
+	return value, nil
+}
+
 func (s *Store) GetWorkspaceRecord(ctx context.Context, id string) (workspace.Workspace, error) {
 	return readProject(s.db.QueryRowContext(ctx, `SELECT `+columns+` FROM projects WHERE id=?`, id))
 }
@@ -138,9 +165,5 @@ func (s *Store) WorkspaceExists(ctx context.Context, id string) (bool, error) {
 }
 
 func (s *Store) Get(ctx context.Context, id string) (workspace.Workspace, error) {
-	value, err := s.GetWorkspaceRecord(ctx, id)
-	if err != nil {
-		return workspace.Workspace{}, err
-	}
-	return hydrateGranularProject(ctx, s.db, value)
+	return s.GetWorkspaceSnapshot(ctx, id)
 }

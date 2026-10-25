@@ -6,6 +6,15 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
+func (a API) getNote(w http.ResponseWriter, r *http.Request) {
+	note, err := a.workspace.GetNote(r.Context(), r.PathValue("id"), r.PathValue("noteId"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	send(w, http.StatusOK, note)
+}
+
 func (a API) createNote(w http.ResponseWriter, r *http.Request) {
 	var body workspace.NoteCreate
 	if !decode(w, r, &body) {

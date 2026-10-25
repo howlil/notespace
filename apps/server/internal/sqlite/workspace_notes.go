@@ -43,6 +43,22 @@ func (s *Store) ListNotes(ctx context.Context, workspaceID string) ([]workspace.
 	return listGranularNotes(ctx, s.db, workspaceID)
 }
 
+func (s *Store) GetNote(ctx context.Context, workspaceID, noteID string) (workspace.Note, error) {
+	var note workspace.Note
+	var encoded string
+	err := s.db.QueryRowContext(ctx, `SELECT id,title,document_state,created_at,updated_at,version FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, noteID).Scan(&note.ID, &note.Title, &encoded, &note.CreatedAt, &note.UpdatedAt, &note.Version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return workspace.Note{}, workspace.ErrNotFound
+	}
+	if err != nil {
+		return workspace.Note{}, err
+	}
+	if err := json.Unmarshal([]byte(encoded), &note.Document); err != nil {
+		return workspace.Note{}, err
+	}
+	return note, nil
+}
+
 func (s *Store) CreateNote(ctx context.Context, workspaceID string, input workspace.NoteCreate) (workspace.Note, error) {
 	document, err := json.Marshal(input.Document)
 	if err != nil {
@@ -61,6 +77,13 @@ func (s *Store) CreateNote(ctx context.Context, workspaceID string, input worksp
 	}
 	if workspaceExists == 0 {
 		return workspace.Note{}, workspace.ErrNotFound
+	}
+	var total int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=?`, workspaceID).Scan(&total); err != nil {
+		return workspace.Note{}, err
+	}
+	if total >= workspace.MaxNotesPerWorkspace {
+		return workspace.Note{}, workspace.ErrInvalid
 	}
 	var existing int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id=? AND id=?`, workspaceID, input.ID).Scan(&existing); err != nil {

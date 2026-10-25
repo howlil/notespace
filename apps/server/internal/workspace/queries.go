@@ -7,6 +7,7 @@ import (
 
 type WorkspaceQueryStore interface {
 	GetWorkspaceRecord(context.Context, string) (Workspace, error)
+	GetWorkspaceSnapshot(context.Context, string) (Workspace, error)
 	WorkspaceExists(context.Context, string) (bool, error)
 }
 
@@ -27,11 +28,7 @@ func (s Service) Get(ctx context.Context, id string) (Workspace, error) {
 	if id == "" {
 		return Workspace{}, ErrInvalid
 	}
-	value, err := s.store.GetWorkspaceRecord(ctx, id)
-	if err != nil {
-		return Workspace{}, err
-	}
-	return s.hydrateGranularState(ctx, value)
+	return s.store.GetWorkspaceSnapshot(ctx, id)
 }
 
 func (s Service) List(ctx context.Context) ([]Summary, error) {

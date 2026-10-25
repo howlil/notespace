@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -70,5 +71,38 @@ func TestCreateNoteRejectsDuplicateIDWithoutOverwriting(t *testing.T) {
 		if note.ID == "note-2" && note.Title != "Second" {
 			t.Fatalf("duplicate create overwrote note: %#v", note)
 		}
+	}
+}
+
+func TestGranularNoteCreationEnforcesWorkspaceCapacity(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "note-capacity.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := workspacepkg.NewService(store)
+	created, err := service.Create(ctx, "Capacity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i < workspacepkg.MaxNotesPerWorkspace; i++ {
+		if _, err := service.CreateNote(ctx, created.ID, workspacepkg.NoteCreate{
+			ID: fmt.Sprintf("note-%03d", i), Title: "More notes", Document: created.Document,
+		}); err != nil {
+			t.Fatalf("create note %d: %v", i, err)
+		}
+	}
+	if _, err := service.CreateNote(ctx, created.ID, workspacepkg.NoteCreate{
+		ID: "note-101", Title: "Exceeds limit", Document: created.Document,
+	}); !errors.Is(err, workspacepkg.ErrInvalid) {
+		t.Fatalf("create 101st note: %v, want ErrInvalid", err)
+	}
+	notes, err := store.ListNotes(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != workspacepkg.MaxNotesPerWorkspace {
+		t.Fatalf("note count = %d", len(notes))
 	}
 }

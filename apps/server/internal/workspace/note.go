@@ -17,6 +17,13 @@ type NoteUpdate struct {
 	Version  int      `json:"version"`
 }
 
+func (s Service) GetNote(ctx context.Context, workspaceID, noteID string) (Note, error) {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(noteID) == "" {
+		return Note{}, ErrInvalid
+	}
+	return s.store.GetNote(ctx, workspaceID, noteID)
+}
+
 func (s Service) CreateNote(ctx context.Context, workspaceID string, input NoteCreate) (Note, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	input.ID = strings.TrimSpace(input.ID)

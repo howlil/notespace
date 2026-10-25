@@ -40,6 +40,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
   const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");
@@ -59,7 +60,12 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     if (!title) return;
     setCreateLoading(true);
     try {
-      const workspace = await createWorkspace(title, newWorkspaceCategoryId);
+      const pending = pendingWorkspaceCreate.current;
+      const draft = pending?.title === title && pending.categoryId === newWorkspaceCategoryId
+        ? pending : { id: crypto.randomUUID(), title, categoryId: newWorkspaceCategoryId };
+      pendingWorkspaceCreate.current = draft;
+      const workspace = await createWorkspace(title, newWorkspaceCategoryId, draft.id);
+      pendingWorkspaceCreate.current = null;
       setRecentlyCreatedWorkspaceId(workspace.id);
 
       if (view === "recent") {
@@ -115,7 +121,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     workspaceRenameSubmitting.current = true;
     setSavingWorkspaceId(workspace.id);
     try {
-      const renamed = await renameWorkspace(workspace.id, value);
+      const renamed = await renameWorkspace(workspace.id, value, workspace.title);
       replaceWorkspaceInLists(renamed);
       setEditingWorkspaceId(null);
       setWorkspaceTitleDraft("");

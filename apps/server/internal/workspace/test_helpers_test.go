@@ -21,6 +21,7 @@ type workspaceTestStore struct {
 	workspaceExistsErr      error
 	notes                   []Note
 	notesErr                error
+	getNoteErr              error
 	listNotesCalls          int
 	canvas                  CanvasState
 	canvasErr               error
@@ -90,7 +91,7 @@ func (s *workspaceTestStore) ListRecent(context.Context, int) ([]Summary, error)
 func (s *workspaceTestStore) ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error) {
 	return WorkspacePage{}, nil
 }
-func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string) (Workspace, error) {
+func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string, _ ...string) (Workspace, error) {
 	s.moveID, s.moveCategoryID = id, categoryID
 	if s.moveErr != nil {
 		return Workspace{}, s.moveErr
@@ -101,6 +102,13 @@ func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string) (Wor
 	value := s.record
 	value.CategoryID = categoryID
 	return value, nil
+}
+func (s *workspaceTestStore) RenameMetadata(_ context.Context, id, title string, _ ...string) (Workspace, error) {
+	s.updateID, s.updateInput.Title = id, title
+	value := s.record
+	value.Title = title
+	value.Version++
+	return value, s.updateErr
 }
 func (s *workspaceTestStore) Update(_ context.Context, id string, input Update) (Workspace, error) {
 	s.updateID, s.updateInput = id, input
@@ -122,6 +130,17 @@ func (s *workspaceTestStore) ListNotes(context.Context, string) ([]Note, error) 
 func (s *workspaceTestStore) GetCanvasState(context.Context, string) (CanvasState, error) {
 	s.getCanvasCalls++
 	return s.canvas, s.canvasErr
+}
+func (s *workspaceTestStore) GetNote(_ context.Context, _, id string) (Note, error) {
+	if s.getNoteErr != nil {
+		return Note{}, s.getNoteErr
+	}
+	for _, note := range s.notes {
+		if note.ID == id {
+			return note, nil
+		}
+	}
+	return Note{}, ErrNotFound
 }
 func (s *workspaceTestStore) CreateNote(_ context.Context, workspaceID string, input NoteCreate) (Note, error) {
 	s.createNoteWorkspaceID, s.createNoteInput = workspaceID, input
@@ -157,8 +176,21 @@ func (s *workspaceTestStore) UpdateCanvas(_ context.Context, workspaceID string,
 	}
 	return CanvasState{Canvas: input.Canvas, Version: input.Version + 1}, nil
 }
+func (s *workspaceTestStore) GetWorkspaceSnapshot(ctx context.Context, id string) (Workspace, error) {
+	value, err := s.GetWorkspaceRecord(ctx, id)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return NewService(s).hydrateGranularState(ctx, value)
+}
 func (s *workspaceTestStore) GetWorkspaceRecord(context.Context, string) (Workspace, error) {
-	return s.record, s.recordErr
+	if s.recordErr != nil {
+		return Workspace{}, s.recordErr
+	}
+	if s.record.ID == "" {
+		return Workspace{}, ErrNotFound
+	}
+	return s.record, nil
 }
 func (s *workspaceTestStore) WorkspaceExists(context.Context, string) (bool, error) {
 	return s.workspaceExists, s.workspaceExistsErr

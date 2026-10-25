@@ -45,13 +45,14 @@ func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (a API) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		ID         string `json:"id"`
 		Title      string `json:"title"`
 		CategoryID string `json:"categoryId"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.workspace.Create(r.Context(), body.Title, body.CategoryID)
+	p, err := a.workspace.CreateWithID(r.Context(), body.ID, body.Title, body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return
@@ -88,12 +89,17 @@ func (a API) update(w http.ResponseWriter, r *http.Request) {
 
 func (a API) rename(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Title string `json:"title"`
+		Title         string  `json:"title"`
+		ExpectedTitle *string `json:"expectedTitle"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title)
+	var expected []string
+	if body.ExpectedTitle != nil {
+		expected = append(expected, *body.ExpectedTitle)
+	}
+	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title, expected...)
 	if err != nil {
 		fail(w, err)
 		return
@@ -103,12 +109,17 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 
 func (a API) move(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		CategoryID string `json:"categoryId"`
+		CategoryID         string  `json:"categoryId"`
+		ExpectedCategoryID *string `json:"expectedCategoryId"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID)
+	var expected []string
+	if body.ExpectedCategoryID != nil {
+		expected = append(expected, *body.ExpectedCategoryID)
+	}
+	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID, expected...)
 	if err != nil {
 		fail(w, err)
 		return

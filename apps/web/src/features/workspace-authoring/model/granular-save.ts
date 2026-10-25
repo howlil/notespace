@@ -1,5 +1,6 @@
 import {
   getWorkspaceCanvas,
+  getWorkspaceNote,
   updateWorkspaceCanvas,
   updateWorkspaceNote,
 } from "../../../adapters/http/workspace-api";
@@ -14,6 +15,7 @@ import {
 export { GranularConflictError } from "./granular-save-core";
 
 const defaultGranularSaveDependencies: GranularSaveDependencies = {
+  getNote: getWorkspaceNote,
   updateNote: updateWorkspaceNote,
   getCanvas: getWorkspaceCanvas,
   updateCanvas: updateWorkspaceCanvas,

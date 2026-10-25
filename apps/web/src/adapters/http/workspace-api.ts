@@ -1,3 +1,4 @@
+import { UNCATEGORIZED_CATEGORY_ID } from "../../domain/workspace/workspace.ts";
 import type {
   CategorySummary,
   Note,
@@ -24,6 +25,7 @@ export type TrashWorkspace = { id: string; categoryId: string; title: string; de
 export interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;
   updateWorkspaceSnapshot(id: string, content: WorkspaceContent, version: number): Promise<Workspace>;
+  getWorkspaceNote(workspaceId: string, noteId: string): Promise<Note>;
   createWorkspaceNote(workspaceId: string, input: { id: string; title: string; document: Snapshot }): Promise<Note>;
   updateWorkspaceNote(workspaceId: string, noteId: string, input: { title: string; document: Snapshot; version: number }): Promise<Note>;
   deleteWorkspaceNote(workspaceId: string, noteId: string, version: number): Promise<void>;
@@ -32,13 +34,13 @@ export interface WorkspaceHttpClient {
   listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number }): Promise<WorkspacePage>;
   listCategories(): Promise<CategorySummary[]>;
   listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number }): Promise<WorkspacePage>;
-  createWorkspace(title: string, categoryId?: string): Promise<Workspace>;
+  createWorkspace(title: string, categoryId?: string, creationId?: string): Promise<Workspace>;
   createCategory(title: string): Promise<CategorySummary>;
   updateCategory(id: string, title: string): Promise<CategorySummary>;
   deleteCategory(id: string): Promise<void>;
-  renameWorkspace(id: string, title: string): Promise<Workspace>;
+  renameWorkspace(id: string, title: string, expectedTitle?: string): Promise<Workspace>;
   deleteWorkspace(id: string, expectedVersion: number): Promise<void>;
-  moveWorkspace(id: string, categoryId: string): Promise<Workspace>;
+  moveWorkspace(id: string, categoryId: string, expectedCategoryId?: string): Promise<Workspace>;
   searchNotespace(query: string): Promise<SearchResult[]>;
   listTrash(): Promise<TrashWorkspace[]>;
   restoreTrashedWorkspace(id: string): Promise<Workspace>;
@@ -66,6 +68,9 @@ export function createWorkspaceHttpClient(
         },
         transport,
       ),
+
+    getWorkspaceNote: (workspaceId, noteId) =>
+      request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, undefined, transport),
 
     createWorkspaceNote: (workspaceId, input) =>
       request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes`, {
@@ -120,11 +125,22 @@ export function createWorkspaceHttpClient(
       );
     },
 
-    createWorkspace: (title, categoryId) =>
-      request<Workspace>("/api/workspaces", {
-        method: "POST",
-        ...json({ title, ...(categoryId ? { categoryId } : {}) }),
-      }, transport),
+    createWorkspace: async (title, categoryId, creationId = crypto.randomUUID()) => {
+      try {
+        return await request<Workspace>("/api/workspaces", {
+          method: "POST",
+          ...json({ id: creationId, title, ...(categoryId ? { categoryId } : {}) }),
+        }, transport);
+      } catch (error) {
+        try {
+          const saved = await request<Workspace>(`/api/workspaces/${encodeURIComponent(creationId)}`, undefined, transport);
+          if (saved.title === title.trim() && saved.categoryId === (categoryId || UNCATEGORIZED_CATEGORY_ID)) {
+            return saved;
+          }
+        } catch { /* Unknown read: caller must keep its creation ID for retry. */ }
+        throw error;
+      }
+    },
 
     createCategory: (title) =>
       request<CategorySummary>("/api/categories", {
@@ -143,10 +159,10 @@ export function createWorkspaceHttpClient(
         method: "DELETE",
       }, transport),
 
-    renameWorkspace: (id, title) =>
+    renameWorkspace: (id, title, expectedTitle) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/title`, {
         method: "PATCH",
-        ...json({ title }),
+        ...json({ title, ...(expectedTitle === undefined ? {} : { expectedTitle }) }),
       }, transport),
 
     deleteWorkspace: (id, expectedVersion) =>
@@ -155,10 +171,10 @@ export function createWorkspaceHttpClient(
         headers: { "If-Match": `"${expectedVersion}"` },
       }, transport),
 
-    moveWorkspace: (id, categoryId) =>
+    moveWorkspace: (id, categoryId, expectedCategoryId) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/category`, {
         method: "PATCH",
-        ...json({ categoryId }),
+        ...json({ categoryId, ...(expectedCategoryId === undefined ? {} : { expectedCategoryId }) }),
       }, transport),
 
     searchNotespace: (query) =>
@@ -195,6 +211,7 @@ const defaultWorkspaceClient = createWorkspaceHttpClient();
 
 export const getWorkspace = defaultWorkspaceClient.getWorkspace;
 export const updateWorkspaceSnapshot = defaultWorkspaceClient.updateWorkspaceSnapshot;
+export const getWorkspaceNote = defaultWorkspaceClient.getWorkspaceNote;
 export const createWorkspaceNote = defaultWorkspaceClient.createWorkspaceNote;
 export const updateWorkspaceNote = defaultWorkspaceClient.updateWorkspaceNote;
 export const deleteWorkspaceNote = defaultWorkspaceClient.deleteWorkspaceNote;

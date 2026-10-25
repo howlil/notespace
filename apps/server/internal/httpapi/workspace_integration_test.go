@@ -137,3 +137,51 @@ func TestWorkspaceGranularMissingResourceDoesNotCreateData(t *testing.T) {
 		t.Fatalf("missing resource request created data: %s", list.Body.String())
 	}
 }
+
+func TestClientWorkspaceCreateIdentityIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "workspace-create-retry.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+	input := map[string]string{"id": "client-generated-workspace-1", "title": "Retry durable creation"}
+	first := call(t, api, http.MethodPost, "/api/workspaces", input)
+	expect(t, first, http.StatusCreated)
+	created := decodeWorkspace(t, first)
+	retry := call(t, api, http.MethodPost, "/api/workspaces", input)
+	expect(t, retry, http.StatusCreated)
+	if got := decodeWorkspace(t, retry); got.ID != created.ID || got.Notes[0].ID != created.Notes[0].ID {
+		t.Fatalf("idempotent retry changed identity: %#v", got)
+	}
+	expect(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{
+		"id": created.ID, "title": "Different command",
+	}), http.StatusConflict)
+	page, err := workspacepkg.NewService(store).ListWorkspaces(ctx, workspacepkg.WorkspaceQuery{Limit: 10})
+	if err != nil || page.Total != 1 {
+		t.Fatalf("duplicate workspace created: total=%d error=%v", page.Total, err)
+	}
+}
+
+func TestReadSpecificNoteByWorkspaceIdentity(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "get-note.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+	p := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Note read"}))
+	noteID := p.Notes[0].ID
+	response := call(t, api, http.MethodGet, "/api/workspaces/"+p.ID+"/notes/"+noteID, nil)
+	expect(t, response, http.StatusOK)
+	var saved workspacepkg.Note
+	if err := json.Unmarshal(response.Body.Bytes(), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.ID != noteID || saved.Version != p.Notes[0].Version {
+		t.Fatalf("note response = %+v", saved)
+	}
+	expect(t, call(t, api, http.MethodGet, "/api/workspaces/"+p.ID+"/notes/no-such-note", nil), http.StatusNotFound)
+}

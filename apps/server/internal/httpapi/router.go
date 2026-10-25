@@ -83,6 +83,7 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/workspaces/{id}", a.get)
 	mux.HandleFunc("PATCH /api/projects/{id}", a.update)
 	mux.HandleFunc("PATCH /api/workspaces/{id}", a.update)
+	mux.HandleFunc("GET /api/workspaces/{id}/notes/{noteId}", a.getNote)
 	mux.HandleFunc("POST /api/workspaces/{id}/notes", a.createNote)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/notes/{noteId}", a.updateNote)
 	mux.HandleFunc("DELETE /api/workspaces/{id}/notes/{noteId}", a.deleteNote)

@@ -11,6 +11,7 @@ export type GranularCanvasState = {
 };
 
 export type GranularSaveDependencies = {
+  getNote: (workspaceId: string, noteId: string) => Promise<Note>;
   updateNote: (
     workspaceId: string,
     noteId: string,
@@ -46,6 +47,17 @@ export async function saveWorkspaceNoteWith(
       version,
     });
   } catch (error) {
+    // A successful commit may lose its HTTP response. Read the exact Note before
+    // claiming failure; never replay the PATCH with a stale optimistic version.
+    try {
+      const latest = await deps.getNote(workspaceId, noteId);
+      if (latest.version === version + 1 && latest.title === value.title
+        && JSON.stringify(latest.document) === JSON.stringify(value.document)) {
+        return latest;
+      }
+    } catch {
+      // Preserve the original error if the verification read is unavailable.
+    }
     if (error instanceof APIError && error.status === 409) {
       deps.publishConflict({
         kind: "note",

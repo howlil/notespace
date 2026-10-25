@@ -38,7 +38,7 @@ export interface WorkspaceHttpClient {
   deleteCategory(id: string): Promise<void>;
   renameWorkspace(id: string, title: string, expectedTitle?: string): Promise<Workspace>;
   deleteWorkspace(id: string, expectedVersion: number): Promise<void>;
-  moveWorkspace(id: string, categoryId: string): Promise<Workspace>;
+  moveWorkspace(id: string, categoryId: string, expectedCategoryId?: string): Promise<Workspace>;
   searchNotespace(query: string): Promise<SearchResult[]>;
   listTrash(): Promise<TrashWorkspace[]>;
   restoreTrashedWorkspace(id: string): Promise<Workspace>;

@@ -44,23 +44,9 @@ func (s Service) UpdateCategory(ctx context.Context, id, title string) (Category
 }
 
 func (s Service) Rename(ctx context.Context, id, title string) (Workspace, error) {
-	title = strings.TrimSpace(title)
-	if strings.TrimSpace(id) == "" || !ValidTitle(title) {
-		return Workspace{}, ErrInvalid
-	}
-	current, err := s.Get(ctx, id)
-	if err != nil {
-		return Workspace{}, err
-	}
-	return s.Update(ctx, id, Update{
-		Title:      title,
-		Document:   current.Document,
-		Notes:      current.Notes,
-		Canvas:     current.Canvas,
-		References: current.References,
-		SplitRatio: current.SplitRatio,
-		Version:    current.Version,
-	})
+ title = strings.TrimSpace(title)
+ if strings.TrimSpace(id) == "" || !ValidTitle(title) { return Workspace{}, ErrInvalid }
+ return s.store.RenameWorkspace(ctx, id, title)
 }
 
 func (s Service) Move(ctx context.Context, id, categoryID string) (Workspace, error) {

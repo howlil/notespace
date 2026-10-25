@@ -58,6 +58,8 @@ export function createPlanningHttpClient(transport: HttpTransport = fetchTranspo
     getInbox: () =>
       request<InboxProjection>("/api/tasks/inbox", undefined, transport),
 
+    getUnassignedTasks: () => request<InboxProjection>("/api/tasks/unassigned", undefined, transport),
+
     getAnyTask: (taskId: string) =>
       request<PlanningTask>(`/api/tasks/${encodeURIComponent(taskId)}`, undefined, transport),
 
@@ -94,6 +96,7 @@ export const updateTask = defaultPlanningClient.updateTask;
 export const deleteTask = defaultPlanningClient.deleteTask;
 export const getToday = defaultPlanningClient.getToday;
 export const getInbox = defaultPlanningClient.getInbox;
+export const getUnassignedTasks = defaultPlanningClient.getUnassignedTasks;
 export const getAnyTask = defaultPlanningClient.getAnyTask;
 export const updateAnyTask = defaultPlanningClient.updateAnyTask;
 export const deleteAnyTask = defaultPlanningClient.deleteAnyTask;

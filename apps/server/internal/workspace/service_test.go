@@ -3,7 +3,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 )
 
@@ -39,26 +38,22 @@ func TestServiceCreateRejectsUnknownCategory(t *testing.T) {
 	}
 }
 
-func TestServiceRenameBuildsCompleteUpdateFromCurrentWorkspace(t *testing.T) {
+func TestServiceRenameDoesNotRewriteGranularAuthoredState(t *testing.T) {
 	current := validWorkspaceFixture()
-	current.References = []Reference{{ID: "ref-1", BlockID: "block-1", ElementID: "element-1"}}
 	store := &workspaceTestStore{
 		record: current,
-		notes:  append([]Note(nil), current.Notes...),
+		notes: append([]Note(nil), current.Notes...),
 		canvas: CanvasState{Canvas: current.Canvas, Version: current.CanvasVersion},
 	}
-	got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ")
+	got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ", current.Title)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if store.updateID != current.ID || store.updateInput.Title != "Renamed" {
-		t.Fatalf("update call = %#v", store.updateInput)
+		t.Fatalf("metadata update = %#v", store.updateInput)
 	}
-	if store.updateInput.Version != current.Version {
-		t.Fatalf("version = %d", store.updateInput.Version)
-	}
-	if !reflect.DeepEqual(store.updateInput.Notes, current.Notes) || !reflect.DeepEqual(store.updateInput.References, current.References) {
-		t.Fatalf("rename lost authored state: %#v", store.updateInput)
+	if store.updateInput.Version != 0 || len(store.updateInput.Notes) != 0 || len(store.updateInput.Canvas.Data) != 0 {
+		t.Fatal("rename must never send aggregate authored state")
 	}
 	if got.Title != "Renamed" {
 		t.Fatalf("renamed title = %q", got.Title)

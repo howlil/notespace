@@ -163,3 +163,25 @@ func TestClientWorkspaceCreateIdentityIsIdempotent(t *testing.T) {
 		t.Fatalf("duplicate workspace created: total=%d error=%v", page.Total, err)
 	}
 }
+
+func TestReadSpecificNoteByWorkspaceIdentity(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "get-note.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+	p := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Note read"}))
+	noteID := p.Notes[0].ID
+	response := call(t, api, http.MethodGet, "/api/workspaces/"+p.ID+"/notes/"+noteID, nil)
+	expect(t, response, http.StatusOK)
+	var saved workspacepkg.Note
+	if err := json.Unmarshal(response.Body.Bytes(), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.ID != noteID || saved.Version != p.Notes[0].Version {
+		t.Fatalf("note response = %+v", saved)
+	}
+	expect(t, call(t, api, http.MethodGet, "/api/workspaces/"+p.ID+"/notes/no-such-note", nil), http.StatusNotFound)
+}

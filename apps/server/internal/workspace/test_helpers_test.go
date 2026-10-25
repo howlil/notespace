@@ -102,6 +102,13 @@ func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string, _ ..
 	value.CategoryID = categoryID
 	return value, nil
 }
+func (s *workspaceTestStore) RenameMetadata(_ context.Context, id, title string, _ ...string) (Workspace, error) {
+	s.updateID, s.updateInput.Title = id, title
+	value := s.record
+	value.Title = title
+	value.Version++
+	return value, s.updateErr
+}
 func (s *workspaceTestStore) Update(_ context.Context, id string, input Update) (Workspace, error) {
 	s.updateID, s.updateInput = id, input
 	if s.updateErr != nil {

@@ -182,7 +182,13 @@ func (s *workspaceTestStore) GetWorkspaceSnapshot(ctx context.Context, id string
 	return NewService(s).hydrateGranularState(ctx, value)
 }
 func (s *workspaceTestStore) GetWorkspaceRecord(context.Context, string) (Workspace, error) {
-	return s.record, s.recordErr
+	if s.recordErr != nil {
+		return Workspace{}, s.recordErr
+	}
+	if s.record.ID == "" {
+		return Workspace{}, ErrNotFound
+	}
+	return s.record, nil
 }
 func (s *workspaceTestStore) WorkspaceExists(context.Context, string) (bool, error) {
 	return s.workspaceExists, s.workspaceExistsErr

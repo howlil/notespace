@@ -44,7 +44,26 @@ test("Category page navigation retains one listing snapshot across a remote rena
     await expect(lastLink).toBeVisible();
     await expect(pagination).toContainText("51–51 of 51");
 
-    // Explicit re-filtering starts a fresh traversal with current membership.
+    // A 409 when returning to offset zero must restart, not trap the UI
+    // with a stale token and a Retry button that repeats the same request.
+    const categoryPath = `**/api/categories/${category.id}/workspaces?*`;
+    let expiredOnce = false;
+    await page.route(categoryPath, async (route) => {
+      const params = new URL(route.request().url()).searchParams;
+      const snapshot = params.get("snapshot");
+      if (!expiredOnce && snapshot && snapshot !== "start" && !params.get("offset")) {
+        expiredOnce = true;
+        await route.fulfill({ status: 409, contentType: "application/json", body: '{"error":"Snapshot expired"}' });
+        return;
+      }
+      await route.continue();
+    });
+    await pagination.getByRole("button", { name: "Previous" }).click();
+    await expect(page.getByRole("link", { name: `Open Page -1 ${suffix}` })).toBeVisible();
+    expect(expiredOnce).toBe(true);
+    await page.unroute(categoryPath);
+
+    // Explicit re-filtering also starts a fresh traversal.
     await page.getByRole("combobox", { name: "Sort category workspaces" }).selectOption("name");
     await expect(page.getByRole("link", { name: `Open Page -1 ${suffix}` })).toBeVisible();
   } finally {

@@ -44,6 +44,7 @@ function harness(overrides: Partial<GranularSaveDependencies> = {}) {
     getCanvas: 0,
   };
   const deps: GranularSaveDependencies = {
+    getNote: async () => note(2),
     updateNote: async (_workspaceId, _noteId, input) => {
       calls.noteVersions.push(input.version);
       return { ...note(input.version + 1), title: input.title, document: input.document };

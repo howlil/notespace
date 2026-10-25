@@ -30,8 +30,10 @@ func ValidateHistorySnapshot(snapshot HistorySnapshot) error {
 	return nil
 }
 
+const MaxNotesPerWorkspace = 100
+
 func validNotes(notes []Note) bool {
-	if len(notes) == 0 || len(notes) > 100 {
+	if len(notes) == 0 || len(notes) > MaxNotesPerWorkspace {
 		return false
 	}
 	seen := map[string]bool{}

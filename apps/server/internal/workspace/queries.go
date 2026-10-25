@@ -7,6 +7,7 @@ import (
 
 type WorkspaceQueryStore interface {
 	GetWorkspaceRecord(context.Context, string) (Workspace, error)
+	GetWorkspaceSnapshot(context.Context, string) (Workspace, error)
 	WorkspaceExists(context.Context, string) (bool, error)
 }
 

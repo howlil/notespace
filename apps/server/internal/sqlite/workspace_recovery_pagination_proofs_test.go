@@ -142,9 +142,9 @@ func TestCategoryWorkspacePaginationRemainsStableAcrossGranularAutosave(t *testi
 	first := read(0)
 	last := entries["Echo"]
 	if _, err := service.UpdateNote(ctx, last.ID, last.Notes[0].ID, workspacepkg.NoteUpdate{
-		Title: last.Notes[0].Title,
+		Title:    last.Notes[0].Title,
 		Document: granularDocument(fmt.Sprintf("edited after first page: %s", last.ID)),
-		Version: last.Notes[0].Version,
+		Version:  last.Notes[0].Version,
 	}); err != nil {
 		t.Fatal(err)
 	}

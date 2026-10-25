@@ -21,6 +21,7 @@ type workspaceTestStore struct {
 	workspaceExistsErr      error
 	notes                   []Note
 	notesErr                error
+	getNoteErr              error
 	listNotesCalls          int
 	canvas                  CanvasState
 	canvasErr               error

@@ -118,7 +118,7 @@ func (a API) move(w http.ResponseWriter, r *http.Request) {
 	if body.ExpectedCategoryID != nil {
 		expected = append(expected, *body.ExpectedCategoryID)
 	}
-	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID)
+	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID, expected...)
 	if err != nil {
 		fail(w, err)
 		return

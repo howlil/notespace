@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   acknowledgeActivityFinalization,
+  discardDeletedActivitySession,
   enqueueActivityFinalization,
   readActivityRecovery,
   removeActivityHandoff,
@@ -65,6 +66,38 @@ test("activity recovery keeps independent finalizations and dedupes acknowledgem
 
     assert.equal(acknowledgeActivityFinalization("session-b"), true);
     assert.equal(removeActivityHandoff("task-a"), true);
+    assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: [] });
+  });
+});
+
+test("deleted activity discards all pending day segments without clearing other sessions", () => {
+  withFakeStorage(() => {
+    assert.equal(enqueueActivityFinalization(finalization("removed:2026-10-25", 60, "task-1")), true);
+    assert.equal(enqueueActivityFinalization(finalization("kept:2026-10-26", 120, "task-2")), true);
+    assert.equal(enqueueActivityFinalization(finalization("removed:2026-10-26", 90, "task-1")), true);
+
+    assert.equal(discardDeletedActivitySession("removed"), true);
+    assert.deepEqual(
+      readActivityRecovery().finalizations.map((item) => item.sessionId),
+      ["kept:2026-10-26"],
+    );
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
+
+    // A late success response for a request sent before deletion must
+    // never regenerate a Task handoff after its outbox entry was discarded.
+    assert.equal(acknowledgeActivityFinalization("removed:2026-10-26", "task-1"), true);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
+
+    assert.equal(acknowledgeActivityFinalization("kept:2026-10-26", "task-2"), true);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, ["task-2"]);
+  });
+});
+
+test("deleted Activity can be dropped from recovery by a rejected segment ID", () => {
+  withFakeStorage(() => {
+    assert.equal(enqueueActivityFinalization(finalization("removed:2026-10-25", 60)), true);
+    assert.equal(enqueueActivityFinalization(finalization("removed:2026-10-26", 90)), true);
+    assert.equal(discardDeletedActivitySession("removed:2026-10-25"), true);
     assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: [] });
   });
 });

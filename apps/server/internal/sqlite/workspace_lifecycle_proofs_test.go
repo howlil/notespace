@@ -16,18 +16,25 @@ import (
 func TestConcurrentNoteWriteAndWorkspaceTrashHaveNoPartialOutcome(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "trash-note-race.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	service := workspacepkg.NewService(store)
 
 	for i := 0; i < 8; i++ {
 		created, err := service.Create(ctx, fmt.Sprintf("Trash race %d", i))
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		original := created.Notes[0]
 		newDocument := granularDocument(fmt.Sprintf("concurrent-draft-%d", i))
 
 		start := make(chan struct{})
-		type updateResult struct { note workspacepkg.Note; err error }
+		type updateResult struct {
+			note workspacepkg.Note
+			err  error
+		}
 		updates := make(chan updateResult, 1)
 		trashes := make(chan error, 1)
 		go func() {
@@ -48,7 +55,9 @@ func TestConcurrentNoteWriteAndWorkspaceTrashHaveNoPartialOutcome(t *testing.T) 
 		switch {
 		case update.err == nil && errors.Is(trashErr, workspacepkg.ErrConflict):
 			active, getErr := service.Get(ctx, created.ID)
-			if getErr != nil { t.Fatal(getErr) }
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
 			if len(active.Notes) != 1 || active.Version != created.Version+1 ||
 				active.Notes[0].Version != update.note.Version ||
 				string(active.Notes[0].Document.Data) != string(newDocument.Data) {
@@ -59,7 +68,9 @@ func TestConcurrentNoteWriteAndWorkspaceTrashHaveNoPartialOutcome(t *testing.T) 
 				t.Fatalf("trashed Workspace still visible: %v", getErr)
 			}
 			restored, restoreErr := store.RestoreTrashedWorkspace(ctx, created.ID)
-			if restoreErr != nil { t.Fatal(restoreErr) }
+			if restoreErr != nil {
+				t.Fatal(restoreErr)
+			}
 			if len(restored.Notes) != 1 || restored.Notes[0].ID != original.ID ||
 				restored.Notes[0].Version != original.Version ||
 				string(restored.Notes[0].Document.Data) != string(original.Document.Data) {

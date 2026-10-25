@@ -95,3 +95,64 @@ test("M3 failed deletion keeps the target Note and the active editor unchanged",
     await cleanupWorkspace(request, id);
   }
 });
+
+test("Note create and delete reconcile a lost response after the server has committed", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, "Note ambiguous response recovery");
+  const createPath = `**/api/workspaces/${id}/notes`;
+  const deletePath = `**/api/workspaces/${id}/notes/*`;
+  let committedCreates = 0;
+  let committedDeletes = 0;
+  try {
+    await selectView(page, "Note");
+    await page.route(createPath, async (route) => {
+      if (route.request().method() !== "POST") { await route.continue(); return; }
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(201);
+      committedCreates += 1;
+      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"response lost"}' });
+    });
+
+    const pane = page.locator('section[aria-label$="note pane"]').first();
+    await pane.getByRole("button", { name: "New note" }).click();
+    const input = pane.getByRole("textbox", { name: "Note title" });
+    await expect(input).toBeFocused();
+    await input.fill("Recovered Note");
+    await input.press("Enter");
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
+
+    const picker = pane.locator("details.pane-note-switcher");
+    await picker.locator("summary").click();
+    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(2);
+    await expect.poll(async () => {
+      const response = await request.get(`/api/workspaces/${id}`);
+      const data = await response.json() as { notes: Array<{ title: string }> };
+      return data.notes.filter((note) => note.title === "Recovered Note").length;
+    }).toBe(1);
+    expect(committedCreates).toBe(1);
+
+    await page.route(deletePath, async (route) => {
+      if (route.request().method() !== "DELETE") { await route.continue(); return; }
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(204);
+      committedDeletes += 1;
+      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"response lost"}' });
+    });
+
+    await pane.getByRole("button", { name: "Delete note Recovered Note" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete note", exact: true }).click();
+    await expect.poll(async () => {
+      const response = await request.get(`/api/workspaces/${id}`);
+      const data = await response.json() as { notes: Array<{ title: string }> };
+      return data.notes.length;
+    }).toBe(1);
+    await expect(pane.locator("details.pane-note-switcher").locator("summary")).not.toContainText("Recovered Note");
+    expect(committedDeletes).toBe(1);
+    await page.reload();
+    const reloaded = await (await request.get(`/api/workspaces/${id}`)).json() as { notes: Array<{ title: string }> };
+    expect(reloaded.notes).toHaveLength(1);
+  } finally {
+    await page.unroute(createPath);
+    await page.unroute(deletePath);
+    await cleanupWorkspace(request, id);
+  }
+});

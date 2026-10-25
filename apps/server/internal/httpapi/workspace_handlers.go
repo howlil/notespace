@@ -45,13 +45,14 @@ func (a API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (a API) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		ID         string `json:"id"`
 		Title      string `json:"title"`
 		CategoryID string `json:"categoryId"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	p, err := a.workspace.Create(r.Context(), body.Title, body.CategoryID)
+	p, err := a.workspace.CreateWithID(r.Context(), body.ID, body.Title, body.CategoryID)
 	if err != nil {
 		fail(w, err)
 		return

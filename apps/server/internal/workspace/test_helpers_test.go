@@ -90,7 +90,7 @@ func (s *workspaceTestStore) ListRecent(context.Context, int) ([]Summary, error)
 func (s *workspaceTestStore) ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error) {
 	return WorkspacePage{}, nil
 }
-func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string) (Workspace, error) {
+func (s *workspaceTestStore) Move(_ context.Context, id, categoryID string, _ ...string) (Workspace, error) {
 	s.moveID, s.moveCategoryID = id, categoryID
 	if s.moveErr != nil {
 		return Workspace{}, s.moveErr

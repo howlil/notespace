@@ -108,10 +108,15 @@ func (a API) rename(w http.ResponseWriter, r *http.Request) {
 
 func (a API) move(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		CategoryID string `json:"categoryId"`
+		CategoryID         string  `json:"categoryId"`
+		ExpectedCategoryID *string `json:"expectedCategoryId"`
 	}
 	if !decode(w, r, &body) {
 		return
+	}
+	var expected []string
+	if body.ExpectedCategoryID != nil {
+		expected = append(expected, *body.ExpectedCategoryID)
 	}
 	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID)
 	if err != nil {

@@ -58,13 +58,13 @@ test("activity recovery keeps independent finalizations and dedupes acknowledgem
       [["session-b", 20], ["session-a", 15]],
     );
 
-    assert.equal(acknowledgeActivityFinalization("session-a", "task-a"), true);
-    assert.equal(acknowledgeActivityFinalization("session-a", "task-a"), true);
+    assert.equal(acknowledgeActivityFinalization(finalization("session-a", 15, "task-a")), true);
+    assert.equal(acknowledgeActivityFinalization(finalization("session-a", 15, "task-a")), true);
     state = readActivityRecovery();
     assert.deepEqual(state.finalizations.map((item) => item.sessionId), ["session-b"]);
     assert.deepEqual(state.handoffTaskIds, ["task-a"]);
 
-    assert.equal(acknowledgeActivityFinalization("session-b"), true);
+    assert.equal(acknowledgeActivityFinalization(finalization("session-b", 20)), true);
     assert.equal(removeActivityHandoff("task-a"), true);
     assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: [] });
   });
@@ -85,10 +85,10 @@ test("deleted activity discards all pending day segments without clearing other 
 
     // A late success response for a request sent before deletion must
     // never regenerate a Task handoff after its outbox entry was discarded.
-    assert.equal(acknowledgeActivityFinalization("removed:2026-10-26", "task-1"), true);
+    assert.equal(acknowledgeActivityFinalization(finalization("removed:2026-10-26", 90, "task-1")), true);
     assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
 
-    assert.equal(acknowledgeActivityFinalization("kept:2026-10-26", "task-2"), true);
+    assert.equal(acknowledgeActivityFinalization(finalization("kept:2026-10-26", 120, "task-2")), true);
     assert.deepEqual(readActivityRecovery().handoffTaskIds, ["task-2"]);
   });
 });
@@ -99,5 +99,34 @@ test("deleted Activity can be dropped from recovery by a rejected segment ID", (
     assert.equal(enqueueActivityFinalization(finalization("removed:2026-10-26", 90)), true);
     assert.equal(discardDeletedActivitySession("removed:2026-10-25"), true);
     assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: [] });
+  });
+});
+
+test("late success cannot discard a newer finalization for the same session", () => {
+  withFakeStorage(() => {
+    const oldRequest = finalization("session-a", 10, "task-old");
+    const latest = finalization("session-a", 20, "task-new");
+    assert.equal(enqueueActivityFinalization(oldRequest), true);
+    // The other tab updates the pending segment while the old PUT is in flight.
+    assert.equal(enqueueActivityFinalization(latest), true);
+    assert.equal(acknowledgeActivityFinalization(oldRequest), true);
+    assert.deepEqual(readActivityRecovery(), {
+      finalizations: [latest], handoffTaskIds: [],
+    });
+    assert.equal(acknowledgeActivityFinalization(latest), true);
+    assert.deepEqual(readActivityRecovery(), {
+      finalizations: [], handoffTaskIds: ["task-new"],
+    });
+  });
+});
+
+test("acknowledgement distinguishes other updated heartbeat fields at the same duration", () => {
+  withFakeStorage(() => {
+    const previous = finalization("session-a", 15);
+    const changed = { ...previous, heartbeat: { ...previous.heartbeat, title: "Updated context" } };
+    enqueueActivityFinalization(previous);
+    enqueueActivityFinalization(changed);
+    acknowledgeActivityFinalization(previous);
+    assert.deepEqual(readActivityRecovery().finalizations, [changed]);
   });
 });

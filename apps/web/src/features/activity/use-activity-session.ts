@@ -150,7 +150,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     if (!finalization) return false;
     void recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat)
       .then(() => {
-        acknowledgeActivityFinalization(finalization.sessionId);
+        acknowledgeActivityFinalization(finalization);
       })
       .catch(() => {});
     return true;

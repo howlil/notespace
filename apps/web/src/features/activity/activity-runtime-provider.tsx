@@ -6,6 +6,7 @@ import type { PlanningTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
 import {
   ACTIVITY_RECOVERY_PENDING_EVENT,
+  ACTIVITY_RECOVERY_STORAGE_KEY,
   acknowledgeActivityFinalization,
   discardDeletedActivitySession,
   readActivityRecovery,
@@ -57,10 +58,7 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
       for (const finalization of recovery.finalizations) {
         try {
           await recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat);
-          acknowledgeActivityFinalization(
-            finalization.sessionId,
-            finalization.handoffTaskId,
-          );
+          acknowledgeActivityFinalization(finalization);
         } catch (error) {
           if (error instanceof APIError && error.status === 410) {
             // Deleted sessions are permanently gone; retries cannot restore them.
@@ -125,12 +123,18 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
     };
 
     retry();
+    const retryFromOtherTab = (event: StorageEvent) => {
+      if (event.key === ACTIVITY_RECOVERY_STORAGE_KEY) retry();
+    };
+
     window.addEventListener("online", retry);
     window.addEventListener(ACTIVITY_RECOVERY_PENDING_EVENT, retry);
+    window.addEventListener("storage", retryFromOtherTab);
     document.addEventListener("visibilitychange", retryWhenVisible);
     return () => {
       window.removeEventListener("online", retry);
       window.removeEventListener(ACTIVITY_RECOVERY_PENDING_EVENT, retry);
+      window.removeEventListener("storage", retryFromOtherTab);
       document.removeEventListener("visibilitychange", retryWhenVisible);
     };
   }, [reconcileRecovery]);

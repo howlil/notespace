@@ -145,3 +145,30 @@ func TestResolveReferencesUsesDeletedWorkspaceSnapshot(t *testing.T) {
 		t.Fatalf("title = %q, want workspace snapshot", input.Title)
 	}
 }
+
+func TestResolveReferencesRejectsWorkspaceAttributionForUnassignedTask(t *testing.T) {
+	service := Service{references: referenceFixture{
+		tasks: map[string]TaskRef{
+			"legacy-task": {Title: "Legacy unassigned Task"},
+		},
+		workspaces: map[string]WorkspaceRef{
+			"workspace-1": {Title: "Destination"},
+		},
+	}}
+	input := ActivityHeartbeat{
+		TaskID: "legacy-task", WorkspaceID: "workspace-1",
+		TaskTitleSnapshot: "Legacy unassigned Task",
+		WorkspaceTitleSnapshot: "Destination",
+		ActivityType: "build",
+	}
+	if err := service.resolveReferences(context.Background(), &input); !errors.Is(err, ErrTaskWorkspaceMismatch) {
+		t.Fatalf("unassigned Task was attributed to an unrelated Workspace: %v", err)
+	}
+	legacy := ActivityHeartbeat{TaskID: "legacy-task", ActivityType: "build"}
+	if err := service.resolveReferences(context.Background(), &legacy); err != nil {
+		t.Fatalf("unassigned Task with no Workspace should remain supported for legacy sessions: %v", err)
+	}
+	if legacy.WorkspaceID != "" {
+		t.Fatalf("legacy session silently acquired Workspace %q", legacy.WorkspaceID)
+	}
+}

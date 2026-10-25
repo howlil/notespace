@@ -19,12 +19,16 @@ import (
 func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "concurrent-create.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := newAPI(store)
 
 	payload, err := json.Marshal(map[string]string{"id": "same-client-command", "title": "Same intent"})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	const callers = 8
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -51,11 +55,15 @@ func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing
 			t.Fatalf("concurrent replay status %d: %s", response.Code, response.Body.String())
 		}
 		var created workspacepkg.Workspace
-		if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil { t.Fatal(err) }
+		if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
+			t.Fatal(err)
+		}
 		if created.ID != "same-client-command" || len(created.Notes) != 1 {
 			t.Fatalf("unexpected replay receipt: %+v", created.Summary)
 		}
-		if canonicalNoteID == "" { canonicalNoteID = created.Notes[0].ID }
+		if canonicalNoteID == "" {
+			canonicalNoteID = created.Notes[0].ID
+		}
 		if created.Notes[0].ID != canonicalNoteID {
 			t.Fatalf("two default Notes were created for one command: %q != %q", created.Notes[0].ID, canonicalNoteID)
 		}
@@ -69,12 +77,17 @@ func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing
 func TestWorkspaceCreateIdentityRejectsConcurrentDifferentPayloads(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "concurrent-different-intents.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := newAPI(store)
 
 	start := make(chan struct{})
-	type outcome struct { title string; response *httptest.ResponseRecorder }
+	type outcome struct {
+		title    string
+		response *httptest.ResponseRecorder
+	}
 	results := make(chan outcome, 2)
 	var wg sync.WaitGroup
 	for _, title := range []string{"First intention", "Second intention"} {
@@ -111,9 +124,13 @@ func TestWorkspaceCreateIdentityRejectsConcurrentDifferentPayloads(t *testing.T)
 		t.Fatalf("expected one winner and one conflict, got successes=%d conflicts=%d", successes, conflicts)
 	}
 	persisted := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/reused-id", nil))
-	if persisted.Title != winner { t.Fatalf("winner %q, persisted %q", winner, persisted.Title) }
+	if persisted.Title != winner {
+		t.Fatalf("winner %q, persisted %q", winner, persisted.Title)
+	}
 	page, err := workspacepkg.NewService(store).ListWorkspaces(ctx, workspacepkg.WorkspaceQuery{Limit: 10})
-	if err != nil || page.Total != 1 { t.Fatalf("unexpected workspace count %d: %v", page.Total, err) }
+	if err != nil || page.Total != 1 {
+		t.Fatalf("unexpected workspace count %d: %v", page.Total, err)
+	}
 }
 
 // A Note ID is scoped to its owning Workspace across reads AND writes.
@@ -122,7 +139,9 @@ func TestWorkspaceCreateIdentityRejectsConcurrentDifferentPayloads(t *testing.T)
 func TestNoteRoutesCannotReadOrMutateAnotherWorkspacesNote(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-ownership.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := newAPI(store)
 
@@ -158,7 +177,9 @@ func TestNoteRoutesCannotReadOrMutateAnotherWorkspacesNote(t *testing.T) {
 func TestWorkspaceMetadataNoopsDoNotIncrementVersionOrInvalidateSnapshots(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "metadata-noop.db"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer store.Close()
 	api := newAPI(store)
 	before := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Unchanged"}))

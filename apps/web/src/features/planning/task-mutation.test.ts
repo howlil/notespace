@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { APIError } from "../../adapters/http/client.ts";
 import type { PlanningTask } from "../../domain/planning/planning.ts";
-import { matchesRequestedPatch, reconcileTaskPatch } from "./task-mutation.ts";
+import { matchesRequestedPatch, reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation.ts";
 
 const task = (version = 1): PlanningTask => ({
   id: "t1", workspaceId: "w1", title: "Review", description: "", position: 0,
@@ -45,5 +45,39 @@ test("missing Task and unknown read failure stay distinct", async () => {
     async () => { throw Error("offline"); },
     async () => { throw Error("offline"); });
   assert.equal(missing.status, "missing");
+  assert.equal(unknown.status, "unknown");
+});
+
+test("delete reconciliation confirms an acknowledged delete without reading", async () => {
+  let reads = 0;
+  const result = await reconcileTaskDelete("t1", async () => {}, async () => {
+    reads++;
+    return task();
+  });
+  assert.equal(result.status, "confirmed");
+  assert.equal(reads, 0);
+});
+
+test("delete reconciliation verifies a committed delete after the response is lost", async () => {
+  const result = await reconcileTaskDelete("t1", async () => {
+    throw Error("lost response");
+  }, async () => {
+    throw new APIError(404, "Not found");
+  });
+  assert.equal(result.status, "confirmed");
+});
+
+test("delete reconciliation never claims success while Task exists or verification fails", async () => {
+  const exists = await reconcileTaskDelete("t1", async () => {
+    throw new APIError(409, "Conflict");
+  }, async () => task(2));
+  assert.equal(exists.status, "exists");
+  assert.equal(exists.status === "exists" && exists.task.version, 2);
+
+  const unknown = await reconcileTaskDelete("t1", async () => {
+    throw Error("network failure");
+  }, async () => {
+    throw Error("offline");
+  });
   assert.equal(unknown.status, "unknown");
 });

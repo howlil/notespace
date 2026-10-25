@@ -9,9 +9,11 @@ type Store interface {
 	ListInbox(context.Context) ([]Task, error)
 	ListUnassignedTasks(context.Context) ([]Task, error)
 	CreateMilestone(context.Context, Milestone) (Milestone, error)
+	CreateMilestoneIdempotent(context.Context, Milestone, string) (Milestone, error)
 	UpdateMilestone(context.Context, Milestone) (Milestone, error)
 	DeleteMilestone(context.Context, string, string, int) error
 	CreateTask(context.Context, Task) (Task, error)
+	CreateTaskIdempotent(context.Context, Task, string) (Task, error)
 	AssignStandaloneTask(context.Context, string, string, int, string) (Task, error)
 	UpdateTask(context.Context, Task) (Task, error)
 	DeleteTask(context.Context, string, int) error

@@ -187,3 +187,25 @@ test("granular Canvas save publishes one recovery draft after three unresolved c
   assert.equal(conflicts.length, 1);
   assert.equal((conflicts[0] as { kind: string }).kind, "canvas");
 });
+
+test("lost Note PATCH acknowledgement is reconciled against the persisted version", async () => {
+  const local = document("saved after response loss");
+  const { conflicts, deps } = harness({
+    updateNote: async () => { throw new APIError(503, "response lost"); },
+    getNote: async () => ({ ...note(8), title: "Latest", document: local }),
+  });
+  const saved = await saveWorkspaceNoteWith(deps, "workspace-1", "note-1",
+    { title: "Latest", document: local }, 7);
+  assert.equal(saved.version, 8);
+  assert.equal(conflicts.length, 0);
+});
+
+test("stale Note conflict is never reclassified as success without matching persisted state", async () => {
+  const { conflicts, deps } = harness({
+    updateNote: async () => { throw new APIError(409, "stale"); },
+    getNote: async () => ({ ...note(9), title: "Someone else edited" }),
+  });
+  await assert.rejects(saveWorkspaceNoteWith(deps, "workspace-1", "note-1",
+    { title: "Local", document: document("draft") }, 7), GranularConflictError);
+  assert.equal(conflicts.length, 1);
+});

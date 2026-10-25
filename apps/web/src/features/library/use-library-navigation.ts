@@ -154,7 +154,7 @@ export function useLibraryNavigation({ categories, onChanged }: Options) {
     }
 
     try {
-      await renameWorkspace(workspace.id, nextTitle);
+      await renameWorkspace(workspace.id, nextTitle, workspace.title);
       setEditingWorkspace(null);
       signalLibraryChanged();
     } catch (error) {

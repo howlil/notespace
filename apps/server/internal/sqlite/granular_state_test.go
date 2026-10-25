@@ -166,3 +166,21 @@ func TestGranularWriteInvalidatesStaleAggregateSnapshot(t *testing.T) {
 		t.Fatalf("aggregate revision = %d, want > stale %d", reloaded.Version, stale.Version)
 	}
 }
+
+func TestWorkspaceCanvasSummaryIgnoresDeletedExcalidrawElements(t *testing.T) {
+ ctx := context.Background()
+ store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-tombstone.db"))
+ if err != nil { t.Fatal(err) }
+ defer store.Close()
+ service := workspacepkg.NewService(store)
+ item, err := service.Create(ctx, "Canvas tombstones")
+ if err != nil { t.Fatal(err) }
+ content := workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(
+  `{"elements":[{"id":"deleted","type":"rectangle","isDeleted":true}],"appState":{},"files":{}}`,
+ )}
+ _, err = service.UpdateCanvas(ctx, item.ID, workspacepkg.CanvasUpdate{Canvas: content, Version: item.CanvasVersion})
+ if err != nil { t.Fatal(err) }
+ page, err := service.ListWorkspaces(ctx, workspacepkg.WorkspaceQuery{Offset: 0, Limit: 50, HasCanvas: true})
+ if err != nil { t.Fatal(err) }
+ if len(page.Items) != 0 { t.Fatalf("deleted elements counted as Canvas content: %#v", page.Items) }
+}

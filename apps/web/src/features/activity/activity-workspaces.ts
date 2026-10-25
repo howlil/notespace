@@ -5,8 +5,10 @@ import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 export async function listActivityWorkspaces(): Promise<WorkspaceSummary[]> {
   const result: WorkspaceSummary[] = [];
   let offset = 0;
+      let snapshot = "start";
   for (;;) {
-    const page = await listAllWorkspaces({ offset, limit: 100 });
+    const page = await listAllWorkspaces({ offset, limit: 100, snapshot });
+        snapshot = page.snapshot ?? snapshot;
     result.push(...page.items);
     if (page.nextOffset == null || page.nextOffset <= offset) return result;
     offset = page.nextOffset;

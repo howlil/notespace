@@ -13,8 +13,8 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
-	pagingMu sync.Mutex
+	db              *sql.DB
+	pagingMu        sync.Mutex
 	pagingSnapshots map[string]workspacePagingSession
 }
 

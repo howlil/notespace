@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 )
 
+const MaxNotesPerWorkspace = 100
+
 func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
@@ -31,7 +33,7 @@ func ValidateHistorySnapshot(snapshot HistorySnapshot) error {
 }
 
 func validNotes(notes []Note) bool {
-	if len(notes) == 0 || len(notes) > 100 {
+	if len(notes) == 0 || len(notes) > MaxNotesPerWorkspace {
 		return false
 	}
 	seen := map[string]bool{}

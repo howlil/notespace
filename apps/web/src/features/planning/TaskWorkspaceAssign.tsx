@@ -29,8 +29,10 @@ export function TaskWorkspaceAssign({ task, onClose, onAssigned }: {
     const load = async () => {
       const results: WorkspaceSummary[] = [];
       let offset = 0;
+      let snapshot = "start";
       while (true) {
-        const page = await listAllWorkspaces({ offset, limit: 100 });
+        const page = await listAllWorkspaces({ offset, limit: 100, snapshot });
+        snapshot = page.snapshot ?? snapshot;
         results.push(...page.items);
         if (page.nextOffset == null || page.nextOffset <= offset) return results;
         offset = page.nextOffset;

@@ -54,6 +54,9 @@ FROM projects p ORDER BY p.updated_at DESC,p.id LIMIT ?`, limit)
 }
 
 func (s *Store) ListWorkspaces(ctx context.Context, query workspace.WorkspaceQuery) (workspace.WorkspacePage, error) {
+	if query.Snapshot != "" {
+		return s.listWorkspaceSnapshot(ctx, query)
+	}
 	limit := query.Limit
 	offset := query.Offset
 	if limit < 1 || limit > 100 {

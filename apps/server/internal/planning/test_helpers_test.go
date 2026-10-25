@@ -69,7 +69,7 @@ func (s *planningTestStore) ListInbox(context.Context) ([]Task, error) {
 	return s.inbox, s.listInboxErr
 }
 func (s *planningTestStore) ListUnassignedTasks(context.Context) ([]Task, error) {
-  return s.unassigned, s.listUnassignedErr
+	return s.unassigned, s.listUnassignedErr
 }
 func (s *planningTestStore) CreateMilestone(_ context.Context, item Milestone) (Milestone, error) {
 	s.createMilestoneInput = item

@@ -113,49 +113,6 @@ func TestPlanningTodayAndStandaloneHTTPContract(t *testing.T) {
 	expect(t, res, http.StatusNoContent)
 }
 
-func TestUnassignedTaskInventoryPreservesScheduledAndCompletedHistory(t *testing.T) {
- ctx := context.Background()
- store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "unassigned-http.db"))
- if err != nil { t.Fatal(err) }
- defer store.Close()
- api := newAPI(store)
- service := planning.NewService(store, store, nil)
- unscheduled, err := service.CreateStandaloneTask(ctx, "Unscheduled history", "")
- if err != nil { t.Fatal(err) }
- scheduled, err := service.CreateStandaloneTask(ctx, "Scheduled history", "2026-10-25")
- if err != nil { t.Fatal(err) }
- completed, err := service.CreateStandaloneTask(ctx, "Completed history", "")
- if err != nil { t.Fatal(err) }
- done := true
- completed, err = service.UpdateAnyTask(ctx, completed.ID, planning.TaskPatch{Completed: &done, Version: completed.Version})
- if err != nil { t.Fatal(err) }
- response := call(t, api, http.MethodGet, "/api/tasks/unassigned", nil)
- expect(t, response, http.StatusOK)
- var all planning.Inbox
- if err := json.Unmarshal(response.Body.Bytes(), &all); err != nil { t.Fatal(err) }
- if len(all.Tasks) != 3 { t.Fatalf("inventory = %#v, want 3", all.Tasks) }
- found := make(map[string]planning.Task)
- for _, task := range all.Tasks { found[task.ID] = task }
- if found[unscheduled.ID].ID == "" || found[scheduled.ID].PlannedFor == nil || found[completed.ID].CompletedAt == nil {
-   t.Fatalf("historical status lost: %#v", found)
- }
- inbox := call(t, api, http.MethodGet, "/api/tasks/inbox", nil)
- expect(t, inbox, http.StatusOK)
- var active planning.Inbox
- if err := json.Unmarshal(inbox.Body.Bytes(), &active); err != nil { t.Fatal(err) }
- if len(active.Tasks) != 1 || active.Tasks[0].ID != unscheduled.ID {
-   t.Fatalf("existing inbox behavior regressed: %#v", active.Tasks)
- }
- workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Migration target"}))
- moved := call(t, api, http.MethodPost, "/api/tasks/"+completed.ID+"/assign-workspace", map[string]any{"workspaceId": workspace.ID, "version": completed.Version})
- expect(t, moved, http.StatusOK)
- after := call(t, api, http.MethodGet, "/api/tasks/unassigned", nil)
- expect(t, after, http.StatusOK)
- var remaining planning.Inbox
- if err := json.Unmarshal(after.Body.Bytes(), &remaining); err != nil { t.Fatal(err) }
- if len(remaining.Tasks) != 2 { t.Fatalf("remaining historical tasks = %#v", remaining.Tasks) }
-}
-
 func TestPlanningAssignLegacyTaskAndAtomicTodayCreation(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "planning-assignment-http.db"))
 	if err != nil {

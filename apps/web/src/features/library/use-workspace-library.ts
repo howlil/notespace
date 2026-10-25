@@ -25,7 +25,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
   const pageRequestGeneration = useRef(0);
-  const categorySnapshotRef = useRef<{ key: string; token: string } | null>(null);
+  const categorySnapshotRef = useRef<{ key: string; token: string } | null>(
+    initialSelectedCategoryId && initialCategoryPage?.snapshot
+      ? { key: JSON.stringify({ category: initialSelectedCategoryId, query: "", sort: "", hasCanvas: false, hasNotes: false }), token: initialCategoryPage.snapshot }
+      : null,
+  );
   const allSnapshotRef = useRef<string | null>(null);
   const useInitialCategoryPage = useRef(Boolean(initialSelectedCategoryId && initialCategoryPage));
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");

@@ -42,7 +42,13 @@ func canvasElementCount(canvas workspace.Snapshot) (int, error) {
 	if err := json.Unmarshal(canvas.Data, &scene); err != nil {
 		return 0, err
 	}
-	return len(scene.Elements), nil
+	count := 0
+	for _, element := range scene.Elements {
+		if !element.IsDeleted {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update workspace.CanvasUpdate) (workspace.CanvasState, error) {

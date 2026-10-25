@@ -157,9 +157,9 @@ func TestResolveReferencesRejectsWorkspaceAttributionForUnassignedTask(t *testin
 	}}
 	input := ActivityHeartbeat{
 		TaskID: "legacy-task", WorkspaceID: "workspace-1",
-		TaskTitleSnapshot: "Legacy unassigned Task",
+		TaskTitleSnapshot:      "Legacy unassigned Task",
 		WorkspaceTitleSnapshot: "Destination",
-		ActivityType: "build",
+		ActivityType:           "build",
 	}
 	if err := service.resolveReferences(context.Background(), &input); !errors.Is(err, ErrTaskWorkspaceMismatch) {
 		t.Fatalf("unassigned Task was attributed to an unrelated Workspace: %v", err)

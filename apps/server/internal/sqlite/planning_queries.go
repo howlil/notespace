@@ -95,8 +95,23 @@ func planTx(ctx context.Context, tx *sql.Tx, workspaceID string) (planning.Plan,
 	return readPlan(ctx, tx, workspaceID)
 }
 
+// GetPlan returns a single committed view of Milestones and Tasks. Without
+// one read transaction, a newly created Task can appear after its Milestone
+// query and refer to a Milestone missing from the returned Plan.
 func (s *Store) GetPlan(ctx context.Context, workspaceID string) (planning.Plan, error) {
-	return readPlan(ctx, s.db, workspaceID)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return planning.Plan{}, err
+	}
+	defer tx.Rollback()
+	plan, err := planTx(ctx, tx, workspaceID)
+	if err != nil {
+		return planning.Plan{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return planning.Plan{}, err
+	}
+	return plan, nil
 }
 
 func (s *Store) GetTask(ctx context.Context, taskID string) (planning.Task, error) {

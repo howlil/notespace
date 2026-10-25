@@ -155,7 +155,7 @@ export function createWorkspaceHttpClient(
         headers: { "If-Match": `"${expectedVersion}"` },
       }, transport),
 
-    moveWorkspace: (id, categoryId) =>
+    moveWorkspace: (id, categoryId, expectedCategoryId) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/category`, {
         method: "PATCH",
         ...json({ categoryId }),

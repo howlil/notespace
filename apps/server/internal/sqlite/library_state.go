@@ -46,7 +46,8 @@ type libraryBackup struct {
 	Tasks       []planning.Task                `json:"standaloneTasks,omitempty"`
 	Captures    []capture.Item                 `json:"captures,omitempty"`
 	Trash       []trashRecord                  `json:"trash"`
-	Activity    []activity.Session             `json:"studySessions"`
+	Activity                  []activity.Session             `json:"studySessions"`
+	DeletedActivitySessionIDs []string                       `json:"deletedActivitySessionIds,omitempty"`
 }
 
 func validateWorkspaceEnvelope(envelope workspaceEnvelope, categoryID string) error {

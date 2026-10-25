@@ -153,9 +153,5 @@ func (s *Store) WorkspaceExists(ctx context.Context, id string) (bool, error) {
 }
 
 func (s *Store) Get(ctx context.Context, id string) (workspace.Workspace, error) {
-	value, err := s.GetWorkspaceRecord(ctx, id)
-	if err != nil {
-		return workspace.Workspace{}, err
-	}
-	return hydrateGranularProject(ctx, s.db, value)
+	return s.GetWorkspaceSnapshot(ctx, id)
 }

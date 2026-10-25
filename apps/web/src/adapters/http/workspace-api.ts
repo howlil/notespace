@@ -199,6 +199,7 @@ const defaultWorkspaceClient = createWorkspaceHttpClient();
 
 export const getWorkspace = defaultWorkspaceClient.getWorkspace;
 export const updateWorkspaceSnapshot = defaultWorkspaceClient.updateWorkspaceSnapshot;
+export const getWorkspaceNote = defaultWorkspaceClient.getWorkspaceNote;
 export const createWorkspaceNote = defaultWorkspaceClient.createWorkspaceNote;
 export const updateWorkspaceNote = defaultWorkspaceClient.updateWorkspaceNote;
 export const deleteWorkspaceNote = defaultWorkspaceClient.deleteWorkspaceNote;

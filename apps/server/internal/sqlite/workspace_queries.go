@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/workspace"

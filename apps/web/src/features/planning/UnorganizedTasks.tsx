@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarPlus, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
 import { IconButton, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import {
   deleteAnyTask,
+  getAnyTask,
+  getUnassignedTasks,
   updateAnyTask,
 } from "../../adapters/http/planning-api";
 import {
@@ -12,7 +14,8 @@ import {
   type PlanningTask,
 } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
-import { applyInboxTaskUpdate } from "./projection-state";
+import { applyUnassignedTaskUpdate } from "./projection-state";
+import { reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation";
 import { TaskWorkspaceAssign } from "./TaskWorkspaceAssign";
 import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 
@@ -78,19 +81,19 @@ function InboxTaskRow({
             {task.title}
           </button>
         )}
-        <span className="mt-0.5 block text-[9px] text-muted">Needs Workspace · not scheduled</span>
+        <span className="mt-0.5 block text-[9px] text-muted">Needs Workspace · {task.completedAt ? "Completed" : task.plannedFor ? `Scheduled for ${task.plannedFor}` : "Not scheduled"}</span>
       </div>
 
       <div className="flex items-center gap-0.5 group-hover:opacity-100 group-focus-within:opacity-100">
         <button type="button" className="rounded-md px-2 py-1 text-[10px] text-accent hover:bg-tint" onClick={() => onAssign(task)} aria-label={`Move ${task.title} to Workspace`}>Move</button>
-        <IconButton
+        {!task.completedAt && !task.plannedFor && <IconButton
           className="!size-7 text-muted hover:text-accent"
           aria-label={`Move ${task.title} to Today`}
           title="Move to Today"
           onClick={() => void onUpdate(task, { plannedFor: localDateKey() })}
         >
           <CalendarPlus size={13} />
-        </IconButton>
+        </IconButton>}
         <IconButton
           className="!size-7 text-muted hover:text-accent"
           aria-label={`Rename ${task.title}`}
@@ -180,7 +183,7 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
 
         <section aria-labelledby="inbox-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
-            <h2 id="inbox-open-title" className="m-0 text-[11px] font-semibold text-ink">Unscheduled</h2>
+            <h2 id="inbox-open-title" className="m-0 text-[11px] font-semibold text-ink">Awaiting Workspace</h2>
             <span className="text-[9px] tabular-nums text-muted">{projection.tasks.length}</span>
           </div>
 
@@ -199,7 +202,7 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
           ) : (
             <div className="grid min-h-[150px] place-items-center border-b border-line text-center">
               <div>
-                <p className="m-0 text-[12px] font-medium text-ink">Inbox clear.</p>
+                <p className="m-0 text-[12px] font-medium text-ink">Nothing to organize.</p>
                 <p className="mt-1.5 mb-0 text-[10px] text-muted">
                   All existing tasks have a Workspace. Capture new ideas above.
                 </p>

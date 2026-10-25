@@ -55,7 +55,8 @@ type libraryArchiveManifest struct {
 	Tasks         []planning.Task                `json:"standaloneTasks,omitempty"`
 	Captures      []capture.Item                 `json:"captures,omitempty"`
 	Trash         []archiveTrashRecord           `json:"trash"`
-	Activity      []activity.Session             `json:"studySessions"`
+	Activity                  []activity.Session             `json:"studySessions"`
+	DeletedActivitySessionIDs []string                       `json:"deletedActivitySessionIds,omitempty"`
 	Blobs         []archiveBlob                  `json:"blobs"`
 }
 

@@ -41,6 +41,7 @@ type WorkspacePage struct {
 	Offset     int       `json:"offset"`
 	Limit      int       `json:"limit"`
 	NextOffset *int      `json:"nextOffset,omitempty"`
+	Snapshot   string    `json:"snapshot,omitempty"`
 }
 
 // WorkspaceQuery is the storage-facing library query. HTTP-specific string
@@ -53,6 +54,7 @@ type WorkspaceQuery struct {
 	HasNotes   bool
 	Offset     int
 	Limit      int
+	Snapshot   string
 }
 
 // Category is the library-level grouping for workspaces. A workspace owns its

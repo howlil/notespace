@@ -43,8 +43,8 @@ func TestPlanningCreateIdempotencySurvivesLostResponseAndServerRestart(t *testin
 	}
 	api := newAPI(store)
 	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Idempotent planning"}))
-	milestoneURL := "/api/workspaces/"+workspace.ID+"/milestones"
-	taskURL := "/api/workspaces/"+workspace.ID+"/tasks"
+	milestoneURL := "/api/workspaces/" + workspace.ID + "/milestones"
+	taskURL := "/api/workspaces/" + workspace.ID + "/tasks"
 
 	milestoneBody := map[string]any{"title": " Milestone "}
 	first := keyedPlanningPost(t, api, milestoneURL, "milestone-key", milestoneBody)
@@ -54,7 +54,7 @@ func TestPlanningCreateIdempotencySurvivesLostResponseAndServerRestart(t *testin
 		t.Fatal(err)
 	}
 
-	taskBody := map[string]any{"title": "Task","milestoneId": milestone.ID,"plannedFor": "2026-10-26"}
+	taskBody := map[string]any{"title": "Task", "milestoneId": milestone.ID, "plannedFor": "2026-10-26"}
 	created := keyedPlanningPost(t, api, taskURL, "task-key", taskBody)
 	expect(t, created, http.StatusCreated)
 	var task planning.Task
@@ -93,8 +93,8 @@ func TestPlanningCreateIdempotencySurvivesLostResponseAndServerRestart(t *testin
 
 	// Same request identity cannot be reused to mutate the original intent.
 	expect(t, keyedPlanningPost(t, api, milestoneURL, "milestone-key", map[string]any{"title": "Other"}), http.StatusConflict)
-	expect(t, keyedPlanningPost(t, api, taskURL, "task-key", map[string]any{"title": "Other","milestoneId": milestone.ID,"plannedFor": "2026-10-26"}), http.StatusConflict)
-	expect(t, keyedPlanningPost(t, api, taskURL, "task-key", map[string]any{"title": "Task","milestoneId": milestone.ID,"plannedFor": "2026-10-27"}), http.StatusConflict)
+	expect(t, keyedPlanningPost(t, api, taskURL, "task-key", map[string]any{"title": "Other", "milestoneId": milestone.ID, "plannedFor": "2026-10-26"}), http.StatusConflict)
+	expect(t, keyedPlanningPost(t, api, taskURL, "task-key", map[string]any{"title": "Task", "milestoneId": milestone.ID, "plannedFor": "2026-10-27"}), http.StatusConflict)
 
 	// Distinct request identities are *not* deduplicated by equal titles.
 	expect(t, keyedPlanningPost(t, api, taskURL, "second-task-key", taskBody), http.StatusCreated)
@@ -119,7 +119,7 @@ func TestPlanningCreateIdentityRejectsInvalidAndDeletedRecordReplay(t *testing.T
 	defer store.Close()
 	api := newAPI(store)
 	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Tombstone"}))
-	url := "/api/workspaces/"+workspace.ID+"/tasks"
+	url := "/api/workspaces/" + workspace.ID + "/tasks"
 	body := map[string]string{"title": "Original"}
 	expect(t, keyedPlanningPost(t, api, url, "bad key space", body), http.StatusBadRequest)
 	created := keyedPlanningPost(t, api, url, "valid-delete-key", body)
@@ -148,7 +148,7 @@ func TestPlanningConcurrentDuplicatePostsPersistOnlyOneTaskAndMilestone(t *testi
 	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Concurrent creation"}))
 	for _, kind := range []string{"milestones", "tasks"} {
 		t.Run(kind, func(t *testing.T) {
-			url := "/api/workspaces/"+workspace.ID+"/"+kind
+			url := "/api/workspaces/" + workspace.ID + "/"+kind
 			const count = 12
 			results := make(chan *httptest.ResponseRecorder, count)
 			start := make(chan struct{})
@@ -169,8 +169,8 @@ func TestPlanningConcurrentDuplicatePostsPersistOnlyOneTaskAndMilestone(t *testi
 			for result := range results {
 				expect(t, result, http.StatusCreated)
 				var item struct {
-				ID string `json:"id"`
-			}
+					ID string `json:"id"`
+				}
 				if err := json.Unmarshal(result.Body.Bytes(), &item); err != nil {
 					t.Fatal(err)
 				}

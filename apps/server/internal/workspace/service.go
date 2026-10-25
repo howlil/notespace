@@ -74,7 +74,7 @@ func (s Service) Create(ctx context.Context, title string, categoryID ...string)
 // Legacy callers without an ID retain the server-generated identity.
 func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID ...string) (Workspace, error) {
 	title = strings.TrimSpace(title)
-	if id != "" && (len(id) > 128 || strings.TrimSpace(id) != id || strings.ContainsAny(id, "/\\") ) {
+	if id != "" && (len(id) > 128 || strings.TrimSpace(id) != id || strings.ContainsAny(id, "/\\")) {
 		return Workspace{}, ErrInvalid
 	}
 	if !ValidTitle(title) {

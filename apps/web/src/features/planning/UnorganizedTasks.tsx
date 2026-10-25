@@ -234,6 +234,7 @@ export function UnorganizedTasks({ initial }: { initial: InboxProjection }) {
           </div>
 
           {readError && <p role="alert" className="py-2 text-[11px] text-danger">Task list may be outdated. <button type="button" className="underline" onClick={() => void refreshTasks()}>Retry</button></p>}
+          {readError && <p role="alert" className="py-2 text-[11px] text-danger">Task list may be outdated. <button type="button" className="underline" onClick={() => void refreshTasks()}>Retry</button></p>}
           {projection.tasks.length ? (
             <div>
               {projection.tasks.map((task) => (

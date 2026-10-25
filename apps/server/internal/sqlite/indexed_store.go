@@ -63,7 +63,7 @@ func (s *IndexedWorkspaceStore) DeleteNote(ctx context.Context, workspaceID, not
 	return nil
 }
 
-func (s *IndexedWorkspaceStore) Move(ctx context.Context, id, categoryID string) (workspace.Workspace, error) {
+func (s *IndexedWorkspaceStore) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (workspace.Workspace, error) {
 	value, err := s.Store.Move(ctx, id, categoryID)
 	if err != nil {
 		return value, err

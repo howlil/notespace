@@ -128,7 +128,7 @@ func TestPlanningCreateIdentityRejectsInvalidAndDeletedRecordReplay(t *testing.T
 	if err := json.Unmarshal(created.Body.Bytes(), &item); err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodDelete, url+"/"+item.ID, nil)
+	req := httptest.NewRequest(http.MethodDelete, url + "/" + item.ID, nil)
 	req.Header.Set("If-Match", `"1"`)
 	out := httptest.NewRecorder()
 	api.ServeHTTP(out, req)
@@ -148,7 +148,7 @@ func TestPlanningConcurrentDuplicatePostsPersistOnlyOneTaskAndMilestone(t *testi
 	workspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Concurrent creation"}))
 	for _, kind := range []string{"milestones", "tasks"} {
 		t.Run(kind, func(t *testing.T) {
-			url := "/api/workspaces/" + workspace.ID + "/"+kind
+			url := "/api/workspaces/" + workspace.ID + "/" + kind
 			const count = 12
 			results := make(chan *httptest.ResponseRecorder, count)
 			start := make(chan struct{})
@@ -159,7 +159,7 @@ func TestPlanningConcurrentDuplicatePostsPersistOnlyOneTaskAndMilestone(t *testi
 				go func() {
 					defer wg.Done()
 					<-start
-					results <- sendKeyedPlanningPost(api, url, "same-"+kind+"-key", data)
+					results <- sendKeyedPlanningPost(api, url, "same-" + kind + "-key", data)
 				}()
 			}
 			close(start)

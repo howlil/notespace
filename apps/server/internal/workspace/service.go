@@ -62,7 +62,7 @@ func (s Service) Move(ctx context.Context, id, categoryID string, expectedCatego
 	if !exists {
 		return Workspace{}, ErrNotFound
 	}
-	return s.store.Move(ctx, id, categoryID)
+	return s.store.Move(ctx, id, categoryID, expectedCategory...)
 }
 
 func (s Service) Create(

@@ -7,7 +7,7 @@ import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { createCapture, deleteCapture, getCapture, listCaptures, organizeCapture, updateCapture } from "../../adapters/http/capture-api";
 import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { markdownToSnapshot } from "../../domain/document/markdown";
-import { validCaptureContent } from "../../domain/capture/capture";
+import { isMatchingCaptureConversion, validCaptureContent } from "../../domain/capture/capture";
 import { CAPTURE_QUEUE_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import type { CaptureItem } from "../../domain/capture/capture";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -189,7 +189,7 @@ export function CaptureQueue() {
       // Resolve the authoritative receipt after a possible lost commit response.
       try {
         const actual = await getCapture(current.id);
-        if (actual.status === "converted" && actual.targetWorkspaceId === destination && actual.targetKind === requestedKind) {
+        if (isMatchingCaptureConversion(actual, { version: current.version, workspaceId: destination, kind: requestedKind })) {
           writeRevision.current++;
           setItems((previous) => previous.filter((item) => item.id !== current.id));
           setTarget(null);
@@ -227,9 +227,15 @@ export function CaptureQueue() {
       try {
         await getCapture(selected.id);
         showToast({ kind: "error", message: "Delete not confirmed. Refresh and try again." });
-      } catch {
-        await refresh();
-        setDeleteTarget(null);
+      } catch (error) {
+        if (error instanceof APIError && error.status === 404) {
+          writeRevision.current++;
+          setItems((previous) => previous.filter((item) => item.id !== selected.id));
+          setDeleteTarget(null);
+          showToast({ kind: "success", message: "Capture deleted." });
+          return;
+        }
+        showToast({ kind: "error", message: "Deletion status could not be verified. Refresh the queue before retrying." });
       }
     } finally { setSubmitting(false); }
   }

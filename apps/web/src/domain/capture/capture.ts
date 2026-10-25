@@ -24,3 +24,15 @@ export const MAX_CAPTURE_BYTES = 65_536;
 export function validCaptureContent(value: string): boolean {
   return value.trim().length > 0 && new TextEncoder().encode(value).length <= MAX_CAPTURE_BYTES;
 }
+
+/** A lost-response receipt only proves the exact submitted Capture version. */
+export function isMatchingCaptureConversion(
+  actual: CaptureItem,
+  submitted: Pick<OrganizeCaptureInput, "version" | "workspaceId" | "kind">,
+) {
+  return actual.status === "converted"
+    && actual.version === submitted.version + 1
+    && actual.targetWorkspaceId === submitted.workspaceId
+    && actual.targetKind === submitted.kind
+    && Boolean(actual.targetId);
+}

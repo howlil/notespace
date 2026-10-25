@@ -1,4 +1,4 @@
-import { UNCATEGORIZED_CATEGORY_ID } from "../../domain/workspace/workspace";
+import { UNCATEGORIZED_CATEGORY_ID } from "../../domain/workspace/workspace.ts";
 import type {
   CategorySummary,
   Note,

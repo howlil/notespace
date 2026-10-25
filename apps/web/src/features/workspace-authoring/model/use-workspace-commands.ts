@@ -54,7 +54,7 @@ export function useWorkspaceCommands({
 
   const renameWorkspace = useCallback(async (title: string) => {
     try {
-      const renamed = await renameWorkspaceRequest(workspaceId, title);
+      const renamed = await renameWorkspaceRequest(workspaceId, title, current.current.title);
       current.current = {
         ...current.current,
         title: renamed.title,

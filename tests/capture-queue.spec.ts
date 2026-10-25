@@ -254,3 +254,38 @@ test("@critical Capture organize does not confirm a later-version conversion as 
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("Capture deletion keeps its confirmation when both DELETE and verification GET fail", async ({ page, request }) => {
+  const content = `Capture deletion uncertainty ${Date.now()}`;
+  const res = await request.post("/api/captures", { data: { content } });
+  expect(res.status()).toBe(201);
+  const capture = await res.json() as { id: string; version: number };
+  try {
+    await page.goto("/inbox");
+    await expect(page.getByText(content, { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: `Delete capture ${capture.id}` }).click();
+    const confirm = page.getByRole("dialog", { name: "Delete capture?" });
+    await expect(confirm).toBeVisible();
+
+    await page.route(`**/api/captures/${capture.id}`, async (route) => {
+      if (route.request().method() === "GET" || route.request().method() === "DELETE") {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Service unavailable" }) });
+        return;
+      }
+      await route.continue();
+    });
+    await confirm.getByRole("button", { name: "Delete capture" }).click();
+    await expect(page.getByText("Deletion status could not be verified. Refresh the queue before retrying.")).toBeVisible();
+    await expect(confirm).toBeVisible();
+    await expect(page.getByText(content, { exact: true })).toBeVisible();
+    const current = await request.get(`/api/captures/${capture.id}`);
+    expect(current.status()).toBe(200);
+    const item = await current.json() as { status: string };
+    expect(item.status).toBe("pending");
+  } finally {
+    await page.unroute(`**/api/captures/${capture.id}`);
+    await request.delete(`/api/captures/${capture.id}`, {
+      headers: { "If-Match": `"${capture.version}"` },
+    }).catch(() => undefined);
+  }
+});

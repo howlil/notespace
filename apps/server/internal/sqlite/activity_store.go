@@ -10,7 +10,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
-const activityColumns = `id,workspace_id,workspace_title_snapshot,task_id,task_title_snapshot,activity_title,activity_type,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at`
+const activityColumns = `id,workspace_id,workspace_title_snapshot,task_id,task_title_snapshot,activity_title,activity_type,activity_date,started_at,ended_at,active_seconds,last_heartbeat_at,revision`
 
 func scanActivitySession(row scanner) (activity.Session, error) {
 	var session activity.Session
@@ -28,6 +28,7 @@ func scanActivitySession(row scanner) (activity.Session, error) {
 		&endedAt,
 		&session.ActiveSeconds,
 		&session.LastHeartbeatAt,
+		&session.Revision,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return session, activity.ErrNotFound
@@ -85,33 +86,41 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 	}
 	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `INSERT INTO activity_sessions(`+activityColumns+`)
-SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (
+SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (
   SELECT 1 FROM activity_deleted_sessions WHERE logical_session_id=?
 )
--- A heartbeat can reach the server after a newer-duration heartbeat.
--- Duration is the only monotonic client signal in the existing HTTP contract;
--- ties have no trustworthy ordering, so keep the already committed metadata.
+-- Duration is always monotonic. Positive client revisions order context
+-- independently of server arrival; zero retains M1/M2 legacy behavior.
+-- A successful finish is a terminal command even if another heartbeat with a
+-- higher revision reached SQLite first (the client outbox requires this ack).
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
+  revision=MAX(activity_sessions.revision,excluded.revision),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
-  -- Once a finish is committed, stale or equal-duration retries must not
-  -- bump recency. Genuine progress can still update the snapshot: logical
-  -- Activity history relies on that timestamp to choose the latest segment.
   last_heartbeat_at=CASE
+    WHEN activity_sessions.revision > 0
+      AND excluded.revision <= activity_sessions.revision THEN activity_sessions.last_heartbeat_at
     WHEN activity_sessions.ended_at IS NOT NULL
+      AND excluded.revision = 0
       AND excluded.active_seconds <= activity_sessions.active_seconds THEN activity_sessions.last_heartbeat_at
     WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.last_heartbeat_at
     ELSE activity_sessions.last_heartbeat_at
   END,
   activity_title=CASE
-    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.activity_title
+    WHEN excluded.revision > activity_sessions.revision
+      OR (activity_sessions.revision = 0 AND excluded.revision = 0
+          AND excluded.active_seconds > activity_sessions.active_seconds) THEN excluded.activity_title
     ELSE activity_sessions.activity_title
   END,
   workspace_title_snapshot=CASE
-    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.workspace_title_snapshot
+    WHEN excluded.revision > activity_sessions.revision
+      OR (activity_sessions.revision = 0 AND excluded.revision = 0
+          AND excluded.active_seconds > activity_sessions.active_seconds) THEN excluded.workspace_title_snapshot
     ELSE activity_sessions.workspace_title_snapshot
   END,
   task_title_snapshot=CASE
-    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.task_title_snapshot
+    WHEN excluded.revision > activity_sessions.revision
+      OR (activity_sessions.revision = 0 AND excluded.revision = 0
+          AND excluded.active_seconds > activity_sessions.active_seconds) THEN excluded.task_title_snapshot
     ELSE activity_sessions.task_title_snapshot
   END
 WHERE activity_sessions.task_id=excluded.task_id
@@ -145,6 +154,7 @@ WHERE activity_sessions.task_id=excluded.task_id
 		endedAt,
 		session.ActiveSeconds,
 		session.LastHeartbeatAt,
+		session.Revision,
 		strings.SplitN(session.ID, ":", 2)[0],
 	)
 	if err != nil {

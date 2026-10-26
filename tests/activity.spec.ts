@@ -738,7 +738,8 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
 
     await expect.poll(async () => page.evaluate((segmentId) => {
       const prefix = `notespace.activity-finalization:v3:${encodeURIComponent(segmentId)}:`;
-      return Object.keys(localStorage).filter((key) => key.startsWith(prefix)).length;
+      return Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+        .filter((key) => key?.startsWith(prefix)).length;
     }, sessionId)).toBe(0);
   } finally {
     await otherTab.close();

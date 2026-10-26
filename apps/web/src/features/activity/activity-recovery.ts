@@ -25,8 +25,21 @@ export const ACTIVITY_RECOVERY_PENDING_EVENT = "notespace:activity-recovery-pend
 
 const emptyRecovery = (): ActivityRecoveryState => ({ finalizations: [], handoffTaskIds: [] });
 const finalizationKey = (id: string) => ACTIVITY_RECOVERY_FINALIZATION_PREFIX + encodeURIComponent(id);
-const attemptKey = (id: string) =>
-  ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id) + ":" + crypto.randomUUID();
+let lastAttemptMicros = 0;
+const attemptKey = (id: string) => {
+  // Monotonic inside this tab, comparable across tabs independently of key iteration order.
+  const now = Math.floor((performance.timeOrigin + performance.now()) * 1000);
+  lastAttemptMicros = Math.max(lastAttemptMicros + 1, now);
+  return ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id)
+    + ":" + lastAttemptMicros.toString(36) + ":" + crypto.randomUUID();
+};
+const attemptOrder = (key: string, id: string) => {
+  const suffix = key.slice((ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id) + ":").length);
+  const match = /^([0-9a-z]+):[0-9a-f-]{36}$/.exec(suffix);
+  if (!match) return 0; // Compatibility with previously written v3 draft keys.
+  const value = Number.parseInt(match[1], 36);
+  return Number.isSafeInteger(value) ? value : 0;
+};
 const belongsToAttempt = (key: string, id: string) =>
   key.startsWith(ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id) + ":");
 const handoffKey = (id: string) => ACTIVITY_RECOVERY_HANDOFF_PREFIX + encodeURIComponent(id);

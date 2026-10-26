@@ -88,6 +88,9 @@ func (s *Store) UpsertSession(ctx context.Context, session activity.Session) (ac
 SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (
   SELECT 1 FROM activity_deleted_sessions WHERE logical_session_id=?
 )
+-- A heartbeat can reach the server after a newer-duration heartbeat.
+-- Duration is the only monotonic client signal in the existing HTTP contract;
+-- ties have no trustworthy ordering, so keep the already committed metadata.
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
   last_heartbeat_at=CASE
@@ -95,15 +98,15 @@ ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_second
     ELSE activity_sessions.last_heartbeat_at
   END,
   activity_title=CASE
-    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.activity_title
+    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.activity_title
     ELSE activity_sessions.activity_title
   END,
   workspace_title_snapshot=CASE
-    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.workspace_title_snapshot
+    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.workspace_title_snapshot
     ELSE activity_sessions.workspace_title_snapshot
   END,
   task_title_snapshot=CASE
-    WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.task_title_snapshot
+    WHEN excluded.active_seconds > activity_sessions.active_seconds THEN excluded.task_title_snapshot
     ELSE activity_sessions.task_title_snapshot
   END
 WHERE activity_sessions.task_id=excluded.task_id

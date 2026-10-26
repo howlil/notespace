@@ -144,14 +144,15 @@ export function readActivityRecovery(): ActivityRecoveryState {
   }>();
   const include = (item: PendingActivityFinalization, order = 0, key = "") => {
     const current = finalizations.get(item.sessionId);
-    if (!current
-      || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds
-      || (item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds
-        && ((item.heartbeat.revision ?? 0) > (current.item.heartbeat.revision ?? 0)
-          || ((item.heartbeat.revision ?? 0) === (current.item.heartbeat.revision ?? 0)
-            && ((item.endSession && !current.item.endSession)
+    const candidateRevision = item.heartbeat.revision ?? 0;
+    const storedRevision = current?.item.heartbeat.revision ?? 0;
+    const tiedDuration = current && item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds;
+    const newerTie = tiedDuration && (candidateRevision > storedRevision
+      || (candidateRevision === storedRevision
+        && (Boolean(item.endSession && !current.item.endSession)
           || (item.endSession === current.item.endSession
-            && (order > current.order || (order === current.order && key > current.key)))))))) {
+            && (order > current.order || (order === current.order && key > current.key)))));
+    if (!current || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds || newerTie) {
       finalizations.set(item.sessionId, { item, order, key });
     }
   };

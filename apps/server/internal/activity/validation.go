@@ -30,7 +30,7 @@ func ValidateSession(session Session) error {
 		!validTitle(session.Title) ||
 		!ValidActivityType(session.ActivityType) ||
 		!ValidDate(session.ActivityDate) ||
-		session.ActiveSeconds < 0 {
+		session.ActiveSeconds < 0 || session.Revision < 0 {
 		return ErrInvalid
 	}
 	if strings.TrimSpace(session.StartedAt) == "" || strings.TrimSpace(session.LastHeartbeatAt) == "" {

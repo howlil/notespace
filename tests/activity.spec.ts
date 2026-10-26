@@ -476,3 +476,59 @@ test("@critical another open tab retries a newly persisted Activity finalization
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical Activity does not start a non-recoverable session when browser storage rejects writes", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Rejected activity storage ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      const controls = window as Window & { rejectActivityStorage?: boolean };
+      controls.rejectActivityStorage = true;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === "notespace.activity-session" && controls.rejectActivityStorage) {
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return original.call(this, key, value);
+      };
+    });
+
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+
+    await expect(page.getByRole("alert")).toContainText("browser storage is unavailable");
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("notespace.activity-session"))).toBeNull();
+
+    const response = await request.get("/api/activity/sessions?limit=100");
+    expect(response.ok()).toBe(true);
+    const sessions = await response.json() as ActivitySessionRecord[];
+    expect(sessions.some((item) => item.title === title)).toBe(false);
+
+    // The failed attempt must release the Activity lease and permit an
+    // ordinary successful retry once storage is available again.
+    await page.evaluate(() => {
+      (window as Window & { rejectActivityStorage?: boolean }).rejectActivityStorage = false;
+    });
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100").catch(() => null);
+    if (response?.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const item of sessions.filter((session) => session.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

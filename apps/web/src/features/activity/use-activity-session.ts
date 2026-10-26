@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useToast } from "../../shared/ui/toast-provider";
 import {
   deleteActivitySession,
   getActivityStats,
@@ -87,6 +88,7 @@ function acquireActivityLease(): Promise<ActivityLease | null> {
 }
 
 export function useActivitySession(defaultContext?: ActivityStart): ActivitySessionState {
+  const { showToast } = useToast();
   const defaultContextRef = useRef(defaultContext);
   defaultContextRef.current = defaultContext;
 
@@ -334,10 +336,21 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
         baselineTotalSeconds: effectiveBaseline.totalSeconds,
         context,
       };
+      // Never advertise a running session or send its first heartbeat until
+      // its recovery state is durable. Storage may reject writes (quota/privacy).
+      if (!writeStoredActivitySession(next)) {
+        releaseLease();
+        showToast({
+          kind: "error",
+          message: "Activity could not start because browser storage is unavailable. Check storage permissions or free space, then retry.",
+        });
+        return;
+      }
       setBaseline(effectiveBaseline);
       setBaselineDate(date);
       setClock(now);
-      commitSession(next);
+      sessionRef.current = next;
+      setSession(next);
       sendSegment(next.context, next.segmentId, next.activityDate, 0, false);
     });
   }

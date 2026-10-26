@@ -145,3 +145,16 @@ test("free beta produces signed Tauri updater artifacts without Azure publisher 
   assert.match(config, /desktop-beta-feed\/latest\.json/);
   assert.match(manifest, /windows-x86_64/);
 });
+
+test("explicit desktop-beta release notes trigger both PR and master desktop verification", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
+  const releaseNotePath = '"docs/DESKTOP_BETA_RELEASE_*.md"';
+  const workflowPath = '".github/workflows/verify-desktop.yml"';
+  const [prTrigger, pushTrigger] = workflow.split(/^  push:\s*$/m);
+  assert.ok(prTrigger && pushTrigger, "Desktop CI must include separate PR and master push triggers");
+  for (const [trigger, fragment] of [["pull_request", prTrigger], ["push", pushTrigger]]) {
+    assert.ok(fragment.includes("paths:"), `${trigger} must declare path filters`);
+    assert.ok(fragment.includes(releaseNotePath), `${trigger} must check explicit release-note commits`);
+    assert.ok(fragment.includes(workflowPath), `${trigger} must verify its own workflow changes`);
+  }
+});

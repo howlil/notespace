@@ -432,3 +432,47 @@ test("Global Activity rail requires Workspace and preserves dock controls", asyn
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical another open tab retries a newly persisted Activity finalization", async ({ page, context, request }) => {
+  const stamp = Date.now();
+  const created = await request.post("/api/workspaces", { data: { title: `Outbox recovery ${stamp}` } });
+  expect(created.status()).toBe(201);
+  const workspace = await created.json() as { id: string };
+  const sessionId = `outbox-${stamp}:2026-10-26`;
+  const title = `Cross-tab recovery ${stamp}`;
+  const otherTab = await context.newPage();
+  try {
+    // Only the receiving tab has an active ActivityRuntimeProvider at enqueue.
+    await page.goto("/today");
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await otherTab.goto("/today");
+    await otherTab.evaluate(({ sessionId, title, workspaceId }) => {
+      localStorage.setItem("notespace.activity-recovery:v1", JSON.stringify({
+        finalizations: [{
+          sessionId,
+          heartbeat: {
+            activityDate: "2026-10-26", activeSeconds: 17, finish: true,
+            title, activityType: "build", workspaceId,
+          },
+        }],
+        handoffTaskIds: [],
+      }));
+    }, { sessionId, title, workspaceId: workspace.id });
+    // The writing tab dispatches no local event; the receiving tab must
+    // respond to the real cross-document storage event, without navigation.
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.find((item) => item.id === sessionId.split(":")[0])?.endedAt ?? null;
+    }).not.toBeNull();
+    await expect.poll(async () => page.evaluate(() =>
+      localStorage.getItem("notespace.activity-recovery:v1")
+    )).toBeNull();
+  } finally {
+    await otherTab.close();
+    await request.delete(`/api/activity/sessions/${sessionId.split(":")[0]}`).catch(() => undefined);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

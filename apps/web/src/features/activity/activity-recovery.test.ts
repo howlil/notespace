@@ -310,3 +310,27 @@ test("a stale equal-duration HTTP success must not display an old task handoff",
     assert.deepEqual(readActivityRecovery().finalizations, [newer]);
   });
 });
+
+
+test("winning equal-duration ACK retires obsolete metadata variants", () => {
+  withFakeStorage(() => {
+    const old = finalization("same:2026-10-26", 15);
+    const newest = { ...old, heartbeat: { ...old.heartbeat, title: "Updated context" } };
+    enqueueActivityFinalization(old);
+    enqueueActivityFinalization(newest);
+    assert.deepEqual(readActivityRecovery().finalizations, [newest]);
+    assert.equal(acknowledgeActivityFinalization(newest), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});
+
+test("winning task handoff retires superseded same-duration task attempts", () => {
+  withFakeStorage(() => {
+    const old = finalization("same:2026-10-26", 30, "task-old");
+    const newest = finalization("same:2026-10-26", 30, "task-new");
+    enqueueActivityFinalization(old);
+    enqueueActivityFinalization(newest);
+    assert.equal(acknowledgeActivityFinalization(newest), true);
+    assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: ["task-new"] });
+  });
+});

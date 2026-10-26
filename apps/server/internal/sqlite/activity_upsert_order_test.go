@@ -126,8 +126,9 @@ func TestActivityConcurrentUpsertsKeepHighestDurationMetadata(t *testing.T) {
 				t.Fatalf("parallel upsert %s failed: %v", id, err)
 			}
 		}
-		var saved activity.Session
-		saved, err = store.UpsertSession(ctx, higher)
+		// Read without another upsert: a recovery write would hide a race failure.
+		saved, err := scanActivitySession(store.db.QueryRowContext(ctx,
+			"SELECT "+activityColumns+" FROM activity_sessions WHERE id=?", id))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -463,10 +463,15 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       totalSeconds: Math.max(0, finished.baselineTotalSeconds)
         + Math.max(0, finished.sessionAccumulatedSeconds),
     };
+    // Do not claim completion, release the lease, or double-count the
+    // baseline if both storage removal and the tombstone fallback fail.
+    if (!commitSession(null)) {
+      setClock(now);
+      return null;
+    }
     setBaseline(nextBaseline);
     setBaselineDate(finished.activityDate);
     setClock(now);
-    commitSession(null);
     releaseLease();
     return finalization;
   }

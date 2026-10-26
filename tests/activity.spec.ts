@@ -591,3 +591,99 @@ test("@critical Activity pause and resume keep durable state when browser storag
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical Activity End survives blocked removeItem by persisting a tombstone", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Activity End blocked remove ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+
+    await page.evaluate(() => {
+      const original = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (key: string) {
+        if (key === "notespace.activity-session") {
+          throw new DOMException("Storage removal blocked", "SecurityError");
+        }
+        return original.call(this, key);
+      };
+    });
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("notespace.activity-session"))).toBe("null");
+
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      return sessions.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100").catch(() => null);
+    if (response?.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const item of sessions.filter((session) => session.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
+test("@critical Activity End stays active if both storage removal and fallback write fail", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Activity End storage denied ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+
+    await page.evaluate(() => {
+      const originalRemove = Storage.prototype.removeItem;
+      const originalWrite = Storage.prototype.setItem;
+      const controls = window as Window & { blockActivityClear?: boolean };
+      controls.blockActivityClear = true;
+      Storage.prototype.removeItem = function (key: string) {
+        if (key === "notespace.activity-session" && controls.blockActivityClear) {
+          throw new DOMException("Storage removal blocked", "SecurityError");
+        }
+        return originalRemove.call(this, key);
+      };
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === "notespace.activity-session" && controls.blockActivityClear) {
+          throw new DOMException("Storage write blocked", "QuotaExceededError");
+        }
+        return originalWrite.call(this, key, value);
+      };
+    });
+
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("alert")).toContainText("Activity changes could not be saved");
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("running");
+
+    await page.evaluate(() => { (window as Window & { blockActivityClear?: boolean }).blockActivityClear = false; });
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100").catch(() => null);
+    if (response?.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const item of sessions.filter((session) => session.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

@@ -1,7 +1,6 @@
 import type { ActivityHeartbeat } from "../../adapters/http/activity-api.ts";
 import {
   readLocalStorage,
-  removeLocalStorage,
   writeLocalStorage,
 } from "../../shared/browser/local-storage.ts";
 import type {
@@ -18,13 +17,21 @@ export function legacyActivitySessionStorageKey(workspaceId: string) {
 export type ActivitySessionStorage = {
   read: (key: string) => string | null;
   write: (key: string, value: string) => boolean;
-  remove: (key: string) => void;
+  remove: (key: string) => boolean;
 };
 
 const browserActivitySessionStorage: ActivitySessionStorage = {
   read: readLocalStorage,
   write: writeLocalStorage,
-  remove: removeLocalStorage,
+  remove: (key) => {
+    if (typeof window === "undefined") return false;
+    try {
+      window.localStorage.removeItem(key);
+      return window.localStorage.getItem(key) === null;
+    } catch {
+      return false;
+    }
+  },
 };
 
 export function validStoredActivitySession(value: Partial<ManualActivitySession>) {
@@ -53,6 +60,8 @@ export function readStoredActivitySession(
 ): ManualActivitySession | null {
   try {
     const current = storage.read(activitySessionStorageKey);
+    // Tombstone means End succeeded even if removeItem was blocked.
+    if (current === "null") return null;
     if (current) {
       const value = JSON.parse(current) as Partial<ManualActivitySession>;
       if (!validStoredActivitySession(value) || !value.context?.title || !value.context?.activityType) return null;
@@ -86,8 +95,10 @@ export function writeStoredActivitySession(
   storage: ActivitySessionStorage = browserActivitySessionStorage,
 ) {
   if (session) return storage.write(activitySessionStorageKey, JSON.stringify(session));
-  storage.remove(activitySessionStorageKey);
-  return true;
+  // Storage removal can fail silently in restricted browsers. A null
+  // tombstone is equally non-restorable if writes remain permitted.
+  if (storage.remove(activitySessionStorageKey)) return true;
+  return storage.write(activitySessionStorageKey, "null");
 }
 
 export function hasLegacyStoredActivitySession(

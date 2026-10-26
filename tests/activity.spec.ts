@@ -695,3 +695,55 @@ test("@critical Activity End stays active if both storage removal and fallback w
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical separate browser tabs recover the newest finalization for one Activity segment", async ({ page, context, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const otherTab = await context.newPage();
+  const logicalId = `same-segment-${Date.now()}`;
+  const day = localDateKey();
+  const sessionId = `${logicalId}:${day}`;
+  const title = `Concurrent recovery ${logicalId}`;
+  try {
+    await page.goto("/today");
+    await otherTab.goto("/today");
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await expect(otherTab.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+
+    const writeAttempt = ({ sessionId, day, title, workspaceId, seconds }: {
+      sessionId: string; day: string; title: string; workspaceId: string; seconds: number;
+    }) => {
+      localStorage.setItem(
+        `notespace.activity-finalization:v3:${encodeURIComponent(sessionId)}:${crypto.randomUUID()}`,
+        JSON.stringify({
+          sessionId,
+          heartbeat: {
+            activityDate: day, activeSeconds: seconds, finish: true,
+            title, activityType: "build", workspaceId,
+          },
+        }),
+      );
+    };
+    await Promise.all([
+      page.evaluate(writeAttempt, { sessionId, day, title, workspaceId: workspace.id, seconds: 12 }),
+      otherTab.evaluate(writeAttempt, { sessionId, day, title, workspaceId: workspace.id, seconds: 45 }),
+    ]);
+
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const sessions = await response.json() as ActivitySessionRecord[];
+      const session = sessions.find((item) => item.id === logicalId);
+      return session?.endedAt ? session.activeSeconds : null;
+    }).toBe(45);
+
+    await expect.poll(async () => page.evaluate((segmentId) => {
+      const prefix = `notespace.activity-finalization:v3:${encodeURIComponent(segmentId)}:`;
+      return Object.keys(localStorage).filter((key) => key.startsWith(prefix)).length;
+    }, sessionId)).toBe(0);
+  } finally {
+    await otherTab.close();
+    await request.delete(`/api/activity/sessions/${logicalId}`).catch(() => undefined);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

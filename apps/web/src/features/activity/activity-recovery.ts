@@ -257,7 +257,11 @@ export function acknowledgeActivityFinalization(confirmed: PendingActivityFinali
   // a superseded attempt, even if its own record is now acknowledged.
   const winner = readActivityRecovery().finalizations.find((item) =>
     item.sessionId === confirmed.sessionId);
-  const isWinningAck = !!winner && sameFinalization(winner, confirmed);
+  // Winning by duration is sufficient for seconds, but not for a Task
+  // handoff: a newer, lower-duration context revision still owns that intent.
+  const newerRevisionPending = entries.some(({ item }) =>
+    (item.heartbeat.revision ?? 0) > (confirmed.heartbeat.revision ?? 0));
+  const isWinningAck = !!winner && sameFinalization(winner, confirmed) && !newerRevisionPending;
   if (confirmed.handoffTaskId && isWinningAck
     && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
   for (const { key, item } of entries) {

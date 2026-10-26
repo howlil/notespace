@@ -51,7 +51,12 @@ function withLogicalSessionId(value: Partial<ManualActivitySession>) {
   const logicalSessionId = typeof value.logicalSessionId === "string" && value.logicalSessionId
     ? value.logicalSessionId
     : value.segmentId!.split(":", 1)[0] || value.segmentId!;
-  return { ...value, logicalSessionId } as ManualActivitySession;
+  // Old snapshots did not carry a revision. Keep them readable, but never
+  // persist a malformed counter capable of reusing a committed revision.
+  const segmentRevision = typeof value.segmentRevision === "number"
+    && Number.isSafeInteger(value.segmentRevision) && value.segmentRevision >= 0
+    ? value.segmentRevision : 0;
+  return { ...value, logicalSessionId, segmentRevision } as ManualActivitySession;
 }
 
 export function readStoredActivitySession(
@@ -113,10 +118,12 @@ export function activityHeartbeatFor(
   date: string,
   activeSeconds: number,
   finish: boolean,
+  revision?: number,
 ): ActivityHeartbeat {
   return {
     activityDate: date,
     activeSeconds,
+    ...(revision !== undefined ? { revision } : {}),
     finish,
     title: context.title,
     activityType: context.activityType,

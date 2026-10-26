@@ -793,3 +793,59 @@ test("activity heartbeats reserve strictly increasing revisions through End", as
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("activity reload preserves the previous day's revision before rollover finalization", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Midnight revision restore ${Date.now()}`;
+  const oldDay = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const logicalId = `midnight-revision-${Date.now()}`;
+  const oldSegment = `${logicalId}:${oldDay}`;
+  const observed: number[] = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.addInitScript(({ logicalId, oldDay, title, workspaceId }) => {
+      window.localStorage.setItem("notespace.activity-session", JSON.stringify({
+        logicalSessionId: logicalId,
+        segmentId: `${logicalId}:${oldDay}`,
+        activityDate: oldDay,
+        status: "paused",
+        sessionAccumulatedSeconds: 90,
+        segmentAccumulatedSeconds: 90,
+        segmentRevision: 7,
+        runningSince: null,
+        baselineTodaySeconds: 0,
+        baselineTotalSeconds: 0,
+        context: { title, activityType: "build", workspaceId },
+      }));
+    }, { logicalId, oldDay, title, workspaceId: workspace.id });
+
+    await page.route(heartbeatUrl, async (route) => {
+      const body = route.request().method() === "PUT"
+        ? route.request().postDataJSON() as { revision?: number; finish?: boolean } : null;
+      if (body?.finish && route.request().url().includes(encodeURIComponent(oldSegment))) {
+        observed.push(body.revision ?? 0);
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await expect.poll(() => observed[0]).toBe(8);
+    await expect.poll(async () => {
+      const res = await request.get("/api/activity/sessions?limit=100");
+      if (!res.ok()) return null;
+      const rows = await res.json() as ActivitySessionRecord[];
+      return rows.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    await page.evaluate(() => window.localStorage.removeItem("notespace.activity-session")).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

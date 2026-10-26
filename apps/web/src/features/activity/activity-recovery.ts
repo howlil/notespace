@@ -18,11 +18,17 @@ export type ActivityRecoveryState = {
 // Keep the v1 key for migration of pending finalizations from existing installs.
 export const ACTIVITY_RECOVERY_STORAGE_KEY = "notespace.activity-recovery:v1";
 export const ACTIVITY_RECOVERY_FINALIZATION_PREFIX = "notespace.activity-finalization:v2:";
+// Immutable records avoid cross-tab lost updates to the same session key.
+export const ACTIVITY_RECOVERY_ATTEMPT_PREFIX = "notespace.activity-finalization:v3:";
 export const ACTIVITY_RECOVERY_HANDOFF_PREFIX = "notespace.activity-handoff:v2:";
 export const ACTIVITY_RECOVERY_PENDING_EVENT = "notespace:activity-recovery-pending";
 
 const emptyRecovery = (): ActivityRecoveryState => ({ finalizations: [], handoffTaskIds: [] });
 const finalizationKey = (id: string) => ACTIVITY_RECOVERY_FINALIZATION_PREFIX + encodeURIComponent(id);
+const attemptKey = (id: string) =>
+  ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id) + ":" + crypto.randomUUID();
+const belongsToAttempt = (key: string, id: string) =>
+  key.startsWith(ACTIVITY_RECOVERY_ATTEMPT_PREFIX + encodeURIComponent(id) + ":");
 const handoffKey = (id: string) => ACTIVITY_RECOVERY_HANDOFF_PREFIX + encodeURIComponent(id);
 
 function isOptionalString(value: unknown) {
@@ -119,10 +125,25 @@ export function readActivityRecovery(): ActivityRecoveryState {
   // A failed migration keeps v1 readable and retryable.
   migrateLegacyRecovery();
   const legacy = parseLegacyRecovery();
-  const finalizations = new Map(legacy.finalizations.map((item) => [item.sessionId, item]));
+  const finalizations = new Map<string, PendingActivityFinalization>();
+  const include = (item: PendingActivityFinalization) => {
+    const current = finalizations.get(item.sessionId);
+    if (!current
+      || item.heartbeat.activeSeconds > current.heartbeat.activeSeconds
+      || (item.heartbeat.activeSeconds === current.heartbeat.activeSeconds
+        && ((item.endSession && !current.endSession)
+          || (item.endSession === current.endSession && item.handoffTaskId && !current.handoffTaskId)))) {
+      finalizations.set(item.sessionId, item);
+    }
+  };
+  for (const item of legacy.finalizations) include(item);
   for (const key of storageKeys(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)) {
     const item = parseFinalization(readLocalStorage(key));
-    if (item && finalizationKey(item.sessionId) === key) finalizations.set(item.sessionId, item);
+    if (item && finalizationKey(item.sessionId) === key) include(item);
+  }
+  for (const key of storageKeys(ACTIVITY_RECOVERY_ATTEMPT_PREFIX)) {
+    const item = parseFinalization(readLocalStorage(key));
+    if (item && belongsToAttempt(key, item.sessionId)) include(item);
   }
   const handoffTaskIds = new Set(legacy.handoffTaskIds);
   for (const key of storageKeys(ACTIVITY_RECOVERY_HANDOFF_PREFIX)) {
@@ -138,14 +159,10 @@ export function readActivityRecovery(): ActivityRecoveryState {
 
 export function enqueueActivityFinalization(finalization: PendingActivityFinalization) {
   if (!migrateLegacyRecovery()) return false;
-  const key = finalizationKey(finalization.sessionId);
-  const stored = parseFinalization(readLocalStorage(key));
-  // Heartbeat duration cannot decrease; an old tab must not replace a newer
-  // pending duration with a smaller one for this same segment.
-  const next = stored && stored.heartbeat.activeSeconds > finalization.heartbeat.activeSeconds
-    ? stored
-    : finalization;
-  const written = writeLocalStorage(key, JSON.stringify(next));
+  // Every attempt has its own immutable key. Another tab may enqueue or
+  // acknowledge the same session in the middle of this write without
+  // overwriting a newer duration.
+  const written = writeLocalStorage(attemptKey(finalization.sessionId), JSON.stringify(finalization));
   if (written && typeof window !== "undefined") {
     window.dispatchEvent(new Event(ACTIVITY_RECOVERY_PENDING_EVENT));
   }
@@ -188,12 +205,28 @@ function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFina
 
 export function acknowledgeActivityFinalization(confirmed: PendingActivityFinalization) {
   if (!migrateLegacyRecovery()) return false;
-  const key = finalizationKey(confirmed.sessionId);
-  const pending = parseFinalization(readLocalStorage(key));
-  if (!pending || !sameFinalization(pending, confirmed)) return true;
-  if (pending.handoffTaskId && !writeLocalStorage(handoffKey(pending.handoffTaskId), "1")) return false;
-  removeLocalStorage(key);
-  return readLocalStorage(key) === null;
+  // Acknowledgement only deletes records whose keys were observed before
+  // this call. A concurrent enqueue uses a new key and remains durable.
+  const candidates = [finalizationKey(confirmed.sessionId),
+    ...storageKeys(ACTIVITY_RECOVERY_ATTEMPT_PREFIX).filter((key) =>
+      belongsToAttempt(key, confirmed.sessionId))];
+  const entries = candidates.map((key) => ({ key, item: parseFinalization(readLocalStorage(key)) }))
+    .filter((entry): entry is { key: string; item: PendingActivityFinalization } =>
+      entry.item !== null && (entry.key === finalizationKey(entry.item.sessionId)
+        || belongsToAttempt(entry.key, entry.item.sessionId)));
+  const hasConfirmed = entries.some(({ item }) => sameFinalization(item, confirmed));
+  if (!hasConfirmed) return true;
+  if (confirmed.handoffTaskId && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
+  for (const { key, item } of entries) {
+    const dominated = sameFinalization(item, confirmed)
+      || item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
+      || (item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds
+        && confirmed.endSession === true && !item.endSession);
+    if (!dominated) continue;
+    removeLocalStorage(key);
+    if (readLocalStorage(key) !== null) return false;
+  }
+  return true;
 }
 
 export function removeActivityHandoff(taskId: string) {
@@ -212,11 +245,15 @@ function logicalSessionId(sessionId: string) {
 export function discardDeletedActivitySession(sessionId: string) {
   if (!migrateLegacyRecovery()) return false;
   const id = logicalSessionId(sessionId);
-  for (const key of storageKeys(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)) {
-    const item = parseFinalization(readLocalStorage(key));
-    if (item && logicalSessionId(item.sessionId) === id) {
-      removeLocalStorage(key);
-      if (readLocalStorage(key) !== null) return false;
+  for (const prefix of [ACTIVITY_RECOVERY_FINALIZATION_PREFIX, ACTIVITY_RECOVERY_ATTEMPT_PREFIX]) {
+    for (const key of storageKeys(prefix)) {
+      const item = parseFinalization(readLocalStorage(key));
+      if (item && logicalSessionId(item.sessionId) === id
+        && (prefix === ACTIVITY_RECOVERY_FINALIZATION_PREFIX
+          ? key === finalizationKey(item.sessionId) : belongsToAttempt(key, item.sessionId))) {
+        removeLocalStorage(key);
+        if (readLocalStorage(key) !== null) return false;
+      }
     }
   }
   return true;

@@ -10,10 +10,16 @@ import {
 } from "./activity-recovery.ts";
 import type { PendingActivityFinalization } from "./activity-recovery.ts";
 
-function withFakeStorage(run: (values: Map<string, string>, onNextWrite: (callback: (key: string) => void) => void) => void) {
+function withFakeStorage(run: (
+  values: Map<string, string>,
+  onNextWrite: (callback: (key: string) => void) => void,
+  onNextRemove: (callback: (key: string) => void) => void,
+) => void) {
   const values = new Map<string, string>();
   let onWrite: ((key: string) => void) | undefined;
+  let onRemove: ((key: string) => void) | undefined;
   const onNextWrite = (callback: (key: string) => void) => { onWrite = callback; };
+  const onNextRemove = (callback: (key: string) => void) => { onRemove = callback; };
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   Object.defineProperty(globalThis, "window", {
     configurable: true,
@@ -28,13 +34,18 @@ function withFakeStorage(run: (values: Map<string, string>, onNextWrite: (callba
           callback?.(key);
           values.set(key, value);
         },
-        removeItem: (key: string) => { values.delete(key); },
+        removeItem: (key: string) => {
+          const callback = onRemove;
+          onRemove = undefined;
+          callback?.(key);
+          values.delete(key);
+        },
       },
       dispatchEvent: () => true,
     },
   });
   try {
-    run(values, onNextWrite);
+    run(values, onNextWrite, onNextRemove);
   } finally {
     if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow);
     else Reflect.deleteProperty(globalThis, "window");
@@ -151,7 +162,7 @@ test("independent tab writes to separate sessions cannot overwrite a queued fina
     assert.equal(enqueueActivityFinalization(finalization("first-tab", 10)), true);
     assert.deepEqual(readActivityRecovery().finalizations.map((item) => item.sessionId).sort(),
       ["first-tab", "other-tab"]);
-    assert.equal([...values.keys()].filter((key) => key.startsWith("notespace.activity-finalization:v2:")).length, 2);
+    assert.equal([...values.keys()].filter((key) => key.startsWith("notespace.activity-finalization:v3:")).length, 2);
   });
 });
 
@@ -207,5 +218,70 @@ test("finalization after End may flush only once its snapshot was removed or tom
     values.delete("notespace.activity-session");
     assert.equal(canFlushActivityFinalization(pending), true);
     assert.equal(canFlushActivityFinalization(finalization("rolled-over:2026-10-25", 10)), true);
+  });
+});
+
+test("same-session interleaved writes preserve the longer recovery record", () => {
+  withFakeStorage((values, onNextWrite) => {
+    onNextWrite(() => {
+      // Tab B commits the 45-second record after Tab A has begun enqueueing 12s.
+      assert.equal(enqueueActivityFinalization(finalization("same:2026-10-26", 45)), true);
+    });
+    assert.equal(enqueueActivityFinalization(finalization("same:2026-10-26", 12)), true);
+    const keyPrefix = "notespace.activity-finalization:v3:";
+    assert.equal([...values.keys()].filter((key) => key.startsWith(keyPrefix)).length, 2);
+    assert.deepEqual(readActivityRecovery().finalizations, [finalization("same:2026-10-26", 45)]);
+  });
+});
+
+test("stale HTTP acknowledgement cannot remove a concurrent same-session enqueue", () => {
+  withFakeStorage((values, _, onNextRemove) => {
+    const earlier = finalization("same:2026-10-26", 12);
+    const newer = finalization("same:2026-10-26", 45);
+    enqueueActivityFinalization(earlier);
+    onNextRemove(() => {
+      // Tab B writes while Tab A acknowledges its earlier 12-second PUT.
+      assert.equal(enqueueActivityFinalization(newer), true);
+    });
+    assert.equal(acknowledgeActivityFinalization(earlier), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [newer]);
+    assert.equal(acknowledgeActivityFinalization(newer), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+    assert.equal([...values.keys()].filter((key) => key.startsWith("notespace.activity-finalization:v3:")).length, 0);
+  });
+});
+
+test("acknowledging the longest confirmed attempt discards older duplicate records", () => {
+  withFakeStorage(() => {
+    const old = finalization("same:2026-10-26", 15);
+    const latest = finalization("same:2026-10-26", 45);
+    enqueueActivityFinalization(old);
+    enqueueActivityFinalization(latest);
+    enqueueActivityFinalization(latest);
+    assert.equal(acknowledgeActivityFinalization(latest), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});
+
+test("legacy v2 recovery remains readable and can be acknowledged after upgrading", () => {
+  withFakeStorage((values) => {
+    const legacy = finalization("legacy:2026-10-26", 17);
+    const legacyKey = "notespace.activity-finalization:v2:legacy%3A2026-10-26";
+    values.set(legacyKey, JSON.stringify(legacy));
+    assert.deepEqual(readActivityRecovery().finalizations, [legacy]);
+    enqueueActivityFinalization(finalization("legacy:2026-10-26", 26));
+    assert.deepEqual(readActivityRecovery().finalizations, [finalization("legacy:2026-10-26", 26)]);
+    assert.equal(acknowledgeActivityFinalization(finalization("legacy:2026-10-26", 26)), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});
+
+test("deleted activity discards v3 attempts across days without deleting other sessions", () => {
+  withFakeStorage(() => {
+    enqueueActivityFinalization(finalization("delete-me:2026-10-25", 11));
+    enqueueActivityFinalization(finalization("delete-me:2026-10-26", 22));
+    enqueueActivityFinalization(finalization("keep-me:2026-10-26", 33));
+    assert.equal(discardDeletedActivitySession("delete-me"), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [finalization("keep-me:2026-10-26", 33)]);
   });
 });

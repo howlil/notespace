@@ -8,6 +8,7 @@ import {
   ACTIVITY_RECOVERY_PENDING_EVENT,
   ACTIVITY_RECOVERY_STORAGE_KEY,
   ACTIVITY_RECOVERY_FINALIZATION_PREFIX,
+  ACTIVITY_RECOVERY_ATTEMPT_PREFIX,
   ACTIVITY_RECOVERY_HANDOFF_PREFIX,
   acknowledgeActivityFinalization,
   canFlushActivityFinalization,
@@ -133,6 +134,7 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
       if (
         event.key === ACTIVITY_RECOVERY_STORAGE_KEY
         || event.key?.startsWith(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)
+        || event.key?.startsWith(ACTIVITY_RECOVERY_ATTEMPT_PREFIX)
         || event.key?.startsWith(ACTIVITY_RECOVERY_HANDOFF_PREFIX)
       ) retry();
     };

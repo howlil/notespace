@@ -37,6 +37,12 @@ export function localDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+// Past segments must not receive ordinary heartbeats after their day ended.
+// A clock moved backwards does not make a newer-dated segment stale.
+export function isPastActivitySegment(activityDate: string, now = Date.now()) {
+  return activityDate < localDate(new Date(now));
+}
+
 export function activitySegmentId(logicalSessionId: string, activityDate: string) {
   return `${logicalSessionId}:${activityDate}`;
 }

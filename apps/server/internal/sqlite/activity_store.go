@@ -93,7 +93,11 @@ SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (
 -- ties have no trustworthy ordering, so keep the already committed metadata.
 ON CONFLICT(id) DO UPDATE SET active_seconds=MAX(activity_sessions.active_seconds,excluded.active_seconds),
   ended_at=COALESCE(activity_sessions.ended_at,excluded.ended_at),
+  -- A committed finish is terminal. Late in-flight heartbeats and durable
+  -- finalization retries must not refresh recency or move an ended session
+  -- ahead of genuinely newer sessions in Activity history.
   last_heartbeat_at=CASE
+    WHEN activity_sessions.ended_at IS NOT NULL THEN activity_sessions.last_heartbeat_at
     WHEN excluded.last_heartbeat_at >= activity_sessions.last_heartbeat_at THEN excluded.last_heartbeat_at
     ELSE activity_sessions.last_heartbeat_at
   END,

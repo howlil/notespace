@@ -12,6 +12,7 @@ export type ActivitySession = {
   startedAt: string;
   endedAt: string | null;
   activeSeconds: number;
+  revision?: number;
   lastHeartbeatAt: string;
 };
 
@@ -46,6 +47,7 @@ export type ActivityDayDetail = {
 export type ActivityHeartbeat = {
   activityDate: string;
   activeSeconds: number;
+  revision?: number;
   finish: boolean;
   title: string;
   activityType: ActivityType;

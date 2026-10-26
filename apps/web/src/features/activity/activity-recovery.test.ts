@@ -366,3 +366,60 @@ test("shorter repeated retries do not accumulate behind a longer pending attempt
     assert.deepEqual(readActivityRecovery().finalizations, [finalization("same:2026-10-26", 45)]);
   });
 });
+
+test("outbox chooses newer equal-duration revision without dropping it on stale acknowledgement", () => {
+  withFakeStorage(() => {
+    const old = finalization("ordered:2026-10-26", 42);
+    old.heartbeat.revision = 2;
+    const latest = finalization("ordered:2026-10-26", 42);
+    latest.heartbeat.revision = 3;
+    latest.heartbeat.title = "Updated at equal duration";
+    assert.equal(enqueueActivityFinalization(old), true);
+    assert.equal(enqueueActivityFinalization(latest), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [latest]);
+
+    assert.equal(acknowledgeActivityFinalization(old), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [latest]);
+    assert.equal(acknowledgeActivityFinalization(latest), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});
+
+test("legacy finalization records remain recoverable alongside versioned attempts", () => {
+  withFakeStorage((values) => {
+    const legacy = finalization("legacy:2026-10-26", 60);
+    values.set("notespace.activity-recovery:v1", JSON.stringify({ finalizations: [legacy], handoffTaskIds: [] }));
+    const versioned = finalization("new:2026-10-26", 30);
+    versioned.heartbeat.revision = 4;
+    assert.equal(enqueueActivityFinalization(versioned), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [legacy, versioned]);
+    assert.equal(acknowledgeActivityFinalization(legacy), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [versioned]);
+  });
+});
+
+test("acknowledging an older longer finalization preserves a newer shorter revision", () => {
+  withFakeStorage(() => {
+    const older = finalization("ordered:2026-10-26", 120, "task-old");
+    older.heartbeat.revision = 3;
+    older.heartbeat.title = "Old context";
+
+    const newer = finalization("ordered:2026-10-26", 60, "task-new");
+    newer.heartbeat.revision = 4;
+    newer.heartbeat.title = "New context";
+
+    assert.equal(enqueueActivityFinalization(older), true);
+    assert.equal(enqueueActivityFinalization(newer), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [older]);
+
+    // The longer duration arrives first. It must not confirm the newer
+    // metadata revision, which is a separate immutable request.
+    assert.equal(acknowledgeActivityFinalization(older), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [newer]);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
+
+    assert.equal(acknowledgeActivityFinalization(newer), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, ["task-new"]);
+  });
+});

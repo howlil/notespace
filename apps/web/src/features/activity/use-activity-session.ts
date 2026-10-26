@@ -16,6 +16,7 @@ import {
   acknowledgeActivityFinalization,
   discardDeletedActivitySession,
   enqueueActivityFinalization,
+  readActivityRecovery,
   type PendingActivityFinalization,
 } from "./activity-recovery";
 import {
@@ -129,6 +130,16 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     return true;
   }, [showToast]);
 
+  // Reserve a new per-segment revision in the recoverable snapshot before
+  // sending. A failed localStorage write must not send an unrepeatable event.
+  const reserveRevision = useCallback((id: string): number | null => {
+    const current = sessionRef.current;
+    if (!current || current.segmentId !== id) return null;
+    const revision = (current.segmentRevision ?? 0) + 1;
+    if (!Number.isSafeInteger(revision) || !commitSession({ ...current, segmentRevision: revision })) return null;
+    return revision;
+  }, [commitSession]);
+
   const sendSegment = useCallback((
     context: ActivitySessionContext | undefined,
     id: string,
@@ -136,12 +147,12 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     activeSeconds: number,
     finish: boolean,
   ) => {
-    // A rollover that could not persist still has the previous-day segment
-    // in memory; never send post-midnight time to an already-finished day.
-    // This applies to periodic and effect-cleanup heartbeats alike.
+    // Delayed timer callbacks cannot advance an already rolled-over segment.
     if (!context || isPastActivitySegment(date)) return;
-    void recordActivityHeartbeat(id, activityHeartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
-  }, []);
+    const revision = reserveRevision(id);
+    if (revision === null) return;
+    void recordActivityHeartbeat(id, activityHeartbeatFor(context, date, activeSeconds, finish, revision)).catch(() => {});
+  }, [reserveRevision]);
 
   const queueFinalization = useCallback((
     context: ActivitySessionContext | undefined,
@@ -152,14 +163,29 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     endSession = false,
   ) => {
     if (!context) return null;
+    // A rollover that could not advance storage must not allocate a new
+    // revision and recovery key on each retry of the same finalization.
+    const existing = readActivityRecovery().finalizations.find((item) =>
+      item.sessionId === id && item.heartbeat.activeSeconds === activeSeconds
+      && item.heartbeat.title === context.title
+      && item.heartbeat.activityType === context.activityType
+      && item.endSession === (endSession ? true : undefined)
+      && item.handoffTaskId === handoffTaskId);
+    if (existing) return existing;
+
+    // Normal End and first rollover reserve the sequence in the live snapshot.
+    // Extra days after a long suspension have no running segment snapshot;
+    // their immutable outbox entry itself durably records revision 1.
+    const revision = sessionRef.current?.segmentId === id ? reserveRevision(id) : 1;
+    if (revision === null) return null;
     const finalization: PendingActivityFinalization = {
       sessionId: id,
-      heartbeat: activityHeartbeatFor(context, date, activeSeconds, true),
+      heartbeat: activityHeartbeatFor(context, date, activeSeconds, true, revision),
       ...(handoffTaskId ? { handoffTaskId } : {}),
       ...(endSession ? { endSession: true as const } : {}),
     };
     return enqueueActivityFinalization(finalization) ? finalization : null;
-  }, []);
+  }, [reserveRevision]);
 
   const finalizeSegmentBestEffort = useCallback((
     context: ActivitySessionContext | undefined,
@@ -194,21 +220,29 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
         );
       }
     }
-    return result.session;
+    // sendSegment reserves its revision by committing a newer snapshot. Never
+    // return the pre-reservation rollover result to Pause/Resume, which would
+    // otherwise write revision 0 over the new day's already-used revision 1.
+    return sessionRef.current?.segmentId === result.session.segmentId
+      ? sessionRef.current : result.session;
   }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   const adoptStoredSession = useCallback((stored: ManualActivitySession, now: number) => {
+    // Restored revisions are authoritative. Populate the reservation source
+    // before replaying midnight finalizations, not after they are queued.
+    sessionRef.current = stored;
     const result = advanceActivitySession(stored, now);
     const queued = result.completed.every((item) =>
       finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
-    const adopted = queued ? result.session : stored;
-    // A persisted session is already recoverable even when updating its
-    // rollover snapshot fails; keep the old snapshot in memory for retries.
+    // A failed queued rollover must not reset a revision already persisted
+    // while reserving its final heartbeat.
+    const fallback = { ...stored, segmentRevision: sessionRef.current?.segmentRevision ?? stored.segmentRevision };
+    const adopted = queued ? result.session : fallback;
     const committed = commitSession(adopted);
-    const active = committed ? adopted : stored;
+    const active = committed ? adopted : fallback;
     if (!committed) {
-      sessionRef.current = stored;
-      setSession(stored);
+      sessionRef.current = fallback;
+      setSession(fallback);
     }
     setBaseline({
       todaySeconds: active.baselineTodaySeconds,
@@ -357,6 +391,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
         status: "running",
         sessionAccumulatedSeconds: 0,
         segmentAccumulatedSeconds: 0,
+        segmentRevision: 0,
         runningSince: now,
         baselineTodaySeconds: effectiveBaseline.todaySeconds,
         baselineTotalSeconds: effectiveBaseline.totalSeconds,
@@ -456,7 +491,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       true,
     );
     if (!finalization) {
-      commitSession(finished);
+      commitSession({ ...finished, segmentRevision: sessionRef.current?.segmentRevision ?? finished.segmentRevision });
       setClock(now);
       return null;
     }

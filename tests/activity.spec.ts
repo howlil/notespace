@@ -748,3 +748,151 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("activity heartbeats reserve strictly increasing revisions through End", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Activity revision proof ${Date.now()}`;
+  const observed: Array<{ revision?: number; finish?: boolean }> = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() === "PUT") {
+        observed.push(route.request().postDataJSON() as { revision?: number; finish?: boolean });
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+
+    await expect.poll(() => observed.filter((item) => item.finish === false).length).toBeGreaterThan(0);
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect.poll(() => observed.some((item) => item.finish === true)).toBe(true);
+
+    const first = observed.find((item) => item.finish === false);
+    const final = observed.find((item) => item.finish === true);
+    expect(first?.revision).toBeGreaterThan(0);
+    expect(final?.revision).toBeGreaterThan(first?.revision ?? 0);
+    await expect.poll(async () => {
+      const res = await request.get("/api/activity/sessions?limit=100");
+      if (!res.ok()) return null;
+      const rows = await res.json() as ActivitySessionRecord[];
+      return rows.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
+test("activity reload preserves the previous day's revision before rollover finalization", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Midnight revision restore ${Date.now()}`;
+  const oldDay = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const logicalId = `midnight-revision-${Date.now()}`;
+  const oldSegment = `${logicalId}:${oldDay}`;
+  const observed: number[] = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.addInitScript(({ logicalId, oldDay, title, workspaceId }) => {
+      window.localStorage.setItem("notespace.activity-session", JSON.stringify({
+        logicalSessionId: logicalId,
+        segmentId: `${logicalId}:${oldDay}`,
+        activityDate: oldDay,
+        status: "paused",
+        sessionAccumulatedSeconds: 90,
+        segmentAccumulatedSeconds: 90,
+        segmentRevision: 7,
+        runningSince: null,
+        baselineTodaySeconds: 0,
+        baselineTotalSeconds: 0,
+        context: { title, activityType: "build", workspaceId },
+      }));
+    }, { logicalId, oldDay, title, workspaceId: workspace.id });
+
+    await page.route(heartbeatUrl, async (route) => {
+      const body = route.request().method() === "PUT"
+        ? route.request().postDataJSON() as { revision?: number; finish?: boolean } : null;
+      if (body?.finish && route.request().url().includes(encodeURIComponent(oldSegment))) {
+        observed.push(body.revision ?? 0);
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await expect.poll(() => observed[0]).toBe(8);
+    await expect.poll(async () => {
+      const res = await request.get("/api/activity/sessions?limit=100");
+      if (!res.ok()) return null;
+      const rows = await res.json() as ActivitySessionRecord[];
+      return rows.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    await page.evaluate(() => window.localStorage.removeItem("notespace.activity-session")).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
+test("pausing immediately after midnight does not reuse the new segment revision", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Midnight pause revision ${Date.now()}`;
+  const beforeMidnight = new Date(2026, 9, 26, 23, 59, 58);
+  const afterMidnight = new Date(2026, 9, 27, 0, 0, 2);
+  const nextDay = localDateKey(afterMidnight);
+  const payloads: Array<{ activityDate: string; revision?: number; finish: boolean }> = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.clock.install({ time: beforeMidnight });
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() === "PUT") {
+        payloads.push(route.request().postDataJSON() as {
+          activityDate: string; revision?: number; finish: boolean;
+        });
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect.poll(() => payloads.some((item) => item.finish === false)).toBe(true);
+
+    // Change the clock without dispatching interval ticks: Pause itself must
+    // reconcile midnight and preserve the new segment's first reserved revision.
+    await page.clock.setFixedTime(afterMidnight);
+    await page.getByRole("button", { name: "Pause activity" }).click();
+    await expect.poll(() => payloads.filter((item) =>
+      item.activityDate === nextDay && item.finish === false).length).toBeGreaterThanOrEqual(2);
+    const newDayRevisions = payloads.filter((item) =>
+      item.activityDate === nextDay && item.finish === false).map((item) => item.revision);
+    expect(newDayRevisions.slice(0, 2)).toEqual([1, 2]);
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

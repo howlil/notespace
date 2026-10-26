@@ -170,5 +170,34 @@ test("Activity End must not report success if neither remove nor tombstone write
   const initial = session();
   const state = storage({ [activitySessionStorageKey]: JSON.stringify(initial) }, false, false);
   assert.equal(writeStoredActivitySession(null, state.api), false);
-  assert.deepEqual(readStoredActivitySession(undefined, state.api), initial);
+  assert.deepEqual(readStoredActivitySession(undefined, state.api), { ...initial, segmentRevision: 0 });
+});
+
+test("revisions persist through reload and malformed old counters fall back safely", () => {
+  const existing = session({ segmentRevision: 7 });
+  const state = storage({ [activitySessionStorageKey]: JSON.stringify(existing) });
+  assert.equal(readStoredActivitySession(undefined, state.api)?.segmentRevision, 7);
+
+  const legacy = session();
+  delete legacy.segmentRevision;
+  state.values.set(activitySessionStorageKey, JSON.stringify(legacy));
+  assert.equal(readStoredActivitySession(undefined, state.api)?.segmentRevision, 0);
+
+  state.values.set(activitySessionStorageKey, JSON.stringify({ ...legacy, segmentRevision: -8 }));
+  assert.equal(readStoredActivitySession(undefined, state.api)?.segmentRevision, 0);
+
+  // The same event keeps its immutable client-assigned sequence on retries.
+  assert.equal(
+    activityHeartbeatFor(legacy.context!, legacy.activityDate, 12, true, 9).revision, 9,
+  );
+  assert.equal(
+    activityHeartbeatFor(legacy.context!, legacy.activityDate, 12, true).revision, undefined,
+  );
+});
+
+test("failed revision persistence does not advance the recoverable snapshot", () => {
+  const stored = session({ segmentRevision: 4 });
+  const state = storage({ [activitySessionStorageKey]: JSON.stringify(stored) }, false);
+  assert.equal(writeStoredActivitySession({ ...stored, segmentRevision: 5 }, state.api), false);
+  assert.equal(readStoredActivitySession(undefined, state.api)?.segmentRevision, 4);
 });

@@ -19,6 +19,8 @@ export type ManualActivitySession = {
   status: "running" | "paused";
   sessionAccumulatedSeconds: number;
   segmentAccumulatedSeconds: number;
+  /** Last persistently reserved sequence for this day segment. */
+  segmentRevision?: number;
   runningSince: number | null;
   baselineTodaySeconds: number;
   baselineTotalSeconds: number;
@@ -103,6 +105,7 @@ export function advanceActivitySession(
         segmentId: activitySegmentId(current.logicalSessionId, targetDate),
         activityDate: targetDate,
         segmentAccumulatedSeconds: 0,
+        segmentRevision: 0,
         baselineTodaySeconds: 0,
       },
     };
@@ -121,6 +124,7 @@ export function advanceActivitySession(
       activityDate: nextDate,
       sessionAccumulatedSeconds: sessionSeconds,
       segmentAccumulatedSeconds: 0,
+      segmentRevision: 0,
       runningSince: boundary,
       baselineTodaySeconds: 0,
     };

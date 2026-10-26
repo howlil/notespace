@@ -56,6 +56,7 @@ function isHeartbeat(value: unknown): value is ActivityHeartbeat {
     && typeof heartbeat.activeSeconds === "number"
     && Number.isFinite(heartbeat.activeSeconds)
     && heartbeat.activeSeconds >= 0
+    && (heartbeat.revision === undefined || (Number.isSafeInteger(heartbeat.revision) && heartbeat.revision > 0))
     && heartbeat.finish === true
     && typeof heartbeat.title === "string"
     && typeof heartbeat.activityType === "string"
@@ -143,12 +144,21 @@ export function readActivityRecovery(): ActivityRecoveryState {
   }>();
   const include = (item: PendingActivityFinalization, order = 0, key = "") => {
     const current = finalizations.get(item.sessionId);
-    if (!current
-      || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds
-      || (item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds
-        && ((item.endSession && !current.item.endSession)
-          || (item.endSession === current.item.endSession
-            && (order > current.order || (order === current.order && key > current.key)))))) {
+    const candidateRevision = item.heartbeat.revision ?? 0;
+    const storedRevision = current?.item.heartbeat.revision ?? 0;
+    let newerTie = false;
+    if (current && item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds) {
+      if (candidateRevision > storedRevision) {
+        newerTie = true;
+      } else if (candidateRevision === storedRevision) {
+        if (item.endSession && !current.item.endSession) {
+          newerTie = true;
+        } else if (item.endSession === current.item.endSession) {
+          newerTie = order > current.order || (order === current.order && key > current.key);
+        }
+      }
+    }
+    if (!current || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds || newerTie) {
       finalizations.set(item.sessionId, { item, order, key });
     }
   };
@@ -224,6 +234,7 @@ function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFina
   return a.sessionId === b.sessionId && a.handoffTaskId === b.handoffTaskId
     && a.endSession === b.endSession
     && x.activityDate === y.activityDate && x.activeSeconds === y.activeSeconds
+    && x.revision === y.revision
     && x.finish === y.finish && x.title === y.title && x.activityType === y.activityType
     && x.workspaceId === y.workspaceId && x.workspaceTitleSnapshot === y.workspaceTitleSnapshot
     && x.taskId === y.taskId && x.taskTitleSnapshot === y.taskTitleSnapshot;
@@ -246,13 +257,23 @@ export function acknowledgeActivityFinalization(confirmed: PendingActivityFinali
   // a superseded attempt, even if its own record is now acknowledged.
   const winner = readActivityRecovery().finalizations.find((item) =>
     item.sessionId === confirmed.sessionId);
-  const isWinningAck = !!winner && sameFinalization(winner, confirmed);
+  // Winning by duration is sufficient for seconds, but not for a Task
+  // handoff: a newer, lower-duration context revision still owns that intent.
+  const newerRevisionPending = entries.some(({ item }) =>
+    (item.heartbeat.revision ?? 0) > (confirmed.heartbeat.revision ?? 0));
+  const isWinningAck = !!winner && sameFinalization(winner, confirmed) && !newerRevisionPending;
   if (confirmed.handoffTaskId && isWinningAck
     && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
   for (const { key, item } of entries) {
+    // A longer, older progress attempt may be acknowledged first, but it
+    // cannot acknowledge a newer context revision that has not reached the
+    // server. Keep that immutable attempt for its own subsequent retry.
+    const noNewerRevision = (item.heartbeat.revision ?? 0) <= (confirmed.heartbeat.revision ?? 0);
     const dominated = sameFinalization(item, confirmed)
-      || item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
-      || (isWinningAck && item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds);
+      || (noNewerRevision && (
+        item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
+        || (isWinningAck && item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds)
+      ));
     if (!dominated) continue;
     removeLocalStorage(key);
     if (readLocalStorage(key) !== null) return false;

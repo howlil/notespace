@@ -30,12 +30,14 @@ type Session struct {
 	StartedAt              string  `json:"startedAt"`
 	EndedAt                *string `json:"endedAt"`
 	ActiveSeconds          int64   `json:"activeSeconds"`
+	Revision               int64   `json:"revision,omitempty"`
 	LastHeartbeatAt        string  `json:"lastHeartbeatAt"`
 }
 
 type Heartbeat struct {
 	ActivityDate  string `json:"activityDate"`
 	ActiveSeconds int64  `json:"activeSeconds"`
+	Revision      int64  `json:"revision,omitempty"`
 	Finish        bool   `json:"finish"`
 }
 

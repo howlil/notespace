@@ -150,12 +150,12 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup libraryBackup) 
 			INSERT INTO activity_sessions(
 				id,logical_session_id,workspace_id,workspace_title_snapshot,
 				task_id,task_title_snapshot,activity_title,activity_type,
-				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at
+				activity_date,started_at,ended_at,active_seconds,last_heartbeat_at,revision
 			)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		`, session.ID, "", session.WorkspaceID, session.WorkspaceTitleSnapshot,
 			session.TaskID, session.TaskTitleSnapshot, session.Title, session.ActivityType,
-			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt); err != nil {
+			session.ActivityDate, session.StartedAt, session.EndedAt, session.ActiveSeconds, session.LastHeartbeatAt, session.Revision); err != nil {
 			return err
 		}
 	}

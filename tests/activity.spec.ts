@@ -849,3 +849,50 @@ test("activity reload preserves the previous day's revision before rollover fina
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("pausing immediately after midnight does not reuse the new segment revision", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Midnight pause revision ${Date.now()}`;
+  const beforeMidnight = new Date(2026, 9, 26, 23, 59, 58);
+  const afterMidnight = new Date(2026, 9, 27, 0, 0, 2);
+  const nextDay = localDateKey(afterMidnight);
+  const payloads: Array<{ activityDate: string; revision?: number; finish: boolean }> = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.clock.install({ time: beforeMidnight });
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() === "PUT") {
+        payloads.push(route.request().postDataJSON() as {
+          activityDate: string; revision?: number; finish: boolean;
+        });
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect.poll(() => payloads.some((item) => item.finish === false)).toBe(true);
+
+    // Change the clock without dispatching interval ticks: Pause itself must
+    // reconcile midnight and preserve the new segment's first reserved revision.
+    await page.clock.setFixedTime(afterMidnight);
+    await page.getByRole("button", { name: "Pause activity" }).click();
+    await expect.poll(() => payloads.filter((item) =>
+      item.activityDate === nextDay && item.finish === false).length).toBeGreaterThanOrEqual(2);
+    const newDayRevisions = payloads.filter((item) =>
+      item.activityDate === nextDay && item.finish === false).map((item) => item.revision);
+    expect(newDayRevisions.slice(0, 2)).toEqual([1, 2]);
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

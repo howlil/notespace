@@ -138,25 +138,28 @@ export function readActivityRecovery(): ActivityRecoveryState {
   // A failed migration keeps v1 readable and retryable.
   migrateLegacyRecovery();
   const legacy = parseLegacyRecovery();
-  const finalizations = new Map<string, PendingActivityFinalization>();
-  const include = (item: PendingActivityFinalization) => {
+  const finalizations = new Map<string, {
+    item: PendingActivityFinalization; order: number; key: string;
+  }>();
+  const include = (item: PendingActivityFinalization, order = 0, key = "") => {
     const current = finalizations.get(item.sessionId);
     if (!current
-      || item.heartbeat.activeSeconds > current.heartbeat.activeSeconds
-      || (item.heartbeat.activeSeconds === current.heartbeat.activeSeconds
-        && ((item.endSession && !current.endSession)
-          || item.endSession === current.endSession))) {
-      finalizations.set(item.sessionId, item);
+      || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds
+      || (item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds
+        && ((item.endSession && !current.item.endSession)
+          || (item.endSession === current.item.endSession
+            && (order > current.order || (order === current.order && key > current.key)))))) {
+      finalizations.set(item.sessionId, { item, order, key });
     }
   };
   for (const item of legacy.finalizations) include(item);
   for (const key of storageKeys(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)) {
     const item = parseFinalization(readLocalStorage(key));
-    if (item && finalizationKey(item.sessionId) === key) include(item);
+    if (item && finalizationKey(item.sessionId) === key) include(item, 0, key);
   }
   for (const key of storageKeys(ACTIVITY_RECOVERY_ATTEMPT_PREFIX)) {
     const item = parseFinalization(readLocalStorage(key));
-    if (item && belongsToAttempt(key, item.sessionId)) include(item);
+    if (item && belongsToAttempt(key, item.sessionId)) include(item, attemptOrder(key, item.sessionId), key);
   }
   const handoffTaskIds = new Set(legacy.handoffTaskIds);
   for (const key of storageKeys(ACTIVITY_RECOVERY_HANDOFF_PREFIX)) {
@@ -167,7 +170,7 @@ export function readActivityRecovery(): ActivityRecoveryState {
       if (decoded && handoffKey(decoded) === key) handoffTaskIds.add(decoded);
     } catch { /* Ignore malformed persisted key. */ }
   }
-  return { finalizations: [...finalizations.values()], handoffTaskIds: [...handoffTaskIds] };
+  return { finalizations: [...finalizations.values()].map((record) => record.item), handoffTaskIds: [...handoffTaskIds] };
 }
 
 export function enqueueActivityFinalization(finalization: PendingActivityFinalization) {

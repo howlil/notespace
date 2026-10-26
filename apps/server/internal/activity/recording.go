@@ -99,6 +99,7 @@ func (s Service) recordActivity(ctx context.Context, sessionID string, input Act
 		StartedAt:              now,
 		EndedAt:                endedAt,
 		ActiveSeconds:          input.ActiveSeconds,
+		Revision:               input.Revision,
 		LastHeartbeatAt:        now,
 	}
 	if err := ValidateSession(session); err != nil {

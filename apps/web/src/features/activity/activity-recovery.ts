@@ -132,8 +132,7 @@ export function readActivityRecovery(): ActivityRecoveryState {
       || item.heartbeat.activeSeconds > current.heartbeat.activeSeconds
       || (item.heartbeat.activeSeconds === current.heartbeat.activeSeconds
         && ((item.endSession && !current.endSession)
-          || (item.endSession === current.endSession
-            && (!current.handoffTaskId || !!item.handoffTaskId))))) {
+          || item.endSession === current.endSession))) {
       finalizations.set(item.sessionId, item);
     }
   };
@@ -227,13 +226,13 @@ export function acknowledgeActivityFinalization(confirmed: PendingActivityFinali
   // a superseded attempt, even if its own record is now acknowledged.
   const winner = readActivityRecovery().finalizations.find((item) =>
     item.sessionId === confirmed.sessionId);
-  if (confirmed.handoffTaskId && winner && sameFinalization(winner, confirmed)
+  const isWinningAck = !!winner && sameFinalization(winner, confirmed);
+  if (confirmed.handoffTaskId && isWinningAck
     && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
   for (const { key, item } of entries) {
     const dominated = sameFinalization(item, confirmed)
       || item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
-      || (item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds
-        && confirmed.endSession === true && !item.endSession);
+      || (isWinningAck && item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds);
     if (!dominated) continue;
     removeLocalStorage(key);
     if (readLocalStorage(key) !== null) return false;

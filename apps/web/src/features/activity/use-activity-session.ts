@@ -224,17 +224,21 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
   }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   const adoptStoredSession = useCallback((stored: ManualActivitySession, now: number) => {
+    // Restored revisions are authoritative. Populate the reservation source
+    // before replaying midnight finalizations, not after they are queued.
+    sessionRef.current = stored;
     const result = advanceActivitySession(stored, now);
     const queued = result.completed.every((item) =>
       finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
-    const adopted = queued ? result.session : stored;
-    // A persisted session is already recoverable even when updating its
-    // rollover snapshot fails; keep the old snapshot in memory for retries.
+    // A failed queued rollover must not reset a revision already persisted
+    // while reserving its final heartbeat.
+    const fallback = { ...stored, segmentRevision: sessionRef.current?.segmentRevision ?? stored.segmentRevision };
+    const adopted = queued ? result.session : fallback;
     const committed = commitSession(adopted);
-    const active = committed ? adopted : stored;
+    const active = committed ? adopted : fallback;
     if (!committed) {
-      sessionRef.current = stored;
-      setSession(stored);
+      sessionRef.current = fallback;
+      setSession(fallback);
     }
     setBaseline({
       todaySeconds: active.baselineTodaySeconds,

@@ -125,7 +125,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.UpsertSession(ctx, activity.Session{
-		ID: "read-1", Title: "Read database paper", ActivityType: "read",
+		ID: "read-1", Title: "Read database paper", ActivityType: "read", Revision: 5,
 		ActivityDate: "2026-09-06", StartedAt: "2026-09-06T02:00:00Z",
 		ActiveSeconds: 300, LastHeartbeatAt: "2026-09-06T02:05:00Z",
 	}); err != nil {
@@ -194,6 +194,14 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 	globalStats, err := store.GlobalStats(ctx, "2026-09-06")
 	if err != nil || globalStats.TotalSeconds != 900 {
 		t.Fatalf("restored global activity stats = %+v err=%v", globalStats, err)
+	}
+	// A versioned Activity remains ordered after a full-library backup restore.
+	var restoredRevision int64
+	if err := store.db.QueryRowContext(ctx, "SELECT revision FROM activity_sessions WHERE id=?", "read-1").Scan(&restoredRevision); err != nil {
+		t.Fatal(err)
+	}
+	if restoredRevision != 5 {
+		t.Fatalf("restored Activity revision = %d, want 5", restoredRevision)
 	}
 	activities, err := store.ListActivitySessions(ctx, 10)
 	if err != nil {

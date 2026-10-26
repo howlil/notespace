@@ -400,11 +400,11 @@ test("legacy finalization records remain recoverable alongside versioned attempt
 
 test("acknowledging an older longer finalization preserves a newer shorter revision", () => {
   withFakeStorage(() => {
-    const older = finalization("ordered:2026-10-26", 120);
+    const older = finalization("ordered:2026-10-26", 120, "task-old");
     older.heartbeat.revision = 3;
     older.heartbeat.title = "Old context";
 
-    const newer = finalization("ordered:2026-10-26", 60);
+    const newer = finalization("ordered:2026-10-26", 60, "task-new");
     newer.heartbeat.revision = 4;
     newer.heartbeat.title = "New context";
 
@@ -416,8 +416,10 @@ test("acknowledging an older longer finalization preserves a newer shorter revis
     // metadata revision, which is a separate immutable request.
     assert.equal(acknowledgeActivityFinalization(older), true);
     assert.deepEqual(readActivityRecovery().finalizations, [newer]);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
 
     assert.equal(acknowledgeActivityFinalization(newer), true);
     assert.deepEqual(readActivityRecovery().finalizations, []);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, ["task-new"]);
   });
 });

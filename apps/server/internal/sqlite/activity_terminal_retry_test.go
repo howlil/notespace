@@ -67,24 +67,34 @@ func TestActivityCompletedSessionDoesNotMoveToTopAfterDelayedRetries(t *testing.
 		t.Fatalf("replayed finish rewrote terminal timestamps: %+v", got)
 	}
 
-	// Corrected finalizations may reconcile missing duration and metadata
-	// without reordering the already completed session.
+	// Merely replaying an old completed session must not reorder history.
+	sessions, err := store.ListActivitySessions(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 2 || sessions[0].ID != "new" || sessions[1].ID != "old" {
+		t.Fatalf("delayed retry moved old session above new history: %+v", sessions)
+	}
+
+	// Genuine higher-duration progress may refresh history's latest snapshot
+	// even when a prior finish was already recorded for this segment.
 	corrected := retry
 	corrected.ActiveSeconds = 150
 	corrected.Title = "Corrected progress"
 	corrected.LastHeartbeatAt = "2026-10-26T09:08:00Z"
 	got = write(corrected)
 	if got.ActiveSeconds != 150 || got.Title != corrected.Title ||
-		got.LastHeartbeatAt != "2026-10-26T09:02:00.000000000Z" {
-		t.Fatalf("corrected finish lost duration or changed recency: %+v", got)
+		got.LastHeartbeatAt != "2026-10-26T09:08:00.000000000Z" ||
+		got.EndedAt == nil || *got.EndedAt != "2026-10-26T09:02:00.000000000Z" {
+		t.Fatalf("corrected finish lost progress or first finish timestamp: %+v", got)
 	}
 
-	sessions, err := store.ListActivitySessions(ctx, 10)
+	sessions, err = store.ListActivitySessions(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sessions) != 2 || sessions[0].ID != "new" || sessions[1].ID != "old" {
-		t.Fatalf("delayed old session moved above newer history: %+v", sessions)
+	if len(sessions) != 2 || sessions[0].ID != "old" || sessions[1].ID != "new" {
+		t.Fatalf("genuine higher-duration progress did not refresh history: %+v", sessions)
 	}
 }
 

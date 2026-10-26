@@ -1,5 +1,5 @@
 import type { ActivityHeartbeat } from "../../adapters/http/activity-api";
-import { activitySessionStorageKey } from "./activity-session-storage";
+import { activitySessionStorageKey } from "./activity-session-storage.ts";
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage.ts";
 
 export type PendingActivityFinalization = {

@@ -6,6 +6,7 @@ import {
   currentSegmentSeconds,
   currentSessionSeconds,
   localDate,
+  isPastActivitySegment,
   materializeActivitySession,
   resumeActivitySession,
   activitySegmentId,
@@ -68,4 +69,12 @@ test("study totals clamp invalid negative inputs", () => {
     combineActivityStats({ todaySeconds: -1, totalSeconds: -2 }, -3, -4),
     { todaySeconds: 0, totalSeconds: 0 },
   );
+});
+
+test("stale-day heartbeat policy excludes old segments without locking controls after clock rollback", () => {
+  const now = new Date(2026, 9, 26, 12, 0, 0).getTime();
+  assert.equal(isPastActivitySegment("2026-10-25", now), true);
+  assert.equal(isPastActivitySegment("2026-10-26", now), false);
+  // A time-zone or clock correction must not prevent Pause, Resume, or End.
+  assert.equal(isPastActivitySegment("2026-10-27", now), false);
 });

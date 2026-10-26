@@ -532,3 +532,62 @@ test("@critical Activity does not start a non-recoverable session when browser s
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("@critical Activity pause and resume keep durable state when browser storage fails", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Activity transition storage fault ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      const controls = window as Window & { rejectActivityUpdates?: boolean };
+      controls.rejectActivityUpdates = true;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === "notespace.activity-session" && controls.rejectActivityUpdates) {
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return original.call(this, key, value);
+      };
+    });
+
+    await page.getByRole("button", { name: "Pause activity" }).click();
+    await expect(page.getByRole("alert")).toContainText("Activity changes could not be saved");
+    await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("running");
+
+    await page.evaluate(() => { (window as Window & { rejectActivityUpdates?: boolean }).rejectActivityUpdates = false; });
+    await page.getByRole("button", { name: "Pause activity" }).click();
+    await expect(page.getByRole("button", { name: "Resume activity" })).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("paused");
+
+    await page.evaluate(() => { (window as Window & { rejectActivityUpdates?: boolean }).rejectActivityUpdates = true; });
+    await page.getByRole("button", { name: "Resume activity" }).click();
+    await expect(page.getByRole("button", { name: "Resume activity" })).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("paused");
+
+    await page.evaluate(() => { (window as Window & { rejectActivityUpdates?: boolean }).rejectActivityUpdates = false; });
+    await page.getByRole("button", { name: "Resume activity" }).click();
+    await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("running");
+
+    await page.reload();
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100").catch(() => null);
+    if (response?.ok()) {
+      const sessions = await response.json() as ActivitySessionRecord[];
+      for (const session of sessions.filter((item) => item.title === title)) {
+        await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

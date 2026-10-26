@@ -24,6 +24,7 @@ import {
   currentSegmentSeconds,
   currentSessionSeconds,
   localDate,
+  isPastActivitySegment,
   materializeActivitySession,
   resumeActivitySession,
   activitySegmentId,
@@ -97,6 +98,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
   const leaseRef = useRef<ActivityLease | null>(null);
   const acquiringLease = useRef(false);
   const mountedRef = useRef(true);
+  const persistenceErrorShown = useRef(false);
   const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
   const [baseline, setBaseline] = useState({ todaySeconds: 0, totalSeconds: 0 });
   const [baselineDate, setBaselineDate] = useState(localDate());
@@ -110,10 +112,22 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
   }, []);
 
   const commitSession = useCallback((next: ManualActivitySession | null) => {
+    // A visible transition must never outrun its recoverable snapshot.
+    if (!writeStoredActivitySession(next)) {
+      if (!persistenceErrorShown.current) {
+        showToast({
+          kind: "error",
+          message: "Activity changes could not be saved. Check browser storage, then retry.",
+        });
+      }
+      persistenceErrorShown.current = true;
+      return false;
+    }
+    persistenceErrorShown.current = false;
     sessionRef.current = next;
     setSession(next);
-    writeStoredActivitySession(next);
-  }, []);
+    return true;
+  }, [showToast]);
 
   const sendSegment = useCallback((
     context: ActivitySessionContext | undefined,
@@ -122,7 +136,10 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     activeSeconds: number,
     finish: boolean,
   ) => {
-    if (!context) return;
+    // A rollover that could not persist still has the previous-day segment
+    // in memory; never send post-midnight time to an already-finished day.
+    // This applies to periodic and effect-cleanup heartbeats alike.
+    if (!context || isPastActivitySegment(date)) return;
     void recordActivityHeartbeat(id, activityHeartbeatFor(context, date, activeSeconds, finish)).catch(() => {});
   }, []);
 
@@ -164,7 +181,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       const queued = result.completed.every((item) =>
         finalizeSegmentBestEffort(value.context, item.id, item.date, item.activeSeconds));
       if (!queued) return value;
-      commitSession(result.session);
+      if (!commitSession(result.session)) return value;
       if (result.session.status === "running") {
         sendSegment(
           result.session.context,
@@ -183,20 +200,27 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     const queued = result.completed.every((item) =>
       finalizeSegmentBestEffort(stored.context, item.id, item.date, item.activeSeconds));
     const adopted = queued ? result.session : stored;
-    commitSession(adopted);
+    // A persisted session is already recoverable even when updating its
+    // rollover snapshot fails; keep the old snapshot in memory for retries.
+    const committed = commitSession(adopted);
+    const active = committed ? adopted : stored;
+    if (!committed) {
+      sessionRef.current = stored;
+      setSession(stored);
+    }
     setBaseline({
-      todaySeconds: adopted.baselineTodaySeconds,
-      totalSeconds: adopted.baselineTotalSeconds,
+      todaySeconds: active.baselineTodaySeconds,
+      totalSeconds: active.baselineTotalSeconds,
     });
-    setBaselineDate(adopted.activityDate);
+    setBaselineDate(active.activityDate);
     setClock(now);
     setBlockedByOtherTab(false);
-    if (adopted.status === "running") {
+    if (active.status === "running" && active.activityDate === localDate(new Date(now))) {
       sendSegment(
-        adopted.context,
-        adopted.segmentId,
-        adopted.activityDate,
-        currentSegmentSeconds(adopted, now),
+        active.context,
+        active.segmentId,
+        active.activityDate,
+        currentSegmentSeconds(active, now),
         false,
       );
     }
@@ -391,8 +415,11 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     if (!current || current.status !== "running") return;
     const now = Date.now();
     const reconciled = reconcile(current, now);
+    // Do not pause the previous day's segment when its rollover could not
+    // be persisted; retry the rollover after storage becomes available.
+    if (isPastActivitySegment(reconciled.activityDate, now)) return;
     const next = materializeActivitySession(reconciled, now);
-    commitSession(next);
+    if (!commitSession(next)) return;
     setClock(now);
     sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
   }
@@ -402,8 +429,9 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     if (!current || current.status !== "paused") return;
     const now = Date.now();
     const reconciled = reconcile(current, now);
+    if (isPastActivitySegment(reconciled.activityDate, now)) return;
     const next = resumeActivitySession(reconciled, now);
-    commitSession(next);
+    if (!commitSession(next)) return;
     setClock(now);
     sendSegment(next.context, next.segmentId, next.activityDate, next.segmentAccumulatedSeconds, false);
   }
@@ -413,6 +441,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     if (!current) return null;
     const now = Date.now();
     const reconciled = reconcile(current, now);
+    if (isPastActivitySegment(reconciled.activityDate, now)) return null;
     const finished = reconciled.status === "running"
       ? materializeActivitySession(reconciled, now)
       : reconciled;

@@ -748,3 +748,48 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
+
+test("activity heartbeats reserve strictly increasing revisions through End", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Activity revision proof ${Date.now()}`;
+  const observed: Array<{ revision?: number; finish?: boolean }> = [];
+  const heartbeatUrl = "**/api/activity/sessions/*";
+  try {
+    await page.route(heartbeatUrl, async (route) => {
+      if (route.request().method() === "PUT") {
+        observed.push(route.request().postDataJSON() as { revision?: number; finish?: boolean });
+      }
+      await route.continue();
+    });
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+
+    await expect.poll(() => observed.filter((item) => item.finish === false).length).toBeGreaterThan(0);
+    await page.getByRole("button", { name: "End activity" }).click();
+    await expect.poll(() => observed.some((item) => item.finish === true)).toBe(true);
+
+    const first = observed.find((item) => item.finish === false);
+    const final = observed.find((item) => item.finish === true);
+    expect(first?.revision).toBeGreaterThan(0);
+    expect(final?.revision).toBeGreaterThan(first?.revision ?? 0);
+    await expect.poll(async () => {
+      const res = await request.get("/api/activity/sessions?limit=100");
+      if (!res.ok()) return null;
+      const rows = await res.json() as ActivitySessionRecord[];
+      return rows.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    await page.unroute(heartbeatUrl).catch(() => undefined);
+    const res = await request.get("/api/activity/sessions?limit=100");
+    if (res.ok()) {
+      const rows = await res.json() as ActivitySessionRecord[];
+      for (const item of rows) {
+        if (item.title === title) await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});

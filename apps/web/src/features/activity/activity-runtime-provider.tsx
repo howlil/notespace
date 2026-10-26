@@ -10,6 +10,7 @@ import {
   ACTIVITY_RECOVERY_FINALIZATION_PREFIX,
   ACTIVITY_RECOVERY_HANDOFF_PREFIX,
   acknowledgeActivityFinalization,
+  canFlushActivityFinalization,
   discardDeletedActivitySession,
   readActivityRecovery,
   removeActivityHandoff,
@@ -58,6 +59,9 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
       setFinalizingCount(recovery.finalizations.length);
 
       for (const finalization of recovery.finalizations) {
+        // End is durable only after its old session snapshot is no longer
+        // restorable. A failed clear must not close a running server session.
+        if (!canFlushActivityFinalization(finalization)) continue;
         try {
           await recordActivityHeartbeat(finalization.sessionId, finalization.heartbeat);
           acknowledgeActivityFinalization(finalization);

@@ -1,10 +1,13 @@
 import type { ActivityHeartbeat } from "../../adapters/http/activity-api";
+import { activitySessionStorageKey } from "./activity-session-storage.ts";
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../../shared/browser/local-storage.ts";
 
 export type PendingActivityFinalization = {
   sessionId: string;
   heartbeat: ActivityHeartbeat;
   handoffTaskId?: string;
+  /** Distinguishes user End from the ongoing session's day rollover. */
+  endSession?: true;
 };
 
 export type ActivityRecoveryState = {
@@ -52,6 +55,7 @@ function isFinalization(value: unknown): value is PendingActivityFinalization {
     && item.sessionId.length > 0
     && isHeartbeat(item.heartbeat)
     && isOptionalString(item.handoffTaskId)
+    && (item.endSession === undefined || item.endSession === true)
   );
 }
 
@@ -148,11 +152,34 @@ export function enqueueActivityFinalization(finalization: PendingActivityFinaliz
   return written;
 }
 
+/** A failed End must not flush finish while the exact logical session is still recoverable. */
+export function canFlushActivityFinalization(finalization: PendingActivityFinalization): boolean {
+  if (!finalization.endSession) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    // Unlike readLocalStorage(), a read error must fail closed, not look like
+    // an absent key, or an unavailable storage backend could end a live timer.
+    const raw = window.localStorage.getItem(activitySessionStorageKey);
+    if (raw === null || raw === "null") return true;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return false;
+    const snapshot = value as { logicalSessionId?: unknown; segmentId?: unknown };
+    if (typeof snapshot.segmentId !== "string") return false;
+    const storedId = typeof snapshot.logicalSessionId === "string" && snapshot.logicalSessionId
+      ? snapshot.logicalSessionId
+      : logicalSessionId(snapshot.segmentId);
+    return storedId !== logicalSessionId(finalization.sessionId);
+  } catch {
+    return false;
+  }
+}
+
 // A response acknowledges only the exact payload it sent.
 function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFinalization) {
   const x = a.heartbeat;
   const y = b.heartbeat;
   return a.sessionId === b.sessionId && a.handoffTaskId === b.handoffTaskId
+    && a.endSession === b.endSession
     && x.activityDate === y.activityDate && x.activeSeconds === y.activeSeconds
     && x.finish === y.finish && x.title === y.title && x.activityType === y.activityType
     && x.workspaceId === y.workspaceId && x.workspaceTitleSnapshot === y.workspaceTitleSnapshot

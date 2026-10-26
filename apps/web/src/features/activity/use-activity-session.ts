@@ -149,12 +149,14 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     date: string,
     activeSeconds: number,
     handoffTaskId?: string,
+    endSession = false,
   ) => {
     if (!context) return null;
     const finalization: PendingActivityFinalization = {
       sessionId: id,
       heartbeat: activityHeartbeatFor(context, date, activeSeconds, true),
       ...(handoffTaskId ? { handoffTaskId } : {}),
+      ...(endSession ? { endSession: true as const } : {}),
     };
     return enqueueActivityFinalization(finalization) ? finalization : null;
   }, []);
@@ -451,6 +453,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       finished.activityDate,
       finished.segmentAccumulatedSeconds,
       finished.context?.taskId,
+      true,
     );
     if (!finalization) {
       commitSession(finished);
@@ -463,10 +466,15 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       totalSeconds: Math.max(0, finished.baselineTotalSeconds)
         + Math.max(0, finished.sessionAccumulatedSeconds),
     };
+    // Do not claim completion, release the lease, or double-count the
+    // baseline if both storage removal and the tombstone fallback fail.
+    if (!commitSession(null)) {
+      setClock(now);
+      return null;
+    }
     setBaseline(nextBaseline);
     setBaselineDate(finished.activityDate);
     setClock(now);
-    commitSession(null);
     releaseLease();
     return finalization;
   }

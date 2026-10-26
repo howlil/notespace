@@ -11,7 +11,7 @@ import {
 } from "./activity-session-storage.ts";
 import type { ManualActivitySession } from "./activity-timer.ts";
 
-function storage(seed: Record<string, string> = {}, writeResult = true) {
+function storage(seed: Record<string, string> = {}, writeResult = true, removeResult = true) {
   const values = new Map(Object.entries(seed));
   const removed: string[] = [];
   const writes: Array<{ key: string; value: string }> = [];
@@ -24,7 +24,8 @@ function storage(seed: Record<string, string> = {}, writeResult = true) {
     },
     remove: (key) => {
       removed.push(key);
-      values.delete(key);
+      if (removeResult) values.delete(key);
+      return removeResult;
     },
   };
   return { api, values, removed, writes };
@@ -156,4 +157,18 @@ test("activity heartbeat mapping preserves standalone and linked context", () =>
       taskTitleSnapshot: "Task",
     },
   );
+});
+
+test("Activity End uses a durable null tombstone when removeItem is rejected", () => {
+  const state = storage({ [activitySessionStorageKey]: JSON.stringify(session()) }, true, false);
+  assert.equal(writeStoredActivitySession(null, state.api), true);
+  assert.equal(state.values.get(activitySessionStorageKey), "null");
+  assert.equal(readStoredActivitySession(undefined, state.api), null);
+});
+
+test("Activity End must not report success if neither remove nor tombstone write persists", () => {
+  const initial = session();
+  const state = storage({ [activitySessionStorageKey]: JSON.stringify(initial) }, false, false);
+  assert.equal(writeStoredActivitySession(null, state.api), false);
+  assert.deepEqual(readStoredActivitySession(undefined, state.api), initial);
 });

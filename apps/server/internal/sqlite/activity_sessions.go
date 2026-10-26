@@ -38,7 +38,8 @@ SELECT
     ELSE MAX(CASE WHEN end_rank=1 THEN ended_at END)
   END,
   SUM(active_seconds),
-  COALESCE(MAX(CASE WHEN latest_rank=1 THEN last_heartbeat_at END),'')
+  COALESCE(MAX(CASE WHEN latest_rank=1 THEN last_heartbeat_at END),''),
+  COALESCE(MAX(CASE WHEN latest_rank=1 THEN revision END),0)
 FROM ranked_activity_sessions
 `
 

@@ -334,3 +334,35 @@ test("winning task handoff retires superseded same-duration task attempts", () =
     assert.deepEqual(readActivityRecovery(), { finalizations: [], handoffTaskIds: ["task-new"] });
   });
 });
+
+
+test("equal-duration winners are stable when storage enumeration order is reversed", () => {
+  withFakeStorage((values) => {
+    const old = finalization("same:2026-10-26", 20, "task-old");
+    const latest = finalization("same:2026-10-26", 20, "task-new");
+    enqueueActivityFinalization(old);
+    enqueueActivityFinalization(latest);
+    assert.deepEqual(readActivityRecovery().finalizations, [latest]);
+    Object.defineProperty(window.localStorage, "key", {
+      configurable: true,
+      value: (index: number) => [...values.keys()].reverse()[index] ?? null,
+    });
+    assert.deepEqual(readActivityRecovery().finalizations, [latest]);
+    assert.equal(acknowledgeActivityFinalization(old), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [latest]);
+    assert.equal(acknowledgeActivityFinalization(latest), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});
+
+test("shorter repeated retries do not accumulate behind a longer pending attempt", () => {
+  withFakeStorage((values) => {
+    enqueueActivityFinalization(finalization("same:2026-10-26", 45));
+    for (let i = 0; i < 50; i++) {
+      assert.equal(enqueueActivityFinalization(finalization("same:2026-10-26", 15)), true);
+    }
+    assert.equal([...values.keys()].filter((key) =>
+      key.startsWith("notespace.activity-finalization:v3:")).length, 2);
+    assert.deepEqual(readActivityRecovery().finalizations, [finalization("same:2026-10-26", 45)]);
+  });
+});

@@ -12,13 +12,15 @@ export type ActivityRecoveryState = {
   handoffTaskIds: string[];
 };
 
+// Keep the v1 key for migration of pending finalizations from existing installs.
 export const ACTIVITY_RECOVERY_STORAGE_KEY = "notespace.activity-recovery:v1";
+export const ACTIVITY_RECOVERY_FINALIZATION_PREFIX = "notespace.activity-finalization:v2:";
+export const ACTIVITY_RECOVERY_HANDOFF_PREFIX = "notespace.activity-handoff:v2:";
 export const ACTIVITY_RECOVERY_PENDING_EVENT = "notespace:activity-recovery-pending";
 
-const emptyRecovery = (): ActivityRecoveryState => ({
-  finalizations: [],
-  handoffTaskIds: [],
-});
+const emptyRecovery = (): ActivityRecoveryState => ({ finalizations: [], handoffTaskIds: [] });
+const finalizationKey = (id: string) => ACTIVITY_RECOVERY_FINALIZATION_PREFIX + encodeURIComponent(id);
+const handoffKey = (id: string) => ACTIVITY_RECOVERY_HANDOFF_PREFIX + encodeURIComponent(id);
 
 function isOptionalString(value: unknown) {
   return value === undefined || typeof value === "string";
@@ -53,53 +55,100 @@ function isFinalization(value: unknown): value is PendingActivityFinalization {
   );
 }
 
-export function readActivityRecovery(): ActivityRecoveryState {
+function parseFinalization(raw: string | null): PendingActivityFinalization | null {
+  if (!raw) return null;
+  try {
+    const item: unknown = JSON.parse(raw);
+    return isFinalization(item) ? item : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseLegacyRecovery(): ActivityRecoveryState {
   const raw = readLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY);
   if (!raw) return emptyRecovery();
-
   try {
-    const parsed = JSON.parse(raw) as Partial<ActivityRecoveryState>;
-    const finalizations = Array.isArray(parsed.finalizations)
-      ? parsed.finalizations.filter(isFinalization)
-      : [];
-    const handoffTaskIds = Array.isArray(parsed.handoffTaskIds)
-      ? parsed.handoffTaskIds.filter((value): value is string => typeof value === "string" && value.length > 0)
-      : [];
-
+    const state = JSON.parse(raw) as Partial<ActivityRecoveryState>;
     return {
-      finalizations,
-      handoffTaskIds: [...new Set(handoffTaskIds)],
+      finalizations: Array.isArray(state.finalizations) ? state.finalizations.filter(isFinalization) : [],
+      handoffTaskIds: Array.isArray(state.handoffTaskIds)
+        ? state.handoffTaskIds.filter((v): v is string => typeof v === "string" && v.length > 0)
+        : [],
     };
   } catch {
     return emptyRecovery();
   }
 }
 
-export function writeActivityRecovery(state: ActivityRecoveryState) {
-  const next: ActivityRecoveryState = {
-    finalizations: state.finalizations,
-    handoffTaskIds: [...new Set(state.handoffTaskIds)],
-  };
-  if (next.finalizations.length === 0 && next.handoffTaskIds.length === 0) {
-    removeLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY);
-    return true;
+function storageKeys(prefix: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    return keys;
+  } catch {
+    return [];
   }
-  return writeLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY, JSON.stringify(next));
+}
+
+/** Move existing pending work to independent keys without dropping v1 before all writes succeed. */
+function migrateLegacyRecovery(): boolean {
+  if (!readLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY)) return true;
+  const legacy = parseLegacyRecovery();
+  for (const item of legacy.finalizations) {
+    const key = finalizationKey(item.sessionId);
+    if (readLocalStorage(key) === null && !writeLocalStorage(key, JSON.stringify(item))) return false;
+  }
+  for (const taskId of legacy.handoffTaskIds) {
+    const key = handoffKey(taskId);
+    if (readLocalStorage(key) === null && !writeLocalStorage(key, "1")) return false;
+  }
+  removeLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY);
+  return readLocalStorage(ACTIVITY_RECOVERY_STORAGE_KEY) === null;
+}
+
+export function readActivityRecovery(): ActivityRecoveryState {
+  // A failed migration keeps v1 readable and retryable.
+  migrateLegacyRecovery();
+  const legacy = parseLegacyRecovery();
+  const finalizations = new Map(legacy.finalizations.map((item) => [item.sessionId, item]));
+  for (const key of storageKeys(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)) {
+    const item = parseFinalization(readLocalStorage(key));
+    if (item && finalizationKey(item.sessionId) === key) finalizations.set(item.sessionId, item);
+  }
+  const handoffTaskIds = new Set(legacy.handoffTaskIds);
+  for (const key of storageKeys(ACTIVITY_RECOVERY_HANDOFF_PREFIX)) {
+    if (readLocalStorage(key) === null) continue;
+    const taskId = key.slice(ACTIVITY_RECOVERY_HANDOFF_PREFIX.length);
+    try {
+      const decoded = decodeURIComponent(taskId);
+      if (decoded && handoffKey(decoded) === key) handoffTaskIds.add(decoded);
+    } catch { /* Ignore malformed persisted key. */ }
+  }
+  return { finalizations: [...finalizations.values()], handoffTaskIds: [...handoffTaskIds] };
 }
 
 export function enqueueActivityFinalization(finalization: PendingActivityFinalization) {
-  const current = readActivityRecovery();
-  const finalizations = current.finalizations.filter((item) => item.sessionId !== finalization.sessionId);
-  finalizations.push(finalization);
-  const written = writeActivityRecovery({ ...current, finalizations });
+  if (!migrateLegacyRecovery()) return false;
+  const key = finalizationKey(finalization.sessionId);
+  const stored = parseFinalization(readLocalStorage(key));
+  // Heartbeat duration cannot decrease; an old tab must not replace a newer
+  // pending duration with a smaller one for this same segment.
+  const next = stored && stored.heartbeat.activeSeconds > finalization.heartbeat.activeSeconds
+    ? stored
+    : finalization;
+  const written = writeLocalStorage(key, JSON.stringify(next));
   if (written && typeof window !== "undefined") {
     window.dispatchEvent(new Event(ACTIVITY_RECOVERY_PENDING_EVENT));
   }
   return written;
 }
 
-// A response acknowledges only the exact payload it sent. Another tab may
-// enqueue a newer finalization for the same segment while this PUT is in flight.
+// A response acknowledges only the exact payload it sent.
 function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFinalization) {
   const x = a.heartbeat;
   const y = b.heartbeat;
@@ -111,23 +160,20 @@ function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFina
 }
 
 export function acknowledgeActivityFinalization(confirmed: PendingActivityFinalization) {
-  const current = readActivityRecovery();
-  const pending = current.finalizations.find((item) => sameFinalization(item, confirmed));
-  if (!pending) return true;
-  const finalizations = current.finalizations.filter((item) => item.sessionId !== confirmed.sessionId);
-  // A late success cannot generate a handoff after a deletion or replacement.
-  const handoffTaskIds = pending.handoffTaskId && !current.handoffTaskIds.includes(pending.handoffTaskId)
-    ? [...current.handoffTaskIds, pending.handoffTaskId]
-    : current.handoffTaskIds;
-  return writeActivityRecovery({ finalizations, handoffTaskIds });
+  if (!migrateLegacyRecovery()) return false;
+  const key = finalizationKey(confirmed.sessionId);
+  const pending = parseFinalization(readLocalStorage(key));
+  if (!pending || !sameFinalization(pending, confirmed)) return true;
+  if (pending.handoffTaskId && !writeLocalStorage(handoffKey(pending.handoffTaskId), "1")) return false;
+  removeLocalStorage(key);
+  return readLocalStorage(key) === null;
 }
 
 export function removeActivityHandoff(taskId: string) {
-  const current = readActivityRecovery();
-  return writeActivityRecovery({
-    ...current,
-    handoffTaskIds: current.handoffTaskIds.filter((id) => id !== taskId),
-  });
+  if (!migrateLegacyRecovery()) return false;
+  const key = handoffKey(taskId);
+  removeLocalStorage(key);
+  return readLocalStorage(key) === null;
 }
 
 function logicalSessionId(sessionId: string) {
@@ -137,10 +183,14 @@ function logicalSessionId(sessionId: string) {
 
 /** Stop retrying any queued segments for a session deleted in the server. */
 export function discardDeletedActivitySession(sessionId: string) {
-  const current = readActivityRecovery();
-  const logicalId = logicalSessionId(sessionId);
-  return writeActivityRecovery({
-    ...current,
-    finalizations: current.finalizations.filter((item) => logicalSessionId(item.sessionId) !== logicalId),
-  });
+  if (!migrateLegacyRecovery()) return false;
+  const id = logicalSessionId(sessionId);
+  for (const key of storageKeys(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)) {
+    const item = parseFinalization(readLocalStorage(key));
+    if (item && logicalSessionId(item.sessionId) === id) {
+      removeLocalStorage(key);
+      if (readLocalStorage(key) !== null) return false;
+    }
+  }
+  return true;
 }

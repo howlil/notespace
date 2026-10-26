@@ -9,22 +9,31 @@ import {
 } from "./activity-recovery.ts";
 import type { PendingActivityFinalization } from "./activity-recovery.ts";
 
-function withFakeStorage(run: () => void) {
+function withFakeStorage(run: (values: Map<string, string>, onNextWrite: (callback: (key: string) => void) => void) => void) {
   const values = new Map<string, string>();
+  let onWrite: ((key: string) => void) | undefined;
+  const onNextWrite = (callback: (key: string) => void) => { onWrite = callback; };
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
       localStorage: {
+        get length() { return values.size; },
+        key: (index: number) => [...values.keys()][index] ?? null,
         getItem: (key: string) => values.get(key) ?? null,
-        setItem: (key: string, value: string) => { values.set(key, value); },
+        setItem: (key: string, value: string) => {
+          const callback = onWrite;
+          onWrite = undefined;
+          callback?.(key);
+          values.set(key, value);
+        },
         removeItem: (key: string) => { values.delete(key); },
       },
       dispatchEvent: () => true,
     },
   });
   try {
-    run();
+    run(values, onNextWrite);
   } finally {
     if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow);
     else Reflect.deleteProperty(globalThis, "window");
@@ -55,7 +64,7 @@ test("activity recovery keeps independent finalizations and dedupes acknowledgem
     let state = readActivityRecovery();
     assert.deepEqual(
       state.finalizations.map((item) => [item.sessionId, item.heartbeat.activeSeconds]),
-      [["session-b", 20], ["session-a", 15]],
+      [["session-a", 15], ["session-b", 20]],
     );
 
     assert.equal(acknowledgeActivityFinalization(finalization("session-a", 15, "task-a")), true);
@@ -128,5 +137,43 @@ test("acknowledgement distinguishes other updated heartbeat fields at the same d
     enqueueActivityFinalization(changed);
     acknowledgeActivityFinalization(previous);
     assert.deepEqual(readActivityRecovery().finalizations, [changed]);
+  });
+});
+
+test("independent tab writes to separate sessions cannot overwrite a queued finalization", () => {
+  withFakeStorage((values, onNextWrite) => {
+    onNextWrite(() => {
+      // Simulate a second tab writing between the first tab's read and
+      // localStorage setItem. A single shared JSON key loses one update here.
+      assert.equal(enqueueActivityFinalization(finalization("other-tab", 21)), true);
+    });
+    assert.equal(enqueueActivityFinalization(finalization("first-tab", 10)), true);
+    assert.deepEqual(readActivityRecovery().finalizations.map((item) => item.sessionId).sort(),
+      ["first-tab", "other-tab"]);
+    assert.equal([...values.keys()].filter((key) => key.startsWith("notespace.activity-finalization:v2:")).length, 2);
+  });
+});
+
+test("existing v1 recovery migrates without losing pending finalizations or handoffs", () => {
+  withFakeStorage((values) => {
+    values.set("notespace.activity-recovery:v1", JSON.stringify({
+      finalizations: [finalization("legacy", 90, "old-task")],
+      handoffTaskIds: ["pending-task"],
+    }));
+    assert.deepEqual(readActivityRecovery(), {
+      finalizations: [finalization("legacy", 90, "old-task")],
+      handoffTaskIds: ["pending-task"],
+    });
+    assert.equal(values.has("notespace.activity-recovery:v1"), false);
+    assert.equal(acknowledgeActivityFinalization(finalization("legacy", 90, "old-task")), true);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds.sort(), ["old-task", "pending-task"]);
+  });
+});
+
+test("a shorter delayed finalization cannot overwrite a longer pending heartbeat", () => {
+  withFakeStorage(() => {
+    enqueueActivityFinalization(finalization("same", 35));
+    enqueueActivityFinalization(finalization("same", 12));
+    assert.deepEqual(readActivityRecovery().finalizations, [finalization("same", 35)]);
   });
 });

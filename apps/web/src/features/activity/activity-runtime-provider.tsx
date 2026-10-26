@@ -7,6 +7,8 @@ import { useToast } from "../../shared/ui/toast-provider";
 import {
   ACTIVITY_RECOVERY_PENDING_EVENT,
   ACTIVITY_RECOVERY_STORAGE_KEY,
+  ACTIVITY_RECOVERY_FINALIZATION_PREFIX,
+  ACTIVITY_RECOVERY_HANDOFF_PREFIX,
   acknowledgeActivityFinalization,
   discardDeletedActivitySession,
   readActivityRecovery,
@@ -124,7 +126,11 @@ export function ActivityRuntimeProvider({ children }: { children: ReactNode }) {
 
     retry();
     const retryFromOtherTab = (event: StorageEvent) => {
-      if (event.key === ACTIVITY_RECOVERY_STORAGE_KEY) retry();
+      if (
+        event.key === ACTIVITY_RECOVERY_STORAGE_KEY
+        || event.key?.startsWith(ACTIVITY_RECOVERY_FINALIZATION_PREFIX)
+        || event.key?.startsWith(ACTIVITY_RECOVERY_HANDOFF_PREFIX)
+      ) retry();
     };
 
     window.addEventListener("online", retry);

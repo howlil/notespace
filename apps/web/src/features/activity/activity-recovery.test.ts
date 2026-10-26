@@ -397,3 +397,27 @@ test("legacy finalization records remain recoverable alongside versioned attempt
     assert.deepEqual(readActivityRecovery().finalizations, [versioned]);
   });
 });
+
+test("acknowledging an older longer finalization preserves a newer shorter revision", () => {
+  withFakeStorage(() => {
+    const older = finalization("ordered:2026-10-26", 120);
+    older.heartbeat.revision = 3;
+    older.heartbeat.title = "Old context";
+
+    const newer = finalization("ordered:2026-10-26", 60);
+    newer.heartbeat.revision = 4;
+    newer.heartbeat.title = "New context";
+
+    assert.equal(enqueueActivityFinalization(older), true);
+    assert.equal(enqueueActivityFinalization(newer), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [older]);
+
+    // The longer duration arrives first. It must not confirm the newer
+    // metadata revision, which is a separate immutable request.
+    assert.equal(acknowledgeActivityFinalization(older), true);
+    assert.deepEqual(readActivityRecovery().finalizations, [newer]);
+
+    assert.equal(acknowledgeActivityFinalization(newer), true);
+    assert.deepEqual(readActivityRecovery().finalizations, []);
+  });
+});

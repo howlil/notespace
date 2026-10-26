@@ -261,9 +261,15 @@ export function acknowledgeActivityFinalization(confirmed: PendingActivityFinali
   if (confirmed.handoffTaskId && isWinningAck
     && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
   for (const { key, item } of entries) {
+    // A longer, older progress attempt may be acknowledged first, but it
+    // cannot acknowledge a newer context revision that has not reached the
+    // server. Keep that immutable attempt for its own subsequent retry.
+    const noNewerRevision = (item.heartbeat.revision ?? 0) <= (confirmed.heartbeat.revision ?? 0);
     const dominated = sameFinalization(item, confirmed)
-      || item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
-      || (isWinningAck && item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds);
+      || (noNewerRevision && (
+        item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds
+        || (isWinningAck && item.heartbeat.activeSeconds === confirmed.heartbeat.activeSeconds)
+      ));
     if (!dominated) continue;
     removeLocalStorage(key);
     if (readLocalStorage(key) !== null) return false;

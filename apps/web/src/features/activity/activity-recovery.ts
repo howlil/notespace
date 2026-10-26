@@ -146,12 +146,18 @@ export function readActivityRecovery(): ActivityRecoveryState {
     const current = finalizations.get(item.sessionId);
     const candidateRevision = item.heartbeat.revision ?? 0;
     const storedRevision = current?.item.heartbeat.revision ?? 0;
-    const tiedDuration = current && item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds;
-    const newerTie = tiedDuration && (candidateRevision > storedRevision
-      || (candidateRevision === storedRevision
-        && (Boolean(item.endSession && !current.item.endSession)
-          || (item.endSession === current.item.endSession
-            && (order > current.order || (order === current.order && key > current.key)))));
+    let newerTie = false;
+    if (current && item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds) {
+      if (candidateRevision > storedRevision) {
+        newerTie = true;
+      } else if (candidateRevision === storedRevision) {
+        if (item.endSession && !current.item.endSession) {
+          newerTie = true;
+        } else if (item.endSession === current.item.endSession) {
+          newerTie = order > current.order || (order === current.order && key > current.key);
+        }
+      }
+    }
     if (!current || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds || newerTie) {
       finalizations.set(item.sessionId, { item, order, key });
     }

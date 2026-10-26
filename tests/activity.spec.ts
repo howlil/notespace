@@ -670,6 +670,14 @@ test("@critical Activity End stays active if both storage removal and fallback w
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notespace.activity-session") ?? "{}").status)).toBe("running");
 
+    // The recovery event has already fired. It must not prematurely send a
+    // finish heartbeat while the active session snapshot cannot be cleared.
+    await page.waitForTimeout(600);
+    const pendingResponse = await request.get("/api/activity/sessions?limit=100");
+    expect(pendingResponse.ok()).toBe(true);
+    const pendingSessions = await pendingResponse.json() as ActivitySessionRecord[];
+    expect(pendingSessions.find((item) => item.title === title)?.endedAt ?? null).toBeNull();
+
     await page.evaluate(() => { (window as Window & { blockActivityClear?: boolean }).blockActivityClear = false; });
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);

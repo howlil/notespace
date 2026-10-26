@@ -149,12 +149,14 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
     date: string,
     activeSeconds: number,
     handoffTaskId?: string,
+    endSession = false,
   ) => {
     if (!context) return null;
     const finalization: PendingActivityFinalization = {
       sessionId: id,
       heartbeat: activityHeartbeatFor(context, date, activeSeconds, true),
       ...(handoffTaskId ? { handoffTaskId } : {}),
+      ...(endSession ? { endSession: true as const } : {}),
     };
     return enqueueActivityFinalization(finalization) ? finalization : null;
   }, []);
@@ -451,6 +453,7 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
       finished.activityDate,
       finished.segmentAccumulatedSeconds,
       finished.context?.taskId,
+      true,
     );
     if (!finalization) {
       commitSession(finished);

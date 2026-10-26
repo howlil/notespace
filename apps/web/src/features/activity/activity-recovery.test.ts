@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   acknowledgeActivityFinalization,
+  canFlushActivityFinalization,
   discardDeletedActivitySession,
   enqueueActivityFinalization,
   readActivityRecovery,
@@ -175,5 +176,36 @@ test("a shorter delayed finalization cannot overwrite a longer pending heartbeat
     enqueueActivityFinalization(finalization("same", 35));
     enqueueActivityFinalization(finalization("same", 12));
     assert.deepEqual(readActivityRecovery().finalizations, [finalization("same", 35)]);
+  });
+});
+
+test("an End finalization cannot leave outbox while its live session snapshot remains", () => {
+  withFakeStorage((values) => {
+    const pending = { ...finalization("active:2026-10-26", 42), endSession: true as const };
+    values.set("notespace.activity-session", JSON.stringify({
+      logicalSessionId: "active", segmentId: "active:2026-10-26",
+      status: "running", activityDate: "2026-10-26",
+    }));
+    assert.equal(enqueueActivityFinalization(pending), true);
+    assert.equal(canFlushActivityFinalization(pending), false);
+
+    // A different newly started Activity must not block the old finished one.
+    values.set("notespace.activity-session", JSON.stringify({
+      logicalSessionId: "new", segmentId: "new:2026-10-26", status: "running",
+    }));
+    assert.equal(canFlushActivityFinalization(pending), true);
+  });
+});
+
+test("finalization after End may flush only once its snapshot was removed or tombstoned", () => {
+  withFakeStorage((values) => {
+    const pending = { ...finalization("active:2026-10-26", 42), endSession: true as const };
+    values.set("notespace.activity-session", "{bad json");
+    assert.equal(canFlushActivityFinalization(pending), false);
+    values.set("notespace.activity-session", "null");
+    assert.equal(canFlushActivityFinalization(pending), true);
+    values.delete("notespace.activity-session");
+    assert.equal(canFlushActivityFinalization(pending), true);
+    assert.equal(canFlushActivityFinalization(finalization("rolled-over:2026-10-25", 10)), true);
   });
 });

@@ -220,7 +220,11 @@ export function useActivitySession(defaultContext?: ActivityStart): ActivitySess
         );
       }
     }
-    return result.session;
+    // sendSegment reserves its revision by committing a newer snapshot. Never
+    // return the pre-reservation rollover result to Pause/Resume, which would
+    // otherwise write revision 0 over the new day's already-used revision 1.
+    return sessionRef.current?.segmentId === result.session.segmentId
+      ? sessionRef.current : result.session;
   }, [commitSession, finalizeSegmentBestEffort, sendSegment]);
 
   const adoptStoredSession = useCallback((stored: ManualActivitySession, now: number) => {

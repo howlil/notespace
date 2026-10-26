@@ -56,6 +56,7 @@ function isHeartbeat(value: unknown): value is ActivityHeartbeat {
     && typeof heartbeat.activeSeconds === "number"
     && Number.isFinite(heartbeat.activeSeconds)
     && heartbeat.activeSeconds >= 0
+    && (heartbeat.revision === undefined || (Number.isSafeInteger(heartbeat.revision) && heartbeat.revision > 0))
     && heartbeat.finish === true
     && typeof heartbeat.title === "string"
     && typeof heartbeat.activityType === "string"
@@ -146,9 +147,11 @@ export function readActivityRecovery(): ActivityRecoveryState {
     if (!current
       || item.heartbeat.activeSeconds > current.item.heartbeat.activeSeconds
       || (item.heartbeat.activeSeconds === current.item.heartbeat.activeSeconds
-        && ((item.endSession && !current.item.endSession)
+        && ((item.heartbeat.revision ?? 0) > (current.item.heartbeat.revision ?? 0)
+          || ((item.heartbeat.revision ?? 0) === (current.item.heartbeat.revision ?? 0)
+            && ((item.endSession && !current.item.endSession)
           || (item.endSession === current.item.endSession
-            && (order > current.order || (order === current.order && key > current.key)))))) {
+            && (order > current.order || (order === current.order && key > current.key)))))))) {
       finalizations.set(item.sessionId, { item, order, key });
     }
   };
@@ -224,6 +227,7 @@ function sameFinalization(a: PendingActivityFinalization, b: PendingActivityFina
   return a.sessionId === b.sessionId && a.handoffTaskId === b.handoffTaskId
     && a.endSession === b.endSession
     && x.activityDate === y.activityDate && x.activeSeconds === y.activeSeconds
+    && x.revision === y.revision
     && x.finish === y.finish && x.title === y.title && x.activityType === y.activityType
     && x.workspaceId === y.workspaceId && x.workspaceTitleSnapshot === y.workspaceTitleSnapshot
     && x.taskId === y.taskId && x.taskTitleSnapshot === y.taskTitleSnapshot;

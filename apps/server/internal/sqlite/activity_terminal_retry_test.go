@@ -22,7 +22,7 @@ func TestActivityCompletedSessionDoesNotMoveToTopAfterDelayedRetries(t *testing.
 	base := activity.Session{
 		ID: "old:2026-10-26", ActivityDate: "2026-10-26",
 		ActivityType: "build", Title: "Current", ActiveSeconds: 60,
-		StartedAt: "2026-10-26T09:00:00Z",
+		StartedAt:       "2026-10-26T09:00:00Z",
 		LastHeartbeatAt: "2026-10-26T09:01:00Z",
 	}
 	write := func(session activity.Session) activity.Session {
@@ -109,10 +109,10 @@ func TestActivityConcurrentLateRetriesCannotRefreshCompletedSession(t *testing.T
 	for i := 0; i < 12; i++ {
 		finishAt := "2026-10-26T09:02:00Z"
 		base := activity.Session{
-			ID: fmt.Sprintf("done-%d:2026-10-26", i),
+			ID:           fmt.Sprintf("done-%d:2026-10-26", i),
 			ActivityDate: "2026-10-26", ActivityType: "read",
 			Title: "Done", ActiveSeconds: 120,
-			StartedAt: "2026-10-26T09:00:00Z",
+			StartedAt:       "2026-10-26T09:00:00Z",
 			LastHeartbeatAt: finishAt, EndedAt: &finishAt,
 		}
 		if _, err := store.UpsertSession(ctx, base); err != nil {
@@ -174,7 +174,7 @@ func TestActivityFinishIntentStillClosesWithStaleDuration(t *testing.T) {
 	base := activity.Session{
 		ID: "finish:2026-10-26", ActivityDate: "2026-10-26",
 		ActivityType: "learn", Title: "Advanced", ActiveSeconds: 120,
-		StartedAt: "2026-10-26T09:00:00Z",
+		StartedAt:       "2026-10-26T09:00:00Z",
 		LastHeartbeatAt: "2026-10-26T09:02:00Z",
 	}
 	if _, err := store.UpsertSession(ctx, base); err != nil {

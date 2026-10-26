@@ -132,7 +132,8 @@ export function readActivityRecovery(): ActivityRecoveryState {
       || item.heartbeat.activeSeconds > current.heartbeat.activeSeconds
       || (item.heartbeat.activeSeconds === current.heartbeat.activeSeconds
         && ((item.endSession && !current.endSession)
-          || (item.endSession === current.endSession && item.handoffTaskId && !current.handoffTaskId)))) {
+          || (item.endSession === current.endSession
+            && (!current.handoffTaskId || !!item.handoffTaskId))))) {
       finalizations.set(item.sessionId, item);
     }
   };
@@ -159,6 +160,12 @@ export function readActivityRecovery(): ActivityRecoveryState {
 
 export function enqueueActivityFinalization(finalization: PendingActivityFinalization) {
   if (!migrateLegacyRecovery()) return false;
+  // Retried midnight rollovers may enqueue the same payload every second if
+  // persisting the next day's session fails. Reuse an already durable record
+  // rather than creating an unbounded series of UUID keys while offline.
+  const existing = readActivityRecovery().finalizations.find((item) =>
+    item.sessionId === finalization.sessionId);
+  if (existing && sameFinalization(existing, finalization)) return true;
   // Every attempt has its own immutable key. Another tab may enqueue or
   // acknowledge the same session in the middle of this write without
   // overwriting a newer duration.
@@ -216,7 +223,12 @@ export function acknowledgeActivityFinalization(confirmed: PendingActivityFinali
         || belongsToAttempt(entry.key, entry.item.sessionId)));
   const hasConfirmed = entries.some(({ item }) => sameFinalization(item, confirmed));
   if (!hasConfirmed) return true;
-  if (confirmed.handoffTaskId && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
+  // A stale successful PUT must not surface a task handoff belonging to
+  // a superseded attempt, even if its own record is now acknowledged.
+  const winner = readActivityRecovery().finalizations.find((item) =>
+    item.sessionId === confirmed.sessionId);
+  if (confirmed.handoffTaskId && winner && sameFinalization(winner, confirmed)
+    && !writeLocalStorage(handoffKey(confirmed.handoffTaskId), "1")) return false;
   for (const { key, item } of entries) {
     const dominated = sameFinalization(item, confirmed)
       || item.heartbeat.activeSeconds < confirmed.heartbeat.activeSeconds

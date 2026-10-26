@@ -285,3 +285,28 @@ test("deleted activity discards v3 attempts across days without deleting other s
     assert.deepEqual(readActivityRecovery().finalizations, [finalization("keep-me:2026-10-26", 33)]);
   });
 });
+
+test("repeated identical pending finalizations reuse one durable attempt", () => {
+  withFakeStorage((values) => {
+    const pending = finalization("rollover:2026-10-25", 30);
+    assert.equal(enqueueActivityFinalization(pending), true);
+    for (let i = 0; i < 50; i++) assert.equal(enqueueActivityFinalization(pending), true);
+    assert.equal([...values.keys()].filter((key) =>
+      key.startsWith("notespace.activity-finalization:v3:")).length, 1);
+    assert.deepEqual(readActivityRecovery().finalizations, [pending]);
+  });
+});
+
+test("a stale equal-duration HTTP success must not display an old task handoff", () => {
+  withFakeStorage(() => {
+    const old = finalization("same:2026-10-26", 42, "task-old");
+    const newer = finalization("same:2026-10-26", 42, "task-new");
+    enqueueActivityFinalization(old);
+    enqueueActivityFinalization(newer);
+    // The latest winner keeps the old handoff from being surfaced even on
+    // an equal duration when the payload differs.
+    assert.equal(acknowledgeActivityFinalization(old), true);
+    assert.deepEqual(readActivityRecovery().handoffTaskIds, []);
+    assert.deepEqual(readActivityRecovery().finalizations, [newer]);
+  });
+});

@@ -3,6 +3,9 @@ name: Verify Desktop
 on:
   pull_request:
     paths:
+      # Release-note-only opt-in commits must still validate this exact master SHA.
+      - "docs/DESKTOP_BETA_RELEASE_*.md"
+      - ".github/workflows/verify-desktop.yml"
       - ".agents/engineering.md"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
@@ -53,6 +56,9 @@ on:
   push:
     branches: [master]
     paths:
+      # Release-note-only opt-in commits must still validate this exact master SHA.
+      - "docs/DESKTOP_BETA_RELEASE_*.md"
+      - ".github/workflows/verify-desktop.yml"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
       - "apps/server/internal/sqlite/**"

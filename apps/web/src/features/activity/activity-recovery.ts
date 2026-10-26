@@ -178,9 +178,13 @@ export function enqueueActivityFinalization(finalization: PendingActivityFinaliz
   // Retried midnight rollovers may enqueue the same payload every second if
   // persisting the next day's session fails. Reuse an already durable record
   // rather than creating an unbounded series of UUID keys while offline.
-  const existing = readActivityRecovery().finalizations.find((item) =>
-    item.sessionId === finalization.sessionId);
-  if (existing && sameFinalization(existing, finalization)) return true;
+  const candidates = [finalizationKey(finalization.sessionId),
+    ...storageKeys(ACTIVITY_RECOVERY_ATTEMPT_PREFIX).filter((key) =>
+      belongsToAttempt(key, finalization.sessionId))];
+  for (const key of candidates) {
+    const existing = parseFinalization(readLocalStorage(key));
+    if (existing && sameFinalization(existing, finalization)) return true;
+  }
   // Every attempt has its own immutable key. Another tab may enqueue or
   // acknowledge the same session in the middle of this write without
   // overwriting a newer duration.

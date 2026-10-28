@@ -24,6 +24,8 @@ const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const RETIRED_WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
+const RETIRED_MILESTONE_MUTATION = join(WEB_SRC, "features", "planning", "milestone-mutation.ts");
+const RETIRED_MILESTONE_MUTATION_TEST = join(WEB_SRC, "features", "planning", "milestone-mutation.test.ts");
 const INBOX = join(WEB_SRC, "pages", "inbox", "InboxPage.tsx");
 const INBOX_PLANNING = join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx");
 const TODAY = join(WEB_SRC, "pages", "today", "TodayPage.tsx");
@@ -411,6 +413,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
   assert.doesNotMatch(source(WORKSPACE_PAGE), /renderTaskAction=|Start activity for|ActivityTypeTrigger/);
   assert.equal(existsSync(RETIRED_WORKSPACE_PLAN), false, "Retired Plan UI source must not linger");
+  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION), false, "Uncalled Plan-only milestone mutation helper must be retired");
+  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION_TEST), false, "Obsolete helper test must not preserve a dead module");
   assert.match(source(SHELL_RAIL), /to="\/inbox"/);
   assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);

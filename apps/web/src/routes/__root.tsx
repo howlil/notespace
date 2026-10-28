@@ -51,10 +51,12 @@ export const Route = createRootRoute({
             <ActivityRuntimeProvider>
               <DesktopCloseBridge />
               <DesktopUpdateControl />
-              <AppSettings renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />} />
+              <AppSettings
+                renderLibraryTools={(onBusyChange, disabled) => <LibraryTools onBusyChange={onBusyChange} disabled={disabled} />}
+                renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />}
+              />
               <QuickOpen />
               <QuickCapture showTrigger={false} />
-              <LibraryTools showTrigger={false} />
               <ConflictRecoveryDialog />
               <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
               <ActivityDock />

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { FileText, Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -263,10 +263,9 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
 
 type WorkspaceLibraryProps = {
   model: WorkspaceLibraryModel;
-  afterList?: ReactNode;
 };
 
-export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
+export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
   const {
     view,
     categoryItems,
@@ -429,7 +428,6 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
           <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
         </nav>
       )}
-      {afterList}
       <ConfirmDialog
         open={!!deletingWorkspace}
         title="Delete this workspace?"

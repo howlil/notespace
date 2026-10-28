@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
@@ -10,7 +10,8 @@ const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
-const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
+const HOME = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const RETIRED_ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
@@ -48,12 +49,10 @@ test("responsive contract: compact Home retains permanent sidebar without toggle
   assert.match(library, /<WorkspaceListSkeleton/);
 });
 
-test("responsive contract: mobile activity is summary-first", () => {
-  const activity = source(ACTIVITY);
-  assert.match(activity, /mobileExpanded/);
-  assert.match(activity, /View heatmap/);
-  assert.match(activity, /Hide heatmap/);
-  assert.match(activity, /max-\[560px\]:hidden/);
+test("responsive contract: standalone Home Activity dashboard is retired", () => {
+  assert.equal(existsSync(RETIRED_ACTIVITY_DASHBOARD), false);
+  assert.doesNotMatch(source(HOME), /ActivityDashboard|afterList/);
+  assert.doesNotMatch(source(WORKSPACE_LIBRARY), /afterList/);
 });
 
 test("responsive contract: canvas chrome is compact, distinct, and touch-safe", () => {

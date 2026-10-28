@@ -58,7 +58,6 @@ const CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "code"
 const NOTE_CODE_BLOCK = join(WEB_SRC, "features", "workspace-authoring", "document", "NoteCodeBlockNode.tsx");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "workspace-authoring", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "shared", "ui", "toast-provider.tsx");
-const ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const ACTIVITY_INDICATOR = join(WEB_SRC, "features", "activity", "ActivityIndicator.tsx");
 const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "activity", "activity-runtime-provider.tsx");
 const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "activity", "activity-recovery.ts");
@@ -314,13 +313,12 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(QUICK_CAPTURE), /<Input/); assert.match(source(QUICK_OPEN), /<Input/);
   assert.match(source(WORKSPACE), /<Button/); assert.match(source(WORKSPACE), /<IconButton/);
   assert.match(source(TOAST_PROVIDER), /<Button/); assert.match(source(TOAST_PROVIDER), /<IconButton/);
-  assert.match(source(ACTIVITY_DASHBOARD), /<Button/); assert.match(source(ACTIVITY_INDICATOR), /<Button/);
+  assert.match(source(ACTIVITY_INDICATOR), /<Button/);
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
-  assert.match(source(ACTIVITY_DASHBOARD), /rounded-lg border border-line bg-surface/); assert.match(source(ACTIVITY_DASHBOARD), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
   assert.match(source(WORKSPACE_LIBRARY), /<WorkspaceListSkeleton/);
 });
@@ -346,7 +344,7 @@ test("layout archetypes: application pages share search shell and category queri
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -476,8 +474,6 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {
     assert.match(source(ACTIVITY_TYPE_MENU), new RegExp(type));
   }
-  assert.match(source(ACTIVITY_DASHBOARD), />Activity<\/h2>/);
-  assert.doesNotMatch(source(ACTIVITY_DASHBOARD), /Streak|currentStreak/);
   assert.match(workspace,/>Close pane<\/Button>/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.match(content,/references:\s*\[\]/);

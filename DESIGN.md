@@ -2,9 +2,9 @@
 
 This file is the repository-level source of truth for user-facing design decisions. It complements `.agents/PROJECT.md`; it does not authorize new product scope.
 
-## Workspace-first navigation contract — M6 feature branch
+## Historical M6 workspace-first navigation contract (superseded by Navigation v8 proposal)
 
-This section is the shipped Workspace-first navigation contract (PR #141). Earlier Inbox/standalone-Activity passages below are retained as historical design context, not current behavior.
+This section documents the earlier M6 design (PR #141), not the proposed Navigation v8 behavior. Read the v8 integration contract below for changes under review; do not restore retired UI based on historical text. The released `master` product does not change until PRs are integrated.
 
 - **Destinations:** Library (`/`), Today (`/today`), and Capture Queue (`/inbox`) are one set of routes. Keep `/inbox` for deep-link compatibility; label the UI **Capture Queue**. Existing unassigned Tasks appear inside the Capture Queue destination as “Tasks to organize” until moved to a Workspace.
 - **Navigation surfaces:** the 44px `ShellRail` provides compact route shortcuts and global utilities; the optional 228px Explorer provides the same destinations with visible names, followed by independent Category disclosure and Workspace links. They share route state; there is no separate sidebar navigation store.
@@ -18,8 +18,8 @@ This section is the shipped Workspace-first navigation contract (PR #141). Earli
 
 - Home uses one Explorer (228px), not a primary rail. Workspace uses a single 40px rail with Canvas, Note, Split, Activity and Focus; native titlebar owns Workspace Back and centered Search.
 - Quick Open exposes **Settings & Data**. One Settings modal contains General and Data & backup; the Data tab directly mounts portable Library tools and native recovery. No separate Data & Recovery dialog.
-- Plan UI and standalone Home Activity dashboard are retired. Today and Capture Queue UI and related shortcuts are pending later M3 retirement. Their Task, Milestone, Capture and Activity records, SQLite storage, backup/restore and compatibility APIs remain intact.
-- This proposal is staged across PR #174 → #175 → #176 → Settings integration; do not describe it as deployed until integration verification and release.
+- Plan UI, standalone Home Activity dashboard, and global Quick Capture modal/shortcut/event are retired on their staged branches. Today and Capture Queue remain available at legacy deep links until independently tested M3 retirement. Their Task, Milestone, Capture and Activity records, SQLite storage, backup/restore and compatibility APIs remain intact.
+- This proposal is staged across PR #174 → #175 → #176 → #177 (Settings) → #178 (Quick Capture). Do not describe it as deployed until integration verification and release.
 
 ## Decision order
 
@@ -59,7 +59,7 @@ Shared across archetypes: Cobalt/White brand assets, semantic CSS tokens, Open S
 
 - **Navigation ownership:** Library, Inbox and Today use one 44px `ShellRail` composed by `LibraryPageShell`. The 228px `LibrarySidebar` is an optional category **Explorer**, not a second primary navigation. The 46px context header owns search/status actions. The authoring Workspace keeps its established 40px `WorkspaceRail`, including Tauri's portal and focus behavior; do not remount authoring providers when switching shells.
 - **Explorer behavior:** desktop may show it by default and toggle it; at <=760px it starts hidden and appears as an independently dismissible overlay. Category expand/collapse, inline rename, contextual create/delete, drag-and-drop move, server paging, and error recovery keep their existing feature hooks and API contracts. Escape dismisses an open mobile Explorer and focus returns to the rail trigger.
-- **Single action owners:** Category and Workspace creation remain owned by Library. Pending retirement of Quick Capture does not authorize deleting historical Capture records. Settings Data tab directly mounts `LibraryTools` for export/restore, Markdown vault import and Trash, and desktop SQLite recovery. No second Data & Recovery dialog or rail button. Global search and category search remain distinct.
+- **Single action owners:** Category and Workspace creation remain owned by Library. Quick Capture UI retirement never authorizes deleting historical Capture records. Settings Data tab directly mounts `LibraryTools` for export/restore, Markdown vault import and Trash, and desktop SQLite recovery. No second Data & Recovery dialog or rail button. Global search and category search remain distinct.
 - **Activity semantics:** one `ActivityRuntimeProvider` and `ActivityDock` persist across route transitions. Library rail uses `ActivityIndicator` for viewing/starting standalone sessions (explicit title/type), while Workspace retains contextual sessions. Task ownership remains with Workspace Plan or standalone planning; Today is only a projection, not a new task store.
 - **Input/attention:** the Create menu supports Escape and arrow keyboard navigation; global dialogs own focus when open, close to their trigger, and never duplicate background instances. Keep existing save-conflict, unsaved-draft, interrupted activity and recovery guarantees.
 - **Environments:** browser desktop, native Tauri titlebar, narrow touch layouts, dark mode and reduced motion represent the same product jobs with potentially different navigation projection. Compact controls remain keyboard-visible; mobile Explorer never obstructs initial Home rendering.

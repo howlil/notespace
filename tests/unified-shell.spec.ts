@@ -63,3 +63,25 @@ test("@critical Quick Open can open Settings after global rail removal", async (
   await quick.getByRole("button", { name: "Settings & Data" }).click();
   await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
 });
+
+test("@critical failed Home load is retryable and never appears empty", async ({ page }) => {
+  let failures = 0;
+  await page.route("**/api/workspaces?**", async (route) => {
+    const url = new URL(route.request().url());
+    const isAll = route.request().method() === "GET"
+      && url.searchParams.get("snapshot") === "start"
+      && url.searchParams.get("limit") === "50";
+    if (isAll && failures++ === 0) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"offline"}' });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  const alert = page.getByRole("alert").filter({ hasText: "Workspaces could not be loaded" });
+  await expect(alert).toBeVisible();
+  await expect(page.getByText("No workspaces here")).toHaveCount(0);
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Workspaces", exact: true })).toBeVisible();
+});

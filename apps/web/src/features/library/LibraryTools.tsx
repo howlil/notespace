@@ -114,33 +114,38 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
     }
 
     setLoading(true);
-    const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
-      createWorkspace,
-      getWorkspace: async (id) => {
-        try {
-          return await getWorkspace(id);
-        } catch (error) {
-          if (error instanceof APIError && error.status === 404) return null;
-          throw error;
-        }
-      },
-      deleteWorkspace,
-      deleteTrashedWorkspace,
-      saveWorkspace,
-      createLocalAssetId,
-      storeImageAsset,
-    });
-    setLoading(false);
-    if (vaultInput.current) vaultInput.current.value = "";
-    showToast({
-      kind: failed ? "error" : "success",
-      message: failed
-        ? `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}; ${failed} failed${cleanupFailed ? `; ${cleanupFailed} partial workspace${cleanupFailed === 1 ? "" : "s"} need manual cleanup` : " and were rolled back"}.`
-        : `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}.`,
-    });
-    if (imported) {
-      notifyLibraryChanged();
-      window.location.assign("/");
+    try {
+      const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
+        createWorkspace,
+        getWorkspace: async (id) => {
+          try {
+            return await getWorkspace(id);
+          } catch (error) {
+            if (error instanceof APIError && error.status === 404) return null;
+            throw error;
+          }
+        },
+        deleteWorkspace,
+        deleteTrashedWorkspace,
+        saveWorkspace,
+        createLocalAssetId,
+        storeImageAsset,
+      });
+      showToast({
+        kind: failed ? "error" : "success",
+        message: failed
+          ? `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}; ${failed} failed${cleanupFailed ? `; ${cleanupFailed} partial workspace${cleanupFailed === 1 ? "" : "s"} need manual cleanup` : " and were rolled back"}.`
+          : `Imported ${imported} Markdown file${imported === 1 ? "" : "s"}.`,
+      });
+      if (imported) {
+        notifyLibraryChanged();
+        window.location.assign("/");
+      }
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not import Markdown vault." });
+    } finally {
+      setLoading(false);
+      if (vaultInput.current) vaultInput.current.value = "";
     }
   }
 

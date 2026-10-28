@@ -394,6 +394,43 @@ test("Today Quick Activity requires a Workspace before starting", async ({ page,
   }
 });
 
+test("@critical Active Today Activity remains stoppable after navigating to Home", async ({ page, request }) => {
+  const workspace = await createActivityWorkspace(request);
+  const title = `Legacy Today activity handoff ${Date.now()}`;
+  try {
+    await page.goto("/today");
+    const quickActivity = page.getByRole("textbox", { name: "Quick activity" });
+    await expect(quickActivity).toBeVisible();
+    await quickActivity.fill(title);
+    await chooseActivityWorkspace(page, workspace.id);
+    await page.getByRole("combobox", { name: "Activity type" }).selectOption("read");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Notespace home" }).click();
+    await expect(page.getByRole("complementary", { name: "Category explorer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
+    await page.getByRole("button", { name: "End activity" }).click();
+
+    await expect.poll(async () => {
+      const response = await request.get("/api/activity/sessions?limit=100");
+      if (!response.ok()) return null;
+      const records = await response.json() as ActivitySessionRecord[];
+      return records.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
+  } finally {
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const records = await response.json() as ActivitySessionRecord[];
+      for (const item of records.filter((record) => record.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
+    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+  }
+});
+
 test("Workspace Activity rail starts and persists a Workspace-owned session", async ({ page, request }) => {
   const workspace = await createActivityWorkspace(request);
   try {

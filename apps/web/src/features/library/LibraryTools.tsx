@@ -166,7 +166,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
             <section className="flex items-center justify-between gap-4 border-b border-line py-3">
               <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and activity sessions.</p></div>
               <div className="flex shrink-0 gap-1.5">
-                <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={loading || disabled} onClick={(event) => { if (loading || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
+                <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={mutationBusy || disabled} onClick={(event) => { if (mutationBusy || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
                 <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore</Button>
               </div>
               <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />

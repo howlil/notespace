@@ -421,7 +421,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
   assert.doesNotMatch(source(SHELL_RAIL), /Capture for later/);
-  assert.match(source(SIDEBAR), /aria-label="Workspace navigation"/);
+  assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
   assert.match(source(SIDEBAR), /aria-label="Categories"/);
   assert.match(source(INBOX_PLANNING), /Tasks to organize/);
   assert.match(source(INBOX_PLANNING), /TaskWorkspaceAssign/);

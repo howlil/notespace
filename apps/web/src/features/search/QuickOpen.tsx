@@ -12,6 +12,8 @@ import {
 } from "./quick-open-model";
 import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
+import { OPEN_NOTESPACE_SETTINGS } from "../settings/AppSettings";
+import { Settings2 } from "lucide-react";
 
 export function QuickOpen() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -158,6 +160,10 @@ export function QuickOpen() {
           </div>
 
           <div className="max-h-[min(64dvh,520px)] overflow-y-auto p-2">
+            {!query.trim() && <Button variant="ghost" size="sm" className="mb-2 w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left"
+              onClick={() => { setOpen(false); window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS)); }}>
+              <Settings2 size={14} aria-hidden="true" /> Settings &amp; Data
+            </Button>}
             {!query.trim() && currentWorkspace?.notes.length ? (
               <section className="mb-2 border-b border-line pb-2">
                 <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">Recall from current workspace</div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
@@ -11,7 +11,6 @@ import {
   IconButton,
 } from "../../shared/ui";
 import { useTheme } from "../../shared/ui/theme-provider";
-import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
@@ -46,7 +45,8 @@ export function SettingsTrigger({ className, showLabel = false }: { className?: 
   );
 }
 
-export function AppSettings({ renderDesktopRecovery }: {
+export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
+  renderLibraryTools: (onBusyChange: (busy: boolean) => void, disabled: boolean) => ReactNode;
   renderDesktopRecovery: (onBusyChange: (busy: boolean) => void) => ReactNode;
 }) {
   const { dark, toggle } = useTheme();
@@ -73,10 +73,10 @@ export function AppSettings({ renderDesktopRecovery }: {
     return () => window.removeEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);
   }, []);
 
-  function onBusyChange(value: boolean) {
+  const onBusyChange = useCallback((value: boolean) => {
     busyRef.current = value;
     setBackupBusy(value);
-  }
+  }, []);
 
   function onChangeOpen(next: boolean) {
     if (!next && busyRef.current) return;
@@ -86,7 +86,7 @@ export function AppSettings({ renderDesktopRecovery }: {
   return (
     <Dialog open={open} onOpenChange={onChangeOpen}>
       <DialogContent
-        className="w-[min(94vw,680px)] p-0 max-[480px]:p-0"
+        className="w-[min(94vw,740px)] p-0 max-[480px]:p-0"
         data-notespace-settings-root
         aria-label="Notespace settings"
         onEscapeKeyDown={(event) => { if (busyRef.current) event.preventDefault(); }}
@@ -165,26 +165,19 @@ export function AppSettings({ renderDesktopRecovery }: {
                   Download a portable ZIP copy of your library. On desktop you can also create
                   a verified SQLite snapshot without interrupting your workspace.
                 </p>
-                <div className="mt-4 flex items-center justify-between gap-3 border-y border-line py-3">
-                  <div>
-                    <p className="font-medium text-ink">Portable library &amp; Trash</p>
-                    <p className="mt-1 leading-4 text-muted">Export, restore, import Markdown and recover deleted work in one place.</p>
-                  </div>
-                  <Button type="button" variant="secondary" size="sm" disabled={backupBusy} onClick={() => {
-                    onChangeOpen(false);
-                    window.requestAnimationFrame(() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT)));
-                  }}>Open Data &amp; Recovery</Button>
-                </div>
+                {renderLibraryTools(onBusyChange, backupBusy)}
                 {native ? (
-                  renderDesktopRecovery(onBusyChange)
+                  <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">
+                    {renderDesktopRecovery(onBusyChange)}
+                  </fieldset>
                 ) : (
                   <p className="mt-4 text-muted">
                     Verified SQLite snapshots are available in the Windows desktop app.
                   </p>
                 )}
                 <p className="mt-4 text-muted">
-                  Portable backup, restore, import and Trash are managed in Data & Recovery.
-                  Restoring an entire library replaces its current content.
+                  Restoring a portable library backup replaces its current content.
+                  Desktop SQLite recovery uses an offline procedure and never replaces the live database automatically.
                 </p>
               </section>
             )}

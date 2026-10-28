@@ -61,7 +61,11 @@ test("@critical Quick Open can open Settings after global rail removal", async (
   const quick = page.getByRole("dialog", { name: "Quick Open" });
   await expect(quick).toBeVisible();
   await quick.getByRole("button", { name: "Settings & Data" }).click();
-  await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "Data & backup" }).click();
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
+  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
 });
 
 test("@critical failed Home load is retryable and never appears empty", async ({ page }) => {

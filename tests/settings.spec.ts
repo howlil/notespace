@@ -6,7 +6,7 @@ async function openSettings(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Settings & Data" }).click();
 }
 
-test("Settings replaces floating backup with a data and recovery panel", async ({ page }) => {
+test("Settings owns the single Data & Backup surface in Navigation v8", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Backups", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
@@ -19,15 +19,15 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await expect(settings.getByRole("button", { name: /^Use (dark|light) theme$/ })).toBeVisible();
   await settings.getByRole("button", { name: "Data & backup" }).click();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
-  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveCount(0);
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
+  await expect(settings.getByRole("button", { name: "Restore", exact: true })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Import Markdown vault" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Trash" })).toBeVisible();
   await expect(settings.getByText("Verified SQLite snapshots are available in the Windows desktop app.")).toBeVisible();
-
-  await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
-  const recovery = page.getByRole("dialog", { name: "Data & Recovery" });
-  await expect(recovery).toBeVisible();
-  await expect(recovery.getByRole("link", { name: "Backup" })).toHaveAttribute("href", "/api/backup");
-  await page.keyboard.press("Escape");
-  await expect(recovery).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Data and recovery" })).toHaveCount(0);
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
 
   await openSettings(page);
   const reopened = page.getByRole("dialog", { name: "Settings", exact: true });

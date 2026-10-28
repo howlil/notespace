@@ -145,6 +145,9 @@
   position: relative;
 }
 .desktop-placed-header {
+  /* Home's original relative header must not become the containing block
+     of the absolutely centered titlebar search after portalling. */
+  position: static !important;
   height: 37px !important;
   min-height: 37px !important;
   flex: 1;

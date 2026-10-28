@@ -394,37 +394,31 @@ test("Today Quick Activity requires a Workspace before starting", async ({ page,
   }
 });
 
-test("Global Activity rail requires Workspace and preserves dock controls", async ({ page, request }) => {
+test("Workspace Activity rail starts and persists a Workspace-owned session", async ({ page, request }) => {
   const workspace = await createActivityWorkspace(request);
-  const title = `Global M5 activity ${Date.now()}`;
   try {
-    await page.goto("/");
-    const rail = page.getByRole("navigation", { name: "Primary navigation" });
+    await page.goto(`/workspaces/${workspace.id}`);
+    const rail = page.getByRole("navigation", { name: "Workspace navigation" });
     await rail.getByRole("button", { name: /^Activity, today/ }).click();
     const panel = page.getByRole("dialog", { name: "Activity" });
     await expect(panel).toBeVisible();
-    await panel.getByRole("textbox", { name: "Activity title" }).fill(title);
-    const button = panel.getByRole("button", { name: "Start activity" });
-    await expect(button).toBeDisabled();
-    await panel.getByRole("combobox", { name: "Global Activity Workspace" }).selectOption(workspace.id);
-    await expect(button).toBeEnabled();
-    await button.click();
+    await panel.getByRole("button", { name: "Start activity" }).click();
     await page.getByRole("menu", { name: "Choose activity type" }).getByRole("menuitem", { name: "Build" }).click();
     const active = page.getByRole("status", { name: "Active activity" });
-    await expect(active).toContainText(title);
+    await expect(active).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(active).toHaveCount(0);
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return "";
+      if (!response.ok()) return false;
       const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.find((item) => item.title === title)?.workspaceId ?? "";
-    }).toBe(workspace.id);
+      return sessions.some(item => item.workspaceId === workspace.id && item.activityType === "build");
+    }).toBe(true);
   } finally {
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
       const sessions = await response.json() as ActivitySessionRecord[];
-      for (const item of sessions.filter((row) => row.title === title)) {
+      for (const item of sessions.filter(row => row.workspaceId === workspace.id)) {
         await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
       }
     }

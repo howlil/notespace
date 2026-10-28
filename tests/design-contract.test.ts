@@ -371,13 +371,14 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
 test("global utility contract: capture, search, recovery and activity are single-owner surfaces", () => {
   const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
   assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
-  assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.doesNotMatch(rail, /OPEN_LIBRARY_TOOLS_EVENT|Data and recovery/);
   assert.match(rail, /onCreate\(\{ kind, categoryId:/);
   assert.match(source(PAGE_SHELL), /<LibraryCreateContext.Provider value=\{createRequest\}>/);
   assert.match(sidebar, /useLibraryCreateRequest/);
   assert.match(rail, /<ActivityIndicator rail/);
   assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
-  assert.match(root, /<LibraryTools showTrigger=\{false\} \/>/);
+  assert.match(root, /renderLibraryTools=\{/);
+  assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
   assert.match(root, /<QuickOpen \/>/);
   assert.match(root, /<ActivityDock \/>/);
   assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
@@ -385,7 +386,8 @@ test("global utility contract: capture, search, recovery and activity are single
   assert.match(capture, /Ctrl\/Cmd \+ Shift \+ N/);
   assert.match(capture, /listRecentWorkspaces\(recentWorkspaceLimit\)/);
   assert.match(capture, /listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/);
-  assert.match(tools, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.doesNotMatch(tools, /OPEN_LIBRARY_TOOLS_EVENT|<Dialog|<DialogContent/);
+  assert.match(tools, /Portable library tools/);
   assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
 });
 

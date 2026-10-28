@@ -11,7 +11,7 @@ This section is the shipped Workspace-first navigation contract (PR #141). Earli
 - **Interaction:** category disclosure toggles only visibility; choosing the category title navigates to its filtered Library. Expand/collapse survives route transitions. On narrow screens the Explorer is an overlay; Escape, backdrop and close control dismiss it and restore focus to the Explorer trigger.
 - **Create:** global Create has Workspace, Category, Quick Capture and Task in Today. Quick Capture owns the Workspace/Queue destination selection; do not expose a duplicate entry to the same modal. Queue retains its own inline capture composer.
 - **States:** Queue must distinguish initial loading, empty, stale/error, and in-flight saves. Error never appears as an empty queue. A Workspace selector must distinguish same-title Workspaces without changing IDs.
-- **Boundaries:** the root mounts one Quick Capture, global Search, ActivityRuntime, ActivityDock, Data/Recovery and Settings; existing 40px `WorkspaceRail` remains separate for focused authoring. New Task/Activity require a Workspace. Historic standalone records remain readable and are never silently assigned or removed.
+- **Boundaries:** the root mounts one Quick Capture, global Search, ActivityRuntime, ActivityDock, and Settings; the Settings Data tab renders portable library tools and native SQLite recovery without a second dialog. Existing 40px `WorkspaceRail` remains separate for focused authoring. New Task/Activity require a Workspace. Historic standalone records remain readable and are never silently assigned or removed.
 - **Proof:** navigation/deep links, focus, disclosure vs selection, mobile dismissal, empty/error states, duplicate Workspace names, global create, Today/Queue/Activity, and desktop regression must pass before merge.
 
 ## Decision order
@@ -453,4 +453,4 @@ When a requested visual change conflicts with this file, prefer the explicit cur
 The current layout and behavior contracts above describe the **implemented app**.
 The shipped Workspace-first + Capture Queue product behavior, migration baseline, implementation graphs, and M0–M7 acceptance gates are documented in [`docs/WORKSPACE_FIRST_IMPLEMENTATION.md`](docs/WORKSPACE_FIRST_IMPLEMENTATION.md).
 
-Do not resurrect standalone Task or Activity creation in the current product. Preserve reads, backup restoration, session recovery, and explicit Task reassignment for historical data. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative.
+Do not resurrect standalone Task or Activity creation in the current product. Preserve reads, backup restoration, session recovery, and explicit Task reassignment for historical data. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative; `LibraryTools` lives only inside the Settings Data tab.

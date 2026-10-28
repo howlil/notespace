@@ -141,6 +141,7 @@ async function assertDesktopChrome(session, workspace) {
   // The title bar is activated asynchronously only after the authenticated
   // React UI mounts. A native smoke must prove that the activation succeeded.
   await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
+  await visibleElement(session, By.css(".desktop-titlebar .notespace-titlebar-search"));
   const result = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
@@ -156,7 +157,17 @@ async function assertDesktopChrome(session, workspace) {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
       brand: Boolean(chrome?.querySelector(".desktop-titlebar-brand")),
-      duplicateSidebarBrand: Boolean(document.querySelector('aside a[aria-label="Notespace home"]')),
+      duplicateSidebarBrand: (() => {
+        const element = document.querySelector('aside a[aria-label="Notespace home"]');
+        return Boolean(element && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
+      })(),
+      workspaceBack: Boolean(header?.querySelector('a[aria-label="Back to library"]')),
+      workspaceTitle: header?.querySelector('a[aria-label="Back to library"] span')?.textContent?.trim() ?? "",
+      searchCount: header?.querySelectorAll('button[aria-label="Search Notespace with Control K or Command K"]').length ?? 0,
+      searchOffset: (() => {
+        const box = header?.querySelector(".notespace-titlebar-search")?.getBoundingClientRect();
+        return box ? Math.abs(box.left + box.width / 2 - window.innerWidth / 2) : null;
+      })(),
       workspaceHeader: Boolean(header?.classList.contains("workspace-header")),
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
       settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
@@ -181,9 +192,13 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
   assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
   assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
+  assert.equal(result.searchCount, 1, "Native titlebar must have exactly one Search action");
+  assert.ok(result.searchOffset !== null && result.searchOffset <= 28, "Search must be centered in the native titlebar");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
+    assert.equal(result.workspaceBack, true, "Native Workspace must have Back in the titlebar");
+    assert.ok(result.workspaceTitle.length > 0, "Native Workspace must show the live title");
     assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
     assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
     assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");

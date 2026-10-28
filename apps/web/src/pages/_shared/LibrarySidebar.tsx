@@ -2,7 +2,7 @@ import { useLibraryCreateRequest } from "./library-create-context";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarCheck2, FileText, Folder, FolderOpen, Home, Inbox, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
+import { ChevronRight, FileText, Folder, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
@@ -75,22 +75,15 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
   function handleTriggerContextMenu(event: MouseEvent<HTMLDivElement>) { event.stopPropagation(); clearTransientState(); }
 
   return <>
-    <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden border-r border-line bg-sidebar px-2 py-2" aria-label="Category explorer">
-      <nav aria-label="Workspace navigation" className="grid shrink-0 gap-0.5 border-b border-line pb-2">
-        <Link to="/" aria-current={!inboxActive && !todayActive ? "page" : undefined}
-          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", !inboxActive && !todayActive && "bg-tint font-semibold text-accent")}>
-          <Home size={14} aria-hidden="true" />Library
-        </Link>
-        <Link to="/today" aria-current={todayActive ? "page" : undefined}
-          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", todayActive && "bg-tint font-semibold text-accent")}>
-          <CalendarCheck2 size={14} aria-hidden="true" />Today
-        </Link>
-        <Link to="/inbox" aria-current={inboxActive ? "page" : undefined}
-          className={cn("flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink/70 hover:bg-tint hover:text-accent", inboxActive && "bg-tint font-semibold text-accent")}>
-          <Inbox size={14} aria-hidden="true" />Capture Queue
-        </Link>
-      </nav>
-      <div className="flex min-h-8 shrink-0 items-center px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">Workspaces</div>
+    <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden bg-sidebar px-2 py-2" aria-label="Category explorer">
+      <div className="notespace-sidebar-brand flex min-h-[46px] shrink-0 items-center border-b border-line px-2">
+        <Link to="/" aria-label="Notespace home" className="inline-flex items-center"><NotespaceLogo /></Link>
+      </div>
+      <div className="flex min-h-8 shrink-0 items-center justify-between px-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Workspaces</span>
+        <IconButton type="button" className="!size-7 text-muted hover:text-accent" aria-label="New category" title="New category"
+          onClick={() => startCreate("category")}><Plus size={15} /></IconButton>
+      </div>
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
         {creating?.kind === "workspace" && !categories.some(item => item.id === creating.categoryId) && <motion.div key="workspace-create-top" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace")}</motion.div>}
@@ -117,12 +110,12 @@ export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = f
                       if (event.key === "F2" && !isSystemCategory) { event.preventDefault(); setEditingCategory(category.id); }
                     }}
                   >
-                    <IconButton className={cn("grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-ink/70", isSelected && "text-accent")} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}>{isOpen ? <FolderOpen size={15} /> : <Folder size={15} />}</IconButton>
+                    <IconButton className={cn("grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-ink/70", isSelected && "text-accent")} aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}><ChevronRight size={14} className={cn("transition-transform", isOpen && "rotate-90")} /></IconButton>
                     {editingCategory === category.id && !isSystemCategory ? (
                       <Input className={inlineInputClass} autoFocus defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCategory(category, event.currentTarget.value); if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
                     ) : (
                       <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-ink hover:bg-transparent hover:text-accent", isSelected && "font-semibold text-accent", isSystemCategory && !isSelected && "text-ink/70")} onClick={() => onSelectCategory(category.id)} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
-                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
+                        <Folder size={14} aria-hidden="true" /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                         <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSelected && "text-accent", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                       </Button>
                     )}

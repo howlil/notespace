@@ -9,7 +9,6 @@ import { WorkspaceListSkeleton } from "./WorkspaceListSkeleton";
 import type { WorkspaceLibraryModel } from "./use-workspace-library";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
-const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
 
 type WorkspaceFolderCardProps = {
   workspace: WorkspaceSummary;
@@ -298,17 +297,13 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
     cancelWorkspaceRename,
     saveWorkspaceTitle,
     confirmDeleteWorkspace,
-    openRecent,
     openAll,
   } = model;
 
   return (
     <>
       <h1 id="library-list-title" className="sr-only">{heading}</h1>
-      <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
-        <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
-        <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
-      </nav>
+      {view !== "category" && <h2 className="mb-5 text-[21px] font-semibold tracking-tight text-ink">Workspaces</h2>}
       {view === "category" && (
         <div className="mb-4 grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary, type WorkspacePage } from "../../domain/workspace/workspace";
 import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace, APIError } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
@@ -21,6 +21,8 @@ export type UseWorkspaceLibraryOptions = {
 
 export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
   const navigate = useNavigate();
+  const routeCategory = useRouterState({ select: (state) => typeof state.location.search.category === "string" ? state.location.search.category : "" });
+  const previousRouteCategory = useRef(routeCategory);
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
@@ -32,7 +34,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   );
   const allSnapshotRef = useRef<string | null>(null);
   const useInitialCategoryPage = useRef(Boolean(initialSelectedCategoryId && initialCategoryPage));
-  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
+  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "all");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
@@ -173,8 +175,57 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     setPage(null);
     setCategorySearch("");
     setCategoryFilters({ ...defaultCategoryFilters });
-    void navigate({ to: "/", search: { category: id }, replace: true });
+    void navigate({ to: "/", search: { category: id } });
   }
+
+  // Default Home to the paginated complete Workspace collection, not Recent.
+  useEffect(() => {
+    if (initialSelectedCategoryId) return;
+    const generation = ++pageRequestGeneration.current;
+    setPageLoading(true);
+    void listAllWorkspaces({ limit: 50, snapshot: "start" })
+      .then((result) => {
+        if (generation !== pageRequestGeneration.current) return;
+        allSnapshotRef.current = result.snapshot ?? null;
+        setPage(result);
+      })
+      .catch((error) => {
+        if (generation === pageRequestGeneration.current) {
+          showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
+        }
+      })
+      .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
+  }, [initialSelectedCategoryId, showToast]);
+
+  // Browser Back/Forward selection is URL-owned; disclosure remains sidebar-owned.
+  useEffect(() => {
+    if (previousRouteCategory.current === routeCategory) return;
+    previousRouteCategory.current = routeCategory;
+    const nextCategory = categoryItems.some((item) => item.id === routeCategory) ? routeCategory : "";
+    pageRequestGeneration.current += 1;
+    categorySnapshotRef.current = null;
+    setSelectedCategoryId(nextCategory);
+    setView(nextCategory ? "category" : "all");
+    setPage(null);
+    setCategoryLoadError(null);
+    setCategoryFilters({ ...defaultCategoryFilters });
+    if (nextCategory) {
+      setPageLoading(true);
+    } else {
+      const generation = ++pageRequestGeneration.current;
+      setPageLoading(true);
+      void listAllWorkspaces({ limit: 50, snapshot: "start" })
+        .then((result) => {
+          if (generation !== pageRequestGeneration.current) return;
+          allSnapshotRef.current = result.snapshot ?? null;
+          setPage(result);
+        })
+        .catch((error) => {
+          if (generation === pageRequestGeneration.current) showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
+        })
+        .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
+    }
+  }, [categoryItems, routeCategory, showToast]);
 
   function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
     if (patch.offset === undefined) categorySnapshotRef.current = null;

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, FolderPlus, Folder } from "lucide-react";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";
@@ -22,7 +21,6 @@ const control = "relative grid !size-[34px] !min-h-[34px] shrink-0 place-items-c
 const active = "bg-tint text-accent";
 
 export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, selectedCategoryId, explorerTriggerRef }: Props) {
-  const navigate = useNavigate();
   const activity = useActivityRuntime();
   const [creating, setCreating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -41,16 +39,6 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
     window.addEventListener("keydown", dismissKey);
     return () => { window.removeEventListener("pointerdown", dismissPointer); window.removeEventListener("keydown", dismissKey); };
   }, [creating]);
-
-  const openTaskComposer = () => {
-    setCreating(false);
-    const pathname = "/today";
-    if (window.location.pathname === pathname && window.location.hash === "#new-task") {
-      window.dispatchEvent(new Event(FOCUS_TASK_COMPOSER_EVENT));
-      return;
-    }
-    void navigate({ to: pathname, hash: "new-task" });
-  };
 
   const create = (kind: "category" | "workspace") => {
     setCreating(false);
@@ -84,7 +72,6 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("workspace")}><Folder size={15}/> Workspace</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("category")}><FolderPlus size={15}/> Category</button>
               
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer()}><CalendarCheck2 size={15}/> Task in Today</button>
             </div>
           )}
         </div>

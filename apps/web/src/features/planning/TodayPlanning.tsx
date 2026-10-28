@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { FOCUS_TASK_COMPOSER_EVENT, PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
+import { Link } from "@tanstack/react-router";
+import { PLANNING_TASK_CHANGED_EVENT } from "../../shared/browser/shell-events";
 import { CalendarX2, CheckCircle2, Circle, Inbox as InboxIcon, Pencil, Trash2 } from "lucide-react";
 import { Button, IconButton, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
@@ -12,7 +12,6 @@ import {
 } from "../../adapters/http/planning-api";
 import type { TodayProjection, TodayTask } from "../../domain/planning/planning";
 import { useToast } from "../../shared/ui/toast-provider";
-import { TaskComposer } from "./TaskComposer";
 import { TaskWorkspaceAssign } from "./TaskWorkspaceAssign";
 import { applyTodayTaskUpdate, removeFromTodayPatch } from "./projection-state";
 import { reconcileTaskDelete, reconcileTaskPatch } from "./task-mutation";
@@ -184,17 +183,6 @@ export function TodayPlanning({
   renderActivity?: ReactNode;
   renderTaskAction?: (task: TodayTask) => ReactNode;
 }) {
-  const taskInputRef = useRef<HTMLInputElement>(null);
-  const routeHash = useRouterState({ select: state => state.location.hash });
-  useEffect(() => {
-    if (routeHash === "new-task" || routeHash === "#new-task") taskInputRef.current?.focus();
-  }, [routeHash]);
-  useEffect(() => {
-    const onFocus = () => taskInputRef.current?.focus();
-    window.addEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
-    return () => window.removeEventListener(FOCUS_TASK_COMPOSER_EVENT, onFocus);
-  }, []);
-
   const { showToast } = useToast();
   const [projection, setProjection] = useState(initial);
   const [assignTarget, setAssignTarget] = useState<TodayTask | null>(null);
@@ -327,16 +315,11 @@ export function TodayPlanning({
           </p>
           <h1 className="mt-2 mb-0 text-[28px] font-medium tracking-[-.7px] text-ink">Today</h1>
           <p className="mt-2 mb-0 text-[11px] text-muted">
-            One place for the work you explicitly chose to do today.
+            Legacy Today recovery. Existing scheduled Tasks remain visible and can be moved back into Workspace context; create new work inside a Workspace.
           </p>
         </header>
 
         {renderActivity}
-
-        <div className="mb-6 border-b border-line pb-4">
-          <TaskComposer inputRef={taskInputRef} plannedFor={projection.date} titleLabel="New task"
-            onCreated={async () => { ++mutationEpoch.current; await refreshToday(); window.dispatchEvent(new Event(PLANNING_TASK_CHANGED_EVENT)); }} />
-        </div>
 
         <section aria-labelledby="today-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">
@@ -362,7 +345,7 @@ export function TodayPlanning({
               <div>
                 <p className="m-0 text-[12px] font-medium text-ink">Nothing queued for today.</p>
                 <p className="mt-1.5 mb-0 text-[10px] text-muted">
-                  Add a Workspace-owned task or choose one from a Workspace Plan.
+                  There are no active legacy Tasks here. Work is now created within a Workspace.
                 </p>
               </div>
             </div>

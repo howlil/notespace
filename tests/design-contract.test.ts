@@ -430,7 +430,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
   assert.match(source(TODAY_PLANNING), /Needs Workspace/);
   assert.match(source(TODAY_PLANNING), /Remove .* from Today/);
-  assert.match(source(TODAY_PLANNING), /TaskComposer/);
+  assert.doesNotMatch(source(TODAY_PLANNING), /TaskComposer|FOCUS_TASK_COMPOSER_EVENT|taskInputRef/);
+  assert.equal(existsSync(join(WEB_SRC, "features", "planning", "TaskComposer.tsx")), false);
+  assert.doesNotMatch(source(join(WEB_SRC, "shared", "browser", "shell-events.ts")), /FOCUS_TASK_COMPOSER_EVENT/);
   assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
   assert.match(source(ACTIVITY_QUICK_START), /What are you doing\?/);
   assert.match(source(ACTIVITY_QUICK_START), /Activity type/);

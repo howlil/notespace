@@ -8,37 +8,35 @@ function localDateKey(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-test("Today creates only Workspace-owned tasks and preserves Plan identity", async ({ page, request }) => {
+test("@critical Today has no new Task composer but keeps scheduled historical Workspace Tasks", async ({ page, request }) => {
   const date = localDateKey();
-  const workspaceResponse = await request.post("/api/workspaces", {
-    data: { title: `Today ownership ${Date.now()}` },
+  const createdWorkspace = await request.post("/api/workspaces", {
+    data: { title: `Today legacy ${Date.now()}` },
   });
-  expect(workspaceResponse.status()).toBe(201);
-  const workspace = await workspaceResponse.json() as { id: string; title: string };
-  const taskTitle = `Workspace-owned Today task ${Date.now()}`;
+  expect(createdWorkspace.status()).toBe(201);
+  const workspace = await createdWorkspace.json() as { id: string };
+  const taskTitle = `Historical scheduled Task ${Date.now()}`;
+  const createdTask = await request.post(`/api/workspaces/${workspace.id}/tasks`, {
+    data: { title: taskTitle, plannedFor: date },
+  });
+  expect(createdTask.status()).toBe(201);
+  const task = await createdTask.json() as { id: string };
   try {
-    await page.goto("/today");
+    await page.goto("/today#new-task");
     await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-    const title = page.getByRole("textbox", { name: "New task", exact: true });
-    await title.fill(taskTitle);
-    await page.getByRole("combobox", { name: "Task Workspace" }).selectOption(workspace.id);
-    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "New task", exact: true })).toHaveCount(0);
+    await expect(page.getByText("Legacy Today recovery.")).toBeVisible();
     await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
-    const projection = await (await request.get(`/api/tasks/today?date=${date}`)).json() as {
-      tasks: Array<{ id: string; title: string; workspaceId?: string; plannedFor?: string }>;
-    };
-    const created = projection.tasks.find((task) => task.title === taskTitle);
-    expect(created).toMatchObject({ workspaceId: workspace.id, plannedFor: date });
     const plan = await (await request.get(`/api/workspaces/${workspace.id}/plan`)).json() as {
-      tasks: Array<{ id: string }>;
+      tasks: Array<{ id: string; title: string; plannedFor?: string | null }>;
     };
-    expect(plan.tasks.some((task) => task.id === created?.id)).toBe(true);
+    expect(plan.tasks.find((value) => value.id === task.id)).toMatchObject({ title: taskTitle, plannedFor: date });
     await page.getByRole("button", { name: `Remove ${taskTitle} from Today` }).click();
     await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(0);
     const after = await (await request.get(`/api/workspaces/${workspace.id}/plan`)).json() as {
-      tasks: Array<{ id: string; plannedFor?: string }>;
+      tasks: Array<{ id: string; plannedFor?: string | null }>;
     };
-    expect(after.tasks.find((task) => task.id === created?.id)?.plannedFor).toBeFalsy();
+    expect(after.tasks.find((value) => value.id === task.id)?.plannedFor ?? "").toBe("");
   } finally {
     await deleteWorkspace(request, workspace.id);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);

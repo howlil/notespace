@@ -106,7 +106,7 @@ test("historical carried-forward Task remains queryable after Plan UI retirement
     expect(projection.tasks.some(item => item.id === task.id)).toBe(true);
 
     const cleared = await request.patch(`/api/workspaces/${workspace.id}/tasks/${task.id}`, {
-      data: { plannedFor: null, version: task.version },
+      data: { plannedFor: "", version: task.version },
     });
     expect(cleared.status()).toBe(200);
     const latest = await request.get(`/api/tasks/${task.id}`);

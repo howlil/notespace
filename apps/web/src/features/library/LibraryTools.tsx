@@ -1,7 +1,6 @@
-import { OPEN_LIBRARY_TOOLS_EVENT } from "../../shared/browser/shell-events";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArchiveRestore, Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton } from "../../shared/ui";
+import { Download, FolderUp, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Button } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary } from "../../domain/workspace/workspace";
 import {
@@ -23,16 +22,16 @@ import { useToast } from "../../shared/ui/toast-provider";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { importVaultFiles } from "./vault-import-workflow";
 
-export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } = {}) {
+export function LibraryTools({ onBusyChange, disabled = false }: {
+  onBusyChange: (busy: boolean) => void;
+  disabled?: boolean;
+}) {
   const { showToast } = useToast();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    const onOpen = () => setOpen(true);
-    window.addEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_LIBRARY_TOOLS_EVENT, onOpen);
-  }, []);
-
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    onBusyChange(loading);
+    return () => onBusyChange(false);
+  }, [loading, onBusyChange]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
@@ -44,7 +43,6 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
   const categoryNames = useMemo(() => new Map(categories.map((category) => [category.id, category.title])), [categories]);
 
   useEffect(() => {
-    if (!open) return;
     let active = true;
     setLoading(true);
     void Promise.all([listCategories(), listTrash()])
@@ -59,10 +57,10 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, showToast]);
+  }, [showToast]);
 
   async function restoreBackup(file: File | null) {
-    if (!file) return;
+    if (!file || loading) return;
     setLoading(true);
     try {
       await restoreLibraryBackup(file);
@@ -77,6 +75,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
   }
 
   async function restoreWorkspace(item: TrashWorkspace) {
+    if (loading || disabled) return;
     setLoading(true);
     try {
       await restoreTrashedWorkspace(item.id);
@@ -92,7 +91,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
 
   async function permanentlyDelete() {
     const item = permanentTarget;
-    if (!item) return;
+    if (!item || loading || disabled) return;
     setPermanentTarget(null);
     setLoading(true);
     try {
@@ -107,7 +106,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
   }
 
   async function importVault(fileList: FileList | null) {
-    if (!fileList || !categoryId) return;
+    if (!fileList || !categoryId || loading || disabled) return;
     const selected = Array.from(fileList);
     if (!selected.some((file) => /\.(?:md|markdown)$/i.test(file.name))) {
       showToast({ kind: "error", message: "No Markdown files were found in this selection." });
@@ -147,27 +146,12 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
 
   return (
     <>
-      {showTrigger && <IconButton
-        type="button"
-        className="size-[30px] text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
-        onClick={() => setOpen(true)}
-        aria-label="Data and recovery"
-        title="Data & Recovery"
-      >
-        <ArchiveRestore size={16} aria-hidden="true" />
-      </IconButton>}
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[min(94vw,620px)]">
-          <DialogTitle>Data &amp; Recovery</DialogTitle>
-          <DialogDescription>Recover deleted work, own a complete backup, or migrate an existing Markdown vault.</DialogDescription>
-
-          <div className="mt-4 grid gap-0 border-y border-line">
+      <div className="grid gap-0 border-y border-line" aria-label="Portable library tools">
             <section className="flex items-center justify-between gap-4 border-b border-line py-3">
               <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and activity sessions.</p></div>
               <div className="flex shrink-0 gap-1.5">
-                <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download><Download size={13} /> Backup</a></Button>
-                <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading}><Upload size={13} /> Restore</Button>
+                <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={loading || disabled} onClick={(event) => { if (loading || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
+                <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore</Button>
               </div>
               <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />
             </section>
@@ -175,9 +159,9 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
             <section className="grid gap-2 border-b border-line py-3">
               <div className="flex items-center justify-between gap-4">
                 <div><h3 className="m-0 text-xs font-medium text-ink">Import Markdown vault</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">One Markdown file becomes one native Workspace. Referenced selected images are copied in.</p></div>
-                <Button variant="secondary" size="sm" onClick={() => vaultInput.current?.click()} disabled={loading || !categoryId}><FolderUp size={13} /> Choose folder</Button>
+                <Button variant="secondary" size="sm" onClick={() => vaultInput.current?.click()} disabled={loading || disabled || !categoryId}><FolderUp size={13} /> Choose folder</Button>
               </div>
-              <select className="h-8 max-w-[260px] rounded-md border border-line bg-background px-2 text-[11px] text-ink outline-none focus:border-accent" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={loading}>
+              <select className="h-8 max-w-[260px] rounded-md border border-line bg-background px-2 text-[11px] text-ink outline-none focus:border-accent" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={loading || disabled}>
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}
               </select>
               <input
@@ -194,16 +178,12 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
               {trash.length ? <div className="max-h-52 overflow-auto border-t border-line">
                 {trash.map((item) => <div key={item.id} className="flex min-h-11 items-center gap-3 border-b border-line py-2">
                   <div className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{item.title}</strong><span className="text-[9px] text-muted">{categoryNames.get(item.categoryId) ?? "Category unavailable"} · deleted {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.deletedAt))}</span></div>
-                  <Button variant="ghost" size="sm" onClick={() => void restoreWorkspace(item)} disabled={loading}><RotateCcw size={12} /> Restore</Button>
-                  <Button variant="ghost" size="icon" className="text-danger" aria-label={`Permanently delete ${item.title}`} onClick={() => setPermanentTarget(item)} disabled={loading}><Trash2 size={13} /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={12} /> Restore</Button>
+                  <Button variant="ghost" size="icon" className="text-danger" aria-label={`Permanently delete ${item.title}`} onClick={() => setPermanentTarget(item)} disabled={loading || disabled}><Trash2 size={13} /></Button>
                 </div>)}
               </div> : <p className="m-0 border-t border-line py-4 text-[10px] text-muted">Trash is empty.</p>}
             </section>
-          </div>
-
-          <DialogFooter><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </div>
 
       <ConfirmDialog
         open={pendingBackupRestore !== null}
@@ -219,7 +199,7 @@ export function LibraryTools({ showTrigger = true }: { showTrigger?: boolean } =
           }
         }}
         onConfirm={() => {
-          if (!pendingBackupRestore || loading) return;
+          if (!pendingBackupRestore || loading || disabled) return;
           const selected = pendingBackupRestore;
           setPendingBackupRestore(null);
           void restoreBackup(selected);

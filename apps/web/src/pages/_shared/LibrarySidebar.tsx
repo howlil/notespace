@@ -17,7 +17,7 @@ type Props = { categories: CategorySummary[]; selectedCategoryId?: string; inbox
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
-export function LibrarySidebar({ categories, selectedCategoryId, inboxActive = false, todayActive = false, onSelectCategory, onChanged }: Props) {
+export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategory, onChanged }: Props) {
   const {
     children,
     categoryErrors,

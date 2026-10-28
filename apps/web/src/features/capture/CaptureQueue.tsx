@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Check, Inbox, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check, Inbox, LoaderCircle, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { useToast } from "../../shared/ui/toast-provider";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
-import { createCapture, deleteCapture, getCapture, listCaptures, organizeCapture, updateCapture } from "../../adapters/http/capture-api";
+import { deleteCapture, getCapture, listCaptures, organizeCapture, updateCapture } from "../../adapters/http/capture-api";
 import { listAllWorkspaces } from "../../adapters/http/workspace-api";
 import { markdownToSnapshot } from "../../domain/document/markdown";
 import { isMatchingCaptureConversion, isMatchingCaptureUpdate, validCaptureContent } from "../../domain/capture/capture";
@@ -37,8 +37,6 @@ export function CaptureQueue() {
   const writeRevision = useRef(0);
   const readSequence = useRef(0);
   const organizerRequest = useRef(0);
-  const [body, setBody] = useState("");
-  const [creating, setCreating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -88,24 +86,6 @@ export function CaptureQueue() {
     void refresh();
     return () => window.removeEventListener(CAPTURE_QUEUE_CHANGED_EVENT, onChange);
   }, [refresh]);
-
-  async function add(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!validCaptureContent(body) || creating) return;
-    setCreating(true);
-    try {
-      const created = await createCapture(body);
-      writeRevision.current++;
-      setItems((current) => [created, ...current]);
-      setLoaded(true);
-      setBody("");
-      showToast({ kind: "success", message: "Saved to Capture Queue." });
-    } catch {
-      // The server might have committed before the response failed. Keep the
-      // user's exact draft and never issue an automatic duplicate POST.
-      showToast({ kind: "error", message: "Save not confirmed. Refresh the queue before submitting again; your draft is preserved." });
-    } finally { setCreating(false); }
-  }
 
   async function open(item: CaptureItem, nextMode: "organize" | "edit") {
     const requestId = ++organizerRequest.current;
@@ -266,17 +246,8 @@ export function CaptureQueue() {
             <RefreshCw size={13} aria-hidden="true" />{refreshing ? "Refreshing…" : "Refresh"}
           </Button>
         </div>
-        <p className="mt-2 mb-0 text-[11px] text-muted">Capture first, assign a Workspace when you're ready. Items here are not Tasks or Notes yet.</p>
+        <p className="mt-2 mb-0 text-[11px] text-muted">Legacy Capture recovery. Existing entries remain editable and can be moved into a Workspace as Notes or Tasks. Create new work inside a Workspace.</p>
       </header>
-      <form className="mb-5 flex items-center gap-2 border-b border-line pb-4" onSubmit={(event) => void add(event)}>
-        <Plus size={16} className="shrink-0 text-muted" aria-hidden="true" />
-        <Input aria-label="Capture an unorganized thought" className="min-h-9 flex-1 rounded-none border-0 bg-transparent px-0 text-[12px] focus:border-transparent"
-          value={body} onChange={(event) => setBody(event.target.value)} placeholder="Capture an idea, task, or Markdown…" disabled={creating} />
-        <Button size="sm" className="!min-h-8 px-3 text-[10px]" disabled={!validCaptureContent(body) || creating}>
-          {creating ? "Saving…" : "Capture"}
-        </Button>
-      </form>
-      {body.trim() && !validCaptureContent(body) && <p role="alert" className="mb-3 text-xs text-danger">Use nonempty content no larger than 64 KiB.</p>}
       {loadError && <p role="alert" className="mb-3 text-xs text-danger">Queue may be out of date. Refresh to reconcile the server state.</p>}
       <div className="mb-2 flex items-center justify-between"><h2 className="m-0 text-[11px] font-semibold text-ink">Waiting to organize</h2>
         <span className="text-[10px] text-muted">{items.length} items</span></div>
@@ -285,7 +256,7 @@ export function CaptureQueue() {
         ? <div className="rounded-lg border border-dashed border-line p-7 text-center">
             <Inbox size={24} className="mx-auto text-muted" aria-hidden="true" />
             <p className="mt-2 text-[12px] font-medium text-ink">Queue is clear</p>
-            <p className="mt-1 text-[11px] text-muted">Capture an idea here or via global Quick Capture.</p>
+            <p className="mt-1 text-[11px] text-muted">No pending legacy Captures remain. New knowledge belongs in a Workspace.</p>
           </div>
         : <div className="border-t border-line">
             {items.map((item) => <div key={item.id} className="group flex items-start gap-3 border-b border-line py-3">

@@ -1,17 +1,18 @@
 import { expect, test } from "@playwright/test";
 
-test("Inbox routes new unsorted work to Capture Queue, not standalone Tasks", async ({ page, request }) => {
+test("Legacy Inbox deep link exposes existing captures without creating standalone Tasks", async ({ page, request }) => {
   const content = `Capture transition ${Date.now()}`;
   let captureId = "";
   try {
     const rejected = await request.post("/api/tasks", { data: { title: content } });
     expect(rejected.status()).toBe(400);
 
+    const created = await request.post("/api/captures", { data: { content } });
+    expect(created.status()).toBe(201);
+    captureId = (await created.json() as { id: string }).id;
     await page.goto("/inbox");
     await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Legacy Inbox/i })).toHaveCount(0);
-    await page.getByRole("textbox", { name: "Capture an unorganized thought" }).fill(content);
-    await page.getByRole("button", { name: "Capture", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Capture an unorganized thought" })).toHaveCount(0);
     await expect(page.getByText(content, { exact: true })).toBeVisible();
 
     const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string }>;

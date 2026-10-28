@@ -1,35 +1,30 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("@critical Capture Queue creates and edits pending items without standalone Tasks", async ({ page, request }) => {
-  const first = `M2 Queue ${Date.now()}`;
-  let id = "";
+test("@critical Legacy Captures remain editable but cannot be created from the Queue UI", async ({ page, request }) => {
+  const content = `Legacy capture edit ${Date.now()}`;
+  const response = await request.post("/api/captures", { data: { content } });
+  expect(response.status()).toBe(201);
+  const created = await response.json() as { id: string };
   try {
     await page.goto("/inbox");
     await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
-    const field = page.getByRole("textbox", { name: "Capture an unorganized thought" });
-    await field.fill(first);
-    await page.getByRole("button", { name: "Capture", exact: true }).click();
-    await expect(page.getByText(first, { exact: true })).toBeVisible();
-    const data = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
-    id = data.find((item) => item.content === first)?.id ?? "";
-    expect(id).not.toBe("");
-
-    await page.getByRole("button", { name: `Edit capture ${id}` }).click();
+    await expect(page.getByText(content, { exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Capture an unorganized thought" })).toHaveCount(0);
+    await expect(page.getByText("Legacy Capture recovery.")).toBeVisible();
+    await page.getByRole("button", { name: `Edit capture ${created.id}` }).click();
     const dialog = page.getByRole("dialog", { name: "Edit capture" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("textbox", { name: "Captured content" }).fill(first + " revised");
+    await dialog.getByRole("textbox", { name: "Captured content" }).fill(content + " revised");
     await dialog.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByText(first + " revised", { exact: true })).toBeVisible();
+    await expect(page.getByText(content + " revised", { exact: true })).toBeVisible();
     await page.reload();
-    await expect(page.getByText(first + " revised", { exact: true })).toBeVisible();
+    await expect(page.getByText(content + " revised", { exact: true })).toBeVisible();
   } finally {
-    if (id) {
-      const res = await request.get(`/api/captures/${id}`);
-      if (res.ok()) {
-        const item = await res.json() as { version: number; status: string };
-        if (item.status === "pending") await request.delete(`/api/captures/${id}`, { headers: { "If-Match": `"${item.version}"` } });
-      }
+    const result = await request.get(`/api/captures/${created.id}`);
+    if (result.ok()) {
+      const item = await result.json() as { version: number; status: string };
+      if (item.status === "pending") await request.delete(`/api/captures/${created.id}`, { headers: { "If-Match": `"${item.version}"` } });
     }
   }
 });
@@ -203,42 +198,47 @@ test("@critical Capture edit conflict preserves draft and requires explicit over
   }
 });
 
-test("Capture Queue refreshes after a create invalidates its initial read", async ({ page, request }) => {
+test("@critical Legacy Capture view ignores stale initial GET after external update", async ({ page, request }) => {
   const stamp = Date.now();
-  const original = await request.post("/api/captures", { data: { content: `Prior queue item ${stamp}` } });
-  expect(original.status()).toBe(201);
-  const oldItem = await original.json() as { id: string };
-  const newContent = `New queue item ${stamp}`;
-  let unblock!: () => void;
-  const held = new Promise<void>((resolve) => { unblock = resolve; });
+  const first = await request.post("/api/captures", { data: { content: `Old capture ${stamp}` } });
+  expect(first.status()).toBe(201);
+  const old = await first.json() as { id: string };
+  const newer = `External capture ${stamp}`;
+  let externalId = "";
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
   let reads = 0;
   await page.route("**/api/captures", async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     reads++;
     if (reads === 1) {
-      await held;
-      await route.fulfill({ status: 200, contentType: "application/json",
-        body: JSON.stringify([{ id: oldItem.id, content: `Prior queue item ${stamp}`, version: 1, status: "pending", createdAt: new Date().toISOString() }]) });
+      await pending;
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify([{ id: old.id, content: `Old capture ${stamp}`, version: 1, status: "pending", createdAt: new Date().toISOString() }]),
+      });
       return;
     }
     await route.continue();
   });
   try {
     await page.goto("/inbox");
-    const field = page.getByRole("textbox", { name: "Capture an unorganized thought" });
-    await field.fill(newContent);
-    await page.getByRole("button", { name: "Capture", exact: true }).click();
-    await expect(page.getByText(newContent, { exact: true })).toBeVisible();
-    unblock();
-    await expect(page.getByText(`Prior queue item ${stamp}`, { exact: true })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Loading Capture Queue" })).toBeVisible();
+    const response = await request.post("/api/captures", { data: { content: newer } });
+    expect(response.status()).toBe(201);
+    externalId = (await response.json() as { id: string }).id;
+    await page.evaluate(() => window.dispatchEvent(new Event("notespace:capture-queue-changed")));
+    await expect(page.getByText(newer, { exact: true })).toBeVisible();
+    release();
+    await expect(page.getByText(newer, { exact: true })).toBeVisible();
     expect(reads).toBeGreaterThanOrEqual(2);
   } finally {
-    unblock();
-    const captures = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
-    for (const item of captures.filter((item) =>
-      item.id === oldItem.id || item.content === newContent
-    )) {
-      await request.delete(`/api/captures/${item.id}`, { headers: { "If-Match": `"${item.version}"` } }).catch(() => undefined);
+    release();
+    for (const id of [old.id, externalId].filter(Boolean)) {
+      const response = await request.get(`/api/captures/${id}`);
+      if (!response.ok()) continue;
+      const item = await response.json() as { status: string; version: number };
+      if (item.status === "pending") await request.delete(`/api/captures/${id}`, { headers: { "If-Match": `"${item.version}"` } }).catch(() => undefined);
     }
   }
 });

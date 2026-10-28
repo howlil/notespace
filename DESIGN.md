@@ -18,8 +18,8 @@ This section documents the earlier M6 design (PR #141), not the proposed Navigat
 
 - Home uses one Explorer (228px), not a primary rail. Workspace uses a single 40px rail with Canvas, Note, Split, Activity and Focus; native titlebar owns Workspace Back and centered Search.
 - Quick Open exposes **Settings & Data**. One Settings modal contains General and Data & backup; the Data tab directly mounts portable Library tools and native recovery. No separate Data & Recovery dialog.
-- Plan UI, standalone Home Activity dashboard, and global Quick Capture modal/shortcut/event are retired on their staged branches. Today and Capture Queue remain available at legacy deep links until independently tested M3 retirement. Their Task, Milestone, Capture and Activity records, SQLite storage, backup/restore and compatibility APIs remain intact.
-- This proposal is staged across PR #174 → #175 → #176 → #177 (Settings) → #178 (Quick Capture). Do not describe it as deployed until integration verification and release.
+- Plan UI, standalone Home Activity dashboard, and global Quick Capture modal/shortcut/event are retired on their staged branches. `/inbox` is a recovery-only legacy Capture interface (read, edit, organize existing data; no new Capture composer); `/today` remains pending independent retirement. Historical data, backup/restore, and APIs remain intact. Their Task, Milestone, Capture and Activity records, SQLite storage, backup/restore and compatibility APIs remain intact.
+- This proposal is staged across PR #174 → #175 → #176 → #177 (Settings) → #178 (Quick Capture) → Capture recovery slice. Do not describe it as deployed until integration verification and release.
 
 ## Decision order
 

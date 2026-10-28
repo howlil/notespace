@@ -23,7 +23,7 @@ const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
-const WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
+const RETIRED_WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
 const INBOX = join(WEB_SRC, "pages", "inbox", "InboxPage.tsx");
 const INBOX_PLANNING = join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx");
 const TODAY = join(WEB_SRC, "pages", "today", "TodayPage.tsx");
@@ -346,7 +346,7 @@ test("layout archetypes: application pages share search shell and category queri
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -412,8 +412,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
   assert.doesNotMatch(source(WORKSPACE_PAGE), /renderTaskAction=|Start activity for|ActivityTypeTrigger/);
-  assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
-  assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
+  assert.equal(existsSync(RETIRED_WORKSPACE_PLAN), false, "Retired Plan UI source must not linger");
   assert.match(source(SHELL_RAIL), /to="\/inbox"/);
   assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
@@ -426,7 +425,6 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);
   assert.match(source(INBOX_PLANNING), /Move .* to Today/);
   assert.doesNotMatch(source(INBOX_PLANNING), /priority|kanban|milestone|recurrence|productivity score/i);
-  assert.match(source(WORKSPACE_PLAN), /Add .* to Today/);
   assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
   assert.match(source(TODAY_PLANNING), /Needs Workspace/);
   assert.match(source(TODAY_PLANNING), /Remove .* from Today/);

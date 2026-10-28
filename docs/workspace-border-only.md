@@ -10,7 +10,7 @@ WorkspacePage
  │   ├─ select Note → Existing DocumentEditor + Tiptap
  │   ├─ select Split → Existing PaneNode tree → Note(s) + trailing Canvas
  │   │                   └─ separator drag/keyboard → resizeSplit
- │   └─ select Plan → Existing WorkspacePlan (outside PaneNode tree)
+ │   └─ Canvas / Note / Split only; Plan UI retired (historical Task data retained)
  └─ status: saving | saved | unsaved | error | conflict
 ```
 

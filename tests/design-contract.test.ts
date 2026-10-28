@@ -427,7 +427,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);
   assert.match(source(INBOX_PLANNING), /Move .* to Today/);
   assert.doesNotMatch(source(INBOX_PLANNING), /priority|kanban|milestone|recurrence|productivity score/i);
-  assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
+  assert.match(source(TODAY_PLANNING), /Legacy Today recovery/);
   assert.match(source(TODAY_PLANNING), /Needs Workspace/);
   assert.match(source(TODAY_PLANNING), /Remove .* from Today/);
   assert.doesNotMatch(source(TODAY_PLANNING), /TaskComposer|FOCUS_TASK_COMPOSER_EVENT|taskInputRef/);

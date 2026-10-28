@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, SquarePen, ArchiveRestore, FolderPlus, Folder } from "lucide-react";
+import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, SquarePen, FolderPlus, Folder } from "lucide-react";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { FOCUS_TASK_COMPOSER_EVENT, OPEN_LIBRARY_TOOLS_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
+import { FOCUS_TASK_COMPOSER_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";
@@ -92,7 +92,6 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
       </div>
       <div className="mt-auto flex flex-col items-center gap-1">
         <ActivityIndicator rail activity={activity} workspaceTitle="Activity" />
-        <button type="button" className={control} aria-label="Data and recovery" title="Data & Recovery" onClick={() => window.dispatchEvent(new Event(OPEN_LIBRARY_TOOLS_EVENT))}><ArchiveRestore size={17}/></button>
         <button type="button" className={control} aria-label="Settings" title="Settings" onClick={() => window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS))}><Settings2 size={17}/></button>
       </div>
     </nav>

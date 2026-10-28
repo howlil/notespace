@@ -407,7 +407,8 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(renameField,/aria-label="Workspace title"/);
   for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspacePage, /<WorkspaceRail/);
-  assert.doesNotMatch(workspacePage, /<HeaderPlacement|workspace-switcher/);
+  assert.match(workspacePage, /<HeaderPlacement/);
+  assert.doesNotMatch(workspacePage, /workspace-switcher/);
   assert.match(workspacePage, /<WorkspacePlan/);
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);

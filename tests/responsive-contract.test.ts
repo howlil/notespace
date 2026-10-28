@@ -37,7 +37,7 @@ test("responsive contract: compact Home retains permanent sidebar without toggle
   const sidebar = source(SIDEBAR);
   const library = source(WORKSPACE_LIBRARY);
   assert.match(shell, /notespace-home-sidebar/);
-  assert.match(shell, /w-\\[228px\\]/);
+  assert.ok(shell.includes("w-[228px]"));
   assert.doesNotMatch(shell, /<ShellRail|Close category explorer|Toggle category explorer/);
   assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
   assert.match(sidebar, /aria-label="Category explorer"/);

@@ -566,13 +566,10 @@ test("@critical Activity does not start a non-recoverable session when browser s
 });
 
 test("@critical Activity pause and resume keep durable state when browser storage fails", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity transition storage fault ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {
@@ -625,13 +622,10 @@ test("@critical Activity pause and resume keep durable state when browser storag
 });
 
 test("@critical Activity End survives blocked removeItem by persisting a tombstone", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity End blocked remove ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {
@@ -669,13 +663,10 @@ test("@critical Activity End survives blocked removeItem by persisting a tombsto
 });
 
 test("@critical Activity End stays active if both storage removal and fallback write fail", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity End storage denied ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {

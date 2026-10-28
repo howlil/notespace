@@ -60,19 +60,20 @@ test("@critical Create menu delegates to existing Explorer form and global captu
   await page.keyboard.press("Escape");
 });
 
-test("@critical Data & Recovery is a single reusable dialog from rail or Settings", async ({ page }) => {
+test("@critical Data and Backup is a single Settings tab with no rail recovery dialog", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Data and recovery" }).click();
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
-
+  const rail = page.getByRole("navigation", { name: "Primary navigation" });
+  await expect(rail.getByRole("button", { name: "Data and recovery" })).toHaveCount(0);
   await page.getByRole("button", { name: "Settings" }).click();
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
-  await expect(settings).toBeVisible();
   await settings.getByRole("button", { name: "Data & backup" }).click();
-  await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Full-library backup" })).toBeVisible();
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
+  await expect(settings.getByRole("heading", { name: "Import Markdown vault" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
 });
 
 test("@critical global Create routes unorganized capture and Workspace-owned Today tasks", async ({ page }) => {
@@ -193,10 +194,11 @@ test("@critical cancelling full-library restore never sends a destructive restor
     await route.fulfill({ status: 500, body: "Unexpected restore call" });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Data and recovery" }).click();
-  const tools = page.getByRole("dialog", { name: "Data & Recovery" });
-  await expect(tools).toBeVisible();
-  await tools.locator('input[type="file"][accept*=".zip"]').setInputFiles({
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await settings.getByRole("button", { name: "Data & backup" }).click();
+  await expect(settings.getByRole("heading", { name: "Full-library backup" })).toBeVisible();
+  await settings.locator('input[type="file"][accept*=".zip"]').setInputFiles({
     name: "existing-library-backup.zip",
     mimeType: "application/zip",
     buffer: Buffer.from("not an actual backup"),

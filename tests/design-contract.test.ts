@@ -374,7 +374,7 @@ test("global utility contract: capture, search, recovery and activity are single
   assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
   assert.match(rail, /onCreate\(\{ kind, categoryId:/);
   assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
-  assert.match(sidebar, /useLibraryCreateRequest/);
+  assert.doesNotMatch(sidebar, /useLibraryCreateRequest|LibraryCreateContext/);
   assert.match(rail, /<ActivityIndicator rail/);
   assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
   assert.match(root, /<LibraryTools showTrigger=\{false\} \/>/);

@@ -10,8 +10,7 @@ test("@critical Library creates a category and Workspace, renames the category, 
 
   try {
     await page.goto("/");
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Category", exact: true }).click();
+    await page.getByRole("button", { name: "New category" }).click();
     const categoryInput = page.getByRole("textbox", { name: "Category title" });
     await categoryInput.fill(categoryTitle);
     await categoryInput.press("Enter");

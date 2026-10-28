@@ -405,22 +405,20 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/<select /);
   assert.match(renameField,/aria-label="Workspace title"/);
-  for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
+  for (const mode of ["Canvas", "Note", "Split"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspacePage, /<WorkspaceRail/);
-  assert.doesNotMatch(workspacePage, /<HeaderPlacement|workspace-switcher/);
-  assert.match(workspacePage, /<WorkspacePlan/);
+  assert.match(workspacePage, /<HeaderPlacement/);
+  assert.doesNotMatch(workspacePage, /<WorkspacePlan|workspace-switcher/);
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
-  assert.match(source(WORKSPACE_PAGE), /renderTaskAction=/);
-  assert.match(source(WORKSPACE_PAGE), /Start activity for/);
-  assert.match(source(WORKSPACE_PAGE), /ActivityTypeTrigger/);
+  assert.doesNotMatch(source(WORKSPACE_PAGE), /renderTaskAction=|Start activity for|ActivityTypeTrigger/);
   assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
   assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
   assert.match(source(SHELL_RAIL), /to="\/inbox"/);
   assert.match(source(SHELL_RAIL), /to="\/today"/);
   assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
   assert.doesNotMatch(source(SHELL_RAIL), /Capture for later/);
-  assert.match(source(SIDEBAR), /aria-label="Workspace navigation"/);
+  assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
   assert.match(source(SIDEBAR), /aria-label="Categories"/);
   assert.match(source(INBOX_PLANNING), /Tasks to organize/);
   assert.match(source(INBOX_PLANNING), /TaskWorkspaceAssign/);

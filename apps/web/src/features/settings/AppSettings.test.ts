@@ -6,6 +6,7 @@ const read = (relative: string) => readFileSync(new URL(relative, import.meta.ur
 const root = read("../../routes/__root.tsx");
 const settings = read("./AppSettings.tsx");
 const backup = read("../desktop-recovery/DesktopRecoveryTools.tsx");
+const portable = read("../library/LibraryTools.tsx");
 const sidebar = read("../../pages/_shared/LibrarySidebar.tsx");
 const workspace = read("../../pages/workspace/WorkspacePage.tsx");
 const lifecycle = read("../../adapters/browser/desktop-lifecycle.ts");
@@ -22,6 +23,8 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.match(settings, /Data &amp; backup/);
   assert.doesNotMatch(settings, /OPEN_LIBRARY_TOOLS_EVENT|Open Data/);
   assert.match(settings, /renderLibraryTools\(onBusyChange, backupBusy\)/);
+  assert.match(portable, /onBusyChange\(mutationBusy\)/);
+  assert.doesNotMatch(portable, /onBusyChange\(loading\)/);
   assert.doesNotMatch(settings, /href=\{exportLibraryBackup\(\)\}/);
   assert.match(settings, /renderDesktopRecovery\(onBusyChange\)/);
   assert.match(settings, /data-notespace-settings-root/);

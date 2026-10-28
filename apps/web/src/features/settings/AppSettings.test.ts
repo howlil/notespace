@@ -38,6 +38,9 @@ test("backup settings keep safety boundary and prevent dismissal while saving", 
   assert.match(backup, /list_desktop_manual_backups/);
   assert.match(backup, /onBusyChange\(true\)/);
   assert.match(backup, /onBusyChange\(false\)/);
+  // Both backup mechanisms share a single UI exclusion boundary.
+  assert.match(settings, /<fieldset disabled=\{backupBusy\}/);
+  assert.match(settings, /renderLibraryTools\(onBusyChange, backupBusy\)/);
   assert.match(settings, /if \(!next && busyRef\.current\) return/);
   assert.match(settings, /if \(busyRef\.current\) event\.preventDefault\(\)/);
   assert.match(lifecycle, /\[data-notespace-settings-root\]/);

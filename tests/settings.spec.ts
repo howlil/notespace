@@ -71,8 +71,16 @@ test("@critical Settings cannot dismiss while portable restore is in flight", as
   try {
     await started;
     await expect(settings.getByRole("button", { name: "Close settings" })).toBeDisabled();
-    await expect(settings.getByRole("link", { name: "Recover Captures and unassigned Tasks" })).toHaveAttribute("aria-disabled", "true");
-    await expect(settings.getByRole("link", { name: "Review scheduled Tasks" })).toHaveAttribute("aria-disabled", "true");
+    const capturesRecovery = settings.getByRole("link", { name: "Recover Captures and unassigned Tasks" });
+    const tasksRecovery = settings.getByRole("link", { name: "Review scheduled Tasks" });
+    await expect(capturesRecovery).toHaveAttribute("aria-disabled", "true");
+    await expect(tasksRecovery).toHaveAttribute("aria-disabled", "true");
+    // Dispatch the activation event despite disabled styling. The handler must
+    // suppress navigation while the real restore request is still outstanding.
+    await capturesRecovery.dispatchEvent("click");
+    await tasksRecovery.dispatchEvent("click");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(settings).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(settings).toBeVisible();
     await expect(settings.getByRole("button", { name: "General" })).toBeDisabled();

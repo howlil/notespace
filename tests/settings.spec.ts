@@ -36,6 +36,54 @@ test("Settings owns the single Data & Backup surface in Navigation v8", async ({
   await expect(reopened).toHaveCount(0);
 });
 
+test("@critical Settings cannot dismiss while portable restore is in flight", async ({ page }) => {
+  await page.goto("/");
+  await openSettings(page);
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await settings.getByRole("button", { name: "Data & backup" }).click();
+  await expect(settings.getByRole("button", { name: "Restore", exact: true })).toBeEnabled();
+
+  // The request is held at the transport boundary. It must never reach SQLite:
+  // we are testing modal ownership and mutation lifecycle, not backup semantics.
+  let notifyStarted = () => {};
+  const started = new Promise<void>((resolve) => { notifyStarted = resolve; });
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/backup/restore", async (route) => {
+    notifyStarted();
+    await pending;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Simulated restore unavailable" }),
+    });
+  });
+
+  await settings.locator('input[type="file"][accept*=".zip"]').setInputFiles({
+    name: "restore-in-flight.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("not a real archive; intercepted before persistence"),
+  });
+  const confirmation = page.getByRole("dialog", { name: "Replace the entire library?" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Replace library" }).click();
+
+  try {
+    await started;
+    await expect(settings.getByRole("button", { name: "Close settings" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole("button", { name: "General" })).toBeDisabled();
+  } finally {
+    release();
+  }
+
+  await expect(settings.getByRole("button", { name: "Close settings" })).toBeEnabled();
+  await expect(settings.getByRole("button", { name: "General" })).toBeEnabled();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
+});
+
 test("Workspace keeps Settings in Library without duplicating the Workspace rail", async ({ page, request }) => {
   const response = await request.post("/api/workspaces", { data: { title: `Settings navigation ${Date.now()}` } });
   expect(response.status()).toBe(201);

@@ -1,14 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Maximize2, Search } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
-import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
-import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
-import { useTaskActivityStart } from "../../features/activity/use-task-activity-start";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceRail } from "../../features/workspace-authoring/ui/WorkspaceRail";
@@ -24,9 +21,7 @@ type Props = {
 export function WorkspacePage({ workspace }: Props) {
   const { customChromeActive, workspaceRailHost } = useDesktopChrome();
   const activity = useActivityRuntime();
-  const startTaskActivity = useTaskActivityStart(activity);
   const { adoptLegacyWorkspace } = activity;
-  const [planOpen, setPlanOpen] = useState(false);
 
   const onWorkspaceActive = useCallback(({ workspaceId, workspaceTitle }: { workspaceId: string; workspaceTitle: string }) => {
     adoptLegacyWorkspace({
@@ -52,28 +47,14 @@ export function WorkspacePage({ workspace }: Props) {
     <WorkspaceRail
       showBack={!customChromeActive}
       activeViewMode={authoring.activeViewMode}
-      planActive={planOpen}
-      onSelectView={(mode) => { setPlanOpen(false); authoring.selectView(mode); }}
-      onPlanSelect={() => { setPlanOpen(true); authoring.clearMaximize(); }}
+      onSelectView={(mode) => authoring.selectView(mode)}
       onFocus={authoring.toggleActiveMaximize}
       activityControl={<ActivityIndicator rail activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />}
     />
   ) : null;
   const railHostActive = customChromeActive && workspaceRailHost !== null;
 
-  const visible = planOpen ? (
-    <WorkspacePlan
-      workspaceId={workspace.id}
-      refreshKey={activity.taskRevision}
-      renderTaskAction={(task) => (
-        <ActivityTypeTrigger
-          ariaLabel={`Start activity for ${task.title}`}
-          disabled={activity.status !== "idle" || !activity.canStart}
-          onSelect={(activityType) => { void startTaskActivity(task, activityType); }}
-        />
-      )}
-    />
-  ) : authoring.authoringVisible;
+  const visible = authoring.authoringVisible;
 
   return (
     <div className="h-dvh min-w-0 overflow-hidden">

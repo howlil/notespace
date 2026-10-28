@@ -20,7 +20,7 @@ test("Settings owns the single Data & Backup surface in Navigation v8", async ({
   await settings.getByRole("button", { name: "Data & backup" }).click();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
   await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
-  await expect(settings.getByRole("button", { name: "Restore", exact: true })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Restore library backup" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Import Markdown vault" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Trash" })).toBeVisible();
   await expect(settings.getByText("Verified SQLite snapshots are available in the Windows desktop app.")).toBeVisible();
@@ -41,7 +41,7 @@ test("@critical Settings cannot dismiss while portable restore is in flight", as
   await openSettings(page);
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await settings.getByRole("button", { name: "Data & backup" }).click();
-  await expect(settings.getByRole("button", { name: "Restore", exact: true })).toBeEnabled();
+  await expect(settings.getByRole("button", { name: "Restore library backup" })).toBeEnabled();
 
   // The request is held at the transport boundary. It must never reach SQLite:
   // we are testing modal ownership and mutation lifecycle, not backup semantics.

@@ -167,7 +167,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
               <div><h3 className="m-0 text-xs font-medium text-ink">Full-library backup</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Categories, workspaces, Trash, history, images, and activity sessions.</p></div>
               <div className="flex shrink-0 gap-1.5">
                 <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={mutationBusy || disabled} onClick={(event) => { if (mutationBusy || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
-                <Button variant="secondary" size="sm" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore</Button>
+                <Button variant="secondary" size="sm" aria-label="Restore library backup" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore</Button>
               </div>
               <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />
             </section>
@@ -194,7 +194,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
               {trash.length ? <div className="max-h-52 overflow-auto border-t border-line">
                 {trash.map((item) => <div key={item.id} className="flex min-h-11 items-center gap-3 border-b border-line py-2">
                   <div className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{item.title}</strong><span className="text-[9px] text-muted">{categoryNames.get(item.categoryId) ?? "Category unavailable"} · deleted {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.deletedAt))}</span></div>
-                  <Button variant="ghost" size="sm" onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={12} /> Restore</Button>
+                  <Button variant="ghost" size="sm" aria-label={`Restore ${item.title}`} onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={12} /> Restore</Button>
                   <Button variant="ghost" size="icon" className="text-danger" aria-label={`Permanently delete ${item.title}`} onClick={() => setPermanentTarget(item)} disabled={loading || disabled}><Trash2 size={13} /></Button>
                 </div>)}
               </div> : <p className="m-0 border-t border-line py-4 text-[10px] text-muted">Trash is empty.</p>}

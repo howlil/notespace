@@ -167,7 +167,9 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
                 </p>
                 {renderLibraryTools(onBusyChange, backupBusy)}
                 {native ? (
-                  renderDesktopRecovery(onBusyChange)
+                  <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">
+                    {renderDesktopRecovery(onBusyChange)}
+                  </fieldset>
                 ) : (
                   <p className="mt-4 text-muted">
                     Verified SQLite snapshots are available in the Windows desktop app.

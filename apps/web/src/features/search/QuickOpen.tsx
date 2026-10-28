@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Folder, Search } from "lucide-react";
+import { FileText, Folder, Search, Settings2 } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../shared/ui";
 import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -12,8 +12,7 @@ import {
 } from "./quick-open-model";
 import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
-import { OPEN_NOTESPACE_SETTINGS } from "../settings/AppSettings";
-import { Settings2 } from "lucide-react";
+
 
 export function QuickOpen() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -161,7 +160,7 @@ export function QuickOpen() {
 
           <div className="max-h-[min(64dvh,520px)] overflow-y-auto p-2">
             {!query.trim() && <Button variant="ghost" size="sm" className="mb-2 w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left"
-              onClick={() => { setOpen(false); window.dispatchEvent(new Event(OPEN_NOTESPACE_SETTINGS)); }}>
+              onClick={() => { setOpen(false); window.dispatchEvent(new Event("notespace:open-settings")); }}>
               <Settings2 size={14} aria-hidden="true" /> Settings &amp; Data
             </Button>}
             {!query.trim() && currentWorkspace?.notes.length ? (

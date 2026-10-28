@@ -18,13 +18,26 @@ function localDateKey(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-async function createActivityWorkspace(request: APIRequestContext) {
-  const response = await request.post("/api/workspaces", { data: { title: `Activity context ${Date.now()}` } });
+async function createActivityWorkspace(request: APIRequestContext, title = `Activity context ${Date.now()}`) {
+  const response = await request.post("/api/workspaces", { data: { title } });
   expect(response.status()).toBe(201);
   return await response.json() as { id: string };
 }
 async function chooseActivityWorkspace(page: Page, workspaceId: string) {
   await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspaceId);
+}
+
+// Workspace-owned Activity is the v8 authoring path. Legacy Today remains a
+// compatibility projection, not the fixture for newly started sessions.
+async function startActivityFromWorkspaceRail(page: Page, workspaceId: string) {
+  await page.goto(`/workspaces/${workspaceId}`);
+  const rail = page.getByRole("navigation", { name: "Workspace navigation" });
+  await rail.getByRole("button", { name: /^Activity, today/ }).click();
+  const panel = page.getByRole("dialog", { name: "Activity" });
+  await panel.getByRole("button", { name: "Start activity" }).click();
+  await page.getByRole("menu", { name: "Choose activity type" })
+    .getByRole("menuitem", { name: "Other" }).click();
+  await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
 }
 
 test("Activity starts in a Workspace or from a Workspace Task with context preserved", async ({ page, request }) => {
@@ -169,17 +182,16 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
 
 
 test("activity End retries after the final heartbeat fails before server commit", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover uncommitted activity ${suffix}`;
+  const workspace = await createActivityWorkspace(request, title);
   const heartbeatUrl = "**/api/activity/sessions/*";
 
   try {
+    await startActivityFromWorkspaceRail(page, workspace.id);
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    // End/retry guarantees must hold after leaving the Workspace shell too.
     await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.route(heartbeatUrl, async (route) => {
@@ -229,17 +241,16 @@ test("activity End retries after the final heartbeat fails before server commit"
 });
 
 test("@critical activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover committed activity ${suffix}`;
+  const workspace = await createActivityWorkspace(request, title);
   const heartbeatUrl = "**/api/activity/sessions/*";
 
   try {
+    await startActivityFromWorkspaceRail(page, workspace.id);
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    // End/retry guarantees must hold after leaving the Workspace shell too.
     await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     // Intercept the browser's final PUT, commit its exact body through the
@@ -394,18 +405,14 @@ test("Today Quick Activity requires a Workspace before starting", async ({ page,
   }
 });
 
-test("@critical Active Today Activity remains stoppable after navigating to Home", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
-  const title = `Legacy Today activity handoff ${Date.now()}`;
+test("@critical Workspace Activity survives legacy Today and remains stoppable from Home", async ({ page, request }) => {
+  const title = `Workspace activity route handoff ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    const quickActivity = page.getByRole("textbox", { name: "Quick activity" });
-    await expect(quickActivity).toBeVisible();
-    await quickActivity.fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("combobox", { name: "Activity type" }).selectOption("read");
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
+    await page.goto("/today");
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.getByRole("link", { name: "Notespace home" }).click();
     await expect(page.getByRole("complementary", { name: "Category explorer" })).toBeVisible();

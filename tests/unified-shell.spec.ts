@@ -32,7 +32,7 @@ test("@critical category disclosure does not navigate but category selection doe
   await explorer.getByRole("button", { name: `Expand ${category.title}` }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(null);
   await expect(explorer.getByRole("button", { name: `Collapse ${category.title}` })).toBeVisible();
-  await explorer.locator("[data-system-category]").filter({ hasText: category.title }).first().locator("button").nth(1).click();
+  await explorer.getByText(category.title, { exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(category.id);
   await page.goBack();
   await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(null);

@@ -76,6 +76,37 @@ test("@critical Data and Backup is a single Settings tab with no rail recovery d
   await expect(settings).toHaveCount(0);
 });
 
+test("@critical ZIP export stays available while Trash listing is stalled", async ({ page }) => {
+  let releaseTrash!: () => void;
+  let markTrashRequested!: () => void;
+  const trashBlocked = new Promise<void>((resolve) => { releaseTrash = resolve; });
+  const trashRequested = new Promise<void>((resolve) => { markTrashRequested = resolve; });
+  await page.route("**/api/trash", async (route) => {
+    markTrashRequested();
+    await trashBlocked;
+    await route.continue();
+  });
+
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings" }).click();
+    const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+    await settings.getByRole("button", { name: "Data & backup" }).click();
+    await trashRequested;
+
+    // Metadata is still pending, but an independent GET /api/backup must remain usable.
+    const exportLink = settings.getByRole("link", { name: "Export ZIP" });
+    await expect(exportLink).toHaveAttribute("href", "/api/backup");
+    await expect(exportLink).not.toHaveAttribute("aria-disabled", "true");
+    const downloadPromise = page.waitForEvent("download");
+    await exportLink.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("notespace-backup.zip");
+  } finally {
+    releaseTrash();
+  }
+});
+
 test("@critical global Create routes unorganized capture and Workspace-owned Today tasks", async ({ page }) => {
   await page.goto("/");
   const create = page.getByRole("button", { name: "Create", exact: true });

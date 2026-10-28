@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, SquarePen, FolderPlus, Folder } from "lucide-react";
+import { CalendarCheck2, FolderTree, Home, Inbox, Plus, Search, Settings2, FolderPlus, Folder } from "lucide-react";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import { OPEN_NOTESPACE_SETTINGS } from "../../features/settings/AppSettings";
-import { FOCUS_TASK_COMPOSER_EVENT, OPEN_QUICK_CAPTURE_EVENT } from "../../shared/browser/shell-events";
+import { FOCUS_TASK_COMPOSER_EVENT } from "../../shared/browser/shell-events";
 import { cn } from "../../shared/ui";
 
 type Page = "library" | "inbox" | "today";
@@ -83,7 +83,6 @@ export function ShellRail({ page, explorerOpen, onToggleExplorer, onCreate, sele
             }} className="absolute top-0 left-[calc(100%+9px)] z-50 w-52 rounded-lg border border-line bg-surface p-1.5 shadow-[var(--shadow-popup)]">
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("workspace")}><Folder size={15}/> Workspace</button>
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => create("category")}><FolderPlus size={15}/> Category</button>
-              <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => {setCreating(false);window.dispatchEvent(new Event(OPEN_QUICK_CAPTURE_EVENT));}}><SquarePen size={15}/> Quick capture</button>
               
               <button type="button" role="menuitem" className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[11px] text-ink hover:bg-tint" onClick={() => openTaskComposer()}><CalendarCheck2 size={15}/> Task in Today</button>
             </div>

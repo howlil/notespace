@@ -34,29 +34,22 @@ test("@critical Capture Queue creates and edits pending items without standalone
   }
 });
 
-test("Quick Capture can save to Queue without a Workspace", async ({ page, request }) => {
-  const content = `Queue from quick capture ${Date.now()}`;
-  let id = "";
+test("Legacy Capture API still surfaces pending entries through the existing Queue deep link", async ({ page, request }) => {
+  const content = `Historical capture ${Date.now()}`;
+  const created = await request.post("/api/captures", { data: { content } });
+  expect(created.status()).toBe(201);
+  const item = await created.json() as { id: string; version: number };
   try {
-    await page.goto("/");
-    await page.keyboard.press("Control+Shift+N");
-    const dialog = page.getByRole("dialog", { name: "Quick capture" });
-    await dialog.getByRole("combobox", { name: "Destination" }).selectOption("queue");
-    await dialog.getByRole("textbox", { name: "Capture", exact: true }).fill(content);
-    await dialog.getByRole("button", { name: "Save to Queue" }).click();
-    await expect(dialog).toHaveCount(0);
-    await page.goto("/inbox"); // Existing deep link until Capture Queue retirement.
+    await page.goto("/inbox");
+    await expect(page.getByRole("heading", { name: "Capture Queue" })).toBeVisible();
     await expect(page.getByText(content, { exact: true })).toBeVisible();
-    const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string; version: number }>;
-    id = pending.find((x) => x.content === content)?.id ?? "";
-    expect(id).not.toBe("");
+    const pending = await (await request.get("/api/captures")).json() as Array<{ id: string; content: string }>;
+    expect(pending.some((capture) => capture.id === item.id && capture.content === content)).toBe(true);
   } finally {
-    if (id) {
-      const res = await request.get(`/api/captures/${id}`);
-      if (res.ok()) {
-        const item = await res.json() as { version: number; status: string };
-        if (item.status === "pending") await request.delete(`/api/captures/${id}`, { headers: { "If-Match": `"${item.version}"` } });
-      }
+    const current = await request.get(`/api/captures/${item.id}`);
+    if (current.ok()) {
+      const capture = await current.json() as { version: number; status: string };
+      if (capture.status === "pending") await request.delete(`/api/captures/${item.id}`, { headers: { "If-Match": `"${capture.version}"` } });
     }
   }
 });

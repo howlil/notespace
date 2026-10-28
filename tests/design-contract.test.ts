@@ -18,7 +18,7 @@ const SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const WORKSPACE_LIBRARY_MODEL = join(WEB_SRC, "features", "library", "use-workspace-library.ts");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
-const QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
+const RETIRED_QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
 const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
@@ -312,7 +312,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(popupSurface, /<motion\.div/); assert.match(popupSurface, /initial=\{\{ opacity: 0/); assert.match(popupSurface, /\[scrollbar-width:none\]/);
   assert.match(source(DOCUMENT_EDITOR), /<IconButton/); assert.match(source(DOCUMENT_EDITOR), /<Input/);
   assert.match(source(DOCUMENT_EDITOR), /\[scrollbar-width:none\]/); assert.match(source(DOCUMENT_EDITOR), /!justify-start/);
-  assert.match(source(QUICK_CAPTURE), /<Input/); assert.match(source(QUICK_OPEN), /<Input/);
+  assert.match(source(QUICK_OPEN), /<Input/);
   assert.match(source(WORKSPACE), /<Button/); assert.match(source(WORKSPACE), /<IconButton/);
   assert.match(source(TOAST_PROVIDER), /<Button/); assert.match(source(TOAST_PROVIDER), /<IconButton/);
   assert.match(source(ACTIVITY_INDICATOR), /<Button/);
@@ -346,7 +346,7 @@ test("layout archetypes: application pages share search shell and category queri
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -368,25 +368,23 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("global utility contract: capture, search, recovery and activity are single-owner surfaces", () => {
-  const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
-  assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
+test("global utility contract: Quick Capture UI retired, legacy capture data and global activity retained", () => {
+  const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  assert.equal(existsSync(RETIRED_QUICK_CAPTURE), false, "Quick Capture modal is retired");
+  assert.doesNotMatch(rail, /OPEN_QUICK_CAPTURE_EVENT|Quick capture/);
   assert.doesNotMatch(rail, /OPEN_LIBRARY_TOOLS_EVENT|Data and recovery/);
   assert.match(rail, /onCreate\(\{ kind, categoryId:/);
   assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
   assert.doesNotMatch(sidebar, /useLibraryCreateRequest|LibraryCreateContext/);
   assert.match(rail, /<ActivityIndicator rail/);
-  assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
+  assert.doesNotMatch(root, /QuickCapture|open-quick-capture/);
   assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
   assert.match(root, /renderLibraryTools=\{/);
   assert.doesNotMatch(root, /<LibraryTools showTrigger/);
   assert.match(root, /<QuickOpen \/>/);
   assert.match(root, /<ActivityDock \/>/);
   assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
-  assert.match(capture, /OPEN_QUICK_CAPTURE_EVENT/);
-  assert.match(capture, /Ctrl\/Cmd \+ Shift \+ N/);
-  assert.match(capture, /listRecentWorkspaces\(recentWorkspaceLimit\)/);
-  assert.match(capture, /listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/);
+  assert.doesNotMatch(source(join(WEB_SRC, "shared", "browser", "shell-events.ts")), /OPEN_QUICK_CAPTURE_EVENT/);
   assert.doesNotMatch(tools, /OPEN_LIBRARY_TOOLS_EVENT|<Dialog|<DialogContent/);
   assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
 });

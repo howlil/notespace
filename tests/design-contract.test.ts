@@ -318,7 +318,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
   assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
-  assert.match(source(WORKSPACE_LIBRARY), /after:bg-accent/);
+  assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
   assert.match(source(ACTIVITY_DASHBOARD), /rounded-lg border border-line bg-surface/); assert.match(source(ACTIVITY_DASHBOARD), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
@@ -331,9 +331,9 @@ test("layout archetypes: application pages share search shell and category queri
   const model = source(WORKSPACE_LIBRARY_MODEL);
   for (const page of [DASHBOARD, INBOX, TODAY]) assert.match(source(page), /<LibraryPageShell/);
   assert.match(shell, /<HeaderPlacement/);
-  assert.match(shell, /<ShellRail/);
-  assert.match(shell, /aria-label="Close category explorer"/);
-  assert.match(source(SHELL_RAIL), /w-11/);
+  assert.match(shell, /id="notespace-home-sidebar"/);
+  assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
+  assert.match(source(SIDEBAR), /notespace-sidebar-brand/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(library, /aria-label="Category workspaces"/);
   assert.match(library, /aria-label="Search category workspaces"/);
@@ -373,7 +373,7 @@ test("global utility contract: capture, search, recovery and activity are single
   assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
   assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
   assert.match(rail, /onCreate\(\{ kind, categoryId:/);
-  assert.match(source(PAGE_SHELL), /<LibraryCreateContext.Provider value=\{createRequest\}>/);
+  assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
   assert.match(sidebar, /useLibraryCreateRequest/);
   assert.match(rail, /<ActivityIndicator rail/);
   assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);

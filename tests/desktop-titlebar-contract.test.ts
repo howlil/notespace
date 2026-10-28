@@ -20,7 +20,8 @@ test("desktop title bar preserves existing per-page React handlers and web heade
   for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
     assert.match(source(web + "pages/" + page), /<LibraryPageShell/);
   }
-  assert.doesNotMatch(workspace, /<HeaderPlacement/);
+  assert.match(workspace, /<HeaderPlacement/);
+  assert.match(workspace, /showBack=\{!customChromeActive\}/);
   assert.match(workspace, /<WorkspaceRail/);
   assert.match(provider, /if \(!desktop\) return/);
   assert.match(provider, /activate_desktop_titlebar/);

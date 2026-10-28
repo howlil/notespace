@@ -21,7 +21,8 @@ test("Workspace authoring is full-bleed with a single vertical rail and accessib
   assert.match(ws, /authoring\.selectView\(mode\)/);
   assert.match(ws, /<WorkspacePlan/);
   assert.match(ws, /authoring\.status\.state/);
-  assert.doesNotMatch(ws, /<HeaderPlacement|<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
+  assert.match(ws, /<HeaderPlacement/);
+  assert.doesNotMatch(ws, /<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
   const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
   assert.match(rail, /workspace-rail/);
   assert.match(rail, /w-10/);

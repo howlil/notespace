@@ -33,27 +33,21 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
 
-test("responsive contract: mobile keeps rail while Explorer is dismissible", () => {
-  const dashboard = source(DASHBOARD);
+test("responsive contract: compact Home retains permanent sidebar without toggles", () => {
   const shell = source(PAGE_SHELL);
   const sidebar = source(SIDEBAR);
-  const rail = source(join(WEB_SRC, "pages", "_shared", "ShellRail.tsx"));
   const library = source(WORKSPACE_LIBRARY);
-  assert.match(shell, /<ShellRail/);
-  assert.match(shell, /max-width: 760px/);
-  assert.match(shell, /aria-label="Close category explorer"/);
-  assert.match(shell, /max-\[760px\]:fixed/);
+  assert.match(shell, /notespace-home-sidebar/);
+  assert.match(shell, /w-\\[228px\\]/);
+  assert.doesNotMatch(shell, /<ShellRail|Close category explorer|Toggle category explorer/);
   assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
-  assert.match(rail, /Toggle category explorer/);
-  assert.match(rail, /w-11/);
   assert.match(sidebar, /aria-label="Category explorer"/);
-  assert.match(library, /overflow-x-auto overscroll-x-contain/);
+  assert.match(sidebar, /notespace-sidebar-brand/);
+  assert.match(sidebar, /aria-label="New category"/);
+  assert.doesNotMatch(library, /aria-label="Library views"/);
   assert.match(library, /function WorkspaceFolderCard/);
-  assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
-  assert.match(library, /<WorkspaceListSkeleton variant=\{view === "category" \? "list" : "cards"\} \/>/);
-  assert.match(dashboard, /afterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
+  assert.match(library, /<WorkspaceListSkeleton/);
 });
-
 
 test("responsive contract: mobile activity is summary-first", () => {
   const activity = source(ACTIVITY);

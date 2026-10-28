@@ -446,7 +446,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(source(ACTIVITY_INDICATOR), /taskHandoff|onEnd|activity\.pause|activity\.resume|activity\.end/);
   assert.match(source(WORKSPACE_PAGE), /useActivityRuntime/);
   assert.match(source(WORKSPACE_PAGE), /adoptLegacyWorkspace/);
-  assert.match(source(WORKSPACE_PAGE), /refreshKey=\{activity\.taskRevision\}/);
+  assert.doesNotMatch(source(WORKSPACE_PAGE), /refreshKey=\{activity\.taskRevision\}/);
   assert.doesNotMatch(source(WORKSPACE_PAGE), /activityHandoff|getWorkspacePlan|completeActivityHandoffTask/);
   assert.match(source(ROOT_ROUTE), /ActivityRuntimeProvider/);
   assert.match(source(ROOT_ROUTE), /<ActivityDock \/>/);

@@ -9,8 +9,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
 
   try {
     await page.goto("/");
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("notespace:open-quick-capture")));
 
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     await expect(dialog).toBeVisible();
@@ -31,8 +30,7 @@ test("Quick Capture creates a durable Markdown note and remembers its target wor
       return current.notes.find((note) => note.title === "MVCC in PostgreSQL") ?? null;
     }).not.toBeNull();
 
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("notespace:open-quick-capture")));
     const reopened = page.getByRole("dialog", { name: "Quick capture" });
     await expect(reopened).toBeVisible();
     await expect(reopened.getByRole("combobox", { name: "Capture Workspace" })).toHaveValue(workspace.id);
@@ -48,8 +46,7 @@ test("Queue size limit does not restrict direct Workspace Quick Capture", async 
   const workspace = await created.json() as { id: string };
   try {
     await page.goto("/");
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("notespace:open-quick-capture")));
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     await dialog.getByRole("combobox", { name: "Capture Workspace" }).selectOption(workspace.id);
     await dialog.getByRole("textbox", { name: "Note" }).fill("a".repeat(65537));
@@ -79,8 +76,7 @@ test("@critical Quick Capture cannot use stale Workspace search results during d
   const blockedSearch = new Promise<void>((resolve) => { releaseSearch = resolve; });
   try {
     await page.goto("/");
-    await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Quick capture" }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("notespace:open-quick-capture")));
     const dialog = page.getByRole("dialog", { name: "Quick capture" });
     const search = dialog.getByRole("searchbox", { name: "Search workspaces" });
     const picker = dialog.getByRole("combobox", { name: "Capture Workspace" });

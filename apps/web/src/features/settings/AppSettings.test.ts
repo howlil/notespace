@@ -11,14 +11,17 @@ const workspace = read("../../pages/workspace/WorkspacePage.tsx");
 const lifecycle = read("../../adapters/browser/desktop-lifecycle.ts");
 
 test("desktop backup is reachable through Settings, not a floating overlay", () => {
-  assert.match(root, /<AppSettings renderDesktopRecovery=/);
+  assert.match(root, /<AppSettings/);
+  assert.match(root, /renderLibraryTools=\{/);
+  assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
   assert.match(root, /<DesktopRecoveryTools onBusyChange=\{onBusyChange\} \/>/);
   assert.doesNotMatch(sidebar, /<SettingsTrigger/);
   assert.match(read("../../pages/_shared/ShellRail.tsx"), /OPEN_NOTESPACE_SETTINGS/);
   assert.doesNotMatch(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
   assert.match(settings, /Data &amp; backup/);
-  assert.match(settings, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.doesNotMatch(settings, /OPEN_LIBRARY_TOOLS_EVENT|Open Data/);
+  assert.match(settings, /renderLibraryTools\(onBusyChange, backupBusy\)/);
   assert.doesNotMatch(settings, /href=\{exportLibraryBackup\(\)\}/);
   assert.match(settings, /renderDesktopRecovery\(onBusyChange\)/);
   assert.match(settings, /data-notespace-settings-root/);

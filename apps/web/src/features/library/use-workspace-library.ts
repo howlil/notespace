@@ -39,7 +39,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [categoryItems, setCategoryItems] = useState(categories);
   const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
-  const [pageLoading, setPageLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(!initialSelectedCategoryId);
+  const [allLoadError, setAllLoadError] = useState<string | null>(null);
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryWorkspaceFilters>(defaultCategoryFilters);
@@ -166,15 +167,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
-    pageRequestGeneration.current += 1;
-    categorySnapshotRef.current = null;
-    setSelectedCategoryId(id);
-    setView("category");
-    setCategoryLoadError(null);
-    setPageLoading(true);
-    setPage(null);
-    setCategorySearch("");
-    setCategoryFilters({ ...defaultCategoryFilters });
+    if (id === selectedCategoryId && force) {
+      setCategoryFilters((current) => ({ ...current }));
+      return;
+    }
+    // URL is the single owner of category selection; the route effect loads one page.
     void navigate({ to: "/", search: { category: id } });
   }
 
@@ -182,6 +179,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   useEffect(() => {
     if (initialSelectedCategoryId) return;
     const generation = ++pageRequestGeneration.current;
+    setAllLoadError(null);
     setPageLoading(true);
     void listAllWorkspaces({ limit: 50, snapshot: "start" })
       .then((result) => {
@@ -191,11 +189,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       })
       .catch((error) => {
         if (generation === pageRequestGeneration.current) {
-          showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
+          setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
         }
       })
       .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
-  }, [initialSelectedCategoryId, showToast]);
+  }, [initialSelectedCategoryId]);
 
   // Browser Back/Forward selection is URL-owned; disclosure remains sidebar-owned.
   useEffect(() => {
@@ -208,6 +206,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     setView(nextCategory ? "category" : "all");
     setPage(null);
     setCategoryLoadError(null);
+    setAllLoadError(null);
     setCategoryFilters({ ...defaultCategoryFilters });
     if (nextCategory) {
       setPageLoading(true);
@@ -221,11 +220,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
           setPage(result);
         })
         .catch((error) => {
-          if (generation === pageRequestGeneration.current) showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not load workspaces." });
+          if (generation === pageRequestGeneration.current) setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
         })
         .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
     }
-  }, [categoryItems, routeCategory, showToast]);
+  }, [categoryItems, routeCategory]);
 
   function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
     if (patch.offset === undefined) categorySnapshotRef.current = null;
@@ -302,6 +301,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     const requestedOffset = offset > 0 && snapshot !== "start" ? offset : 0;
     setView("all");
     setSelectedCategoryId("");
+    setAllLoadError(null);
     setPageLoading(true);
     void navigate({ to: "/", search: {}, replace: true });
     try {
@@ -317,7 +317,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
           void openAll(0);
           return;
         }
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." });
+        setAllLoadError(err instanceof Error ? err.message : "Could not load workspaces.");
       }
     } finally {
       if (pageRequestGeneration.current === generation) setPageLoading(false);
@@ -332,6 +332,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
 
     if (view === "all") {
+      setAllLoadError(null);
       if (!silent) setPageLoading(true);
       void listAllWorkspaces({ limit: 50, snapshot: "start" })
         .then((result) => {
@@ -342,7 +343,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
         })
         .catch((err) => {
           if (generation === pageRequestGeneration.current) {
-            showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." });
+            setAllLoadError(err instanceof Error ? err.message : "Could not refresh workspaces.");
           }
         })
         .finally(() => {
@@ -357,7 +358,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
         if (view !== "category" || !selectedCategoryId || generation !== pageRequestGeneration.current) return;
         if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
           setSelectedCategoryId("");
-          setView("recent");
+          setView("all");
           setPage(null);
           setPageLoading(false);
           void navigate({ to: "/" });
@@ -410,6 +411,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     page,
     pageLoading,
     categoryLoadError,
+    allLoadError,
+    retryAll: () => { void openAll(0); },
     retryCategory: () => setCategoryFilters((current) => ({ ...current })),
     categorySearch,
     setCategorySearch,

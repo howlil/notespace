@@ -14,7 +14,7 @@ const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
-const SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
+const RETIRED_SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const WORKSPACE_LIBRARY_MODEL = join(WEB_SRC, "features", "library", "use-workspace-library.ts");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
@@ -369,14 +369,11 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
 });
 
 test("global utility contract: Quick Capture UI retired, legacy capture data and global activity retained", () => {
-  const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  const sidebar=source(SIDEBAR), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  assert.equal(existsSync(RETIRED_SHELL_RAIL), false, "Old primary rail must not return to Navigation v8");
   assert.equal(existsSync(RETIRED_QUICK_CAPTURE), false, "Quick Capture modal is retired");
-  assert.doesNotMatch(rail, /OPEN_QUICK_CAPTURE_EVENT|Quick capture/);
-  assert.doesNotMatch(rail, /OPEN_LIBRARY_TOOLS_EVENT|Data and recovery/);
-  assert.match(rail, /onCreate\(\{ kind, categoryId:/);
   assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
   assert.doesNotMatch(sidebar, /useLibraryCreateRequest|LibraryCreateContext/);
-  assert.match(rail, /<ActivityIndicator rail/);
   assert.doesNotMatch(root, /QuickCapture|open-quick-capture/);
   assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
   assert.match(root, /renderLibraryTools=\{/);
@@ -415,10 +412,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.equal(existsSync(RETIRED_WORKSPACE_PLAN), false, "Retired Plan UI source must not linger");
   assert.equal(existsSync(RETIRED_MILESTONE_MUTATION), false, "Uncalled Plan-only milestone mutation helper must be retired");
   assert.equal(existsSync(RETIRED_MILESTONE_MUTATION_TEST), false, "Obsolete helper test must not preserve a dead module");
-  assert.match(source(SHELL_RAIL), /to="\/inbox"/);
-  assert.match(source(SHELL_RAIL), /to="\/today"/);
-  assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
-  assert.doesNotMatch(source(SHELL_RAIL), /Capture for later/);
+  assert.doesNotMatch(source(PAGE_SHELL), /<ShellRail|Primary navigation/);
   assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
   assert.match(source(SIDEBAR), /aria-label="Categories"/);
   assert.match(source(INBOX_PLANNING), /Tasks to organize/);

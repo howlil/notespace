@@ -17,7 +17,7 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
   assert.match(root, /<DesktopRecoveryTools onBusyChange=\{onBusyChange\} \/>/);
   assert.doesNotMatch(sidebar, /<SettingsTrigger/);
-  assert.match(read("../../pages/_shared/ShellRail.tsx"), /OPEN_NOTESPACE_SETTINGS/);
+  assert.match(read("../search/QuickOpen.tsx"), /notespace:open-settings/);
   assert.doesNotMatch(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
   assert.match(settings, /Data &amp; backup/);

@@ -28,10 +28,13 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
 }) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
+  // Listing categories/Trash is read-only: a slow or failed fetch must never
+  // trap the user inside Settings. Only mutations lock modal dismissal.
+  const [mutationBusy, setMutationBusy] = useState(false);
   useEffect(() => {
-    onBusyChange(loading);
+    onBusyChange(mutationBusy);
     return () => onBusyChange(false);
-  }, [loading, onBusyChange]);
+  }, [mutationBusy, onBusyChange]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
@@ -61,6 +64,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
 
   async function restoreBackup(file: File | null) {
     if (!file || loading) return;
+    setMutationBusy(true);
     setLoading(true);
     try {
       await restoreLibraryBackup(file);
@@ -70,12 +74,14 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not restore this backup." });
     } finally {
       setLoading(false);
+      setMutationBusy(false);
       if (restoreInput.current) restoreInput.current.value = "";
     }
   }
 
   async function restoreWorkspace(item: TrashWorkspace) {
     if (loading || disabled) return;
+    setMutationBusy(true);
     setLoading(true);
     try {
       await restoreTrashedWorkspace(item.id);
@@ -86,6 +92,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not restore workspace." });
     } finally {
       setLoading(false);
+      setMutationBusy(false);
     }
   }
 
@@ -93,6 +100,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
     const item = permanentTarget;
     if (!item || loading || disabled) return;
     setPermanentTarget(null);
+    setMutationBusy(true);
     setLoading(true);
     try {
       await deleteTrashedWorkspace(item.id);
@@ -102,6 +110,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not permanently delete workspace." });
     } finally {
       setLoading(false);
+      setMutationBusy(false);
     }
   }
 
@@ -113,6 +122,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
       return;
     }
 
+    setMutationBusy(true);
     setLoading(true);
     try {
       const { imported, failed, cleanupFailed } = await importVaultFiles(selected, categoryId, {
@@ -145,6 +155,7 @@ export function LibraryTools({ onBusyChange, disabled = false }: {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not import Markdown vault." });
     } finally {
       setLoading(false);
+      setMutationBusy(false);
       if (vaultInput.current) vaultInput.current.value = "";
     }
   }

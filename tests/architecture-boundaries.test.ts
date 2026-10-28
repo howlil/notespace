@@ -308,13 +308,13 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 });
 
-test("workspace page is the screen composition boundary for authoring, planning, and activity", () => {
+test("workspace page composes authoring and contextual activity without retired Plan UI", () => {
   const page = source("pages/workspace/WorkspacePage.tsx");
   const authoring = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
 
   assert.match(page, /useWorkspaceAuthoring/);
   assert.match(page, /workspace-main/);
-  assert.match(page, /WorkspacePlan/);
+  assert.doesNotMatch(page, /WorkspacePlan/);
   assert.match(page, /ActivityIndicator/);
   assert.doesNotMatch(page, /useWorkspaceSession/);
 

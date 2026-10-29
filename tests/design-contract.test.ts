@@ -376,7 +376,7 @@ test("global utility contract: Quick Capture UI retired, legacy capture data and
   assert.match(root, /<QuickOpen \/>/);
   assert.match(root, /<ActivityDock \/>/);
   assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
-  assert.doesNotMatch(source(join(WEB_SRC, "shared", "browser", "shell-events.ts")), /OPEN_QUICK_CAPTURE_EVENT/);
+  assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "shell-events.ts")), false);
   assert.doesNotMatch(tools, /OPEN_LIBRARY_TOOLS_EVENT|<Dialog|<DialogContent/);
   assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
 });
@@ -502,6 +502,18 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
+  const dismissable = source(DISMISSABLE_POPUP);
+  assert.match(dismissable, /pointerdown/);
+  assert.match(dismissable, /focusin/);
+  assert.match(dismissable, /Escape/);
+  assert.match(dismissable, /requestExclusivePopup/);
+  assert.doesNotMatch(source(TOAST_PROVIDER), /requestExclusivePopup/);
+  assert.match(source(CONFIRM_DIALOG), /useExclusivePopup\(open/);
+  assert.match(source(DOCUMENT_EDITOR), /useDismissablePopup\(documentRef/);
+  assert.match(source(ACTIVITY_INDICATOR), /useDismissablePopup\(indicatorRef/);
+  assert.match(source(CANVAS_SELECTION_ACTIONS), /useDismissablePopup\(rootRef/);
+  assert.match(source(QUICK_OPEN), /<Dialog open=\{open\} onOpenChange=\{setOpen\}>/);
+  assert.match(source(PAGE_SHELL), /new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#2858d8/); });

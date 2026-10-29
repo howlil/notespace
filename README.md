@@ -15,7 +15,7 @@ Home
         └── Focus mode
 ```
 
-Home has one 228px Explorer, category disclosure, Workspace links and Quick Open (`Ctrl/Cmd + K`). Workspace has its own 40px rail; native desktop uses a 38px titlebar with Back and centered Search. No separate Today, Inbox/Capture Queue, Quick Capture, Plan page, Recent tab, or standalone Activity dashboard is exposed in v8.
+Home has one 228px Explorer, category disclosure, Workspace links and Quick Open (`Ctrl/Cmd + K`). Workspace has its own 40px rail; native desktop uses a 38px draggable titlebar with window controls, while Back remains in the Workspace rail and Ctrl/Cmd+K remains the search shortcut. No separate Today, Inbox/Capture Queue, Quick Capture, Plan page, Recent tab, or standalone Activity dashboard is exposed in v8.
 
 ## Core capability
 

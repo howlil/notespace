@@ -141,7 +141,7 @@ async function assertDesktopChrome(session, workspace) {
   // The title bar is activated asynchronously only after the authenticated
   // React UI mounts. A native smoke must prove that the activation succeeded.
   await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
-  await visibleElement(session, By.css(".desktop-titlebar .notespace-titlebar-search"));
+  if (!workspace) await visibleElement(session, By.css(".desktop-titlebar .notespace-titlebar-search"));
   const result = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
@@ -162,7 +162,7 @@ async function assertDesktopChrome(session, workspace) {
         return Boolean(element && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
       })(),
       workspaceBack: Boolean(header?.querySelector('a[aria-label="Back to library"]')),
-      workspaceTitle: header?.querySelector('a[aria-label="Back to library"] span')?.textContent?.trim() ?? "",
+      headerHostDrag: chrome?.querySelector(".desktop-titlebar-header-slot")?.hasAttribute("data-tauri-drag-region") ?? false,
       searchCount: header?.querySelectorAll('button[aria-label="Search Notespace with Control K or Command K"]').length ?? 0,
       searchOffset: (() => {
         const box = header?.querySelector(".notespace-titlebar-search")?.getBoundingClientRect();
@@ -197,14 +197,14 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
   assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
   assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
-  assert.equal(result.searchCount, 1, "Native titlebar must have exactly one Search action");
-  assert.ok(result.searchOffset !== null && result.searchOffset <= 28, "Search must be centered in the native titlebar");
+  assert.equal(result.headerHostDrag, true, "Custom titlebar retains a draggable region");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
-    assert.equal(result.workspaceBack, true, "Native Workspace must have Back in the titlebar");
-    assert.equal(result.railBackCount, 0, "Custom chrome must not duplicate Workspace Back in the rail");
-    assert.ok(result.workspaceTitle.length > 0, "Native Workspace must show the live title");
+    assert.equal(result.workspaceBack, false, "Workspace titlebar must not duplicate Back");
+    assert.equal(result.railBackCount, 1, "Workspace Back belongs to the rail");
+    assert.equal(result.searchCount, 0, "Workspace titlebar must not show Search");
+    assert.equal(result.searchOffset, null, "Workspace titlebar has no Search field");
     assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
     assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
     assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");
@@ -234,6 +234,8 @@ async function assertDesktopChrome(session, workspace) {
     const restoredX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
     assert.equal(restoredX, 40, "Restored desktop Workspace must bring back the full-height rail column");
   } else {
+    assert.equal(result.searchCount, 1, "Home titlebar retains Search");
+    assert.ok(result.searchOffset !== null && result.searchOffset <= 28, "Home Search stays centered");
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
     assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");
     assert.equal(result.homeSidebarWidth, 228, "Native Home must have one 228px Explorer");
@@ -261,9 +263,8 @@ async function runProductPersistenceJourney(session) {
     // Route navigation is a separate assertion from close-with-pending-save.
     // Let the freshly mounted editor settle before leaving this Workspace.
     await waitForWorkspaceSaved(session);
-    // Real WebView2 titlebar Back must navigate to one Home Explorer;
-    // Workspace titlebar must reactivate on re-entry with no duplicate Back.
-    const back = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    // Real WebView2 rail Back must navigate Home with no titlebar navigation.
+    const back = await visibleElement(session, By.css('.workspace-rail a[aria-label="Back to library"]'));
     await back.click();
     await waitForUrl(session, /[/]$/);
     await visibleElement(session, By.css('aside[aria-label="Category explorer"]'));
@@ -271,7 +272,7 @@ async function runProductPersistenceJourney(session) {
     const reenter = await visibleElement(session, By.xpath("//a[@aria-label=" + xpathLiteral("Open " + workspaceTitle) + "]"));
     await reenter.click();
     await waitForUrl(session, /[/]workspaces[/]/);
-    await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    await visibleElement(session, By.css('.workspace-rail a[aria-label="Back to library"]'));
     await waitForWorkspaceSaved(session);
   }
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));

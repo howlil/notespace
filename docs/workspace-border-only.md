@@ -6,8 +6,8 @@ Status: Notespace Navigation v8 implementation (Issue #173). Supersedes the Octo
 ```text
 WorkspacePage
  ├─ Web: WorkspaceRail (40px) → Back, Canvas / Note / Split, Activity, Focus
- ├─ Desktop custom chrome: titlebar → Back + live Workspace title, centered Search
- │   └─ WorkspaceRail → Canvas / Note / Split, Activity, Focus (no duplicate Back)
+ ├─ Desktop custom chrome: titlebar → drag region + window controls, no Workspace title / Back / Search
+ │   └─ WorkspaceRail → Back, Canvas / Note / Split, Activity, Focus
  └─ WorkspaceAuthoring → PaneNode tree
      ├─ CanvasEditor → Excalidraw Canvas + anchored tools
      ├─ DocumentEditor → Tiptap Note(s) + picker, find/outline
@@ -19,7 +19,7 @@ There is **no Plan mode or WorkspacePlan UI**. Task/Milestone API and SQLite rec
 
 ## Interaction and ownership
 
-- The Workspace rail is 40px and full-height on Web; native desktop uses the existing titlebar for Back and current Workspace title, avoiding a duplicate Back control.
+- The Workspace rail is 40px and full-height on Web and desktop, with one Back in the rail. Custom desktop titlebar remains draggable with window controls only; Quick Open stays available from Ctrl/Cmd+K.
 - Canvas, Note and Split remain the only view options. Focus hides the rail; Restore layout returns to the prior authoring view.
 - Split pointer dragging and keyboard arrows use the existing bounded `resizeSplit` operation (7px hit target, 1px visible border); no new persistence owner.
 - Note create/rename/select, Tiptap editing, Canvas changes and conflicts use existing Workspace sessions and autosave. Never report a save as complete before acknowledgement.
@@ -32,6 +32,6 @@ There is **no Plan mode or WorkspacePlan UI**. Task/Milestone API and SQLite rec
 2. `tests/workspace/border-only.spec.ts`, `tests/workspace/layout.spec.ts`, `tests/workspace/m5-visual-acceptance.spec.ts`: geometry, split keyboard and responsive overflow.
 3. `tests/planning.spec.ts` and `tests/today-projection.spec.ts`: real server persistence and retrieval of historical Task/Milestone data without Plan UI.
 4. `tests/workspace/recovery.spec.ts`: autosave conflict and retry.
-5. `scripts/desktop-webdriver-smoke.mjs`: Tauri titlebar Back, live title, centered Search and native lifecycle. Attribute actual results to exact-head GitHub CI, not this contract.
+5. `scripts/desktop-webdriver-smoke.mjs`: rail Back, uncluttered draggable titlebar, window controls and native lifecycle. Attribute actual results to exact-head GitHub CI, not this contract.
 
 Scope: `apps/web` Workspace UI; no speculative new domain, service, or migration.

@@ -337,7 +337,8 @@ test("layout archetypes: application pages share search shell and category queri
   assert.match(model, /listCategoryWorkspaces\(selectedCategoryId, \{ \.\.\.categoryFilters, limit: 50, snapshot \}\)/);
   assert.match(model, /categorySnapshotRef\.current/);
   assert.match(model, /pageRequestGeneration\.current === generation/);
-  assert.match(library, /role="list"/);
+  assert.match(library, /role="group" aria-label=\{view === "category" \? "Category workspaces" : "All workspaces"\}/);
+  assert.doesNotMatch(library, /CategoryWorkspaceRow/);
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
@@ -399,7 +400,7 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(renameField,/aria-label="Workspace title"/);
   for (const mode of ["Canvas", "Note", "Split"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspacePage, /<WorkspaceRail/);
-  assert.match(workspacePage, /<HeaderPlacement/);
+  assert.doesNotMatch(workspacePage, /<HeaderPlacement/);
   assert.doesNotMatch(workspacePage, /<WorkspacePlan|workspace-switcher/);
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);

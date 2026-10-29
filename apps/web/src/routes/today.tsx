@@ -1,24 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { listCategories } from "../adapters/http/workspace-api";
-import { getToday } from "../adapters/http/planning-api";
-import { localDateKey } from "../domain/planning/planning";
-import { RoutePending } from "../pages/_shared/RoutePending";
-import { TodayPage } from "../pages/today/TodayPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Obsolete pre-v8 deep links resolve to the Workspace library.
 export const Route = createFileRoute("/today")({
-  ssr: false,
-  loader: async () => {
-    const date = localDateKey();
-    const [categories, initial] = await Promise.all([
-      listCategories(),
-      getToday(date),
-    ]);
-    return { categories, initial };
+  beforeLoad: () => {
+    throw redirect({ to: "/", replace: true });
   },
-  pendingComponent: RoutePending,
-  component: TodayRoute,
 });
-
-function TodayRoute() {
-  return <TodayPage {...Route.useLoaderData()} />;
-}

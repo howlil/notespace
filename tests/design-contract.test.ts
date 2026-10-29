@@ -428,8 +428,9 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.equal(existsSync(join(WEB_SRC, "features", "planning", "TaskComposer.tsx")), false);
   assert.doesNotMatch(source(join(WEB_SRC, "shared", "browser", "shell-events.ts")), /FOCUS_TASK_COMPOSER_EVENT/);
   assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
-  assert.match(source(ACTIVITY_QUICK_START), /What are you doing\?/);
-  assert.match(source(ACTIVITY_QUICK_START), /Activity type/);
+  assert.equal(existsSync(ACTIVITY_QUICK_START), false, "Retired Today Activity composer source must be removed");
+  assert.doesNotMatch(source(TODAY), /ActivityQuickStart|renderActivity=/);
+  assert.doesNotMatch(source(TODAY_PLANNING), /renderActivity/);
   assert.match(source(TODAY), /Start activity for/);
   assert.match(source(TODAY), /ActivityTypeTrigger/);
   assert.match(source(TODAY), /useActivityRuntime/);

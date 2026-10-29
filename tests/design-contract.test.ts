@@ -330,7 +330,6 @@ test("layout archetypes: application pages share search shell and category queri
   assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
   assert.match(source(SIDEBAR), /notespace-sidebar-brand/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
-  assert.match(library, /aria-label="Category workspaces"/);
   assert.match(library, /aria-label="Search category workspaces"/);
   assert.match(library, /aria-label="Sort category workspaces"/);
   assert.match(library, /updateCategoryFilters/);

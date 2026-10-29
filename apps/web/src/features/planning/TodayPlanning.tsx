@@ -175,12 +175,10 @@ function TodayTaskRow({
 export function TodayPlanning({
   initial,
   refreshKey,
-  renderActivity,
   renderTaskAction,
 }: {
   initial: TodayProjection;
   refreshKey?: number;
-  renderActivity?: ReactNode;
   renderTaskAction?: (task: TodayTask) => ReactNode;
 }) {
   const { showToast } = useToast();
@@ -318,8 +316,6 @@ export function TodayPlanning({
             Legacy Today recovery. Existing scheduled Tasks remain visible and can be moved back into Workspace context; create new work inside a Workspace.
           </p>
         </header>
-
-        {renderActivity}
 
         <section aria-labelledby="today-open-title">
           <div className="flex min-h-8 items-center justify-between border-b border-line pb-2">

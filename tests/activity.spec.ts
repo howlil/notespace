@@ -773,8 +773,8 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
 });
 
 test("activity heartbeats reserve strictly increasing revisions through End", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity revision proof ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   const observed: Array<{ revision?: number; finish?: boolean }> = [];
   const heartbeatUrl = "**/api/activity/sessions/*";
   try {
@@ -784,10 +784,7 @@ test("activity heartbeats reserve strictly increasing revisions through End", as
       }
       await route.continue();
     });
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
 
     await expect.poll(() => observed.filter((item) => item.finish === false).length).toBeGreaterThan(0);
     await page.getByRole("button", { name: "End activity" }).click();
@@ -850,7 +847,8 @@ test("activity reload preserves the previous day's revision before rollover fina
       }
       await route.continue();
     });
-    await page.goto("/today");
+    // Recovery is owned by the root Activity runtime, not by legacy Today.
+    await page.goto(`/workspaces/${workspace.id}`);
     await expect.poll(() => observed[0]).toBe(8);
     await expect.poll(async () => {
       const res = await request.get("/api/activity/sessions?limit=100");
@@ -874,8 +872,8 @@ test("activity reload preserves the previous day's revision before rollover fina
 });
 
 test("pausing immediately after midnight does not reuse the new segment revision", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Midnight pause revision ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   const beforeMidnight = new Date(2026, 9, 26, 23, 59, 58);
   const afterMidnight = new Date(2026, 9, 27, 0, 0, 2);
   const nextDay = localDateKey(afterMidnight);
@@ -891,10 +889,7 @@ test("pausing immediately after midnight does not reuse the new segment revision
       }
       await route.continue();
     });
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect.poll(() => payloads.some((item) => item.finish === false)).toBe(true);
 
     // Change the clock without dispatching interval ticks: Pause itself must

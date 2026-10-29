@@ -119,8 +119,6 @@ A feature owns a coherent user-facing capability or use-case.
 
 Examples:
 - workspace authoring;
-- planning;
-- capture;
 - search;
 - activity;
 - library management.
@@ -145,7 +143,7 @@ Do not split code into global `hooks/`, `utils/`, or `components/` folders when 
 
 Examples:
 - workspace and note models;
-- planning models and transformations;
+- persisted Task model used by Activity recovery;
 - diagram model and routing rules;
 - autosave state machines;
 - conflict-resolution rules;
@@ -207,7 +205,7 @@ Good examples:
 Bad examples:
 - WorkspaceSidebar;
 - WorkspaceMutationPolicy;
-- QuickCapture;
+- ActivityDock;
 - LibraryTools;
 - CanvasNoteArtifact.
 

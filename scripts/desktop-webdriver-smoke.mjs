@@ -258,6 +258,9 @@ async function runProductPersistenceJourney(session) {
   if (!upgradeSeed) {
     await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
     await assertDesktopChrome(session, true);
+    // Route navigation is a separate assertion from close-with-pending-save.
+    // Let the freshly mounted editor settle before leaving this Workspace.
+    await waitForWorkspaceSaved(session);
     // Real WebView2 titlebar Back must navigate to one Home Explorer;
     // Workspace titlebar must reactivate on re-entry with no duplicate Back.
     const back = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
@@ -269,6 +272,7 @@ async function runProductPersistenceJourney(session) {
     await reenter.click();
     await waitForUrl(session, /[/]workspaces[/]/);
     await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    await waitForWorkspaceSaved(session);
   }
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
   await editor.click();
@@ -491,6 +495,22 @@ async function waitForEditorText(session, text, timeout = 30_000) {
     await delay(250);
   }
   throw new Error(`Timed out waiting for Workspace editor text: ${text}`);
+}
+
+async function waitForWorkspaceSaved(session, timeout = 30_000) {
+  const deadline = Date.now() + timeout;
+  let lastStatus = "not mounted";
+  while (Date.now() < deadline) {
+    lastStatus = await session.executeScript(
+      "return document.querySelector('[role=\"status\"][aria-label=\"Workspace save status\"]')?.textContent?.trim() ?? 'not mounted'",
+    );
+    if (lastStatus === "Saved") return;
+    if (lastStatus === "Conflict" || lastStatus === "Not saved") {
+      throw new Error(`Workspace autosave is not healthy after native navigation: ${lastStatus}`);
+    }
+    await delay(250);
+  }
+  throw new Error(`Workspace never reached Saved before native navigation (last: ${lastStatus})`);
 }
 
 async function waitForUrl(session, pattern, timeout = 30_000) {

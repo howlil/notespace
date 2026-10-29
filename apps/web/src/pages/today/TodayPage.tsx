@@ -6,7 +6,6 @@ import type { CategorySummary } from "../../domain/workspace/workspace";
 import type { TodayProjection } from "../../domain/planning/planning";
 import { useLibraryCategories } from "../../features/library/use-library-categories";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
-import { ActivityQuickStart } from "../../features/activity/ActivityQuickStart";
 import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
 import { TodayPlanning } from "../../features/planning/TodayPlanning";
 
@@ -28,7 +27,6 @@ export function TodayPage({
         onSelectCategory={(categoryId) => { void navigate({ to: "/", search: { category: categoryId } }); }} />}
     >
       <TodayPlanning initial={initial} refreshKey={activity.taskRevision}
-        renderActivity={<ActivityQuickStart />}
         renderTaskAction={(task) => (
           <ActivityTypeTrigger ariaLabel={`Start activity for ${task.title}`}
             disabled={activity.status !== "idle" || !activity.canStart || !task.workspaceId}

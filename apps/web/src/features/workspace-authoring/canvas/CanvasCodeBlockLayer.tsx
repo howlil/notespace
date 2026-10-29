@@ -16,6 +16,7 @@ import {
   CODE_BLOCK_LINE_NUMBER_WIDTH,
 } from "./canvas-code-block-layout";
 import { CanvasCodeBlockMeasure } from "./CanvasCodeBlockMeasure";
+import { canPreviewHtml, HtmlPreviewFrame } from "../code/HtmlPreviewFrame";
 import { canRunCanvasCode } from "./canvas-code-runner";
 import type { CodeRunView } from "./use-canvas-code-runner";
 
@@ -43,6 +44,7 @@ export function CanvasCodeBlockLayer({
   appDark,
   selectedElementId,
   editingElementId,
+  previewElementId,
   runs,
   onUpdate,
   onEditingChange,
@@ -55,6 +57,7 @@ export function CanvasCodeBlockLayer({
   appDark: boolean;
   selectedElementId: string | null;
   editingElementId: string | null;
+  previewElementId: string | null;
   runs: Record<string, CodeRunView>;
   onUpdate: (elementId: string, block: CanvasCodeBlockData) => void;
   onEditingChange: (elementId: string | null) => void;
@@ -77,6 +80,7 @@ export function CanvasCodeBlockLayer({
         const run = runs[element.id];
         const effectiveLanguage = block.languageLocked ? block.language : detectCodeLanguage(block.code);
         const runnable = canRunCanvasCode(effectiveLanguage);
+        const previewing = selected && previewElementId === element.id && canPreviewHtml(effectiveLanguage);
         const zoom = viewport.zoom;
         const left = (element.x + viewport.scrollX) * zoom;
         const top = (element.y + viewport.scrollY) * zoom;
@@ -248,6 +252,23 @@ export function CanvasCodeBlockLayer({
                 )}
               </div>
             </section>
+
+            {previewing && (
+              <div
+                className="pointer-events-auto absolute left-0 z-20 mt-2 overflow-hidden rounded-md border border-line bg-surface shadow-none"
+                style={{ top: height, width: Math.max(320, Math.min(540, width)), height: 300 }}
+                aria-label="Canvas HTML preview panel"
+                onPointerDown={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex h-7 items-center justify-between border-b border-line px-2 text-[10px] text-ink">
+                  <span>Interactive HTML preview</span><span className="text-muted">Inline assets only · isolated</span>
+                </div>
+                <div className="h-[calc(100%-28px)] bg-white">
+                  <HtmlPreviewFrame code={block.code} title="Canvas interactive HTML preview" />
+                </div>
+              </div>
+            )}
 
             {run && (
               <div

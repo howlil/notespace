@@ -1,7 +1,7 @@
 import type { NodeViewProps } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
-import { Check, Clipboard, Code2, Moon, Play, Square, Sun, X } from "lucide-react";
+import { Check, Clipboard, Code2, Eye, EyeOff, Moon, Play, Square, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   codeLanguageLabel,
@@ -20,6 +20,7 @@ import {
 } from "../../../domain/code/code-theme";
 import { useTheme } from "../../../shared/ui/theme-provider";
 import { canRunCode } from "../code/code-runner";
+import { canPreviewHtml, HtmlPreviewFrame } from "../code/HtmlPreviewFrame";
 import { useCodeRunner, type CodeRunView } from "../code/use-code-runner";
 
 function runStatusLabel(run: CodeRunView) {
@@ -56,7 +57,9 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
   const signature = `${code}\u0000${effectiveLanguage}`;
   const lastSignature = useRef(signature);
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const runnable = canRunCode(effectiveLanguage);
+  const previewable = canPreviewHtml(effectiveLanguage);
 
   useEffect(() => {
     if (lastSignature.current === signature) return;
@@ -104,6 +107,18 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
         </select>
 
         <div className="ml-auto flex items-center gap-0.5">
+          {previewable && (
+            <button
+              type="button"
+              className="grid size-7 place-items-center rounded-md text-muted hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+              aria-label={previewOpen ? "Hide HTML preview" : "Preview HTML"}
+              aria-pressed={previewOpen}
+              title={previewOpen ? "Hide HTML preview" : "Preview HTML"}
+              onClick={() => setPreviewOpen((open) => !open)}
+            >
+              {previewOpen ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            </button>
+          )}
           <button
             type="button"
             className="grid size-7 place-items-center rounded-md text-[var(--code-muted)] hover:bg-black/5 hover:text-[var(--code-fg)] focus-visible:outline-2 focus-visible:outline-accent"
@@ -156,6 +171,18 @@ function NoteCodeBlockNodeView({ node, updateAttributes, getPos }: NodeViewProps
           className="block min-h-10 whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-[1.7] text-[var(--code-fg)] outline-none [overflow-wrap:anywhere]"
         />
       </div>
+
+      {previewable && previewOpen && (
+        <div contentEditable={false} className="border-t" style={{ borderColor: palette.border }} aria-label="HTML preview panel">
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px]" style={{ background: palette.toolbar }}>
+            <span>Interactive HTML preview</span>
+            <span className="text-muted">Inline assets only · isolated</span>
+          </div>
+          <div className="h-[280px] min-h-[180px] resize-y overflow-auto bg-white">
+            <HtmlPreviewFrame code={code} />
+          </div>
+        </div>
+      )}
 
       {run && (
         <div

@@ -1,22 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { listCategories } from "../adapters/http/workspace-api";
-import { getUnassignedTasks } from "../adapters/http/planning-api";
-import { RoutePending } from "../pages/_shared/RoutePending";
-import { InboxPage } from "../pages/inbox/InboxPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Obsolete pre-v8 deep links resolve to the Workspace library.
+// Historical records remain in durable storage and portable backups.
 export const Route = createFileRoute("/inbox")({
-  ssr: false,
-  loader: async () => {
-    const [categories, initial] = await Promise.all([
-      listCategories(),
-      getUnassignedTasks(),
-    ]);
-    return { categories, initial };
+  beforeLoad: () => {
+    throw redirect({ to: "/", replace: true });
   },
-  pendingComponent: RoutePending,
-  component: InboxRoute,
 });
-
-function InboxRoute() {
-  return <InboxPage {...Route.useLoaderData()} />;
-}

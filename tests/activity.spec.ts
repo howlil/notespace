@@ -474,10 +474,12 @@ test("@critical another open tab retries a newly persisted Activity finalization
   const title = `Cross-tab recovery ${stamp}`;
   const otherTab = await context.newPage();
   try {
-    // Only the receiving tab has an active ActivityRuntimeProvider at enqueue.
-    await page.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
-    await otherTab.goto("/today");
+    // Both documents mount the global ActivityRuntimeProvider through Workspace.
+    // The writing tab emits no local event; the receiving tab must recover it.
+    await page.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+    await otherTab.goto(`/workspaces/${workspace.id}`);
+    await expect(otherTab.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     await otherTab.evaluate(({ sessionId, title, workspaceId }) => {
       localStorage.setItem("notespace.activity-recovery:v1", JSON.stringify({
         finalizations: [{
@@ -727,10 +729,10 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
   const sessionId = `${logicalId}:${day}`;
   const title = `Concurrent recovery ${logicalId}`;
   try {
-    await page.goto("/today");
-    await otherTab.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
-    await expect(otherTab.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await page.goto(`/workspaces/${workspace.id}`);
+    await otherTab.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+    await expect(otherTab.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
 
     const writeAttempt = ({ sessionId, day, title, workspaceId, seconds }: {
       sessionId: string; day: string; title: string; workspaceId: string; seconds: number;

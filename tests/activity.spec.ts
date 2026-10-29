@@ -29,14 +29,18 @@ async function chooseActivityWorkspace(page: Page, workspaceId: string) {
 
 // Workspace-owned Activity is the v8 authoring path. Legacy Today remains a
 // compatibility projection, not the fixture for newly started sessions.
-async function startActivityFromWorkspaceRail(page: Page, workspaceId: string) {
-  await page.goto(`/workspaces/${workspaceId}`);
+async function chooseActivityFromWorkspaceRail(page: Page) {
   const rail = page.getByRole("navigation", { name: "Workspace navigation" });
   await rail.getByRole("button", { name: /^Activity, today/ }).click();
   const panel = page.getByRole("dialog", { name: "Activity" });
   await panel.getByRole("button", { name: "Start activity" }).click();
   await page.getByRole("menu", { name: "Choose activity type" })
     .getByRole("menuitem", { name: "Other" }).click();
+}
+
+async function startActivityFromWorkspaceRail(page: Page, workspaceId: string) {
+  await page.goto(`/workspaces/${workspaceId}`);
+  await chooseActivityFromWorkspaceRail(page);
   await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
 }
 
@@ -324,42 +328,41 @@ test("@critical activity End reconciles when server commits but the response is 
 
 
 test("blocked tab can retry the global activity lease after the owner ends", async ({ page, context, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const firstTitle = `Owner activity ${suffix}`;
   const secondTitle = `Retry activity ${suffix}`;
+  const firstWorkspace = await createActivityWorkspace(request, firstTitle);
+  const secondWorkspace = await createActivityWorkspace(request, secondTitle);
   const secondPage = await context.newPage();
 
   try {
-    await page.goto("/today");
-    const firstInput = page.getByRole("textbox", { name: "Quick activity" });
-    await firstInput.fill(firstTitle);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
-    await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
+    await startActivityFromWorkspaceRail(page, firstWorkspace.id);
 
-    await secondPage.goto("/today");
-    const secondInput = secondPage.getByRole("textbox", { name: "Quick activity" });
-    await expect(secondInput).toBeEnabled();
+    // A distinct Workspace shares the one global Activity lease.
+    await secondPage.goto(`/workspaces/${secondWorkspace.id}`);
+    await chooseActivityFromWorkspaceRail(secondPage);
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    const blockedSessions = await request.get("/api/activity/sessions?limit=100");
+    expect(blockedSessions.ok()).toBe(true);
+    expect((await blockedSessions.json() as ActivitySessionRecord[])
+      .some((session) => session.title === secondTitle)).toBe(false);
 
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(firstInput).toBeVisible();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
-    await secondInput.fill(secondTitle);
-    await chooseActivityWorkspace(secondPage, workspace.id);
-    await secondPage.getByRole("button", { name: "Start", exact: true }).click();
-    await expect(secondPage.getByText(secondTitle, { exact: true })).toBeVisible();
+    // The blocked tab must be able to retry without reloading its document.
+    await chooseActivityFromWorkspaceRail(secondPage);
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toContainText(secondTitle);
     await secondPage.getByRole("button", { name: "End activity" }).click();
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return false;
+      if (!response.ok()) return null;
       const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.some((session) => session.title === secondTitle);
-    }).toBe(true);
+      return sessions.find((session) => session.title === secondTitle)?.endedAt ?? null;
+    }).not.toBeNull();
   } finally {
-    await deleteWorkspace(request, workspace.id).catch(() => undefined);
-    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await secondPage.close().catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
@@ -369,6 +372,10 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
           await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
         }
       }
+    }
+    for (const workspace of [firstWorkspace, secondWorkspace]) {
+      await deleteWorkspace(request, workspace.id).catch(() => undefined);
+      await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     }
   }
 });
@@ -512,11 +519,11 @@ test("@critical another open tab retries a newly persisted Activity finalization
 });
 
 test("@critical Activity does not start a non-recoverable session when browser storage rejects writes", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Rejected activity storage ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await page.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
 
     await page.evaluate(() => {
       const original = Storage.prototype.setItem;
@@ -530,13 +537,11 @@ test("@critical Activity does not start a non-recoverable session when browser s
       };
     });
 
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await chooseActivityFromWorkspaceRail(page);
 
     await expect(page.getByRole("alert")).toContainText("browser storage is unavailable");
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("notespace.activity-session"))).toBeNull();
 
     const response = await request.get("/api/activity/sessions?limit=100");
@@ -544,13 +549,11 @@ test("@critical Activity does not start a non-recoverable session when browser s
     const sessions = await response.json() as ActivitySessionRecord[];
     expect(sessions.some((item) => item.title === title)).toBe(false);
 
-    // The failed attempt must release the Activity lease and permit an
-    // ordinary successful retry once storage is available again.
+    // A failed first write releases the lease; retry must work in the same tab.
     await page.evaluate(() => {
       (window as Window & { rejectActivityStorage?: boolean }).rejectActivityStorage = false;
     });
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await chooseActivityFromWorkspaceRail(page);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);

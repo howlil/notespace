@@ -26,10 +26,6 @@ const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "Worksp
 const RETIRED_WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
 const RETIRED_MILESTONE_MUTATION = join(WEB_SRC, "features", "planning", "milestone-mutation.ts");
 const RETIRED_MILESTONE_MUTATION_TEST = join(WEB_SRC, "features", "planning", "milestone-mutation.test.ts");
-const INBOX = join(WEB_SRC, "pages", "inbox", "InboxPage.tsx");
-const INBOX_PLANNING = join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx");
-const TODAY = join(WEB_SRC, "pages", "today", "TodayPage.tsx");
-const TODAY_PLANNING = join(WEB_SRC, "features", "planning", "TodayPlanning.tsx");
 const ACTIVITY_QUICK_START = join(WEB_SRC, "features", "activity", "ActivityQuickStart.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace-authoring", "model", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace-authoring", "model", "workspace-content.ts");
@@ -65,7 +61,6 @@ const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "activity", "activity-runtime
 const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "activity", "activity-recovery.ts");
 const ACTIVITY_DOCK = join(WEB_SRC, "features", "activity", "ActivityDock.tsx");
 const ACTIVITY_TYPE_MENU = join(WEB_SRC, "features", "activity", "ActivityTypeMenu.tsx");
-const ACTIVITY_TYPE_TRIGGER = join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx");
 const SKELETON = join(WEB_SRC, "shared", "ui", "skeleton.tsx");
 const WORKSPACE_LIST_SKELETON = join(WEB_SRC, "features", "library", "WorkspaceListSkeleton.tsx");
 const DISMISSABLE_POPUP = join(WEB_SRC, "shared", "ui", "dismissable.tsx");
@@ -329,7 +324,7 @@ test("layout archetypes: application pages share search shell and category queri
   const shell = source(PAGE_SHELL);
   const library = source(WORKSPACE_LIBRARY);
   const model = source(WORKSPACE_LIBRARY_MODEL);
-  for (const page of [DASHBOARD, INBOX, TODAY]) assert.match(source(page), /<LibraryPageShell/);
+  assert.match(source(DASHBOARD), /<LibraryPageShell/);
   assert.match(shell, /<HeaderPlacement/);
   assert.match(shell, /id="notespace-home-sidebar"/);
   assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
@@ -346,7 +341,7 @@ test("layout archetypes: application pages share search shell and category queri
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, LIBRARY_TOOLS, WORKSPACE, INBOX_PLANNING, TODAY_PLANNING, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -415,29 +410,24 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.doesNotMatch(source(PAGE_SHELL), /<ShellRail|Primary navigation/);
   assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
   assert.match(source(SIDEBAR), /aria-label="Categories"/);
-  assert.match(source(INBOX_PLANNING), /Tasks to organize/);
-  assert.match(source(INBOX_PLANNING), /TaskWorkspaceAssign/);
-  assert.doesNotMatch(source(INBOX_PLANNING), /Legacy Inbox|standalone tasks/i);
-  assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);
-  assert.match(source(INBOX_PLANNING), /Move .* to Today/);
-  assert.doesNotMatch(source(INBOX_PLANNING), /priority|kanban|milestone|recurrence|productivity score/i);
-  assert.match(source(TODAY_PLANNING), /Legacy Today recovery/);
-  assert.match(source(TODAY_PLANNING), /Needs Workspace/);
-  assert.match(source(TODAY_PLANNING), /Remove .* from Today/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /TaskComposer|FOCUS_TASK_COMPOSER_EVENT|taskInputRef/);
+  for (const name of ["InboxPage.tsx", "TodayPage.tsx"]) {
+    assert.equal(existsSync(join(WEB_SRC, "pages", name === "InboxPage.tsx" ? "inbox" : "today", name)), false, `${name} must not return`);
+  }
+  for (const path of [
+    join(WEB_SRC, "features", "capture", "CaptureQueue.tsx"),
+    join(WEB_SRC, "features", "planning", "TodayPlanning.tsx"),
+    join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx"),
+    join(WEB_SRC, "features", "planning", "TaskWorkspaceAssign.tsx"),
+    join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx"),
+  ]) assert.equal(existsSync(path), false, `retired recovery UI must not return: ${path}`);
+  for (const route of ["inbox", "today"]) {
+    const src = source(join(WEB_SRC, "routes", `${route}.tsx`));
+    assert.match(src, /redirect\(\{ to: "\/", replace: true \}\)/);
+    assert.doesNotMatch(src, /loader:|getToday|getUnassignedTasks|CaptureQueue/);
+  }
   assert.equal(existsSync(join(WEB_SRC, "features", "planning", "TaskComposer.tsx")), false);
-  assert.doesNotMatch(source(join(WEB_SRC, "shared", "browser", "shell-events.ts")), /FOCUS_TASK_COMPOSER_EVENT/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
-  assert.equal(existsSync(ACTIVITY_QUICK_START), false, "Retired Today Activity composer source must be removed");
-  assert.doesNotMatch(source(TODAY), /ActivityQuickStart|renderActivity=/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /renderActivity/);
-  assert.match(source(TODAY), /Start activity for/);
-  assert.match(source(TODAY), /ActivityTypeTrigger/);
-  assert.match(source(TODAY), /useActivityRuntime/);
-  assert.match(source(TODAY_PLANNING), /getToday/);
-  assert.match(source(TODAY), /taskRevision/);
-  assert.doesNotMatch(source(TODAY), /useActivitySession|handoffResolving|completionConfirmed|activityStartBlocked/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /priority|kanban|habit|streak|productivity score/i);
+  assert.equal(existsSync(ACTIVITY_QUICK_START), false);
+  assert.doesNotMatch(source(join(WEB_SRC, "features", "settings", "AppSettings.tsx")), /Historical recovery|Recover Captures and unassigned Tasks|Review scheduled Tasks/);
   assert.match(source(ACTIVITY_INDICATOR), /aria-label="Start activity"/);
   assert.match(source(ACTIVITY_INDICATOR), /ActivityTypeMenu/);
   assert.doesNotMatch(source(ACTIVITY_INDICATOR), /taskHandoff|onEnd|activity\.pause|activity\.resume|activity\.end/);
@@ -467,10 +457,6 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(ACTIVITY_DOCK), /End activity/);
   assert.match(source(ACTIVITY_DOCK), /Activity sync/);
   assert.match(source(ACTIVITY_DOCK), /finalizingCount/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /useAnchoredPanelPosition/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /useAnchoredPanelDismiss/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /createPortal/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /ActivityTypeMenu/);
   assert.match(source(ACTIVITY_TYPE_MENU), /Choose activity type/);
   for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {
     assert.match(source(ACTIVITY_TYPE_MENU), new RegExp(type));
@@ -516,7 +502,6 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.doesNotMatch(source(TOAST_PROVIDER),/requestExclusivePopup/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(PAGE_SHELL),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#2858d8/); });

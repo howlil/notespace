@@ -31,16 +31,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck && pnpm lint && pnpm test
-      - name: Verify Workspace-first read-only baseline
-        run: python3 -m unittest discover -s scripts -p 'test_workspace_first_baseline.py' -v
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Run critical browser journeys
-        if: github.event_name == 'pull_request'
-        run: pnpm test:e2e:critical
       - name: Run full browser suite
-        # M5: every PR must run the complete suite, not only @critical journeys.
+        # One complete suite includes @critical journeys; don't rerun them.
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4

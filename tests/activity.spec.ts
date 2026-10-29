@@ -23,10 +23,6 @@ async function createActivityWorkspace(request: APIRequestContext, title = `Acti
   expect(response.status()).toBe(201);
   return await response.json() as { id: string };
 }
-async function chooseActivityWorkspace(page: Page, workspaceId: string) {
-  await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspaceId);
-}
-
 // Workspace-owned Activity is the v8 authoring path. Legacy Today remains a
 // compatibility projection, not the fixture for newly started sessions.
 async function chooseActivityFromWorkspaceRail(page: Page, type: "Other" | "Read" = "Other") {
@@ -371,28 +367,27 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
   }
 });
 
-test("Today Quick Activity requires a Workspace before starting", async ({ page, request }) => {
+test("Today recovery has no standalone Activity composer but retains scheduled Task action", async ({ page, request }) => {
   const workspace = await createActivityWorkspace(request);
   try {
+    const taskResponse = await request.post(`/api/workspaces/${workspace.id}/tasks`, {
+      data: { title: `Historical task activity ${Date.now()}` },
+    });
+    expect(taskResponse.status()).toBe(201);
+    const task = await taskResponse.json() as { id: string; title: string; version: number };
+    const planned = await request.patch(`/api/workspaces/${workspace.id}/tasks/${task.id}`, {
+      data: { plannedFor: localDateKey(), version: task.version },
+    });
+    expect(planned.status()).toBe(200);
+
     await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill("Unassigned activity must not run");
-    const start = page.getByRole("button", { name: "Start", exact: true });
-    await expect(start).toBeDisabled();
-    await chooseActivityWorkspace(page, workspace.id);
-    await expect(start).toBeEnabled();
-    await start.click();
-    await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
-    await page.getByRole("button", { name: "End activity" }).click();
-    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
-    await expect.poll(async () => {
-      const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return "";
-      const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.find((item) => item.title === "Unassigned activity must not run")?.workspaceId ?? "";
-    }).toBe(workspace.id);
+    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Quick activity" })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Activity Workspace" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: `Start activity for ${task.title}` })).toBeEnabled();
   } finally {
-    await deleteWorkspace(request, workspace.id);
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });

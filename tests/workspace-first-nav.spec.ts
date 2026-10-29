@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("@critical categories disclose without navigation and filter Home on title selection", async ({ page, request }) => {
   const response = await request.get("/api/categories");

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Link } from "@tanstack/react-router";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
 import {
@@ -96,7 +95,7 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div>
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>App preferences, your data, and recovery.</DialogDescription>
+            <DialogDescription>App preferences, your data, and backups.</DialogDescription>
           </div>
           <IconButton
             type="button"
@@ -180,39 +179,6 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
                   Restoring a portable library backup replaces its current content.
                   Desktop SQLite recovery uses an offline procedure and never replaces the live database automatically.
                 </p>
-                <section aria-label="Historical recovery" className="mt-5 border-t border-line pt-4">
-                  <h4 className="text-xs font-medium text-ink">Historical recovery</h4>
-                  <p className="mt-1 leading-5 text-muted">
-                    Review pending Captures, unassigned Tasks, and scheduled Tasks from older Notespace versions.
-                    New work belongs in a Workspace.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Link
-                      to="/inbox"
-                      aria-disabled={backupBusy}
-                      tabIndex={backupBusy ? -1 : undefined}
-                      onClick={(event) => {
-                        if (busyRef.current) { event.preventDefault(); return; }
-                        onChangeOpen(false);
-                      }}
-                      className="inline-flex min-h-8 items-center rounded-md border border-line px-3 text-[11px] font-medium text-ink hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                    >
-                      Recover Captures and unassigned Tasks
-                    </Link>
-                    <Link
-                      to="/today"
-                      aria-disabled={backupBusy}
-                      tabIndex={backupBusy ? -1 : undefined}
-                      onClick={(event) => {
-                        if (busyRef.current) { event.preventDefault(); return; }
-                        onChangeOpen(false);
-                      }}
-                      className="inline-flex min-h-8 items-center rounded-md border border-line px-3 text-[11px] font-medium text-ink hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                    >
-                      Review scheduled Tasks
-                    </Link>
-                  </div>
-                </section>
               </section>
             )}
           </div>

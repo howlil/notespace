@@ -298,13 +298,10 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 
   const home = source("pages/home/HomePage.tsx");
-  const inbox = source("pages/inbox/InboxPage.tsx");
-  const today = source("pages/today/TodayPage.tsx");
   assert.match(home, /WorkspaceLibrary/);
-  assert.match(inbox, /UnorganizedTasks/);
-  assert.match(today, /TodayPlanning/);
-  for (const page of [home, inbox, today]) {
-    assert.doesNotMatch(page, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
+  assert.doesNotMatch(home, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
+  for (const obsolete of ["pages/inbox/InboxPage.tsx", "pages/today/TodayPage.tsx"]) {
+    assert.equal(existsSync(join(WEB_SRC, obsolete)), false, `removed recovery screen persists: ${obsolete}`);
   }
 });
 

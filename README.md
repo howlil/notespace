@@ -34,7 +34,7 @@ Retired navigation does **not** delete previously saved Capture, Task, Milestone
 
 Windows desktop downloads are distributed through [GitHub Releases](https://github.com/howlil/notespace/releases). A green PR or CI debug executable is **not** a published installer.
 
-Maintainers explicitly launch [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml) to produce the free beta MSI after exact-master CI and native persistence verification. The MSI has no Authenticode publisher certificate, so Windows may display **Unknown Publisher**.
+Maintainers can explicitly launch [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml) after exact-master CI and native persistence verification. A separate guarded Auto Desktop Beta dispatcher also exists for first-beta publication or an explicitly opted-in later master commit; it is a **release action**, not an ordinary CI test. The MSI has no Authenticode publisher certificate, so Windows may display **Unknown Publisher**.
 
 Starting with `v0.1.0-beta.3`, the beta channel supports **Tauri-signature-verified in-app updates**. This requires the existing Tauri updater signing configuration; it does not require paid Windows publisher signing. Earlier betas require a one-time manual upgrade. Stable publisher-signed releases have a separate workflow and credential requirements.
 

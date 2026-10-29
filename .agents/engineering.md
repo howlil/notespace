@@ -104,10 +104,8 @@ A page is a screen-level composition boundary.
 
 Examples:
 - Home
-- Category
+- Category (filtered Home)
 - Workspace
-- Today
-- Inbox
 
 Pages may combine multiple features and application-level layout.
 
@@ -331,8 +329,7 @@ When touching existing web code, move toward these boundaries incrementally:
 features/dashboard        → pages/home
 features/category         → pages/category
 features/workspace screen → pages/workspace
-features/today screen     → pages/today
-features/inbox screen     → pages/inbox
+legacy Today/Inbox screens → retired; keep redirect-only routes
 
 components/ui             → shared/ui
 application Sidebar       → pages/_shared/LibrarySidebar
@@ -346,7 +343,7 @@ integrations/document     → workspace-authoring/document
 integrations/canvas       → workspace-authoring/canvas
 
 shared diagram rules      → domain/diagram
-features/plan             → features/planning
+legacy Plan/Today/Inbox UI  → removed
 features/study            → features/activity
 ```
 
@@ -421,8 +418,8 @@ workspace
   authored-state invariants, and workspace use-cases
 
 planning
-  owns Milestone, Task, Today/Inbox planning behavior,
-  planning validation, and planning concurrency semantics
+  owns persisted Milestone and Task data contracts, legacy API compatibility,
+  planning validation, and planning concurrency semantics; no Today/Inbox UI
 
 activity
   owns ActivitySession, heartbeats, duration/statistics,

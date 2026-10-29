@@ -29,26 +29,27 @@ async function chooseActivityWorkspace(page: Page, workspaceId: string) {
 
 // Workspace-owned Activity is the v8 authoring path. Legacy Today remains a
 // compatibility projection, not the fixture for newly started sessions.
-async function chooseActivityFromWorkspaceRail(page: Page) {
+async function chooseActivityFromWorkspaceRail(page: Page, type: "Other" | "Read" = "Other") {
   const rail = page.getByRole("navigation", { name: "Workspace navigation" });
   await rail.getByRole("button", { name: /^Activity, today/ }).click();
   const panel = page.getByRole("dialog", { name: "Activity" });
   await panel.getByRole("button", { name: "Start activity" }).click();
   await page.getByRole("menu", { name: "Choose activity type" })
-    .getByRole("menuitem", { name: "Other" }).click();
+    .getByRole("menuitem", { name: type }).click();
 }
 
-async function startActivityFromWorkspaceRail(page: Page, workspaceId: string) {
+async function startActivityFromWorkspaceRail(page: Page, workspaceId: string, type: "Other" | "Read" = "Other") {
   await page.goto(`/workspaces/${workspaceId}`);
-  await chooseActivityFromWorkspaceRail(page);
+  await chooseActivityFromWorkspaceRail(page, type);
   await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
 }
 
 test("Activity starts in a Workspace or from a Workspace Task with context preserved", async ({ page, request }) => {
   const date = localDateKey();
   const suffix = Date.now();
+  const standaloneTitle = `Read systems paper ${suffix}`;
   const workspaceResponse = await request.post("/api/workspaces", {
-    data: { title: `Activity workspace ${suffix}` },
+    data: { title: standaloneTitle },
   });
   expect(workspaceResponse.status()).toBe(201);
   const workspace = await workspaceResponse.json();
@@ -66,25 +67,13 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
   expect(plannedResponse.status()).toBe(200);
   const plannedTask = await plannedResponse.json() as { version: number };
 
-  const standaloneTitle = `Read systems paper ${suffix}`;
 
   try {
-    await page.goto("/today");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-
-    const quickActivity = page.getByRole("textbox", { name: "Quick activity" });
-    const activityType = page.getByRole("combobox", { name: "Activity type" });
-    await expect(quickActivity).toBeVisible();
-
-    await quickActivity.fill(standaloneTitle);
-    await chooseActivityWorkspace(page, workspace.id);
-    await activityType.selectOption("read");
-    await page.getByRole("button", { name: "Start", exact: true }).click();
-
-    await expect(page.getByText(standaloneTitle, { exact: true })).toBeVisible();
+    await startActivityFromWorkspaceRail(page, workspace.id, "Read");
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(standaloneTitle);
     await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(quickActivity).toBeVisible();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
     await expect(page.getByRole("status", { name: "Task completion handoff" })).toHaveCount(0);
 
     await expect.poll(async () => {
@@ -106,7 +95,9 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
       taskId: "",
     });
 
-    await expect(activityType).toHaveValue("read");
+    // Historical scheduled Task actions remain available through the Today recovery route.
+    await page.goto("/today");
+    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
     await page.getByRole("button", { name: `Start activity for ${task.title}` }).click();
     const taskActivityMenu = page.getByRole("menu", { name: "Choose activity type" });
     await expect(taskActivityMenu).toBeVisible();
@@ -126,12 +117,12 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
     const handoff = page.getByRole("status", { name: "Task completion handoff" });
     await expect(handoff).toContainText(renamedTaskTitle);
     await expect(handoff).toContainText("Mark task done?");
-    await expect(quickActivity).toBeEnabled();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeEnabled();
 
     await page.reload();
     await expect(page.getByRole("status", { name: "Task completion handoff" })).toContainText(renamedTaskTitle);
-    await expect(quickActivity).toBeEnabled();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
     const completionUrl = `**/api/tasks/${task.id}`;
     await page.route(completionUrl, async (route) => {
@@ -153,7 +144,7 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
     await expect(page.getByRole("alert")).toHaveCount(0);
     await page.unroute(completionUrl);
     await expect(handoff).toHaveCount(0);
-    await expect(quickActivity).toBeEnabled();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=20");

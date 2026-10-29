@@ -1,137 +1,41 @@
 # Notespace Design Contract
 
-This file is the repository-level source of truth for user-facing design decisions. It complements `.agents/PROJECT.md`; it does not authorize new product scope.
-
-## Historical M6 workspace-first navigation contract (superseded by Navigation v8 proposal)
-
-This section documents the earlier M6 design (PR #141), not the proposed Navigation v8 behavior. Read the v8 integration contract below for changes under review; do not restore retired UI based on historical text. The released `master` product does not change until PRs are integrated.
-
-- **Destinations:** Library (`/`), Today (`/today`), and Capture Queue (`/inbox`) are one set of routes. Keep `/inbox` for deep-link compatibility; label the UI **Capture Queue**. Existing unassigned Tasks appear inside the Capture Queue destination as “Tasks to organize” until moved to a Workspace.
-- **Navigation surfaces:** the 44px `ShellRail` provides compact route shortcuts and global utilities; the optional 228px Explorer provides the same destinations with visible names, followed by independent Category disclosure and Workspace links. They share route state; there is no separate sidebar navigation store.
-- **Interaction:** category disclosure toggles only visibility; choosing the category title navigates to its filtered Library. Expand/collapse survives route transitions. On narrow screens the Explorer is an overlay; Escape, backdrop and close control dismiss it and restore focus to the Explorer trigger.
-- **Create:** global Create has Workspace, Category, Quick Capture and Task in Today. Quick Capture owns the Workspace/Queue destination selection; do not expose a duplicate entry to the same modal. Queue retains its own inline capture composer.
-- **States:** Queue must distinguish initial loading, empty, stale/error, and in-flight saves. Error never appears as an empty queue. A Workspace selector must distinguish same-title Workspaces without changing IDs.
-- **Boundaries:** the root mounts one Quick Capture, global Search, ActivityRuntime, ActivityDock, and Settings. Settings Data tab directly owns portable backup, Vault import, Trash and native SQLite recovery in a single modal; do not mount a separate library recovery dialog. New Task/Activity require a Workspace. Historic standalone records remain readable and are never silently assigned or removed.
-- **Proof:** navigation/deep links, focus, disclosure vs selection, mobile dismissal, empty/error states, duplicate Workspace names, global create, Today/Queue/Activity, and desktop regression must pass before merge.
-
-## Navigation v8 integration (Issue #173; proposed, not yet merged)
-
-- Home uses one Explorer (228px), not a primary rail. The obsolete 44px `ShellRail` is deleted, not merely unmounted. Workspace uses its separate 40px rail with Canvas, Note, Split, Activity and Focus; native titlebar owns Workspace Back and centered Search.
-- Quick Open exposes **Settings & Data**. One Settings modal contains General and Data & backup with portable backup/restore, Trash, import and native SQLite backups. There are no legacy Capture/Today recovery links or extra Data & Recovery dialog.
-- Plan UI, standalone Home Activity dashboard, global Quick Capture and legacy Inbox/Today authoring and recovery screens are retired. Old `/inbox` and `/today` deep links redirect to Home (no legacy loaders or data writes). Standalone Activity is started from Workspace. Global Activity runtime, End/recovery, and persisted historical Task/Activity/Capture/Milestone records remain safe in the database and backup files; removing their UI does not authorize data deletion or a destructive schema migration.
-- This proposal is staged across PR #174 → #175 → #176 → #177 (Settings) → #178 (Quick Capture) → Capture recovery slice → Today recovery slice. Do not describe it as deployed until integration verification and release.
+This file defines the current design direction for Navigation v8 under [Issue #173](https://github.com/howlil/notespace/issues/173), staged in draft [PR #184](https://github.com/howlil/notespace/pull/184). It is not a claim that v8 is already merged or publicly released. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative.
 
 ## Decision order
 
-Every visual change must follow this order:
-
 `Product Intent → Information Hierarchy → Interaction Model → Visual Hierarchy → Components → Decoration`
-
-Do not start from gradients, glass, cards, bento, animation, iconography, or a fashionable component style and then force the product to fit it.
 
 ## Product intent
 
-Notespace is a focused self-hosted knowledge workspace for writing and spatial thinking. The interface should make it easy to:
+Notespace is a self-hosted, compact writing and spatial knowledge workspace. Make finding a Workspace, editing Notes/Canvas, and resuming focused work the shortest useful paths. Avoid extra top-level destinations, dashboard chrome, and duplicative navigation.
 
-1. resume recent work;
-2. find knowledge quickly;
-3. browse large categories progressively;
-4. enter a workspace and focus on authored content.
+## Canonical navigation
 
-The UI is not a marketing site, analytics dashboard, generic SaaS admin, file explorer, or AI productivity template.
+- **Home:** one 228px Category Explorer, category expand/collapse and selection, all Workspaces, and Quick Open. No 44px global rail, Recent/All destination tabs, Today, Inbox/Capture Queue, Quick Capture or separate Activity dashboard. Category disclosure does not mutate browser history; category selection is addressable and works with Back/Forward.
+- **Workspace (web):** its own full-height 40px rail. Back at the top; Canvas, Note, Split centered; Activity and Focus at the bottom. The authored surface is full-bleed and border-only, with no extra Home Explorer or Plan view.
+- **Workspace (Tauri):** the same rail is portaled into a 40px full-height column. An adjacent 38px custom titlebar owns Back, live Workspace title and centered Search. No duplicate Back or logo. If custom titlebar activation fails, retain native window decorations and rail Back rather than losing navigation.
+- **Settings:** one accessible Settings modal with General and Data & Backup, including import, portable backup/restore, Trash and desktop SQLite backups. Search/Quick Open opens Settings without resurrecting a global sidebar.
+- **Activity:** ActivityRuntime and ActivityDock stay mounted across route navigation; session Start/Pause/Resume/End is Workspace-contextual. Historical Task and session associations remain durable.
+- **Compatibility:** old `/today` and `/inbox` links redirect to Home. Hidden UI is not permission to delete stored Capture/Task/Milestone data, HTTP contracts, backup history or SQL migrations.
 
 ## Layout archetypes
 
-Notespace uses **one semantic design system** and four task-specific layout archetypes. These are compositions of shared tokens and primitives, not separate themes or visual brands.
+| Surface | Owner | Contract |
+| --- | --- | --- |
+| Discovery | `LibraryPageShell`, `WorkspaceLibrary` | 228px Explorer and compact Workspace cards; no extra primary rail |
+| Authoring | `WorkspacePage`, `WorkspaceRail` | 40px rail, 34px Note header, Canvas/Note/Split panes, Focus mode |
+| Utility | Settings, Quick Open, ActivityDock | Contextual overlays with clear pending/error states and keyboard focus |
 
-| Archetype | Surfaces | Structural owner | Visual contract |
-| --- | --- | --- | --- |
-| **Discovery** | Home / Recent / All / selected Category | `LibraryPageShell`, `WorkspaceLibrary` | Shared 44px primary rail with optional 228px Explorer and a 46px context header. Recent/All use square 18px paper-stack cards; a selected category uses dense rows with server-side query, sort, notes/canvas filters, and bounded pagination. |
-| **Execution** | Inbox / Today / Workspace Plan | `LibraryPageShell`, planning features | Shared 44px rail and optional Explorer with compact border-divided task rows, inline capture/rename, no decorative card wrappers. Workspace Plan keeps its own authoring shell. |
-| **Authoring** | Workspace Note / Canvas / Split | `WorkspacePage`, `WorkspaceRail`, authoring features | Full-bleed border-first panes, 40px rail, 34px Note header, 7px interactive split target / 1px visible line; do not adopt the Discovery sidebar. |
-| **Utility** | Settings / Quick Open / Activity overlays / Library Tools | Existing shared Dialog, popover and feature components | Contextual, keyboard-operable, focus-owning surfaces with explicit pending/error states; avoid creating new routes purely for configuration. |
+Keep the restrained cobalt paper-stack Workspace identity card. Category lists should use progressive disclosure and bounded server-backed requests, not claim a truncated client page is the whole library.
 
-Shared across archetypes: Cobalt/White brand assets, semantic CSS tokens, Open Sans, 4px spacing scale, 6/8/12px control/surface/dialog radius, reusable `Button`, `Input`, `IconButton` and `Dialog` semantics.
+## Workspace editor and Canvas contract
 
-**Marketing exception:** the Astro landing page may use Geist, editorial display typography and pill calls to action. It shares approved brand colors and logos, not application chrome or interaction density.
+The Workspace uses contiguous, border-only authored panes. No decorative cards, outer gutters or panel shadows around editable content. Split uses a 7px pointer/keyboard hit region with a centered 1px divider and preserves persisted ratio, orientation and pane state.
 
-### Unified Precision Shell v2
+The 34px Note header keeps inline rename, a permanent New Note action and one Navigate entry for Outline / Find & Replace. Code Block remains available via editing commands, not a duplicate header action. Excalidraw tools and view controls stay viewport-contained and low-elevation. Focus hides the rail column, expands authored content and restores the layout without replacing the editor state.
 
-- **Navigation ownership:** Library, Inbox and Today use one 44px `ShellRail` composed by `LibraryPageShell`. The 228px `LibrarySidebar` is an optional category **Explorer**, not a second primary navigation. The 46px context header owns search/status actions. The authoring Workspace keeps its established 40px `WorkspaceRail`, including Tauri's portal and focus behavior; do not remount authoring providers when switching shells.
-- **Explorer behavior:** desktop may show it by default and toggle it; at <=760px it starts hidden and appears as an independently dismissible overlay. Category expand/collapse, inline rename, contextual create/delete, drag-and-drop move, server paging, and error recovery keep their existing feature hooks and API contracts. Escape dismisses an open mobile Explorer and focus returns to the rail trigger.
-- **Single action owners:** Category and Workspace creation remain owned by Library. Quick Capture UI retirement never authorizes deleting historical Capture records. Settings Data tab directly mounts `LibraryTools` for export/restore, Markdown vault import and Trash, and desktop SQLite recovery. No second Data & Recovery dialog or rail button. Global search and category search remain distinct.
-- **Activity semantics:** one `ActivityRuntimeProvider` and `ActivityDock` persist across route transitions. Library rail uses `ActivityIndicator` for viewing/starting standalone sessions (explicit title/type), while Workspace retains contextual sessions. Task ownership remains with Workspace Plan or standalone planning; Today is only a projection, not a new task store.
-- **Input/attention:** the Create menu supports Escape and arrow keyboard navigation; global dialogs own focus when open, close to their trigger, and never duplicate background instances. Keep existing save-conflict, unsaved-draft, interrupted activity and recovery guarantees.
-- **Environments:** browser desktop, native Tauri titlebar, narrow touch layouts, dark mode and reduced motion represent the same product jobs with potentially different navigation projection. Compact controls remain keyboard-visible; mobile Explorer never obstructs initial Home rendering.
-- **Verification:** deep links and browser Back/Forward, category rename/move/delete, creating from Inbox/Today, Quick Capture save-error retention, search+Recall, Today/Plan task ownership, Activity start/pause/resume/end/handoff, backup/restore/Trash, and native desktop lifecycle must pass before merge.
-
-**Implementation invariant:** Home, Today and Inbox render the same `LibraryPageShell`; individual pages still own their domain state, task operations and failure recovery. Category filters use `listCategoryWorkspaces` with server pagination; never filter only the current 50 loaded cards and present that as complete results.
-
-## Canonical hierarchy
-
-### Home
-
-Priority order:
-
-1. resume/search;
-2. recent workspaces;
-3. category summaries;
-4. progressively disclosed category contents;
-5. secondary activity history.
-
-Home may use a collapsible library sidebar. It must not duplicate the same navigation/action hierarchy in several competing surfaces.
-
-### Inbox
-
-Inbox is the zero-organization capture surface for standalone tasks. A task in Inbox has no Workspace and no `plannedFor` date. Keep Inbox deliberately temporary and low-ceremony: capture, rename, delete, or move to Today. Do not add milestones, priority, due dates, recurrence, timers, analytics, or a second backlog hierarchy here. Workspace-owned work remains in Workspace Plan and must not be duplicated into Inbox.
-
-### Today
-
-Today is a lightweight execution projection, not a second workspace system. It combines tasks explicitly chosen for the local calendar day, whether they belong to a Workspace Plan or are standalone. Keep it list-first and context-preserving: workspace-owned tasks retain a visible path back to their workspace, while standalone tasks remain clearly distinguishable.
-
-Activity sessions are observed time, separate from task planning. A session may link to a task and Workspace or remain standalone. Workspace Plan tasks may start an Activity directly; Today is an optional execution projection, not a prerequisite for doing planned work. Starting an activity must not require creating or organizing a task first. Activity type is deliberately coarse: Build, Learn, Read, Write, Exercise, or Other. Starting from a Workspace must ask for that coarse type instead of silently classifying all Workspace time as Learn; the Workspace supplies context, not activity meaning. Starting from a task in Today or Workspace Plan must also choose its own type explicitly; a standalone Quick Activity selection must never leak into task classification. Keep the timer global: at most one browser-owned activity may run at a time. Ending a task-linked Activity may offer an explicit task-completion handoff, but must never auto-complete the task; one task may require multiple sessions. Task-completion handoff in both Workspace and Today must resolve the current task state/version before offering completion so stale session or projection context cannot overwrite a newer task edit. While that handoff is pending or being resolved, a new Activity must not start or replace the unresolved decision.
-
-Today must not become a calendar, backlog dashboard, habit tracker, kanban board, priority matrix, or productivity score. Choosing a task for Today is planning intent, not a due date. Unfinished work planned on an earlier day remains visible as carried forward until it is completed, explicitly removed from Today when workspace-owned, or deleted when standalone. Removing a workspace task from Today must not delete the underlying task.
-
-### Workspace cards
-
-Workspace cards retain the compact square paper-stack composition used by the library. The card background is the cobalt-blue `--accent` field, which acts as the visual accent behind the paper preview. Workspace identity and metadata sit in a translucent `--surface` panel with a restrained backdrop blur and a quiet light edge. Keep the glass treatment limited to this metadata layer so the card remains scannable and the rest of the white-mode interface stays calm.
-
-### Category detail
-
-A category detail page exists for scale. Prefer dense rows, search/filter/sort, bounded pagination, and predictable actions over a large collection of decorative cards.
-
-### Workspace
-
-The workspace is the focus surface. It does not retain the Home/library sidebar. Note, Canvas, and Split are authored views of the same workspace, not separate top-level products. Plan is a workspace-owned secondary execution surface for milestones and concrete tasks; it is not a pane, dashboard, kanban board, or replacement for authored content. Keep Plan outline-first, compact, and progressively disclosed. Focus mode may hide workspace chrome, but must remain immediately reversible.
-
-### Border-only Workspace implementation
-
-Workspace authoring is a **full-bleed, border-only** focus surface. The 40px vertical Workspace rail is its only application-level navigation; the active Canvas/Note/Split authoring panes occupy the adjacent content region. Do not wrap authored panes in cards, apply outside gutters, place decorative shadow behind editor panes, or change the source-of-truth editor behaviors. Preserve editor-internal reading padding and user-authored Canvas objects: they are content, not decorative cards.
-
-- M1: Workspace Web uses a single 40px left rail from application top to bottom with 1px `--line` border-right. Top: Back to Library. True vertical center: Canvas, Note, Split, Plan. Bottom: Activity and Focus (same existing runtime and pane maximize state). No horizontal workspace view switcher, Workspace switcher, Guide, Settings, logo, or Saved text in chrome; Saved remains an accessible live status and failure toasts remain visible. M2: Desktop custom chrome places the Workspace rail in a 40px full-height left grid column, with the 38px titlebar solely in the adjacent right column. The same React-owned rail is portaled into the shell; native-decorations fallback keeps in-page rail. Focus collapses the full-height rail column. Library/Inbox/Today chrome remains unchanged. See `docs/design/workspace-rail-note-toolbar-refactor.md` for the approved full M1–M5 design freeze.
-- Canvas and Note occupy contiguous panes. The split owns a 7px **interactive hit area** with a visually centered 1px `--line` divider. Preserve pane state, draggable and keyboard resizing, orientation change on compact viewports, focus/maximize, pane limit, and the persisted ratio clamp.
-- Note header remains 34px. The Note title selector supports inline rename (double-click/F2), with permanent + New Note outside its dropdown; each dropdown row owns a visible Delete icon. M4 consolidates permanent Find/Outline buttons into one Navigate popover (Outline when blank, Find & Replace when querying); the permanent Code Block header action is removed, while slash and contextual Code Block actions remain. Pane Actions owns only Split right, Split down, Close pane; linked Canvas Note action remains available. Preserve Tiptap reading padding, editable content, autosave/conflict recovery, popup keyboard behavior, and focus visibility.
-- Canvas keeps its existing Excalidraw tools/actions and custom Notespace chrome. Tool rail is a compact floating island centered 8px above the Canvas bottom; view controls are a floating outlined island inset 8px from the top/right. Keep both rounded, bordered, shadow-free and viewport-contained, including narrow layouts. Selection/context overlays may remain layered over Canvas where their interaction requires it, but carry no decorative shadow.
-- Plan stays a full-workspace, **secondary outline surface**, not a pane in Split. Milestones, tasks and loose tasks are structured as compact rows with dividers, not tiles. Keep its API, activity, completion and deletion behaviors.
-- Use existing semantic tokens (`--bg`, `--surface`, `--ink`, `--muted`, `--line`, `--accent`, `--tint`, `--canvas`) and Open Sans. Preserve light/dark theme, 32px compact icon controls, and focus affordances. Workspace-scoped popups use borders and `shadow-none`; unrelated Home, dialogs, and the intentionally different Library workspace-card composition retain their contracts.
-- Responsive and native desktop behavior are distinct projections of the same behavior. No layout changes may disable a user move, conceal recovery/status messages, or introduce another source of truth for editing state.
-
-Acceptance: each view remains reachable, content and autosave survive switches, split ratio can be changed by pointer and keyboard, narrow widths do not clip critical controls, Canvas and editor tools remain operable, Plan milestone/task workflows remain intact, and there are no decorative cards/shadows/gutters around Workspace authored panes. Re-check web and desktop independently.
-
-### Linked Note artifacts on Canvas
-
-Canvas may reference Notes from the same Workspace as live linked artifacts. The Note remains the source of truth; Canvas stores only the Note identity plus presentation state such as compact versus preview mode. Do not copy Note title or document content into Canvas persistence.
-
-A linked Note artifact must preserve spatial context:
-- single click selects the Canvas object;
-- double click or the artifact action opens the linked Note while keeping Canvas visible when possible;
-- preview content is derived from the current Note state;
-- deleting the Canvas artifact never deletes the Note;
-- deleting the Note leaves an explicit unavailable reference rather than silently retargeting it;
-- a Note that is linked on Canvas exposes a path back to the Canvas object.
-
-Use the existing Canvas persistence boundary and Excalidraw element custom data for this relationship. Do not revive the legacy workspace `references` wire field for linked Note artifacts.
+A Canvas-linked Note artifact references its owning Note ID and local presentation state; the Note is the source of truth. A Canvas deletion must not delete that Note. Preserve durable granular Note/Canvas saves, conflict handling, keyboard access, light/dark tokens and reduced motion.
 
 ## Visual direction
 
@@ -404,7 +308,7 @@ The approved rebrand uses **Cobalt `#2858D8` and White `#FFFFFF`** for the fox c
 - `/brand/notespace-fox-head.svg` — compact rounded-square mark for navigation and wordmarks at 24–32px; consistent across light and dark UI.
 - `/brand/notespace-fox-full.svg` — full-body mascot for marketing illustration and desktop app-icon source artwork. Keep outside authored Workspace panes.
 - `/brand/notespace-fox-micro.svg` — reduced-details fallback used by `/favicon.svg` at 16–32px.
-- The web and Astro landing `public/brand` copies must remain byte-identical; `NotespaceLogo` owns application logo rendering. Existing Foldling files are temporary legacy assets, not active brand references.
+- The web and Astro landing `public/brand` copies must remain byte-identical; `NotespaceLogo` owns application logo rendering. Do not restore retired Foldling assets or use them for new app chrome.
 - Preserve the real 6/8/12/18px radius hierarchy, compact icon controls, neutral-first primary buttons, border-only Workspace and user-authored Canvas colors. Do not add decorative foxes to editor or Canvas tool chrome.
 - Before any native build or release, run `pnpm desktop:icons` to regenerate ICO, ICNS and PNG packaging assets into ignored `icons/fox-spirit/` from the reviewed `notespace-fox-full.svg`; builds without regeneration must fail instead of using checked-in legacy icons. Windows CI verifies the actual EXE icon resource is cobalt Fox Spirit. Preserve `com.howlil.notespace` so MSI upgrades do not create a new application or orphan user data.
 
@@ -455,9 +359,3 @@ Automated browser tests should protect stable interaction/design contracts, not 
 
 When a requested visual change conflicts with this file, prefer the explicit current user instruction. Otherwise preserve this contract and make the smallest coherent design change that improves the requested user outcome.
 
-## Planned Workspace-first evolution (not shipped)
-
-The current layout and behavior contracts above describe the **implemented app**.
-The shipped Workspace-first + Capture Queue product behavior, migration baseline, implementation graphs, and M0–M7 acceptance gates are documented in [`docs/WORKSPACE_FIRST_IMPLEMENTATION.md`](docs/WORKSPACE_FIRST_IMPLEMENTATION.md).
-
-Do not resurrect standalone Task or Activity creation in the current product. Preserve reads, backup restoration, session recovery, and explicit Task reassignment for historical data. The authoring WorkspaceRail and single root-mounted utility providers remain authoritative.

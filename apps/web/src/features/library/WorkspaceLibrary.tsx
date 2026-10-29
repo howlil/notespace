@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { FileText, Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
@@ -9,7 +9,6 @@ import { WorkspaceListSkeleton } from "./WorkspaceListSkeleton";
 import type { WorkspaceLibraryModel } from "./use-workspace-library";
 
 function editedAt(value: string) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)); }
-const tabClass = "relative border-0 bg-transparent px-3 py-2 text-[11px] font-medium text-ink/70 after:pointer-events-none after:absolute after:inset-x-3 after:bottom-[-1px] after:h-[3px] after:rounded-full after:bg-transparent hover:bg-tint hover:text-ink focus-visible:bg-tint";
 
 type WorkspaceFolderCardProps = {
   workspace: WorkspaceSummary;
@@ -264,16 +263,17 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
 
 type WorkspaceLibraryProps = {
   model: WorkspaceLibraryModel;
-  afterList?: ReactNode;
 };
 
-export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
+export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
   const {
     view,
     categoryItems,
     page,
     pageLoading,
     categoryLoadError,
+    allLoadError,
+    retryAll,
     retryCategory,
     categorySearch,
     setCategorySearch,
@@ -298,17 +298,13 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
     cancelWorkspaceRename,
     saveWorkspaceTitle,
     confirmDeleteWorkspace,
-    openRecent,
     openAll,
   } = model;
 
   return (
     <>
       <h1 id="library-list-title" className="sr-only">{heading}</h1>
-      <nav className="mb-5 flex items-center gap-1 overflow-x-auto overscroll-x-contain border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0" aria-label="Library views">
-        <Button variant="ghost" size="sm" aria-current={view === "recent" ? "page" : undefined} className={cn(tabClass, view === "recent" && "font-semibold text-accent after:bg-accent")} onClick={openRecent}>Recent</Button>
-        <Button variant="ghost" size="sm" aria-current={view === "all" ? "page" : undefined} className={cn(tabClass, view === "all" && "font-semibold text-accent after:bg-accent")} onClick={() => void openAll()}>All workspaces</Button>
-      </nav>
+      {view !== "category" && <h2 className="mb-5 text-[21px] font-semibold tracking-tight text-ink">Workspaces</h2>}
       {view === "category" && (
         <div className="mb-4 grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -340,7 +336,12 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
         </div>
       )}
       <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : view === "category" && categoryLoadError ? (
+        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : view === "all" && allLoadError ? (
+          <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
+            <p className="m-0 text-[11px] text-danger">Workspaces could not be loaded. {allLoadError}</p>
+            <Button variant="secondary" size="sm" onClick={retryAll}>Retry</Button>
+          </div>
+        ) : view === "category" && categoryLoadError ? (
           <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 border-y border-line bg-surface px-4 py-5">
             <p className="m-0 text-[11px] text-danger">Category workspaces could not be loaded. {categoryLoadError}</p>
             <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
@@ -389,7 +390,7 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
               <div>
                 <span className="mb-4 mx-auto grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
-                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                <h2 className="m-0 text-lg font-medium">No workspaces here</h2>
                 <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
               </div>
               <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
@@ -427,7 +428,6 @@ export function WorkspaceLibrary({ model, afterList }: WorkspaceLibraryProps) {
           <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
         </nav>
       )}
-      {afterList}
       <ConfirmDialog
         open={!!deletingWorkspace}
         title="Delete this workspace?"

@@ -11,17 +11,16 @@ const canvas = read("apps/web/src/features/workspace-authoring/canvas/CanvasChro
 const document = read("apps/web/src/features/workspace-authoring/document/DocumentEditor.tsx");
 const popup = read("apps/web/src/features/workspace-authoring/ui/workspace-ui-classes.ts");
 const stylesheet = read("apps/web/src/features/workspace-authoring/workspace-authoring.css");
-const plan = read("apps/web/src/features/planning/WorkspacePlan.tsx");
-const contract = read("DESIGN.md");
 
-test("Workspace authoring is full-bleed with a single vertical rail and accessible save/plan flows", () => {
+test("Workspace authoring is full-bleed with one rail and accessible autosave", () => {
   assert.match(ws, /flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0/);
   assert.doesNotMatch(ws, /overflow-hidden p-3 max-\[760px\]:p-\[7px\]/);
   assert.match(ws, /<WorkspaceRail/);
   assert.match(ws, /authoring\.selectView\(mode\)/);
-  assert.match(ws, /<WorkspacePlan/);
+  assert.doesNotMatch(ws, /<WorkspacePlan/);
   assert.match(ws, /authoring\.status\.state/);
-  assert.doesNotMatch(ws, /<HeaderPlacement|<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
+  assert.match(ws, /<HeaderPlacement/);
+  assert.doesNotMatch(ws, /<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
   const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
   assert.match(rail, /workspace-rail/);
   assert.match(rail, /w-10/);
@@ -68,12 +67,11 @@ test("Note actions, editor and Workspace menus use borders without decorative sh
   assert.match(authoring, /<CanvasEditor/);
 });
 
-test("Plan stays a separate outline with divider rows and existing API actions", () => {
-  assert.match(plan, /border-b border-line px-1\.5 py-1 hover:bg-tint\/60/);
-  assert.match(plan, /max-w-\[760px\]/);
-  assert.match(plan, /createMilestone\(/);
-  assert.match(plan, /updateMilestone\(/);
-  assert.match(plan, /updateTask\(/);
-  assert.match(plan, /tasksForMilestone\(/);
-  assert.match(contract, /### Border-only Workspace implementation/);
+test("retired Plan surface is not mounted in Workspace authoring", () => {
+  const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
+  const switcher = read("apps/web/src/features/workspace-authoring/ui/WorkspaceViewSwitcher.tsx");
+  assert.doesNotMatch(ws, /WorkspacePlan|planOpen|onPlanSelect/);
+  assert.doesNotMatch(rail, /planActive|onPlanSelect/);
+  assert.doesNotMatch(switcher, /ListTodo|Plan/);
 });
+

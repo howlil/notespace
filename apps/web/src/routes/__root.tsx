@@ -15,7 +15,6 @@ import { ThemeProvider } from "../shared/ui/theme-provider";
 import { ToastProvider } from "../shared/ui/toast-provider";
 import { NativePopupManager } from "../shared/ui/dismissable";
 import { QuickOpen } from "../features/search/QuickOpen";
-import { QuickCapture } from "../features/capture/QuickCapture";
 import { LibraryTools } from "../features/library/LibraryTools";
 import { DesktopUpdateControl } from "../features/desktop-updates/DesktopUpdateControl";
 import { DesktopChromeProvider } from "../shared/ui/desktop-titlebar/DesktopChromeProvider";
@@ -51,10 +50,11 @@ export const Route = createRootRoute({
             <ActivityRuntimeProvider>
               <DesktopCloseBridge />
               <DesktopUpdateControl />
-              <AppSettings renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />} />
+              <AppSettings
+                renderLibraryTools={(onBusyChange, disabled) => <LibraryTools onBusyChange={onBusyChange} disabled={disabled} />}
+                renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />}
+              />
               <QuickOpen />
-              <QuickCapture showTrigger={false} />
-              <LibraryTools showTrigger={false} />
               <ConflictRecoveryDialog />
               <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
               <ActivityDock />

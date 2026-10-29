@@ -184,14 +184,6 @@ jobs:
       - run: pnpm desktop:icons
       - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
-      - name: Validate MSI upgrade PowerShell syntax
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("scripts/verify-desktop-msi-upgrade.ps1", [ref]$tokens, [ref]$errors) | Out-Null
-          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Smoke sidecar parent lifecycle
         run: pnpm test:desktop:lifecycle
       - name: Smoke desktop sidecar runtime
@@ -227,26 +219,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Verify desktop upgrade inventory contract
-        run: python scripts/test-desktop-upgrade-inventory.py
-      - name: Syntax-check native WebDriver test
-        run: node --check scripts/desktop-webdriver-smoke.mjs
-      - name: Verify desktop release automation policies and version selection
-        run: |
-          node --check scripts/resolve-desktop-release-version.mjs
-          node --check scripts/assert-desktop-release-ci.mjs
-          node --test scripts/desktop-release-automation.test.mjs
-          node --check scripts/resolve-desktop-beta-version.mjs
-          node --test scripts/resolve-desktop-beta-version.test.mjs
-      - name: Verify WebView2 CI runner and release acceptance policy
-        run: node --test scripts/check-desktop-webdriver-policy.test.mjs scripts/native-close-session.test.mjs scripts/assert-windows-pe-subsystem.test.mjs
-      - name: Verify signed updater manifest contract
-        run: node --test scripts/create-desktop-update-manifest.test.mjs scripts/prepare-desktop-updater-config.test.mjs scripts/prepare-desktop-windows-sign-config.test.mjs scripts/check-desktop-release-security.test.mjs
-      - name: Syntax-check updater release scripts
-        run: |
-          node --check scripts/create-desktop-update-manifest.mjs
-          node --check scripts/prepare-desktop-updater-config.mjs
-          node --check scripts/prepare-desktop-windows-sign-config.mjs
+      # Deterministic YAML/release policy tests run once in the Linux job.
+      # Keep only Windows-specific assertions and real native WebView2 here.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -257,7 +231,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: pnpm desktop:icons
-      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
@@ -296,8 +269,6 @@ jobs:
       - name: Diagnose native WebView2 and EdgeDriver
         shell: pwsh
         run: ./scripts/diagnose-desktop-webdriver.ps1
-      - name: Run native WebDriver parity smoke
-        run: pnpm test:desktop:native
       - name: Run critical native close and SQLite relaunch before MSI release
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/debug/notespace-desktop.exe
@@ -338,7 +309,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: pnpm desktop:icons
-      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe

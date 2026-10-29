@@ -250,35 +250,17 @@ Windows release verification builds the MSI bundle with:
 cargo tauri build -- --locked
 ```
 
-## Critical versus full browser suite
+## Browser and desktop CI
 
-The CI lanes are intentionally different.
+### Pull requests and `master`
 
-### Pull request
+The `Verify` workflow runs one **full Playwright suite** on pull requests and default-branch pushes. Tests marked `@critical` are included in that run and should **not** be rerun as a second suite in the same job. The focused `pnpm test:e2e:critical` command is retained for developer diagnosis, not repeated in CI.
 
-Every pull request runs:
+The web gate includes production build, typecheck, lint, Node and Go tests (`go test -race`), Go build, Docker Compose startup and persistence/restart smoke. This checks distinct functional, transactional and deployment boundaries.
 
-```text
-web production build
-→ TypeScript typecheck
-→ lint
-→ Node tests
-→ gofmt / go vet / go test -race / Go build
-→ critical Playwright journeys
-→ Docker Compose validation
-→ container build + health
-→ persistence restart smoke
-```
+`Verify Desktop` runs deterministic policy/YAML checks once on Linux; Linux native runtime/build and Windows-latest toolchain compile checks are separate. Windows Server 2022 owns the WebView2 driver and **one critical native** navigation, pending-save close, SQLite shutdown/relaunch verification. This critical run already covers the noncritical native smoke and should not be preceded by a duplicate launch.
 
-Critical Playwright tests are selected with the `@critical` marker.
-
-A browser regression should be marked critical when it protects a high-value cross-system flow that should block a merge.
-
-### Push to `master`
-
-A push to the default branch runs the same static/server/runtime gates, but runs the **full Playwright suite** instead of the critical-only subset.
-
-This catches broader browser regressions after merge while keeping pull-request browser work focused.
+Separate, explicit publication workflows protect actual MSI signing, installed-upgrade and provenance contracts. Windows 11 physical visual acceptance is manual and never claimed to be performed by CI.
 
 ## Local verification ladder
 
@@ -361,8 +343,8 @@ find the lowest owner
 Examples:
 
 ```text
-carried-forward task cannot leave Today
-→ planning projection/action boundary + Playwright regression
+Workspace Back loses a pending Note edit
+→ route loader freshness, autosave boundary, and critical Playwright re-entry test
 
 Workspace delete ID whitespace bug
 → activity service query test

@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Maximize2 } from "lucide-react";
+import { ArrowLeft, Maximize2, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
+import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
 import type { Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
-import { WorkspacePlan } from "../../features/planning/WorkspacePlan";
-import { ActivityTypeTrigger } from "../../features/activity/ActivityTypeTrigger";
 import { ActivityIndicator } from "../../features/activity/ActivityIndicator";
-import { useTaskActivityStart } from "../../features/activity/use-task-activity-start";
 import { useActivityRuntime } from "../../features/activity/activity-runtime-provider";
 import { useWorkspaceAuthoring } from "../../features/workspace-authoring/ui/WorkspaceAuthoring";
 import { WorkspaceRail } from "../../features/workspace-authoring/ui/WorkspaceRail";
@@ -21,9 +21,7 @@ type Props = {
 export function WorkspacePage({ workspace }: Props) {
   const { customChromeActive, workspaceRailHost } = useDesktopChrome();
   const activity = useActivityRuntime();
-  const startTaskActivity = useTaskActivityStart(activity);
   const { adoptLegacyWorkspace } = activity;
-  const [planOpen, setPlanOpen] = useState(false);
 
   const onWorkspaceActive = useCallback(({ workspaceId, workspaceTitle }: { workspaceId: string; workspaceTitle: string }) => {
     adoptLegacyWorkspace({
@@ -47,32 +45,33 @@ export function WorkspacePage({ workspace }: Props) {
 
   const rail = !authoring.focusMode ? (
     <WorkspaceRail
+      showBack={!customChromeActive}
       activeViewMode={authoring.activeViewMode}
-      planActive={planOpen}
-      onSelectView={(mode) => { setPlanOpen(false); authoring.selectView(mode); }}
-      onPlanSelect={() => { setPlanOpen(true); authoring.clearMaximize(); }}
+      onSelectView={(mode) => authoring.selectView(mode)}
       onFocus={authoring.toggleActiveMaximize}
       activityControl={<ActivityIndicator rail activity={activity} workspaceId={workspace.id} workspaceTitle={authoring.currentWorkspaceTitle} />}
     />
   ) : null;
   const railHostActive = customChromeActive && workspaceRailHost !== null;
 
-  const visible = planOpen ? (
-    <WorkspacePlan
-      workspaceId={workspace.id}
-      refreshKey={activity.taskRevision}
-      renderTaskAction={(task) => (
-        <ActivityTypeTrigger
-          ariaLabel={`Start activity for ${task.title}`}
-          disabled={activity.status !== "idle" || !activity.canStart}
-          onSelect={(activityType) => { void startTaskActivity(task, activityType); }}
-        />
-      )}
-    />
-  ) : authoring.authoringVisible;
+  const visible = authoring.authoringVisible;
 
   return (
     <div className="h-dvh min-w-0 overflow-hidden">
+      {customChromeActive && (
+        <HeaderPlacement className="notespace-workspace-titlebar flex min-h-[37px] items-center px-3">
+          <Link to="/" className="inline-flex min-h-7 min-w-0 max-w-[38%] items-center gap-2 rounded-md px-2 text-[11px] font-semibold text-ink hover:bg-tint" aria-label="Back to library">
+            <ArrowLeft size={16} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">{authoring.currentWorkspaceTitle}</span>
+          </Link>
+          <button type="button" className="notespace-titlebar-search flex h-7 w-[min(320px,42vw)] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-[11px] text-muted hover:bg-tint hover:text-accent"
+            aria-label="Search Notespace with Control K or Command K"
+            onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}>
+            <Search size={14} aria-hidden="true" /><span className="truncate">Search Notespace</span>
+            <kbd className="ml-auto shrink-0 text-[9px]">Ctrl/⌘ K</kbd>
+          </button>
+        </HeaderPlacement>
+      )}
       <main className={cn("workspace-main relative flex h-dvh min-h-0 min-w-0 overflow-hidden bg-surface", authoring.focusMode && "is-focus-mode")}>
         {railHostActive ? createPortal(rail, workspaceRailHost) : rail}
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">

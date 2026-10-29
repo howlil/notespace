@@ -5,7 +5,13 @@ import { RoutePending } from "../pages/_shared/RoutePending";
 
 export const Route = createFileRoute("/workspaces/$workspaceId")({
   ssr: false,
-  loader: async ({ params }) => {
+  // A Workspace contains versioned Note/Canvas state. On re-entry, never
+  // mount the editor using stale cached loader data while refetching in the
+  // background: its Autosave would then use an obsolete optimistic version.
+  preload: false,
+  loader: {
+    staleReloadMode: "blocking",
+    handler: async ({ params }) => {
     const [workspace, categories] = await Promise.all([
       getWorkspace(params.workspaceId),
       listCategories(),
@@ -18,6 +24,7 @@ export const Route = createFileRoute("/workspaces/$workspaceId")({
         categories.find((category) => category.id === workspace.categoryId)
           ?.title ?? "Category",
     };
+    },
   },
   pendingComponent: RoutePending,
   component: WorkspaceRoute,

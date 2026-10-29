@@ -227,7 +227,10 @@ export function useWorkspaceAuthoring({ workspace, onWorkspaceActive }: UseWorks
   useBlocker({
     shouldBlockFn: async () => {
       if (status.state === "conflict") return true;
-      if (!dirty) return false;
+      // Render-time dirty can lag editor snapshot callbacks. Always settle
+      // pending snapshots and versioned writes before route unmount so a
+      // rapid Home -> Workspace re-entry never loads a stale Note version.
+      // flushAll() is a no-op when the Workspace is already saved.
       try {
         await flushAll();
         return false;

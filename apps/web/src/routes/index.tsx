@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories, listCategoryWorkspaces, listRecentWorkspaces } from "../adapters/http/workspace-api";
+import { listCategories, listCategoryWorkspaces } from "../adapters/http/workspace-api";
 import { HomePage } from "../pages/home/HomePage";
 import { RoutePending } from "../pages/_shared/RoutePending";
 
@@ -15,10 +15,7 @@ export const Route = createFileRoute("/")({
   },
   loaderDeps: ({ search }) => ({ categoryId: search.category }),
   loader: async ({ deps }) => {
-    const [categories, recentWorkspaces] = await Promise.all([
-      listCategories(),
-      listRecentWorkspaces(),
-    ]);
+    const categories = await listCategories();
     const initialSelectedCategoryId = deps.categoryId && categories.some((category) => category.id === deps.categoryId)
       ? deps.categoryId
       : undefined;
@@ -26,7 +23,7 @@ export const Route = createFileRoute("/")({
       ? await listCategoryWorkspaces(initialSelectedCategoryId, { limit: 50, snapshot: "start" })
       : undefined;
 
-    return { categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage };
+    return { categories, initialSelectedCategoryId, initialCategoryPage };
   },
   pendingComponent: RoutePending,
   component: DashboardRoute,

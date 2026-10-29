@@ -19,7 +19,8 @@ test("M1 Workspace rail is full-height, centered and has no duplicate actions @c
 
     await expect(rail.getByRole("link", { name: "Back to library" })).toHaveCount(1);
     const views = rail.getByRole("group", { name: "Workspace view" });
-    await expect(views.getByRole("button")).toHaveCount(4);
+    await expect(views.getByRole("button")).toHaveCount(3);
+    await expect(views.getByRole("button", { name: "Plan", exact: true })).toHaveCount(0);
     await expect(rail.getByRole("button", { name: "Focus mode" })).toHaveCount(1);
     await expect(rail.getByRole("button", { name: /^Activity, today/ })).toHaveCount(1);
     await expect(page.locator(".workspace-header")).toHaveCount(0);
@@ -33,8 +34,6 @@ test("M1 Workspace rail is full-height, centered and has no duplicate actions @c
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
 
-    await views.getByRole("button", { name: "Plan" }).click();
-    await expect(rail.getByRole("button", { name: "Focus mode" })).toBeDisabled();
     await views.getByRole("button", { name: "Note" }).click();
     await expect(rail.getByRole("button", { name: "Focus mode" })).toBeEnabled();
 

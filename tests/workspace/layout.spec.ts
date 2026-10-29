@@ -31,8 +31,7 @@ test("pane tree splits, enters focus mode, and restores layout", async ({ page, 
 
     await page.keyboard.press("Escape");
     await expect(page.locator(".workspace-rail")).toBeVisible();
-    await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Plan" }).click();
-    await expect(page.getByRole("button", { name: "Focus mode" })).toBeDisabled();
+    await expect(page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Plan" })).toHaveCount(0);
     await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Note" }).click();
     await expect(page.getByRole("button", { name: "Focus mode" })).toBeEnabled();
   } finally {

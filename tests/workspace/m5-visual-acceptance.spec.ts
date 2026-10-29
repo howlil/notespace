@@ -47,7 +47,7 @@ for (const viewport of [
         expect(snapshot!.headShadow).toBe("none");
         expect(snapshot!.tokens.every(Boolean)).toBe(true);
         expect(snapshot!.scrollWidth).toBeLessThanOrEqual(snapshot!.viewportWidth + 1);
-        await expect(rail.getByRole("group", { name: "Workspace view" }).getByRole("button")).toHaveCount(4);
+        await expect(rail.getByRole("group", { name: "Workspace view" }).getByRole("button")).toHaveCount(3);
         await expect(pane.getByRole("button", { name: "New note" })).toHaveCount(1);
         await expect(pane.getByRole("button", { name: "Navigate note" })).toHaveCount(1);
         await expect(pane.getByRole("button", { name: "Find in note" })).toHaveCount(0);

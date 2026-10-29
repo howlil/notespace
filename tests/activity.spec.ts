@@ -18,148 +18,51 @@ function localDateKey(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-async function createActivityWorkspace(request: APIRequestContext) {
-  const response = await request.post("/api/workspaces", { data: { title: `Activity context ${Date.now()}` } });
+async function createActivityWorkspace(request: APIRequestContext, title = `Activity context ${Date.now()}`) {
+  const response = await request.post("/api/workspaces", { data: { title } });
   expect(response.status()).toBe(201);
   return await response.json() as { id: string };
 }
-async function chooseActivityWorkspace(page: Page, workspaceId: string) {
-  await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspaceId);
+// Workspace-owned Activity is the v8 authoring path. Legacy Today remains a
+// compatibility projection, not the fixture for newly started sessions.
+async function chooseActivityFromWorkspaceRail(page: Page, type: "Other" | "Read" = "Other") {
+  const rail = page.getByRole("navigation", { name: "Workspace navigation" });
+  await rail.getByRole("button", { name: /^Activity, today/ }).click();
+  const panel = page.getByRole("dialog", { name: "Activity" });
+  await panel.getByRole("button", { name: "Start activity" }).click();
+  await page.getByRole("menu", { name: "Choose activity type" })
+    .getByRole("menuitem", { name: type }).click();
 }
 
-test("Activity starts in a Workspace or from a Workspace Task with context preserved", async ({ page, request }) => {
-  const date = localDateKey();
-  const suffix = Date.now();
-  const workspaceResponse = await request.post("/api/workspaces", {
-    data: { title: `Activity workspace ${suffix}` },
-  });
-  expect(workspaceResponse.status()).toBe(201);
-  const workspace = await workspaceResponse.json();
+async function startActivityFromWorkspaceRail(page: Page, workspaceId: string, type: "Other" | "Read" = "Other") {
+  await page.goto(`/workspaces/${workspaceId}`);
+  await chooseActivityFromWorkspaceRail(page, type);
+  await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
+}
 
-  const taskResponse = await request.post(`/api/workspaces/${workspace.id}/tasks`, {
-    data: { title: `Ship activity slice ${suffix}` },
-  });
-  expect(taskResponse.status()).toBe(201);
-  const task = await taskResponse.json();
-
-  const plannedResponse = await request.patch(
-    `/api/workspaces/${workspace.id}/tasks/${task.id}`,
-    { data: { plannedFor: date, version: task.version } },
-  );
-  expect(plannedResponse.status()).toBe(200);
-  const plannedTask = await plannedResponse.json() as { version: number };
-
-  const standaloneTitle = `Read systems paper ${suffix}`;
-
+test("Activity starts in a Workspace with explicit Read type and persisted context", async ({ page, request }) => {
+  const standaloneTitle = `Read systems paper ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, standaloneTitle);
   try {
-    await page.goto("/today");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-
-    const quickActivity = page.getByRole("textbox", { name: "Quick activity" });
-    const activityType = page.getByRole("combobox", { name: "Activity type" });
-    await expect(quickActivity).toBeVisible();
-
-    await quickActivity.fill(standaloneTitle);
-    await chooseActivityWorkspace(page, workspace.id);
-    await activityType.selectOption("read");
-    await page.getByRole("button", { name: "Start", exact: true }).click();
-
-    await expect(page.getByText(standaloneTitle, { exact: true })).toBeVisible();
+    await startActivityFromWorkspaceRail(page, workspace.id, "Read");
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(standaloneTitle);
     await expect(page.getByRole("button", { name: "Pause activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(quickActivity).toBeVisible();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
     await expect(page.getByRole("status", { name: "Task completion handoff" })).toHaveCount(0);
-
     await expect.poll(async () => {
-      const response = await request.get("/api/activity/sessions?limit=20");
+      const response = await request.get("/api/activity/sessions?limit=100");
       if (!response.ok()) return null;
-      const sessions = await response.json();
-      const session = (sessions as ActivitySessionRecord[]).find((item) => item.title === standaloneTitle);
+      const sessions = await response.json() as ActivitySessionRecord[];
+      const session = sessions.find((item) => item.title === standaloneTitle);
       if (!session) return null;
-      return {
-        title: session.title,
-        activityType: session.activityType,
-        workspaceId: session.workspaceId ?? "",
-        taskId: session.taskId ?? "",
-      };
-    }).toEqual({
-      title: standaloneTitle,
-      activityType: "read",
-      workspaceId: workspace.id,
-      taskId: "",
-    });
-
-    await expect(activityType).toHaveValue("read");
-    await page.getByRole("button", { name: `Start activity for ${task.title}` }).click();
-    const taskActivityMenu = page.getByRole("menu", { name: "Choose activity type" });
-    await expect(taskActivityMenu).toBeVisible();
-    await taskActivityMenu.getByRole("menuitem", { name: "Build" }).click();
-
-    await expect(page.getByText(task.title, { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
-
-    const renamedTaskTitle = `Ship refreshed activity slice ${suffix}`;
-    const renameResponse = await request.patch(`/api/tasks/${task.id}`, {
-      data: { title: renamedTaskTitle, version: plannedTask.version },
-    });
-    expect(renameResponse.status()).toBe(200);
-
-    await page.getByRole("button", { name: "End activity" }).click();
-
-    const handoff = page.getByRole("status", { name: "Task completion handoff" });
-    await expect(handoff).toContainText(renamedTaskTitle);
-    await expect(handoff).toContainText("Mark task done?");
-    await expect(quickActivity).toBeEnabled();
-    await expect(page.getByRole("button", { name: `Start activity for ${renamedTaskTitle}` })).toBeEnabled();
-
-    await page.reload();
-    await expect(page.getByRole("status", { name: "Task completion handoff" })).toContainText(renamedTaskTitle);
-    await expect(quickActivity).toBeEnabled();
-
-    const completionUrl = `**/api/tasks/${task.id}`;
-    await page.route(completionUrl, async (route) => {
-      if (route.request().method() !== "PATCH") {
-        await route.continue();
-        return;
-      }
-      const response = await route.fetch();
-      expect(response.ok()).toBe(true);
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "Synthetic response failure after commit" }),
-      });
-    });
-
-    await handoff.getByRole("button", { name: "Mark done" }).click();
-    await expect(page.getByRole("button", { name: `Mark ${renamedTaskTitle} incomplete` })).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await page.unroute(completionUrl);
-    await expect(handoff).toHaveCount(0);
-    await expect(quickActivity).toBeEnabled();
-
-    await expect.poll(async () => {
-      const response = await request.get("/api/activity/sessions?limit=20");
-      if (!response.ok()) return null;
-      const sessions = await response.json();
-      return (sessions as ActivitySessionRecord[]).find((session) => session.taskId === task.id) ?? null;
-    }).toMatchObject({
-      title: task.title,
-      activityType: "build",
-      workspaceId: workspace.id,
-      taskId: task.id,
-    });
+      return { activityType: session.activityType, workspaceId: session.workspaceId ?? "", taskId: session.taskId ?? "", endedAt: session.endedAt };
+    }).toMatchObject({ activityType: "read", workspaceId: workspace.id, taskId: "", endedAt: expect.any(String) });
   } finally {
-    const sessionsResponse = await request.get("/api/activity/sessions?limit=100");
-    if (sessionsResponse.ok()) {
-      const sessions = await sessionsResponse.json();
-      for (const session of sessions) {
-        if (
-          session.title === standaloneTitle
-          || session.taskId === task.id
-        ) {
-          await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
-        }
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      for (const item of (await response.json() as ActivitySessionRecord[]).filter((item) => item.title === standaloneTitle)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
       }
     }
     await deleteWorkspace(request, workspace.id).catch(() => undefined);
@@ -167,19 +70,14 @@ test("Activity starts in a Workspace or from a Workspace Task with context prese
   }
 });
 
-
 test("activity End retries after the final heartbeat fails before server commit", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover uncommitted activity ${suffix}`;
+  const workspace = await createActivityWorkspace(request, title);
   const heartbeatUrl = "**/api/activity/sessions/*";
 
   try {
-    await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.route(heartbeatUrl, async (route) => {
@@ -229,17 +127,13 @@ test("activity End retries after the final heartbeat fails before server commit"
 });
 
 test("@critical activity End reconciles when server commits but the response is lost", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const title = `Recover committed activity ${suffix}`;
+  const workspace = await createActivityWorkspace(request, title);
   const heartbeatUrl = "**/api/activity/sessions/*";
 
   try {
-    await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     // Intercept the browser's final PUT, commit its exact body through the
@@ -319,42 +213,41 @@ test("@critical activity End reconciles when server commits but the response is 
 
 
 test("blocked tab can retry the global activity lease after the owner ends", async ({ page, context, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const suffix = Date.now();
   const firstTitle = `Owner activity ${suffix}`;
   const secondTitle = `Retry activity ${suffix}`;
+  const firstWorkspace = await createActivityWorkspace(request, firstTitle);
+  const secondWorkspace = await createActivityWorkspace(request, secondTitle);
   const secondPage = await context.newPage();
 
   try {
-    await page.goto("/today");
-    const firstInput = page.getByRole("textbox", { name: "Quick activity" });
-    await firstInput.fill(firstTitle);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
-    await expect(page.getByText(firstTitle, { exact: true })).toBeVisible();
+    await startActivityFromWorkspaceRail(page, firstWorkspace.id);
 
-    await secondPage.goto("/today");
-    const secondInput = secondPage.getByRole("textbox", { name: "Quick activity" });
-    await expect(secondInput).toBeEnabled();
+    // A distinct Workspace shares the one global Activity lease.
+    await secondPage.goto(`/workspaces/${secondWorkspace.id}`);
+    await chooseActivityFromWorkspaceRail(secondPage);
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+    const blockedSessions = await request.get("/api/activity/sessions?limit=100");
+    expect(blockedSessions.ok()).toBe(true);
+    expect((await blockedSessions.json() as ActivitySessionRecord[])
+      .some((session) => session.title === secondTitle)).toBe(false);
 
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(firstInput).toBeVisible();
+    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
-    await secondInput.fill(secondTitle);
-    await chooseActivityWorkspace(secondPage, workspace.id);
-    await secondPage.getByRole("button", { name: "Start", exact: true }).click();
-    await expect(secondPage.getByText(secondTitle, { exact: true })).toBeVisible();
+    // The blocked tab must be able to retry without reloading its document.
+    await chooseActivityFromWorkspaceRail(secondPage);
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toContainText(secondTitle);
     await secondPage.getByRole("button", { name: "End activity" }).click();
+    await expect(secondPage.getByRole("status", { name: "Active activity" })).toHaveCount(0);
 
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return false;
+      if (!response.ok()) return null;
       const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.some((session) => session.title === secondTitle);
-    }).toBe(true);
+      return sessions.find((session) => session.title === secondTitle)?.endedAt ?? null;
+    }).not.toBeNull();
   } finally {
-    await deleteWorkspace(request, workspace.id).catch(() => undefined);
-    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
     await secondPage.close().catch(() => undefined);
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
@@ -365,66 +258,78 @@ test("blocked tab can retry the global activity lease after the owner ends", asy
         }
       }
     }
+    for (const workspace of [firstWorkspace, secondWorkspace]) {
+      await deleteWorkspace(request, workspace.id).catch(() => undefined);
+      await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
+    }
   }
 });
 
-test("Today Quick Activity requires a Workspace before starting", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
+test("legacy Today deep link no longer exposes Activity authoring", async ({ page }) => {
+  await page.goto("/today");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("complementary", { name: "Category explorer" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Quick activity" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Today", exact: true })).toHaveCount(0);
+});
+
+test("@critical Workspace Activity survives legacy URL redirect and remains stoppable from Home", async ({ page, request }) => {
+  const title = `Workspace activity route handoff ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
+    await startActivityFromWorkspaceRail(page, workspace.id);
+    await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.goto("/today");
-    const input = page.getByRole("textbox", { name: "Quick activity" });
-    await input.fill("Unassigned activity must not run");
-    const start = page.getByRole("button", { name: "Start", exact: true });
-    await expect(start).toBeDisabled();
-    await chooseActivityWorkspace(page, workspace.id);
-    await expect(start).toBeEnabled();
-    await start.click();
-    await expect(page.getByRole("status", { name: "Active activity" })).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
+    await expect(page.getByRole("complementary", { name: "Category explorer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "End activity" })).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
-    await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
+
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return "";
-      const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.find((item) => item.title === "Unassigned activity must not run")?.workspaceId ?? "";
-    }).toBe(workspace.id);
+      if (!response.ok()) return null;
+      const records = await response.json() as ActivitySessionRecord[];
+      return records.find((item) => item.title === title)?.endedAt ?? null;
+    }).not.toBeNull();
   } finally {
-    await deleteWorkspace(request, workspace.id);
+    const response = await request.get("/api/activity/sessions?limit=100");
+    if (response.ok()) {
+      const records = await response.json() as ActivitySessionRecord[];
+      for (const item of records.filter((record) => record.title === title)) {
+        await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
+      }
+    }
+    await deleteWorkspace(request, workspace.id).catch(() => undefined);
     await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
   }
 });
 
-test("Global Activity rail requires Workspace and preserves dock controls", async ({ page, request }) => {
+test("Workspace Activity rail starts and persists a Workspace-owned session", async ({ page, request }) => {
   const workspace = await createActivityWorkspace(request);
-  const title = `Global M5 activity ${Date.now()}`;
   try {
-    await page.goto("/");
-    const rail = page.getByRole("navigation", { name: "Primary navigation" });
+    await page.goto(`/workspaces/${workspace.id}`);
+    const rail = page.getByRole("navigation", { name: "Workspace navigation" });
     await rail.getByRole("button", { name: /^Activity, today/ }).click();
     const panel = page.getByRole("dialog", { name: "Activity" });
     await expect(panel).toBeVisible();
-    await panel.getByRole("textbox", { name: "Activity title" }).fill(title);
-    const button = panel.getByRole("button", { name: "Start activity" });
-    await expect(button).toBeDisabled();
-    await panel.getByRole("combobox", { name: "Global Activity Workspace" }).selectOption(workspace.id);
-    await expect(button).toBeEnabled();
-    await button.click();
+    await panel.getByRole("button", { name: "Start activity" }).click();
     await page.getByRole("menu", { name: "Choose activity type" }).getByRole("menuitem", { name: "Build" }).click();
     const active = page.getByRole("status", { name: "Active activity" });
-    await expect(active).toContainText(title);
+    await expect(active).toBeVisible();
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(active).toHaveCount(0);
     await expect.poll(async () => {
       const response = await request.get("/api/activity/sessions?limit=100");
-      if (!response.ok()) return "";
+      if (!response.ok()) return false;
       const sessions = await response.json() as ActivitySessionRecord[];
-      return sessions.find((item) => item.title === title)?.workspaceId ?? "";
-    }).toBe(workspace.id);
+      return sessions.some(item => item.workspaceId === workspace.id && item.activityType === "build");
+    }).toBe(true);
   } finally {
     const response = await request.get("/api/activity/sessions?limit=100");
     if (response.ok()) {
       const sessions = await response.json() as ActivitySessionRecord[];
-      for (const item of sessions.filter((row) => row.title === title)) {
+      for (const item of sessions.filter(row => row.workspaceId === workspace.id)) {
         await request.delete(`/api/activity/sessions/${item.id}`).catch(() => undefined);
       }
     }
@@ -442,10 +347,12 @@ test("@critical another open tab retries a newly persisted Activity finalization
   const title = `Cross-tab recovery ${stamp}`;
   const otherTab = await context.newPage();
   try {
-    // Only the receiving tab has an active ActivityRuntimeProvider at enqueue.
-    await page.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
-    await otherTab.goto("/today");
+    // Both documents mount the global ActivityRuntimeProvider through Workspace.
+    // The writing tab emits no local event; the receiving tab must recover it.
+    await page.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+    await otherTab.goto(`/workspaces/${workspace.id}`);
+    await expect(otherTab.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     await otherTab.evaluate(({ sessionId, title, workspaceId }) => {
       localStorage.setItem("notespace.activity-recovery:v1", JSON.stringify({
         finalizations: [{
@@ -478,11 +385,11 @@ test("@critical another open tab retries a newly persisted Activity finalization
 });
 
 test("@critical Activity does not start a non-recoverable session when browser storage rejects writes", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Rejected activity storage ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await page.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
 
     await page.evaluate(() => {
       const original = Storage.prototype.setItem;
@@ -496,13 +403,11 @@ test("@critical Activity does not start a non-recoverable session when browser s
       };
     });
 
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await chooseActivityFromWorkspaceRail(page);
 
     await expect(page.getByRole("alert")).toContainText("browser storage is unavailable");
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("notespace.activity-session"))).toBeNull();
 
     const response = await request.get("/api/activity/sessions?limit=100");
@@ -510,13 +415,11 @@ test("@critical Activity does not start a non-recoverable session when browser s
     const sessions = await response.json() as ActivitySessionRecord[];
     expect(sessions.some((item) => item.title === title)).toBe(false);
 
-    // The failed attempt must release the Activity lease and permit an
-    // ordinary successful retry once storage is available again.
+    // A failed first write releases the lease; retry must work in the same tab.
     await page.evaluate(() => {
       (window as Window & { rejectActivityStorage?: boolean }).rejectActivityStorage = false;
     });
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await chooseActivityFromWorkspaceRail(page);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
     await page.getByRole("button", { name: "End activity" }).click();
     await expect(page.getByRole("status", { name: "Active activity" })).toHaveCount(0);
@@ -534,13 +437,10 @@ test("@critical Activity does not start a non-recoverable session when browser s
 });
 
 test("@critical Activity pause and resume keep durable state when browser storage fails", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity transition storage fault ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {
@@ -593,13 +493,10 @@ test("@critical Activity pause and resume keep durable state when browser storag
 });
 
 test("@critical Activity End survives blocked removeItem by persisting a tombstone", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity End blocked remove ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {
@@ -637,13 +534,10 @@ test("@critical Activity End survives blocked removeItem by persisting a tombsto
 });
 
 test("@critical Activity End stays active if both storage removal and fallback write fail", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity End storage denied ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect(page.getByRole("status", { name: "Active activity" })).toContainText(title);
 
     await page.evaluate(() => {
@@ -704,10 +598,10 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
   const sessionId = `${logicalId}:${day}`;
   const title = `Concurrent recovery ${logicalId}`;
   try {
-    await page.goto("/today");
-    await otherTab.goto("/today");
-    await expect(page.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
-    await expect(otherTab.getByRole("textbox", { name: "Quick activity" })).toBeVisible();
+    await page.goto(`/workspaces/${workspace.id}`);
+    await otherTab.goto(`/workspaces/${workspace.id}`);
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+    await expect(otherTab.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
 
     const writeAttempt = ({ sessionId, day, title, workspaceId, seconds }: {
       sessionId: string; day: string; title: string; workspaceId: string; seconds: number;
@@ -750,8 +644,8 @@ test("@critical separate browser tabs recover the newest finalization for one Ac
 });
 
 test("activity heartbeats reserve strictly increasing revisions through End", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Activity revision proof ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   const observed: Array<{ revision?: number; finish?: boolean }> = [];
   const heartbeatUrl = "**/api/activity/sessions/*";
   try {
@@ -761,10 +655,7 @@ test("activity heartbeats reserve strictly increasing revisions through End", as
       }
       await route.continue();
     });
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
 
     await expect.poll(() => observed.filter((item) => item.finish === false).length).toBeGreaterThan(0);
     await page.getByRole("button", { name: "End activity" }).click();
@@ -827,7 +718,8 @@ test("activity reload preserves the previous day's revision before rollover fina
       }
       await route.continue();
     });
-    await page.goto("/today");
+    // Recovery is owned by the root Activity runtime, not by legacy Today.
+    await page.goto(`/workspaces/${workspace.id}`);
     await expect.poll(() => observed[0]).toBe(8);
     await expect.poll(async () => {
       const res = await request.get("/api/activity/sessions?limit=100");
@@ -851,8 +743,8 @@ test("activity reload preserves the previous day's revision before rollover fina
 });
 
 test("pausing immediately after midnight does not reuse the new segment revision", async ({ page, request }) => {
-  const workspace = await createActivityWorkspace(request);
   const title = `Midnight pause revision ${Date.now()}`;
+  const workspace = await createActivityWorkspace(request, title);
   const beforeMidnight = new Date(2026, 9, 26, 23, 59, 58);
   const afterMidnight = new Date(2026, 9, 27, 0, 0, 2);
   const nextDay = localDateKey(afterMidnight);
@@ -868,10 +760,7 @@ test("pausing immediately after midnight does not reuse the new segment revision
       }
       await route.continue();
     });
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await chooseActivityWorkspace(page, workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await startActivityFromWorkspaceRail(page, workspace.id);
     await expect.poll(() => payloads.some((item) => item.finish === false)).toBe(true);
 
     // Change the clock without dispatching interval ticks: Pause itself must

@@ -104,10 +104,8 @@ A page is a screen-level composition boundary.
 
 Examples:
 - Home
-- Category
+- Category (filtered Home)
 - Workspace
-- Today
-- Inbox
 
 Pages may combine multiple features and application-level layout.
 
@@ -121,8 +119,6 @@ A feature owns a coherent user-facing capability or use-case.
 
 Examples:
 - workspace authoring;
-- planning;
-- capture;
 - search;
 - activity;
 - library management.
@@ -147,7 +143,7 @@ Do not split code into global `hooks/`, `utils/`, or `components/` folders when 
 
 Examples:
 - workspace and note models;
-- planning models and transformations;
+- persisted Task model used by Activity recovery;
 - diagram model and routing rules;
 - autosave state machines;
 - conflict-resolution rules;
@@ -209,7 +205,7 @@ Good examples:
 Bad examples:
 - WorkspaceSidebar;
 - WorkspaceMutationPolicy;
-- QuickCapture;
+- ActivityDock;
 - LibraryTools;
 - CanvasNoteArtifact.
 
@@ -331,8 +327,7 @@ When touching existing web code, move toward these boundaries incrementally:
 features/dashboard        → pages/home
 features/category         → pages/category
 features/workspace screen → pages/workspace
-features/today screen     → pages/today
-features/inbox screen     → pages/inbox
+legacy Today/Inbox screens → retired; keep redirect-only routes
 
 components/ui             → shared/ui
 application Sidebar       → pages/_shared/LibrarySidebar
@@ -346,7 +341,7 @@ integrations/document     → workspace-authoring/document
 integrations/canvas       → workspace-authoring/canvas
 
 shared diagram rules      → domain/diagram
-features/plan             → features/planning
+legacy Plan/Today/Inbox UI  → removed
 features/study            → features/activity
 ```
 
@@ -421,8 +416,8 @@ workspace
   authored-state invariants, and workspace use-cases
 
 planning
-  owns Milestone, Task, Today/Inbox planning behavior,
-  planning validation, and planning concurrency semantics
+  owns persisted Milestone and Task data contracts, legacy API compatibility,
+  planning validation, and planning concurrency semantics; no Today/Inbox UI
 
 activity
   owns ActivitySession, heartbeats, duration/statistics,

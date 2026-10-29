@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary, type WorkspacePage } from "../../domain/workspace/workspace";
-import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace, APIError } from "../../adapters/http/workspace-api";
+import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, renameWorkspace, APIError } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { useLibraryRevision } from "./use-library-revision";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
 
-export type LibraryView = "recent" | "all" | "category";
+export type LibraryView = "all" | "category";
 export type CategoryWorkspaceFilters = { query: string; sort: "" | "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
 const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "", hasCanvas: false, hasNotes: false, offset: 0 };
 
 export type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
-  recentWorkspaces: WorkspaceSummary[];
   initialSelectedCategoryId?: string;
   initialCategoryPage?: WorkspacePage;
 };
 
-export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
+export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
   const navigate = useNavigate();
+  const routeCategory = useRouterState({ select: (state) => typeof state.location.search.category === "string" ? state.location.search.category : "" });
+  const previousRouteCategory = useRef(routeCategory);
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
@@ -32,12 +33,12 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   );
   const allSnapshotRef = useRef<string | null>(null);
   const useInitialCategoryPage = useRef(Boolean(initialSelectedCategoryId && initialCategoryPage));
-  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "recent");
+  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "all");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
-  const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
-  const [pageLoading, setPageLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(!initialSelectedCategoryId);
+  const [allLoadError, setAllLoadError] = useState<string | null>(null);
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryWorkspaceFilters>(defaultCategoryFilters);
@@ -74,15 +75,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       pendingWorkspaceCreate.current = null;
       setRecentlyCreatedWorkspaceId(workspace.id);
 
-      if (view === "recent") {
-        setRecentItems((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)].slice(0, 20));
-      } else {
-        setPage((current) => current ? {
-          ...current,
-          items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
-          total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
-        } : current);
-      }
+      setPage((current) => current ? {
+        ...current,
+        items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
+        total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
+      } : current);
 
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
@@ -109,7 +106,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   function replaceWorkspaceInLists(updated: WorkspaceSummary) {
     const replace = (workspace: WorkspaceSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
-    setRecentItems((current) => current.map(replace));
     setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
   }
 
@@ -148,7 +144,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     setDeletingWorkspace(null);
     try {
       await deleteWorkspace(target.id, target.version);
-      setRecentItems((current) => current.filter((workspace) => workspace.id !== target.id));
       setPage((current) => {
         if (!current) return current;
         const items = current.items.filter((workspace) => workspace.id !== target.id);
@@ -164,17 +159,64 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
+    if (id === selectedCategoryId && force) {
+      setCategoryFilters((current) => ({ ...current }));
+      return;
+    }
+    // URL is the single owner of category selection; the route effect loads one page.
+    void navigate({ to: "/", search: { category: id } });
+  }
+
+  // Default Home to the paginated complete Workspace collection, not Recent.
+  useEffect(() => {
+    if (initialSelectedCategoryId) return;
+    const generation = ++pageRequestGeneration.current;
+    setAllLoadError(null);
+    setPageLoading(true);
+    void listAllWorkspaces({ limit: 50, snapshot: "start" })
+      .then((result) => {
+        if (generation !== pageRequestGeneration.current) return;
+        allSnapshotRef.current = result.snapshot ?? null;
+        setPage(result);
+      })
+      .catch((error) => {
+        if (generation === pageRequestGeneration.current) {
+          setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
+        }
+      })
+      .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
+  }, [initialSelectedCategoryId]);
+
+  // Browser Back/Forward selection is URL-owned; disclosure remains sidebar-owned.
+  useEffect(() => {
+    if (previousRouteCategory.current === routeCategory) return;
+    previousRouteCategory.current = routeCategory;
+    const nextCategory = categoryItems.some((item) => item.id === routeCategory) ? routeCategory : "";
     pageRequestGeneration.current += 1;
     categorySnapshotRef.current = null;
-    setSelectedCategoryId(id);
-    setView("category");
-    setCategoryLoadError(null);
-    setPageLoading(true);
+    setSelectedCategoryId(nextCategory);
+    setView(nextCategory ? "category" : "all");
     setPage(null);
-    setCategorySearch("");
+    setCategoryLoadError(null);
+    setAllLoadError(null);
     setCategoryFilters({ ...defaultCategoryFilters });
-    void navigate({ to: "/", search: { category: id }, replace: true });
-  }
+    if (nextCategory) {
+      setPageLoading(true);
+    } else {
+      const generation = ++pageRequestGeneration.current;
+      setPageLoading(true);
+      void listAllWorkspaces({ limit: 50, snapshot: "start" })
+        .then((result) => {
+          if (generation !== pageRequestGeneration.current) return;
+          allSnapshotRef.current = result.snapshot ?? null;
+          setPage(result);
+        })
+        .catch((error) => {
+          if (generation === pageRequestGeneration.current) setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
+        })
+        .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
+    }
+  }, [categoryItems, routeCategory]);
 
   function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
     if (patch.offset === undefined) categorySnapshotRef.current = null;
@@ -234,23 +276,13 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     return () => window.clearTimeout(timeout);
   }, [categorySearch, view]);
 
-  function openRecent() {
-    pageRequestGeneration.current += 1;
-    categorySnapshotRef.current = null;
-    allSnapshotRef.current = null;
-    setView("recent");
-    setSelectedCategoryId("");
-    setPage(null);
-    setPageLoading(false);
-    void navigate({ to: "/", search: {}, replace: true });
-  }
-
   async function openAll(offset = 0, preserveSnapshot = false) {
     const generation = ++pageRequestGeneration.current;
     const snapshot = preserveSnapshot && allSnapshotRef.current ? allSnapshotRef.current : "start";
     const requestedOffset = offset > 0 && snapshot !== "start" ? offset : 0;
     setView("all");
     setSelectedCategoryId("");
+    setAllLoadError(null);
     setPageLoading(true);
     void navigate({ to: "/", search: {}, replace: true });
     try {
@@ -266,7 +298,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
           void openAll(0);
           return;
         }
-        showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not load workspaces." });
+        setAllLoadError(err instanceof Error ? err.message : "Could not load workspaces.");
       }
     } finally {
       if (pageRequestGeneration.current === generation) setPageLoading(false);
@@ -275,12 +307,10 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
     const silent = options.silent ?? false;
-    const generation = view === "recent" ? null : ++pageRequestGeneration.current;
-    void listRecentWorkspaces(20)
-      .then(setRecentItems)
-      .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
+    const generation = ++pageRequestGeneration.current;
 
     if (view === "all") {
+      setAllLoadError(null);
       if (!silent) setPageLoading(true);
       void listAllWorkspaces({ limit: 50, snapshot: "start" })
         .then((result) => {
@@ -291,7 +321,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
         })
         .catch((err) => {
           if (generation === pageRequestGeneration.current) {
-            showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." });
+            setAllLoadError(err instanceof Error ? err.message : "Could not refresh workspaces.");
           }
         })
         .finally(() => {
@@ -306,7 +336,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
         if (view !== "category" || !selectedCategoryId || generation !== pageRequestGeneration.current) return;
         if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
           setSelectedCategoryId("");
-          setView("recent");
+          setView("all");
           setPage(null);
           setPageLoading(false);
           void navigate({ to: "/" });
@@ -349,8 +379,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     return () => window.clearTimeout(timeout);
   }, [recentlyCreatedWorkspaceId]);
 
-  const items = view === "recent" ? recentItems : (page?.items ?? []);
-  const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
+  const items = page?.items ?? [];
+  const heading = view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
 
   return {
     view,
@@ -359,6 +389,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     page,
     pageLoading,
     categoryLoadError,
+    allLoadError,
+    retryAll: () => { void openAll(0); },
     retryCategory: () => setCategoryFilters((current) => ({ ...current })),
     categorySearch,
     setCategorySearch,
@@ -384,7 +416,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     saveWorkspaceTitle,
     confirmDeleteWorkspace,
     selectCategory,
-    openRecent,
     openAll,
     refreshLibrary,
   };

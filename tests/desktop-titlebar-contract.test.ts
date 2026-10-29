@@ -17,10 +17,9 @@ test("desktop title bar preserves existing per-page React handlers and web heade
   assert.match(header, /return customChromeActive && headerHost \? createPortal/);
   const shell = source(web + "pages/_shared/LibraryPageShell.tsx");
   assert.match(shell, /<HeaderPlacement/);
-  for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
-    assert.match(source(web + "pages/" + page), /<LibraryPageShell/);
-  }
-  assert.doesNotMatch(workspace, /<HeaderPlacement/);
+  assert.match(source(web + "pages/home/HomePage.tsx"), /<LibraryPageShell/);
+  assert.match(workspace, /<HeaderPlacement/);
+  assert.match(workspace, /showBack=\{!customChromeActive\}/);
   assert.match(workspace, /<WorkspaceRail/);
   assert.match(provider, /if \(!desktop\) return/);
   assert.match(provider, /activate_desktop_titlebar/);
@@ -43,11 +42,8 @@ test("native window close retains the durability handshake and recovery frame", 
 });
 
 test("Theme controls only exist in Settings; desktop Workspace hides its Settings trigger", () => {
-  for (const page of ["home/HomePage.tsx", "inbox/InboxPage.tsx", "today/TodayPage.tsx"]) {
-    const content = source(web + "pages/" + page);
-    assert.doesNotMatch(content, /<ThemeToggle/);
-    assert.doesNotMatch(content, /ThemeToggle/);
-  }
+  const content = source(web + "pages/home/HomePage.tsx");
+  assert.doesNotMatch(content, /ThemeToggle/);
   assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \{dark \? "light" : "dark"\} theme/);
   assert.doesNotMatch(workspace, /SettingsTrigger|WorkspaceGuide/);
 });

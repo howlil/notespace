@@ -63,8 +63,7 @@ test("border-only Workspace chrome and keyboard splitter remain usable @critical
     await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
     await selectView(page, "Canvas");
     await expect(page.getByRole("toolbar", { name: "Canvas tools" })).toBeVisible();
-    await pageArea.getByTestId("workspace-view-switcher").getByRole("button", { name: "Plan" }).click();
-    await expect(page.getByRole("heading", { name: "Plan", exact: true })).toBeVisible();
+    await expect(pageArea.getByTestId("workspace-view-switcher").getByRole("button", { name: "Plan" })).toHaveCount(0);
   } finally {
     await cleanupWorkspace(request, id);
   }

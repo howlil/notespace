@@ -2,73 +2,43 @@
 
 A free, self-hosted knowledge workspace for structured notes, spatial thinking, and deliberate study.
 
-The user-facing model is:
+The Navigation v8 product model (integration PR #184, not yet merged into `master`) is:
 
 ```text
-Today
-└── Tasks[]  ← planned today + incomplete carry-over
-
-Capture Queue
-├── unorganized ideas → Workspace Notes or Tasks
-└── existing unassigned Tasks (only when present; move into a Workspace)
-
-Category
-└── Workspace
-    ├── Notes[]
-    ├── Canvas
-    ├── Plan
-    │   ├── Milestones[]
-    │   └── Tasks[]
-    ├── durable image assets
-    └── activity history
+Home
+└── Explorer (Categories → Workspaces)
+    └── Workspace
+        ├── Notes (Tiptap)
+        ├── Canvas (Excalidraw)
+        ├── Split authoring
+        ├── Activity sessions
+        └── Focus mode
 ```
 
-Notespace is intentionally not a generic Notion clone, collaboration platform, AI wrapper, or gamified productivity dashboard.
+Home has one 228px Explorer, category disclosure, Workspace links and Quick Open (`Ctrl/Cmd + K`). Workspace has its own 40px rail; native desktop uses a 38px titlebar with Back and centered Search. No separate Today, Inbox/Capture Queue, Quick Capture, Plan page, Recent tab, or standalone Activity dashboard is exposed in v8.
 
 ## Core capability
 
-- Category → Workspace library with recent-first Home and scalable category browsing.
-- Multiple durable Tiptap Notes plus one Excalidraw Canvas per Workspace.
-- Workspace Plan with lightweight milestones and tasks; tasks may belong to a milestone or remain loose.
-- Today projection for Workspace Tasks planned for the day and incomplete planned Tasks carried forward; historical unassigned Tasks remain readable until explicitly moved.
-- Capture Queue for unorganized ideas, with existing unassigned Tasks shown in the same destination under **Tasks to organize**. New Task creation requires a Workspace.
-- Global Activity sessions for Build, Learn, Read, Write, Exercise, or Other work, with required Workspace ownership for new sessions; previously saved sessions remain readable.
-- Split authoring with up to four panes and one Canvas pane.
-- Quick Capture and Markdown ingestion.
-- Global FTS search with exact Note/block context and universal `Ctrl/Cmd + K` Quick Open.
-- Durable image assets.
-- Recoverable Workspace Trash with explicit permanent deletion.
-- Versioned full-library ZIP backup and transactional restore covering Categories, active Workspaces, Workspace Plans, standalone tasks, Trash, images, activity sessions, and legacy history data when present.
-- Bulk Markdown/Obsidian-vault folder import; referenced selected images are copied into Notespace assets.
-- Explicit Start / Pause / Resume / End activity sessions, owned by a Workspace and optionally linked to a Task.
-- Deliberate Recall: write from memory with the Note hidden, then reveal the source for self-comparison. No scores, XP, or generated questions.
+- Category-organized Workspace library, with progressive disclosure and server-backed browsing.
+- Multiple durable Tiptap Notes and an Excalidraw Canvas per Workspace, including Split panes.
+- Granular optimistic-versioned Note and Canvas autosave with conflict protection and recovery.
+- Workspace-centered Activity Start / Pause / Resume / End and a persistent Activity dock.
+- Global text/Note search and keyboard-operated Quick Open.
+- Durable image assets, Markdown/Obsidian-vault folder import, recoverable Trash, and full-library ZIP backup/transactional restore.
+- Linked Note artifacts on Canvas; writing and spatial context remain connected.
+- Browser and Tauri desktop share the product behavior, with a native window/SQLite sidecar on Windows.
+
+Retired navigation does **not** delete previously saved Capture, Task, Milestone or Activity records. Historical rows, backup compatibility and externally exposed HTTP endpoints remain until their consumers and data-compatibility contracts can be safely retired. Do not delete SQLite migrations or restore functionality merely to remove a legacy screen.
 
 ## Windows Desktop
 
-The Windows desktop app is distributed through
-[GitHub Releases](https://github.com/howlil/notespace/releases).
-If no release with an `.msi` asset is visible, the installer has **not** been
-published yet.
+Windows desktop downloads are distributed through [GitHub Releases](https://github.com/howlil/notespace/releases). A green PR or CI debug executable is **not** a published installer.
 
-**Free unsigned beta (recommended first release):** maintainers can open
-[Actions → Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml),
-select `master`, and choose **Run workflow**. No Azure account, paid
-certificate, Tauri updater key, or separate download server is required.
-The workflow only publishes an installer after green master CI, real Windows
-native acceptance, persistence smoke, checksum and GitHub provenance tests.
+Maintainers can explicitly launch [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml) after exact-master CI and native persistence verification. A separate guarded Auto Desktop Beta dispatcher also exists for first-beta publication or an explicitly opted-in later master commit; it is a **release action**, not an ordinary CI test. The MSI has no Authenticode publisher certificate, so Windows may display **Unknown Publisher**.
 
-**Important beta limitation:** this MSI has no Windows publisher signature.
-Microsoft SmartScreen may show `Unknown Publisher` or block installation.
-The beta also has **no automatic updater**; users manually download later
-versions. Never claim the beta installer is signed or use unverified mirrors.
+Starting with `v0.1.0-beta.3`, the beta channel supports **Tauri-signature-verified in-app updates**. This requires the existing Tauri updater signing configuration; it does not require paid Windows publisher signing. Earlier betas require a one-time manual upgrade. Stable publisher-signed releases have a separate workflow and credential requirements.
 
-For a future signed production release, maintainers can use
-[Publish Desktop Stable (signed)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml).
-Publisher signing and Tauri updater signing are required **only for that
-separate workflow**, not for the free beta.
-
-Read the [desktop distribution guide](docs/DESKTOP_FIRST_RELEASE.md) for
-both release routes and user-verification instructions.
+See [desktop distribution and signing](docs/DESKTOP_FIRST_RELEASE.md) for the exact publication and upgrade contract. Never assume a local debug build proves installed MSI behavior.
 
 ## Self-host with Docker
 
@@ -201,18 +171,11 @@ Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/
 
 ## Verification
 
-Run deterministic local gates with:
+`task check` runs local static and unit/integration checks; `task verify` adds production builds and Playwright.
 
-```sh
-task verify
-```
+Pull requests and pushes to `master` run one **full browser suite** (including tests tagged `@critical`), Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
 
-CI separates pull-request merge safety from post-merge browser breadth:
-
-- pull requests run the production web build, TypeScript typecheck/lint/Node tests, Go formatting/vet/race/build, critical `@critical` Playwright journeys, Docker Compose validation, container health, and persistence restart smoke;
-- pushes to `master` run the same static/server/runtime gates and the full Playwright suite.
-
-See [`docs/TESTING.md`](docs/TESTING.md) for test ownership, focused commands, and the verification ladder.
+For ownership and focused commands, read [testing and CI](docs/TESTING.md).
 
 ## Implementation boundaries
 

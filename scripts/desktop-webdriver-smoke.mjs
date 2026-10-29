@@ -141,6 +141,7 @@ async function assertDesktopChrome(session, workspace) {
   // The title bar is activated asynchronously only after the authenticated
   // React UI mounts. A native smoke must prove that the activation succeeded.
   await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
+  await visibleElement(session, By.css(".desktop-titlebar .notespace-titlebar-search"));
   const result = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
     const header = chrome?.querySelector(".desktop-placed-header");
@@ -156,7 +157,17 @@ async function assertDesktopChrome(session, workspace) {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
       brand: Boolean(chrome?.querySelector(".desktop-titlebar-brand")),
-      duplicateSidebarBrand: Boolean(document.querySelector('aside a[aria-label="Notespace home"]')),
+      duplicateSidebarBrand: (() => {
+        const element = document.querySelector('aside a[aria-label="Notespace home"]');
+        return Boolean(element && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
+      })(),
+      workspaceBack: Boolean(header?.querySelector('a[aria-label="Back to library"]')),
+      workspaceTitle: header?.querySelector('a[aria-label="Back to library"] span')?.textContent?.trim() ?? "",
+      searchCount: header?.querySelectorAll('button[aria-label="Search Notespace with Control K or Command K"]').length ?? 0,
+      searchOffset: (() => {
+        const box = header?.querySelector(".notespace-titlebar-search")?.getBoundingClientRect();
+        return box ? Math.abs(box.left + box.width / 2 - window.innerWidth / 2) : null;
+      })(),
       workspaceHeader: Boolean(header?.classList.contains("workspace-header")),
       guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
       settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
@@ -166,6 +177,11 @@ async function assertDesktopChrome(session, workspace) {
       railY: railBox?.y ?? -1,
       railHeight: railBox?.height ?? 0,
       railParentIsSlot: Boolean(rail && rail.parentElement === slot),
+      railBackCount: rail?.querySelectorAll('a[aria-label="Back to library"]').length ?? 0,
+      homeSidebarWidth: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().width ?? 0,
+      homeSidebarX: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().x ?? -1,
+      homeExplorerCount: document.querySelectorAll('aside[aria-label="Category explorer"]').length,
+      primaryNavigationCount: document.querySelectorAll('nav[aria-label="Primary navigation"]').length,
       shellWorkspace: shell?.classList.contains("desktop-shell--workspace") ?? false,
       chromeX: chromeBox?.x ?? -1,
       paneX: paneBox?.x ?? -1,
@@ -181,9 +197,14 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
   assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
   assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
+  assert.equal(result.searchCount, 1, "Native titlebar must have exactly one Search action");
+  assert.ok(result.searchOffset !== null && result.searchOffset <= 28, "Search must be centered in the native titlebar");
   if (workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
+    assert.equal(result.workspaceBack, true, "Native Workspace must have Back in the titlebar");
+    assert.equal(result.railBackCount, 0, "Custom chrome must not duplicate Workspace Back in the rail");
+    assert.ok(result.workspaceTitle.length > 0, "Native Workspace must show the live title");
     assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
     assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
     assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");
@@ -195,7 +216,7 @@ async function assertDesktopChrome(session, workspace) {
     assert.equal(result.paneY, 38, "M2 authoring content must start below the 38px native titlebar");
     assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
     assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
-    assert.equal(result.views, 4, "Canvas, Note, Split and Plan must remain available");
+    assert.equal(result.views, 3, "Retired Plan is absent; Canvas, Note and Split remain available");
     assert.equal(result.noteHeaderHeight, 34, "M5 native Note header must be exactly 34px");
     assert.equal(result.noteNewCount, 1, "M5 native Note header must have one permanent New note entry");
     assert.equal(result.noteNavigateCount, 1, "M5 native Note header must have exactly one Navigate entry");
@@ -215,6 +236,10 @@ async function assertDesktopChrome(session, workspace) {
   } else {
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
     assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");
+    assert.equal(result.homeSidebarWidth, 228, "Native Home must have one 228px Explorer");
+    assert.equal(result.homeSidebarX, 0, "Native Home Explorer must start at the window edge");
+    assert.equal(result.homeExplorerCount, 1, "Native Home must expose exactly one category Explorer");
+    assert.equal(result.primaryNavigationCount, 0, "Native Home must not resurrect a primary navigation rail");
     assert.equal(result.workspaceHeader, false);
   }
 }
@@ -230,8 +255,26 @@ async function runProductPersistenceJourney(session) {
   const workspaceLink = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
   await workspaceLink.click();
   await waitForUrl(session, /\/workspaces\//);
+  if (!upgradeSeed) {
+    await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+    await assertDesktopChrome(session, true);
+    // Route navigation is a separate assertion from close-with-pending-save.
+    // Let the freshly mounted editor settle before leaving this Workspace.
+    await waitForWorkspaceSaved(session);
+    // Real WebView2 titlebar Back must navigate to one Home Explorer;
+    // Workspace titlebar must reactivate on re-entry with no duplicate Back.
+    const back = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    await back.click();
+    await waitForUrl(session, /[/]$/);
+    await visibleElement(session, By.css('aside[aria-label="Category explorer"]'));
+    await assertDesktopChrome(session, false);
+    const reenter = await visibleElement(session, By.xpath("//a[@aria-label=" + xpathLiteral("Open " + workspaceTitle) + "]"));
+    await reenter.click();
+    await waitForUrl(session, /[/]workspaces[/]/);
+    await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    await waitForWorkspaceSaved(session);
+  }
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
-  if (!upgradeSeed) await assertDesktopChrome(session, true);
   await editor.click();
   await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
   await waitForText(session, "Saving…");
@@ -452,6 +495,22 @@ async function waitForEditorText(session, text, timeout = 30_000) {
     await delay(250);
   }
   throw new Error(`Timed out waiting for Workspace editor text: ${text}`);
+}
+
+async function waitForWorkspaceSaved(session, timeout = 30_000) {
+  const deadline = Date.now() + timeout;
+  let lastStatus = "not mounted";
+  while (Date.now() < deadline) {
+    lastStatus = await session.executeScript(
+      "return document.querySelector('[role=\"status\"][aria-label=\"Workspace save status\"]')?.textContent?.trim() ?? 'not mounted'",
+    );
+    if (lastStatus === "Saved") return;
+    if (lastStatus === "Conflict" || lastStatus === "Not saved") {
+      throw new Error(`Workspace autosave is not healthy after native navigation: ${lastStatus}`);
+    }
+    await delay(250);
+  }
+  throw new Error(`Workspace never reached Saved before native navigation (last: ${lastStatus})`);
 }
 
 async function waitForUrl(session, pattern, timeout = 30_000) {

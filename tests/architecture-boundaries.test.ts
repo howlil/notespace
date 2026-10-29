@@ -125,7 +125,7 @@ test("legacy generic web buckets are removed after ownership migration", () => {
   assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram.test.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "plan")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "study")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "planning")), true);
+  assert.equal(existsSync(join(WEB_SRC, "features", "planning")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "activity")), true);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
   assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
@@ -298,23 +298,20 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 
   const home = source("pages/home/HomePage.tsx");
-  const inbox = source("pages/inbox/InboxPage.tsx");
-  const today = source("pages/today/TodayPage.tsx");
   assert.match(home, /WorkspaceLibrary/);
-  assert.match(inbox, /UnorganizedTasks/);
-  assert.match(today, /TodayPlanning/);
-  for (const page of [home, inbox, today]) {
-    assert.doesNotMatch(page, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
+  assert.doesNotMatch(home, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
+  for (const obsolete of ["pages/inbox/InboxPage.tsx", "pages/today/TodayPage.tsx"]) {
+    assert.equal(existsSync(join(WEB_SRC, obsolete)), false, `removed recovery screen persists: ${obsolete}`);
   }
 });
 
-test("workspace page is the screen composition boundary for authoring, planning, and activity", () => {
+test("workspace page composes authoring and contextual activity without retired Plan UI", () => {
   const page = source("pages/workspace/WorkspacePage.tsx");
   const authoring = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
 
   assert.match(page, /useWorkspaceAuthoring/);
   assert.match(page, /workspace-main/);
-  assert.match(page, /WorkspacePlan/);
+  assert.doesNotMatch(page, /WorkspacePlan/);
   assert.match(page, /ActivityIndicator/);
   assert.doesNotMatch(page, /useWorkspaceSession/);
 

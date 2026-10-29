@@ -1,11 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { deleteWorkspace } from "./helpers";
 
-test("Settings replaces floating backup with a data and recovery panel", async ({ page }) => {
+async function openSettings(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: /Search Notespace/ }).click();
+  await page.getByRole("button", { name: "Settings & Data" }).click();
+}
+
+test("Settings owns the single Data & Backup surface in Navigation v8", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Backups", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await openSettings(page);
 
   // Radix names the dialog from DialogTitle ("Settings"), not the wrapper aria-label.
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
@@ -14,21 +19,73 @@ test("Settings replaces floating backup with a data and recovery panel", async (
   await expect(settings.getByRole("button", { name: /^Use (dark|light) theme$/ })).toBeVisible();
   await settings.getByRole("button", { name: "Data & backup" }).click();
   await expect(settings.getByRole("heading", { name: "Data & backup" })).toBeVisible();
-  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveCount(0);
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
+  await expect(settings.getByRole("button", { name: "Restore library backup" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Import Markdown vault" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Trash" })).toBeVisible();
   await expect(settings.getByText("Verified SQLite snapshots are available in the Windows desktop app.")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Data and recovery" })).toHaveCount(0);
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
 
-  await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
-  const recovery = page.getByRole("dialog", { name: "Data & Recovery" });
-  await expect(recovery).toBeVisible();
-  await expect(recovery.getByRole("link", { name: "Backup" })).toHaveAttribute("href", "/api/backup");
-  await page.keyboard.press("Escape");
-  await expect(recovery).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await openSettings(page);
   const reopened = page.getByRole("dialog", { name: "Settings", exact: true });
   await expect(reopened.getByRole("heading", { name: "Appearance" })).toBeVisible();
   await reopened.getByRole("button", { name: "Close settings" }).click();
   await expect(reopened).toHaveCount(0);
+});
+
+test("@critical Settings cannot dismiss while portable restore is in flight", async ({ page }) => {
+  await page.goto("/");
+  await openSettings(page);
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await settings.getByRole("button", { name: "Data & backup" }).click();
+  await expect(settings.getByRole("button", { name: "Restore library backup" })).toBeEnabled();
+
+  // The request is held at the transport boundary. It must never reach SQLite:
+  // we are testing modal ownership and mutation lifecycle, not backup semantics.
+  let notifyStarted = () => {};
+  const started = new Promise<void>((resolve) => { notifyStarted = resolve; });
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/backup/restore", async (route) => {
+    notifyStarted();
+    await pending;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Simulated restore unavailable" }),
+    });
+  });
+
+  await settings.locator('input[type="file"][accept*=".zip"]').setInputFiles({
+    name: "restore-in-flight.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("not a real archive; intercepted before persistence"),
+  });
+  const confirmation = page.getByRole("dialog", { name: "Replace the entire library?" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Replace library" }).click();
+
+  try {
+    await started;
+    await expect(settings.getByRole("button", { name: "Close settings" })).toBeDisabled();
+    await expect(settings.getByRole("heading", { name: "Historical recovery" })).toHaveCount(0);
+    await expect(settings.getByRole("link", { name: "Review scheduled Tasks" })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(settings).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole("button", { name: "General" })).toBeDisabled();
+  } finally {
+    release();
+  }
+
+  await expect(settings.getByRole("button", { name: "Close settings" })).toBeEnabled();
+  await expect(settings.getByRole("button", { name: "General" })).toBeEnabled();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
 });
 
 test("Workspace keeps Settings in Library without duplicating the Workspace rail", async ({ page, request }) => {
@@ -42,7 +99,7 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
     await expect(page.locator('[aria-label="Desktop backup and recovery"]')).toHaveCount(0);
     await page.getByRole("link", { name: "Back to library" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openSettings(page);
     await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
   } finally {
     await deleteWorkspace(request, item.id);
@@ -50,11 +107,11 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
   }
 });
 
-test("Theme is only inside Settings on Home, Inbox and Today", async ({ page }) => {
-  for (const path of ["/", "/inbox", "/today"]) {
+test("Theme is only inside Settings on Home", async ({ page }) => {
+  for (const path of ["/"]) {
     await page.goto(path);
     await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openSettings(page);
     const settings = page.getByRole("dialog", { name: "Settings", exact: true });
     await expect(settings.getByRole("heading", { name: "Appearance" })).toBeVisible();
     const toggle = settings.getByRole("button", { name: /^Use (dark|light) theme$/ });

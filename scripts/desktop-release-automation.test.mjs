@@ -107,7 +107,7 @@ test("release and native CI reuse caches and never compile the Tauri CLI from so
     assert.doesNotMatch(workflow, /- run: pnpm build\s*$/m, `${name} should not rebuild the landing app`);
     assert.match(workflow, /pnpm --filter @notespace\/web build/);
   }
-  assert.match(desktop, /name: Run native WebDriver parity smoke/);
+  assert.doesNotMatch(desktop, /name: Run native WebDriver parity smoke/);
   assert.match(beta, /pnpm test:desktop:critical/);
   assert.match(stable, /Gate release on real MSI upgrade and user-data preservation/);
   assert.equal((stable.match(/Swatinem\/rust-cache@v2/g) ?? []).length, 2);

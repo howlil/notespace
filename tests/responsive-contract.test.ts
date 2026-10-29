@@ -1,17 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
-const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
-const ACTIVITY = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
+const HOME = join(WEB_SRC, "pages", "home", "HomePage.tsx");
+const RETIRED_ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
+const RETIRED_SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
@@ -33,34 +34,27 @@ test("responsive contract: compact workspaces preserve usable pane width", () =>
   assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
 });
 
-test("responsive contract: mobile keeps rail while Explorer is dismissible", () => {
-  const dashboard = source(DASHBOARD);
+test("responsive contract: compact Home retains permanent sidebar without toggles", () => {
   const shell = source(PAGE_SHELL);
   const sidebar = source(SIDEBAR);
-  const rail = source(join(WEB_SRC, "pages", "_shared", "ShellRail.tsx"));
   const library = source(WORKSPACE_LIBRARY);
-  assert.match(shell, /<ShellRail/);
-  assert.match(shell, /max-width: 760px/);
-  assert.match(shell, /aria-label="Close category explorer"/);
-  assert.match(shell, /max-\[760px\]:fixed/);
+  assert.match(shell, /notespace-home-sidebar/);
+  assert.ok(shell.includes("w-[228px]"));
+  assert.doesNotMatch(shell, /<ShellRail|Close category explorer|Toggle category explorer/);
+  assert.equal(existsSync(RETIRED_SHELL_RAIL), false, "Legacy 44px primary rail remains retired");
   assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
-  assert.match(rail, /Toggle category explorer/);
-  assert.match(rail, /w-11/);
   assert.match(sidebar, /aria-label="Category explorer"/);
-  assert.match(library, /overflow-x-auto overscroll-x-contain/);
+  assert.match(sidebar, /notespace-sidebar-brand/);
+  assert.match(sidebar, /aria-label="New category"/);
+  assert.doesNotMatch(library, /aria-label="Library views"/);
   assert.match(library, /function WorkspaceFolderCard/);
-  assert.match(library, /grid-cols-\[repeat\(auto-fill,minmax\(170px,196px\)\)\]/);
-  assert.match(library, /<WorkspaceListSkeleton variant=\{view === "category" \? "list" : "cards"\} \/>/);
-  assert.match(dashboard, /afterList=\{showActivityDashboard \? <ActivityDashboard \/> : null\}/);
+  assert.match(library, /<WorkspaceListSkeleton/);
 });
 
-
-test("responsive contract: mobile activity is summary-first", () => {
-  const activity = source(ACTIVITY);
-  assert.match(activity, /mobileExpanded/);
-  assert.match(activity, /View heatmap/);
-  assert.match(activity, /Hide heatmap/);
-  assert.match(activity, /max-\[560px\]:hidden/);
+test("responsive contract: standalone Home Activity dashboard is retired", () => {
+  assert.equal(existsSync(RETIRED_ACTIVITY_DASHBOARD), false);
+  assert.doesNotMatch(source(HOME), /ActivityDashboard|afterList/);
+  assert.doesNotMatch(source(WORKSPACE_LIBRARY), /afterList/);
 });
 
 test("responsive contract: canvas chrome is compact, distinct, and touch-safe", () => {

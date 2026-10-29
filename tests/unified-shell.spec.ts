@@ -1,225 +1,113 @@
 import { expect, test } from "@playwright/test";
-import { deleteWorkspace } from "./helpers";
+import { createWorkspace, deleteWorkspace } from "./helpers";
 
-test("@critical shared rail navigates Library, Inbox and Today while Explorer remains optional", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+test("@critical Home owns one fixed sidebar and no duplicate navigation", async ({ page }) => {
   await page.goto("/");
-  const rail = page.getByRole("navigation", { name: "Primary navigation" });
-  const categories = page.getByRole("navigation", { name: "Categories" });
-  const toggle = rail.getByRole("button", { name: "Toggle category explorer" });
-
-  await expect(rail).toBeVisible();
-  await expect(categories).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
-  await toggle.click();
-  await expect(categories).toBeHidden();
-  await toggle.click();
-  await expect(categories).toBeVisible();
-
-  await rail.getByRole("link", { name: "Capture Queue" }).click();
-  await expect(page).toHaveURL(/\/inbox$/);
-  await expect(rail.getByRole("link", { name: "Capture Queue" })).toHaveAttribute("aria-current", "page");
-  await rail.getByRole("link", { name: "Today" }).click();
-  await expect(page).toHaveURL(/\/today$/);
-  await expect(rail.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
+  const sidebar = page.getByRole("complementary", { name: "Category explorer" });
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Notespace home" })).toHaveCount(1);
+  await expect(sidebar.getByRole("button", { name: "New category" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Library views" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Toggle category explorer" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Search Notespace/ })).toBeVisible();
 });
 
-test("@critical mobile Explorer is initially closed, can be opened and dismissed by Escape", async ({ page }) => {
+test("@critical fixed Home sidebar survives compact layout", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
-  const rail = page.getByRole("navigation", { name: "Primary navigation" });
-  const toggle = rail.getByRole("button", { name: "Toggle category explorer" });
-  const categories = page.getByRole("navigation", { name: "Categories" });
-  await expect(rail).toBeVisible();
-  await expect(categories).toBeHidden();
-  await toggle.click();
-  await expect(categories).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(categories).toBeHidden();
-  await expect(toggle).toBeFocused();
+  await expect(page.getByRole("complementary", { name: "Category explorer" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close Explorer" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Toggle category explorer" })).toHaveCount(0);
 });
 
-test("@critical Create menu delegates to existing Explorer form and global capture survives page changes", async ({ page }) => {
-  await page.goto("/inbox");
-  const create = page.getByRole("button", { name: "Create", exact: true });
-  await create.click();
-  await expect(page.getByRole("menuitem", { name: "Workspace" })).toBeVisible();
-  await page.keyboard.press("ArrowDown");
-  await expect(page.getByRole("menuitem", { name: "Category" })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(create).toBeFocused();
-
-  await create.click();
-  await page.getByRole("menuitem", { name: "Category" }).click();
-  await expect(page.getByRole("textbox", { name: "Category title" })).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await page.goto("/today");
-  await page.keyboard.press("Control+Shift+N");
-  await expect(page.getByRole("dialog", { name: "Quick capture" })).toBeVisible();
-  await page.keyboard.press("Escape");
-});
-
-test("@critical Data & Recovery is a single reusable dialog from rail or Settings", async ({ page }) => {
+test("@critical category disclosure does not navigate but category selection does", async ({ page, request }) => {
+  const response = await request.get("/api/categories");
+  expect(response.ok()).toBe(true);
+  const categories = await response.json() as Array<{ id: string; title: string }>;
+  const category = categories[0];
+  expect(category).toBeDefined();
   await page.goto("/");
-  await page.getByRole("button", { name: "Data and recovery" }).click();
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Settings" }).click();
-  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
-  await expect(settings).toBeVisible();
-  await settings.getByRole("button", { name: "Data & backup" }).click();
-  await settings.getByRole("button", { name: "Open Data & Recovery" }).click();
-  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toBeVisible();
+  const explorer = page.getByRole("navigation", { name: "Categories" });
+  await explorer.getByRole("button", { name: `Expand ${category.title}` }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(null);
+  await expect(explorer.getByRole("button", { name: `Collapse ${category.title}` })).toBeVisible();
+  await explorer.getByText(category.title, { exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(category.id);
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(null);
 });
 
-test("@critical global Create routes unorganized capture and Workspace-owned Today tasks", async ({ page }) => {
-  await page.goto("/");
-  const create = page.getByRole("button", { name: "Create", exact: true });
-  await create.click();
-  await expect(page.getByRole("menuitem", { name: "Capture for later" })).toHaveCount(0);
-  await page.getByRole("menuitem", { name: "Quick capture" }).click();
-  const capture = page.getByRole("dialog", { name: "Quick capture" });
-  await expect(capture).toBeVisible();
-  await capture.getByRole("combobox", { name: "Destination" }).selectOption("queue");
-  await expect(capture.getByRole("combobox", { name: "Destination" })).toHaveValue("queue");
-  await page.keyboard.press("Escape");
-
-  await create.click();
-  await page.getByRole("menuitem", { name: "Quick capture" }).click();
-  await expect(capture.getByRole("combobox", { name: "Destination" })).toHaveValue("workspace");
-  await expect(capture.getByRole("combobox", { name: "Capture Workspace" })).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await create.click();
-  await page.getByRole("menuitem", { name: "Task in Today" }).click();
-  await expect(page).toHaveURL(/\/today#new-task$/);
-  await expect(page.getByRole("textbox", { name: "New task" })).toBeFocused();
-  await expect(page.getByRole("combobox", { name: "Task Workspace" })).toBeVisible();
-});
-
-test("@critical Explorer visibility remains stable between Library, Inbox and Today", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
-  const rail = page.getByRole("navigation", { name: "Primary navigation" });
-  const toggle = rail.getByRole("button", { name: "Toggle category explorer" });
-  const categories = page.getByRole("navigation", { name: "Categories" });
-
-  await toggle.click();
-  await expect(categories).toBeHidden();
-  await rail.getByRole("link", { name: "Capture Queue" }).click();
-  await expect(categories).toBeHidden();
-  await rail.getByRole("link", { name: "Today" }).click();
-  await expect(categories).toBeHidden();
-  await toggle.click();
-  await expect(categories).toBeVisible();
-  await rail.getByRole("link", { name: "Library" }).click();
-  await expect(categories).toBeVisible();
-});
-
-test("@critical Escape cancels mobile Explorer title entry without hiding Explorer", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 });
-  await page.goto("/");
-  const rail = page.getByRole("navigation", { name: "Primary navigation" });
-  await rail.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Category", exact: true }).click();
-  const input = page.getByRole("textbox", { name: "Category title" });
-  await expect(input).toBeVisible();
-  await input.fill("Uncommitted category");
-  await input.press("Escape");
-  await expect(input).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Categories" })).toBeVisible();
-  await expect(rail.getByRole("button", { name: "Toggle category explorer" })).toHaveAttribute("aria-expanded", "true");
-});
-
-test("@critical selecting Create Task twice focuses the same Today composer", async ({ page }) => {
-  await page.goto("/");
-  const create = page.getByRole("button", { name: "Create", exact: true });
-  await create.click();
-  await page.getByRole("menuitem", { name: "Task in Today" }).click();
-  const composer = page.getByRole("textbox", { name: "New task" });
-  await expect(composer).toBeFocused();
-  await create.click();
-  await expect(composer).not.toBeFocused();
-  await page.getByRole("menuitem", { name: "Task in Today" }).click();
-  await expect(composer).toBeFocused();
-});
-
-test("@critical Activity runtime and dock survive Library/Inbox/Today navigation", async ({ page, request }) => {
-  const title = `Cross-route activity ${Date.now()}`;
-  const response = await request.post("/api/workspaces", { data: { title: `Activity owner ${Date.now()}` } });
-  expect(response.status()).toBe(201);
-  const workspace = await response.json() as { id: string };
+test("@critical Workspace keeps Web Back, authoring modes and Focus in a single rail", async ({ page, request }) => {
+  const id = await createWorkspace(page, "Notespace v8 Shell");
   try {
-    await page.goto("/today");
-    await page.getByRole("textbox", { name: "Quick activity" }).fill(title);
-    await page.getByRole("combobox", { name: "Activity Workspace" }).selectOption(workspace.id);
-    await page.getByRole("button", { name: "Start", exact: true }).click();
-    const active = page.getByRole("status", { name: "Active activity" });
-    await expect(active).toContainText(title);
-
-    const rail = page.getByRole("navigation", { name: "Primary navigation" });
-    await rail.getByRole("link", { name: "Capture Queue" }).click();
-    await expect(active).toContainText(title);
-    await rail.getByRole("link", { name: "Library" }).click();
-    await expect(active).toContainText(title);
-    await rail.getByRole("link", { name: "Today" }).click();
-    await expect(active).toContainText(title);
-
-    await page.getByRole("button", { name: "Pause activity" }).click();
-    await expect(page.getByRole("button", { name: "Resume activity" })).toBeVisible();
-    await page.getByRole("button", { name: "Resume activity" }).click();
-    await page.getByRole("button", { name: "End activity" }).click();
-    await expect(active).toHaveCount(0);
-  } finally {
-    await deleteWorkspace(request, workspace.id).catch(() => undefined);
-    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
-    const response = await request.get("/api/activity/sessions?limit=100");
-    if (response.ok()) {
-      const sessions = await response.json() as Array<{ id: string; title: string }>;
-      for (const session of sessions.filter(item => item.title === title)) {
-        await request.delete(`/api/activity/sessions/${session.id}`).catch(() => undefined);
-      }
+    const rail = page.getByRole("navigation", { name: "Workspace navigation" });
+    await expect(rail.getByRole("link", { name: "Back to library" })).toBeVisible();
+    for (const mode of ["Canvas", "Note", "Split"]) {
+      await expect(page.getByTestId("workspace-view-switcher").getByRole("button", { name: mode })).toBeVisible();
     }
+    await expect(rail.getByRole("button", { name: "Focus mode" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Toggle category explorer" })).toHaveCount(0);
+    await rail.getByRole("link", { name: "Back to library" }).click();
+    await expect(page).toHaveURL(/\/$/);
+  } finally {
+    await deleteWorkspace(request, id);
   }
 });
 
-test("@critical cancelling full-library restore never sends a destructive restore request", async ({ page }) => {
-  let restoreRequests = 0;
-  await page.route("**/api/backup/restore", async (route) => {
-    restoreRequests += 1;
-    await route.fulfill({ status: 500, body: "Unexpected restore call" });
-  });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Data and recovery" }).click();
-  const tools = page.getByRole("dialog", { name: "Data & Recovery" });
-  await expect(tools).toBeVisible();
-  await tools.locator('input[type="file"][accept*=".zip"]').setInputFiles({
-    name: "existing-library-backup.zip",
-    mimeType: "application/zip",
-    buffer: Buffer.from("not an actual backup"),
-  });
-  const confirmation = page.getByRole("dialog", { name: "Replace the entire library?" });
-  await expect(confirmation).toBeVisible();
-  await expect(confirmation).toContainText("replace your current categories");
-  await confirmation.getByRole("button", { name: "Cancel" }).click();
-  await expect(confirmation).toHaveCount(0);
-  expect(restoreRequests).toBe(0);
+test("@critical Workspace Back flushes pending Note edits before re-entry", async ({ page, request }) => {
+  const title = "Route flush " + Date.now();
+  const id = await createWorkspace(page, title);
+  const text = "Saved across Workspace Back " + Date.now();
+  try {
+    const editor = page.getByRole("textbox", { name: "Workspace document" });
+    await expect(editor).toBeVisible();
+    await editor.fill(text);
+    // Deliberately do not wait for Saved. Navigation must settle the latest
+    // editor snapshot and versioned Note write before the route unmounts.
+    await page.getByRole("navigation", { name: "Workspace navigation" })
+      .getByRole("link", { name: "Back to library" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.getByRole("link", { name: "Open " + title }).click();
+    await expect(page).toHaveURL(new RegExp("/workspaces/" + id + "$"));
+    await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText(text);
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
+  } finally {
+    await deleteWorkspace(request, id);
+  }
 });
 
-test("@critical Explorer remembers expanded categories across page navigation", async ({ page }) => {
+test("@critical Quick Open can open Settings after global rail removal", async ({ page }) => {
   await page.goto("/");
-  const categories = page.getByRole("navigation", { name: "Categories" });
-  const expand = categories.getByRole("button", { name: /^Expand / }).first();
-  await expect(expand).toBeVisible();
-  const label = await expand.getAttribute("aria-label");
-  const categoryName = label?.replace(/^Expand /, "") ?? "";
-  await expand.click();
-  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
-  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Capture Queue" }).click();
-  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
-  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Today" }).click();
-  await expect(categories.getByRole("button", { name: `Collapse ${categoryName}` })).toBeVisible();
+  await page.getByRole("button", { name: /Search Notespace/ }).click();
+  const quick = page.getByRole("dialog", { name: "Quick Open" });
+  await expect(quick).toBeVisible();
+  await quick.getByRole("button", { name: "Settings & Data" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "Data & backup" }).click();
+  await expect(settings.getByRole("link", { name: "Export ZIP" })).toHaveAttribute("href", "/api/backup");
+  await expect(page.getByRole("dialog", { name: "Data & Recovery" })).toHaveCount(0);
+});
+
+test("@critical failed Home load is retryable and never appears empty", async ({ page }) => {
+  let failures = 0;
+  await page.route("**/api/workspaces?**", async (route) => {
+    const url = new URL(route.request().url());
+    const isAll = route.request().method() === "GET"
+      && url.searchParams.get("snapshot") === "start"
+      && url.searchParams.get("limit") === "50";
+    if (isAll && failures++ === 0) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"offline"}' });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  const alert = page.getByRole("alert").filter({ hasText: "Workspaces could not be loaded" });
+  await expect(alert).toBeVisible();
+  await expect(page.getByText("No workspaces here")).toHaveCount(0);
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Workspaces", exact: true })).toBeVisible();
 });

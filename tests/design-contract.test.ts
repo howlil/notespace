@@ -14,20 +14,18 @@ const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "_shared", "RoutePending.tsx");
 const DASHBOARD = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
-const SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
+const RETIRED_SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
 const WORKSPACE_LIBRARY_MODEL = join(WEB_SRC, "features", "library", "use-workspace-library.ts");
 const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
-const QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
+const RETIRED_QUICK_CAPTURE = join(WEB_SRC, "features", "capture", "QuickCapture.tsx");
 const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
-const WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
-const INBOX = join(WEB_SRC, "pages", "inbox", "InboxPage.tsx");
-const INBOX_PLANNING = join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx");
-const TODAY = join(WEB_SRC, "pages", "today", "TodayPage.tsx");
-const TODAY_PLANNING = join(WEB_SRC, "features", "planning", "TodayPlanning.tsx");
+const RETIRED_WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
+const RETIRED_MILESTONE_MUTATION = join(WEB_SRC, "features", "planning", "milestone-mutation.ts");
+const RETIRED_MILESTONE_MUTATION_TEST = join(WEB_SRC, "features", "planning", "milestone-mutation.test.ts");
 const ACTIVITY_QUICK_START = join(WEB_SRC, "features", "activity", "ActivityQuickStart.tsx");
 const PANE_LAYOUT = join(WEB_SRC, "features", "workspace-authoring", "model", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace-authoring", "model", "workspace-content.ts");
@@ -58,13 +56,11 @@ const CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "code"
 const NOTE_CODE_BLOCK = join(WEB_SRC, "features", "workspace-authoring", "document", "NoteCodeBlockNode.tsx");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "workspace-authoring", "diagram", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "shared", "ui", "toast-provider.tsx");
-const ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const ACTIVITY_INDICATOR = join(WEB_SRC, "features", "activity", "ActivityIndicator.tsx");
 const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "activity", "activity-runtime-provider.tsx");
 const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "activity", "activity-recovery.ts");
 const ACTIVITY_DOCK = join(WEB_SRC, "features", "activity", "ActivityDock.tsx");
 const ACTIVITY_TYPE_MENU = join(WEB_SRC, "features", "activity", "ActivityTypeMenu.tsx");
-const ACTIVITY_TYPE_TRIGGER = join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx");
 const SKELETON = join(WEB_SRC, "shared", "ui", "skeleton.tsx");
 const WORKSPACE_LIST_SKELETON = join(WEB_SRC, "features", "library", "WorkspaceListSkeleton.tsx");
 const DISMISSABLE_POPUP = join(WEB_SRC, "shared", "ui", "dismissable.tsx");
@@ -311,16 +307,15 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(popupSurface, /<motion\.div/); assert.match(popupSurface, /initial=\{\{ opacity: 0/); assert.match(popupSurface, /\[scrollbar-width:none\]/);
   assert.match(source(DOCUMENT_EDITOR), /<IconButton/); assert.match(source(DOCUMENT_EDITOR), /<Input/);
   assert.match(source(DOCUMENT_EDITOR), /\[scrollbar-width:none\]/); assert.match(source(DOCUMENT_EDITOR), /!justify-start/);
-  assert.match(source(QUICK_CAPTURE), /<Input/); assert.match(source(QUICK_OPEN), /<Input/);
+  assert.match(source(QUICK_OPEN), /<Input/);
   assert.match(source(WORKSPACE), /<Button/); assert.match(source(WORKSPACE), /<IconButton/);
   assert.match(source(TOAST_PROVIDER), /<Button/); assert.match(source(TOAST_PROVIDER), /<IconButton/);
-  assert.match(source(ACTIVITY_DASHBOARD), /<Button/); assert.match(source(ACTIVITY_INDICATOR), /<Button/);
+  assert.match(source(ACTIVITY_INDICATOR), /<Button/);
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.match(source(DASHBOARD), /<ActivityDashboard \/>/); assert.doesNotMatch(source(DASHBOARD), /<ActivityDashboard compact \/>/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
-  assert.match(source(WORKSPACE_LIBRARY), /after:bg-accent/);
+  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
-  assert.match(source(ACTIVITY_DASHBOARD), /rounded-lg border border-line bg-surface/); assert.match(source(ACTIVITY_DASHBOARD), /auto-cols-\[12px\]/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
   assert.match(source(WORKSPACE_LIBRARY), /<WorkspaceListSkeleton/);
 });
@@ -329,11 +324,11 @@ test("layout archetypes: application pages share search shell and category queri
   const shell = source(PAGE_SHELL);
   const library = source(WORKSPACE_LIBRARY);
   const model = source(WORKSPACE_LIBRARY_MODEL);
-  for (const page of [DASHBOARD, INBOX, TODAY]) assert.match(source(page), /<LibraryPageShell/);
+  assert.match(source(DASHBOARD), /<LibraryPageShell/);
   assert.match(shell, /<HeaderPlacement/);
-  assert.match(shell, /<ShellRail/);
-  assert.match(shell, /aria-label="Close category explorer"/);
-  assert.match(source(SHELL_RAIL), /w-11/);
+  assert.match(shell, /id="notespace-home-sidebar"/);
+  assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
+  assert.match(source(SIDEBAR), /notespace-sidebar-brand/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(library, /aria-label="Category workspaces"/);
   assert.match(library, /aria-label="Search category workspaces"/);
@@ -346,7 +341,7 @@ test("layout archetypes: application pages share search shell and category queri
 });
 
 test("frontend styling contract: application surfaces are utility-first", () => {
-  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, QUICK_CAPTURE, LIBRARY_TOOLS, WORKSPACE, WORKSPACE_PLAN, INBOX_PLANNING, TODAY_PLANNING, ACTIVITY_QUICK_START, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_DASHBOARD, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU, ACTIVITY_TYPE_TRIGGER]) {
+  for (const file of [ROUTE_PENDING, DASHBOARD, PAGE_SHELL, WORKSPACE_LIBRARY, SIDEBAR, LIBRARY_TOOLS, WORKSPACE, DOCUMENT_EDITOR, CANVAS, CANVAS_CHROME, CANVAS_SELECTION_ACTIONS, TOAST_PROVIDER, ACTIVITY_INDICATOR, ACTIVITY_TYPE_MENU]) {
     const content = source(file);
     assert.match(content, /className=/, `Tailwind classes missing from ${file}`);
     assert.doesNotMatch(content, /import\s+["']\.\.?\/[^"']+\.css["']/, `feature CSS import remains in ${file}`);
@@ -368,24 +363,21 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("global utility contract: capture, search, recovery and activity are single-owner surfaces", () => {
-  const sidebar=source(SIDEBAR), rail=source(SHELL_RAIL), capture=source(QUICK_CAPTURE), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
-  assert.match(rail, /OPEN_QUICK_CAPTURE_EVENT/);
-  assert.match(rail, /OPEN_LIBRARY_TOOLS_EVENT/);
-  assert.match(rail, /onCreate\(\{ kind, categoryId:/);
-  assert.match(source(PAGE_SHELL), /<LibraryCreateContext.Provider value=\{createRequest\}>/);
-  assert.match(sidebar, /useLibraryCreateRequest/);
-  assert.match(rail, /<ActivityIndicator rail/);
-  assert.match(root, /<QuickCapture showTrigger=\{false\} \/>/);
-  assert.match(root, /<LibraryTools showTrigger=\{false\} \/>/);
+test("global utility contract: Quick Capture UI retired, legacy capture data and global activity retained", () => {
+  const sidebar=source(SIDEBAR), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
+  assert.equal(existsSync(RETIRED_SHELL_RAIL), false, "Old primary rail must not return to Navigation v8");
+  assert.equal(existsSync(RETIRED_QUICK_CAPTURE), false, "Quick Capture modal is retired");
+  assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
+  assert.doesNotMatch(sidebar, /useLibraryCreateRequest|LibraryCreateContext/);
+  assert.doesNotMatch(root, /QuickCapture|open-quick-capture/);
+  assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
+  assert.match(root, /renderLibraryTools=\{/);
+  assert.doesNotMatch(root, /<LibraryTools showTrigger/);
   assert.match(root, /<QuickOpen \/>/);
   assert.match(root, /<ActivityDock \/>/);
   assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
-  assert.match(capture, /OPEN_QUICK_CAPTURE_EVENT/);
-  assert.match(capture, /Ctrl\/Cmd \+ Shift \+ N/);
-  assert.match(capture, /listRecentWorkspaces\(recentWorkspaceLimit\)/);
-  assert.match(capture, /listAllWorkspaces\(\{ query, limit: recentWorkspaceLimit \}\)/);
-  assert.match(tools, /OPEN_LIBRARY_TOOLS_EVENT/);
+  assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "shell-events.ts")), false);
+  assert.doesNotMatch(tools, /OPEN_LIBRARY_TOOLS_EVENT|<Dialog|<DialogContent/);
   assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
 });
 
@@ -405,50 +397,43 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   // Workspace title and category switcher are owned by Library, not Workspace chrome.
   assert.doesNotMatch(workspacePage,/<select /);
   assert.match(renameField,/aria-label="Workspace title"/);
-  for (const mode of ["Canvas", "Note", "Split", "Plan"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
+  for (const mode of ["Canvas", "Note", "Split"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
   assert.match(workspacePage, /<WorkspaceRail/);
-  assert.doesNotMatch(workspacePage, /<HeaderPlacement|workspace-switcher/);
-  assert.match(workspacePage, /<WorkspacePlan/);
+  assert.match(workspacePage, /<HeaderPlacement/);
+  assert.doesNotMatch(workspacePage, /<WorkspacePlan|workspace-switcher/);
   assert.doesNotMatch(workspacePage, /renderPlan=/);
   assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
-  assert.match(source(WORKSPACE_PAGE), /renderTaskAction=/);
-  assert.match(source(WORKSPACE_PAGE), /Start activity for/);
-  assert.match(source(WORKSPACE_PAGE), /ActivityTypeTrigger/);
-  assert.match(source(WORKSPACE_PLAN), /Turn this workspace into concrete checkpoints and next actions/);
-  assert.doesNotMatch(source(WORKSPACE_PLAN), /kanban|sprint|story points|assignee/i);
-  assert.match(source(SHELL_RAIL), /to="\/inbox"/);
-  assert.match(source(SHELL_RAIL), /to="\/today"/);
-  assert.match(source(SHELL_RAIL), /aria-label="Capture Queue"/);
-  assert.doesNotMatch(source(SHELL_RAIL), /Capture for later/);
-  assert.match(source(SIDEBAR), /aria-label="Workspace navigation"/);
+  assert.doesNotMatch(source(WORKSPACE_PAGE), /renderTaskAction=|Start activity for|ActivityTypeTrigger/);
+  assert.equal(existsSync(RETIRED_WORKSPACE_PLAN), false, "Retired Plan UI source must not linger");
+  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION), false, "Uncalled Plan-only milestone mutation helper must be retired");
+  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION_TEST), false, "Obsolete helper test must not preserve a dead module");
+  assert.doesNotMatch(source(PAGE_SHELL), /<ShellRail|Primary navigation/);
+  assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
   assert.match(source(SIDEBAR), /aria-label="Categories"/);
-  assert.match(source(INBOX_PLANNING), /Tasks to organize/);
-  assert.match(source(INBOX_PLANNING), /TaskWorkspaceAssign/);
-  assert.doesNotMatch(source(INBOX_PLANNING), /Legacy Inbox|standalone tasks/i);
-  assert.doesNotMatch(source(INBOX_PLANNING), /createStandaloneTask/);
-  assert.match(source(INBOX_PLANNING), /Move .* to Today/);
-  assert.doesNotMatch(source(INBOX_PLANNING), /priority|kanban|milestone|recurrence|productivity score/i);
-  assert.match(source(WORKSPACE_PLAN), /Add .* to Today/);
-  assert.match(source(TODAY_PLANNING), /One place for the work you explicitly chose to do today/);
-  assert.match(source(TODAY_PLANNING), /Needs Workspace/);
-  assert.match(source(TODAY_PLANNING), /Remove .* from Today/);
-  assert.match(source(TODAY_PLANNING), /TaskComposer/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /createStandaloneTask/);
-  assert.match(source(ACTIVITY_QUICK_START), /What are you doing\?/);
-  assert.match(source(ACTIVITY_QUICK_START), /Activity type/);
-  assert.match(source(TODAY), /Start activity for/);
-  assert.match(source(TODAY), /ActivityTypeTrigger/);
-  assert.match(source(TODAY), /useActivityRuntime/);
-  assert.match(source(TODAY_PLANNING), /getToday/);
-  assert.match(source(TODAY), /taskRevision/);
-  assert.doesNotMatch(source(TODAY), /useActivitySession|handoffResolving|completionConfirmed|activityStartBlocked/);
-  assert.doesNotMatch(source(TODAY_PLANNING), /priority|kanban|habit|streak|productivity score/i);
+  for (const name of ["InboxPage.tsx", "TodayPage.tsx"]) {
+    assert.equal(existsSync(join(WEB_SRC, "pages", name === "InboxPage.tsx" ? "inbox" : "today", name)), false, `${name} must not return`);
+  }
+  for (const path of [
+    join(WEB_SRC, "features", "capture", "CaptureQueue.tsx"),
+    join(WEB_SRC, "features", "planning", "TodayPlanning.tsx"),
+    join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx"),
+    join(WEB_SRC, "features", "planning", "TaskWorkspaceAssign.tsx"),
+    join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx"),
+  ]) assert.equal(existsSync(path), false, `retired recovery UI must not return: ${path}`);
+  for (const route of ["inbox", "today"]) {
+    const src = source(join(WEB_SRC, "routes", `${route}.tsx`));
+    assert.match(src, /redirect\(\{ to: "\/", replace: true \}\)/);
+    assert.doesNotMatch(src, /loader:|getToday|getUnassignedTasks|CaptureQueue/);
+  }
+  assert.equal(existsSync(join(WEB_SRC, "features", "planning", "TaskComposer.tsx")), false);
+  assert.equal(existsSync(ACTIVITY_QUICK_START), false);
+  assert.doesNotMatch(source(join(WEB_SRC, "features", "settings", "AppSettings.tsx")), /Historical recovery|Recover Captures and unassigned Tasks|Review scheduled Tasks/);
   assert.match(source(ACTIVITY_INDICATOR), /aria-label="Start activity"/);
   assert.match(source(ACTIVITY_INDICATOR), /ActivityTypeMenu/);
   assert.doesNotMatch(source(ACTIVITY_INDICATOR), /taskHandoff|onEnd|activity\.pause|activity\.resume|activity\.end/);
   assert.match(source(WORKSPACE_PAGE), /useActivityRuntime/);
   assert.match(source(WORKSPACE_PAGE), /adoptLegacyWorkspace/);
-  assert.match(source(WORKSPACE_PAGE), /refreshKey=\{activity\.taskRevision\}/);
+  assert.doesNotMatch(source(WORKSPACE_PAGE), /refreshKey=\{activity\.taskRevision\}/);
   assert.doesNotMatch(source(WORKSPACE_PAGE), /activityHandoff|getWorkspacePlan|completeActivityHandoffTask/);
   assert.match(source(ROOT_ROUTE), /ActivityRuntimeProvider/);
   assert.match(source(ROOT_ROUTE), /<ActivityDock \/>/);
@@ -472,16 +457,10 @@ test("workspace contract: bounded panes and explicit Canvas frame embeds remain 
   assert.match(source(ACTIVITY_DOCK), /End activity/);
   assert.match(source(ACTIVITY_DOCK), /Activity sync/);
   assert.match(source(ACTIVITY_DOCK), /finalizingCount/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /useAnchoredPanelPosition/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /useAnchoredPanelDismiss/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /createPortal/);
-  assert.match(source(ACTIVITY_TYPE_TRIGGER), /ActivityTypeMenu/);
   assert.match(source(ACTIVITY_TYPE_MENU), /Choose activity type/);
   for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {
     assert.match(source(ACTIVITY_TYPE_MENU), new RegExp(type));
   }
-  assert.match(source(ACTIVITY_DASHBOARD), />Activity<\/h2>/);
-  assert.doesNotMatch(source(ACTIVITY_DASHBOARD), /Streak|currentStreak/);
   assert.match(workspace,/>Close pane<\/Button>/);
   assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
   assert.match(content,/references:\s*\[\]/);
@@ -523,7 +502,18 @@ test("asset contract: server is durable owner and IndexedDB is only a compatibil
 });
 
 test("interaction contract: contextual popups still share one dismissal model", () => {
-  const dismissable=source(DISMISSABLE_POPUP); assert.match(dismissable,/pointerdown/); assert.match(dismissable,/focusin/); assert.match(dismissable,/Escape/); assert.match(dismissable,/requestExclusivePopup/); assert.doesNotMatch(source(TOAST_PROVIDER),/requestExclusivePopup/); assert.match(source(CONFIRM_DIALOG),/useExclusivePopup\(open/); assert.match(source(DOCUMENT_EDITOR),/useDismissablePopup\(documentRef/); assert.match(source(ACTIVITY_INDICATOR),/useDismissablePopup\(indicatorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelPosition\(anchorRef/); assert.match(source(ACTIVITY_TYPE_TRIGGER),/useAnchoredPanelDismiss\(open/); assert.match(source(CANVAS_SELECTION_ACTIONS),/useDismissablePopup\(rootRef/); assert.match(source(QUICK_OPEN),/<Dialog open=\{open\} onOpenChange=\{setOpen\}>/); assert.match(source(PAGE_SHELL),/new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
+  const dismissable = source(DISMISSABLE_POPUP);
+  assert.match(dismissable, /pointerdown/);
+  assert.match(dismissable, /focusin/);
+  assert.match(dismissable, /Escape/);
+  assert.match(dismissable, /requestExclusivePopup/);
+  assert.doesNotMatch(source(TOAST_PROVIDER), /requestExclusivePopup/);
+  assert.match(source(CONFIRM_DIALOG), /useExclusivePopup\(open/);
+  assert.match(source(DOCUMENT_EDITOR), /useDismissablePopup\(documentRef/);
+  assert.match(source(ACTIVITY_INDICATOR), /useDismissablePopup\(indicatorRef/);
+  assert.match(source(CANVAS_SELECTION_ACTIONS), /useDismissablePopup\(rootRef/);
+  assert.match(source(QUICK_OPEN), /<Dialog open=\{open\} onOpenChange=\{setOpen\}>/);
+  assert.match(source(PAGE_SHELL), /new Event\(OPEN_QUICK_SEARCH_EVENT\)/);
 });
 
 test("runtime and identity contracts remain intact", () => { assert.match(source(ROUTER),/defaultPreload:\s*import\.meta\.env\.DEV\s*\?\s*false\s*:\s*"intent"/); assert.match(source(ROOT_ROUTE),/href: "\/favicon\.svg"/); assert.match(source(FAVICON).toLowerCase(),/#2858d8/); });

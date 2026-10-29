@@ -17,23 +17,16 @@ export function deferred<T>() {
  * Create a workspace through the shared Create command and navigate into it.
  * Returns the workspace ID extracted from the URL.
  */
-export async function createWorkspace(
-  page: Page,
-  title: string,
-): Promise<string> {
+export async function createWorkspace(page: Page, title: string): Promise<string> {
   await page.goto("/");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Workspace", exact: true }).click();
-  const titleInput = page.getByRole("textbox", { name: "Workspace title" });
+  await page.getByRole("button", { name: "New workspace", exact: true }).first().click();
+  const titleInput = page.getByRole("textbox", { name: "New workspace name" });
   await titleInput.fill(title);
-  await titleInput.press("Enter");
-  await expect(page).toHaveURL(/\/$/);
-  await page.getByRole("link", { name: title }).first().click();
-  await expect(
-    page.getByRole("textbox", { name: "Workspace document" }),
-  ).toBeVisible();
-  const pathname = new URL(page.url()).pathname;
-  return pathname.split("/").filter(Boolean).at(-1)!;
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("link", { name: `Open ${title}` })).toBeVisible();
+  await page.getByRole("link", { name: `Open ${title}` }).click();
+  await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+  return new URL(page.url()).pathname.split("/").filter(Boolean).at(-1)!;
 }
 
 /** Wait for autosave to complete. */

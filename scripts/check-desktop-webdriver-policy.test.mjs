@@ -8,7 +8,7 @@ const driver = readFileSync(new URL("desktop-webdriver-smoke.mjs", import.meta.u
 
 test("Windows native WebView2 acceptance runs on compatible image without bypass", () => {
   assert.match(desktop, /check-desktop-windows:\s*#?[^]*?runs-on: windows-2022/);
-  assert.match(desktop, /name: Run native WebDriver parity smoke\s+run: pnpm test:desktop:native/);
+  assert.doesNotMatch(desktop, /run: pnpm test:desktop:native/, "Critical native smoke already covers parity without a duplicate launch");
   assert.match(desktop, /name: Run critical native close and SQLite relaunch before MSI release[\s\S]*?run: pnpm test:desktop:critical/);
   assert.match(desktop, /NOTESPACE_DESKTOP_TEST_DATA_DIR:/);
   assert.match(desktop, /name: Install Microsoft EdgeDriver matching WebView2 Runtime/);

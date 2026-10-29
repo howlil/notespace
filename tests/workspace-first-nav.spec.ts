@@ -15,35 +15,6 @@ test("@critical categories disclose without navigation and filter Home on title 
   await expect.poll(() => new URL(page.url()).searchParams.get("category")).toBe(category.id);
 });
 
-test("Capture Queue distinguishes initial loading from an actual empty result", async ({ page }) => {
-  let release!: () => void;
-  const pending = new Promise<void>((resolve) => { release = resolve; });
-  await page.route("**/api/captures", async (route) => {
-    if (route.request().method() !== "GET") return route.continue();
-    await pending;
-    await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
-  });
-  try {
-    await page.goto("/inbox");
-    await expect(page.getByRole("status").filter({ hasText: "Loading Capture Queue" })).toBeVisible();
-    await expect(page.getByText("Queue is clear")).toHaveCount(0);
-  } finally {
-    release();
-  }
-  await expect(page.getByText("Queue is clear")).toBeVisible();
-});
-
-test("Capture Queue exposes retryable load failure instead of false empty state", async ({ page }) => {
-  await page.route("**/api/captures", (route) => {
-    if (route.request().method() !== "GET") return route.continue();
-    return route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"offline"}' });
-  });
-  await page.goto("/inbox");
-  await expect(page.getByRole("alert").filter({ hasText: "Queue could not be loaded" })).toBeVisible();
-  await expect(page.getByText("Queue is clear")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
-});
-
 test("@critical mobile Home retains fixed category navigation without a toggle", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");

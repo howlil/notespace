@@ -177,6 +177,11 @@ async function assertDesktopChrome(session, workspace) {
       railY: railBox?.y ?? -1,
       railHeight: railBox?.height ?? 0,
       railParentIsSlot: Boolean(rail && rail.parentElement === slot),
+      railBackCount: rail?.querySelectorAll('a[aria-label="Back to library"]').length ?? 0,
+      homeSidebarWidth: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().width ?? 0,
+      homeSidebarX: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().x ?? -1,
+      homeExplorerCount: document.querySelectorAll('aside[aria-label="Category explorer"]').length,
+      primaryNavigationCount: document.querySelectorAll('nav[aria-label="Primary navigation"]').length,
       shellWorkspace: shell?.classList.contains("desktop-shell--workspace") ?? false,
       chromeX: chromeBox?.x ?? -1,
       paneX: paneBox?.x ?? -1,
@@ -198,6 +203,7 @@ async function assertDesktopChrome(session, workspace) {
     assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
     assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
     assert.equal(result.workspaceBack, true, "Native Workspace must have Back in the titlebar");
+    assert.equal(result.railBackCount, 0, "Custom chrome must not duplicate Workspace Back in the rail");
     assert.ok(result.workspaceTitle.length > 0, "Native Workspace must show the live title");
     assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
     assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
@@ -230,6 +236,10 @@ async function assertDesktopChrome(session, workspace) {
   } else {
     assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
     assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");
+    assert.equal(result.homeSidebarWidth, 228, "Native Home must have one 228px Explorer");
+    assert.equal(result.homeSidebarX, 0, "Native Home Explorer must start at the window edge");
+    assert.equal(result.homeExplorerCount, 1, "Native Home must expose exactly one category Explorer");
+    assert.equal(result.primaryNavigationCount, 0, "Native Home must not resurrect a primary navigation rail");
     assert.equal(result.workspaceHeader, false);
   }
 }
@@ -245,8 +255,22 @@ async function runProductPersistenceJourney(session) {
   const workspaceLink = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
   await workspaceLink.click();
   await waitForUrl(session, /\/workspaces\//);
+  if (!upgradeSeed) {
+    await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+    await assertDesktopChrome(session, true);
+    // Real WebView2 titlebar Back must navigate to one Home Explorer;
+    // Workspace titlebar must reactivate on re-entry with no duplicate Back.
+    const back = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+    await back.click();
+    await waitForUrl(session, /[/]$/);
+    await visibleElement(session, By.css('aside[aria-label="Category explorer"]'));
+    await assertDesktopChrome(session, false);
+    const reenter = await visibleElement(session, By.xpath("//a[@aria-label=" + xpathLiteral("Open " + workspaceTitle) + "]"));
+    await reenter.click();
+    await waitForUrl(session, /[/]workspaces[/]/);
+    await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Back to library"]'));
+  }
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
-  if (!upgradeSeed) await assertDesktopChrome(session, true);
   await editor.click();
   await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
   await waitForText(session, "Saving…");

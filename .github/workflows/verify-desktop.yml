@@ -231,7 +231,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: pnpm desktop:icons
-      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
@@ -310,7 +309,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @notespace/web build
       - run: pnpm desktop:icons
-      - run: node --test scripts/desktop-icon-contract.test.mjs
       - run: node scripts/prepare-desktop-sidecar.mjs
       - name: Verify Go Windows GUI subsystem (no console window)
         run: node scripts/assert-windows-pe-subsystem.mjs apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe

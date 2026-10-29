@@ -390,7 +390,7 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
               <div>
                 <span className="mb-4 mx-auto grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
-                <h2 className="m-0 text-lg font-medium">{view === "recent" ? "No recent workspaces" : "No workspaces here"}</h2>
+                <h2 className="m-0 text-lg font-medium">No workspaces here</h2>
                 <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
               </div>
               <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}

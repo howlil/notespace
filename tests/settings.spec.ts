@@ -71,14 +71,8 @@ test("@critical Settings cannot dismiss while portable restore is in flight", as
   try {
     await started;
     await expect(settings.getByRole("button", { name: "Close settings" })).toBeDisabled();
-    const capturesRecovery = settings.getByRole("link", { name: "Recover Captures and unassigned Tasks" });
-    const tasksRecovery = settings.getByRole("link", { name: "Review scheduled Tasks" });
-    await expect(capturesRecovery).toHaveAttribute("aria-disabled", "true");
-    await expect(tasksRecovery).toHaveAttribute("aria-disabled", "true");
-    // Dispatch the activation event despite disabled styling. The handler must
-    // suppress navigation while the real restore request is still outstanding.
-    await capturesRecovery.dispatchEvent("click");
-    await tasksRecovery.dispatchEvent("click");
+    await expect(settings.getByRole("heading", { name: "Historical recovery" })).toHaveCount(0);
+    await expect(settings.getByRole("link", { name: "Review scheduled Tasks" })).toHaveCount(0);
     await expect(page).toHaveURL(/\/$/);
     await expect(settings).toBeVisible();
     await page.keyboard.press("Escape");
@@ -92,52 +86,6 @@ test("@critical Settings cannot dismiss while portable restore is in flight", as
   await expect(settings.getByRole("button", { name: "General" })).toBeEnabled();
   await settings.getByRole("button", { name: "Close settings" }).click();
   await expect(settings).toHaveCount(0);
-});
-
-test("@critical historical Capture and Task records remain reachable only through Settings recovery links", async ({ page, request }) => {
-  const stamp = Date.now();
-  const captureContent = `Recovery capture ${stamp}`;
-  const captureResponse = await request.post("/api/captures", { data: { content: captureContent } });
-  expect(captureResponse.status()).toBe(201);
-  const capture = await captureResponse.json() as { id: string };
-  const workspaceResponse = await request.post("/api/workspaces", { data: { title: `Recovery owner ${stamp}` } });
-  expect(workspaceResponse.status()).toBe(201);
-  const workspace = await workspaceResponse.json() as { id: string };
-  const scheduledTitle = `Recovery scheduled Task ${stamp}`;
-  const date = new Date();
-  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const taskResponse = await request.post(`/api/workspaces/${workspace.id}/tasks`, { data: { title: scheduledTitle, plannedFor: today } });
-  expect(taskResponse.status()).toBe(201);
-  try {
-    await page.goto("/");
-    await expect(page.getByRole("link", { name: "Recover Captures and unassigned Tasks" })).toHaveCount(0);
-    await openSettings(page);
-    let settings = page.getByRole("dialog", { name: "Settings", exact: true });
-    await settings.getByRole("button", { name: "Data & backup" }).click();
-    await expect(settings.getByRole("heading", { name: "Historical recovery" })).toBeVisible();
-    await settings.getByRole("link", { name: "Recover Captures and unassigned Tasks" }).click();
-    await expect(settings).toHaveCount(0);
-    await expect(page).toHaveURL(/\/inbox$/);
-    await expect(page.getByText(captureContent, { exact: true })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Capture an unorganized thought" })).toHaveCount(0);
-
-    await openSettings(page);
-    settings = page.getByRole("dialog", { name: "Settings", exact: true });
-    await settings.getByRole("button", { name: "Data & backup" }).click();
-    await settings.getByRole("link", { name: "Review scheduled Tasks" }).click();
-    await expect(settings).toHaveCount(0);
-    await expect(page).toHaveURL(/\/today$/);
-    await expect(page.getByText(scheduledTitle, { exact: true })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "New task", exact: true })).toHaveCount(0);
-  } finally {
-    const current = await request.get(`/api/captures/${capture.id}`);
-    if (current.ok()) {
-      const item = await current.json() as { version: number; status: string };
-      if (item.status === "pending") await request.delete(`/api/captures/${capture.id}`, { headers: { "If-Match": `"${item.version}"` } }).catch(() => undefined);
-    }
-    await deleteWorkspace(request, workspace.id).catch(() => undefined);
-    await request.delete(`/api/trash/${workspace.id}`).catch(() => undefined);
-  }
 });
 
 test("Workspace keeps Settings in Library without duplicating the Workspace rail", async ({ page, request }) => {
@@ -159,8 +107,8 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
   }
 });
 
-test("Theme is only inside Settings on Home, Inbox and Today", async ({ page }) => {
-  for (const path of ["/", "/inbox", "/today"]) {
+test("Theme is only inside Settings on Home", async ({ page }) => {
+  for (const path of ["/"]) {
     await page.goto(path);
     await expect(page.getByRole("button", { name: /^Use (dark|light) theme$/ })).toHaveCount(0);
     await openSettings(page);

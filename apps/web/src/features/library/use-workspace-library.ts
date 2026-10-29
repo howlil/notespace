@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary, type WorkspacePage } from "../../domain/workspace/workspace";
-import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, listRecentWorkspaces, renameWorkspace, APIError } from "../../adapters/http/workspace-api";
+import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, renameWorkspace, APIError } from "../../adapters/http/workspace-api";
 import { notifyLibraryChanged } from "../../adapters/browser/library-change";
 import { useLibraryRevision } from "./use-library-revision";
 import { workspaceRenameTitle } from "../../domain/workspace/naming";
 import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
 
-export type LibraryView = "recent" | "all" | "category";
+export type LibraryView = "all" | "category";
 export type CategoryWorkspaceFilters = { query: string; sort: "" | "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
 const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "", hasCanvas: false, hasNotes: false, offset: 0 };
 
 export type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
-  recentWorkspaces: WorkspaceSummary[];
   initialSelectedCategoryId?: string;
   initialCategoryPage?: WorkspacePage;
 };
 
-export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
+export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
   const navigate = useNavigate();
   const routeCategory = useRouterState({ select: (state) => typeof state.location.search.category === "string" ? state.location.search.category : "" });
   const previousRouteCategory = useRef(routeCategory);
@@ -37,7 +36,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
   const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "all");
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
   const [categoryItems, setCategoryItems] = useState(categories);
-  const [recentItems, setRecentItems] = useState(recentWorkspaces);
   const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
   const [pageLoading, setPageLoading] = useState(!initialSelectedCategoryId);
   const [allLoadError, setAllLoadError] = useState<string | null>(null);
@@ -77,15 +75,11 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
       pendingWorkspaceCreate.current = null;
       setRecentlyCreatedWorkspaceId(workspace.id);
 
-      if (view === "recent") {
-        setRecentItems((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)].slice(0, 20));
-      } else {
-        setPage((current) => current ? {
-          ...current,
-          items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
-          total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
-        } : current);
-      }
+      setPage((current) => current ? {
+        ...current,
+        items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
+        total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
+      } : current);
 
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
@@ -112,7 +106,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   function replaceWorkspaceInLists(updated: WorkspaceSummary) {
     const replace = (workspace: WorkspaceSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
-    setRecentItems((current) => current.map(replace));
     setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
   }
 
@@ -151,7 +144,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     setDeletingWorkspace(null);
     try {
       await deleteWorkspace(target.id, target.version);
-      setRecentItems((current) => current.filter((workspace) => workspace.id !== target.id));
       setPage((current) => {
         if (!current) return current;
         const items = current.items.filter((workspace) => workspace.id !== target.id);
@@ -284,17 +276,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     return () => window.clearTimeout(timeout);
   }, [categorySearch, view]);
 
-  function openRecent() {
-    pageRequestGeneration.current += 1;
-    categorySnapshotRef.current = null;
-    allSnapshotRef.current = null;
-    setView("recent");
-    setSelectedCategoryId("");
-    setPage(null);
-    setPageLoading(false);
-    void navigate({ to: "/", search: {}, replace: true });
-  }
-
   async function openAll(offset = 0, preserveSnapshot = false) {
     const generation = ++pageRequestGeneration.current;
     const snapshot = preserveSnapshot && allSnapshotRef.current ? allSnapshotRef.current : "start";
@@ -326,10 +307,7 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
 
   const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
     const silent = options.silent ?? false;
-    const generation = view === "recent" ? null : ++pageRequestGeneration.current;
-    void listRecentWorkspaces(20)
-      .then(setRecentItems)
-      .catch((err) => showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh workspaces." }));
+    const generation = ++pageRequestGeneration.current;
 
     if (view === "all") {
       setAllLoadError(null);
@@ -401,8 +379,8 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     return () => window.clearTimeout(timeout);
   }, [recentlyCreatedWorkspaceId]);
 
-  const items = view === "recent" ? recentItems : (page?.items ?? []);
-  const heading = view === "recent" ? "Recent workspaces" : view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
+  const items = page?.items ?? [];
+  const heading = view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
 
   return {
     view,
@@ -438,7 +416,6 @@ export function useWorkspaceLibrary({ categories, recentWorkspaces, initialSelec
     saveWorkspaceTitle,
     confirmDeleteWorkspace,
     selectCategory,
-    openRecent,
     openAll,
     refreshLibrary,
   };

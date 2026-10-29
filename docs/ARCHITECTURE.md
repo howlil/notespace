@@ -35,25 +35,18 @@ The production container serves both the built SPA and the API from one Go proce
 The main user-facing model is:
 
 ```text
-Today
-└── Tasks[]
-    ├── tasks planned for today
-    └── incomplete planned tasks carried forward from earlier dates
-
-Capture Queue
-├── Captures[] (unorganized, not Tasks/Notes)
-└── existing unassigned Tasks[] (migrated explicitly)
-
-Category
+Home / Category Explorer
 └── Workspace
     ├── Notes[]
     ├── Canvas
-    ├── Plan
-    │   ├── Milestones[]
-    │   └── Tasks[]
     ├── durable image assets
-    └── activity history
+    └── Workspace-scoped Activity (global running timer)
+
+Settings
+└── Data & backup (portable export, import, Trash, native backups)
 ```
+
+Historical Capture, Task, Milestone and Activity rows may still exist in SQLite and backup archives. They are not exposed through the retired Today/Inbox screens. Keeping their storage and API compatibility separate from UI ownership prevents destructive upgrades.
 
 A Workspace is the main authored unit. Notes and Canvas have granular persistence and independent optimistic versions. Planning, assets, activity, Trash, backup/restore, and search are separate capabilities around that authored state.
 
@@ -97,8 +90,7 @@ Current routed surfaces include:
 - Home / Library
 - Category view
 - Workspace
-- Today
-- Capture Queue (`/inbox` deep-link retained)
+- `/today` and `/inbox` redirect-only compatibility routes to Home (no loaders or recovery UI)
 - `/projects/:id` redirect for historical links
 
 Routes should not own editor workflows or mutation orchestration.
@@ -111,8 +103,6 @@ Examples:
 
 - `pages/home/HomePage.tsx`
 - `pages/workspace/WorkspacePage.tsx`
-- `pages/today`
-- `pages/inbox`
 - `pages/_shared/LibrarySidebar`
 
 A page may combine sibling features through props or render slots. Product logic should remain in the owning feature or domain module.
@@ -124,9 +114,7 @@ Current feature owners are:
 ```text
 features/
 ├── activity/
-├── capture/
 ├── library/
-├── planning/
 ├── search/
 └── workspace-authoring/
 ```
@@ -136,7 +124,6 @@ features/
 Important orchestration boundaries include:
 
 - `features/library/save-workspace-core.ts` — conflict/rebase behavior for the aggregate Workspace compatibility save path;
-- `features/planning/projection-state.ts` — pure Today/Inbox projection update rules;
 - `features/workspace-authoring/document/document-image-actions.ts` — durable document-image insertion boundary;
 - `features/workspace-authoring/canvas/canvas-assets.ts` — durable Canvas-image persistence boundary.
 
@@ -314,7 +301,7 @@ Owns:
 - Milestones;
 - Tasks;
 - historical unassigned Tasks (read/assign only);
-- Today and Capture Queue semantics;
+- persisted historical planning contracts (no routed Today/Capture UI);
 - planning state transitions and validation.
 
 #### `activity`

@@ -1,12 +1,11 @@
 import { LibraryPageShell } from "../_shared/LibraryPageShell";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
-import type { CategorySummary, WorkspacePage, WorkspaceSummary } from "../../domain/workspace/workspace";
+import type { CategorySummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { WorkspaceLibrary } from "../../features/library/WorkspaceLibrary";
 import { useWorkspaceLibrary } from "../../features/library/use-workspace-library";
 
 type Props = {
   categories: CategorySummary[];
-  recentWorkspaces: WorkspaceSummary[];
   initialSelectedCategoryId?: string;
   initialCategoryPage?: WorkspacePage;
 };

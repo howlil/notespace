@@ -148,7 +148,7 @@ Examples of domain-owned behavior:
 - Workspace and Note shapes;
 - autosave state transitions;
 - Canvas merge/conflict rules;
-- planning projection membership;
+- persisted Task shape used by Activity finalization;
 - diagram routing/layout rules;
 - Markdown transformations;
 - code language/theme behavior.
@@ -166,7 +166,7 @@ adapters/
 └── assets/
 ```
 
-HTTP adapters map frontend calls to the Go API.
+HTTP adapters map live frontend calls to the Go API. The web planning adapter now exposes only Task read/versioned update for Activity-completion handoff. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner; historical records and compatible backend APIs remain in Go/SQLite.
 
 Browser adapters own process-local/browser-global events such as library revision notifications and Workspace conflict events.
 

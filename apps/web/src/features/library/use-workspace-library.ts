@@ -200,6 +200,8 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     setCategoryLoadError(null);
     setAllLoadError(null);
     setCategoryFilters({ ...defaultCategoryFilters });
+    // URL category changes must clear the displayed search as well as its server filter.
+    setCategorySearch("");
     if (nextCategory) {
       setPageLoading(true);
     } else {

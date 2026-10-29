@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deleteWorkspace } from "./helpers";
 
 test("@critical categories disclose without navigation and filter Home on title selection", async ({ page, request }) => {
   const response = await request.get("/api/categories");
@@ -67,4 +68,48 @@ test("Quick Open does not report an empty result during pending search or retrya
   await quickOpen.getByRole("button", { name: "Retry" }).click();
   await expect(quickOpen.getByText("No matching knowledge.")).toBeVisible();
   expect(requests).toBe(2);
+});
+
+test("Category search clears after changing categories and does not hide destination workspaces", async ({ page, request }) => {
+  const suffix = Date.now();
+  const categoryAName = `Filter Source ${suffix}`;
+  const categoryBName = `Filter Target ${suffix}`;
+  const workspaceAName = `Source Workspace ${suffix}`;
+  const workspaceBName = `Target Workspace ${suffix}`;
+  const categories: string[] = [];
+  const workspaces: string[] = [];
+  try {
+    for (const title of [categoryAName, categoryBName]) {
+      const response = await request.post("/api/categories", { data: { title } });
+      expect(response.status()).toBe(201);
+      categories.push((await response.json() as { id: string }).id);
+    }
+    for (const [index, title] of [workspaceAName, workspaceBName].entries()) {
+      const response = await request.post("/api/workspaces", {
+        data: { title, categoryId: categories[index] },
+      });
+      expect(response.status()).toBe(201);
+      workspaces.push((await response.json() as { id: string }).id);
+    }
+
+    await page.goto(`/?category=${categories[0]}`);
+    const search = page.getByRole("searchbox", { name: "Search category workspaces" });
+    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toBeVisible();
+    await search.fill(`no-match-${suffix}`);
+    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toHaveCount(0);
+
+    await page.getByRole("navigation", { name: "Categories" })
+      .getByText(categoryBName, { exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`category=${categories[1]}`));
+    await expect(search).toHaveValue("");
+    await expect(page.getByRole("link", { name: `Open ${workspaceBName}` })).toBeVisible();
+  } finally {
+    for (const id of workspaces) {
+      await deleteWorkspace(request, id).catch(() => undefined);
+      await request.delete(`/api/trash/${id}`).catch(() => undefined);
+    }
+    for (const id of categories) {
+      await request.delete(`/api/categories/${id}`).catch(() => undefined);
+    }
+  }
 });

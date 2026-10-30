@@ -15,7 +15,10 @@ test("Note HTML code block previews interactive inline markup in an isolated ifr
     await page.getByRole("listbox", { name: "Insert block" }).getByRole("option", { name: /Code block/ }).click();
     const block = page.locator("[data-note-code-block]").first();
     await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
-    await block.getByLabel("Edit code block").fill(html);
+    const source = block.getByLabel("Edit code block");
+    await source.click();
+    await page.keyboard.insertText(html);
+    await expect(source).toContainText('id="counter"');
 
     await expect(block.getByRole("button", { name: "Preview HTML" })).toBeVisible();
     await expect(block.locator("iframe")).toHaveCount(0);
@@ -23,6 +26,7 @@ test("Note HTML code block previews interactive inline markup in an isolated ifr
     const iframe = block.locator('iframe[title="Interactive HTML preview"]');
     await expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
     await expect(iframe).toHaveAttribute("referrerpolicy", "no-referrer");
+    await expect(iframe).toHaveAttribute("srcdoc", /id="counter"/);
     const preview = block.frameLocator('iframe[title="Interactive HTML preview"]');
     await expect(preview.locator("#count")).toHaveText("0");
     await preview.locator("#counter").click();
@@ -89,12 +93,16 @@ test("HTML preview cannot access app DOM or call local API through fetch", async
     await page.getByRole("listbox", { name: "Insert block" }).getByRole("option", { name: /Code block/ }).click();
     const block = page.locator("[data-note-code-block]").first();
     await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
-    await block.getByLabel("Edit code block").fill(`<div id="state">init</div><script>
+    const source = block.getByLabel("Edit code block");
+    await source.click();
+    await page.keyboard.insertText(`<div id="state">init</div><script>
 const root = document.querySelector('#state');
 try { root.textContent = parent.document.title; } catch { root.textContent = 'parent-blocked'; }
 fetch('/api/health').then(() => root.textContent = 'network-open').catch(() => root.dataset.net = 'blocked');
 </script>`);
+    await expect(source).toContainText('id="state"');
     await block.getByRole("button", { name: "Preview HTML" }).click();
+    await expect(block.locator('iframe[title="Interactive HTML preview"]')).toHaveAttribute('srcdoc', /id="state"/);
     const frame = page.frameLocator('iframe[title="Interactive HTML preview"]');
     await expect(frame.locator("#state")).toHaveText("parent-blocked");
     await expect(frame.locator("#state")).toHaveAttribute("data-net", "blocked");

@@ -8,26 +8,40 @@ const html = `<style>button{background:rgb(40,88,216);color:white}</style>
 });</script>`;
 
 
-async function pastePlainText(page: import("@playwright/test").Page, source: import("@playwright/test").Locator, value: string) {
-  // Dispatching a synthetic ClipboardEvent is untrusted and ProseMirror may
-  // legitimately ignore it. Exercise a genuine browser clipboard paste.
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.evaluate(async (text) => navigator.clipboard.writeText(text), value);
-  await source.click();
-  await source.press("ControlOrMeta+V");
+async function seedCodeBlock(page: import("@playwright/test").Page, request: import("@playwright/test").APIRequestContext, id: string, code: string) {
+  // Create a real persisted Note document. The browser assertions exercise
+  // rendering, script execution and source persistence, not clipboard support.
+  const currentResponse = await request.get(`/api/workspaces/${id}`);
+  expect(currentResponse.ok()).toBe(true);
+  const current = await currentResponse.json() as { notes: Array<{ id: string; title: string; version: number }> };
+  const note = current.notes[0];
+  expect(note).toBeTruthy();
+  const updated = await request.patch(`/api/workspaces/${id}/notes/${note.id}`, {
+    data: {
+      title: note.title,
+      version: note.version,
+      document: {
+        format: "tiptap",
+        version: 1,
+        data: { type: "doc", content: [
+          { type: "codeBlock", attrs: { blockId: "preview-html-source", language: "xml" },
+            content: [{ type: "text", text: code }] },
+        ] },
+      },
+    },
+  });
+  expect(updated.ok()).toBe(true);
+  await page.reload();
+  await expect(page.locator("[data-note-code-block]")).toBeVisible();
 }
-
 
 test("Note HTML code block previews interactive inline markup in an isolated iframe", async ({ page, request }) => {
   const id = await createViaAPI(page, request, `HTML note ${Date.now()}`);
   try {
     await selectView(page, "Note");
-    await page.getByRole("textbox", { name: "Workspace document" }).fill("/code");
-    await page.getByRole("listbox", { name: "Insert block" }).getByRole("option", { name: /Code block/ }).click();
+    await seedCodeBlock(page, request, id, html);
     const block = page.locator("[data-note-code-block]").first();
-    await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
     const source = block.getByLabel("Edit code block");
-    await pastePlainText(page, source, html);
     await expect(source).toContainText('id="counter"');
 
     await expect(block.getByRole("button", { name: "Preview HTML" })).toBeVisible();
@@ -99,16 +113,13 @@ test("HTML preview cannot access app DOM or call local API through fetch", async
   const id = await createViaAPI(page, request, `HTML isolation ${Date.now()}`);
   try {
     await selectView(page, "Note");
-    await page.getByRole("textbox", { name: "Workspace document" }).fill("/code");
-    await page.getByRole("listbox", { name: "Insert block" }).getByRole("option", { name: /Code block/ }).click();
-    const block = page.locator("[data-note-code-block]").first();
-    await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
-    const source = block.getByLabel("Edit code block");
-    await pastePlainText(page, source, `<div id="state">init</div><script>
+    await seedCodeBlock(page, request, id, `<div id="state">init</div><script>
 const root = document.querySelector('#state');
 try { root.textContent = parent.document.title; } catch { root.textContent = 'parent-blocked'; }
 fetch('/api/health').then(() => root.textContent = 'network-open').catch(() => root.dataset.net = 'blocked');
 </script>`);
+    const block = page.locator("[data-note-code-block]").first();
+    const source = block.getByLabel("Edit code block");
     await expect(source).toContainText('id="state"');
     await block.getByRole("button", { name: "Preview HTML" }).click();
     await expect(block.locator('iframe[title="Interactive HTML preview"]')).toHaveAttribute('srcdoc', /id="state"/);

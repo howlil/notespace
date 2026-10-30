@@ -53,7 +53,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
         workspaces.push(await response.json());
       }
       await page.goto(`/?category=${category.id}`);
-      const list = page.getByRole("list", { name: "Category workspaces" });
+      const list = page.getByRole("group", { name: "Category workspaces" });
       await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toBeVisible();
       await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
 

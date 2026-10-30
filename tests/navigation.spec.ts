@@ -70,7 +70,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
       const createdLink = list.getByRole("link", { name: `Open ${createdTitle}` });
       await expect(createdLink).toBeVisible();
       const href = await createdLink.getAttribute("href");
-      expect(href).toMatch(/^\\/workspaces\\/[^/]+$/);
+      expect(href).toMatch(/^\/workspaces\/[^/]+$/);
       const createdId = href!.split("/").pop()!;
       workspaces.push({ id: createdId });
       const createdResponse = await request.get(`/api/workspaces/${createdId}`);

@@ -223,7 +223,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     setCategoryPageState((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
   }
 
-  // Filters and pagination are applied by the server against the complete category,
+  // Pagination is applied by the server against the complete category,
   // not just the first loaded 50 items.
   useEffect(() => {
     if (view !== "category" || !selectedCategoryId) return;

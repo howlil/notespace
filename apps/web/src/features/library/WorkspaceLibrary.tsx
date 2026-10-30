@@ -229,7 +229,6 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
     allLoadError,
     retryAll,
     retryCategory,
-    categoryPageState,
     updateCategoryPageState,
     creatingWorkspace,
     newWorkspaceTitle,
@@ -282,13 +281,11 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
                 onRename={() => beginWorkspaceRename(workspace)}
                 onDelete={() => setDeletingWorkspace(workspace)} />
             ))}
-            {(
-              <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
+            <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
                 onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
                 onChange={setNewWorkspaceTitle}
                 onSubmit={(event) => { void handleCreateWorkspace(event); }}
                 onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
-            )}
           </div>
         ) : (
           <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">

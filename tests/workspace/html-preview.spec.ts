@@ -8,16 +8,13 @@ const html = `<style>button{background:rgb(40,88,216);color:white}</style>
 });</script>`;
 
 
-async function pastePlainText(source: import("@playwright/test").Locator, value: string) {
-  // Exercise a real paste event with text/plain, not Input.insertText with embedded
-  // newlines: Input.insertText treats multiline code as paragraph insertion.
-  // ProseMirror must retain the complete plaintext within a single code block.
+async function pastePlainText(page: import("@playwright/test").Page, source: import("@playwright/test").Locator, value: string) {
+  // Dispatching a synthetic ClipboardEvent is untrusted and ProseMirror may
+  // legitimately ignore it. Exercise a genuine browser clipboard paste.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate(async (text) => navigator.clipboard.writeText(text), value);
   await source.click();
-  await source.evaluate((element, text) => {
-    const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", text);
-    element.dispatchEvent(new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }));
-  }, value);
+  await source.press("ControlOrMeta+V");
 }
 
 
@@ -30,7 +27,7 @@ test("Note HTML code block previews interactive inline markup in an isolated ifr
     const block = page.locator("[data-note-code-block]").first();
     await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
     const source = block.getByLabel("Edit code block");
-    await pastePlainText(source, html);
+    await pastePlainText(page, source, html);
     await expect(source).toContainText('id="counter"');
 
     await expect(block.getByRole("button", { name: "Preview HTML" })).toBeVisible();
@@ -107,7 +104,7 @@ test("HTML preview cannot access app DOM or call local API through fetch", async
     const block = page.locator("[data-note-code-block]").first();
     await block.getByRole("combobox", { name: "Code language" }).selectOption("xml");
     const source = block.getByLabel("Edit code block");
-    await pastePlainText(source, `<div id="state">init</div><script>
+    await pastePlainText(page, source, `<div id="state">init</div><script>
 const root = document.querySelector('#state');
 try { root.textContent = parent.document.title; } catch { root.textContent = 'parent-blocked'; }
 fetch('/api/health').then(() => root.textContent = 'network-open').catch(() => root.dataset.net = 'blocked');

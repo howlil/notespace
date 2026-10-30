@@ -41,6 +41,7 @@ import { useCanvasAssets } from "./use-canvas-assets";
 import { useCanvasFlowchart } from "./use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./use-canvas-diagram-commands";
 import { useCanvasCodeRunner } from "./use-canvas-code-runner";
+import { canvasPinchViewport } from "./canvas-pinch-zoom";
 import {
   canvasBackgroundColor,
   codeGeometryMap,
@@ -661,6 +662,46 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   useEffect(() => {
     if (editingCodeBlockId && !liveCodeElementIds.includes(editingCodeBlockId)) setEditingCodeBlockId(null);
   }, [editingCodeBlockId, liveCodeElementIds]);
+
+  useEffect(() => {
+    // Excalidraw's wheel handler accepts only select DOM targets. The authoring
+    // overlays can therefore swallow a trackpad pinch, especially in WebView2.
+    // Capture modified wheel before the Excalidraw handler; normal two-finger
+    // scrolling still reaches Excalidraw as pan, with no double zoom.
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const handlePinch = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest(".excalidraw__canvas, [data-canvas-code-block], [data-canvas-note-artifact]")) return;
+      if (target.closest('input, textarea, select, button, [contenteditable="true"], [role="toolbar"], iframe')) return;
+
+      const editor = api.current;
+      if (!editor) return;
+      const state = editor.getAppState();
+      const next = canvasPinchViewport({
+        zoom: state.zoom.value,
+        scrollX: state.scrollX,
+        scrollY: state.scrollY,
+      }, event, surface.getBoundingClientRect());
+      if (!next) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      editor.updateScene({
+        appState: {
+          zoom: { value: next.zoom as AppState["zoom"]["value"] },
+          scrollX: next.scrollX,
+          scrollY: next.scrollY,
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    };
+    surface.addEventListener("wheel", handlePinch, { capture: true, passive: false });
+    return () => surface.removeEventListener("wheel", handlePinch, true);
+  }, []);
 
   useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);

@@ -2,7 +2,7 @@
 
 A free, self-hosted knowledge workspace for structured notes, spatial thinking, and deliberate study.
 
-The Navigation v8 product model (integration PR #184, not yet merged into `master`) is:
+The Navigation v8 product model (integrated into `master` through PR #184) is:
 
 ```text
 Home

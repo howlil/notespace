@@ -30,14 +30,22 @@ jobs:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - name: Build web for PR
+        if: github.event_name == 'pull_request'
+        run: pnpm --filter @notespace/web build
+      - name: Build web and landing on master
+        if: github.event_name == 'push'
+        run: pnpm build
       - run: pnpm typecheck && pnpm lint && pnpm test
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Run full browser suite
-        # One complete suite includes @critical journeys; don't rerun them.
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+      # Fast PR proof; complete browser regression protects the release SHA.
+      - name: Run critical browser suite on PR
+        if: github.event_name == 'pull_request'
+        run: pnpm exec playwright test --grep @critical
+      - name: Run full browser suite on master
+        if: github.event_name == 'push'
         run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4
         if: always()
@@ -47,10 +55,14 @@ jobs:
             test-results/*.png
             playwright-report/
           retention-days: 7
+      # Full deployment durability remains a fail-closed master release gate.
       - run: docker compose -f compose.yaml config
+        if: github.event_name == 'push'
       - run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
+        if: github.event_name == 'push'
       - run: python3 scripts/smoke-persistence.py --compose-restart
+        if: github.event_name == 'push'
         env:
           COMPOSE_FILE: compose.yaml:compose.ci.yaml
       - run: docker compose -f compose.yaml -f compose.ci.yaml logs && docker compose -f compose.yaml -f compose.ci.yaml down
-        if: always()
+        if: always() && github.event_name == 'push'

@@ -17,7 +17,7 @@ test("Windows native WebView2 acceptance runs on compatible image without bypass
 });
 
 test("Latest Windows builds and Rust tests remain mandatory without fake UI acceptance", () => {
-  assert.match(desktop, /check-desktop-windows-latest:\s+runs-on: windows-latest/);
+  assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: github\.event_name == 'push'\s+runs-on: windows-latest/);
   assert.match(desktop, /name: Native Rust tests on current Windows/);
   assert.match(desktop, /name: Build desktop on current Windows/);
 });

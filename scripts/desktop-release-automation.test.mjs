@@ -123,9 +123,11 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   }
   assert.match(beta, /cancel-in-progress: false/);
-  // Full E2E is required on PRs as well as master; retain PR-only cancellation
-  // so new PR commits cancel obsolete runs without interrupting release CI.
-  assert.match(basic, /name: Run full browser suite[\s\S]*?if: github\.event_name == 'pull_request' \|\| github\.event_name == 'push'\s+run: pnpm exec playwright test/);
+  // PR critical journeys and master full regression are distinct gates.
+  assert.match(basic, /name: Run critical browser suite on PR[\s\S]*?if: github\.event_name == 'pull_request'\s+run: pnpm exec playwright test --grep @critical/);
+  assert.match(basic, /name: Run full browser suite on master[\s\S]*?if: github\.event_name == 'push'\s+run: pnpm exec playwright test/);
+  assert.match(basic, /docker compose -f compose\.yaml -f compose\.ci\.yaml up --build -d --wait\s+if: github\.event_name == 'push'/);
+  assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: github\.event_name == 'push'\s+runs-on: windows-latest/);
 });
 
 test("free beta produces signed Tauri updater artifacts without Azure publisher certificates", () => {

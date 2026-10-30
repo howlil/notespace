@@ -695,9 +695,10 @@ find lowest owning boundary
 Verification escalates from nearest test → affected package → static checks → affected integration boundary → critical E2E when the user journey changed → full release verification when appropriate.
 
 CI intent:
-- pull requests prove merge safety with static checks, Go race tests, integration tests, critical E2E journeys, and Docker persistence smoke;
-- pushes to the default branch additionally run the full Playwright suite;
-- scale, migration compatibility, and other expensive evidence remain explicit release/scheduled checks rather than everyday inner-loop tests.
+- PR: web build, static checks, Node/Go tests (including race), critical browser journeys, desktop policy checks, and Windows 2022 native close/reopen;
+- master: complete web + landing build, full browser suite, Docker restart/persistence, Linux Tauri build and Windows-latest compatibility, plus Windows 2022 native acceptance;
+- beta release remains blocked until Verify and Verify Desktop both succeed on the exact master SHA; failed, skipped, or cancelled master checks never authorize publication;
+- scale and migration compatibility remain release/scheduled evidence rather than inner-loop tests.
 
 ## Desktop runtime boundary
 

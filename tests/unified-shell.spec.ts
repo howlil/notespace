@@ -11,6 +11,8 @@ test("@critical Home owns one fixed sidebar and no duplicate navigation", async 
   await expect(page.getByRole("navigation", { name: "Library views" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Toggle category explorer" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Search Notespace/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Notespace settings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "How to use Notespace" })).toBeVisible();
 });
 
 test("@critical fixed Home sidebar survives compact layout", async ({ page }) => {

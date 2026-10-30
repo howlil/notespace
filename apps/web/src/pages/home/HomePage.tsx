@@ -2,6 +2,8 @@ import { LibraryPageShell } from "../_shared/LibraryPageShell";
 import { LibrarySidebar } from "../_shared/LibrarySidebar";
 import type { CategorySummary, WorkspacePage } from "../../domain/workspace/workspace";
 import { WorkspaceLibrary } from "../../features/library/WorkspaceLibrary";
+import { SettingsTrigger } from "../../features/settings/AppSettings";
+import { WorkspaceGuide } from "../../features/workspace-authoring/ui/WorkspaceGuide";
 import { useWorkspaceLibrary } from "../../features/library/use-workspace-library";
 
 type Props = {
@@ -15,6 +17,7 @@ export function HomePage(props: Props) {
 
   return (
     <LibraryPageShell dashboard page="library" selectedCategoryId={library.selectedCategoryId}
+      headerActions={<><SettingsTrigger className="!size-8" /><WorkspaceGuide /></>}
       sidebar={<LibrarySidebar categories={library.categoryItems} selectedCategoryId={library.selectedCategoryId}
         onSelectCategory={(id) => { void library.selectCategory(id); }} onChanged={library.refreshLibrary} />}
     >

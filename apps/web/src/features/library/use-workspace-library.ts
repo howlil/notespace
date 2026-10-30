@@ -9,8 +9,8 @@ import { errorMessage } from "../../shared/lib/error-message";
 import { useToast } from "../../shared/ui/toast-provider";
 
 export type LibraryView = "all" | "category";
-export type CategoryWorkspaceFilters = { query: string; sort: "" | "created" | "name" | "notes"; hasCanvas: boolean; hasNotes: boolean; offset: number };
-const defaultCategoryFilters: CategoryWorkspaceFilters = { query: "", sort: "", hasCanvas: false, hasNotes: false, offset: 0 };
+export type CategoryWorkspacePageState = { offset: number };
+const defaultCategoryPageState: CategoryWorkspacePageState = { offset: 0 };
 
 export type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
@@ -28,7 +28,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
   const pageRequestGeneration = useRef(0);
   const categorySnapshotRef = useRef<{ key: string; token: string } | null>(
     initialSelectedCategoryId && initialCategoryPage?.snapshot
-      ? { key: JSON.stringify({ category: initialSelectedCategoryId, query: "", sort: "", hasCanvas: false, hasNotes: false }), token: initialCategoryPage.snapshot }
+      ? { key: initialSelectedCategoryId, token: initialCategoryPage.snapshot }
       : null,
   );
   const allSnapshotRef = useRef<string | null>(null);
@@ -40,8 +40,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
   const [pageLoading, setPageLoading] = useState(!initialSelectedCategoryId);
   const [allLoadError, setAllLoadError] = useState<string | null>(null);
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
-  const [categorySearch, setCategorySearch] = useState("");
-  const [categoryFilters, setCategoryFilters] = useState<CategoryWorkspaceFilters>(defaultCategoryFilters);
+  const [categoryPageState, setCategoryPageState] = useState<CategoryWorkspacePageState>(defaultCategoryPageState);
   const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
 
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
@@ -160,7 +159,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
   function selectCategory(id: string, force = false) {
     if (id === selectedCategoryId && !force) return;
     if (id === selectedCategoryId && force) {
-      setCategoryFilters((current) => ({ ...current }));
+      setCategoryPageState((current) => ({ ...current }));
       return;
     }
     // URL is the single owner of category selection; the route effect loads one page.
@@ -199,9 +198,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     setPage(null);
     setCategoryLoadError(null);
     setAllLoadError(null);
-    setCategoryFilters({ ...defaultCategoryFilters });
-    // URL category changes must clear the displayed search as well as its server filter.
-    setCategorySearch("");
+    setCategoryPageState({ ...defaultCategoryPageState });
     if (nextCategory) {
       setPageLoading(true);
     } else {
@@ -220,10 +217,10 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     }
   }, [categoryItems, routeCategory]);
 
-  function updateCategoryFilters(patch: Partial<CategoryWorkspaceFilters>) {
+  function updateCategoryPageState(patch: Partial<CategoryWorkspacePageState>) {
     if (patch.offset === undefined) categorySnapshotRef.current = null;
     setPageLoading(true);
-    setCategoryFilters((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
+    setCategoryPageState((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
   }
 
   // Filters and pagination are applied by the server against the complete category,
@@ -238,14 +235,14 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     setPageLoading(true);
     setPage(null);
     setCategoryLoadError(null);
-    const key = JSON.stringify({ category: selectedCategoryId, query: categoryFilters.query, sort: categoryFilters.sort, hasCanvas: categoryFilters.hasCanvas, hasNotes: categoryFilters.hasNotes });
+    const key = selectedCategoryId;
     const session = categorySnapshotRef.current;
-    if (categoryFilters.offset > 0 && (!session || session.key !== key)) {
-      setCategoryFilters((current) => ({ ...current, offset: 0 }));
+    if (categoryPageState.offset > 0 && (!session || session.key !== key)) {
+      setCategoryPageState((current) => ({ ...current, offset: 0 }));
       return;
     }
     const snapshot = session?.key === key ? session.token : "start";
-    void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, limit: 50, snapshot })
+    void listCategoryWorkspaces(selectedCategoryId, { ...categoryPageState, limit: 50, snapshot })
       .then((result) => {
         if (pageRequestGeneration.current === generation) {
           if (result.snapshot) categorySnapshotRef.current = { key, token: result.snapshot };
@@ -256,7 +253,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
         if (pageRequestGeneration.current === generation) {
           if (err instanceof APIError && err.status === 409 && snapshot !== "start") {
             categorySnapshotRef.current = null;
-            setCategoryFilters((current) => ({ ...current, offset: 0 }));
+            setCategoryPageState((current) => ({ ...current, offset: 0 }));
             return;
           }
           const message = err instanceof Error ? err.message : "Could not load category workspaces.";
@@ -267,16 +264,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
       .finally(() => {
         if (pageRequestGeneration.current === generation) setPageLoading(false);
       });
-  }, [selectedCategoryId, view, categoryFilters, showToast]);
-
-  useEffect(() => {
-    if (view !== "category") return;
-    const timeout = window.setTimeout(() => {
-      const query = categorySearch.trim();
-      setCategoryFilters((current) => current.query === query ? current : { ...current, query, offset: 0 });
-    }, 240);
-    return () => window.clearTimeout(timeout);
-  }, [categorySearch, view]);
+  }, [selectedCategoryId, view, categoryPageState, showToast]);
 
   async function openAll(offset = 0, preserveSnapshot = false) {
     const generation = ++pageRequestGeneration.current;
@@ -344,12 +332,12 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
           void navigate({ to: "/" });
           return;
         }
-        void listCategoryWorkspaces(selectedCategoryId, { ...categoryFilters, offset: 0, limit: 50, snapshot: "start" })
+        void listCategoryWorkspaces(selectedCategoryId, { ...categoryPageState, offset: 0, limit: 50, snapshot: "start" })
           .then((result) => {
             if (generation === pageRequestGeneration.current) {
-              categorySnapshotRef.current = { key: JSON.stringify({ category: selectedCategoryId, query: categoryFilters.query, sort: categoryFilters.sort, hasCanvas: categoryFilters.hasCanvas, hasNotes: categoryFilters.hasNotes }), token: result.snapshot ?? "" };
+              categorySnapshotRef.current = { key: selectedCategoryId, token: result.snapshot ?? "" };
               setPage(result);
-              if (categoryFilters.offset !== 0) setCategoryFilters((current) => ({ ...current, offset: 0 }));
+              if (categoryPageState.offset !== 0) setCategoryPageState((current) => ({ ...current, offset: 0 }));
             }
           })
           .catch((err) => {
@@ -367,7 +355,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
           showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
         }
       });
-  }, [categoryFilters, navigate, selectedCategoryId, showToast, view]);
+  }, [categoryPageState, navigate, selectedCategoryId, showToast, view]);
 
   useEffect(() => {
     if (handledLibraryRevision.current === libraryRevision) return;
@@ -393,11 +381,9 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     categoryLoadError,
     allLoadError,
     retryAll: () => { void openAll(0); },
-    retryCategory: () => setCategoryFilters((current) => ({ ...current })),
-    categorySearch,
-    setCategorySearch,
-    categoryFilters,
-    updateCategoryFilters,
+    retryCategory: () => setCategoryPageState((current) => ({ ...current })),
+    categoryPageState,
+    updateCategoryPageState,
     creatingWorkspace,
     newWorkspaceTitle,
     createLoading,

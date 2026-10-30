@@ -70,7 +70,7 @@ test("Quick Open does not report an empty result during pending search or retrya
   expect(requests).toBe(2);
 });
 
-test("Category search clears after changing categories and does not hide destination workspaces", async ({ page, request }) => {
+test("Switching categories replaces the visible workspaces without stale results", async ({ page, request }) => {
   const suffix = Date.now();
   const categoryAName = `Filter Source ${suffix}`;
   const categoryBName = `Filter Target ${suffix}`;
@@ -93,19 +93,20 @@ test("Category search clears after changing categories and does not hide destina
     }
 
     await page.goto(`/?category=${categories[0]}`);
-    const search = page.getByRole("searchbox", { name: "Search category workspaces" });
     const categoryCard = page.getByRole("link", { name: `Open ${workspaceAName}` });
     await expect(categoryCard).toBeVisible();
     await expect(categoryCard.locator("article")).toHaveClass(/bg-accent/);
     await expect(page.getByRole("group", { name: "Category workspaces" })).toBeVisible();
-    await search.fill(`no-match-${suffix}`);
-    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: `Open ${workspaceBName}` })).toHaveCount(0);
 
     await page.getByRole("navigation", { name: "Categories" })
       .getByText(categoryBName, { exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`category=${categories[1]}`));
-    await expect(search).toHaveValue("");
     await expect(page.getByRole("link", { name: `Open ${workspaceBName}` }).locator("article")).toHaveClass(/bg-accent/);
+    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toHaveCount(0);
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`category=${categories[0]}`));
+    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toBeVisible();
   } finally {
     for (const id of workspaces) {
       await deleteWorkspace(request, id).catch(() => undefined);

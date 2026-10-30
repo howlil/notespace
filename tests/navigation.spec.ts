@@ -57,7 +57,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toBeVisible();
       await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
 
-      await expect(page.getByRole("heading", { name: category.title, exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: category.title, exact: true, level: 2 })).toBeVisible();
       await expect(page.getByRole("searchbox", { name: "Search category workspaces" })).toHaveCount(0);
       await expect(page.getByRole("combobox", { name: "Sort category workspaces" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Has notes" })).toHaveCount(0);

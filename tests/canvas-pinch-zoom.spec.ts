@@ -40,6 +40,26 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
 
     expect(await wheel(8, true)).toBe(false);
     await expect(reset).toHaveAttribute("aria-label", "Reset zoom from 100% to 100%");
+
+    // Regression boundary: Excalidraw's own wheel handler ignores HTMLElement
+    // overlay targets. The Canvas input bridge must still zoom these elements.
+    await page.getByRole("toolbar", { name: "Canvas tools" })
+      .getByRole("button", { name: "Code block", exact: true }).click();
+    const overlay = page.locator("[data-canvas-code-block]").first();
+    await expect(overlay).toBeVisible();
+    const handled = await overlay.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return element.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -8,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }));
+    });
+    expect(handled).toBe(false);
+    await expect(reset).toHaveAttribute("aria-label", "Reset zoom from 108% to 100%");
   } finally {
     await deleteWorkspace(request, id);
     await request.delete(`/api/trash/${id}`).catch(() => undefined);

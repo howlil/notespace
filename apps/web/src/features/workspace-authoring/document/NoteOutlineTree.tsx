@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { cn } from "../../../shared/ui";
 import { visibleNoteOutline, type NoteOutlineItem } from "./note-outline";
 
@@ -15,12 +16,27 @@ export function NoteOutlineTree({
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
 }) {
+  const outlineRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const outline = outlineRef.current;
+    if (!outline || !activeId || outline.matches(":hover") || outline.contains(document.activeElement)) return;
+    const active = outline.querySelector<HTMLElement>('[aria-current="location"]');
+    if (!active) return; // The active heading may be hidden under a collapsed ancestor.
+    const viewport = outline.getBoundingClientRect();
+    const row = active.getBoundingClientRect();
+    // Adjust only this tree's scroll position. Native scrollIntoView would
+    // also move the outer Note pane, stealing scroll/focus from the editor.
+    if (row.top < viewport.top) outline.scrollTop += row.top - viewport.top;
+    else if (row.bottom > viewport.bottom) outline.scrollTop += row.bottom - viewport.bottom;
+  }, [activeId, collapsed]);
+
   if (!items.length) {
     return <p className="m-0 px-3 py-4 text-[11px] leading-5 text-muted">Add a heading to navigate this note.</p>;
   }
 
   return (
-    <nav className="notespace-note-outline-scroll min-h-0 flex-1 overflow-y-auto py-1" aria-label="Note outline">
+    <nav ref={outlineRef} className="notespace-note-outline-scroll min-h-0 flex-1 overflow-y-auto py-1" aria-label="Note outline">
       {visibleNoteOutline(items, collapsed).map((item) => {
         const expanded = !collapsed.has(item.id);
         const active = activeId === item.id;

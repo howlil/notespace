@@ -193,6 +193,8 @@ export default function DocumentEditor({
   openCanvasFrameRef.current = onOpenCanvasFrame;
   const navigatePanelRef = useRef<HTMLElement>(null);
   const navigateOpenRef = useRef(false);
+  const navigateModeRef = useRef<"outline" | "find">("outline");
+  const articleModeRef = useRef(articleMode);
   const navigateTriggerRef = useRef<HTMLButtonElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -206,6 +208,8 @@ export default function DocumentEditor({
   const [collapsedHeadingIds, setCollapsedHeadingIds] = useState<Set<string>>(() => new Set());
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   navigateOpenRef.current = navigateOpen;
+  navigateModeRef.current = navigateMode;
+  articleModeRef.current = articleMode;
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setNavigateRevision] = useState(0);
   const [findTerm, setFindTerm] = useState("");
@@ -243,7 +247,7 @@ export default function DocumentEditor({
       if (!(target instanceof Node)) return;
       if (navigatePanelRef.current?.contains(target) || navigateTriggerRef.current?.contains(target)) return;
       // Docked outline is persistent while editing; overlay dismisses outside.
-      if (articleMode && (documentRef.current?.clientWidth ?? 0) >= 850) return;
+      if (navigateMode === "outline" && articleMode && (documentRef.current?.clientWidth ?? 0) >= 850) return;
       editorRef.current?.commands.clearSearch();
       setFindTerm("");
       setNavigateOpen(false);
@@ -263,7 +267,7 @@ export default function DocumentEditor({
       document.removeEventListener("pointerdown", closeFromOutside, true);
       document.removeEventListener("keydown", escapeNavigate, true);
     };
-  }, [navigateOpen, articleMode]);
+  }, [navigateOpen, navigateMode, articleMode]);
 
   useEffect(() => {
     if (!navigateOpen || navigateMode !== "find") return;
@@ -300,7 +304,11 @@ export default function DocumentEditor({
   }
 
   function syncSelectionMenu(nextEditor: Editor) {
-    if (navigateOpenRef.current) {
+    // The docked Outline is persistent document chrome, not an open popup.
+    // Allow ordinary text-selection formatting while it remains on screen.
+    const dockedOutline = navigateModeRef.current === "outline" && articleModeRef.current
+      && (documentRef.current?.clientWidth ?? 0) >= 850;
+    if (navigateOpenRef.current && !dockedOutline) {
       setSelectionMenu(null);
       setLinkEditing(false);
       return;
@@ -736,7 +744,7 @@ export default function DocumentEditor({
               <div className="flex items-center gap-0.5">
                 {navigateMode === "outline" ? (
                   <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent" aria-label="Find in this note"
-                    onClick={() => { setNavigateMode("find"); setFindTerm(""); }}>
+                    onClick={() => { setNavigateMode("find"); setFindTerm(""); setSelectionMenu(null); setLinkEditing(false); }}>
                     <Search size={13} />
                   </IconButton>
                 ) : (

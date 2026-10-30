@@ -155,3 +155,70 @@ test("Outline v3 keeps H1-H6 hierarchy live, collapse is local, and editor scrol
     await cleanupWorkspace(request, id);
   }
 });
+
+test("Docked Outline preserves text formatting and Find dismisses on editor click @critical", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const id = await createViaAPI(page, request, `Outline formatting ${Date.now()}`);
+  try {
+    await selectView(page, "Note");
+    const pane = page.locator('section[aria-label$="note pane"]').first();
+    const editor = pane.getByRole("textbox", { name: "Workspace document" });
+    const trigger = pane.getByRole("button", { name: "Navigate note" });
+    await editor.fill("Formatting should remain available");
+    await trigger.click();
+    const navigate = pane.getByRole("dialog", { name: "Navigate note" });
+    await expect(navigate).toHaveCSS("position", "relative");
+
+    await editor.locator("p").first().selectText();
+    const bold = pane.getByRole("button", { name: "Bold", exact: true });
+    await expect(bold).toBeVisible();
+    await bold.click();
+    await expect(editor.locator("strong")).toContainText("Formatting should remain available");
+    await expect(navigate).toBeVisible();
+
+    await navigate.getByRole("button", { name: "Find in this note" }).click();
+    await expect(navigate.getByRole("searchbox", { name: "Find" })).toBeFocused();
+    await editor.locator("p").first().click();
+    await expect(navigate).toHaveCount(0);
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(editor.locator("strong")).toContainText("Formatting should remain available");
+  } finally {
+    await cleanupWorkspace(request, id);
+  }
+});
+
+test("A long Outline brings its active heading into view without moving the panel's parent @critical", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 690 });
+  const id = await createViaAPI(page, request, `Outline scroll ${Date.now()}`);
+  try {
+    await selectView(page, "Note");
+    const pane = page.locator('section[aria-label$="note pane"]').first();
+    const editor = pane.getByRole("textbox", { name: "Workspace document" });
+    await editor.fill("Section 00");
+    await editor.press("ControlOrMeta+Alt+2");
+    for (let n = 1; n <= 31; n++) {
+      await editor.press("End");
+      await editor.press("Enter");
+      await editor.press("ControlOrMeta+Alt+2");
+      await page.keyboard.insertText(`Section ${String(n).padStart(2, "0")}`);
+    }
+    await pane.getByRole("button", { name: "Navigate note" }).click();
+    const outline = pane.getByRole("navigation", { name: "Note outline" });
+    await expect(outline.locator("button[aria-current='location']")).toContainText("Section 31");
+    await expect.poll(() => outline.evaluate((node) => {
+      const row = node.querySelector('[aria-current="location"]');
+      if (!row) return false;
+      const parent = node.getBoundingClientRect();
+      const rect = row.getBoundingClientRect();
+      return rect.top >= parent.top - 1 && rect.bottom <= parent.bottom + 1;
+    })).toBe(true);
+
+    // Changing active section by navigation should keep the scroll local.
+    await outline.getByRole("button", { name: "Section 00", exact: true }).click();
+    await expect(outline.locator("button[aria-current='location']")).toContainText("Section 00");
+    await expect.poll(() => outline.evaluate((node) => node.scrollTop)).toBe(0);
+    await expect(pane.getByRole("dialog", { name: "Navigate note" })).toBeVisible();
+  } finally {
+    await cleanupWorkspace(request, id);
+  }
+});

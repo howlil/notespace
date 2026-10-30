@@ -404,3 +404,42 @@
     display: none;
   }
 }
+
+/* Note Outline v3: pane-owned, border-only; no visible scrollbar or second sidebar. */
+.notespace-note-editor {
+  container: notespace-note / inline-size;
+}
+.notespace-note-navigate {
+  position: absolute;
+  z-index: 30;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(232px, calc(100% - 16px));
+  border-radius: 8px;
+  box-shadow: none;
+}
+.notespace-note-outline-scroll,
+.notespace-note-editor .ProseMirror {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.notespace-note-outline-scroll::-webkit-scrollbar,
+.notespace-note-editor .ProseMirror::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+@container notespace-note (min-width: 850px) {
+  .notespace-note-outline-dockable > .notespace-note-navigate {
+    position: relative;
+    inset: auto;
+    order: 2;
+    width: 232px;
+    flex: 0 0 232px;
+    height: 100%;
+    border: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+  }
+}

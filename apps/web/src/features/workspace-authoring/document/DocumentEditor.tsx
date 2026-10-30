@@ -58,11 +58,12 @@ import { createLocalImageExtension } from "./LocalImageNode";
 import { createDocumentSlashCommands, type DocumentSlashCommand } from "./document-slash-commands";
 import { useDocumentSnapshotSession } from "./use-document-snapshot-session";
 import { createNoteCodeBlockExtension } from "./NoteCodeBlockNode";
+import { NoteOutlineTree } from "./NoteOutlineTree";
+import type { NoteOutlineItem } from "./note-outline";
 import { useDocumentImageActions } from "./use-document-image-actions";
 
 type FocusRequest = { id: string; request: number } | null;
 type HighlightRequest = number | null;
-type OutlineItem = { id: string; level: number; text: string };
 type EditorJson = { type?: string; content?: JSONContent[] };
 type PopupPosition = ReturnType<typeof placeEditorPopup>;
 type SlashMenu = { from: number; query: string } & PopupPosition;
@@ -121,8 +122,8 @@ function selectedBlockId(editor: Editor) {
   return typeof blockId === "string" ? blockId : null;
 }
 
-function outlineItems(editor: Editor): OutlineItem[] {
-  const items: OutlineItem[] = [];
+function outlineItems(editor: Editor): NoteOutlineItem[] {
+  const items: NoteOutlineItem[] = [];
   editor.state.doc.descendants((node) => {
     if (node.type.name !== "heading") return true;
     const id = node.attrs.blockId;
@@ -192,6 +193,8 @@ export default function DocumentEditor({
   openCanvasFrameRef.current = onOpenCanvasFrame;
   const navigatePanelRef = useRef<HTMLElement>(null);
   const navigateOpenRef = useRef(false);
+  const navigateModeRef = useRef<"outline" | "find">("outline");
+  const articleModeRef = useRef(articleMode);
   const navigateTriggerRef = useRef<HTMLButtonElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -201,7 +204,12 @@ export default function DocumentEditor({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu>(null);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [navigateOpen, setNavigateOpen] = useState(false);
+  const [navigateMode, setNavigateMode] = useState<"outline" | "find">("outline");
+  const [collapsedHeadingIds, setCollapsedHeadingIds] = useState<Set<string>>(() => new Set());
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   navigateOpenRef.current = navigateOpen;
+  navigateModeRef.current = navigateMode;
+  articleModeRef.current = articleMode;
   const [toolbarTarget, setToolbarTarget] = useState<Element | null>(null);
   const [, setNavigateRevision] = useState(0);
   const [findTerm, setFindTerm] = useState("");
@@ -238,6 +246,8 @@ export default function DocumentEditor({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (navigatePanelRef.current?.contains(target) || navigateTriggerRef.current?.contains(target)) return;
+      // Docked outline is persistent while editing; overlay dismisses outside.
+      if (navigateMode === "outline" && articleMode && (documentRef.current?.clientWidth ?? 0) >= 850) return;
       editorRef.current?.commands.clearSearch();
       setFindTerm("");
       setNavigateOpen(false);
@@ -257,13 +267,13 @@ export default function DocumentEditor({
       document.removeEventListener("pointerdown", closeFromOutside, true);
       document.removeEventListener("keydown", escapeNavigate, true);
     };
-  }, [navigateOpen]);
+  }, [navigateOpen, navigateMode, articleMode]);
 
   useEffect(() => {
-    if (!navigateOpen) return;
+    if (!navigateOpen || navigateMode !== "find") return;
     findInputRef.current?.focus();
     findInputRef.current?.select();
-  }, [navigateOpen]);
+  }, [navigateOpen, navigateMode]);
 
   function syncSlashMenu(nextEditor: Editor) {
     const { selection } = nextEditor.state;
@@ -294,7 +304,11 @@ export default function DocumentEditor({
   }
 
   function syncSelectionMenu(nextEditor: Editor) {
-    if (navigateOpenRef.current) {
+    // The docked Outline is persistent document chrome, not an open popup.
+    // Allow ordinary text-selection formatting while it remains on screen.
+    const dockedOutline = navigateModeRef.current === "outline" && articleModeRef.current
+      && (documentRef.current?.clientWidth ?? 0) >= 850;
+    if (navigateOpenRef.current && !dockedOutline) {
       setSelectionMenu(null);
       setLinkEditing(false);
       return;
@@ -423,6 +437,7 @@ export default function DocumentEditor({
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
           event.preventDefault();
           closeHeaderMenus();
+          setNavigateMode("find");
           setNavigateOpen(true);
           dismissSlashMenu();
           setSelectionMenu(null);
@@ -499,6 +514,49 @@ export default function DocumentEditor({
   }, [editor, navigateOpen]);
 
   useEffect(() => {
+    if (!editor || !navigateOpen || navigateMode !== "outline") return;
+    const container = editor.view.dom;
+    let frame = 0;
+    const updateFromSelection = () => {
+      const cursor = editor.state.selection.from;
+      let current: string | null = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (pos > cursor) return false;
+        if (node.type.name === "heading" && typeof node.attrs.blockId === "string") current = node.attrs.blockId;
+        return true;
+      });
+      setActiveHeadingId((existing) => existing === current ? existing : current);
+    };
+    const updateFromScroll = () => {
+      frame = 0;
+      const scrollTop = container.getBoundingClientRect().top + 65;
+      let nearest: string | null = null;
+      let first: string | null = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name !== "heading" || typeof node.attrs.blockId !== "string") return true;
+        const element = editor.view.nodeDOM(pos);
+        if (!(element instanceof HTMLElement)) return true;
+        first ??= node.attrs.blockId;
+        if (element.getBoundingClientRect().top <= scrollTop) nearest = node.attrs.blockId;
+        return true;
+      });
+      const current = nearest ?? first;
+      setActiveHeadingId((existing) => existing === current ? existing : current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(updateFromScroll);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    editor.on("selectionUpdate", updateFromSelection);
+    updateFromScroll();
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      editor.off("selectionUpdate", updateFromSelection);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [editor, navigateOpen, navigateMode]);
+
+  useEffect(() => {
     if (!editor) return;
     editor.setOptions({
       editorProps: {
@@ -544,7 +602,8 @@ export default function DocumentEditor({
     editor.chain().focus().setTextSelection(position).scrollIntoView().run();
     editor.commands.clearSearch();
     setFindTerm("");
-    setNavigateOpen(false);
+    setActiveHeadingId(blockId);
+    if (!articleMode || (documentRef.current?.clientWidth ?? 0) < 850) setNavigateOpen(false);
   }
 
   function updateSearchTerm(value: string) {
@@ -576,7 +635,7 @@ export default function DocumentEditor({
     dismissSlashMenu();
     setSelectionMenu(null);
     if (navigateOpen) closeNavigate();
-    else setNavigateOpen(true);
+    else { setNavigateMode("outline"); setNavigateOpen(true); }
   }
 
   function applyLink() {
@@ -628,7 +687,7 @@ export default function DocumentEditor({
   if (!editor) return <div className="grid flex-1 place-items-center p-10 text-center text-xs text-muted" role="status">Opening document…</div>;
 
   const filteredCommands = slashCommands.filter((command) => `${command.label} ${command.keywords}`.toLowerCase().includes((slashMenu?.query ?? "").toLowerCase()));
-  const outline = navigateOpen && !findTerm.trim() ? outlineItems(editor) : [];
+  const outline = navigateOpen && navigateMode === "outline" ? outlineItems(editor) : [];
   const findStorage = editor.storage.findAndReplace as FindStorage;
   const findTotal = findStorage.results.length;
   const findCurrent = findStorage.currentIndex === null ? 0 : findStorage.currentIndex + 1;
@@ -640,7 +699,7 @@ export default function DocumentEditor({
       type="button"
       className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-muted hover:bg-tint hover:text-accent focus-visible:bg-tint focus-visible:text-accent"
       aria-label="Navigate note"
-      title="Find & outline (Ctrl/Cmd+F)"
+      title="Note outline (Ctrl/Cmd+F opens Find)"
       aria-expanded={navigateOpen}
       aria-controls={`note-navigate-${toolbarTargetId ?? "floating"}`}
       onClick={toggleNavigate}
@@ -650,7 +709,7 @@ export default function DocumentEditor({
   );
 
   return (
-    <div ref={documentRef} className="relative h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden">
+    <div ref={documentRef} className={cn("notespace-note-editor relative flex h-auto max-h-none min-h-0 w-full flex-1 overflow-hidden", articleMode && "notespace-note-outline-dockable")}>
       <input
         ref={imageInputRef}
         type="file"
@@ -673,32 +732,48 @@ export default function DocumentEditor({
 
       <AnimatePresence initial={false}>
         {navigateOpen && (
-          <motion.section ref={navigatePanelRef} key="note-navigate" id={`note-navigate-${toolbarTargetId ?? "floating"}`}
-            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.12, ease: "easeOut" }}
-            className="absolute right-2 top-2 z-30 flex max-h-[calc(100%_-_16px)] w-[min(320px,calc(100%_-_16px))] min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-1.5 shadow-none"
-            role="dialog" aria-label="Navigate note">
-            <div className="flex min-h-7 items-center justify-between gap-2 px-1 text-[11px] font-semibold text-ink">
-              <span>Navigate</span>
-              <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent" aria-label="Close navigate" onClick={() => closeNavigate()}><X size={13} /></IconButton>
+          <motion.section
+            ref={navigatePanelRef} key="note-navigate" id={`note-navigate-${toolbarTargetId ?? "floating"}`}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            className="notespace-note-navigate flex min-h-0 min-w-0 flex-col overflow-hidden border border-line bg-surface"
+            role="dialog" aria-label="Navigate note" aria-modal="false"
+          >
+            <div className="flex h-[34px] shrink-0 items-center justify-between gap-1 px-2">
+              <span className="px-1 text-[11px] font-semibold text-ink">{navigateMode === "find" ? "Find" : "Outline"}</span>
+              <div className="flex items-center gap-0.5">
+                {navigateMode === "outline" ? (
+                  <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent" aria-label="Find in this note"
+                    onClick={() => { setNavigateMode("find"); setFindTerm(""); setSelectionMenu(null); setLinkEditing(false); }}>
+                    <Search size={13} />
+                  </IconButton>
+                ) : (
+                  <Button type="button" variant="ghost" size="sm" className="!min-h-6 px-2 text-[10px]"
+                    onClick={() => { editor.commands.clearSearch(); setFindTerm(""); setNavigateMode("outline"); }}>Outline</Button>
+                )}
+                <IconButton type="button" className="!size-6 text-muted hover:bg-tint hover:text-accent" aria-label="Close navigate" onClick={() => closeNavigate()}>
+                  <X size={13} />
+                </IconButton>
+              </div>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-line bg-background px-2">
-              <Search size={13} className="shrink-0 text-muted" aria-hidden="true" />
-              <Input ref={findInputRef} type="search" value={findTerm}
-                onChange={(event) => updateSearchTerm(event.target.value)}
-                className="!min-h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-[11px]"
-                placeholder="Find in note…" aria-label="Find" />
-            </div>
-            {findTerm.trim() ? (
-              <div className="min-h-0 overflow-auto">
-                <div className="flex items-center justify-between gap-1 px-1 py-1">
+
+            {navigateMode === "find" ? (
+              <div className="notespace-note-outline-scroll flex min-h-0 flex-col gap-1 overflow-y-auto px-2 pb-2">
+                <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-line bg-background px-2">
+                  <Search size={13} className="shrink-0 text-muted" aria-hidden="true" />
+                  <Input ref={findInputRef} type="search" value={findTerm}
+                    onChange={(event) => updateSearchTerm(event.target.value)}
+                    className="!min-h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 text-[11px]"
+                    placeholder="Find in note…" aria-label="Find" />
+                </div>
+                <div className="flex items-center justify-between gap-1 py-1">
                   <span className="text-[10px] tabular-nums text-muted" aria-live="polite">{findCurrent} / {findTotal} matches</span>
                   <div className="flex items-center gap-0.5">
                     <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-accent disabled:opacity-40" aria-label="Previous result" disabled={!findTotal} onClick={() => editor.commands.goToPreviousResult()}><ChevronUp size={14} /></IconButton>
                     <IconButton type="button" className="!size-7 text-muted hover:bg-tint hover:text-accent disabled:opacity-40" aria-label="Next result" disabled={!findTotal} onClick={() => editor.commands.goToNextResult()}><ChevronDown size={14} /></IconButton>
                   </div>
                 </div>
-                <div className="max-h-32 min-h-0 overflow-y-auto">
+                <div className="notespace-note-outline-scroll max-h-44 min-h-0 overflow-y-auto">
                   {findTotal ? findStorage.results.slice(0, 30).map((result, index) => (
                     <Button key={`${result.from}:${result.to}:${index}`} type="button" variant="ghost" size="sm"
                       className="!min-h-7 flex w-full min-w-0 justify-start rounded-md px-2 py-1 text-left text-[11px] text-ink hover:bg-tint"
@@ -709,26 +784,28 @@ export default function DocumentEditor({
                     </Button>
                   )) : <div className="px-2 py-2 text-[10px] text-muted">No matches</div>}
                 </div>
-                <div className="mt-1 flex min-w-0 items-center gap-1 border-t border-line pt-1.5">
+                <div className="flex min-w-0 items-center gap-1 border-t border-line pt-2">
                   <Input value={replaceTerm} onChange={(event) => updateReplaceTerm(event.target.value)}
                     className="!min-h-8 min-w-0 flex-1 bg-background px-2 py-1 text-[10px]" placeholder="Replace with" aria-label="Replace with" />
                   <IconButton type="button" aria-pressed={findStorage.caseSensitive} className="!size-7 text-muted hover:bg-tint hover:text-accent aria-pressed:bg-tint aria-pressed:text-accent" aria-label="Match case" onClick={() => editor.commands.setCaseSensitive(!findStorage.caseSensitive)}><CaseSensitive size={14} /></IconButton>
                 </div>
-                <div className="mt-1 flex justify-end gap-1">
+                <div className="flex justify-end gap-1">
                   <Button type="button" variant="ghost" size="sm" className="!min-h-7 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replace()}>Replace</Button>
                   <Button type="button" variant="ghost" size="sm" className="!min-h-7 px-2 py-1 text-[10px]" disabled={!findTotal} onClick={() => editor.commands.replaceAll()}>Replace all</Button>
                 </div>
               </div>
             ) : (
-              <nav className="min-h-0 overflow-y-auto pt-1" aria-label="Note outline">
-                <div className="px-2 py-1 text-[10px] font-medium text-muted">Outline</div>
-                {outline.length ? outline.map((item) => (
-                  <Button key={item.id} type="button" variant="ghost" size="sm"
-                    className="!min-h-7 block w-full truncate rounded-md px-2 py-1.5 text-left text-[11px] text-ink hover:bg-tint"
-                    style={{ paddingLeft: `${8 + Math.max(0, item.level - 1) * 10}px` }}
-                    onClick={() => focusHeading(item.id)}>{item.text}</Button>
-                )) : <p className="m-0 px-2 py-3 text-[10px] leading-4 text-muted">Add headings to navigate long notes.</p>}
-              </nav>
+              <NoteOutlineTree
+                items={outline}
+                collapsed={collapsedHeadingIds}
+                activeId={activeHeadingId}
+                onToggle={(id) => setCollapsedHeadingIds((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(id)) next.delete(id); else next.add(id);
+                  return next;
+                })}
+                onSelect={focusHeading}
+              />
             )}
           </motion.section>
         )}

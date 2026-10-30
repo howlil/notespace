@@ -1,6 +1,6 @@
 # Notespace Design Contract
 
-This file defines the current design direction for Navigation v8 under [Issue #173](https://github.com/howlil/notespace/issues/173), staged in draft [PR #184](https://github.com/howlil/notespace/pull/184). It is not a claim that v8 is already merged or publicly released. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative.
+This file defines Navigation v8 and its Home/Workspace chrome follow-up under [Issue #186](https://github.com/howlil/notespace/issues/186). Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Source changes alone do not constitute a public release.
 
 ## Decision order
 
@@ -12,9 +12,9 @@ Notespace is a self-hosted, compact writing and spatial knowledge workspace. Mak
 
 ## Canonical navigation
 
-- **Home:** one 228px Category Explorer, category expand/collapse and selection, all Workspaces, and Quick Open. No 44px global rail, Recent/All destination tabs, Today, Inbox/Capture Queue, Quick Capture or separate Activity dashboard. Category disclosure does not mutate browser history; category selection is addressable and works with Back/Forward.
+- **Home:** one 228px Category Explorer, category expand/collapse and selection, the same cobalt paper-stack card grid in All Workspaces and Category, and Quick Open. No 44px global rail, Recent/All destination tabs, Today, Inbox/Capture Queue, Quick Capture or separate Activity dashboard. Category disclosure does not mutate browser history; category selection is addressable and works with Back/Forward.
 - **Workspace (web):** its own full-height 40px rail. Back at the top; Canvas, Note, Split centered; Activity and Focus at the bottom. The authored surface is full-bleed and border-only, with no extra Home Explorer or Plan view.
-- **Workspace (Tauri):** the same rail is portaled into a 40px full-height column. An adjacent 38px custom titlebar owns Back, live Workspace title and centered Search. No duplicate Back or logo. If custom titlebar activation fails, retain native window decorations and rail Back rather than losing navigation.
+- **Workspace (Tauri):** the same rail, with a single Back at the top, is portaled into a 40px full-height column. An adjacent 38px draggable titlebar retains window controls without Workspace title, Back, or Search. Ctrl/Cmd+K still opens Quick Open. If custom titlebar activation fails, keep native decorations and inline rail Back.
 - **Settings:** one accessible Settings modal with General and Data & Backup, including import, portable backup/restore, Trash and desktop SQLite backups. Search/Quick Open opens Settings without resurrecting a global sidebar.
 - **Activity:** ActivityRuntime and ActivityDock stay mounted across route navigation; session Start/Pause/Resume/End is Workspace-contextual. Historical Task and session associations remain durable.
 - **Compatibility:** old `/today` and `/inbox` links redirect to Home. Hidden UI is not permission to delete stored Capture/Task/Milestone data, HTTP contracts, backup history or SQL migrations.
@@ -27,7 +27,7 @@ Notespace is a self-hosted, compact writing and spatial knowledge workspace. Mak
 | Authoring | `WorkspacePage`, `WorkspaceRail` | 40px rail, 34px Note header, Canvas/Note/Split panes, Focus mode |
 | Utility | Settings, Quick Open, ActivityDock | Contextual overlays with clear pending/error states and keyboard focus |
 
-Keep the restrained cobalt paper-stack Workspace identity card. Category lists should use progressive disclosure and bounded server-backed requests, not claim a truncated client page is the whole library.
+Use the restrained cobalt paper-stack Workspace identity card in both All Workspaces and Category. Category filters and pagination remain server-backed; never claim a truncated client page is the whole library.
 
 ## Workspace editor and Canvas contract
 

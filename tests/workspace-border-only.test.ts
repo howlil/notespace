@@ -19,7 +19,7 @@ test("Workspace authoring is full-bleed with one rail and accessible autosave", 
   assert.match(ws, /authoring\.selectView\(mode\)/);
   assert.doesNotMatch(ws, /<WorkspacePlan/);
   assert.match(ws, /authoring\.status\.state/);
-  assert.match(ws, /<HeaderPlacement/);
+  assert.doesNotMatch(ws, /<HeaderPlacement/);
   assert.doesNotMatch(ws, /<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
   const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
   assert.match(rail, /workspace-rail/);

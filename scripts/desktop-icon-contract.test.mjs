@@ -16,7 +16,7 @@ test("desktop icon source and bundle identity remain canonical", () => {
   assert.equal(config.identifier, "com.howlil.notespace");
   assert.deepEqual(config.bundle.icon, ["icons/fox-spirit/icon.ico", "icons/fox-spirit/icon.icns", "icons/fox-spirit/icon.png"]);
   assert.match(source, /icons", "fox-spirit"/);
-  assert.match(read(".gitignore"), /fox-spirit/);
+  assert.ok(read(".gitignore").split(/\r?\n/).includes("apps/desktop/src-tauri/icons/fox-spirit/"), "Generated native icons must be excluded by an actual ignore line");
   assert.match(source, /legacyIcoBlob/);
   assert.match(source, /legacyPngBlob/);
   assert.match(source, /assertDesktopIcons/);

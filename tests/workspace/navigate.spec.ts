@@ -28,7 +28,9 @@ test("M4 Navigate combines Outline and Tiptap Find/Replace without a duplicate C
     const outline = navigate.getByRole("navigation", { name: "Note outline" });
     await expect(outline).toContainText("Core Principles");
     await outline.getByRole("button", { name: "Core Principles" }).click();
-    await expect(navigate).toHaveCount(0);
+    // Full-width Note keeps the docked Outline open during authoring.
+    await expect(navigate).toBeVisible();
+    await expect(outline.getByRole("button", { name: "Core Principles" })).toHaveAttribute("aria-current", "location");
 
     await editor.press("ControlOrMeta+f");
     await expect(navigate).toBeVisible();
@@ -92,6 +94,63 @@ test("M4 Navigate is contained in its Note pane at narrow split widths @critical
     expect(bounds.right).toBeLessThanOrEqual(bounds.screenRight + 1);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
+  } finally {
+    await cleanupWorkspace(request, id);
+  }
+});
+
+test("Outline v3 keeps H1-H6 hierarchy live, collapse is local, and editor scrolling is scrollbar-free @critical", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const id = await createViaAPI(page, request, `Outline v3 ${Date.now()}`);
+  try {
+    await selectView(page, "Note");
+    const pane = page.locator('section[aria-label$="note pane"]').first();
+    const editor = pane.getByRole("textbox", { name: "Workspace document" });
+    const trigger = pane.getByRole("button", { name: "Navigate note" });
+
+    await trigger.click();
+    const navigate = pane.getByRole("dialog", { name: "Navigate note" });
+    const outline = navigate.getByRole("navigation", { name: "Note outline" });
+    await expect(navigate).toContainText("Add a heading to navigate this note.");
+    await navigate.getByRole("button", { name: "Close navigate" }).click();
+
+    await editor.fill("Architecture");
+    await editor.press("ControlOrMeta+Alt+2");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.press("ControlOrMeta+Alt+3");
+    await page.keyboard.type("Consistency");
+    await editor.press("Enter");
+    await editor.press("ControlOrMeta+Alt+2");
+    await page.keyboard.type("Operations");
+
+    await trigger.click();
+    await expect(outline.getByRole("button", { name: "Architecture", exact: true })).toBeVisible();
+    await expect(outline.getByRole("button", { name: "Consistency", exact: true })).toBeVisible();
+    await expect(outline.getByRole("button", { name: "Operations", exact: true })).toBeVisible();
+    await expect(navigate).toHaveCSS("position", "relative");
+    await expect(navigate).toHaveCSS("width", "232px");
+    await expect.poll(() => editor.evaluate((node) => getComputedStyle(node).scrollbarWidth)).toBe("none");
+    await expect.poll(() => outline.evaluate((node) => getComputedStyle(node).scrollbarWidth)).toBe("none");
+
+    await outline.getByRole("button", { name: "Collapse Architecture" }).click();
+    await expect(outline.getByRole("button", { name: "Consistency", exact: true })).toHaveCount(0);
+    await expect(editor).toContainText("Consistency");
+    await expect(outline.getByRole("button", { name: "Operations", exact: true })).toBeVisible();
+    await outline.getByRole("button", { name: "Expand Architecture" }).click();
+    await expect(outline.getByRole("button", { name: "Consistency", exact: true })).toBeVisible();
+
+    await editor.locator("h3").first().click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" model");
+    await expect(outline.getByRole("button", { name: "Consistency model", exact: true })).toBeVisible();
+    await expect(navigate).toBeVisible(); // Docked surface persists while typing.
+
+    await outline.getByRole("button", { name: "Operations", exact: true }).click();
+    await expect(outline.getByRole("button", { name: "Operations", exact: true })).toHaveAttribute("aria-current", "location");
+    await navigate.getByRole("button", { name: "Close navigate" }).click();
+    await expect(navigate).toHaveCount(0);
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
   } finally {
     await cleanupWorkspace(request, id);
   }

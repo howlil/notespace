@@ -133,6 +133,10 @@ test("M5 keyboard navigation, Note picker semantics and reduced-motion interacti
     await navigate.press("Enter");
     const dialog = pane.getByRole("dialog", { name: "Navigate note" });
     await expect(dialog).toBeVisible();
+    // Navigate opens Outline by default; reach Find through the same panel by keyboard.
+    const findAction = dialog.getByRole("button", { name: "Find in this note" });
+    await findAction.focus();
+    await findAction.press("Enter");
     await expect(dialog.getByRole("searchbox", { name: "Find" })).toBeFocused();
     await dialog.getByRole("searchbox", { name: "Find" }).fill("not-present");
     await expect(dialog.getByText("No matches")).toBeVisible();

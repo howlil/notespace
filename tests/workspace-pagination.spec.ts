@@ -63,8 +63,8 @@ test("Category page navigation retains one listing snapshot across a remote rena
     expect(expiredOnce).toBe(true);
     await page.unroute(categoryPath);
 
-    // Explicit re-filtering also starts a fresh traversal.
-    await page.getByRole("combobox", { name: "Sort category workspaces" }).selectOption("name");
+    // Reload creates a new snapshot after the server-side rename.
+    await page.reload();
     await expect(page.getByRole("link", { name: `Open Page -1 ${suffix}` })).toBeVisible();
   } finally {
     for (const workspace of workspaces) {

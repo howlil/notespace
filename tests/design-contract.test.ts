@@ -320,7 +320,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(WORKSPACE_LIBRARY), /<WorkspaceListSkeleton/);
 });
 
-test("layout archetypes: application pages share search shell and category queries are server-filtered", () => {
+test("layout archetypes: Home and category share cards with server-backed pagination", () => {
   const shell = source(PAGE_SHELL);
   const library = source(WORKSPACE_LIBRARY);
   const model = source(WORKSPACE_LIBRARY_MODEL);
@@ -330,10 +330,12 @@ test("layout archetypes: application pages share search shell and category queri
   assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
   assert.match(source(SIDEBAR), /notespace-sidebar-brand/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
-  assert.match(library, /aria-label="Search category workspaces"/);
-  assert.match(library, /aria-label="Sort category workspaces"/);
-  assert.match(library, /updateCategoryFilters/);
-  assert.match(model, /listCategoryWorkspaces\(selectedCategoryId, \{ \.\.\.categoryFilters, limit: 50, snapshot \}\)/);
+  assert.doesNotMatch(library, /aria-label="Search category workspaces"|aria-label="Sort category workspaces"/);
+  assert.match(library, /<NewWorkspaceCard/);
+  assert.match(source(DASHBOARD), /headerActions=/);
+  assert.match(source(DASHBOARD), /SettingsTrigger/);
+  assert.match(source(DASHBOARD), /WorkspaceGuide/);
+  assert.match(model, /listCategoryWorkspaces\(selectedCategoryId, \{ \.\.\.categoryPageState, limit: 50, snapshot \}\)/);
   assert.match(model, /categorySnapshotRef\.current/);
   assert.match(model, /pageRequestGeneration\.current === generation/);
   assert.match(library, /role="group" aria-label=\{view === "category" \? "Category workspaces" : "All workspaces"\}/);

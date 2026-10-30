@@ -94,7 +94,10 @@ test("Category search clears after changing categories and does not hide destina
 
     await page.goto(`/?category=${categories[0]}`);
     const search = page.getByRole("searchbox", { name: "Search category workspaces" });
-    await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toBeVisible();
+    const categoryCard = page.getByRole("link", { name: `Open ${workspaceAName}` });
+    await expect(categoryCard).toBeVisible();
+    await expect(categoryCard.locator("article")).toHaveClass(/bg-accent/);
+    await expect(page.getByRole("group", { name: "Category workspaces" })).toBeVisible();
     await search.fill(`no-match-${suffix}`);
     await expect(page.getByRole("link", { name: `Open ${workspaceAName}` })).toHaveCount(0);
 
@@ -102,7 +105,7 @@ test("Category search clears after changing categories and does not hide destina
       .getByText(categoryBName, { exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`category=${categories[1]}`));
     await expect(search).toHaveValue("");
-    await expect(page.getByRole("link", { name: `Open ${workspaceBName}` })).toBeVisible();
+    await expect(page.getByRole("link", { name: `Open ${workspaceBName}` }).locator("article")).toHaveClass(/bg-accent/);
   } finally {
     for (const id of workspaces) {
       await deleteWorkspace(request, id).catch(() => undefined);

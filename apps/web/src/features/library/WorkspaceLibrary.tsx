@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { FileText, Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { FormEvent } from "react";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
@@ -126,52 +126,6 @@ function WorkspaceFolderCard({
         </ContextMenuContent>
       </ContextMenu>
     </motion.div>
-  );
-}
-
-/** The category detail is an information-dense list, not another discovery grid. */
-function CategoryWorkspaceRow(props: WorkspaceFolderCardProps) {
-  const { workspace, editing, editingTitle = "", editLoading, onEditingTitleChange, onCommitTitle,
-    onCancelTitle, onRename, onDelete } = props;
-  const meta = [`${workspace.noteCount ?? 0} notes`, workspace.hasCanvas ? "Canvas" : null]
-    .filter(Boolean).join(" · ");
-  const content = (
-    <div className="flex min-h-[58px] min-w-0 items-center gap-3 px-3 py-2 hover:bg-tint/50">
-      <span className="grid size-8 shrink-0 place-items-center rounded-md border border-line bg-background text-accent"><FileText size={16} /></span>
-      <span className="min-w-0 flex-1">
-        {editing ? (
-          <Input autoFocus aria-label="Workspace title" value={editingTitle} disabled={editLoading}
-            onChange={(event) => onEditingTitleChange?.(event.target.value)}
-            onBlur={() => onCommitTitle?.()}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") { event.preventDefault(); onCommitTitle?.(); }
-              if (event.key === "Escape") { event.preventDefault(); onCancelTitle?.(); }
-            }}
-            className="!min-h-7 w-full max-w-[340px] rounded-md px-2 text-[12px]" />
-        ) : (
-          <strong className="block truncate text-[12px] font-medium text-ink">{workspace.title}</strong>
-        )}
-        <span className="block truncate text-[10px] text-muted">{meta}</span>
-      </span>
-      <time className="shrink-0 text-[10px] tabular-nums text-muted" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
-    </div>
-  );
-  return (
-    <div role="listitem">
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          {editing ? <div>{content}</div> : (
-            <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }}
-              className="block min-w-0 text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-              aria-label={`Open ${workspace.title}`}>{content}</Link>
-          )}
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={onRename}><Pencil size={13} /> Edit title</ContextMenuItem>
-          <ContextMenuItem className="text-danger" onSelect={onDelete}><Trash2 size={13} /> Delete</ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </div>
   );
 }
 
@@ -336,7 +290,7 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
         </div>
       )}
       <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton variant={view === "category" ? "list" : "cards"} /> : view === "all" && allLoadError ? (
+        {pageLoading ? <WorkspaceListSkeleton /> : view === "all" && allLoadError ? (
           <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
             <p className="m-0 text-[11px] text-danger">Workspaces could not be loaded. {allLoadError}</p>
             <Button variant="secondary" size="sm" onClick={retryAll}>Retry</Button>
@@ -347,40 +301,27 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
             <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
           </div>
         ) : items.length ? (
-          view === "category" ? (
-            <div className="divide-y divide-line border-y border-line bg-surface" role="list" aria-label="Category workspaces">
-              {items.map((workspace) => (
-                <CategoryWorkspaceRow key={workspace.id} workspace={workspace}
-                  editing={editingWorkspaceId === workspace.id}
-                  editingTitle={workspaceTitleDraft} editLoading={savingWorkspaceId === workspace.id}
-                  onEditingTitleChange={setWorkspaceTitleDraft}
-                  onCommitTitle={() => void saveWorkspaceTitle(workspace)}
-                  onCancelTitle={cancelWorkspaceRename}
-                  onRename={() => beginWorkspaceRename(workspace)}
-                  onDelete={() => setDeletingWorkspace(workspace)} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]">
-              {items.map((workspace) => (
-                <WorkspaceFolderCard key={workspace.id} workspace={workspace}
-                  categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
-                  entering={workspace.id === recentlyCreatedWorkspaceId}
-                  editing={editingWorkspaceId === workspace.id} editingTitle={workspaceTitleDraft}
-                  editLoading={savingWorkspaceId === workspace.id}
-                  onEditingTitleChange={setWorkspaceTitleDraft}
-                  onCommitTitle={() => void saveWorkspaceTitle(workspace)}
-                  onCancelTitle={cancelWorkspaceRename}
-                  onRename={() => beginWorkspaceRename(workspace)}
-                  onDelete={() => setDeletingWorkspace(workspace)} />
-              ))}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]" role="group" aria-label={view === "category" ? "Category workspaces" : "All workspaces"}>
+            {items.map((workspace) => (
+              <WorkspaceFolderCard key={workspace.id} workspace={workspace}
+                categoryTitle={categoryItems.find((category) => category.id === workspace.categoryId)?.title}
+                entering={workspace.id === recentlyCreatedWorkspaceId}
+                editing={editingWorkspaceId === workspace.id} editingTitle={workspaceTitleDraft}
+                editLoading={savingWorkspaceId === workspace.id}
+                onEditingTitleChange={setWorkspaceTitleDraft}
+                onCommitTitle={() => void saveWorkspaceTitle(workspace)}
+                onCancelTitle={cancelWorkspaceRename}
+                onRename={() => beginWorkspaceRename(workspace)}
+                onDelete={() => setDeletingWorkspace(workspace)} />
+            ))}
+            {view === "all" && (
               <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
                 onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
                 onChange={setNewWorkspaceTitle}
                 onSubmit={(event) => { void handleCreateWorkspace(event); }}
                 onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
-            </div>
-          )
+            )}
+          </div>
         ) : (
           view === "category" ? (
             <div className="border-y border-line px-3 py-8 text-center text-[11px] text-muted">

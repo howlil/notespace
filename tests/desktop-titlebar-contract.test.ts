@@ -18,9 +18,11 @@ test("desktop title bar preserves existing per-page React handlers and web heade
   const shell = source(web + "pages/_shared/LibraryPageShell.tsx");
   assert.match(shell, /<HeaderPlacement/);
   assert.match(source(web + "pages/home/HomePage.tsx"), /<LibraryPageShell/);
-  assert.match(workspace, /<HeaderPlacement/);
-  assert.match(workspace, /showBack=\{!customChromeActive\}/);
+  assert.doesNotMatch(workspace, /<HeaderPlacement|notespace-titlebar-search|OPEN_QUICK_SEARCH_EVENT/);
+  assert.doesNotMatch(workspace, /showBack=/);
   assert.match(workspace, /<WorkspaceRail/);
+  const rail = source(web + "features/workspace-authoring/ui/WorkspaceRail.tsx");
+  assert.match(rail, /aria-label="Back to library"/);
   assert.match(provider, /if \(!desktop\) return/);
   assert.match(provider, /activate_desktop_titlebar/);
 });

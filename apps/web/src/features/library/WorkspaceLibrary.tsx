@@ -257,15 +257,12 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
       <h1 id="library-list-title" className="sr-only">{heading}</h1>
       <h2 className="mb-5 text-[21px] font-semibold tracking-tight text-ink">{view === "category" ? heading : "Workspaces"}</h2>
       <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton /> : view === "all" && allLoadError ? (
+        {pageLoading ? <WorkspaceListSkeleton /> : (view === "all" ? allLoadError : categoryLoadError) ? (
           <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
-            <p className="m-0 text-[11px] text-danger">Workspaces could not be loaded. {allLoadError}</p>
-            <Button variant="secondary" size="sm" onClick={retryAll}>Retry</Button>
-          </div>
-        ) : view === "category" && categoryLoadError ? (
-          <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 border-y border-line bg-surface px-4 py-5">
-            <p className="m-0 text-[11px] text-danger">Category workspaces could not be loaded. {categoryLoadError}</p>
-            <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
+            <p className="m-0 text-[11px] text-danger">
+              {view === "category" ? "Category workspaces" : "Workspaces"} could not be loaded. {view === "all" ? allLoadError : categoryLoadError}
+            </p>
+            <Button variant="secondary" size="sm" onClick={view === "all" ? retryAll : retryCategory}>Retry</Button>
           </div>
         ) : items.length ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]" role="group" aria-label={view === "category" ? "Category workspaces" : "All workspaces"}>

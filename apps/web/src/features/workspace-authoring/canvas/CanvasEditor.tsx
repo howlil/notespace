@@ -135,6 +135,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const [noteOverlayElements, setNoteOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialNoteElements);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
+  const [previewCodeBlockId, setPreviewCodeBlockId] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState({ zoom: 1, scrollX: 0, scrollY: 0 });
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialCodeElements));
@@ -215,7 +216,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     focusEditor: focusCanvasEditor,
   } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
 
-  const canvasOverlayInteractionActive = contextualInteractionActive || diagramOpen || notePickerOpen || moreOpen || editingCodeBlockId !== null;
+  const canvasOverlayInteractionActive = contextualInteractionActive || diagramOpen || notePickerOpen || moreOpen || editingCodeBlockId !== null || previewCodeBlockId !== null;
 
   useEffect(() => {
     if (canvasOverlayInteractionActive) cancelNativeFlowchartPreview();
@@ -376,7 +377,11 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setBackgroundColor(state.viewBackgroundColor);
     const selected = selectedIds[0] ?? null;
     setSelectedElementId(selected);
-    if (selected !== lastSelected.current) { lastSelected.current = selected; onElementSelect?.(selected); }
+    if (selected !== lastSelected.current) {
+      lastSelected.current = selected;
+      setPreviewCodeBlockId(null);
+      onElementSelect?.(selected);
+    }
     setHasElements(hasLiveElements);
 
     const hasStructuredDiagrams = diagramHistoryRef.current.length > 0;
@@ -774,6 +779,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
         appDark={dark}
         selectedElementId={selectedElementId}
         editingElementId={editingCodeBlockId}
+        previewElementId={previewCodeBlockId}
         runs={codeRuns}
         onUpdate={updateCodeBlock}
         onEditingChange={setEditingCodeBlockId}
@@ -813,10 +819,13 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
                 onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
                 onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
                 onStop={() => stopCodeRun(selectedCodeElement.id)}
+                previewing={previewCodeBlockId === selectedCodeElement.id}
+                onTogglePreview={() => setPreviewCodeBlockId((current) => current === selectedCodeElement.id ? null : selectedCodeElement.id)}
                 onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
                 onDelete={() => {
                   clearCodeRun(selectedCodeElement.id);
                   setEditingCodeBlockId(null);
+                  setPreviewCodeBlockId(null);
                   runCanvasAction("deleteSelectedElements");
                 }}
               />

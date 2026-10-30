@@ -1,4 +1,4 @@
-import { Check, Clipboard, Code2, ListOrdered, Maximize2, Moon, Play, Square, Sun, Trash2 } from "lucide-react";
+import { Check, Clipboard, Code2, Eye, EyeOff, ListOrdered, Maximize2, Moon, Play, Square, Sun, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "../../../shared/ui";
 import {
@@ -10,6 +10,7 @@ import {
   type CanvasCodeBlockData,
 } from "./canvas-code-block";
 import { canRunCanvasCode } from "./canvas-code-runner";
+import { canPreviewHtml } from "../code/HtmlPreviewFrame";
 import type { CodeRunView } from "./use-canvas-code-runner";
 
 function ActionButton({
@@ -50,6 +51,8 @@ export function CanvasCodeBlockActions({
   onUpdate,
   onRun,
   onStop,
+  previewing,
+  onTogglePreview,
   onFitContent,
   onDelete,
 }: {
@@ -59,12 +62,15 @@ export function CanvasCodeBlockActions({
   onUpdate: (block: CanvasCodeBlockData) => void;
   onRun: () => void;
   onStop: () => void;
+  previewing: boolean;
+  onTogglePreview: () => void;
   onFitContent: () => void;
   onDelete: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const resolvedTheme = resolveCodeTheme(block.theme, appDark);
   const runnable = canRunCanvasCode(block.language);
+  const previewable = canPreviewHtml(block.language);
 
   return (
     <div
@@ -89,6 +95,12 @@ export function CanvasCodeBlockActions({
         {codeLanguageOptions.filter(([value]) => value !== "plaintext").map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         <option value="plaintext">Plain text</option>
       </select>
+
+      {previewable && (
+        <ActionButton label={previewing ? "Hide HTML preview" : "Preview HTML"} active={previewing} onClick={onTogglePreview}>
+          {previewing ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </ActionButton>
+      )}
 
       {runnable && (
         <ActionButton label={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"} onClick={run?.status === "running" ? onStop : onRun}>

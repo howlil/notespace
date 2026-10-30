@@ -1,0 +1,134 @@
+import { test, expect, createViaAPI, cleanupWorkspace, selectView } from "./fixtures";
+
+const html = `<style>button{background:rgb(40,88,216);color:white}</style>
+<button id="counter">Count <span id="count">0</span></button>
+<script>document.querySelector('#counter').addEventListener('click', () => {
+  const value = document.querySelector('#count');
+  value.textContent = String(Number(value.textContent) + 1);
+});</script>`;
+
+
+async function seedCodeBlock(page: import("@playwright/test").Page, request: import("@playwright/test").APIRequestContext, id: string, code: string) {
+  // Create a real persisted Note document. The browser assertions exercise
+  // rendering, script execution and source persistence, not clipboard support.
+  const currentResponse = await request.get(`/api/workspaces/${id}`);
+  expect(currentResponse.ok()).toBe(true);
+  const current = await currentResponse.json() as { notes: Array<{ id: string; title: string; version: number }> };
+  const note = current.notes[0];
+  expect(note).toBeTruthy();
+  const updated = await request.patch(`/api/workspaces/${id}/notes/${note.id}`, {
+    data: {
+      title: note.title,
+      version: note.version,
+      document: {
+        format: "tiptap",
+        version: 1,
+        data: { type: "doc", content: [
+          { type: "codeBlock", attrs: { blockId: "preview-html-source", language: "xml" },
+            content: [{ type: "text", text: code }] },
+        ] },
+      },
+    },
+  });
+  expect(updated.ok()).toBe(true);
+  await page.reload();
+  await expect(page.locator("[data-note-code-block]")).toBeVisible();
+}
+
+test("Note HTML code block previews interactive inline markup in an isolated iframe", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `HTML note ${Date.now()}`);
+  try {
+    await selectView(page, "Note");
+    await seedCodeBlock(page, request, id, html);
+    const block = page.locator("[data-note-code-block]").first();
+    const source = block.getByLabel("Edit code block");
+    await expect(source).toContainText('id="counter"');
+
+    await expect(block.getByRole("button", { name: "Preview HTML" })).toBeVisible();
+    await expect(block.locator("iframe")).toHaveCount(0);
+    await block.getByRole("button", { name: "Preview HTML" }).click();
+    const iframe = block.locator('iframe[title="Interactive HTML preview"]');
+    await expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
+    await expect(iframe).toHaveAttribute("referrerpolicy", "no-referrer");
+    await expect(iframe).toHaveAttribute("srcdoc", /id="counter"/);
+    const preview = block.frameLocator('iframe[title="Interactive HTML preview"]');
+    await expect(preview.locator("#count")).toHaveText("0");
+    await preview.locator("#counter").click();
+    await expect(preview.locator("#count")).toHaveText("1");
+    await expect(block.getByLabel("Edit code block")).toContainText("counter");
+
+    await block.getByRole("button", { name: "Hide HTML preview" }).click();
+    await expect(iframe).toHaveCount(0);
+    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
+    const saved = await (await request.get(`/api/workspaces/${id}`)).json();
+    const code = saved.notes[0].document.data.content.find((node: { type?: string }) => node.type === "codeBlock");
+    expect(code.content.map((n: { text?: string }) => n.text ?? "").join("")).toBe(html);
+    expect(JSON.stringify(saved.notes[0].document.data)).not.toContain("previewOpen");
+  } finally {
+    await cleanupWorkspace(request, id);
+    await request.delete(`/api/trash/${id}`).catch(() => undefined);
+  }
+});
+
+test("Canvas HTML preview is interactive and source-only persistence survives refresh", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `HTML canvas ${Date.now()}`);
+  try {
+    await selectView(page, "Canvas");
+    await page.getByRole("toolbar", { name: "Canvas tools" }).getByRole("button", { name: "Code block", exact: true }).click();
+    const block = page.locator("[data-canvas-code-block]").first();
+    const actions = page.getByRole("toolbar", { name: "Code block actions" });
+    await expect(block).toBeVisible();
+    await actions.getByRole("combobox", { name: "Code language" }).selectOption("xml");
+
+    const box = await block.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.dblclick(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await block.getByRole("textbox", { name: "Edit code block" }).fill(html);
+    await block.getByRole("textbox", { name: "Edit code block" }).press("Escape");
+    await expect(actions.getByRole("button", { name: "Preview HTML" })).toBeVisible();
+    await expect(page.locator('iframe[title="Canvas interactive HTML preview"]')).toHaveCount(0);
+    await actions.getByRole("button", { name: "Preview HTML" }).click();
+    const iframe = page.locator('iframe[title="Canvas interactive HTML preview"]');
+    await expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
+    const preview = page.frameLocator('iframe[title="Canvas interactive HTML preview"]');
+    await expect(preview.locator("#count")).toHaveText("0");
+    await preview.locator("#counter").click();
+    await expect(preview.locator("#count")).toHaveText("1");
+    await actions.getByRole("button", { name: "Hide HTML preview" }).click();
+    await expect(iframe).toHaveCount(0);
+
+    await expect.poll(async () => {
+      const stored = await (await request.get(`/api/workspaces/${id}`)).json() as {
+        canvas: { data: { elements: Array<{ customData?: { notespaceCodeBlock?: { code?: string } } }> } };
+      };
+      return stored.canvas.data.elements.some((e) => e.customData?.notespaceCodeBlock?.code === html);
+    }).toBe(true);
+  } finally {
+    await cleanupWorkspace(request, id);
+    await request.delete(`/api/trash/${id}`).catch(() => undefined);
+  }
+});
+
+test("HTML preview cannot access app DOM or call local API through fetch", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `HTML isolation ${Date.now()}`);
+  try {
+    await selectView(page, "Note");
+    await seedCodeBlock(page, request, id, `<div id="state">init</div><script>
+const root = document.querySelector('#state');
+try { root.textContent = parent.document.title; } catch { root.textContent = 'parent-blocked'; }
+fetch('/api/health').then(() => root.textContent = 'network-open').catch(() => root.dataset.net = 'blocked');
+</script>`);
+    const block = page.locator("[data-note-code-block]").first();
+    const source = block.getByLabel("Edit code block");
+    await expect(source).toContainText('id="state"');
+    await block.getByRole("button", { name: "Preview HTML" }).click();
+    await expect(block.locator('iframe[title="Interactive HTML preview"]')).toHaveAttribute('srcdoc', /id="state"/);
+    const frame = page.frameLocator('iframe[title="Interactive HTML preview"]');
+    await expect(frame.locator("#state")).toHaveText("parent-blocked");
+    await expect(frame.locator("#state")).toHaveAttribute("data-net", "blocked");
+    await expect(frame.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute("content", /connect-src 'none'/);
+  } finally {
+    await cleanupWorkspace(request, id);
+    await request.delete(`/api/trash/${id}`).catch(() => undefined);
+  }
+});

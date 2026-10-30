@@ -12,7 +12,7 @@ async function pastePlainText(source: import("@playwright/test").Locator, value:
   // Exercise a real paste event with text/plain, not Input.insertText with embedded
   // newlines: Input.insertText treats multiline code as paragraph insertion.
   // ProseMirror must retain the complete plaintext within a single code block.
-  await source.focus();
+  await source.click();
   await source.evaluate((element, text) => {
     const clipboardData = new DataTransfer();
     clipboardData.setData("text/plain", text);

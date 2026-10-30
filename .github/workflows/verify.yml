@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    # Playwright Chromium on Node 24 is verified on Ubuntu 24.04.
+    # Playwright 1.58 Chromium does not install on ubuntu-26.04 (latest).
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

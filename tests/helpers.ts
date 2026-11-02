@@ -19,13 +19,17 @@ export function deferred<T>() {
  */
 export async function createWorkspace(page: Page, title: string): Promise<string> {
   await page.goto("/");
-  await page.getByRole("button", { name: "New workspace", exact: true }).first().click();
-  const titleInput = page.getByRole("textbox", { name: "New workspace name" });
-  await titleInput.fill(title);
+  const firstRun = page.getByRole("button", { name: "Create Workspace", exact: true });
+  if (await firstRun.isVisible()) {
+    await firstRun.click();
+    await page.getByRole("textbox", { name: "Workspace name" }).fill(title);
+  } else {
+    await page.getByRole("button", { name: "New workspace", exact: true }).first().click();
+    await page.getByRole("textbox", { name: "New workspace name" }).fill(title);
+  }
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(page.getByRole("link", { name: `Open ${title}` })).toBeVisible();
-  await page.getByRole("link", { name: `Open ${title}` }).click();
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+$/);
+  await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
   return new URL(page.url()).pathname.split("/").filter(Boolean).at(-1)!;
 }
 
@@ -54,15 +58,12 @@ export async function openNoteSwitcher(page: Page): Promise<void> {
 
 /** Open the canvas in the current workspace. */
 export async function openCanvas(page: Page): Promise<void> {
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
 }
 
 /** Navigate back to the library/home. */
 export async function goHome(page: Page): Promise<void> {
-  await page
-    .getByRole("link", { name: "Back to library", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Notespace home", exact: true }).click();
 }
 
 /** Clean up a workspace via API. */

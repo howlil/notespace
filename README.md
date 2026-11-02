@@ -169,7 +169,7 @@ Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/
 
 ## Verification
 
-`task check` runs local static and unit/integration checks; `task verify` adds production builds and Playwright.
+`task check` runs local static and unit/integration checks; `task verify` adds production builds and WebdriverIO critical browser journeys. The older Playwright suite remains available only via `pnpm test:e2e:legacy` during the migration.
 
 Pull requests and pushes to `master` run one **full browser suite** (including tests tagged `@critical`), Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
 

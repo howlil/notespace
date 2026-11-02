@@ -22,7 +22,7 @@ const DocumentEditor = lazy(() => import("../document/DocumentEditor"));
 export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
   const { dark } = useTheme();
   const navigate = useNavigate();
-  const search = useRouterState({ select: (state) => state.location.search });
+  const search = useRouterState({ select: (state) => state.location.search as Record<string, unknown> });
   const { showToast } = useToast();
   const [normalized] = useState(() => normalizeWorkspaceContent(workspaceContentOf(workspace)));
   const initial = normalized.content;

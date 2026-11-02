@@ -9,13 +9,14 @@
     "typecheck": "pnpm --filter @notespace/web typecheck",
     "lint": "eslint apps/web/src tests scripts/run-node-tests.mjs --max-warnings 0",
     "test": "node scripts/run-node-tests.mjs",
-    "test:e2e": "pnpm --filter @notespace/web build && playwright test",
-    "test:e2e:critical": "playwright test --grep @critical",
+    "test:e2e": "pnpm --filter @notespace/web build && node --test scripts/web-e2e.mjs",
+    "test:e2e:critical": "node --test scripts/web-e2e.mjs",
     "test:server:process": "node scripts/server-process-integration.mjs",
     "test:desktop:native": "node scripts/desktop-webdriver-smoke.mjs",
     "test:desktop:critical": "node scripts/desktop-webdriver-smoke.mjs --critical",
     "test:desktop:lifecycle": "node scripts/smoke-desktop-sidecar-lifecycle.mjs",
-    "desktop:icons": "node scripts/prepare-desktop-icons.mjs"
+    "desktop:icons": "node scripts/prepare-desktop-icons.mjs",
+    "test:e2e:legacy": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -24,6 +25,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "selenium-webdriver": "^4.49.0",
     "globals": "^16.5.0",
-    "typescript-eslint": "^8.55.0"
+    "typescript-eslint": "^8.55.0",
+    "webdriverio": "10.1.0"
   }
 }

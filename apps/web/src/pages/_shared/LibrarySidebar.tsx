@@ -5,6 +5,7 @@ import { ChevronRight, FileText, Folder, Pencil, Plus, Trash2, MoveRight } from 
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
+import { NotespaceLogo } from "./NotespaceLogo";
 import type { CategorySummary } from "../../domain/workspace/workspace";
 
 export function Brand() {

@@ -244,7 +244,7 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
           <>
             <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-line px-3">
               <FileText size={15} className="text-muted" aria-hidden="true" />
-              <DialogTitle className="sr-only">Edit Note</DialogTitle>
+              <DialogTitle className="sr-only">Note editor</DialogTitle>
               <Input
                 aria-label="Note title"
                 className="min-w-0 flex-1 border-0 bg-transparent text-[13px] font-semibold"

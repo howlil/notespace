@@ -5,61 +5,40 @@ import { readFileSync } from "node:fs";
 const source = (path: string) => readFileSync(path, "utf8");
 const web = "apps/web/src/";
 const rust = source("apps/desktop/src-tauri/src/lib.rs");
-const windowControls = source(web + "shared/ui/desktop-titlebar/WindowControls.tsx");
+const controls = source(web + "shared/ui/desktop-titlebar/WindowControls.tsx");
 const title = source(web + "shared/ui/desktop-titlebar/DesktopTitleBar.tsx");
 const header = source(web + "shared/ui/desktop-titlebar/HeaderPlacement.tsx");
 const provider = source(web + "shared/ui/desktop-titlebar/DesktopChromeProvider.tsx");
+const shell = source(web + "pages/_shared/LibraryPageShell.tsx");
+const welcome = source(web + "pages/home/HomePage.tsx");
 const workspace = source(web + "pages/workspace/WorkspacePage.tsx");
-const stylesheet = source(web + "shared/ui/desktop-titlebar/desktop-titlebar.css");
 
-test("desktop title bar preserves existing per-page React handlers and web header fallback", () => {
+test("Welcome and Canvas share one titlebar and Explorer shell", () => {
   assert.match(header, /createPortal\(header, headerHost\)/);
   assert.match(header, /return customChromeActive && headerHost \? createPortal/);
-  const shell = source(web + "pages/_shared/LibraryPageShell.tsx");
+  assert.match(welcome, /<LibraryPageShell/);
+  assert.match(workspace, /<LibraryPageShell canvas/);
   assert.match(shell, /<HeaderPlacement/);
-  assert.match(source(web + "pages/home/HomePage.tsx"), /<LibraryPageShell/);
-  assert.doesNotMatch(workspace, /<HeaderPlacement|notespace-titlebar-search|OPEN_QUICK_SEARCH_EVENT/);
-  assert.doesNotMatch(workspace, /showBack=/);
-  assert.match(workspace, /<WorkspaceRail/);
-  const rail = source(web + "features/workspace-authoring/ui/WorkspaceRail.tsx");
-  assert.match(rail, /aria-label="Back to library"/);
-  assert.match(provider, /if \(!desktop\) return/);
-  assert.match(provider, /activate_desktop_titlebar/);
-});
-
-test("M1 Workspace uses a dedicated rail without duplicate titlebar controls", () => {
-  assert.match(title, /!isWorkspace &&/);
+  assert.match(shell, /Hide Explorer/);
+  assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
+  assert.doesNotMatch(workspace, /WorkspaceRail|WorkspaceGuide|ActivityIndicator/);
+  assert.doesNotMatch(provider, /desktop-workspace-rail-slot|customChromeActive && isWorkspace/);
   assert.match(title, /NotespaceLogo/);
-  assert.match(workspace, /<WorkspaceRail/);
-  assert.doesNotMatch(workspace, /WorkspaceGuide|SettingsTrigger|workspace-switcher|desktop-workspace-drag/);
+  assert.match(provider, /activate_desktop_titlebar/);
+  assert.match(provider, /if \(!desktop\) return/);
 });
 
-test("native window close retains the durability handshake and recovery frame", () => {
-  assert.match(windowControls, /invoke\("request_desktop_close"\)/);
-  assert.doesNotMatch(windowControls, /getCurrentWindow\(\)\.close\(\)|app\.exit/);
+test("Native close still requires durability handshake and native fallback", () => {
+  assert.match(controls, /invoke\("request_desktop_close"\)/);
+  assert.doesNotMatch(controls, /getCurrentWindow\(\)\.close\(\)|app\.exit/);
   assert.match(rust, /fn activate_desktop_titlebar\(/);
   assert.match(rust, /window\.set_decorations\(true\)/);
   assert.match(rust, /window\.set_decorations\(false\)/);
   assert.match(rust, /window\.dispatchEvent\(new Event\('notespace:close-requested'\)\)/);
 });
 
-test("Theme controls only exist in Settings; desktop Workspace hides its Settings trigger", () => {
-  const content = source(web + "pages/home/HomePage.tsx");
-  assert.doesNotMatch(content, /ThemeToggle/);
+test("The only theme controls are in Settings", () => {
   assert.match(source(web + "features/settings/AppSettings.tsx"), /Use \{dark \? "light" : "dark"\} theme/);
-  assert.doesNotMatch(workspace, /SettingsTrigger|WorkspaceGuide/);
-});
-
-test("M2 desktop Workspace rail occupies its own full-height shell column and native fallback stays safe", () => {
-  assert.match(provider, /workspaceRailHost/);
-  assert.match(provider, /desktop-workspace-rail-slot/);
-  assert.match(provider, /desktop-shell-content/);
-  assert.match(provider, /customChromeActive && isWorkspace/);
-  assert.match(stylesheet, /grid-template-columns: 40px minmax\(0, 1fr\)/);
-  assert.match(stylesheet, /\.desktop-shell--native \.desktop-shell-content \{ height: 100dvh; \}/);
-  assert.match(stylesheet, /\.desktop-shell--workspace:has\(\.workspace-main\.is-focus-mode\)/);
-  assert.match(source(web + "shared/ui/desktop-titlebar/HeaderPlacement.tsx"), /workspaceRailHost: HTMLElement \| null/);
-  assert.match(workspace, /railHostActive \? createPortal\(rail, workspaceRailHost\) : rail/);
-  assert.match(title, /data-tauri-drag-region/);
-  assert.doesNotMatch(stylesheet, /\.desktop-placed-header\.workspace-header/);
+  assert.doesNotMatch(shell, /ThemeToggle/);
+  assert.doesNotMatch(workspace, /ThemeToggle|WorkspaceGuide/);
 });

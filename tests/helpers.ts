@@ -19,12 +19,15 @@ export function deferred<T>() {
  */
 export async function createWorkspace(page: Page, title: string): Promise<string> {
   await page.goto("/");
+  // Wait for the settled library state, not an intermediate loading placeholder.
   const firstRun = page.getByRole("button", { name: "Create Workspace", exact: true });
+  const card = page.getByRole("button", { name: "New workspace", exact: true });
+  await expect(firstRun.or(card).first()).toBeVisible();
   if (await firstRun.isVisible()) {
     await firstRun.click();
     await page.getByRole("textbox", { name: "Workspace name" }).fill(title);
   } else {
-    await page.getByRole("button", { name: "New workspace", exact: true }).first().click();
+    await card.click();
     await page.getByRole("textbox", { name: "New workspace name" }).fill(title);
   }
   await page.getByRole("button", { name: "Create", exact: true }).click();

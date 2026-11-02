@@ -29,14 +29,7 @@ jobs:
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
-      # Dependency-resolution transition: capture generated lock diff once;
-      # restore frozen installs after the lockfile is committed.
-      - name: Resolve WebdriverIO lockfile
-        run: |
-          pnpm install --no-frozen-lockfile
-          echo WDIO_LOCK_DIFF_BEGIN
-          git diff -- pnpm-lock.yaml
-          echo WDIO_LOCK_DIFF_END
+      - run: pnpm install --frozen-lockfile
       - name: Build web for PR
         if: github.event_name == 'pull_request'
         run: pnpm --filter @notespace/web build

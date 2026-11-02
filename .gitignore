@@ -21,4 +21,6 @@ apps/desktop/src-tauri/binaries/*
 # Downloaded native WebDriver used by the desktop parity smoke.
 msedgedriver.exe
 .desktop-webdriver-data/
-\n# Generated branded Tauri icon set; old tracked icons are never packaged.\napps/desktop/src-tauri/icons/fox-spirit/\n
+
+# Generated branded Tauri icon set; old tracked icons are never packaged.
+apps/desktop/src-tauri/icons/fox-spirit/

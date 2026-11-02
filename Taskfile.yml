@@ -79,15 +79,14 @@ tasks:
       - go -C ../apps/server build -o ../../bin/notespace{{exeExt}} ./cmd/notespace
 
   e2e:
-    desc: Build the web app and run browser tests against the real Go server
+    desc: Build the web app once and run browser tests against the real Go server
     cmds:
-      - task: build:web
       - pnpm test:e2e
 
   e2e:critical:
     desc: Build the web app and run only critical cross-system journeys
     cmds:
-      - task: build:web
+      - pnpm --filter @notespace/web build
       - pnpm test:e2e:critical
 
   e2e:target:
@@ -95,7 +94,7 @@ tasks:
     requires:
       vars: [SPEC]
     cmds:
-      - task: build:web
+      - pnpm --filter @notespace/web build
       - pnpm exec playwright test "{{.SPEC}}"
 
   verify:
@@ -103,7 +102,7 @@ tasks:
     cmds:
       - task: build
       - task: check
-      - pnpm test:e2e
+      - pnpm exec playwright test
 
   perf:evidence:
     desc: Run repeatable performance evidence checks
@@ -139,7 +138,7 @@ tasks:
   desktop:prepare:
     desc: Build web assets and prepare the native Go sidecar for the current Rust host target
     cmds:
-      - task: build:web
+      - pnpm --filter @notespace/web build
       - pnpm desktop:icons
       - node scripts/prepare-desktop-sidecar.mjs
 

@@ -65,7 +65,7 @@ try {
   if (upgradeSeed) {
     // Run against an INSTALLED historical MSI, never a debug binary.
     // Persist the fixture only after the OS close and sidecar shutdown.
-    const marker = await runProductPersistenceJourney(driver);
+    const marker = await runLegacyProductPersistenceJourney(driver);
     Object.assign(marker, await seedDurableDomains(driver));
     await closeDesktopWindow(driver);
     await waitForLocalServerExit();
@@ -178,6 +178,25 @@ async function openFirstNoteInDesktop(session) {
   const picker = await visibleElement(session, By.css('select[aria-label="Open an existing Note"]'));
   await picker.sendKeys(Key.ARROW_DOWN, Key.ENTER);
   return visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+}
+
+// The seed binary intentionally uses the previous UI. Upgrade proof must not
+// require a current-version Canvas/Note overlay in a historical installer.
+async function runLegacyProductPersistenceJourney(session) {
+  const workspaceTitle = `Desktop smoke ${Date.now()}`;
+  const initialMarker = `Desktop persistence ${Date.now()}`;
+  const finalMarker = `${initialMarker} :: flushed before close`;
+  await visibleElement(session, By.css('main button[aria-label="New workspace"]')).click();
+  await visibleElement(session, By.css('input[aria-label="New workspace name"]')).sendKeys(workspaceTitle, Key.ENTER);
+  await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`)).click();
+  await waitForUrl(session, /[/]workspaces[/]/);
+  const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+  await editor.click();
+  await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
+  await waitForText(session, "Saving…");
+  await editor.sendKeys(" :: flushed before close");
+  await waitForEditorText(session, finalMarker);
+  return { workspaceTitle, noteMarker: finalMarker };
 }
 
 async function runProductPersistenceJourney(session) {

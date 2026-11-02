@@ -1,158 +1,67 @@
-import { test, expect, createViaAPI, cleanupWorkspace, selectView } from "./fixtures";
+import { test, expect, createViaAPI, cleanupWorkspace } from "./fixtures";
 
-test("M3 Note picker has one create control, inline rename, and a trash action per row @critical", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, `Note picker M3 ${Date.now()}`);
+test("@critical New Note creates a durable Canvas artifact and can be deleted without touching other Notes", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Note artifact ${Date.now()}`);
   try {
-    await selectView(page, "Note");
-    const pane = page.locator('section[aria-label$="note pane"]').first();
-    const picker = pane.locator("details.pane-note-switcher");
-    const title = picker.locator("summary");
+    await page.getByRole("button", { name: "New Note" }).click();
+    const editor = page.getByRole("dialog", { name: "Note editor" });
+    await expect(editor).toBeVisible();
+    await editor.getByRole("textbox", { name: "Note title" }).fill("Database notes");
+    await editor.getByRole("textbox", { name: "Note title" }).press("Enter");
+    await editor.getByRole("textbox", { name: "Workspace document" }).fill("MVCC snapshots");
+    await editor.getByRole("button", { name: "Done" }).click();
+    await expect(editor).toHaveCount(0);
 
-    await title.focus();
-    await page.keyboard.press("F2");
-    const inline = pane.getByRole("textbox", { name: "Note title" });
-    await expect(inline).toBeVisible();
-    await inline.fill("Original Note");
-    await inline.press("Enter");
-    await expect(picker.locator("summary")).toContainText("Original Note");
+    let placedNoteId = "";
+    await expect.poll(async () => {
+      const response = await request.get(`/api/workspaces/${id}`);
+      const value = await response.json() as {
+        notes: Array<{ id: string; title: string }>;
+        canvas: { data: { elements: Array<{ isDeleted?: boolean; customData?: { notespaceNoteArtifact?: { noteId: string } } }> } };
+      };
+      const created = value.notes.find((note) => note.title === "Database notes");
+      placedNoteId = created?.id ?? "";
+      return value.canvas.data.elements.filter((element) =>
+        !element.isDeleted && element.customData?.notespaceNoteArtifact?.noteId === created?.id).length;
+    }).toBe(1);
 
-    // Escape must cancel the draft, not invoke rename again through blur.
-    await picker.locator("summary").focus();
-    await page.keyboard.press("F2");
-    await pane.getByRole("textbox", { name: "Note title" }).fill("Discarded Name");
-    await page.keyboard.press("Escape");
-    await expect(picker.locator("summary")).toContainText("Original Note");
-    await expect(picker.locator("summary")).not.toContainText("Discarded Name");
-
-    // New Note is outside the picker and remains accessible in inline-rename mode.
-    await expect(pane.getByRole("button", { name: "New note" })).toHaveCount(1);
-    await pane.getByRole("button", { name: "New note" }).click();
-    const newTitle = pane.getByRole("textbox", { name: "Note title" });
-    await expect(newTitle).toBeFocused();
-    await expect(pane.getByRole("button", { name: "New note" })).toBeVisible();
-    await newTitle.fill("Practice Notes");
-    await newTitle.press("Enter");
-    await expect(picker.locator("summary")).toContainText("Practice Notes");
-
-    await picker.locator("summary").click();
-    const list = pane.getByRole("list", { name: "Notes in this workspace" });
-    await expect(list.getByRole("listitem")).toHaveCount(2);
-    await expect(list.getByRole("button", { name: "Open note Practice Notes" })).toHaveAttribute("aria-current", "true");
-    await expect(list.getByRole("button", { name: "New note" })).toHaveCount(0);
-    await expect(list.getByText("Rename note", { exact: true })).toHaveCount(0);
-    await expect(list.getByRole("button", { name: "Delete note Original Note" })).toBeVisible();
-    await expect(list.getByRole("button", { name: "Delete note Practice Notes" })).toBeVisible();
-
-    // Deleting a non-active Note must not switch the active editor before confirming.
-    await list.getByRole("button", { name: "Delete note Original Note" }).click();
-    await expect(page.getByRole("dialog")).toContainText("Original Note");
-    await page.getByRole("dialog").getByRole("button", { name: "Delete note", exact: true }).click();
-    await expect(picker.locator("summary")).toContainText("Practice Notes");
-    await picker.locator("summary").click();
-    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(1);
-    await expect(pane.getByRole("button", { name: "Delete note Practice Notes" })).toBeDisabled();
-
-    await expect(pane.locator("details.pane-actions")).not.toContainText("Delete note");
     await page.reload();
-    await expect(page.locator("details.pane-note-switcher").first().locator("summary")).toContainText("Practice Notes");
+    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
+    await page.getByRole("combobox", { name: "Open an existing Note" }).selectOption(placedNoteId);
+    await expect(editor.getByRole("textbox", { name: "Workspace document" })).toContainText("MVCC snapshots");
+    await editor.getByRole("button", { name: "Delete Note", exact: true }).click();
+    const confirmation = page.getByRole("dialog", { name: "Delete Note confirmation" });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Delete Note" }).click();
+    await expect(editor).toHaveCount(0);
+    await expect.poll(async () => {
+      const response = await request.get(`/api/workspaces/${id}`);
+      const value = await response.json() as { notes: Array<{ id: string }> };
+      return value.notes.some((note) => note.id === placedNoteId);
+    }).toBe(false);
   } finally {
     await cleanupWorkspace(request, id);
   }
 });
 
-test("M3 failed deletion keeps the target Note and the active editor unchanged", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, `Note delete rollback ${Date.now()}`);
+test("@critical Note deep link opens the editor and Done clears the URL without losing content", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Note deep link ${Date.now()}`);
   try {
-    await selectView(page, "Note");
-    const pane = page.locator('section[aria-label$="note pane"]').first();
-    await pane.getByRole("button", { name: "New note" }).click();
-    const input = pane.getByRole("textbox", { name: "Note title" });
-    await input.fill("Keep this Note");
-    await input.press("Enter");
-    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
-
-    let intercepted = false;
-    await page.route(`**/api/workspaces/${id}/notes/*`, async (route) => {
-      if (route.request().method() === "DELETE") {
-        intercepted = true;
-        await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"delete refused"}' });
-        return;
-      }
-      await route.continue();
-    });
-    const picker = pane.locator("details.pane-note-switcher");
-    await picker.locator("summary").click();
-    await pane.getByRole("button", { name: "Delete note Keep this Note" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete note", exact: true }).click();
-    await expect.poll(() => intercepted).toBe(true);
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "Keep note" }).click();
-    await expect(picker.locator("summary")).toContainText("Keep this Note");
-    await picker.locator("summary").click();
-    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(2);
-  } finally {
-    await page.unroute(`**/api/workspaces/${id}/notes/*`);
-    await cleanupWorkspace(request, id);
-  }
-});
-
-test("Note create and delete reconcile a lost response after the server has committed", async ({ page, request }) => {
-  const id = await createViaAPI(page, request, "Note ambiguous response recovery");
-  const createPath = `**/api/workspaces/${id}/notes`;
-  const deletePath = `**/api/workspaces/${id}/notes/*`;
-  let committedCreates = 0;
-  let committedDeletes = 0;
-  try {
-    await selectView(page, "Note");
-    await page.route(createPath, async (route) => {
-      if (route.request().method() !== "POST") { await route.continue(); return; }
-      const committed = await route.fetch();
-      expect(committed.status()).toBe(201);
-      committedCreates += 1;
-      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"response lost"}' });
-    });
-
-    const pane = page.locator('section[aria-label$="note pane"]').first();
-    await pane.getByRole("button", { name: "New note" }).click();
-    const input = pane.getByRole("textbox", { name: "Note title" });
-    await expect(input).toBeFocused();
-    await input.fill("Recovered Note");
-    await input.press("Enter");
-    await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
-
-    const picker = pane.locator("details.pane-note-switcher");
-    await picker.locator("summary").click();
-    await expect(pane.getByRole("list", { name: "Notes in this workspace" }).getByRole("listitem")).toHaveCount(2);
-    await expect.poll(async () => {
-      const response = await request.get(`/api/workspaces/${id}`);
-      const data = await response.json() as { notes: Array<{ title: string }> };
-      return data.notes.filter((note) => note.title === "Recovered Note").length;
-    }).toBe(1);
-    expect(committedCreates).toBe(1);
-
-    await page.route(deletePath, async (route) => {
-      if (route.request().method() !== "DELETE") { await route.continue(); return; }
-      const committed = await route.fetch();
-      expect(committed.status()).toBe(204);
-      committedDeletes += 1;
-      await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"response lost"}' });
-    });
-
-    await pane.getByRole("button", { name: "Delete note Recovered Note" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete note", exact: true }).click();
-    await expect.poll(async () => {
-      const response = await request.get(`/api/workspaces/${id}`);
-      const data = await response.json() as { notes: Array<{ title: string }> };
-      return data.notes.length;
-    }).toBe(1);
-    await expect(pane.locator("details.pane-note-switcher").locator("summary")).not.toContainText("Recovered Note");
-    expect(committedDeletes).toBe(1);
+    const response = await request.get(`/api/workspaces/${id}`);
+    const workspace = await response.json() as { notes: Array<{ id: string }> };
+    const noteId = workspace.notes[0].id;
+    await page.goto(`/workspaces/${id}?note=${noteId}`);
+    const editor = page.getByRole("dialog", { name: "Note editor" });
+    await expect(editor).toBeVisible();
+    await editor.getByRole("textbox", { name: "Workspace document" }).fill("Deep link contents");
+    await editor.getByRole("button", { name: "Done" }).click();
+    await expect(editor).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).searchParams.has("note")).toBe(false);
     await page.reload();
-    const reloaded = await (await request.get(`/api/workspaces/${id}`)).json() as { notes: Array<{ title: string }> };
-    expect(reloaded.notes).toHaveLength(1);
+    await expect(editor).toHaveCount(0);
+    await page.getByRole("combobox", { name: "Open an existing Note" }).selectOption(noteId);
+    await expect(editor.getByRole("textbox", { name: "Workspace document" })).toContainText("Deep link contents");
   } finally {
-    await page.unroute(createPath);
-    await page.unroute(deletePath);
     await cleanupWorkspace(request, id);
   }
 });

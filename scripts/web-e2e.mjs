@@ -73,6 +73,7 @@ before(async () => {
     waitforTimeout: 12_000,
     capabilities: {
       browserName: "chrome",
+      "wdio:enforceWebDriverClassic": true,
       "goog:chromeOptions": {
         args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1440,960"],
       },

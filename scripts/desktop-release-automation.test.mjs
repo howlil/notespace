@@ -123,9 +123,10 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   }
   assert.match(beta, /cancel-in-progress: false/);
-  // PR critical journeys and master full regression are distinct gates.
-  assert.match(basic, /name: Run critical browser suite on PR[\s\S]*?if: github\.event_name == 'pull_request'\s+run: pnpm exec playwright test --grep @critical/);
-  assert.match(basic, /name: Run full browser suite on master[\s\S]*?if: github\.event_name == 'push'\s+run: pnpm exec playwright test/);
+  // Browser proof remains required on both PR and master without an extra Chromium download.
+  assert.match(basic, /name: Run critical browser suite on PR[\s\S]*?if: github\.event_name == 'pull_request'\s+run: pnpm test:e2e:critical/);
+  assert.match(basic, /name: Run critical WebdriverIO suite on master[\s\S]*?if: github\.event_name == 'push'\s+run: pnpm test:e2e:critical/);
+  assert.doesNotMatch(basic, /pnpm exec playwright install --with-deps/);
   assert.match(basic, /docker compose -f compose\.yaml -f compose\.ci\.yaml up --build -d --wait\s+if: github\.event_name == 'push'/);
   assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: github\.event_name == 'push'\s+runs-on: windows-latest/);
 });

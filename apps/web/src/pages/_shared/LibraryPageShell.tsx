@@ -1,37 +1,55 @@
-import type { ReactNode } from "react";
-import { Search } from "lucide-react";
-import { HeaderPlacement } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
+import { useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import { PanelLeft, Search } from "lucide-react";
+import { NotespaceLogo } from "../../shared/ui/NotespaceLogo";
+import { HeaderPlacement, useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
+import { SettingsTrigger } from "../../features/settings/AppSettings";
 import { OPEN_QUICK_SEARCH_EVENT } from "../../features/search/quick-search-events";
+import { IconButton } from "../../shared/ui";
 
 type Props = {
   sidebar: ReactNode;
   children: ReactNode;
+  canvas?: boolean;
   headerActions?: ReactNode;
   dashboard?: boolean;
   page?: "library" | "inbox" | "today";
   selectedCategoryId?: string;
 };
 
-/** One fixed Explorer; editor navigation remains owned by WorkspaceRail. */
-export function LibraryPageShell({ sidebar, children, headerActions, dashboard = false }: Props) {
+/** One shell shared by Welcome and Canvas. Routes still own authored content. */
+export function LibraryPageShell({ sidebar, children, canvas = false, headerActions }: Props) {
+  const [explorerOpen, setExplorerOpen] = useState(true);
+  const { customChromeActive } = useDesktopChrome();
   return (
-    <div className={`${dashboard ? "dashboard-shell " : ""}flex h-dvh min-h-0 min-w-0 overflow-hidden bg-background`}>
-      <div id="notespace-home-sidebar" className="h-full min-h-0 w-[228px] shrink-0 overflow-hidden border-r border-line bg-sidebar">
-        {sidebar}
+    <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden bg-background" data-notespace-single-shell>
+      <HeaderPlacement className="relative z-30 flex min-h-[38px] shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
+        {!customChromeActive && <Link to="/" aria-label="Notespace home" title="Welcome"><NotespaceLogo size="sm" showWordmark={false} /></Link>}
+        <IconButton className="!size-7" aria-label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
+          title={explorerOpen ? "Hide Explorer" : "Show Explorer"} aria-expanded={explorerOpen}
+          onClick={() => setExplorerOpen((value) => !value)}>
+          <PanelLeft size={16} />
+        </IconButton>
+        <div className="min-w-0 flex-1" data-tauri-drag-region />
+        <IconButton className="!size-7" aria-label="Search Notespace" title="Search · Ctrl/⌘ K"
+          onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}>
+          <Search size={15} />
+        </IconButton>
+        <SettingsTrigger className="!size-7" />
+        {headerActions}
+      </HeaderPlacement>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        {explorerOpen && (
+          <div id="notespace-home-sidebar" className="h-full min-h-0 w-[228px] shrink-0 overflow-hidden border-r border-line bg-sidebar max-[560px]:w-[200px]">
+            {sidebar}
+          </div>
+        )}
+        <main className={canvas
+          ? "relative min-h-0 min-w-0 flex-1 overflow-hidden bg-canvas"
+          : "min-h-0 min-w-0 flex-1 overflow-y-auto bg-background"}>
+          {children}
+        </main>
       </div>
-      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <HeaderPlacement className="relative z-30 flex min-h-[46px] shrink-0 items-center gap-3 border-b border-line bg-surface px-4 max-[560px]:gap-2 max-[560px]:px-3">
-          <button type="button" className="notespace-titlebar-search flex min-h-8 w-[min(320px,42vw)] min-w-[120px] items-center gap-2 rounded-md border border-line bg-canvas px-2.5 text-left text-ink/70 hover:border-accent hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent"
-            aria-label="Search Notespace with Control K or Command K"
-            onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}>
-            <Search size={14} className="shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">Search Notespace</span>
-            <kbd className="shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 text-[9px] font-medium text-ink/60">Ctrl/⌘ K</kbd>
-          </button>
-          {headerActions && <div className="ml-auto flex shrink-0 items-center gap-1">{headerActions}</div>}
-        </HeaderPlacement>
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
-      </main>
     </div>
   );
 }

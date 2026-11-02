@@ -6,7 +6,7 @@ export async function createViaAPI(page: Page, request: APIRequestContext, title
   expect(response.status()).toBe(201);
   const workspace = await response.json() as { id: string };
   await page.goto(`/workspaces/${workspace.id}`);
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
+  await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
   return workspace.id;
 }
 
@@ -22,8 +22,17 @@ export async function openPaneMenu(page: Page) {
   }
 }
 
+/** Compatibility helper for editor E2E: Note is a temporary overlay, not a pane. */
 export async function selectView(page: Page, name: "Canvas" | "Note" | "Split") {
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name, exact: true }).click();
+  if (name === "Split") throw new Error("Split was intentionally removed from Notespace");
+  const editor = page.getByRole("dialog", { name: "Note editor" });
+  if (name === "Canvas") {
+    if (await editor.isVisible()) await editor.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
+    return;
+  }
+  await page.getByRole("combobox", { name: "Open an existing Note" }).selectOption({ index: 1 });
+  await expect(editor.getByRole("textbox", { name: "Workspace document" })).toBeVisible();
 }
 
 export function frameCanvasSnapshot() {

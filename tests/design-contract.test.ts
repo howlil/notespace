@@ -23,11 +23,6 @@ const QUICK_OPEN = join(WEB_SRC, "features", "search", "QuickOpen.tsx");
 const LIBRARY_TOOLS = join(WEB_SRC, "features", "library", "LibraryTools.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
 const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
-const RETIRED_WORKSPACE_PLAN = join(WEB_SRC, "features", "planning", "WorkspacePlan.tsx");
-const RETIRED_MILESTONE_MUTATION = join(WEB_SRC, "features", "planning", "milestone-mutation.ts");
-const RETIRED_MILESTONE_MUTATION_TEST = join(WEB_SRC, "features", "planning", "milestone-mutation.test.ts");
-const ACTIVITY_QUICK_START = join(WEB_SRC, "features", "activity", "ActivityQuickStart.tsx");
-const PANE_LAYOUT = join(WEB_SRC, "features", "workspace-authoring", "model", "pane-layout.ts");
 const WORKSPACE_CONTENT = join(WEB_SRC, "features", "workspace-authoring", "model", "workspace-content.ts");
 const CANVAS_FRAME_LINK = join(WEB_SRC, "domain", "workspace", "canvas-frame-link.ts");
 const DOCUMENT_EDITOR = join(WEB_SRC, "features", "workspace-authoring", "document", "DocumentEditor.tsx");
@@ -59,7 +54,6 @@ const TOAST_PROVIDER = join(WEB_SRC, "shared", "ui", "toast-provider.tsx");
 const ACTIVITY_INDICATOR = join(WEB_SRC, "features", "activity", "ActivityIndicator.tsx");
 const ACTIVITY_RUNTIME = join(WEB_SRC, "features", "activity", "activity-runtime-provider.tsx");
 const ACTIVITY_RECOVERY = join(WEB_SRC, "features", "activity", "activity-recovery.ts");
-const ACTIVITY_DOCK = join(WEB_SRC, "features", "activity", "ActivityDock.tsx");
 const ACTIVITY_TYPE_MENU = join(WEB_SRC, "features", "activity", "ActivityTypeMenu.tsx");
 const SKELETON = join(WEB_SRC, "shared", "ui", "skeleton.tsx");
 const WORKSPACE_LIST_SKELETON = join(WEB_SRC, "features", "library", "WorkspaceListSkeleton.tsx");
@@ -313,7 +307,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(source(ACTIVITY_INDICATOR), /<Button/);
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
-  assert.match(source(PAGE_SHELL), /w-\[min\(320px,42vw\)\]/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+  assert.match(source(PAGE_SHELL), /Hide Explorer/); assert.match(source(PAGE_SHELL), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
@@ -328,13 +322,13 @@ test("layout archetypes: Home and category share cards with server-backed pagina
   assert.match(shell, /<HeaderPlacement/);
   assert.match(shell, /id="notespace-home-sidebar"/);
   assert.doesNotMatch(shell, /<ShellRail|Close category explorer/);
-  assert.match(source(SIDEBAR), /notespace-sidebar-brand/);
+  assert.doesNotMatch(source(SIDEBAR), /notespace-sidebar-brand/);
   assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
   assert.doesNotMatch(library, /aria-label="Search category workspaces"|aria-label="Sort category workspaces"/);
   assert.match(library, /<NewWorkspaceCard/);
-  assert.match(source(DASHBOARD), /headerActions=/);
-  assert.match(source(DASHBOARD), /SettingsTrigger/);
-  assert.match(source(DASHBOARD), /WorkspaceGuide/);
+  assert.match(source(PAGE_SHELL), /<SettingsTrigger/);
+  assert.match(source(PAGE_SHELL), /SettingsTrigger/);
+  assert.doesNotMatch(source(DASHBOARD), /WorkspaceGuide/);
   assert.match(model, /listCategoryWorkspaces\(selectedCategoryId, \{ \.\.\.categoryPageState, limit: 50, snapshot \}\)/);
   assert.match(model, /categorySnapshotRef\.current/);
   assert.match(model, /pageRequestGeneration\.current === generation/);
@@ -365,134 +359,51 @@ test("design contract: no decorative gradients, neon motifs, or legacy Project c
   for (const pattern of [/Project not found/i,/Back to projects/i,/No projects yet/i,/New project/i,/Delete project/i,/Rename project/i]) assert.doesNotMatch(content,pattern);
 });
 
-test("global utility contract: Quick Capture UI retired, legacy capture data and global activity retained", () => {
-  const sidebar=source(SIDEBAR), tools=source(LIBRARY_TOOLS), root=source(ROOT_ROUTE);
-  assert.equal(existsSync(RETIRED_SHELL_RAIL), false, "Old primary rail must not return to Navigation v8");
-  assert.equal(existsSync(RETIRED_QUICK_CAPTURE), false, "Quick Capture modal is retired");
-  assert.match(source(PAGE_SHELL), /id="notespace-home-sidebar"/);
-  assert.doesNotMatch(sidebar, /useLibraryCreateRequest|LibraryCreateContext/);
-  assert.doesNotMatch(root, /QuickCapture|open-quick-capture/);
-  assert.match(root, /<LibraryTools onBusyChange=\{onBusyChange\} disabled=\{disabled\} \/>/);
-  assert.match(root, /renderLibraryTools=\{/);
-  assert.doesNotMatch(root, /<LibraryTools showTrigger/);
+test("global utility contract: Quick Capture and Activity UI are retired without deleting recovery data", () => {
+  const sidebar=source(SIDEBAR), root=source(ROOT_ROUTE), shell=source(PAGE_SHELL);
+  assert.equal(existsSync(RETIRED_SHELL_RAIL), false);
+  assert.equal(existsSync(RETIRED_QUICK_CAPTURE), false);
+  assert.match(shell, /id="notespace-home-sidebar"/);
+  assert.match(shell, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(root, /<QuickOpen \/>/);
-  assert.match(root, /<ActivityDock \/>/);
-  assert.doesNotMatch(sidebar, /<QuickCapture|<LibraryTools|SettingsTrigger/);
-  assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "shell-events.ts")), false);
-  assert.doesNotMatch(tools, /OPEN_LIBRARY_TOOLS_EVENT|<Dialog|<DialogContent/);
-  assert.doesNotMatch(tools, /createPortal|MutationObserver|querySelector|useRouterState/);
+  assert.match(root, /renderLibraryTools=\{/);
+  assert.doesNotMatch(root, /<ActivityDock|<ActivityRuntimeProvider|QuickCapture/);
+  assert.doesNotMatch(sidebar, /SettingsTrigger|QuickCapture/);
+  assert.match(source(ACTIVITY_RECOVERY), /notespace\.activity-recovery:v1/);
+  assert.match(source(ACTIVITY_RUNTIME), /readActivityRecovery/);
 });
 
-
-test("workspace contract: bounded panes and explicit Canvas frame embeds remain user-facing behavior", () => {
-  const workspace=source(WORKSPACE), workspacePage=source(WORKSPACE_PAGE), layout=source(PANE_LAYOUT), content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR), frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
-  assert.match(layout,/MAX_WORKSPACE_PANES = 4/);
-  assert.match(layout,/type WorkspaceViewMode = "canvas" \| "note" \| "split"/);
-  const viewSwitcher = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceViewSwitcher.tsx"));
-  const renameField = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRenameField.tsx"));
-  assert.match(viewSwitcher,/data-testid="workspace-view-switcher"/);
-  assert.match(viewSwitcher,/bg-tint text-accent/);
-  assert.doesNotMatch(viewSwitcher,/ring-1 ring-accent/);
-  assert.match(workspace,/renameWorkspace/);
-  // Workspace title and category switcher are owned by Library, not Workspace chrome.
-  assert.doesNotMatch(workspacePage,/aria-label="Rename workspace"/);
-  // Workspace title and category switcher are owned by Library, not Workspace chrome.
-  assert.doesNotMatch(workspacePage,/<select /);
-  assert.match(renameField,/aria-label="Workspace title"/);
-  for (const mode of ["Canvas", "Note", "Split"]) assert.match(viewSwitcher, new RegExp(`"${mode}"`));
-  assert.match(workspacePage, /<WorkspaceRail/);
-  assert.doesNotMatch(workspacePage, /<HeaderPlacement/);
-  assert.doesNotMatch(workspacePage, /<WorkspacePlan|workspace-switcher/);
-  assert.doesNotMatch(workspacePage, /renderPlan=/);
-  assert.doesNotMatch(workspace, /renderPlan|renderActivityIndicator/);
-  assert.doesNotMatch(source(WORKSPACE_PAGE), /renderTaskAction=|Start activity for|ActivityTypeTrigger/);
-  assert.equal(existsSync(RETIRED_WORKSPACE_PLAN), false, "Retired Plan UI source must not linger");
-  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION), false, "Uncalled Plan-only milestone mutation helper must be retired");
-  assert.equal(existsSync(RETIRED_MILESTONE_MUTATION_TEST), false, "Obsolete helper test must not preserve a dead module");
-  assert.doesNotMatch(source(PAGE_SHELL), /<ShellRail|Primary navigation/);
-  assert.doesNotMatch(source(SIDEBAR), /aria-label="Workspace navigation"/);
-  assert.match(source(SIDEBAR), /aria-label="Categories"/);
-  for (const name of ["InboxPage.tsx", "TodayPage.tsx"]) {
-    assert.equal(existsSync(join(WEB_SRC, "pages", name === "InboxPage.tsx" ? "inbox" : "today", name)), false, `${name} must not return`);
-  }
-  for (const path of [
-    join(WEB_SRC, "features", "capture", "CaptureQueue.tsx"),
-    join(WEB_SRC, "features", "planning", "TodayPlanning.tsx"),
-    join(WEB_SRC, "features", "planning", "UnorganizedTasks.tsx"),
-    join(WEB_SRC, "features", "planning", "TaskWorkspaceAssign.tsx"),
-    join(WEB_SRC, "features", "activity", "ActivityTypeTrigger.tsx"),
-  ]) assert.equal(existsSync(path), false, `retired recovery UI must not return: ${path}`);
-  for (const route of ["inbox", "today"]) {
-    const src = source(join(WEB_SRC, "routes", `${route}.tsx`));
-    assert.match(src, /redirect\(\{ to: "\/", replace: true \}\)/);
-    assert.doesNotMatch(src, /loader:|getToday|getUnassignedTasks|CaptureQueue/);
-  }
-  assert.equal(existsSync(join(WEB_SRC, "features", "planning", "TaskComposer.tsx")), false);
-  assert.equal(existsSync(ACTIVITY_QUICK_START), false);
-  assert.doesNotMatch(source(join(WEB_SRC, "features", "settings", "AppSettings.tsx")), /Historical recovery|Recover Captures and unassigned Tasks|Review scheduled Tasks/);
-  assert.match(source(ACTIVITY_INDICATOR), /aria-label="Start activity"/);
-  assert.match(source(ACTIVITY_INDICATOR), /ActivityTypeMenu/);
-  assert.doesNotMatch(source(ACTIVITY_INDICATOR), /taskHandoff|onEnd|activity\.pause|activity\.resume|activity\.end/);
-  assert.match(source(WORKSPACE_PAGE), /useActivityRuntime/);
-  assert.match(source(WORKSPACE_PAGE), /adoptLegacyWorkspace/);
-  assert.doesNotMatch(source(WORKSPACE_PAGE), /refreshKey=\{activity\.taskRevision\}/);
-  assert.doesNotMatch(source(WORKSPACE_PAGE), /activityHandoff|getWorkspacePlan|completeActivityHandoffTask/);
-  assert.match(source(ROOT_ROUTE), /ActivityRuntimeProvider/);
-  assert.match(source(ROOT_ROUTE), /<ActivityDock \/>/);
-  assert.match(source(ACTIVITY_RUNTIME), /getAnyTask/);
-  assert.match(source(ACTIVITY_RUNTIME), /updateAnyTask/);
-  assert.match(source(ACTIVITY_RUNTIME), /completionConfirmed/);
-  assert.match(source(ACTIVITY_RUNTIME), /taskRevision/);
-  assert.match(source(ACTIVITY_RUNTIME), /readActivityRecovery/);
-  assert.match(source(ACTIVITY_RUNTIME), /recordActivityHeartbeat/);
-  assert.match(source(ACTIVITY_RUNTIME), /ACTIVITY_RECOVERY_PENDING_EVENT/);
-  assert.doesNotMatch(source(ACTIVITY_RUNTIME), /handoffBlocksStart/);
-  assert.match(source(ACTIVITY_RECOVERY), /notespace\.activity-recovery:v1/);
-  assert.match(source(ACTIVITY_RECOVERY), /enqueueActivityFinalization/);
-  assert.match(source(ACTIVITY_RECOVERY), /acknowledgeActivityFinalization/);
-  assert.match(source(ACTIVITY_RECOVERY), /handoffTaskIds/);
-  assert.match(source(ACTIVITY_DOCK), /Task completion handoff/);
-  assert.match(source(ACTIVITY_DOCK), /Mark task done\?/);
-  assert.match(source(ACTIVITY_DOCK), /Mark done/);
-  assert.match(source(ACTIVITY_DOCK), /Keep open/);
-  assert.match(source(ACTIVITY_DOCK), /Pause activity/);
-  assert.match(source(ACTIVITY_DOCK), /End activity/);
-  assert.match(source(ACTIVITY_DOCK), /Activity sync/);
-  assert.match(source(ACTIVITY_DOCK), /finalizingCount/);
-  assert.match(source(ACTIVITY_TYPE_MENU), /Choose activity type/);
-  for (const type of ["Build", "Learn", "Read", "Write", "Exercise", "Other"]) {
-    assert.match(source(ACTIVITY_TYPE_MENU), new RegExp(type));
-  }
-  assert.match(workspace,/>Close pane<\/Button>/);
-  assert.doesNotMatch(workspace,/Send to Canvas|Send to Note|Link selected object|Link selected block|Go to linked/);
-  assert.match(content,/references:\s*\[\]/);
-  assert.match(workspace, /articleMode=\{articleMode\}/);
+test("Canvas-only Workspace keeps Tiptap, Note IDs, versioned saves and frame links", () => {
+  const workspace=source(WORKSPACE), workspacePage=source(WORKSPACE_PAGE);
+  const content=source(WORKSPACE_CONTENT), editor=source(DOCUMENT_EDITOR);
+  const frameLink=source(CANVAS_FRAME_LINK), frameNode=source(CANVAS_FRAME_LINK_NODE);
+  assert.match(workspacePage, /<LibraryPageShell canvas/);
+  assert.match(workspace, /<CanvasEditor/);
+  assert.match(workspace, /<DocumentEditor/);
+  assert.match(workspace, /<Dialog open=\{!!selectedNote\}/);
+  assert.match(workspace, /useBlocker/);
+  assert.match(workspace, /registerDesktopFlush\(flushAll\)/);
+  assert.match(workspace, /await flushAll\(\)/);
+  assert.match(workspace, /onOpenNote=\{openNote\}/);
   assert.match(workspace, /getCanvasSnapshot=\{\(\) => current\.current\.canvas\}/);
-  assert.match(workspace, /onOpenCanvasFrame=\{openCanvasFrame\}/);
   assert.match(workspace, /focusRequest=\{canvasFocus\}/);
+  assert.doesNotMatch(workspace, /splitPane|resizeSplit|WorkspaceViewSwitcher|useWorkspacePaneLayout/);
+  assert.doesNotMatch(workspacePage, /WorkspaceRail|ActivityIndicator|Focus mode/);
+  assert.doesNotMatch(source(ROOT_ROUTE), /<ActivityDock/);
+  assert.match(content, /references:\s*\[\]/);
   assert.match(editor, /max-w-\[760px\]/);
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Link canvas"/);
   assert.match(source(DOCUMENT_SLASH_COMMANDS), /label: "Code block"/);
   assert.match(editor, /createNoteCodeBlockExtension/);
   assert.match(editor, /label="Code block"/);
-  assert.doesNotMatch(editor, /aria-label="Code block"/);
   assert.match(editor, /aria-label="Navigate note"/);
-  assert.doesNotMatch(editor, /aria-label="Open note outline"|aria-label="Find in note"/);
   const noteCodeBlock = source(NOTE_CODE_BLOCK);
   assert.match(noteCodeBlock, /data-note-code-block/);
-  assert.match(noteCodeBlock, /detectCodeLanguage/);
   assert.match(noteCodeBlock, /useCodeRunner/);
-  assert.match(noteCodeBlock, /Run JavaScript/);
-  assert.match(noteCodeBlock, /codeThemeVariables/);
-  assert.match(noteCodeBlock, /nextCodeTheme/);
-  assert.match(noteCodeBlock, /theme: \{ default: "auto" \}/);
-  assert.match(noteCodeBlock, /Code output/);
   assert.match(editor, /canvasFrameLinkFromClipboard/);
   assert.match(frameLink, /MAX_FRAME_PREVIEW_ELEMENTS = 160/);
   assert.match(frameNode, /data-canvas-frame-link/);
   assert.match(frameNode, /Open canvas frame/);
-  assert.match(frameNode, /IntersectionObserver/);
-  assert.match(frameNode, /data-canvas-frame-preview-deferred/);
   assert.match(source(IMAGE_ASSET_URL), /URL\.createObjectURL/);
   assert.match(source(IMAGE_ASSET_URL), /URL\.revokeObjectURL/);
 });

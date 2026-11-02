@@ -65,7 +65,7 @@ try {
   if (upgradeSeed) {
     // Run against an INSTALLED historical MSI, never a debug binary.
     // Persist the fixture only after the OS close and sidecar shutdown.
-    const marker = await runProductPersistenceJourney(driver);
+    const marker = await runLegacyProductPersistenceJourney(driver);
     Object.assign(marker, await seedDurableDomains(driver));
     await closeDesktopWindow(driver);
     await waitForLocalServerExit();
@@ -138,144 +138,98 @@ async function openNativeSession(capabilities) {
 }
 
 async function assertDesktopChrome(session, workspace) {
-  // The title bar is activated asynchronously only after the authenticated
-  // React UI mounts. A native smoke must prove that the activation succeeded.
+  // The native app must show one shared 38px header without an old rail.
   await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
-  if (!workspace) await visibleElement(session, By.css(".desktop-titlebar .notespace-titlebar-search"));
-  const result = await session.executeScript(`
+  await visibleElement(session, By.css(".desktop-titlebar .desktop-placed-header"));
+  const state = await session.executeScript(`
     const chrome = document.querySelector(".desktop-titlebar");
+    const shell = document.querySelector("[data-notespace-single-shell]");
+    const explorer = shell?.querySelector("#notespace-home-sidebar");
+    const canvas = shell?.querySelector(".excalidraw__canvas.interactive");
     const header = chrome?.querySelector(".desktop-placed-header");
-    const rail = document.querySelector(".workspace-rail");
-    const slot = document.querySelector(".desktop-workspace-rail-slot");
-    const shell = document.querySelector(".desktop-shell");
-    const pane = document.querySelector(".workspace-main");
-    const chromeBox = chrome?.getBoundingClientRect();
-    const railBox = rail?.getBoundingClientRect();
-    const paneBox = pane?.getBoundingClientRect();
-    const noteHeader = document.querySelector('section[aria-label$="note pane"] > header');
+    const rect = canvas?.getBoundingClientRect();
     return {
-      height: chrome ? Math.round(chrome.getBoundingClientRect().height) : null,
+      height: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
-      brand: Boolean(chrome?.querySelector(".desktop-titlebar-brand")),
-      duplicateSidebarBrand: (() => {
-        const element = document.querySelector('aside a[aria-label="Notespace home"]');
-        return Boolean(element && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
-      })(),
-      workspaceBack: Boolean(header?.querySelector('a[aria-label="Back to library"]')),
-      headerHostDrag: chrome?.querySelector(".desktop-titlebar-header-slot")?.hasAttribute("data-tauri-drag-region") ?? false,
-      searchCount: header?.querySelectorAll('button[aria-label="Search Notespace with Control K or Command K"]').length ?? 0,
-      searchOffset: (() => {
-        const box = header?.querySelector(".notespace-titlebar-search")?.getBoundingClientRect();
-        return box ? Math.abs(box.left + box.width / 2 - window.innerWidth / 2) : null;
-      })(),
-      workspaceHeader: Boolean(header?.classList.contains("workspace-header")),
-      guide: Boolean(header?.querySelector('[aria-label="How to use Notespace"]')),
-      settings: Boolean(header?.querySelector('[aria-label="Open Notespace settings"]')),
-      theme: Boolean(header?.querySelector('[aria-label="Use dark theme"], [aria-label="Use light theme"]')),
-      railWidth: railBox?.width ?? 0,
-      railX: railBox?.x ?? -1,
-      railY: railBox?.y ?? -1,
-      railHeight: railBox?.height ?? 0,
-      railParentIsSlot: Boolean(rail && rail.parentElement === slot),
-      railBackCount: rail?.querySelectorAll('a[aria-label="Back to library"]').length ?? 0,
-      homeSidebarWidth: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().width ?? 0,
-      homeSidebarX: document.querySelector("#notespace-home-sidebar")?.getBoundingClientRect().x ?? -1,
-      homeExplorerCount: document.querySelectorAll('aside[aria-label="Category explorer"]').length,
-      primaryNavigationCount: document.querySelectorAll('nav[aria-label="Primary navigation"]').length,
-      shellWorkspace: shell?.classList.contains("desktop-shell--workspace") ?? false,
-      chromeX: chromeBox?.x ?? -1,
-      paneX: paneBox?.x ?? -1,
-      paneY: paneBox?.y ?? -1,
-      viewportHeight: window.innerHeight,
-      views: rail?.querySelectorAll('[data-testid="workspace-view-switcher"] button').length ?? 0,
-      noteHeaderHeight: noteHeader?.getBoundingClientRect().height ?? 0,
-      noteNewCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="New note"]').length,
-      noteNavigateCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Navigate note"]').length,
-      legacyNoteToolCount: document.querySelectorAll('section[aria-label$="note pane"] button[aria-label="Code block"], section[aria-label$="note pane"] button[aria-label="Find in note"], section[aria-label$="note pane"] button[aria-label="Open note outline"]').length,
+      search: header?.querySelectorAll('button[aria-label="Search Notespace"]').length ?? 0,
+      settings: header?.querySelectorAll('button[aria-label="Open Notespace settings"]').length ?? 0,
+      explorerWidth: Math.round(explorer?.getBoundingClientRect().width ?? 0),
+      explorerCount: shell?.querySelectorAll('aside[aria-label="Category explorer"]').length ?? 0,
+      canvasWidth: rect?.width ?? 0,
+      canvasHeight: rect?.height ?? 0,
+      railCount: document.querySelectorAll(".workspace-rail, .desktop-workspace-rail-slot").length,
+      brandCount: chrome?.querySelectorAll('a[aria-label="Notespace home"]').length ?? 0,
     };
   `);
-  assert.equal(result.height, 38, "The desktop custom title bar must be exactly 38px");
-  assert.equal(result.controls, 3, "Desktop window controls must remain accessible");
-  assert.equal(result.theme, false, "Theme is exclusively inside Notespace Settings");
-  assert.equal(result.headerHostDrag, true, "Custom titlebar retains a draggable region");
+  assert.equal(state.height, 38, "Native titlebar remains 38px");
+  assert.equal(state.controls, 3, "Minimize, maximize and close remain accessible");
+  assert.equal(state.search, 1, "Search remains reachable in both shell states");
+  assert.equal(state.settings, 1, "Settings remain reachable in both shell states");
+  assert.equal(state.explorerWidth, 228, "One shared 228px Explorer");
+  assert.equal(state.explorerCount, 1, "One category explorer");
+  assert.equal(state.railCount, 0, "No retired Workspace rail");
+  assert.equal(state.brandCount, 1, "One native titlebar brand link");
   if (workspace) {
-    assert.equal(result.brand, false, "Workspace title bar must not contain the Foldling logo");
-    assert.equal(result.workspaceHeader, false, "M1 Workspace must not duplicate navigation in the desktop title bar");
-    assert.equal(result.workspaceBack, false, "Workspace titlebar must not duplicate Back");
-    assert.equal(result.railBackCount, 1, "Workspace Back belongs to the rail");
-    assert.equal(result.searchCount, 0, "Workspace titlebar must not show Search");
-    assert.equal(result.searchOffset, null, "Workspace titlebar has no Search field");
-    assert.equal(result.railWidth, 40, "Workspace navigation rail must be 40px wide");
-    assert.equal(result.railX, 0, "M2 rail must start at the left window edge");
-    assert.equal(result.railY, 0, "M2 rail must start at the top of the native window");
-    assert.equal(result.railHeight, result.viewportHeight, "M2 rail must run to the bottom of the native window");
-    assert.equal(result.railParentIsSlot, true, "M2 rail must be owned by the full-height shell portal");
-    assert.equal(result.shellWorkspace, true, "M2 custom desktop shell must use workspace grid layout");
-    assert.equal(result.chromeX, 40, "M2 desktop titlebar must start after the rail, not above it");
-    assert.equal(result.paneX, 40, "M2 authoring content must start after the rail");
-    assert.equal(result.paneY, 38, "M2 authoring content must start below the 38px native titlebar");
-    assert.equal(result.guide, false, "Desktop Workspace must not show Guide");
-    assert.equal(result.settings, false, "Desktop Workspace must not show Settings in title bar");
-    assert.equal(result.views, 3, "Retired Plan is absent; Canvas, Note and Split remain available");
-    assert.equal(result.noteHeaderHeight, 34, "M5 native Note header must be exactly 34px");
-    assert.equal(result.noteNewCount, 1, "M5 native Note header must have one permanent New note entry");
-    assert.equal(result.noteNavigateCount, 1, "M5 native Note header must have exactly one Navigate entry");
-    assert.equal(result.legacyNoteToolCount, 0, "M5 native Note header must not duplicate Code/Find/Outline");
-
-    // Native-only geometry regression: maximize/Focus must remove the 40px
-    // gutter without changing the editor's React-owned pane state.
-    const focusButton = await visibleElement(session, By.css('.workspace-rail button[aria-label="Focus mode"]'));
-    await focusButton.click();
-    const restore = await visibleElement(session, By.css('button[aria-label="Restore layout"]'));
-    const focusedX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
-    assert.equal(focusedX, 0, "Focused desktop workspace must use full window width with no empty rail column");
-    await restore.click();
-    await visibleElement(session, By.css('.workspace-rail'));
-    const restoredX = await session.executeScript("return document.querySelector('.workspace-main')?.getBoundingClientRect().x");
-    assert.equal(restoredX, 40, "Restored desktop Workspace must bring back the full-height rail column");
-  } else {
-    assert.equal(result.searchCount, 1, "Home titlebar retains Search");
-    assert.ok(result.searchOffset !== null && result.searchOffset <= 28, "Home Search stays centered");
-    assert.equal(result.brand, true, "Library title bar must contain the original Notespace brand");
-    assert.equal(result.duplicateSidebarBrand, false, "Desktop sidebar must not duplicate the logo");
-    assert.equal(result.homeSidebarWidth, 228, "Native Home must have one 228px Explorer");
-    assert.equal(result.homeSidebarX, 0, "Native Home Explorer must start at the window edge");
-    assert.equal(result.homeExplorerCount, 1, "Native Home must expose exactly one category Explorer");
-    assert.equal(result.primaryNavigationCount, 0, "Native Home must not resurrect a primary navigation rail");
-    assert.equal(result.workspaceHeader, false);
+    assert.ok(state.canvasWidth > 200 && state.canvasHeight > 150, "Excalidraw must have a drawable native viewport");
   }
+}
+
+async function openFirstNoteInDesktop(session) {
+  const picker = await visibleElement(session, By.css('select[aria-label="Open an existing Note"]'));
+  await picker.sendKeys(Key.ARROW_DOWN, Key.ENTER);
+  return visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+}
+
+// The seed binary intentionally uses the previous UI. Upgrade proof must not
+// require a current-version Canvas/Note overlay in a historical installer.
+async function runLegacyProductPersistenceJourney(session) {
+  const workspaceTitle = `Desktop smoke ${Date.now()}`;
+  const initialMarker = `Desktop persistence ${Date.now()}`;
+  const finalMarker = `${initialMarker} :: flushed before close`;
+  await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
+  await visibleElement(session, By.css('input[aria-label="New workspace name"]')).sendKeys(workspaceTitle, Key.ENTER);
+  await (await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`))).click();
+  await waitForUrl(session, /[/]workspaces[/]/);
+  const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+  await editor.click();
+  await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
+  await waitForText(session, "Saving…");
+  await editor.sendKeys(" :: flushed before close");
+  await waitForEditorText(session, finalMarker);
+  return { workspaceTitle, noteMarker: finalMarker };
 }
 
 async function runProductPersistenceJourney(session) {
   const workspaceTitle = `Desktop smoke ${Date.now()}`;
   const initialMarker = `Desktop persistence ${Date.now()}`;
   const finalMarker = `${initialMarker} :: flushed before close`;
-  const createButton = await visibleElement(session, By.css('main button[aria-label="New workspace"]'));
-  await createButton.click();
-  const titleInput = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
-  await titleInput.sendKeys(workspaceTitle, Key.ENTER);
-  const workspaceLink = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
-  await workspaceLink.click();
+  const firstRun = await session.findElements(By.xpath("//main//button[normalize-space()='Create Workspace']"));
+  if (firstRun.length) {
+    await firstRun[0].click();
+    const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
+    await field.sendKeys(workspaceTitle);
+    await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
+  } else {
+    await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
+    const field = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
+    await field.sendKeys(workspaceTitle, Key.ENTER);
+    const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
+    await link.click();
+  }
   await waitForUrl(session, /\/workspaces\//);
   if (!upgradeSeed) {
-    await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
     await assertDesktopChrome(session, true);
-    // Route navigation is a separate assertion from close-with-pending-save.
-    // Let the freshly mounted editor settle before leaving this Workspace.
     await waitForWorkspaceSaved(session);
-    // Real WebView2 rail Back must navigate Home with no titlebar navigation.
-    const back = await visibleElement(session, By.css('.workspace-rail a[aria-label="Back to library"]'));
-    await back.click();
+    const home = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Notespace home"]'));
+    await home.click();
     await waitForUrl(session, /[/]$/);
-    await visibleElement(session, By.css('aside[aria-label="Category explorer"]'));
     await assertDesktopChrome(session, false);
     const reenter = await visibleElement(session, By.xpath("//a[@aria-label=" + xpathLiteral("Open " + workspaceTitle) + "]"));
     await reenter.click();
     await waitForUrl(session, /[/]workspaces[/]/);
-    await visibleElement(session, By.css('.workspace-rail a[aria-label="Back to library"]'));
-    await waitForWorkspaceSaved(session);
+    await assertDesktopChrome(session, true);
   }
-  const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+  const editor = await openFirstNoteInDesktop(session);
   await editor.click();
   await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
   await waitForText(session, "Saving…");
@@ -288,7 +242,7 @@ async function assertProductPersistence(session, marker) {
   const workspaceLink = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${marker.workspaceTitle}`)}]`));
   await workspaceLink.click();
   await waitForUrl(session, /\/workspaces\//);
-  const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
+  const editor = await openFirstNoteInDesktop(session);
   const content = await editor.getText();
   assert.match(content, new RegExp(escapeRegExp(marker.noteMarker)), "product data must survive desktop relaunch");
 }

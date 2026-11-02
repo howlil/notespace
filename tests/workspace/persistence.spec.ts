@@ -1,12 +1,13 @@
-import { test, expect } from "./fixtures";
+import { test, expect, selectView } from "./fixtures";
 import { waitSaved } from "../helpers";
 
 test("@critical create → edit note and canvas → reload", async ({ page, request, workspaceId: id }) => {
-  const editor = page.getByRole("textbox", { name: "Workspace document" });
+  await selectView(page, "Note");
+  const editor = page.getByRole("dialog", { name: "Note editor" }).getByRole("textbox", { name: "Workspace document" });
   await editor.fill("Consensus\nRaft\nPaxos\nquorum = majority(nodes)");
   await expect(page.getByRole("status", { name: "Workspace save status" })).toHaveText("Saved");
 
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+  await selectView(page, "Canvas");
   const canvas = page.locator(".excalidraw__canvas.interactive");
   await expect(canvas).toBeVisible();
   const toolbar = page.getByRole("toolbar", { name: "Canvas tools" });
@@ -25,9 +26,9 @@ test("@critical create → edit note and canvas → reload", async ({ page, requ
   expect(stored.canvas.data.elements.filter((element) => !element.isDeleted).length).toBeGreaterThanOrEqual(1);
 
   await page.reload();
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Note", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("Paxos");
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+  await selectView(page, "Note");
+  await expect(page.getByRole("dialog", { name: "Note editor" }).getByRole("textbox", { name: "Workspace document" })).toContainText("Paxos");
+  await selectView(page, "Canvas");
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
 
   const reloadedCanvas = await (await request.get(`/api/workspaces/${id}/canvas`)).json() as {
@@ -51,16 +52,17 @@ test("Workspace preserves Unicode and multiline Note content after reload", asyn
   }).toContain("日本語");
 
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("العربية");
-  await expect(page.getByRole("textbox", { name: "Workspace document" })).toContainText("line 4");
+  await selectView(page, "Note");
+  await expect(page.getByRole("dialog", { name: "Note editor" }).getByRole("textbox", { name: "Workspace document" })).toContainText("العربية");
+  await expect(page.getByRole("dialog", { name: "Note editor" }).getByRole("textbox", { name: "Workspace document" })).toContainText("line 4");
 });
 
-test("Canvas content survives reload independently from pane layout", async ({ page, workspaceId }) => {
+test("Canvas content survives reload without a separate pane", async ({ page, workspaceId }) => {
   expect(workspaceId).toBeTruthy();
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+  await selectView(page, "Canvas");
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
   await page.reload();
-  await page.getByTestId("workspace-view-switcher").getByRole("button", { name: "Canvas", exact: true }).click();
+  await selectView(page, "Canvas");
   await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Canvas pane" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toHaveCount(0);
 });

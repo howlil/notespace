@@ -668,7 +668,7 @@ Test observable behavior at the lowest boundary that owns it.
 business rule / state transition → domain or service test
 persistence semantics            → real SQLite integration test
 HTTP decoding/status/headers     → httpapi contract test
-browser-specific interaction     → focused Playwright test
+browser-specific interaction     → focused WebdriverIO browser smoke
 critical cross-system journey    → critical E2E
 ```
 
@@ -680,7 +680,7 @@ Rules:
 - keep tests deterministic: inject clocks where supported, avoid sleep-based correctness assertions, and do not assert random identifiers exactly;
 - prefer table-driven tests when variants share the same mechanism and assertion shape;
 - keep fixtures local to the owning package unless a stable cross-package test contract genuinely exists;
-- Playwright is for browser behavior and cross-system wiring, not for enumerating domain edge cases.
+- WebdriverIO standalone owns critical Chrome/Go/SQLite browser journeys; legacy Playwright specs remain optional until equivalent fidelity is restored.
 
 For bug fixes:
 
@@ -696,7 +696,7 @@ Verification escalates from nearest test → affected package → static checks 
 
 CI intent:
 - PR: web build, static checks, Node/Go tests (including race), critical browser journeys, desktop policy checks, and Windows 2022 native close/reopen;
-- master: complete web + landing build, full browser suite, Docker restart/persistence, Linux Tauri build and Windows-latest compatibility, plus Windows 2022 native acceptance;
+- master: web + landing build, WebdriverIO critical journeys, Docker restart/persistence, Linux Tauri build and Windows-latest compatibility, plus Windows 2022 native acceptance. Legacy Playwright regression parity remains an explicit migration gap;
 - beta release remains blocked until Verify and Verify Desktop both succeed on the exact master SHA; failed, skipped, or cancelled master checks never authorize publication;
 - scale and migration compatibility remain release/scheduled evidence rather than inner-loop tests.
 

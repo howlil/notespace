@@ -3,6 +3,9 @@ packages:
 allowBuilds:
   esbuild: true
   "@tailwindcss/oxide": true
+  # Browser E2E uses Chrome; never run optional Edge/Firefox driver install scripts.
+  edgedriver: false
+  geckodriver: false
 minimumReleaseAgeExclude:
   - lucide-react@1.41.0
 overrides:

@@ -305,14 +305,14 @@ test("routed pages compose features instead of calling HTTP adapters directly", 
   }
 });
 
-test("workspace page composes authoring and contextual activity without retired Plan UI", () => {
+test("workspace page composes Canvas authoring within the shared shell", () => {
   const page = source("pages/workspace/WorkspacePage.tsx");
   const authoring = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
 
   assert.match(page, /useWorkspaceAuthoring/);
-  assert.match(page, /workspace-main/);
+  assert.match(page, /<LibraryPageShell canvas/);
   assert.doesNotMatch(page, /WorkspacePlan/);
-  assert.match(page, /ActivityIndicator/);
+  assert.doesNotMatch(page, /ActivityIndicator|WorkspaceRail/);
   assert.doesNotMatch(page, /useWorkspaceSession/);
 
   assert.doesNotMatch(authoring, /workspace-main|renderPlan|renderActivityIndicator/);
@@ -344,20 +344,13 @@ test("workspace authoring delegates mutations to its command boundary", () => {
   assert.match(commands, /flushNote/);
 });
 
-test("workspace authoring delegates pane navigation state to its layout controller", () => {
+test("Canvas-only authoring does not depend on obsolete pane layout", () => {
   const workspace = source("features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
-  const controller = source("features/workspace-authoring/model/use-workspace-pane-layout.ts");
-
-  assert.match(workspace, /useWorkspacePaneLayout/);
-  assert.doesNotMatch(workspace, /restoreLayout|mapNode|paneInteractionState|removeNode|updateSplit|writeLocalStorage/);
-
-  assert.match(controller, /restoreLayout/);
-  assert.match(controller, /paneInteractionState/);
-  assert.match(controller, /switchPaneNote/);
-  assert.match(controller, /closePane/);
-  assert.match(controller, /selectView/);
-  assert.match(controller, /focusCanvasFrame/);
-  assert.match(controller, /resizeSplit/);
+  assert.doesNotMatch(workspace, /useWorkspacePaneLayout|restoreLayout|paneInteractionState|resizeSplit/);
+  assert.match(workspace, /useWorkspaceSession/);
+  assert.match(workspace, /registerDesktopFlush/);
+  assert.match(workspace, /<CanvasEditor/);
+  assert.match(workspace, /<DocumentEditor/);
 });
 
 test("image store stays an orchestration facade over cache, remote I/O, and normalization", () => {
@@ -419,8 +412,8 @@ test("home page owns the library screen composition", () => {
   const library = source("features/library/WorkspaceLibrary.tsx");
   const model = source("features/library/use-workspace-library.ts");
 
-  assert.match(home, /<LibraryPageShell dashboard/);
-  assert.match(source("pages/_shared/LibraryPageShell.tsx"), /dashboard-shell/);
+  assert.match(home, /<LibraryPageShell/);
+  assert.match(source("pages/_shared/LibraryPageShell.tsx"), /data-notespace-single-shell/);
   assert.match(home, /LibrarySidebar/);
   assert.match(home, /useWorkspaceLibrary/);
   assert.match(home, /WorkspaceLibrary/);

@@ -1,6 +1,6 @@
 # Notespace Design Contract
 
-This file defines Navigation v8 and its Home/Workspace chrome follow-up under [Issue #186](https://github.com/howlil/notespace/issues/186). Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Source changes alone do not constitute a public release.
+This contract defines the planned single-shell Welcome + Canvas navigation. The approved Welcome v3 and Canvas prototype are visual references; product code is not yet migrated. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Existing SQLite, backup, and compatibility contracts are preserved.
 
 ## Decision order
 
@@ -10,32 +10,35 @@ This file defines Navigation v8 and its Home/Workspace chrome follow-up under [I
 
 Notespace is a self-hosted, compact writing and spatial knowledge workspace. Make finding a Workspace, editing Notes/Canvas, and resuming focused work the shortest useful paths. Avoid extra top-level destinations, dashboard chrome, and duplicative navigation.
 
-## Canonical navigation
+## Canonical navigation — single shell (planned)
 
-- **Home:** one 228px Category Explorer, category expand/collapse and selection, the same cobalt paper-stack card grid in All Workspaces and Category, and Quick Open. No 44px global rail, Recent/All destination tabs, Today, Inbox/Capture Queue, Quick Capture or separate Activity dashboard. Category disclosure does not mutate browser history; category selection is addressable and works with Back/Forward.
-- **Workspace (web):** its own full-height 40px rail. Back at the top; Canvas, Note, Split centered; Activity and Focus at the bottom. The authored surface is full-bleed and border-only, with no extra Home Explorer or Plan view.
-- **Workspace (Tauri):** the same rail, with a single Back at the top, is portaled into a 40px full-height column. An adjacent 38px draggable titlebar retains window controls without Workspace title, Back, or Search. Ctrl/Cmd+K still opens Quick Open. If custom titlebar activation fails, keep native decorations and inline rail Back.
-- **Settings:** one accessible Settings modal with General and Data & Backup, including import, portable backup/restore, Trash and desktop SQLite backups. Search/Quick Open opens Settings without resurrecting a global sidebar.
-- **Activity:** ActivityRuntime and ActivityDock stay mounted across route navigation; session Start/Pause/Resume/End is Workspace-contextual. Historical Task and session associations remain durable.
-- **Compatibility:** old `/today` and `/inbox` links redirect to Home. Hidden UI is not permission to delete stored Capture/Task/Milestone data, HTTP contracts, backup history or SQL migrations.
+- **One shell, two addressable content states:** `/` renders Welcome; `/workspaces/$workspaceId` renders the selected Workspace Canvas. They share the same application chrome, optional Explorer, Quick Open and Settings. This does **not** collapse distinct URLs or replace browser Back/Forward with local state.
+- **Welcome, first-run:** if the authoritative library has zero Workspaces, show the approved Welcome v3 first-run composition: a compact visual Canvas example, one primary **Create Workspace** action, and a secondary **Import Markdown** action. Never treat an empty category as an empty library.
+- **Welcome, existing library:** show the Notespace cobalt paper-stack Workspace cards, compact continue/resume entry, library search and creation actions. The Category Explorer remains available; selecting a category is addressable through `/?category=...`. No second dashboard, stats, activity feed or redundant navigation.
+- **Workspace:** full-bleed Excalidraw Canvas is the only permanent authoring surface. Its floating tool rail, Diagram palette, More tools and view controls retain the existing native Notespace SVG geometry and behaviors. Explorer is optional and can be toggled without leaving the selected Workspace.
+- **Notes:** existing Notes remain versioned records and appear as linked Canvas artifacts. Embedded Tiptap inside the Canvas is explicitly deferred. Opening an artifact or search/deep link opens a temporary full-featured Note editor overlay; close/route changes must respect pending snapshots and autosave.
+- **Removed from navigation:** standalone Note view, Split View, Focus Mode, Activity indicators/dock, and their switches/rails. No permanent page or navigation for these modes.
+- **Global utilities:** Quick Open (`Ctrl/Cmd+K`), Settings, import/export, backup/restore, Trash, confirmations, and conflict recovery remain reachable in both content states.
+- **Desktop:** reuse the existing 38px titlebar/native window controls and one application shell. Avoid extra Workspace rail, duplicate branding or titlebar controls; browser and Tauri share product behavior.
+- **Compatibility:** old links to a Workspace remain valid; legacy `?note=...` and `?block=...` must resolve into the temporary editor and targeted content. Existing local pane-layout preferences may be ignored, never treated as authored data or destructively migrated. Preserve historical Activity/Task/Milestone records, API contracts, SQLite migrations and backup compatibility even after UI removal.
 
 ## Layout archetypes
 
-| Surface | Owner | Contract |
+| Surface | Ownership | UI contract |
 | --- | --- | --- |
-| Discovery | `LibraryPageShell`, `WorkspaceLibrary` | 228px Explorer and compact Workspace cards; no extra primary rail |
-| Authoring | `WorkspacePage`, `WorkspaceRail` | 40px rail, 34px Note header, Canvas/Note/Split panes, Focus mode |
-| Utility | Settings, Quick Open, ActivityDock | Contextual overlays with clear pending/error states and keyboard focus |
-
-Use the restrained cobalt paper-stack Workspace identity card in both All Workspaces and Category. Category selection and pagination remain server-backed; both All and Category share the same title, cards, creation tile, and empty state structure without a category-only filter toolbar. The Home header exposes Settings and Info beside Quick Open. Never claim a truncated client page is the whole library.
+| Welcome (first-run) | Route + library feature | Same shell, restrained Canvas illustration, clear Create and Import entry, no Canvas tool rail |
+| Welcome (existing library) | Route + `WorkspaceLibrary` | Same shell, existing cobalt paper-stack cards (max 196px, radius 18px), optional 228px Explorer |
+| Workspace authoring | `WorkspacePage` + Canvas feature | Same shell, full-bleed Canvas, floating native tools and view controls; no permanent Note/Split/Focus/Activity chrome |
+| Note editing | Workspace authoring overlay | Temporary Tiptap editor, versioned Note source of truth, explicit close/flush and conflict handling |
+| Utilities | Settings, Quick Open, data/recovery | Overlays keep accessible focus and recoverable pending/error states |
 
 ## Workspace editor and Canvas contract
 
-The Workspace uses contiguous, border-only authored panes. No decorative cards, outer gutters or panel shadows around editable content. Split uses a 7px pointer/keyboard hit region with a centered 1px divider and preserves persisted ratio, orientation and pane state.
+Preserve existing Excalidraw primitives, diagrams, code blocks, image assets, keyboard shortcuts, pan/zoom and undo/redo. Canvas Note artifacts link by Note ID and store only placement/presentation metadata, not copied Note content. Deleting an artifact must not delete its Note. Users must still be able to find and edit unplaced Notes through search or a Note picker.
 
-The 34px Note header keeps inline rename, a permanent New Note action and one Navigate entry for Outline / Find & Replace. Code Block remains available via editing commands, not a duplicate header action. Excalidraw tools and view controls stay viewport-contained and low-elevation. Focus hides the rail column, expands authored content and restores the layout without replacing the editor state.
+Keep current granular Note/Canvas autosave and conflict handling, blocking stale cached route re-entry and unsafe navigation/desktop close until pending snapshots are settled. Maintain a recoverable empty Canvas state; distinguish genuinely empty Canvas from content positioned offscreen (offer **Back to content** where applicable).
 
-A Canvas-linked Note artifact references its owning Note ID and local presentation state; the Note is the source of truth. A Canvas deletion must not delete that Note. Preserve durable granular Note/Canvas saves, conflict handling, keyboard access, light/dark tokens and reduced motion.
+Preserve theme, Open Sans, the semantic tokens below, 4px spacing rhythm, 6px controls, 8px popup surfaces and low-elevation Canvas chrome. Follow the approved Welcome v3 first-run/resume composition rather than a generic blank-state illustration. Keyboard, reduced motion, focus restoration and touch/pointer interaction must remain usable.
 
 ## Visual direction
 

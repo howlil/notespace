@@ -90,7 +90,7 @@ tasks:
       - pnpm test:e2e:critical
 
   e2e:target:
-    desc: Build the web app and run one focused Playwright spec (SPEC=tests/example.spec.ts)
+    desc: Legacy-only Playwright focused spec while browser tests migrate to WebdriverIO
     requires:
       vars: [SPEC]
     cmds:
@@ -102,7 +102,7 @@ tasks:
     cmds:
       - task: build
       - task: check
-      - pnpm exec playwright test
+      - pnpm test:e2e:critical
 
   perf:evidence:
     desc: Run repeatable performance evidence checks

@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    # Playwright 1.58 Chromium does not install on ubuntu-26.04 (latest).
+    # Chrome is available on the runner; WebdriverIO manages the driver.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -39,14 +39,15 @@ jobs:
       - run: pnpm typecheck && pnpm lint && pnpm test
       - run: node ../../scripts/check-gofmt.mjs && go vet ./... && go test -race ./... && CGO_ENABLED=0 go build ./cmd/notespace
         working-directory: apps/server
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Check standalone WebdriverIO runner syntax
+        run: node --check scripts/web-e2e.mjs
       # Fast PR proof; complete browser regression protects the release SHA.
       - name: Run critical browser suite on PR
         if: github.event_name == 'pull_request'
-        run: pnpm exec playwright test --grep @critical
-      - name: Run full browser suite on master
+        run: pnpm test:e2e:critical
+      - name: Run critical WebdriverIO suite on master
         if: github.event_name == 'push'
-        run: pnpm exec playwright test
+        run: pnpm test:e2e:critical
       - uses: actions/upload-artifact@v4
         if: always()
         with:

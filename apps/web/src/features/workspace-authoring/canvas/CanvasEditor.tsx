@@ -112,7 +112,7 @@ function codeElementContainsClientPoint(
   return localX >= 0 && localX <= width && localY >= 0 && localY <= height;
 }
 
-export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, dark, workspaceId, notes, onOpenNote }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; dark: boolean; workspaceId: string; notes: readonly Note[]; onOpenNote: (noteId: string) => void }) {
+export default function CanvasEditor({ initial, onChange, onElementSelect, focusRequest, newNoteId, dark, workspaceId, notes, onOpenNote }: { initial: Snapshot; onChange: (snapshot: Snapshot) => void; onElementSelect?: (elementId: string | null) => void; focusRequest?: FocusRequest; newNoteId?: string | null; dark: boolean; workspaceId: string; notes: readonly Note[]; onOpenNote: (noteId: string) => void }) {
   const { showToast } = useToast();
   useEffect(() => {
     if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
@@ -161,6 +161,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   const panelAnchorRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
+  const lastPlacedNoteId = useRef<string | null>(null);
   const last = useRef("");
   const lastSelected = useRef<string | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
@@ -581,6 +582,15 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
     setNotePickerOpen(false);
   }, [dark, notes]);
 
+  // A newly created Note is authored in SQLite first, then placed once in
+  // Excalidraw. Wait for both the Canvas API and the fresh Note list to exist.
+  useEffect(() => {
+    if (!newNoteId || !canvasApi || lastPlacedNoteId.current === newNoteId) return;
+    if (!notes.some((note) => note.id === newNoteId)) return;
+    insertNoteArtifact(newNoteId);
+    lastPlacedNoteId.current = newNoteId;
+  }, [newNoteId, canvasApi, notes, insertNoteArtifact]);
+
   const updateNoteArtifact = useCallback((elementId: string, artifact: CanvasNoteArtifactData) => {
     const value = api.current;
     if (!value) return;
@@ -720,7 +730,7 @@ export default function CanvasEditor({ initial, onChange, onElementSelect, focus
   return (
     <div
       ref={surfaceRef}
-      className="notespace-canvas-surface relative min-h-0 w-full flex-1"
+      className="notespace-canvas-surface relative h-full min-h-0 w-full"
       aria-label="Workspace canvas"
       onPointerMoveCapture={(event) => {
         if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;

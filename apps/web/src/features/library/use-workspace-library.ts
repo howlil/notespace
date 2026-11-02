@@ -83,6 +83,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
       refreshLibrary({ silent: true });
+      void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } });
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });
     } finally {

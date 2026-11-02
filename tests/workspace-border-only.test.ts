@@ -3,75 +3,37 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOT = process.cwd();
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
+const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 const ws = read("apps/web/src/pages/workspace/WorkspacePage.tsx");
 const authoring = read("apps/web/src/features/workspace-authoring/ui/WorkspaceAuthoring.tsx");
 const canvas = read("apps/web/src/features/workspace-authoring/canvas/CanvasChrome.tsx");
 const document = read("apps/web/src/features/workspace-authoring/document/DocumentEditor.tsx");
-const popup = read("apps/web/src/features/workspace-authoring/ui/workspace-ui-classes.ts");
 const stylesheet = read("apps/web/src/features/workspace-authoring/workspace-authoring.css");
 
-test("Workspace authoring is full-bleed with one rail and accessible autosave", () => {
-  assert.match(ws, /flex h-auto min-h-0 min-w-0 flex-1 overflow-hidden p-0/);
-  assert.doesNotMatch(ws, /overflow-hidden p-3 max-\[760px\]:p-\[7px\]/);
-  assert.match(ws, /<WorkspaceRail/);
-  assert.match(ws, /authoring\.selectView\(mode\)/);
-  assert.doesNotMatch(ws, /<WorkspacePlan/);
+test("Canvas owns the only permanent Workspace authoring surface", () => {
+  assert.match(ws, /<LibraryPageShell canvas/);
+  assert.match(ws, /authoring\.authoringVisible/);
   assert.match(ws, /authoring\.status\.state/);
-  assert.doesNotMatch(ws, /<HeaderPlacement/);
-  assert.doesNotMatch(ws, /<WorkspaceViewSwitcher|<WorkspaceGuide|<SettingsTrigger/);
-  const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
-  assert.match(rail, /workspace-rail/);
-  assert.match(rail, /w-10/);
-  assert.match(rail, /<WorkspaceViewSwitcher/);
-  assert.match(rail, /\{activityControl\}/);
-  assert.match(ws, /<ActivityIndicator rail/);
-  assert.match(rail, /Back to library/);
-  assert.match(rail, /Focus mode/);
+  assert.doesNotMatch(ws, /WorkspaceRail|ActivityIndicator|Focus mode|WorkspaceViewSwitcher/);
+  assert.match(authoring, /<CanvasEditor/);
+  assert.doesNotMatch(authoring, /splitPane|resizeSplit|useWorkspacePaneLayout|selectView/);
 });
 
-test("split is border-only with 7px pointer area and keyboard-accessible bounded resize", () => {
-  assert.match(authoring, / 7px /);
-  assert.match(authoring, /after:w-px/);
-  assert.match(authoring, /after:h-px/);
-  assert.match(authoring, /after:bg-line/);
-  assert.match(authoring, /role="separator"/);
-  assert.match(authoring, /aria-orientation=/);
-  assert.match(authoring, /aria-valuenow=/);
-  assert.match(authoring, /setPointerCapture\(event\.pointerId\)/);
-  assert.match(authoring, /resizeSplit\(node\.id, ratio \+ \.05\)/);
-  assert.match(authoring, /onPointerDown=/);
-  assert.match(authoring, /onKeyDown=/);
+test("Tiptap remains available in a temporary editor and saves before close", () => {
+  assert.match(authoring, /<Dialog open=\{!!selectedNote\}/);
+  assert.match(authoring, /<DocumentEditor/);
+  assert.match(authoring, /registerSnapshotFlush/);
+  assert.match(authoring, /await flushAll\(\)/);
+  assert.match(authoring, /registerDesktopFlush\(flushAll\)/);
+  assert.match(authoring, /useBlocker/);
+  assert.match(authoring, /onOpenNote=\{openNote\}/);
+  assert.match(document, /<EditorContent editor=\{editor\}/);
 });
 
-test("Canvas toolbar and view controls float over full-bleed Workspace", () => {
+test("Existing Canvas controls remain border-only with native tools", () => {
   assert.match(canvas, /Canvas tools".*onPointerDown/);
   assert.match(canvas, /Canvas view controls".*onPointerDown/);
   assert.match(canvas, /rounded-lg border border-line bg-surface p-1 shadow-none/);
   assert.match(canvas, /notespace-canvas-bottom-chrome.*absolute bottom-2 left-1\/2/);
-  assert.match(canvas, /max-w-\[calc\(100vw-16px\)\]/);
-  assert.match(canvas, /overflow-x-auto/);
-  assert.match(canvas, /pointer-events-auto absolute top-2 right-2 z-20/);
-  assert.match(stylesheet, /notespace-canvas-bottom-chrome\s*\{\s*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important;\s*width: calc\(100% - 16px\);/);
+  assert.match(stylesheet, /notespace-canvas-bottom-chrome\s*\{\s*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important/);
 });
-
-test("Note actions, editor and Workspace menus use borders without decorative shadows", () => {
-  assert.match(document, /toolbarTarget \? createPortal/);
-  assert.match(document, /<EditorContent editor=\{editor\}/);
-  assert.doesNotMatch(document, /shadow-\[(?:0_10px|0_12px)/);
-  assert.doesNotMatch(document, /shadow-sm/);
-  assert.match(popup, /border border-line bg-surface/);
-  assert.match(popup, /shadow-none/);
-  assert.match(authoring, /<DocumentEditor/);
-  assert.match(authoring, /<CanvasEditor/);
-});
-
-test("retired Plan surface is not mounted in Workspace authoring", () => {
-  const rail = read("apps/web/src/features/workspace-authoring/ui/WorkspaceRail.tsx");
-  const switcher = read("apps/web/src/features/workspace-authoring/ui/WorkspaceViewSwitcher.tsx");
-  assert.doesNotMatch(ws, /WorkspacePlan|planOpen|onPlanSelect/);
-  assert.doesNotMatch(rail, /planActive|onPlanSelect/);
-  assert.doesNotMatch(switcher, /ListTodo|Plan/);
-});
-

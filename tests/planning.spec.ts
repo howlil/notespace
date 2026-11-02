@@ -15,7 +15,8 @@ test("@critical retired Plan UI still preserves historical Milestones and Tasks 
     const task = await taskResponse.json() as { id: string; version: number };
 
     await page.goto(`/workspaces/${workspace.id}`);
-    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+    await expect(page.locator(".excalidraw__canvas.interactive")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Plan", exact: true })).toHaveCount(0);
     await page.reload();
 

@@ -65,3 +65,32 @@ test("@critical Note deep link opens the editor and Done clears the URL without 
     await cleanupWorkspace(request, id);
   }
 });
+
+test("@critical failed Note deletion retains the Note and editable dialog", async ({ page, request }) => {
+  const id = await createViaAPI(page, request, `Delete failure ${Date.now()}`);
+  try {
+    await page.getByRole("button", { name: "New Note" }).click();
+    const editor = page.getByRole("dialog", { name: "Note editor" });
+    await expect(editor).toBeVisible();
+    const noteId = new URL(page.url()).searchParams.get("note");
+    expect(noteId).toBeTruthy();
+    await page.route(`**/api/workspaces/${id}/notes/*`, async (route) => {
+      if (route.request().method() === "DELETE") {
+        await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"delete refused"}' });
+      } else {
+        await route.continue();
+      }
+    });
+    await editor.getByRole("button", { name: "Delete Note", exact: true }).click();
+    const confirmation = page.getByRole("dialog", { name: "Delete Note confirmation" });
+    await confirmation.getByRole("button", { name: "Delete Note" }).click();
+    await expect(editor).toBeVisible();
+    await expect(confirmation).toBeVisible();
+    const response = await request.get(`/api/workspaces/${id}`);
+    const current = await response.json() as { notes: Array<{ id: string }> };
+    expect(current.notes.some((note) => note.id === noteId)).toBe(true);
+  } finally {
+    await page.unroute(`**/api/workspaces/${id}/notes/*`);
+    await cleanupWorkspace(request, id);
+  }
+});

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { PanelLeft, Search } from "lucide-react";
 import { NotespaceLogo } from "../../shared/ui/NotespaceLogo";
 import { HeaderPlacement, useDesktopChrome } from "../../shared/ui/desktop-titlebar/HeaderPlacement";
@@ -23,7 +24,7 @@ export function LibraryPageShell({ sidebar, children, canvas = false, headerActi
   return (
     <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden bg-background" data-notespace-single-shell>
       <HeaderPlacement className="relative z-30 flex min-h-[38px] shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
-        {!customChromeActive && <NotespaceLogo size="sm" showWordmark={false} />}
+        {!customChromeActive && <Link to="/" aria-label="Notespace home" title="Welcome"><NotespaceLogo size="sm" showWordmark={false} /></Link>}
         <IconButton className="!size-7" aria-label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
           title={explorerOpen ? "Hide Explorer" : "Show Explorer"} aria-expanded={explorerOpen}
           onClick={() => setExplorerOpen((value) => !value)}>

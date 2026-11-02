@@ -2,31 +2,29 @@
 
 A free, self-hosted knowledge workspace for structured notes, spatial thinking, and deliberate study.
 
-The Navigation v8 product model (integrated into `master` through PR #184) is:
+The current single-shell navigation model is:
 
 ```text
-Home
-└── Explorer (Categories → Workspaces)
-    └── Workspace
-        ├── Notes (Tiptap)
-        ├── Canvas (Excalidraw)
-        ├── Split authoring
-        ├── Activity sessions
-        └── Focus mode
+Notespace
+├── Welcome (first-run or Workspace library)
+│   └── Explorer (Categories → Workspaces, optional)
+└── Workspace Canvas (Excalidraw)
+    ├── Note artifacts → temporary Tiptap editor dialog
+    ├── Shapes, diagrams, connections and code blocks
+    └── Global Quick Open, Settings, Backup and recovery
 ```
 
-Home has one 228px Explorer, category disclosure, Workspace links and Quick Open (`Ctrl/Cmd + K`). Workspace has its own 40px rail; native desktop uses a 38px draggable titlebar with window controls, while Back remains in the Workspace rail and Ctrl/Cmd+K remains the search shortcut. No separate Today, Inbox/Capture Queue, Quick Capture, Plan page, Recent tab, or standalone Activity dashboard is exposed in v8.
+Welcome and Canvas share one shell and an optional 228px Explorer. They remain addressable at `/` and `/workspaces/:id`. The desktop app retains a 38px native titlebar with window controls. There is no permanent Note page, Split View, Focus Mode, Workspace rail or Activity dock. Embedded rich-text editing inside Excalidraw is intentionally deferred.
 
 ## Core capability
 
-- Category-organized Workspace library, with progressive disclosure and server-backed browsing.
-- Multiple durable Tiptap Notes and an Excalidraw Canvas per Workspace, including Split panes.
+- Category-organized Workspace library, progressive disclosure and server-backed browsing.
+- Multiple durable Tiptap Notes per Workspace, opened through a temporary editor and linked as Canvas artifacts.
+- Excalidraw Canvas for shapes, diagrams, image assets, code and spatial knowledge.
 - Granular optimistic-versioned Note and Canvas autosave with conflict protection and recovery.
-- Workspace-centered Activity Start / Pause / Resume / End and a persistent Activity dock.
-- Global text/Note search and keyboard-operated Quick Open.
+- Global text/Note search and keyboard-operated Quick Open (`Ctrl/Cmd+K`).
 - Durable image assets, Markdown/Obsidian-vault folder import, recoverable Trash, and full-library ZIP backup/transactional restore.
-- Linked Note artifacts on Canvas; writing and spatial context remain connected.
-- Browser and Tauri desktop share the product behavior, with a native window/SQLite sidecar on Windows.
+- Browser and Tauri desktop share product behavior, with a native window/SQLite sidecar on Windows.
 
 Retired navigation does **not** delete previously saved Capture, Task, Milestone or Activity records. Historical rows, backup compatibility and externally exposed HTTP endpoints remain until their consumers and data-compatibility contracts can be safely retired. Do not delete SQLite migrations or restore functionality merely to remove a legacy screen.
 

@@ -12,7 +12,7 @@ test("@critical Canvas controls remain border-only and usable with the shared sh
     const surface = await page.locator(".excalidraw__canvas.interactive").boundingBox();
     expect(bounds?.height).toBeGreaterThan(250);
     expect(surface?.height).toBeGreaterThan(250);
-    await expect(page.getByRole("group", { name: "Canvas view controls" })).toBeVisible();
+    await expect(page.getByRole("toolbar", { name: "Canvas view controls" })).toBeVisible();
     await expect(page.getByRole("separator", { name: /Resize horizontal panes|Resize vertical panes/ })).toHaveCount(0);
   } finally {
     await cleanupWorkspace(request, id);

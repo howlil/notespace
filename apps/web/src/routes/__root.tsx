@@ -22,8 +22,6 @@ import { LibraryExplorerProvider } from "../shared/ui/library-explorer-provider"
 import { AppSettings } from "../features/settings/AppSettings";
 import { DesktopRecoveryTools } from "../features/desktop-recovery/DesktopRecoveryTools";
 import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
-import { ActivityRuntimeProvider } from "../features/activity/activity-runtime-provider";
-import { ActivityDock } from "../features/activity/ActivityDock";
 import { allowDesktopClose, beginDesktopQuiescence, cancelDesktopClose, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../adapters/browser/desktop-lifecycle";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
@@ -47,7 +45,6 @@ export const Route = createRootRoute({
       <NativePopupManager>
         <ToastProvider>
           <ThemeProvider>
-            <ActivityRuntimeProvider>
               <DesktopCloseBridge />
               <DesktopUpdateControl />
               <AppSettings
@@ -57,8 +54,6 @@ export const Route = createRootRoute({
               <QuickOpen />
               <ConflictRecoveryDialog />
               <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
-              <ActivityDock />
-            </ActivityRuntimeProvider>
           </ThemeProvider>
         </ToastProvider>
       </NativePopupManager>

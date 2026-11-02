@@ -65,12 +65,14 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
         .then(setUpdaterEnabled)
         .catch(() => setUpdaterEnabled(false));
     }
-    const onOpen = () => {
-      setTab("general");
-      setOpen(true);
-    };
+    const onOpen = () => { setTab("general"); setOpen(true); };
+    const onOpenData = () => { setTab("data"); setOpen(true); };
     window.addEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);
-    return () => window.removeEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);
+    window.addEventListener("notespace:open-settings-data", onOpenData);
+    return () => {
+      window.removeEventListener(OPEN_NOTESPACE_SETTINGS, onOpen);
+      window.removeEventListener("notespace:open-settings-data", onOpenData);
+    };
   }, []);
 
   const onBusyChange = useCallback((value: boolean) => {

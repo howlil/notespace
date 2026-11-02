@@ -127,7 +127,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
+          # PR policy-only checks do not install dependencies, so there is no
+          # pnpm store to cache. Master builds still restore/save pnpm cache.
+          cache: ${{ github.event_name == 'push' && 'pnpm' || '' }}
           cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         if: github.event_name == 'push'

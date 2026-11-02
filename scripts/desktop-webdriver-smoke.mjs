@@ -197,7 +197,7 @@ async function runProductPersistenceJourney(session) {
     const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
     await link.click();
   }
-  await waitForUrl(session, /\\/workspaces\\//);
+  await waitForUrl(session, /\/workspaces\//);
   if (!upgradeSeed) {
     await assertDesktopChrome(session, true);
     await waitForWorkspaceSaved(session);

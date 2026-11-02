@@ -6,7 +6,6 @@ import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../shared/ui";
 import { useLibraryNavigation } from "../../features/library/use-library-navigation";
 import type { CategorySummary } from "../../domain/workspace/workspace";
-import { NotespaceLogo } from "./NotespaceLogo";
 
 export function Brand() {
   return <NotespaceLogo />;
@@ -61,9 +60,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, onSelectCategor
 
   return <>
     <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden bg-sidebar px-2 py-2" aria-label="Category explorer">
-      <div className="notespace-sidebar-brand flex min-h-[46px] shrink-0 items-center border-b border-line px-2">
-        <Link to="/" aria-label="Notespace home" className="inline-flex items-center"><NotespaceLogo /></Link>
-      </div>
       <div className="flex min-h-8 shrink-0 items-center justify-between px-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Workspaces</span>
         <IconButton type="button" className="!size-7 text-muted hover:text-accent" aria-label="New category" title="New category"

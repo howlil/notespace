@@ -20,35 +20,25 @@ const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring"
 
 function source(path: string) { return readFileSync(path, "utf8"); }
 
-test("responsive contract: compact workspaces preserve usable pane width", () => {
+test("responsive contract: Welcome and Canvas share one collapsible Explorer", () => {
   const workspace = source(WORKSPACE);
   const workspacePage = source(WORKSPACE_PAGE);
-  assert.match(workspace, /matchMedia\("\(max-width: 760px\)"\)/);
-  assert.match(workspace, /node\.direction === "row" && compactPanes \? "column" : node\.direction/);
-  assert.match(workspace, /max-\[760px\]:!grid-cols-1/);
-  assert.match(workspacePage, /<WorkspaceRail/);
-  const rail = source(join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceRail.tsx"));
-  assert.match(rail, /w-10/);
-  assert.match(rail, /top-1\/2/);
-  assert.doesNotMatch(workspace, /keepsCanvasOnRight/);
-  assert.doesNotMatch(workspace, /max-\[760px\]:h-\[calc\(100dvh/);
-});
-
-test("responsive contract: compact Home retains permanent sidebar without toggles", () => {
   const shell = source(PAGE_SHELL);
   const sidebar = source(SIDEBAR);
   const library = source(WORKSPACE_LIBRARY);
+  assert.match(workspace, /<CanvasEditor/);
+  assert.match(workspacePage, /<LibraryPageShell canvas/);
+  assert.doesNotMatch(workspacePage, /WorkspaceRail|ActivityIndicator|focusMode/);
   assert.match(shell, /notespace-home-sidebar/);
-  assert.ok(shell.includes("w-[228px]"));
-  assert.doesNotMatch(shell, /<ShellRail|Close category explorer|Toggle category explorer/);
-  assert.equal(existsSync(RETIRED_SHELL_RAIL), false, "Legacy 44px primary rail remains retired");
-  assert.match(shell, /aria-label="Search Notespace with Control K or Command K"/);
+  assert.match(shell, /w-\[228px\]/);
+  assert.match(shell, /max-\[560px\]:w-\[200px\]/);
+  assert.match(shell, /Hide Explorer|Show Explorer/);
+  assert.match(shell, /aria-expanded=\{explorerOpen\}/);
   assert.match(sidebar, /aria-label="Category explorer"/);
-  assert.match(sidebar, /notespace-sidebar-brand/);
   assert.match(sidebar, /aria-label="New category"/);
-  assert.doesNotMatch(library, /aria-label="Library views"/);
   assert.match(library, /function WorkspaceFolderCard/);
   assert.match(library, /<WorkspaceListSkeleton/);
+  assert.equal(existsSync(RETIRED_SHELL_RAIL), false);
 });
 
 test("responsive contract: standalone Home Activity dashboard is retired", () => {

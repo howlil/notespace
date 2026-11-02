@@ -122,6 +122,11 @@
   display: flex;
   align-items: stretch;
 }
+.desktop-shell--custom [data-notespace-single-shell] {
+  height: 100% !important;
+  min-height: 0;
+}
+
 .desktop-shell--custom .desktop-page-viewport {
   min-height: 0;
   flex: 1;

@@ -46,7 +46,7 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
   });
   const selectedNoteId = typeof search.note === "string" ? search.note : null;
   const blockId = typeof search.block === "string" ? search.block : null;
-  const documentFocus = useMemo(() => blockId ? { id: blockId, request: 1 } : null, [blockId, selectedNoteId]);
+  const documentFocus = useMemo(() => blockId ? { id: blockId, request: 1 } : null, [blockId]);
   const [noteTitleDraft, setNoteTitleDraft] = useState("");
   const [closingNote, setClosingNote] = useState(false);
   const [deletingNote, setDeletingNote] = useState(false);

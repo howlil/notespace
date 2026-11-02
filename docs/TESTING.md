@@ -168,55 +168,21 @@ These tests own SQLite-specific behavior; service tests should not duplicate it 
 
 They should use representative invalid domain input, not repeat every domain validation permutation.
 
-## Playwright
+## Browser E2E — WebdriverIO standalone
 
-Playwright owns real browser behavior and cross-system wiring.
-
-Run the full suite:
+The default browser runner is `scripts/web-e2e.mjs`: WebdriverIO standalone, Node's built-in test runner, headless installed Chrome and a real isolated Go/SQLite database. No Mocha/Cucumber runner and no separate Playwright browser download.
 
 ```sh
-task e2e
+task e2e:critical          # build + four critical browser journeys
+pnpm test:e2e:critical    # reuse the existing built web output
+task e2e                   # production build + WebdriverIO
 ```
 
-Run critical journeys only:
+The four browser journeys cover: Welcome → Workspace → Canvas size; Note URL → Tiptap → save and reload; New Note → persisted Canvas artifact; Explorer and Quick Open. Backend integration and native WebView2 smoke retain their independent durability proofs.
 
-```sh
-task e2e:critical
-```
+**Migration status:** the old Playwright specs are retained as an explicit manual fallback (`pnpm test:e2e:legacy`, `task e2e:target SPEC=...`). They are not the active PR/master browser gate. Coverage parity for historical long-form browser scenarios has not yet been established; do not claim it is.
 
-Run one spec:
-
-```sh
-task e2e:target SPEC=tests/today.spec.ts
-```
-
-Current browser coverage includes:
-
-- route/reload/navigation behavior;
-- Workspace authoring;
-- planning, Today, and Inbox;
-- global search and exact context navigation;
-- activity session recovery/cross-tab behavior;
-- Trash recovery;
-- full-library backup/restore;
-- Canvas toolbar behavior;
-- Library request race protection;
-- carried-forward Today removal.
-
-### When to use Playwright
-
-Prefer Playwright when correctness depends on:
-
-- browser event ordering;
-- real routing;
-- DOM focus/keyboard/pointer behavior;
-- multiple tabs;
-- BroadcastChannel;
-- browser file/directory APIs;
-- a race between network responses and UI selection;
-- complete frontend → HTTP → SQLite wiring.
-
-Do not use Playwright to enumerate pure domain edge cases.
+Only admit new browser tests for behavior that cannot be proven at a cheaper boundary. Prefer Node unit, HTTP integration and SQLite tests for ordinary rules, CRUD and failure cases. Run tests sequentially against isolated data; avoid arbitrary waits.
 
 ## Native desktop verification
 
@@ -233,7 +199,7 @@ pnpm test:desktop:native
 
 `test:desktop:native` requires `tauri-driver` and the matching Edge WebDriver on Windows. Its WebView2 capability sets
 an explicit user-data folder so the launch/relaunch persistence assertion uses the same profile. The production shell
-uses the stable Tauri `dataDirectory`; browser Playwright remains the owner for full product journeys and multi-tab
+uses the stable Tauri `dataDirectory`; WebdriverIO owns the critical current browser journeys; legacy Playwright remains optional for multi-tab
 behavior.
 
 The release lane also runs `pnpm test:desktop:critical` against the release executable. This journey creates a
@@ -254,7 +220,7 @@ cargo tauri build -- --locked
 
 ### Pull requests and `master`
 
-For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and a single **critical Playwright** selection. On `master`, it runs the full web + landing build, **complete Playwright suite**, and Docker Compose restart/persistence smoke. Critical journeys are already included in the full suite.
+For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and the **critical WebdriverIO standalone** suite. On `master`, it runs the full web + landing build, **critical WebdriverIO suite**, and Docker Compose restart/persistence smoke. The legacy Playwright regression suite is a manual fallback until coverage parity is restored.
 
 `Verify Desktop` runs deterministic policy/YAML checks on Linux for PRs, while Windows Server 2022 still owns **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey. Full Linux native build/smoke and Windows-latest toolchain checks run on `master`, before the exact-SHA beta publication gate. No duplicate native launch is added.
 
@@ -297,7 +263,7 @@ task build
 task verify
 ```
 
-`task verify` builds production artifacts, runs frontend/server checks, and runs the full Playwright suite.
+`task verify` builds production artifacts, runs frontend/server checks, and runs the WebdriverIO critical browser suite.
 
 ## Docker persistence smoke
 
@@ -342,13 +308,13 @@ Examples:
 
 ```text
 Workspace Back loses a pending Note edit
-→ route loader freshness, autosave boundary, and critical Playwright re-entry test
+→ route loader freshness, autosave boundary, and critical WebdriverIO re-entry proof
 
 Workspace delete ID whitespace bug
 → activity service query test
 
 stale Library category response overwrites current view
-→ request-generation fix + Playwright race regression
+→ request-generation fix + browser race regression
 
 asset rejected after Workspace ownership disappears
 → asset orchestration unit test

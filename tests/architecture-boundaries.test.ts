@@ -412,8 +412,8 @@ test("home page owns the library screen composition", () => {
   const library = source("features/library/WorkspaceLibrary.tsx");
   const model = source("features/library/use-workspace-library.ts");
 
-  assert.match(home, /<LibraryPageShell dashboard/);
-  assert.match(source("pages/_shared/LibraryPageShell.tsx"), /dashboard-shell/);
+  assert.match(home, /<LibraryPageShell/);
+  assert.match(source("pages/_shared/LibraryPageShell.tsx"), /data-notespace-single-shell/);
   assert.match(home, /LibrarySidebar/);
   assert.match(home, /useWorkspaceLibrary/);
   assert.match(home, /WorkspaceLibrary/);

@@ -1,7 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useBlocker } from "@tanstack/react-router";
-import { FileText, Plus, X } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogTitle, IconButton, Input } from "../../../shared/ui";
+import { FileText, Plus, Trash2, X } from "lucide-react";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, IconButton, Input } from "../../../shared/ui";
 import { useTheme } from "../../../shared/ui/theme-provider";
 import { useToast } from "../../../shared/ui/toast-provider";
 import { workspaceContentOf } from "../../../domain/workspace/workspace";
@@ -20,6 +21,8 @@ const DocumentEditor = lazy(() => import("../document/DocumentEditor"));
  */
 export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
   const { dark } = useTheme();
+  const navigate = useNavigate();
+  const search = useRouterState({ select: (state) => state.location.search });
   const { showToast } = useToast();
   const [normalized] = useState(() => normalizeWorkspaceContent(workspaceContentOf(workspace)));
   const initial = normalized.content;
@@ -41,17 +44,31 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
     flushNote,
     forgetNote,
   });
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(() =>
-    new URLSearchParams(window.location.search).get("note"));
+  const selectedNoteId = typeof search.note === "string" ? search.note : null;
+  const blockId = typeof search.block === "string" ? search.block : null;
+  const documentFocus = useMemo(() => blockId ? { id: blockId, request: 1 } : null, [blockId, selectedNoteId]);
   const [noteTitleDraft, setNoteTitleDraft] = useState("");
   const [closingNote, setClosingNote] = useState(false);
+  const [deletingNote, setDeletingNote] = useState(false);
+  const [placementNoteId, setPlacementNoteId] = useState<string | null>(null);
   const [canvasFocus, setCanvasFocus] = useState<{ id: string; request: number } | null>(null);
   const focusRequestNumber = useRef(0);
-  const blockId = new URLSearchParams(window.location.search).get("block");
-  const [documentFocus] = useState(() => blockId
-    ? { id: blockId, request: 1 } : null);
   const selectedNote = current.current.notes.find((note) => note.id === selectedNoteId);
   const currentWorkspaceTitle = current.current.title;
+
+  useEffect(() => {
+    const note = current.current.notes.find((item) => item.id === selectedNoteId);
+    setNoteTitleDraft(note?.title ?? "");
+  }, [current, selectedNoteId]);
+
+  function setNoteDestination(noteId: string | null, block: string | null = null) {
+    void navigate({
+      to: "/workspaces/$workspaceId",
+      params: { workspaceId: workspace.id },
+      search: { note: noteId ?? undefined, block: block ?? undefined },
+      replace: true,
+    });
+  }
 
   useEffect(() => {
     if (!normalized.changed) return;
@@ -120,13 +137,14 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
       return;
     }
     setNoteTitleDraft(note.title);
-    setSelectedNoteId(noteId);
+    setNoteDestination(noteId);
   }
 
   async function createNote() {
     const note = await commands.createNote();
     if (!note) return;
     touch();
+    setPlacementNoteId(note.id);
     openNote(note.id);
   }
 
@@ -137,12 +155,29 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
       // The editor remains mounted until its snapshot flusher and versioned
       // write have both settled.
       await flushAll();
-      setSelectedNoteId(null);
+      setNoteDestination(null);
     } catch (error) {
       showToast({
         kind: "error",
         message: error instanceof Error ? error.message : "Note was not saved. Retry closing it.",
       });
+    } finally {
+      setClosingNote(false);
+    }
+  }
+
+  async function confirmDeleteNote() {
+    if (!selectedNote || current.current.notes.length <= 1 || closingNote) return;
+    setClosingNote(true);
+    try {
+      await flushAll();
+      const deleted = await commands.deleteNote(selectedNote.id);
+      if (deleted) {
+        setDeletingNote(false);
+        setNoteDestination(null);
+      }
+    } catch (error) {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not delete Note." });
     } finally {
       setClosingNote(false);
     }
@@ -170,6 +205,7 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
           initial={current.current.canvas}
           onChange={updateCanvas}
           focusRequest={canvasFocus}
+          newNoteId={placementNoteId}
           dark={dark}
           notes={current.current.notes}
           onOpenNote={openNote}
@@ -195,6 +231,7 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
   );
 
   const overlays = (
+    <>
     <Dialog open={!!selectedNote} onOpenChange={(open) => { if (!open) void closeNote(); }}>
       <DialogContent
         className="flex h-[min(86dvh,900px)] w-[min(94vw,1050px)] max-w-none flex-col gap-0 overflow-hidden p-0"
@@ -219,6 +256,9 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
               <span className="text-[10px] text-muted" role="status">
                 {status.state === "saved" ? "Saved" : status.state === "saving" ? "Saving…" : status.state === "conflict" ? "Conflict" : "Unsaved"}
               </span>
+              <IconButton type="button" aria-label="Delete Note" title={current.current.notes.length <= 1 ? "At least one Note must remain" : "Delete Note"} disabled={closingNote || current.current.notes.length <= 1} className="!size-7" onClick={() => setDeletingNote(true)}>
+                <Trash2 size={15} />
+              </IconButton>
               <Button type="button" variant="secondary" size="sm" disabled={closingNote} onClick={() => void closeNote()}>
                 {closingNote ? "Saving…" : "Done"}
               </Button>
@@ -248,6 +288,21 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
         )}
       </DialogContent>
     </Dialog>
+    <Dialog open={deletingNote && !!selectedNote} onOpenChange={(open) => { if (!closingNote) setDeletingNote(open); }}>
+      <DialogContent aria-label="Delete Note confirmation" className="w-[min(94vw,420px)]">
+        <DialogTitle>Delete this Note?</DialogTitle>
+        <DialogDescription>
+          The Note will be deleted from this Workspace. Any Canvas cards linking to it will no longer have Note content.
+        </DialogDescription>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="secondary" disabled={closingNote} onClick={() => setDeletingNote(false)}>Cancel</Button>
+          <Button type="button" disabled={closingNote} onClick={() => void confirmDeleteNote()}>
+            {closingNote ? "Deleting…" : "Delete Note"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 
   return { authoringVisible, overlays, status, currentWorkspaceTitle };

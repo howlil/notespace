@@ -186,9 +186,9 @@ async function runLegacyProductPersistenceJourney(session) {
   const workspaceTitle = `Desktop smoke ${Date.now()}`;
   const initialMarker = `Desktop persistence ${Date.now()}`;
   const finalMarker = `${initialMarker} :: flushed before close`;
-  await visibleElement(session, By.css('main button[aria-label="New workspace"]')).click();
+  (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
   await visibleElement(session, By.css('input[aria-label="New workspace name"]')).sendKeys(workspaceTitle, Key.ENTER);
-  await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`)).click();
+  (await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`))).click();
   await waitForUrl(session, /[/]workspaces[/]/);
   const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
   await editor.click();
@@ -208,9 +208,9 @@ async function runProductPersistenceJourney(session) {
     await firstRun[0].click();
     const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
     await field.sendKeys(workspaceTitle);
-    await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']")).click();
+    (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
   } else {
-    await visibleElement(session, By.css('main button[aria-label="New workspace"]')).click();
+    (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
     const field = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
     await field.sendKeys(workspaceTitle, Key.ENTER);
     const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));

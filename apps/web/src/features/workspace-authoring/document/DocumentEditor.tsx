@@ -529,9 +529,9 @@ export default function DocumentEditor({
     };
     const updateFromScroll = () => {
       frame = 0;
-      // Use the editor's top edge, not an entire heading's height ahead of it.
-      // A large offset can activate Section 01 after navigating to Section 00.
-      const scrollTop = container.getBoundingClientRect().top + 12;
+      // Use the editor's top edge, not a full line of lookahead: after jumping
+      // to a heading, the next heading may be within 65px of the viewport top.
+      const activationLine = container.getBoundingClientRect().top + 12;
       let nearest: string | null = null;
       let first: string | null = null;
       editor.state.doc.descendants((node, pos) => {
@@ -539,7 +539,7 @@ export default function DocumentEditor({
         const element = editor.view.nodeDOM(pos);
         if (!(element instanceof HTMLElement)) return true;
         first ??= node.attrs.blockId;
-        if (element.getBoundingClientRect().top <= scrollTop) nearest = node.attrs.blockId;
+        if (element.getBoundingClientRect().top <= activationLine) nearest = node.attrs.blockId;
         return true;
       });
       const current = nearest ?? first;

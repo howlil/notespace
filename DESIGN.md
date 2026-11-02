@@ -27,7 +27,7 @@ Notespace is a self-hosted, compact writing and spatial knowledge workspace. Mak
 | Authoring | `WorkspacePage`, `WorkspaceRail` | 40px rail, 34px Note header, Canvas/Note/Split panes, Focus mode |
 | Utility | Settings, Quick Open, ActivityDock | Contextual overlays with clear pending/error states and keyboard focus |
 
-Use the restrained cobalt paper-stack Workspace identity card in both All Workspaces and Category. Category filters and pagination remain server-backed; never claim a truncated client page is the whole library.
+Use the restrained cobalt paper-stack Workspace identity card in both All Workspaces and Category. Category selection and pagination remain server-backed; both All and Category share the same title, cards, creation tile, and empty state structure without a category-only filter toolbar. The Home header exposes Settings and Info beside Quick Open. Never claim a truncated client page is the whole library.
 
 ## Workspace editor and Canvas contract
 

@@ -254,11 +254,9 @@ cargo tauri build -- --locked
 
 ### Pull requests and `master`
 
-The `Verify` workflow runs one **full Playwright suite** on pull requests and default-branch pushes. Tests marked `@critical` are included in that run and should **not** be rerun as a second suite in the same job. The focused `pnpm test:e2e:critical` command is retained for developer diagnosis, not repeated in CI.
+For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and a single **critical Playwright** selection. On `master`, it runs the full web + landing build, **complete Playwright suite**, and Docker Compose restart/persistence smoke. Critical journeys are already included in the full suite.
 
-The web gate includes production build, typecheck, lint, Node and Go tests (`go test -race`), Go build, Docker Compose startup and persistence/restart smoke. This checks distinct functional, transactional and deployment boundaries.
-
-`Verify Desktop` runs deterministic policy/YAML checks once on Linux; Linux native runtime/build and Windows-latest toolchain compile checks are separate. Windows Server 2022 owns the WebView2 driver and **one critical native** navigation, pending-save close, SQLite shutdown/relaunch verification. This critical run already covers the noncritical native smoke and should not be preceded by a duplicate launch.
+`Verify Desktop` runs deterministic policy/YAML checks on Linux for PRs, while Windows Server 2022 still owns **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey. Full Linux native build/smoke and Windows-latest toolchain checks run on `master`, before the exact-SHA beta publication gate. No duplicate native launch is added.
 
 Separate, explicit publication workflows protect actual MSI signing, installed-upgrade and provenance contracts. Windows 11 physical visual acceptance is manual and never claimed to be performed by CI.
 

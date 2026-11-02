@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Folder, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Folder, Pencil, Plus, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { FormEvent } from "react";
-import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input, cn } from "../../shared/ui";
+import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Input } from "../../shared/ui";
 import { ConfirmDialog } from "../../shared/ui/confirm-dialog";
 import type { WorkspaceSummary } from "../../domain/workspace/workspace";
 import { WorkspaceListSkeleton } from "./WorkspaceListSkeleton";
@@ -229,10 +229,7 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
     allLoadError,
     retryAll,
     retryCategory,
-    categorySearch,
-    setCategorySearch,
-    categoryFilters,
-    updateCategoryFilters,
+    updateCategoryPageState,
     creatingWorkspace,
     newWorkspaceTitle,
     createLoading,
@@ -258,47 +255,14 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
   return (
     <>
       <h1 id="library-list-title" className="sr-only">{heading}</h1>
-      {view !== "category" && <h2 className="mb-5 text-[21px] font-semibold tracking-tight text-ink">Workspaces</h2>}
-      {view === "category" && (
-        <div className="mb-4 grid gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="m-0 truncate text-[17px] font-semibold text-ink">{heading}</h2>
-            <span className="text-[10px] tabular-nums text-muted">{page?.total ?? 0} workspaces</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" aria-label="Category filters">
-            <label className="flex min-h-8 min-w-[180px] flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5 focus-within:outline-2 focus-within:outline-accent">
-              <Search size={14} className="shrink-0 text-muted" aria-hidden="true" />
-              <Input type="search" aria-label="Search category workspaces" value={categorySearch}
-                onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search in category…"
-                className="!min-h-7 min-w-0 w-full rounded-none border-0 bg-transparent px-0 text-[11px] focus:outline-none" />
-            </label>
-            <select aria-label="Sort category workspaces" value={categoryFilters.sort}
-              onChange={(event) => updateCategoryFilters({ sort: event.target.value as "" | "created" | "name" | "notes" })}
-              className="min-h-8 rounded-md border border-line bg-surface px-2 text-[11px] text-ink focus-visible:outline-2 focus-visible:outline-accent">
-              <option value="">Recently updated</option>
-              <option value="created">Recently created</option>
-              <option value="name">Name</option>
-              <option value="notes">Most notes</option>
-            </select>
-            <Button type="button" variant="ghost" size="sm" aria-pressed={categoryFilters.hasNotes}
-              className={cn("border border-line text-[10px]", categoryFilters.hasNotes && "bg-tint text-accent")}
-              onClick={() => updateCategoryFilters({ hasNotes: !categoryFilters.hasNotes })}>Has notes</Button>
-            <Button type="button" variant="ghost" size="sm" aria-pressed={categoryFilters.hasCanvas}
-              className={cn("border border-line text-[10px]", categoryFilters.hasCanvas && "bg-tint text-accent")}
-              onClick={() => updateCategoryFilters({ hasCanvas: !categoryFilters.hasCanvas })}>Has canvas</Button>
-          </div>
-        </div>
-      )}
+      <h2 className="mb-5 text-[21px] font-semibold tracking-tight text-ink">{view === "category" ? heading : "Workspaces"}</h2>
       <section className="min-w-0" aria-labelledby="library-list-title">
-        {pageLoading ? <WorkspaceListSkeleton /> : view === "all" && allLoadError ? (
+        {pageLoading ? <WorkspaceListSkeleton /> : (view === "all" ? allLoadError : categoryLoadError) ? (
           <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
-            <p className="m-0 text-[11px] text-danger">Workspaces could not be loaded. {allLoadError}</p>
-            <Button variant="secondary" size="sm" onClick={retryAll}>Retry</Button>
-          </div>
-        ) : view === "category" && categoryLoadError ? (
-          <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 border-y border-line bg-surface px-4 py-5">
-            <p className="m-0 text-[11px] text-danger">Category workspaces could not be loaded. {categoryLoadError}</p>
-            <Button variant="secondary" size="sm" onClick={retryCategory}>Retry</Button>
+            <p className="m-0 text-[11px] text-danger">
+              {view === "category" ? "Category workspaces" : "Workspaces"} could not be loaded. {view === "all" ? allLoadError : categoryLoadError}
+            </p>
+            <Button variant="secondary" size="sm" onClick={view === "all" ? retryAll : retryCategory}>Retry</Button>
           </div>
         ) : items.length ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,196px))] gap-4 max-[560px]:grid-cols-[repeat(auto-fill,minmax(156px,180px))]" role="group" aria-label={view === "category" ? "Category workspaces" : "All workspaces"}>
@@ -314,59 +278,32 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
                 onRename={() => beginWorkspaceRename(workspace)}
                 onDelete={() => setDeletingWorkspace(workspace)} />
             ))}
-            {view === "all" && (
-              <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
+            <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
                 onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
                 onChange={setNewWorkspaceTitle}
                 onSubmit={(event) => { void handleCreateWorkspace(event); }}
                 onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
-            )}
           </div>
         ) : (
-          view === "category" ? (
-            <div className="border-y border-line px-3 py-8 text-center text-[11px] text-muted">
-              No workspaces match this category view.
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
+            <div>
+              <span className="mb-4 mx-auto grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
+              <h2 className="m-0 text-lg font-medium">{view === "category" ? "No workspaces in this category" : "No workspaces here"}</h2>
+              <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace using the card below.</p>
             </div>
-          ) : (
-            <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-lg border border-line bg-surface p-8 text-center">
-              <div>
-                <span className="mb-4 mx-auto grid size-10 place-items-center rounded-md bg-tint text-accent"><Folder size={20} /></span>
-                <h2 className="m-0 text-lg font-medium">No workspaces here</h2>
-                <p className="mt-2 mb-0 text-xs leading-normal text-ink/70">Create your first workspace below or use the library menu.</p>
-              </div>
-              <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
-                onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
-                onChange={setNewWorkspaceTitle}
-                onSubmit={(event) => { void handleCreateWorkspace(event); }}
-                onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
-            </div>
-          )
-        )}
-        {view === "category" && (
-          <div className="mt-2">
-            {creatingWorkspace ? (
-              <form className="flex items-center gap-2" onSubmit={(event) => { void handleCreateWorkspace(event); }}>
-                <Input autoFocus aria-label="New workspace name" placeholder="Workspace name"
-                  className="min-h-8 flex-1 text-[11px]" value={newWorkspaceTitle}
-                  onChange={(event) => setNewWorkspaceTitle(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === "Escape") setCreatingWorkspace(false); }} />
-                <Button size="sm" type="submit" disabled={createLoading || !newWorkspaceTitle.trim()}>{createLoading ? "Creating…" : "Create"}</Button>
-                <Button size="sm" variant="ghost" type="button" disabled={createLoading} onClick={() => setCreatingWorkspace(false)}>Cancel</Button>
-              </form>
-            ) : (
-              <Button type="button" variant="ghost" size="sm" className="text-accent"
-                onClick={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}>
-                <Plus size={14} /> New workspace
-              </Button>
-            )}
+            <NewWorkspaceCard editing={creatingWorkspace} value={newWorkspaceTitle} loading={createLoading}
+              onActivate={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}
+              onChange={setNewWorkspaceTitle}
+              onSubmit={(event) => { void handleCreateWorkspace(event); }}
+              onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
           </div>
         )}
       </section>
       {(view === "all" || view === "category") && page && page.total > page.limit && (
         <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit), true)}>Previous</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit), true)}>Previous</Button>
           <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryFilters({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
         </nav>
       )}
       <ConfirmDialog

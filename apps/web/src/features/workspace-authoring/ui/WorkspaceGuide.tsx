@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, FileText, Layers, Maximize2, MoreHorizontal, Pause, Plus, Square, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, Info, FileText, Layers, Maximize2, MoreHorizontal, Pause, Plus, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, IconButton } from "../../../shared/ui";
 import { useDismissablePopup } from "../../../shared/ui/dismissable";
@@ -65,7 +65,7 @@ export function WorkspaceGuide() {
         aria-haspopup="dialog"
         onClick={() => open ? dismiss() : openGuide()}
       >
-        <CircleHelp size={16} />
+        <Info size={16} />
       </IconButton>
 
       {open && (

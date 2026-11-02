@@ -35,7 +35,7 @@ test.describe("Production-Safe Navigation & Reload", () => {
     }
   });
 
-  test("category detail filters the complete server results and preserves direct links", async ({ page, request }) => {
+  test("category detail shares the Workspaces card grid and create action", async ({ page, request }) => {
     const categoryRes = await request.post("/api/categories", {
       data: { title: `Browse Category ${Date.now()}` },
     });
@@ -57,14 +57,25 @@ test.describe("Production-Safe Navigation & Reload", () => {
       await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toBeVisible();
       await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
 
-      await page.getByRole("searchbox", { name: "Search category workspaces" }).fill("Alpha Navigation");
-      await expect(list.getByRole("link", { name: `Open ${names[1]}` })).toBeVisible();
-      await expect(list.getByRole("link", { name: `Open ${names[0]}` })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: category.title, exact: true, level: 2 })).toBeVisible();
+      await expect(page.getByRole("searchbox", { name: "Search category workspaces" })).toHaveCount(0);
+      await expect(page.getByRole("combobox", { name: "Sort category workspaces" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Has notes" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Has canvas" })).toHaveCount(0);
 
-      await page.getByRole("searchbox", { name: "Search category workspaces" }).clear();
-      await page.getByRole("combobox", { name: "Sort category workspaces" }).selectOption("name");
-      await expect(list.getByRole("link")).toHaveCount(2);
-      await expect(list.getByRole("link").first()).toHaveAttribute("aria-label", `Open ${names[1]}`);
+      await list.getByRole("button", { name: "New workspace" }).click();
+      const createdTitle = `Created in category ${stamp}`;
+      await list.getByRole("textbox", { name: "New workspace name" }).fill(createdTitle);
+      await list.getByRole("button", { name: "Create", exact: true }).click();
+      const createdLink = list.getByRole("link", { name: `Open ${createdTitle}` });
+      await expect(createdLink).toBeVisible();
+      const href = await createdLink.getAttribute("href");
+      expect(href).toMatch(/^\/workspaces\/[^/]+$/);
+      const createdId = href!.split("/").pop()!;
+      workspaces.push({ id: createdId });
+      const createdResponse = await request.get(`/api/workspaces/${createdId}`);
+      expect(createdResponse.ok()).toBe(true);
+      expect((await createdResponse.json()).categoryId).toBe(category.id);
     } finally {
       for (const workspace of workspaces) {
         await deleteWorkspace(request, workspace.id);

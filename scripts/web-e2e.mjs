@@ -140,13 +140,15 @@ test("critical: New Note is placed as a linked Canvas artifact", { timeout: 45_0
     body: JSON.stringify({ title: "WDIO Note artifact" }),
   });
   try {
+    const initial = await api(`/api/workspaces/${created.id}`);
+    const originalNoteId = initial.notes[0].id;
     await browser.url(`${origin}/workspaces/${created.id}`);
     await (await displayed('button[aria-label="New Note"]')).click();
     await displayed('[data-notespace-note-editor]');
     await (await displayed('//*[@data-notespace-note-editor]//button[normalize-space()="Done"]')).click();
     await browser.waitUntil(async () => {
       const ws = await api(`/api/workspaces/${created.id}`);
-      const newNote = ws.notes.find(note => note.id !== created.notes?.[0]?.id);
+      const newNote = ws.notes.find(note => note.id !== originalNoteId);
       if (!newNote) return false;
       return ws.canvas?.data?.elements?.some(element =>
         !element.isDeleted && element.customData?.notespaceNoteArtifact?.noteId === newNote.id);
@@ -157,7 +159,7 @@ test("critical: New Note is placed as a linked Canvas artifact", { timeout: 45_0
 test("critical: shared shell retains Explorer and Quick Open", { timeout: 25_000 }, async () => {
   await browser.url(origin);
   await (await displayed('button[aria-label="Hide Explorer"]')).click();
-  await browser.waitUntil(async () => !(await browser.$("#notespace-home-sidebar")).isExisting());
+  await browser.waitUntil(async () => !(await (await browser.$("#notespace-home-sidebar")).isExisting()));
   await (await displayed('button[aria-label="Show Explorer"]')).click();
   await displayed("#notespace-home-sidebar");
   await (await displayed('button[aria-label="Search Notespace"]')).click();

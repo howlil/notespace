@@ -529,7 +529,9 @@ export default function DocumentEditor({
     };
     const updateFromScroll = () => {
       frame = 0;
-      const scrollTop = container.getBoundingClientRect().top + 65;
+      // Use the editor's top edge, not an entire heading's height ahead of it.
+      // A large offset can activate Section 01 after navigating to Section 00.
+      const scrollTop = container.getBoundingClientRect().top + 12;
       let nearest: string | null = null;
       let first: string | null = null;
       editor.state.doc.descendants((node, pos) => {

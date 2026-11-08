@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -17,8 +18,15 @@ var legacyMigrationChecksums = map[string]map[string]struct{}{
 	},
 }
 
-func migrationChecksumMatches(name, recorded, current string) bool {
-	if recorded == current {
+func migrationChecksumMatches(name, recorded string, contents []byte) bool {
+	if recorded == checksum(contents) {
+		return true
+	}
+	// Git may change SQL line endings when checking out on another platform.
+	// Accept only the exact LF/CRLF encodings; preserve recorded history and
+	// continue rejecting changes to SQL content or other whitespace.
+	lf := bytes.ReplaceAll(contents, []byte("\r\n"), []byte("\n"))
+	if recorded == checksum(lf) || recorded == checksum(bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))) {
 		return true
 	}
 	_, ok := legacyMigrationChecksums[name][recorded]
@@ -38,13 +46,13 @@ func Inspect(ctx context.Context, db *sql.DB) (Inspection, error) {
 		return Inspection{}, err
 	}
 	sort.Strings(names)
-	known := make(map[string]string, len(names))
+	known := make(map[string][]byte, len(names))
 	for _, name := range names {
 		content, err := files.ReadFile(name)
 		if err != nil {
 			return Inspection{}, err
 		}
-		known[name] = checksum(content)
+		known[name] = content
 	}
 
 	var metadataExists int
@@ -82,7 +90,7 @@ func Inspect(ctx context.Context, db *sql.DB) (Inspection, error) {
 		}
 		if recorded.Valid && recorded.String != "" && !migrationChecksumMatches(name, recorded.String, want) {
 			rows.Close()
-			return Inspection{}, fmt.Errorf("migration %s checksum changed: recorded %s, embedded %s", name, recorded.String, want)
+			return Inspection{}, fmt.Errorf("migration %s checksum changed: recorded %s, embedded %s", name, recorded.String, checksum(want))
 		}
 		applied[name] = true
 	}

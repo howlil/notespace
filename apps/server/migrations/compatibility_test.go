@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"io/fs"
@@ -10,6 +11,56 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestAppliedMigrationChecksumsSurviveLineEndingChanges(t *testing.T) {
+	for _, lineEnding := range []struct {
+		name  string
+		value []byte
+	}{
+		{name: "LF", value: []byte("\n")},
+		{name: "CRLF", value: []byte("\r\n")},
+	} {
+		t.Run(lineEnding.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			if err := Run(ctx, db); err != nil {
+				t.Fatal(err)
+			}
+			names, err := fs.Glob(files, "*.sql")
+			if err != nil {
+				t.Fatal(err)
+			}
+			recorded := make(map[string]string, len(names))
+			for _, name := range names {
+				content, err := files.ReadFile(name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				lf := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+				recorded[name] = checksum(bytes.ReplaceAll(lf, []byte("\n"), lineEnding.value))
+				if _, err := db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name=?`, recorded[name], name); err != nil {
+					t.Fatal(err)
+				}
+			}
+			inspection, err := Inspect(ctx, db)
+			if err != nil || inspection.NeedsMigration {
+				t.Fatalf("line ending change must preserve current migration history: %+v, %v", inspection, err)
+			}
+			if err := Run(ctx, db); err != nil {
+				t.Fatalf("restart after line ending change: %v", err)
+			}
+			for name, want := range recorded {
+				var got string
+				if err := db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name=?`, name).Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if got != want {
+					t.Fatalf("recorded checksum rewritten for %s: got %s, want %s", name, got, want)
+				}
+			}
+		})
+	}
+}
 
 func TestInspectRejectsUnknownMigrationWithoutSchemaChanges(t *testing.T) {
 	ctx := context.Background()
@@ -85,20 +136,31 @@ func TestInspectDetectsPendingAndCurrentSchema(t *testing.T) {
 }
 
 func TestInspectRejectsModifiedRecordedMigration(t *testing.T) {
-	ctx := context.Background()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	if err := Run(ctx, db); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`UPDATE schema_migrations SET checksum='tampered' WHERE name=(SELECT MIN(name) FROM schema_migrations)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Inspect(ctx, db); err == nil || !strings.Contains(err.Error(), "checksum changed") {
-		t.Fatalf("modified migration must be rejected, got %v", err)
+	for _, name := range []string{"0001_projects.sql", "0025_remove_notes.sql"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			if err := Run(ctx, db); err != nil {
+				t.Fatal(err)
+			}
+			content, err := files.ReadFile(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed := checksum(append(content, []byte("\nSELECT 'modified SQL';\n")...))
+			if _, err := db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name=?`, changed, name); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Inspect(ctx, db); err == nil || !strings.Contains(err.Error(), "checksum changed") {
+				t.Fatalf("modified migration must be rejected, got %v", err)
+			}
+			if err := Run(ctx, db); err == nil || !strings.Contains(err.Error(), "checksum changed") {
+				t.Fatalf("modified migration must block startup, got %v", err)
+			}
+			var recorded string
+			if err := db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name=?`, name).Scan(&recorded); err != nil || recorded != changed {
+				t.Fatalf("rejected history must remain untouched: %s, %v", recorded, err)
+			}
+		})
 	}
 }

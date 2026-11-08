@@ -1,0 +1,3 @@
+# Keep gofmt and embedded migration bytes stable across Windows checkouts.
+*.go text eol=lf
+*.sql text eol=lf

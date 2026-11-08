@@ -167,7 +167,7 @@ func RunWithHook(ctx context.Context, db *sql.DB, hook TransactionHook) error {
 		err = db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name=?`, name).Scan(&recorded)
 		switch {
 		case err == nil:
-			if recorded.Valid && recorded.String != "" && !migrationChecksumMatches(name, recorded.String, wantChecksum) {
+			if recorded.Valid && recorded.String != "" && !migrationChecksumMatches(name, recorded.String, contents) {
 				return fmt.Errorf("migration %s checksum changed: recorded %s, embedded %s", name, recorded.String, wantChecksum)
 			}
 			if !recorded.Valid || recorded.String == "" {

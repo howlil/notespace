@@ -8,7 +8,14 @@ export const Dialog = DialogPrimitive.Root;
 export function DialogContent({ className, children, ...props }: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[2px]" />
+      <DialogPrimitive.Overlay asChild>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.12, ease: "easeOut" }}
+          className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[2px]"
+        />
+      </DialogPrimitive.Overlay>
       <DialogPrimitive.Content asChild {...props}>
         <motion.div
           initial={{ opacity: 0, y: 8, scale: 0.98 }}

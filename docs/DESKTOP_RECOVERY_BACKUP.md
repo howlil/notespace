@@ -9,6 +9,10 @@ active WAL database while the sidecar runs can destroy committed changes.
 
 The canonical SQLite data directory is never replaced by this feature.
 
+In this runbook, `<desktop-data>` is `<app-data>` for a packaged release and
+`<app-data>/dev` for a debug desktop build. Automated tests use the exact
+`NOTESPACE_DESKTOP_TEST_DATA_DIR` supplied by their runner.
+
 ## Recovery graph
 
 ```text
@@ -51,8 +55,8 @@ The preexisting portable ZIP export remains available for ordinary migration,
 subject to its current limit.
 
 Snapshots:
-- `<app-data>/notespace.db.recovery/pre-migration-*.db`: M1 upgrade recovery
-- `<app-data>/notespace.db.backups/manual-*.db`: M4 user-created backups
+- `<desktop-data>/notespace.db.recovery/pre-migration-*.db`: M1 upgrade recovery
+- `<desktop-data>/notespace.db.backups/manual-*.db`: M4 user-created backups
 
 ## Offline restoration (manual and non-destructive)
 

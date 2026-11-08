@@ -51,7 +51,7 @@ export function LibraryPageShell({ sidebar, children, canvas = false, workspaceT
         <div className="min-w-0 flex-1" data-tauri-drag-region />
         <button
           type="button"
-          className={"pointer-events-auto absolute left-1/2 top-1/2 flex h-7 w-[min(390px,calc(100vw-136px))] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-md border border-line bg-background px-2.5 text-left text-[11px] text-muted transition-colors hover:border-accent/35 hover:bg-tint/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 " +
+          className={"pointer-events-auto absolute left-1/2 top-1/2 flex h-7 w-[min(390px,calc(100vw-136px))] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-md border border-line bg-background px-2.5 text-left text-[11px] text-muted transition-[color,background-color,border-color,transform] duration-100 active:scale-[0.985] hover:border-accent/35 hover:bg-tint/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 " +
             (workspaceTitle ? "max-[760px]:left-auto max-[760px]:right-3 max-[760px]:w-[42vw] max-[760px]:translate-x-0" : "max-[560px]:w-[calc(100vw-120px)]")}
           aria-label="Search Notespace"
           aria-haspopup="dialog"

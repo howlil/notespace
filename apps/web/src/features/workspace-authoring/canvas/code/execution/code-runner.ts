@@ -17,96 +17,87 @@ export type JavaScriptRunHandle = {
 
 export const DEFAULT_CODE_RUN_TIMEOUT_MS = 2_000;
 export const MAX_CODE_RUN_OUTPUT_LINES = 100;
+export const MAX_CODE_RUN_OUTPUT_CHARS = 256_000;
+export const MAX_CODE_RUN_OUTPUT_LINE_CHARS = 4_000;
+export const CODE_RUNNER_WORKER_URL = "/code-runner-worker.js";
+export const CODE_RUNNER_WORKER_CSP = "frame-ancestors 'none'; default-src 'none'; script-src 'unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'";
 
 export function canRunCode(language: string) {
   return normalizeCodeLanguage(language) === "javascript";
 }
 
-export function javascriptWorkerSource() {
-  return `
-const MAX_LINES = ${MAX_CODE_RUN_OUTPUT_LINES};
-let lineCount = 0;
-let truncated = false;
-
-function inspect(value) {
-  if (typeof value === "string") return value.slice(0, 4000);
-  if (typeof value === "undefined") return "undefined";
-  if (typeof value === "function") return "[Function " + (value.name || "anonymous") + "]";
-  try {
-    const seen = new WeakSet();
-    const encoded = JSON.stringify(value, (_key, item) => {
-      if (typeof item === "bigint") return String(item) + "n";
-      if (typeof item === "function") return "[Function " + (item.name || "anonymous") + "]";
-      if (item && typeof item === "object") {
-        if (seen.has(item)) return "[Circular]";
-        seen.add(item);
-      }
-      return item;
-    });
-    return (encoded ?? String(value)).slice(0, 4000);
-  } catch {
-    return String(value).slice(0, 4000);
-  }
-}
-
-function emit(type, values) {
-  if (lineCount >= MAX_LINES) {
-    if (!truncated) {
-      truncated = true;
-      self.postMessage({ type: "stderr", text: "[output truncated]" });
-    }
-    return;
-  }
-  lineCount += 1;
-  self.postMessage({ type, text: values.map(inspect).join(" ") });
-}
-
-const networkError = () => new Error("Network access is disabled in the local code runner.");
-try { self.fetch = () => Promise.reject(networkError()); } catch {}
-try { self.XMLHttpRequest = undefined; } catch {}
-try { self.WebSocket = undefined; } catch {}
-try { self.EventSource = undefined; } catch {}
-try { self.importScripts = () => { throw networkError(); }; } catch {}
-
-self.onmessage = async (event) => {
-  const code = typeof event.data?.code === "string" ? event.data.code : "";
-  const runnerConsole = {
-    log: (...values) => emit("stdout", values),
-    info: (...values) => emit("stdout", values),
-    debug: (...values) => emit("stdout", values),
-    warn: (...values) => emit("stderr", values),
-    error: (...values) => emit("stderr", values),
-  };
-  try {
-    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    const fn = new AsyncFunction("console", '"use strict";\\n' + code);
-    const value = await fn(runnerConsole);
-    self.postMessage({ type: "done", result: typeof value === "undefined" ? undefined : inspect(value) });
-  } catch (error) {
-    self.postMessage({
-      type: "error",
-      error: error instanceof Error ? (error.stack || error.message) : inspect(error),
-    });
-  }
-};
-`;
-}
-
-type WorkerMessage =
+export type WorkerMessage =
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
   | { type: "done"; result?: string }
   | { type: "error"; error: string };
 
+export function parseWorkerMessage(value: unknown): WorkerMessage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const message = value as Record<string, unknown>;
+  if ((message.type === "stdout" || message.type === "stderr") && typeof message.text === "string") {
+    return { type: message.type, text: message.text.slice(0, MAX_CODE_RUN_OUTPUT_LINE_CHARS) };
+  }
+  if (message.type === "done" && (message.result === undefined || typeof message.result === "string")) {
+    return { type: "done", ...(typeof message.result === "string" ? { result: message.result.slice(0, MAX_CODE_RUN_OUTPUT_LINE_CHARS) } : {}) };
+  }
+  if (message.type === "error" && typeof message.error === "string") {
+    return { type: "error", error: message.error.slice(0, MAX_CODE_RUN_OUTPUT_LINE_CHARS) };
+  }
+  return null;
+}
+
+export type CodeRunOutputBuffer = {
+  stdout: string[];
+  stderr: string[];
+  append: (stream: "stdout" | "stderr", text: string) => void;
+};
+
+export function createCodeRunOutputBuffer(): CodeRunOutputBuffer {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  let lines = 0;
+  let chars = 0;
+  let truncated = false;
+  const marker = "[output truncated]";
+  const append = (stream: "stdout" | "stderr", text: string) => {
+    if (truncated) return;
+    const contentBudget = MAX_CODE_RUN_OUTPUT_CHARS - marker.length;
+    if (lines >= MAX_CODE_RUN_OUTPUT_LINES - 1 || chars >= contentBudget) {
+      truncated = true;
+      stderr.push(marker);
+      lines += 1;
+      chars += marker.length;
+      return;
+    }
+    const limit = Math.min(MAX_CODE_RUN_OUTPUT_LINE_CHARS, contentBudget - chars);
+    if (limit <= 0) {
+      truncated = true;
+      stderr.push(marker);
+      lines += 1;
+      chars += marker.length;
+      return;
+    }
+    const bounded = text.slice(0, limit);
+    (stream === "stdout" ? stdout : stderr).push(bounded);
+    lines += 1;
+    chars += bounded.length;
+    if (bounded.length < text.length) {
+      truncated = true;
+      stderr.push(marker);
+      lines += 1;
+      chars += marker.length;
+    }
+  };
+  return { stdout, stderr, append };
+}
+
 export function startJavaScriptRun(
   code: string,
   timeoutMs = DEFAULT_CODE_RUN_TIMEOUT_MS,
 ): JavaScriptRunHandle {
-  const source = javascriptWorkerSource();
-  const blobUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-  const worker = new Worker(blobUrl, { name: "notespace-code-runner" });
-  const stdout: string[] = [];
-  const stderr: string[] = [];
+  const worker = new Worker(CODE_RUNNER_WORKER_URL, { name: "notespace-code-runner" });
+  const output = createCodeRunOutputBuffer();
   const startedAt = performance.now();
   let finished = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -117,27 +108,26 @@ export function startJavaScriptRun(
     finished = true;
     if (timer) clearTimeout(timer);
     worker.terminate();
-    URL.revokeObjectURL(blobUrl);
     resolveResult({
       status,
-      stdout: [...stdout],
-      stderr: [...stderr],
-      ...(result === undefined ? {} : { result }),
+      stdout: [...output.stdout],
+      stderr: [...output.stderr],
+      ...(result === undefined ? {} : { result: result.slice(0, MAX_CODE_RUN_OUTPUT_LINE_CHARS) }),
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
     });
   };
 
   const result = new Promise<JavaScriptRunResult>((resolve) => {
     resolveResult = resolve;
-    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
-      const message = event.data;
-      if (!message || typeof message !== "object") return;
+    worker.onmessage = (event: MessageEvent<unknown>) => {
+      const message = parseWorkerMessage(event.data);
+      if (!message) return;
       if (message.type === "stdout") {
-        stdout.push(message.text);
+        output.append("stdout", message.text);
         return;
       }
       if (message.type === "stderr") {
-        stderr.push(message.text);
+        output.append("stderr", message.text);
         return;
       }
       if (message.type === "done") {
@@ -145,16 +135,16 @@ export function startJavaScriptRun(
         return;
       }
       if (message.type === "error") {
-        stderr.push(message.error);
+        output.append("stderr", message.error);
         finish("error");
       }
     };
     worker.onerror = (event) => {
-      stderr.push(event.message || "JavaScript worker failed.");
+      output.append("stderr", event.message || "JavaScript worker failed.");
       finish("error");
     };
     timer = setTimeout(() => {
-      stderr.push(`Execution exceeded ${timeoutMs} ms and was stopped.`);
+      output.append("stderr", `Execution exceeded ${timeoutMs} ms and was stopped.`);
       finish("timeout");
     }, Math.max(100, timeoutMs));
     worker.postMessage({ code });
@@ -163,7 +153,7 @@ export function startJavaScriptRun(
   return {
     result,
     stop: () => {
-      stderr.push("Execution stopped.");
+      output.append("stderr", "Execution stopped.");
       finish("cancelled");
     },
   };

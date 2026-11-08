@@ -2,7 +2,7 @@
 import { after, before, test } from "node:test";
 import {
   api, ariaLabel, assert, box, click, cleanupWorkspace, containsText, createWorkspace,
-  clickAt, dispatchClick, drag, evaluate, expectAttribute, expectCount, expectText, fill,
+  clickAt, dispatchClick, drag, doubleClick, evaluate, expectAttribute, expectCount, expectText, fill,
   movePointer, notVisible, openWorkspace, press, reload, role, sleep, start, stop, text,
   resetViewport, setViewport, visible, waitFor, waitSaved, within,
 } from "../support/harness.mjs";
@@ -139,17 +139,19 @@ test("creates arbitrary HTTPS embeds through the UI without a whitelist toast", 
   }
 });
 
-test("code block actions live in the action bar and auto height follows wrapped source", { timeout: 180_000 }, async () => {
+test("code block Notebook header owns run and copy while settings keep layout controls", { timeout: 180_000 }, async () => {
   const id = await openCanvasWorkspace(`Canvas code ${Date.now()}`);
   try {
     await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
     const block = "[data-canvas-code-block]";
-    const actions = role("toolbar", "Code block actions");
+    const settings = role("toolbar", "Code block settings");
     await visible(block);
-    await visible(actions);
-    await visible(role("button", "Run JavaScript", { scope: actions }));
-    await expectAttribute(role("button", "Fit code height", { scope: actions }), "aria-pressed", "true");
-    await expectCount(role("button", /Edit code|Finish editing/, { scope: actions }), 0);
+    await visible(settings);
+    await visible(role("button", "Run JavaScript", { scope: block }));
+    await visible(role("button", "Copy code", { scope: block }));
+    await expectCount(role("button", "Run JavaScript", { scope: settings }), 0);
+    await expectAttribute(role("button", "Fit code height", { scope: settings }), "aria-pressed", "true");
+    await expectCount(role("button", /Edit code|Finish editing/, { scope: settings }), 0);
 
     const initialBox = await box(block);
     assert.ok(initialBox.height < 80, `Empty code block height: ${initialBox.height}`);
@@ -187,6 +189,13 @@ test("code block actions live in the action bar and auto height follows wrapped 
     const output = ariaLabel("Code output");
     await containsText(output, "worker-ok");
     await containsText(output, String(longValue.length));
+    const outputContent = within(output, "[data-code-output-content]");
+    await click(role("button", "Collapse code output", { scope: output }));
+    await visible(role("button", "Expand code output", { scope: output }));
+    await notVisible(outputContent);
+    await click(role("button", "Expand code output", { scope: output }));
+    await visible(outputContent);
+    await containsText(output, "worker-ok");
     await waitSaved();
 
     await waitFor(async () => {
@@ -203,6 +212,140 @@ test("code block actions live in the action bar and auto height follows wrapped 
     const reloaded = "[data-canvas-code-block]";
     await visible(reloaded);
     await expectCount(ariaLabel("Code output"), 0);
+  } finally {
+    await cleanupWorkspace(id);
+  }
+});
+
+test("code runner CSP blocks native fetch and nested workers while the host caps hostile output", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas runner isolation ${Date.now()}`);
+  try {
+    await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
+    const block = "[data-canvas-code-block]";
+    await visible(block);
+    await doubleClick(block);
+    const editor = await within(block, '[aria-label="Edit code block"]');
+    const source = `const findNativeFetch = () => {
+  let prototype = Object.getPrototypeOf(self);
+  while (prototype) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "fetch");
+    if (typeof descriptor?.value === "function") return descriptor.value;
+    prototype = Object.getPrototypeOf(prototype);
+  }
+  return null;
+};
+const nativeFetchMethod = findNativeFetch();
+let nativeFetch = "blocked";
+try { await nativeFetchMethod.call(self, "/api/health"); nativeFetch = "open"; } catch {}
+let nestedWorker = "blocked";
+try {
+  const child = new Worker(URL.createObjectURL(new Blob(["self.postMessage('started')"], { type: "text/javascript" })));
+  nestedWorker = await new Promise((resolve) => {
+    const timer = setTimeout(() => { child.terminate(); resolve("not-started"); }, 250);
+    child.onmessage = () => { clearTimeout(timer); child.terminate(); resolve("open"); };
+    child.onerror = () => { clearTimeout(timer); child.terminate(); resolve("blocked"); };
+  });
+} catch {}
+console.log(JSON.stringify({ hasNativeFetchMethod: Boolean(nativeFetchMethod), nativeFetch, nestedWorker }));
+for (let index = 0; index < 150; index += 1) self.postMessage({ type: "stdout", text: "hostile-output" });`;
+    await fill(editor, source);
+    await press("Escape");
+    await click(role("button", "Run JavaScript", { scope: block }));
+
+    const output = ariaLabel("Code output");
+    await visible(output);
+    await waitFor(async () => !(await evaluate(output, (element) => element.innerText)).includes("Running"), "code runner completes");
+    const rendered = await evaluate(output, (element) => element.innerText);
+    assert.ok(rendered.includes('"hasNativeFetchMethod":true'), `Worker did not expose the network probe result: ${rendered}`);
+    assert.ok(rendered.includes('"nativeFetch":"blocked"'), `Native fetch escaped the worker policy: ${rendered}`);
+    assert.ok(rendered.includes('"nestedWorker":"blocked"'), `Nested Worker escaped the worker policy: ${rendered}`);
+    assert.ok(rendered.includes("[output truncated]"), `Host output limit was not applied: ${rendered}`);
+    assert.ok((rendered.match(/hostile-output/g) ?? []).length <= 99, "parent accepted at most 99 untrusted lines plus its truncation marker");
+  } finally {
+    await cleanupWorkspace(id);
+  }
+});
+
+test("undo clears code output when the block returns to a different source", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas code undo output ${Date.now()}`);
+  try {
+    await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
+    const block = "[data-canvas-code-block]";
+    await visible(block);
+
+    await doubleClick(block);
+    await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-A")');
+    await press("Escape");
+    await click(role("button", "Run JavaScript", { scope: block }));
+    const output = ariaLabel("Code output");
+    await containsText(output, "source-A");
+
+    await doubleClick(block);
+    await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-B")');
+    await press("Escape");
+    await click(role("button", "Run JavaScript", { scope: block }));
+    await containsText(output, "source-B");
+
+    const sourcePreview = () => evaluate(block, (element) => element.textContent ?? "");
+    const undo = role("button", "Undo", { exact: true, scope: role("toolbar", "Canvas view controls") });
+    let restored = await sourcePreview();
+    for (let attempt = 0; attempt < 6 && !restored.includes('console.log("source-A")'); attempt += 1) {
+      await click(undo);
+      restored = await sourcePreview();
+    }
+    assert.ok(restored.includes('console.log("source-A")'), `Undo should restore source A, got: ${restored}`);
+    await expectCount(output, 0);
+  } finally {
+    await cleanupWorkspace(id);
+  }
+});
+
+test("SVG export includes the Canvas code block overlay", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas code export ${Date.now()}`);
+  try {
+    await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
+    const block = "[data-canvas-code-block]";
+    await visible(block);
+    await doubleClick(block);
+    await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("export-code-marker")');
+    await press("Escape");
+
+    await evaluate(canvas, () => {
+      window.__notespaceExportDownload = { svg: null, png: null };
+      const createObjectUrl = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = (blob) => {
+        const url = createObjectUrl(blob);
+        if (blob instanceof Blob && blob.type.includes("image/svg+xml")) {
+          window.__notespaceExportDownload.svg = url;
+        } else if (blob instanceof Blob && blob.type === "image/png") {
+          window.__notespaceExportDownload.png = url;
+        }
+        return url;
+      };
+    });
+
+    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+    await click(role("button", "Export image", { scope: role("dialog", "Canvas options") }));
+    await visible(text("Only selected"));
+    await visible(text("Background"));
+    await click(role("button", /Export.*SVG/i));
+    await waitFor(async () => Boolean(await evaluate(canvas, () => window.__notespaceExportDownload.svg)), "SVG download is created");
+    const svg = await evaluate(canvas, async () => {
+      const url = window.__notespaceExportDownload.svg;
+      return typeof url === "string" ? fetch(url).then((response) => response.text()) : "";
+    });
+    assert.ok(svg.includes("export-code-marker"), "Exported SVG should include code source rendered in the Canvas overlay");
+    assert.ok(svg.includes(">JavaScript</text>"), "Exported SVG should preserve the code block Notebook header");
+
+    await click(role("button", /Export.*PNG/i));
+    await waitFor(async () => Boolean(await evaluate(canvas, () => window.__notespaceExportDownload.png)), "PNG download is created");
+    const png = await evaluate(canvas, async () => {
+      const response = await fetch(window.__notespaceExportDownload.png);
+      const blob = await response.blob();
+      return { type: blob.type, size: blob.size };
+    });
+    assert.equal(png.type, "image/png");
+    assert.ok(png.size > 0, "PNG export should contain rendered Canvas image data");
   } finally {
     await cleanupWorkspace(id);
   }

@@ -27,12 +27,18 @@ import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } fro
 import { directionFromKey } from "./flowchart/CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./code/CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer } from "./code/CanvasCodeBlockLayer";
+import { copyCanvasImage, downloadCanvasImage } from "./code/canvas-code-block-export-actions";
 import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./code/canvas-code-block-layout";
 import { CanvasBottomChrome, CanvasToolRail, CanvasViewControls, type CanvasContextualAnchor } from "./chrome/CanvasChrome";
 import { CanvasFlowchartHandles } from "./flowchart/CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./selection/CanvasSelectionActions";
-import { executeNativeAction } from "./native/CanvasNativeActions";
+import {
+  executeNativeAction,
+  interceptNativeImageExportActions,
+  interceptNativeImageExportCallback,
+  type NativeImageExportAction,
+} from "./native/CanvasNativeActions";
 import { useCanvasPeerChannel } from "./sync/use-canvas-peer-channel";
 import { useCanvasAssets } from "./assets/use-canvas-assets";
 import { useCanvasFlowchart } from "./flowchart/use-canvas-flowchart";
@@ -185,7 +191,6 @@ export default function CanvasEditor({
   const [overlayElements, setOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialCodeElements);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
-  const [previewCodeBlockId, setPreviewCodeBlockId] = useState<string | null>(null);
   const [canvasViewport, setCanvasViewport] = useState({ zoom: 1, scrollX: 0, scrollY: 0 });
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialCodeElements));
@@ -221,11 +226,60 @@ export default function CanvasEditor({
   const lastSelected = useRef<string | null>(null);
   const selectionAnchorRef = useRef<CanvasContextualAnchor | null>(null);
   const lastExternalScene = useRef(sceneSignature(initial.data));
-  const liveCodeElementIds = useMemo(
-    () => overlayElements.map((element) => element.id),
+  const nativeImageExportRef = useRef<(name: NativeImageExportAction) => boolean>(() => false);
+  nativeImageExportRef.current = (name) => {
+    const currentApi = api.current;
+    if (!currentApi || !currentApi.getSceneElements().some((element) => readCanvasCodeBlock(element))) return false;
+    if (name === "imageExport") {
+      currentApi.app.setOpenDialog({ name: "imageExport" });
+      return true;
+    }
+    const format = name === "copyAsPng" ? "png" : "svg";
+    const appState = currentApi.getAppState();
+    const scene = currentApi.getSceneElements();
+    const selected = scene.filter((element) => appState.selectedElementIds[element.id]);
+    const source = { elements: selected.length ? selected : scene, appState };
+    void copyCanvasImage(currentApi, dark, format, source).then(() => {
+      showToast({ kind: "success", message: `${format.toUpperCase()} copied.` });
+    }).catch((error: unknown) => {
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not copy the Canvas image." });
+    });
+    return true;
+  };
+  const liveCodeBlocks = useMemo(
+    () => overlayElements.flatMap((element) => {
+      const block = readCanvasCodeBlock(element);
+      return block ? [{ id: element.id, code: block.code, language: block.language }] : [];
+    }),
     [overlayElements],
   );
-  const { runs: codeRuns, runBlock: runCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeElementIds);
+  const liveCodeElementIds = useMemo(() => liveCodeBlocks.map(({ id }) => id), [liveCodeBlocks]);
+  const { runs: codeRuns, runBlock: runCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeBlocks);
+
+  useEffect(() => {
+    if (!canvasApi) return;
+    return interceptNativeImageExportActions(canvasApi, (name) => nativeImageExportRef.current(name));
+  }, [canvasApi]);
+
+  useEffect(() => {
+    if (!canvasApi) return;
+    return interceptNativeImageExportCallback(canvasApi, async (type, elements, options) => {
+      if (!elements.some((element) => readCanvasCodeBlock(element))) return false;
+      const appState = canvasApi.getAppState();
+      const source = { elements, appState, exportingFrame: options.exportingFrame };
+      const exportDark = appState.exportWithDarkMode || appState.theme === "dark";
+      const name = canvasApi.app.getName() || "notespace-canvas";
+      try {
+        if (type === "svg") await downloadCanvasImage(canvasApi, exportDark, "svg", source, name);
+        else if (type === "png") await downloadCanvasImage(canvasApi, exportDark, "png", source, name);
+        else await copyCanvasImage(canvasApi, exportDark, "png", source);
+        showToast({ kind: "success", message: type === "clipboard" ? "PNG copied." : `${String(type).toUpperCase()} exported.` });
+      } catch (error) {
+        showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not export the Canvas image." });
+      }
+      return true;
+    });
+  }, [canvasApi, showToast]);
 
   const closeCanvasPopovers = useCallback(() => {
     setToolOverlay(null);
@@ -321,7 +375,7 @@ export default function CanvasEditor({
     focusEditor: focusCanvasEditor,
   } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
 
-  const canvasOverlayInteractionActive = contextualInteractionActive || contextMenuOpen || viewModeEnabled || diagramOpen || moreOpen || editingCodeBlockId !== null || previewCodeBlockId !== null;
+  const canvasOverlayInteractionActive = contextualInteractionActive || contextMenuOpen || viewModeEnabled || diagramOpen || moreOpen || editingCodeBlockId !== null;
 
   useEffect(() => {
     if (canvasOverlayInteractionActive) cancelNativeFlowchartPreview();
@@ -495,7 +549,6 @@ export default function CanvasEditor({
     setSelectedElementId(selected);
     if (selected !== lastSelected.current) {
       lastSelected.current = selected;
-      setPreviewCodeBlockId(null);
       onElementSelect?.(selected);
     }
     setHasElements(hasLiveElements);
@@ -836,11 +889,11 @@ export default function CanvasEditor({
         appDark={dark}
         selectedElementId={selectedElementId}
         editingElementId={editingCodeBlockId}
-        previewElementId={previewCodeBlockId}
         runs={codeRuns}
         onUpdate={updateCodeBlock}
         onEditingChange={setEditingCodeBlockId}
         onRun={runCodeBlock}
+        onStop={stopCodeRun}
         onClearRun={clearCodeRun}
         onAutoFit={autoFitCodeBlock}
       />
@@ -857,17 +910,11 @@ export default function CanvasEditor({
               <CanvasCodeBlockActions
                 block={selectedCodeBlock}
                 appDark={dark}
-                run={codeRuns[selectedCodeElement.id]}
                 onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
-                onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
-                onStop={() => stopCodeRun(selectedCodeElement.id)}
-                previewing={previewCodeBlockId === selectedCodeElement.id}
-                onTogglePreview={() => setPreviewCodeBlockId((current) => current === selectedCodeElement.id ? null : selectedCodeElement.id)}
                 onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
                 onDelete={() => {
                   clearCodeRun(selectedCodeElement.id);
                   setEditingCodeBlockId(null);
-                  setPreviewCodeBlockId(null);
                   runCanvasAction("deleteSelectedElements");
                 }}
               />

@@ -13,6 +13,7 @@ import (
 // Keep their history readable and perform the current payload scrub in 0026.
 var legacyMigrationChecksums = map[string]map[string]struct{}{
 	"0025_remove_notes.sql": {
+		"a720ac182f7ca06542bd4a91b64827f3d7525d75f5b3d6193e36684dbc8d4c41": {},
 		"724761d1d59d36738f264fd3fe257d8f686b26909178e63c91b7aa599d90d7fb": {},
 		"1b90d2215c58c5f0bed78e3eaa1a09daeaff0375d57f9c1f0f76c6f273090a9a": {},
 	},

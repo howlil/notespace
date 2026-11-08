@@ -1,5 +1,5 @@
-import { Check, Clipboard, Code2, Eye, EyeOff, ListOrdered, Maximize2, Moon, Play, Square, Sun, Trash2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Code2, ListOrdered, Maximize2, Moon, Sun, Trash2 } from "lucide-react";
+import { type ReactNode } from "react";
 import { cn } from "../../../../shared/ui";
 import {
   codeLanguageOptions,
@@ -9,9 +9,6 @@ import {
   resolveCodeTheme,
   type CanvasCodeBlockData,
 } from "./canvas-code-block";
-import { canRunCanvasCode } from "./canvas-code-runner";
-import { canPreviewHtml } from "./preview/can-preview-html";
-import type { CodeRunView } from "./use-canvas-code-runner";
 
 function ActionButton({
   label,
@@ -47,36 +44,23 @@ function ActionButton({
 export function CanvasCodeBlockActions({
   block,
   appDark,
-  run,
   onUpdate,
-  onRun,
-  onStop,
-  previewing,
-  onTogglePreview,
   onFitContent,
   onDelete,
 }: {
   block: CanvasCodeBlockData;
   appDark: boolean;
-  run?: CodeRunView;
   onUpdate: (block: CanvasCodeBlockData) => void;
-  onRun: () => void;
-  onStop: () => void;
-  previewing: boolean;
-  onTogglePreview: () => void;
   onFitContent: () => void;
   onDelete: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const resolvedTheme = resolveCodeTheme(block.theme, appDark);
-  const runnable = canRunCanvasCode(block.language);
-  const previewable = canPreviewHtml(block.language);
 
   return (
     <div
       className="notespace-selection-actions pointer-events-auto relative z-[1] flex h-10 max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar"
-      aria-label="Code block actions"
+      aria-label="Code block settings"
       onPointerDown={(event) => event.stopPropagation()}
     >
       <Code2 className="mx-1 size-4 shrink-0 text-muted" strokeWidth={1.5} aria-hidden="true" />
@@ -96,18 +80,6 @@ export function CanvasCodeBlockActions({
         <option value="plaintext">Plain text</option>
       </select>
 
-      {previewable && (
-        <ActionButton label={previewing ? "Hide HTML preview" : "Preview HTML"} active={previewing} onClick={onTogglePreview}>
-          {previewing ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-        </ActionButton>
-      )}
-
-      {runnable && (
-        <ActionButton label={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"} onClick={run?.status === "running" ? onStop : onRun}>
-          {run?.status === "running" ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}
-        </ActionButton>
-      )}
-
       <ActionButton
         label={codeThemeTitle(block.theme, appDark)}
         onClick={() => onUpdate({ ...block, theme: nextCodeTheme(block.theme) })}
@@ -126,20 +98,6 @@ export function CanvasCodeBlockActions({
       <ActionButton label="Fit code height" active={block.heightMode === "auto"} onClick={onFitContent}>
         <Maximize2 className="size-3.5" />
       </ActionButton>
-
-
-      <ActionButton
-        label={copied ? "Code copied" : "Copy code"}
-        onClick={() => {
-          void navigator.clipboard.writeText(block.code).then(() => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1200);
-          });
-        }}
-      >
-        {copied ? <Check className="size-3.5" /> : <Clipboard className="size-3.5" />}
-      </ActionButton>
-
       <ActionButton label="Delete code block" danger onClick={onDelete}>
         <Trash2 className="size-3.5" />
       </ActionButton>

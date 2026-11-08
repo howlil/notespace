@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { X } from "lucide-react";
 import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../../../adapters/desktop/desktop-lifecycle";
+import { Button, IconButton } from "../../../shared/ui";
 import { installDesktopUpdateWith } from "./install-desktop-update";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../../shared/browser/desktop-update-events";
 
@@ -112,11 +114,13 @@ export function DesktopUpdateControl() {
   return (
     <>
       {locked && <div className="fixed inset-0 z-[190] bg-black/25" aria-hidden="true" />}
-      <aside aria-label="Notespace updates" className={`fixed bottom-4 right-4 z-[191] w-[min(350px,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-3 text-sm text-ink shadow-md`}>
+      <aside aria-label="Notespace updates" className="fixed bottom-4 right-4 z-[191] w-[min(350px,calc(100vw-2rem))] rounded-lg border border-line bg-surface p-3 text-sm text-ink [box-shadow:var(--shadow-popup)]">
         <div className="flex items-center justify-between gap-3">
           <strong className="font-medium">Desktop updates</strong>
           {!locked && (
-            <button type="button" onClick={() => void dismiss()} className="rounded-full px-2 py-1 text-muted hover:bg-surface-hover" aria-label="Dismiss desktop update">×</button>
+            <IconButton type="button" className="!size-7 shrink-0 text-muted hover:bg-tint hover:text-ink" onClick={() => void dismiss()} aria-label="Dismiss desktop update" title="Dismiss desktop update">
+              <X size={14} aria-hidden="true" />
+            </IconButton>
           )}
         </div>
         {phase === "checking" && <p role="status" className="mt-2 text-muted">Checking and verifying available update…</p>}
@@ -124,7 +128,7 @@ export function DesktopUpdateControl() {
         {phase === "error" && (
           <>
             <p role="alert" className="mt-2 text-danger">{error}</p>
-            <button type="button" onClick={() => void check(true)} className="mt-2 rounded-full border border-line px-3 py-1.5">Retry</button>
+            <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void check(true)}>Retry</Button>
           </>
         )}
         {phase === "ready" && info && (
@@ -133,8 +137,8 @@ export function DesktopUpdateControl() {
             {info.notes && <p className="mt-1 line-clamp-3 text-xs text-muted">{info.notes}</p>}
             {error && <p role="alert" className="mt-2 text-danger">{error}</p>}
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => void install()} className="rounded-full bg-ink px-3 py-1.5 text-surface">Save and install</button>
-              <button type="button" onClick={() => void dismiss()} className="rounded-full border border-line px-3 py-1.5">Later</button>
+              <Button type="button" size="sm" onClick={() => void install()}>Save and install</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => void dismiss()}>Later</Button>
             </div>
           </>
         )}

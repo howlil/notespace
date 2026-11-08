@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import {
   CODE_BLOCK_BODY_PADDING_Y,
   CODE_BLOCK_FONT_SIZE,
+  CODE_BLOCK_HEADER_HEIGHT,
   CODE_BLOCK_LINE_HEIGHT,
   CODE_BLOCK_BORDER_ALLOWANCE,
   clampCodeBlockHeight,
@@ -20,16 +21,20 @@ export function CanvasCodeBlockMeasure({
   onHeight: (height: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onHeightRef = useRef(onHeight);
+  onHeightRef.current = onHeight;
 
   useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return;
     const frame = requestAnimationFrame(() => {
-      const measured = clampCodeBlockHeight(node.scrollHeight + CODE_BLOCK_BORDER_ALLOWANCE);
-      onHeight(measured);
+      const measured = clampCodeBlockHeight(
+        node.scrollHeight + CODE_BLOCK_HEADER_HEIGHT + CODE_BLOCK_BORDER_ALLOWANCE,
+      );
+      onHeightRef.current(measured);
     });
     return () => cancelAnimationFrame(frame);
-  }, [code, lineNumbers, onHeight, width]);
+  }, [code, lineNumbers, width]);
 
   return (
     <div

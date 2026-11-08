@@ -54,7 +54,7 @@ S4: Library pagination snapshot/token | owner workspace application/store | snap
 
 S5: Search/FTS projection | owner SQLite | derived and repairable; authored Workspace/Canvas state remains authoritative.
 
-S6: Desktop session cookie, pinned loopback origin and child-process generation | owner R1 plus desktop server boundary | one bootstrap is single-use; API requires the HttpOnly same-origin session; a busy pinned port is a recovery failure, not an automatic origin change.
+S6: Desktop session cookie, pinned loopback origin, child-process generation and profile data root | owner R1 plus desktop server boundary | one bootstrap is single-use; API requires the HttpOnly same-origin session; a busy pinned port is a recovery failure, not an automatic origin change. Debug builds use `<app-data>/dev`, packaged builds use `<app-data>`, test override uses its exact supplied directory, and stores are never moved or merged automatically.
 
 S7: Browser theme, cache and local asset cache | owner shared/browser or asset adapter | never authoritative for Workspace content. Memory is an LRU capped at 32 MiB/64 entries; disk targets 128 MiB, evicting only confirmed server copies. Unknown legacy assets remain protected until upload succeeds. Permanent deletion and successful library restore invalidate caches and fence stale in-flight loads.
 
@@ -69,7 +69,7 @@ These seams are implemented. Current source and executable architecture checks d
 | R2 composition | routes stays framework-owned; pages/{home,workspace,shell} | Thin URL routes; pages compose features. |
 | R3 library | features/library/index.ts; collection/, explorer/, backup/ | Sidebar joins Explorer state/UI; one root-mounted provider survives route changes. |
 | R3 authoring | features/workspace-authoring/index.ts; session/, canvas/ | Session owns draft/save/recovery; CanvasEditor stays the Canvas orchestrator. |
-| Canvas | Keep assets/chrome/code/diagram/flowchart/native/selection/state/sync/viewport | Colocate the Canvas-only palette in canvas/diagram/palette; sole-consumer code runtime/HTML preview in canvas/code/{execution,preview}. |
+| Canvas | Keep assets/chrome/code/diagram/flowchart/native/selection/state/sync/viewport | Colocate the Canvas-only palette in canvas/diagram/palette; code-block execution stays in canvas/code/execution with a same-origin worker CSP and bounded host output; PNG/SVG exports include the code-block overlay. HTML preview stays disabled until its browser navigation/network boundary can be enforced. |
 | R1 web desktop | features/desktop/index.ts; chrome/lifecycle/recovery/updates | Native UI and close bridge leave generic shared UI/root route bodies; root still composes cross-feature slots. |
 | R4 rules | domain/{workspace,diagram,code} | Small cohesive modules stay flat; framework/HTTP/browser/editor dependencies stay outside. |
 | R5 adapters | adapters/{http,browser,assets,desktop} | IPC/quiescence is distinct from generic browser events. Adapters never import features. |

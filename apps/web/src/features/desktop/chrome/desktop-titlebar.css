@@ -136,7 +136,9 @@
   border-radius: 0;
   color: var(--muted);
   background: transparent;
+  transition: background-color 100ms ease-out, color 100ms ease-out, transform 100ms ease-out;
 }
+.desktop-window-controls > button:active:not(:disabled) { transform: scale(.97); }
 .desktop-window-controls > button:hover {
   background: var(--tint);
   color: var(--ink);

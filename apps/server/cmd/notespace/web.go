@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+const codeRunnerWorkerCSP = "frame-ancestors 'none'; default-src 'none'; script-src 'unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+
 func newDevelopmentWebProxy(rawTarget string) (http.Handler, error) {
 	target, err := url.Parse(rawTarget)
 	if err != nil {
@@ -53,6 +55,21 @@ func routesWithDevelopmentProxy(api http.Handler, webDir string, developmentProx
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		if path.Clean("/"+r.URL.Path) == "/code-runner-worker.js" {
+			destination := r.Header.Get("Sec-Fetch-Dest")
+			if destination != "" && destination != "worker" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Security-Policy", codeRunnerWorkerCSP)
+			w.Header().Set("Cache-Control", "no-store")
+			if developmentProxy != nil {
+				developmentProxy.ServeHTTP(w, r)
+				return
+			}
+			http.FileServer(http.Dir(webDir)).ServeHTTP(w, r)
+			return
+		}
 		if developmentProxy != nil {
 			developmentProxy.ServeHTTP(w, r)
 			return

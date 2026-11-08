@@ -1,4 +1,5 @@
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
+import { motion } from "motion/react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "../class-names";
@@ -11,14 +12,18 @@ export const ContextMenuSub = ContextMenuPrimitive.Sub;
 export function ContextMenuContent({ className, children, ...props }: ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content>) {
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Content
-        className={cn(
-          "z-50 min-w-44 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
-          className,
-        )}
-        {...props}
-      >
-        {children}
+      <ContextMenuPrimitive.Content asChild {...props}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.12, ease: "easeOut" }}
+          className={cn(
+            "z-50 min-w-44 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
+            className,
+          )}
+        >
+          {children}
+        </motion.div>
       </ContextMenuPrimitive.Content>
     </ContextMenuPrimitive.Portal>
   );
@@ -28,7 +33,7 @@ export function ContextMenuItem({ className, children, onSelect, ...props }: Com
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "flex min-h-8 cursor-default select-none items-center gap-2 rounded-md px-2.5 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
+        "flex min-h-8 cursor-default select-none items-center gap-2 rounded-md px-2.5 outline-none transition-[color,background-color] duration-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
         className,
       )}
       onSelect={(event) => {
@@ -46,7 +51,7 @@ export function ContextMenuSubTrigger({ className, children, ...props }: Compone
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex min-h-8 cursor-default select-none items-center justify-between gap-2 rounded-md px-2.5 outline-none data-[state=open]:bg-[var(--tint)] data-[state=open]:text-[var(--accent)] data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
+        "flex min-h-8 cursor-default select-none items-center justify-between gap-2 rounded-md px-2.5 outline-none transition-[color,background-color] duration-100 data-[state=open]:bg-[var(--tint)] data-[state=open]:text-[var(--accent)] data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
         className,
       )}
       {...props}
@@ -60,14 +65,18 @@ export function ContextMenuSubTrigger({ className, children, ...props }: Compone
 export function ContextMenuSubContent({ className, children, ...props }: ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>) {
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.SubContent
-        className={cn(
-          "z-50 min-w-48 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
-          className,
-        )}
-        {...props}
-      >
-        {children}
+      <ContextMenuPrimitive.SubContent asChild {...props}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.12, ease: "easeOut" }}
+          className={cn(
+            "z-50 min-w-48 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[11px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
+            className,
+          )}
+        >
+          {children}
+        </motion.div>
       </ContextMenuPrimitive.SubContent>
     </ContextMenuPrimitive.Portal>
   );

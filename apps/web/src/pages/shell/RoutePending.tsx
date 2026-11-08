@@ -10,7 +10,7 @@ export function RoutePending() {
       aria-busy="true"
     >
       <span className="sr-only">Preparing your workspace</span>
-      <span className="grid place-items-center transition-transform duration-300 ease-out hover:scale-[1.06]" aria-hidden="true">
+      <span className="grid place-items-center" aria-hidden="true">
         <NotespaceLogo
           showWordmark={false}
           size="md"

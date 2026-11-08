@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { defaultCanvasCodeBlock, withCanvasCodeBlock } from "../code/canvas-code-block.ts";
 import { analyzeCanvasSelection, canvasStylePatchForElement, sharedCanvasValue, supportsCanvasStyle } from "./canvas-selection-capabilities.ts";
 
 test("single selection marks supported capabilities as all", () => {
@@ -32,7 +33,7 @@ test("mixed shape text arrow and pen distinguishes common from partial capabilit
 
 test("code blocks do not make drawing styles look common", () => {
   const result = analyzeCanvasSelection([
-    { type: "rectangle", customData: { notespaceCodeBlock: { version: 1 } } },
+    { type: "rectangle", customData: withCanvasCodeBlock(undefined, defaultCanvasCodeBlock()) },
     { type: "rectangle" },
   ]);
   assert.equal(result.mixed, true);
@@ -41,6 +42,17 @@ test("code blocks do not make drawing styles look common", () => {
   assert.equal(result.stroke, "some");
   assert.equal(result.fill, "some");
   assert.equal(result.opacity, "all");
+});
+
+test("malformed code metadata retains the underlying element capabilities", () => {
+  const element = { type: "rectangle", customData: { notespaceCodeBlock: { version: 1 } } };
+  const result = analyzeCanvasSelection([element]);
+  assert.deepEqual(result.types, ["rectangle"]);
+  assert.equal(result.hasCode, false);
+  assert.equal(result.stroke, "all");
+  assert.equal(result.fill, "all");
+  assert.equal(supportsCanvasStyle(element, "strokeColor"), true);
+  assert.deepEqual(canvasStylePatchForElement(element, { strokeColor: "red", backgroundColor: "blue" }), { strokeColor: "red", backgroundColor: "blue" });
 });
 
 test("embeddable selection exposes embed interaction only when every selected element is an embed", () => {
@@ -62,7 +74,6 @@ test("batch styles retain pressure and corners for homogeneous selections withou
   assert.deepEqual(elements.filter((element) => supportsCanvasStyle(element, "roundness")), [elements[2]]);
   assert.equal(supportsCanvasStyle(elements[3], "opacity"), true);
   assert.equal(supportsCanvasStyle(elements[3], "strokeColor"), false);
-  assert.equal(supportsCanvasStyle({ type: "rectangle", customData: { notespaceCodeBlock: {} } }, "strokeColor"), false);
 });
 
 test("a batch pressure edit preserves each stroke's own options and patches only supported fields", () => {

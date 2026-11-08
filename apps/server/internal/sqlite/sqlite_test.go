@@ -253,6 +253,10 @@ func TestRetiredNotesMigrationScrubsHistoryAndCanvasCount(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE projects SET references_state=? WHERE id=?`, `["legacy-reference"]`, p.ID); err != nil {
 		t.Fatal(err)
 	}
+	const recordedNoteMigrationChecksum = "a720ac182f7ca06542bd4a91b64827f3d7525d75f5b3d6193e36684dbc8d4c41"
+	if _, err := store.db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name='0025_remove_notes.sql'`, recordedNoteMigrationChecksum); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
@@ -265,6 +269,10 @@ func TestRetiredNotesMigrationScrubsHistoryAndCanvasCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	var retainedNoteMigrationChecksum string
+	if err := store.db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name='0025_remove_notes.sql'`).Scan(&retainedNoteMigrationChecksum); err != nil || retainedNoteMigrationChecksum != recordedNoteMigrationChecksum {
+		t.Fatalf("startup should retain the known local checksum: %q, %v", retainedNoteMigrationChecksum, err)
+	}
 	var elementCount int
 	if err := store.db.QueryRowContext(ctx, `SELECT element_count FROM workspace_canvas WHERE workspace_id=?`, p.ID).Scan(&elementCount); err != nil {
 		t.Fatal(err)

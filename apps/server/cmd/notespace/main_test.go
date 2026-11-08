@@ -46,6 +46,43 @@ func TestProductionRoutes(t *testing.T) {
 	}
 }
 
+func TestCodeRunnerWorkerIsServedWithNetworkIsolationPolicy(t *testing.T) {
+	dir := t.TempDir()
+	workerSource := "self.onmessage = () => self.postMessage({ type: 'done' });"
+	if err := os.WriteFile(filepath.Join(dir, "code-runner-worker.js"), []byte(workerSource), 0600); err != nil {
+		t.Fatal(err)
+	}
+	handler := routes(http.NotFoundHandler(), dir)
+	request := httptest.NewRequest(http.MethodGet, "/code-runner-worker.js", nil)
+	request.Header.Set("Sec-Fetch-Dest", "worker")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Body.String() != workerSource {
+		t.Fatalf("worker response = %d %q", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Security-Policy"); got != codeRunnerWorkerCSP {
+		t.Fatalf("worker CSP = %q", got)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("worker Cache-Control = %q", got)
+	}
+}
+
+func TestCodeRunnerWorkerIsNotServedAsPageScript(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "code-runner-worker.js"), []byte("worker"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	handler := routes(http.NotFoundHandler(), dir)
+	request := httptest.NewRequest(http.MethodGet, "/code-runner-worker.js", nil)
+	request.Header.Set("Sec-Fetch-Dest", "script")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("worker script destination status = %d want 404", response.Code)
+	}
+}
+
 func TestDevelopmentRoutesProxyUiButKeepApiOwnedByServer(t *testing.T) {
 	devServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/src/main.tsx" {

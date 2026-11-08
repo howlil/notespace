@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
@@ -135,61 +136,78 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
           </div>
 
           <div className="min-w-0 max-h-[min(72dvh,520px)] overflow-y-auto p-3 text-xs max-[560px]:p-2.5">
-            {tab === "general" ? (
-              <section aria-label="General settings" className="space-y-2.5">
-                <div>
-                  <h3 className="text-sm font-medium text-ink">Appearance</h3>
-                  <p className="mt-1 text-muted">Change the look of Notespace.</p>
-                </div>
-                <div className="divide-y divide-line border-y border-line">
-                  <div className="flex items-center justify-between gap-3 py-2.5">
-                    <div>
-                      <p id="notespace-theme-label" className="font-medium text-ink">Theme</p>
-                      <p id="notespace-theme-value" className="mt-0.5 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={dark}
-                      aria-labelledby="notespace-theme-label"
-                      aria-describedby="notespace-theme-value"
-                      onClick={toggle}
-                      className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${dark ? "bg-accent" : "bg-line/70 hover:bg-line"}`}
-                      data-state={dark ? "checked" : "unchecked"}
-                    >
-                      <span className={`grid size-6 place-items-center rounded-full bg-surface text-accent shadow-sm transition-transform duration-150 ${dark ? "translate-x-5" : "translate-x-0"}`}>
-                        {dark ? <Moon size={13} aria-hidden="true" /> : <Sun size={13} aria-hidden="true" />}
-                      </span>
-                    </button>
+            <AnimatePresence initial={false} mode="wait">
+              {tab === "general" ? (
+                <motion.section
+                  key="general"
+                  aria-label="General settings"
+                  className="space-y-2.5"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -2 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                >
+                  <div>
+                    <h3 className="text-sm font-medium text-ink">Appearance</h3>
+                    <p className="mt-1 text-muted">Change the look of Notespace.</p>
                   </div>
-                  <div className="flex items-center justify-between gap-3 py-2.5">
-                    <div>
-                      <p className="font-medium text-ink">Library storage</p>
-                      <p className="mt-0.5 text-muted">{native ? "Saved on this device" : "Saved in this browser"}</p>
+                  <div className="divide-y divide-line border-y border-line">
+                    <div className="flex items-center justify-between gap-3 py-2.5">
+                      <div>
+                        <p id="notespace-theme-label" className="font-medium text-ink">Theme</p>
+                        <p id="notespace-theme-value" className="mt-0.5 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={dark}
+                        aria-labelledby="notespace-theme-label"
+                        aria-describedby="notespace-theme-value"
+                        onClick={toggle}
+                        className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-[background-color,transform] duration-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${dark ? "bg-accent" : "bg-line/70 hover:bg-line"}`}
+                        data-state={dark ? "checked" : "unchecked"}
+                      >
+                        <span className={`grid size-6 place-items-center rounded-full bg-surface text-accent shadow-sm transition-transform duration-100 ${dark ? "translate-x-5" : "translate-x-0"}`}>
+                          {dark ? <Moon size={13} aria-hidden="true" /> : <Sun size={13} aria-hidden="true" />}
+                        </span>
+                      </button>
                     </div>
-                    <span className="text-[10px] text-muted">Local</span>
-                  </div>
-                </div>
-                {updaterEnabled && (
-                  <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-                    <div>
-                      <p className="font-medium text-ink">Desktop updates</p>
-                      <p className="mt-0.5 text-muted">Check for signed updates.</p>
+                    <div className="flex items-center justify-between gap-3 py-2.5">
+                      <div>
+                        <p className="font-medium text-ink">Library storage</p>
+                        <p className="mt-0.5 text-muted">{native ? "Saved on this device" : "Saved in this browser"}</p>
+                      </div>
+                      <span className="text-[10px] text-muted">Local</span>
                     </div>
-                    <Button variant="secondary" size="sm" onClick={() => {
-                      onChangeOpen(false);
-                      window.dispatchEvent(new Event(REQUEST_DESKTOP_UPDATE_CHECK));
-                    }}>Check for updates</Button>
                   </div>
-                )}
-              </section>
-            ) : (
-              <section aria-label="Data and backup settings">
-                <h3 className="text-sm font-medium text-ink">Data &amp; backup</h3>
-                <p className="mt-1 leading-4 text-muted">Export or restore your library, recover this device, or bring back deleted Workspaces.</p>
-                {renderLibraryTools(onBusyChange, backupBusy, deviceRecovery)}
-              </section>
-            )}
+                  {updaterEnabled && (
+                    <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
+                      <div>
+                        <p className="font-medium text-ink">Desktop updates</p>
+                        <p className="mt-0.5 text-muted">Check for signed updates.</p>
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={() => {
+                        onChangeOpen(false);
+                        window.dispatchEvent(new Event(REQUEST_DESKTOP_UPDATE_CHECK));
+                      }}>Check for updates</Button>
+                    </div>
+                  )}
+                </motion.section>
+              ) : (
+                <motion.section
+                  key="data"
+                  aria-label="Data and backup settings"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -2 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                >
+                  <h3 className="text-sm font-medium text-ink">Data &amp; backup</h3>
+                  <p className="mt-1 leading-4 text-muted">Export or restore your library, recover this device, or bring back deleted Workspaces.</p>
+                  {renderLibraryTools(onBusyChange, backupBusy, deviceRecovery)}
+                </motion.section>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </DialogContent>
@@ -216,7 +234,7 @@ function SettingsTabButton({
       disabled={disabled}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`flex min-h-9 items-center gap-2 rounded-md px-3 text-left text-[11px] font-medium transition-colors disabled:opacity-50 ${active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink"}`}
+      className={`flex min-h-9 items-center gap-2 rounded-md px-3 text-left text-[11px] font-medium transition-[color,background-color,transform] duration-100 active:scale-[0.985] disabled:opacity-50 ${active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink"}`}
     >
       {icon}
       {children}

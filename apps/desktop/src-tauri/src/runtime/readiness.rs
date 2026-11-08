@@ -8,18 +8,37 @@ use tauri_plugin_shell::process::CommandEvent;
 pub(super) const DESKTOP_ADDR: &str = "127.0.0.1:0";
 const READY_PREFIX: &str = "NOTESPACE_READY=";
 const STARTUP_ERROR_PREFIX: &str = "NOTESPACE_STARTUP_ERROR=";
+const DEVELOPMENT_DATA_DIRECTORY: &str = "dev";
+
+fn configured_test_data_dir(path: Option<PathBuf>) -> Result<Option<PathBuf>, String> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    if path.as_os_str().is_empty() {
+        return Err("desktop test data directory cannot be empty".to_string());
+    }
+    Ok(Some(path))
+}
+
+fn profile_data_dir(app_data_dir: PathBuf, debug_build: bool) -> PathBuf {
+    if debug_build {
+        app_data_dir.join(DEVELOPMENT_DATA_DIRECTORY)
+    } else {
+        app_data_dir
+    }
+}
 
 pub(crate) fn runtime_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Some(path) = std::env::var_os("NOTESPACE_DESKTOP_TEST_DATA_DIR") {
-        let path = PathBuf::from(path);
-        if path.as_os_str().is_empty() {
-            return Err("desktop test data directory cannot be empty".to_string());
-        }
+    if let Some(path) = configured_test_data_dir(
+        std::env::var_os("NOTESPACE_DESKTOP_TEST_DATA_DIR").map(PathBuf::from),
+    )? {
         return Ok(path);
     }
-    app.path()
+    let app_data_dir = app
+        .path()
         .app_data_dir()
-        .map_err(|error| format!("resolve app data directory: {error}"))
+        .map_err(|error| format!("resolve app data directory: {error}"))?;
+    Ok(profile_data_dir(app_data_dir, cfg!(debug_assertions)))
 }
 
 pub(crate) async fn wait_for_readiness(
@@ -113,6 +132,30 @@ pub(crate) fn startup_error_message(error: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_debug_data_is_separate_from_packaged_data() {
+        let app_data = PathBuf::from("notespace-app-data");
+        assert_eq!(
+            profile_data_dir(app_data.clone(), false),
+            PathBuf::from("notespace-app-data")
+        );
+        assert_eq!(
+            profile_data_dir(app_data, true),
+            PathBuf::from("notespace-app-data").join("dev")
+        );
+    }
+
+    #[test]
+    fn desktop_test_data_override_stays_exact() {
+        let isolated = PathBuf::from("isolated-test-data");
+        assert_eq!(
+            configured_test_data_dir(Some(isolated.clone())).unwrap(),
+            Some(isolated)
+        );
+        assert_eq!(configured_test_data_dir(None).unwrap(), None);
+        assert!(configured_test_data_dir(Some(PathBuf::new())).is_err());
+    }
 
     #[test]
     fn readiness_accepts_only_dynamic_loopback_bootstrap() {

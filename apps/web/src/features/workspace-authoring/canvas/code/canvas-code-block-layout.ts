@@ -4,6 +4,7 @@ export const CODE_BLOCK_LINE_HEIGHT = 17;
 export const CODE_BLOCK_BODY_PADDING_X = 8;
 export const CODE_BLOCK_BODY_PADDING_Y = 8;
 export const CODE_BLOCK_LINE_NUMBER_WIDTH = 30;
+export const CODE_BLOCK_HEADER_HEIGHT = 30;
 export const CODE_BLOCK_BORDER_ALLOWANCE = 2;
 
 export function codeBlockContentWidth(width: number, lineNumbers: boolean) {
@@ -14,8 +15,52 @@ export function codeBlockContentWidth(width: number, lineNumbers: boolean) {
   );
 }
 
+export function codeBlockIntersectsViewport({
+  x,
+  y,
+  width,
+  height,
+  angle,
+  zoom,
+  scrollX,
+  scrollY,
+  viewportWidth,
+  viewportHeight,
+  overscan = 160,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  angle: number;
+  zoom: number;
+  scrollX: number;
+  scrollY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  overscan?: number;
+}) {
+  if (viewportWidth <= 0 || viewportHeight <= 0) return true;
+  const scaledWidth = width * zoom;
+  const scaledHeight = height * zoom;
+  const centerX = (x + scrollX) * zoom + scaledWidth / 2;
+  const centerY = (y + scrollY) * zoom + scaledHeight / 2;
+  const cosine = Math.abs(Math.cos(angle));
+  const sine = Math.abs(Math.sin(angle));
+  const halfWidth = (scaledWidth * cosine + scaledHeight * sine) / 2;
+  const halfHeight = (scaledWidth * sine + scaledHeight * cosine) / 2;
+
+  return centerX + halfWidth >= -overscan
+    && centerX - halfWidth <= viewportWidth + overscan
+    && centerY + halfHeight >= -overscan
+    && centerY - halfHeight <= viewportHeight + overscan;
+}
+
 export function codeBlockMinimumHeight() {
-  return CODE_BLOCK_LINE_HEIGHT + (CODE_BLOCK_BODY_PADDING_Y * 2) + CODE_BLOCK_BORDER_ALLOWANCE;
+  return CODE_BLOCK_HEADER_HEIGHT
+    + CODE_BLOCK_LINE_HEIGHT
+    + (CODE_BLOCK_BODY_PADDING_Y * 2)
+    + CODE_BLOCK_BORDER_ALLOWANCE;
 }
 
 export function clampCodeBlockHeight(height: number) {

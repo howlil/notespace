@@ -200,7 +200,7 @@ Rules for this suite:
 - journeys are independent: no ordering dependency between files or tests;
 - `critical:` marks the journeys the fast PR gate runs.
 
-Coverage includes canonical Home/category/Workspace navigation, Library/first-run shell, Canvas authoring (flowchart spawn, code blocks, embeds and isolated HTML previews), workspace/category search and Quick Open, Settings and backup lifecycle, pagination snapshots, category races, Library recovery, Canvas peer sync across tabs, and the retired Capture/Plan/Today/Inbox data boundaries that must stay readable while their UI stays gone. Note routes, editors, artifacts and Note imports are intentionally absent.
+Coverage includes canonical Home/category/Workspace navigation, Library/first-run shell, Canvas authoring (flowchart spawn, bounded code execution, undo-safe output, PNG/SVG code-block export, source-only HTML blocks, embeds), workspace/category search and Quick Open, Settings and backup lifecycle, pagination snapshots, category races, Library recovery, Canvas peer sync across tabs, and the retired Capture/Plan/Today/Inbox data boundaries that must stay readable while their UI stays gone. HTML preview remains disabled until browser navigation and network access can be contained. Note routes, editors, artifacts and Note imports are intentionally absent.
 
 Only admit new browser tests for behavior that cannot be proven at a cheaper boundary. Prefer Node unit, HTTP integration and SQLite tests for ordinary rules, CRUD and failure cases. Avoid arbitrary waits; wait on observable state.
 

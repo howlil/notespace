@@ -105,6 +105,23 @@ task dev
 
 Open `http://localhost:3000`. Task orchestrates the Go API and Vite development server; bun owns frontend package commands and the lockfile, Go owns backend build/test commands, and Docker Compose owns the self-hosted runtime.
 
+### Data locations
+
+Development and production stores are deliberately separate:
+
+| Runtime | SQLite location |
+| --- | --- |
+| `task dev` | `<repository>/data/dev/notespace.db` |
+| Standalone server/binary | `<process working directory>/data/notespace.db`, unless `NOTESPACE_DB` is set |
+| Docker Compose | `/data/notespace.db` in the stable `notespace-data` volume |
+| `cargo tauri dev` or a debug desktop build | `<Tauri app data>/dev/notespace.db` |
+| Packaged desktop release | `<Tauri app data>/notespace.db` |
+| Desktop automated test | `<NOTESPACE_DESKTOP_TEST_DATA_DIR>/notespace.db` when explicitly provided |
+
+The runtime never moves or merges these SQLite stores automatically. Existing
+`apps/server/data` and desktop app-data databases stay untouched; use the
+application backup/restore flow for an intentional data transfer.
+
 Useful commands:
 
 ```sh
@@ -128,7 +145,7 @@ On Windows, run `./bin/notespace.exe`.
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
 | `NOTESPACE_ADDR` | `127.0.0.1:8080` | Go listener |
-| `NOTESPACE_DB` | `data/notespace.db` | Durable SQLite path |
+| `NOTESPACE_DB` | `<process working directory>/data/notespace.db` | Durable SQLite path |
 | `NOTESPACE_WEB_DIR` | `apps/web/dist/client` | Built SPA assets |
 | `NOTESPACE_PASSWORD` | empty | Optional single-owner HTTP Basic protection |
 

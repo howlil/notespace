@@ -21,6 +21,8 @@ tasks:
   dev:server:
     internal: true
     dir: apps/server
+    env:
+      NOTESPACE_DB: ../../data/dev/notespace.db
     cmds:
       - go run ./cmd/notespace
 

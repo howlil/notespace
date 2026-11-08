@@ -9,6 +9,7 @@ const WEB = join(ROOT, "apps", "web");
 const WEB_SRC = join(WEB, "src");
 const GLOBALS = join(WEB_SRC, "shared", "styles", "globals.css");
 const DESKTOP_TITLEBAR_STYLES = join(WEB_SRC, "features", "desktop", "chrome", "desktop-titlebar.css");
+const DESKTOP_UPDATE_CONTROL = join(WEB_SRC, "features", "desktop", "updates", "DesktopUpdateControl.tsx");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
 const ROOT_ROUTE = join(WEB_SRC, "routes", "__root.tsx");
 const ROUTE_PENDING = join(WEB_SRC, "pages", "shell", "RoutePending.tsx");
@@ -43,6 +44,7 @@ const CANVAS_CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring",
 const CODE_LANGUAGE = join(WEB_SRC, "domain", "code", "code-language.ts");
 const CODE_RUNNER = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "execution", "code-runner.ts");
 const CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "execution", "use-code-runner.ts");
+const CODE_RUNNER_WORKER = join(WEB, "public", "code-runner-worker.js");
 const NOTE_CODE_BLOCK = join(WEB_SRC, "features", "workspace-authoring", "document", "NoteCodeBlockNode.tsx");
 const DIAGRAM_PALETTE = join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram", "palette", "DiagramPalette.tsx");
 const TOAST_PROVIDER = join(WEB_SRC, "shared", "ui", "feedback", "toast-provider.tsx");
@@ -154,7 +156,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(canvas, /name === "imageExport"/);
   assert.match(canvas, /openDialog: \{ name: "commandPalette" \}/);
   assert.match(canvas, /toggleSidebar\(\{ name: "default", tab: "search", force: !isSearchOpen \}\)/);
-  assert.match(canvas, /import \{ executeNativeAction \} from "\.\/native\/CanvasNativeActions"/);
+  assert.match(canvas, /import \{\s*executeNativeAction,[\s\S]*?\} from "\.\/native\/CanvasNativeActions"/);
   assert.match(canvas, /executeNativeAction\(value, name\)/);
   assert.doesNotMatch(canvas, /actionManager\.actions\[name\]/);
   assert.match(canvas, /isCanvasObjectManipulating/);
@@ -177,13 +179,16 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(codeLayer, /overflow-wrap:anywhere/);
   assert.match(codeLayer, /CanvasCodeBlockMeasure/);
   assert.match(codeLayer, /Code output/);
-  assert.doesNotMatch(codeLayer, /aria-label="Code language"|Run JavaScript|Copy code/); assert.match(codeLayer, /aria-label="Edit code block"/);
-  assert.match(codeActions, /aria-label="Code block actions"/);
+  assert.match(codeLayer, /data-canvas-code-header/);
+  assert.match(codeLayer, /Run JavaScript/);
+  assert.match(codeLayer, /Copy code/);
+  assert.match(codeLayer, /Collapse code output/);
+  assert.doesNotMatch(codeLayer, /aria-label="Code language"/); assert.match(codeLayer, /aria-label="Edit code block"/);
+  assert.match(codeActions, /aria-label="Code block settings"/);
   assert.match(codeActions, /aria-label="Code language"/);
-  assert.match(codeActions, /Run JavaScript/);
   assert.match(codeActions, /Fit code height/);
   assert.doesNotMatch(codeActions, /Edit code|Finish editing|Pencil/);
-  assert.match(codeActions, /Copy code/);
+  assert.doesNotMatch(codeActions, /Run JavaScript|Copy code/);
   assert.match(codeMeasure, /scrollHeight/);
   assert.match(codeMeasure, /codeBlockContentWidth/);
   assert.match(codeLayout, /shouldSwitchCodeBlockToManualHeight/);
@@ -205,7 +210,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(codeRunner, /new Worker/);
   assert.match(codeRunner, /DEFAULT_CODE_RUN_TIMEOUT_MS = 2_000/);
   assert.match(codeRunner, /MAX_CODE_RUN_OUTPUT_LINES = 100/);
-  assert.match(codeRunner, /self\.fetch = \(\) => Promise\.reject/);
+  assert.match(source(CODE_RUNNER_WORKER), /self\.fetch = \(\) => Promise\.reject/);
   assert.match(codeRunner, /worker\.terminate\(\)/);
   assert.doesNotMatch(codeRunner, /\/api\//);
   assert.match(canvas, /reconcileElements\(/);
@@ -346,11 +351,16 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
 });
 
 test("frontend contract: repeated page controls reuse shared UI primitives", () => {
+  const desktopUpdate = source(DESKTOP_UPDATE_CONTROL);
+  const codeBlockLayer = source(CANVAS_CODE_BLOCK_LAYER);
   assert.match(source(CANVAS_CHROME), /<IconButton/);
   assert.match(source(QUICK_OPEN), /<Input/);
   assert.match(source(TOAST_PROVIDER), /<Button/); assert.match(source(TOAST_PROVIDER), /<IconButton/);
   assert.match(source(WORKSPACE_LIBRARY), /<Button/); assert.match(source(SIDEBAR), /<Button/);
   assert.match(source(QUICK_OPEN), /<Button/); assert.match(source(DIAGRAM_PALETTE), /<Button/);
+  assert.match(desktopUpdate, /from "\.\.\/\.\.\/\.\.\/shared\/ui"/); assert.match(desktopUpdate, /<IconButton/); assert.match(desktopUpdate, /<Button/);
+  assert.match(desktopUpdate, /\[box-shadow:var\(--shadow-popup\)\]/); assert.doesNotMatch(desktopUpdate, /<button/);
+  assert.match(codeBlockLayer, /className="[^"]*size-7[^"]*focus-visible:outline-2[^"]*"[\s\S]{0,240}aria-label="Clear code output"/);
    assert.match(source(PAGE_SHELL), /Hide Explorer|Show Explorer/); assert.match(source(PAGE_SHELL), /NotespaceLogo/); assert.match(source(PAGE_SHELL), /aria-label="Search Notespace"/); assert.doesNotMatch(source(PAGE_SHELL), /PanelLeft/); assert.match(source(PAGE_SHELL), /<SettingsTrigger[\s\S]*showLabel/); assert.doesNotMatch(source(SIDEBAR), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
@@ -396,7 +406,7 @@ test("frontend styling contract: removed feature stylesheets do not return", () 
 
 test("design contract: loading, toast, and editor motion remain accessible", () => {
   const pending=source(ROUTE_PENDING), toast=source(TOAST_PROVIDER), globals=source(GLOBALS), packageJson=source(WEB_PACKAGE);
-  assert.match(pending,/role="status"/); assert.match(pending,/aria-live="polite"/); assert.match(pending,/aria-busy="true"/); assert.match(pending,/NotespaceLogo/); assert.match(pending,/showWordmark={false}/); assert.match(pending,/animate-loading-logo/); assert.match(pending,/Preparing your workspace/); assert.doesNotMatch(pending,/progressbar|animate-loading-ring|Preparing your space|Your notes, canvas/); assert.match(globals,/prefers-reduced-motion/); assert.match(globals,/loading-logo/); assert.match(globals,/loading-mark/); assert.match(globals,/loading-ring/);
+  assert.match(pending,/role="status"/); assert.match(pending,/aria-live="polite"/); assert.match(pending,/aria-busy="true"/); assert.match(pending,/NotespaceLogo/); assert.match(pending,/showWordmark={false}/); assert.match(pending,/animate-loading-logo/); assert.match(pending,/Preparing your workspace/); assert.doesNotMatch(pending,/progressbar|animate-loading-ring|Preparing your space|Your notes, canvas/); assert.doesNotMatch(pending,/hover:scale/); assert.match(globals,/prefers-reduced-motion/); assert.match(globals,/loading-logo/); assert.match(globals,/loading-mark/); assert.match(globals,/loading-ring/);
   assert.doesNotMatch(toast,/ToastPrimitive|@radix-ui\/react-toast/); assert.match(toast,/role=\{kind === "error" \? "alert" : "status"\}/); assert.match(toast,/aria-live=\{kind === "error" \? "assertive" : "polite"\}/); assert.match(toast,/aria-label="Dismiss notification"/); assert.match(toast,/MAX_VISIBLE_TOASTS/); assert.match(toast,/ToastGlyph/); assert.doesNotMatch(toast,/requestExclusivePopup/); assert.doesNotMatch(packageJson,/@radix-ui\/react-toast/);
 });
 

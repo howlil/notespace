@@ -43,11 +43,15 @@ SQLite open
 migration checksums before `ensureMetadata` can perform DDL. Migration files
 remain append-only and keep their current transactional execution.
 
-The sidecar writes recovery copies next to its database:
+The sidecar writes recovery copies next to its database. `<desktop-data>` is
+`<app-data>` for a packaged release and `<app-data>/dev` for a debug desktop
+build. An explicit `NOTESPACE_DESKTOP_TEST_DATA_DIR` is used exactly as given
+by the automated test runtime. The runtime never moves or merges data between
+these roots automatically.
 
 ```text
-<app-data>/notespace.db
-<app-data>/notespace.db.recovery/
+<desktop-data>/notespace.db
+<desktop-data>/notespace.db.recovery/
     pre-migration-<UTC>-<random>.db
 ```
 

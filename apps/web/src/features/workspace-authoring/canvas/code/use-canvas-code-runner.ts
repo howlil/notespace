@@ -1,7 +1,7 @@
-import { useCodeRunner } from "./execution/use-code-runner";
+import { useCodeRunner, type LiveRunnableCode } from "./execution/use-code-runner";
 
 export type { CodeRunView } from "./execution/use-code-runner";
 
-export function useCanvasCodeRunner(liveElementIds: readonly string[]) {
-  return useCodeRunner(liveElementIds);
+export function useCanvasCodeRunner(liveBlocks: readonly LiveRunnableCode[]) {
+  return useCodeRunner(liveBlocks);
 }

@@ -164,3 +164,43 @@ func TestInspectRejectsModifiedRecordedMigration(t *testing.T) {
 		})
 	}
 }
+
+func TestKnownLocalNoteRetirementChecksumAllowsFollowupMigration(t *testing.T) {
+	const recordedChecksum = "a720ac182f7ca06542bd4a91b64827f3d7525d75f5b3d6193e36684dbc8d4c41"
+	const followupMigration = "0026_scrub_retired_note_artifacts.sql"
+	ctx := context.Background()
+	db := openTestDB(t)
+	if err := Run(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name='0025_remove_notes.sql'`, recordedChecksum); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, followupMigration); err != nil {
+		t.Fatal(err)
+	}
+
+	inspection, err := Inspect(ctx, db)
+	if err != nil || !inspection.NeedsMigration {
+		t.Fatalf("known local 0025 checksum should permit the pending follow-up: %+v, %v", inspection, err)
+	}
+	followupRan := false
+	err = RunWithHook(ctx, db, func(_ context.Context, _ *sql.Tx, name string) error {
+		followupRan = followupRan || name == followupMigration
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("pending follow-up should run with the known local checksum: %v", err)
+	}
+	if !followupRan {
+		t.Fatalf("follow-up migration %s did not run", followupMigration)
+	}
+	var retainedChecksum string
+	if err := db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name='0025_remove_notes.sql'`).Scan(&retainedChecksum); err != nil || retainedChecksum != recordedChecksum {
+		t.Fatalf("known historical checksum must remain unchanged: %q, %v", retainedChecksum, err)
+	}
+	inspection, err = Inspect(ctx, db)
+	if err != nil || inspection.NeedsMigration {
+		t.Fatalf("schema should be current after follow-up: %+v, %v", inspection, err)
+	}
+}

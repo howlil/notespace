@@ -1,3 +1,5 @@
+import { readCanvasCodeBlock } from "../code/canvas-code-block.ts";
+
 export type CanvasSelectionElementLike = {
   type: string;
   customData?: Record<string, unknown>;
@@ -71,8 +73,7 @@ export function canvasStylePatchForElement<P extends object>(element: CanvasSele
 }
 
 function semanticType(element: CanvasSelectionElementLike) {
-  const code = element.customData?.notespaceCodeBlock;
-  return code && typeof code === "object" ? "code" : element.type;
+  return readCanvasCodeBlock(element) ? "code" : element.type;
 }
 
 function coverage(elements: readonly CanvasSelectionElementLike[], predicate: (element: CanvasSelectionElementLike) => boolean): CapabilityCoverage {

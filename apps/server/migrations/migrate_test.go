@@ -96,8 +96,8 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id='legacy-project'`).Scan(&granularCanvas); err != nil {
 		t.Fatal(err)
 	}
-	if granularNotes != 1 || granularCanvas != 1 {
-		t.Fatalf("granular backfill = notes:%d canvas:%d, want 1/1", granularNotes, granularCanvas)
+	if granularNotes != 0 || granularCanvas != 1 {
+		t.Fatalf("Canvas-only migration = notes:%d canvas:%d, want 0/1", granularNotes, granularCanvas)
 	}
 }
 

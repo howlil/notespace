@@ -1,5 +1,5 @@
 // Package capture owns the temporary, unorganized intake lifecycle.
-// A converted Capture remains as an idempotency receipt, not a second Note or Task.
+// A converted Capture remains as an idempotency receipt for a Task.
 package capture
 
 import (
@@ -70,7 +70,7 @@ func ValidItem(item Item) bool {
 	case "pending":
 		return item.TargetKind == "" && item.TargetWorkspaceID == "" && item.TargetID == "" && item.ConvertedAt == ""
 	case "converted":
-		return (item.TargetKind == "note" || item.TargetKind == "task") &&
+		return item.TargetKind == "task" &&
 			item.TargetWorkspaceID != "" && item.TargetID != "" && item.ConvertedAt != ""
 	}
 	return false
@@ -103,8 +103,7 @@ func (s Service) Delete(ctx context.Context, id string, version int) error {
 }
 func (s Service) Organize(ctx context.Context, id string, req Organize) (Item, error) {
 	if strings.TrimSpace(id) == "" || req.Version < 1 || strings.TrimSpace(req.WorkspaceID) == "" ||
-		(req.Kind != "note" && req.Kind != "task") ||
-		(req.Document != nil && (req.Kind != "note" || !workspace.ValidDocumentSnapshot(*req.Document))) {
+		(req.Kind != "task") || req.Document != nil {
 		return Item{}, ErrInvalid
 	}
 	return s.store.OrganizeCapture(ctx, id, req)

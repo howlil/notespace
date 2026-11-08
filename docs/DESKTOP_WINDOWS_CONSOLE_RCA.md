@@ -24,7 +24,7 @@ Reference: https://github.com/tauri-apps/tauri/blob/dev/examples/api/src-tauri/s
   `#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]`.
   Debug builds remain console-enabled for engineering diagnostics.
 - **Windows Go desktop sidecar:** build with `-ldflags -H=windowsgui`, but
-  only in `scripts/prepare-desktop-sidecar.mjs`. Do not change the
+  only in `scripts/dev/prepare-desktop-sidecar.mjs`. Do not change the
   ordinary headless/self-hosted CLI build; it still belongs in a terminal.
 - **Sidecar protocol:** preserve piped stdin/stdout/stderr. Tauri still
   waits for `NOTESPACE_READY=`, handles the Go

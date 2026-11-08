@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-recovery-diagnostics"
+description = "Enables the desktop_recovery_diagnostics command without any pre-configured scope."
+commands.allow = ["desktop_recovery_diagnostics"]
+
+[[permission]]
+identifier = "deny-desktop-recovery-diagnostics"
+description = "Denies the desktop_recovery_diagnostics command without any pre-configured scope."
+commands.deny = ["desktop_recovery_diagnostics"]

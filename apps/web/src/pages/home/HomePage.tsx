@@ -1,8 +1,8 @@
-import { LibraryPageShell } from "../_shared/LibraryPageShell";
-import { LibrarySidebar } from "../_shared/LibrarySidebar";
+import { LibraryPageShell } from "../shell/LibraryPageShell";
+import { LibrarySidebar } from "../../features/library";
 import type { CategorySummary, WorkspacePage } from "../../domain/workspace/workspace";
-import { WorkspaceLibrary } from "../../features/library/WorkspaceLibrary";
-import { useWorkspaceLibrary } from "../../features/library/use-workspace-library";
+import { WorkspaceLibrary } from "../../features/library";
+import { useWorkspaceLibrary } from "../../features/library";
 
 type Props = {
   categories: CategorySummary[];
@@ -16,8 +16,7 @@ export function HomePage(props: Props) {
     <LibraryPageShell
       sidebar={<LibrarySidebar categories={library.categoryItems}
         selectedCategoryId={library.selectedCategoryId}
-        onSelectCategory={(id) => { void library.selectCategory(id); }}
-        onChanged={library.refreshLibrary} />}
+        onSelectCategory={(id) => { void library.selectCategory(id); }} />}
     >
       <div className="mx-auto w-full max-w-[1240px] px-6 pt-5 pb-8 max-[560px]:p-4">
         <WorkspaceLibrary model={library} />

@@ -19,26 +19,9 @@ type workspaceTestStore struct {
 	recordErr               error
 	workspaceExists         bool
 	workspaceExistsErr      error
-	notes                   []Note
-	notesErr                error
-	getNoteErr              error
-	listNotesCalls          int
 	canvas                  CanvasState
 	canvasErr               error
 	getCanvasCalls          int
-	createNoteWorkspaceID   string
-	createNoteInput         NoteCreate
-	createNoteResult        Note
-	createNoteErr           error
-	updateNoteWorkspaceID   string
-	updateNoteID            string
-	updateNoteInput         NoteUpdate
-	updateNoteResult        Note
-	updateNoteErr           error
-	deleteNoteWorkspaceID   string
-	deleteNoteID            string
-	deleteNoteVersion       int
-	deleteNoteErr           error
 	updateCanvasWorkspaceID string
 	updateCanvasInput       CanvasUpdate
 	updateCanvasResult      CanvasState
@@ -53,15 +36,10 @@ func validCanvasSnapshot() Snapshot {
 	return Snapshot{Format: "excalidraw", Version: 1, Data: []byte("{\"elements\":[],\"appState\":{},\"files\":{}}")}
 }
 
-func validNoteFixture(id string) Note {
-	return Note{ID: id, Title: "Note " + id, Document: validDocumentSnapshot(), Version: 1}
-}
-
 func validWorkspaceFixture() Workspace {
-	note := validNoteFixture("note-1")
 	return Workspace{
 		Summary:  Summary{ID: "workspace-1", CategoryID: UncategorizedCategoryID, Title: "Distributed Systems", Version: 1},
-		Document: note.Document, Notes: []Note{note}, Canvas: validCanvasSnapshot(), CanvasVersion: 1,
+		Document: validDocumentSnapshot(), Notes: []Note{}, Canvas: validCanvasSnapshot(), CanvasVersion: 1,
 		References: []Reference{}, SplitRatio: 0.45,
 	}
 }
@@ -82,7 +60,6 @@ func (s *workspaceTestStore) Create(_ context.Context, value Workspace) error {
 		return s.createErr
 	}
 	s.record = value
-	s.notes = append([]Note(nil), value.Notes...)
 	s.canvas = CanvasState{Canvas: value.Canvas, Version: value.CanvasVersion}
 	return nil
 }
@@ -123,48 +100,9 @@ func (s *workspaceTestStore) Update(_ context.Context, id string, input Update) 
 	value.References, value.SplitRatio, value.Version = append([]Reference(nil), input.References...), input.SplitRatio, input.Version+1
 	return value, nil
 }
-func (s *workspaceTestStore) ListNotes(context.Context, string) ([]Note, error) {
-	s.listNotesCalls++
-	return s.notes, s.notesErr
-}
 func (s *workspaceTestStore) GetCanvasState(context.Context, string) (CanvasState, error) {
 	s.getCanvasCalls++
 	return s.canvas, s.canvasErr
-}
-func (s *workspaceTestStore) GetNote(_ context.Context, _, id string) (Note, error) {
-	if s.getNoteErr != nil {
-		return Note{}, s.getNoteErr
-	}
-	for _, note := range s.notes {
-		if note.ID == id {
-			return note, nil
-		}
-	}
-	return Note{}, ErrNotFound
-}
-func (s *workspaceTestStore) CreateNote(_ context.Context, workspaceID string, input NoteCreate) (Note, error) {
-	s.createNoteWorkspaceID, s.createNoteInput = workspaceID, input
-	if s.createNoteErr != nil {
-		return Note{}, s.createNoteErr
-	}
-	if s.createNoteResult.ID != "" {
-		return s.createNoteResult, nil
-	}
-	return Note{ID: input.ID, Title: input.Title, Document: input.Document, Version: 1}, nil
-}
-func (s *workspaceTestStore) UpdateNote(_ context.Context, workspaceID, noteID string, input NoteUpdate) (Note, error) {
-	s.updateNoteWorkspaceID, s.updateNoteID, s.updateNoteInput = workspaceID, noteID, input
-	if s.updateNoteErr != nil {
-		return Note{}, s.updateNoteErr
-	}
-	if s.updateNoteResult.ID != "" {
-		return s.updateNoteResult, nil
-	}
-	return Note{ID: noteID, Title: input.Title, Document: input.Document, Version: input.Version + 1}, nil
-}
-func (s *workspaceTestStore) DeleteNote(_ context.Context, workspaceID, noteID string, version int) error {
-	s.deleteNoteWorkspaceID, s.deleteNoteID, s.deleteNoteVersion = workspaceID, noteID, version
-	return s.deleteNoteErr
 }
 func (s *workspaceTestStore) UpdateCanvas(_ context.Context, workspaceID string, input CanvasUpdate) (CanvasState, error) {
 	s.updateCanvasWorkspaceID, s.updateCanvasInput = workspaceID, input

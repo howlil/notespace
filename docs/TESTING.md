@@ -20,10 +20,10 @@ HTTP decoding / status / headers
 → Go httpapi contract test
 
 browser-only interaction / race
-→ Playwright
+→ WebdriverIO journey
 
 critical cross-system journey
-→ critical Playwright
+→ critical WebdriverIO journey
 
 runtime persistence
 → Docker restart smoke
@@ -40,7 +40,7 @@ The frontend deliberately uses Node's built-in test runner instead of a jsdom/Re
 Root command:
 
 ```sh
-pnpm test
+bun run test
 ```
 
 The test runner discovers `*.test.ts` and `*.test.tsx` files under the application and repository test surfaces.
@@ -57,11 +57,11 @@ Current examples include:
 
 - Workspace autosave and conflict rules;
 - Canvas merge and scene transformations;
-- planning Today/Inbox projection membership;
-- `save-workspace-core` conflict/rebase orchestration;
+- Workspace naming and pagination rules;
+- `granular-save-core` Canvas conflict/rebase orchestration;
 - image-store remote/local fallback and concurrent-load deduplication;
 - image HTTP contract and Workspace-scoped cache behavior;
-- document/Canvas durable image boundaries;
+- Canvas image persistence, cache eviction and legacy fallback;
 - Quick Open route mapping;
 - browser conflict/library-change event adapters;
 - Excalidraw native action compatibility.
@@ -77,14 +77,14 @@ Example:
 ```text
 React hook
   ↓
-prepareDocumentImage(...)
+flush registered Canvas asset writes
   ↓
 durable asset store
 ```
 
 The core can prove:
 
-- accepted storage → authored node may be committed;
+- accepted storage → authored Canvas reference may be committed;
 - ownership rejection → no broken durable reference;
 - storage error → error is surfaced.
 
@@ -103,17 +103,17 @@ task check:server
 or directly inside `apps/server`:
 
 ```sh
-node ../../scripts/check-gofmt.mjs
+node ../../scripts/verify/check-gofmt.mjs
 go vet ./...
 go test -race ./...
 ```
 
 The real server-process integration proof runs the built Go binary against a temporary SQLite database, waits for the
-readiness handshake, exercises Workspace Note/Canvas HTTP mutations, shuts the process down through its parent-lifecycle
+readiness handshake, exercises Workspace/Canvas HTTP mutations, shuts the process down through its parent-lifecycle
 stdin protocol, relaunches it with the same database, and verifies durable state:
 
 ```sh
-pnpm test:server:process
+bun run test:server:process
 ```
 
 This is intentionally separate from package tests because it proves command wiring, process lifecycle, HTTP routing, and
@@ -125,7 +125,7 @@ Application packages use small behavioral fakes for their consumer-owned ports.
 
 Examples:
 
-- Workspace validation, granular Note/Canvas service behavior, aggregate compatibility updates;
+- Workspace validation, granular Canvas service behavior, aggregate compatibility updates;
 - planning Task/Milestone transitions and global Task operations;
 - activity recording/query normalization and reference resolution;
 - asset validation and ownership checks;
@@ -140,7 +140,7 @@ Use a real temporary SQLite database for:
 - transactions;
 - foreign keys;
 - optimistic concurrency;
-- Note/Canvas versioning;
+- Canvas versioning and legacy compatibility migration;
 - planning position concurrency and cardinality;
 - Today/Inbox projections;
 - asset lifecycle;
@@ -170,19 +170,41 @@ They should use representative invalid domain input, not repeat every domain val
 
 ## Browser E2E — WebdriverIO standalone
 
-The default browser runner is `scripts/web-e2e.mjs`: WebdriverIO standalone, Node's built-in test runner, headless installed Chrome and a real isolated Go/SQLite database. No Mocha/Cucumber runner and no separate Playwright browser download.
+There is one browser runner: `scripts/verify/browser-e2e.mjs`. It is WebdriverIO standalone plus Node's built-in test runner against headless installed Chrome and a real isolated Go/SQLite server. No Mocha/Cucumber runner, no Playwright, no downloaded browser bundle.
+
+Suites are grouped by capability and discovered recursively. `tests/browser-discovery.test.ts` protects discovery and configured script entrypoints; `tests/architecture-boundaries.test.ts` protects web feature entries and the lazy Canvas boundary. Go architecture checks cover private handler/query packages and transaction ownership. Aggregate SQLite rollback/restore proofs stay with Store.
 
 ```sh
-task e2e:critical          # build + four critical browser journeys
-pnpm test:e2e:critical    # reuse the existing built web output
-task e2e                   # production build + WebdriverIO
+bun run test:e2e            # build the web app, then every browser journey
+bun run test:e2e:critical   # build the web app, then only `critical:` journeys
+task e2e:critical           # same, through Task
+node scripts/verify/browser-e2e.mjs --file tests/e2e/library/search.e2e.mjs   # one journey file
 ```
 
-The four browser journeys cover: Welcome → Workspace → Canvas size; Note URL → Tiptap → save and reload; New Note → persisted Canvas artifact; Explorer and Quick Open. Backend integration and native WebView2 smoke retain their independent durability proofs.
+### Suite structure
 
-**Migration status:** the old Playwright specs are retained as an explicit manual fallback (`pnpm test:e2e:legacy`, `task e2e:target SPEC=...`). They are not the active PR/master browser gate. Coverage parity for historical long-form browser scenarios has not yet been established; do not claim it is.
+```text
+tests/e2e/
+├── harness.mjs     Chrome session, isolated Go/SQLite server, UI + API helpers
+├── proxy.mjs       transport-boundary fault injection (503, 409, abort, hold)
+├── resolve.mjs     Playwright-compatible role/name resolution, executed in-page
+├── frame-fixtures.mjs
+└── *.e2e.mjs       one file per owned behavior area
+```
 
-Only admit new browser tests for behavior that cannot be proven at a cheaper boundary. Prefer Node unit, HTTP integration and SQLite tests for ordinary rules, CRUD and failure cases. Run tests sequentially against isolated data; avoid arbitrary waits.
+Rules for this suite:
+
+- each file starts its own Go server on an ephemeral port with its own SQLite file, so files are independent and run concurrently;
+- the browser talks to a local proxy in front of the real server; failures are injected there (`injectFault`), never by mocking the application or the database;
+- assertions read either the real DOM or the real HTTP API, so a simulated transport failure cannot hide durable state;
+- journeys are independent: no ordering dependency between files or tests;
+- `critical:` marks the journeys the fast PR gate runs.
+
+Coverage includes canonical Home/category/Workspace navigation, Library/first-run shell, Canvas authoring (flowchart spawn, code blocks, embeds and isolated HTML previews), workspace/category search and Quick Open, Settings and backup lifecycle, pagination snapshots, category races, Library recovery, Canvas peer sync across tabs, and the retired Capture/Plan/Today/Inbox data boundaries that must stay readable while their UI stays gone. Note routes, editors, artifacts and Note imports are intentionally absent.
+
+Only admit new browser tests for behavior that cannot be proven at a cheaper boundary. Prefer Node unit, HTTP integration and SQLite tests for ordinary rules, CRUD and failure cases. Avoid arbitrary waits; wait on observable state.
+
+Removed with the Playwright migration, because the UI they asserted no longer exists: pane split/focus-mode/view-switcher geometry (`workspace/layout`, `workspace/m5-visual-acceptance`), the retired Activity dock popup ownership (`popup-behavior`, `study-history`), and Excalidraw-native chrome details (type-conversion popup, third-party "More tools" labels). Their Notespace-owned behaviors are covered by the Canvas, shell and Activity-retirement journeys.
 
 ## Native desktop verification
 
@@ -190,25 +212,24 @@ The Tauri shell keeps the web application as the product-behavior owner. Native 
 sidecar-specific risks:
 
 ```sh
-pnpm build
-node scripts/prepare-desktop-sidecar.mjs
-pnpm test:desktop:lifecycle
+bun run build
+node scripts/dev/prepare-desktop-sidecar.mjs
+bun run test:desktop:lifecycle
 cargo tauri build --debug --no-bundle -- --locked
-pnpm test:desktop:native
+bun run test:desktop:native
 ```
 
 `test:desktop:native` requires `tauri-driver` and the matching Edge WebDriver on Windows. Its WebView2 capability sets
 an explicit user-data folder so the launch/relaunch persistence assertion uses the same profile. The production shell
-uses the stable Tauri `dataDirectory`; WebdriverIO owns the critical current browser journeys; legacy Playwright remains optional for multi-tab
-behavior.
+uses the stable Tauri `dataDirectory`; WebdriverIO owns every browser journey, including multi-tab Canvas peer sync.
 
-The release lane also runs `pnpm test:desktop:critical` against the release executable. This journey creates a
-Workspace through the UI, starts one Note save, edits the Note again while that save is active, closes the native
+The release lane also runs `bun run test:desktop:critical` against the release executable. This journey creates a
+Workspace through the UI, edits the Canvas while a save is active, closes the native
 window, relaunches the same executable, and verifies the latest authored data from the same SQLite data directory.
 The critical command requires an isolated
 `NOTESPACE_DESKTOP_TEST_DATA_DIR`; the desktop runtime uses that path only when the test environment provides it.
-The critical runner also sets the opt-in `NOTESPACE_TEST_NOTE_SAVE_DELAY_MS` sidecar fixture so the close journey
-can deterministically exercise an in-flight Note save without synchronizing on arbitrary sleeps.
+The critical runner uses the Canvas save boundary so the close journey can deterministically exercise an in-flight
+Canvas save without synchronizing on arbitrary sleeps.
 
 Windows release verification builds the MSI bundle with:
 
@@ -220,7 +241,7 @@ cargo tauri build -- --locked
 
 ### Pull requests and `master`
 
-For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and the **critical WebdriverIO standalone** suite. On `master`, it runs the full web + landing build, **critical WebdriverIO suite**, and Docker Compose restart/persistence smoke. The legacy Playwright regression suite is a manual fallback until coverage parity is restored.
+For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and the **critical WebdriverIO** suite. On `master`, it runs the full web + landing build, the **critical WebdriverIO** suite, and Docker Compose restart/persistence smoke. The full browser suite (all journey files) runs locally and on demand through `bun run test:e2e`.
 
 `Verify Desktop` runs deterministic policy/YAML checks on Linux for PRs, while Windows Server 2022 still owns **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey. Full Linux native build/smoke and Windows-latest toolchain checks run on `master`, before the exact-SHA beta publication gate. No duplicate native launch is added.
 
@@ -263,7 +284,7 @@ task build
 task verify
 ```
 
-`task verify` builds production artifacts, runs frontend/server checks, and runs the WebdriverIO critical browser suite.
+`task verify` builds production artifacts, runs frontend/server checks, and runs the critical WebdriverIO browser journeys.
 
 ## Docker persistence smoke
 
@@ -307,7 +328,7 @@ find the lowest owner
 Examples:
 
 ```text
-Workspace Back loses a pending Note edit
+Workspace navigation loses a pending Canvas edit
 → route loader freshness, autosave boundary, and critical WebdriverIO re-entry proof
 
 Workspace delete ID whitespace bug
@@ -327,10 +348,10 @@ Do not:
 - require one test per file/function;
 - add React testing infrastructure only to chase coverage percentage;
 - mock SQLite for transaction behavior;
-- duplicate every domain invalid case at HTTP and Playwright layers;
+- duplicate every domain invalid case at both HTTP and browser layers;
 - snapshot large objects when a behavioral assertion is clearer;
 - rely on sleeps for correctness when a deterministic signal can be used;
-- mark every browser test `@critical`;
+- mark every browser journey `critical:`;
 - keep adding tests after the relevant risk has one clear owner and evidence.
 
 Stop when the behavior is protected at the correct boundary and the relevant gates are green.

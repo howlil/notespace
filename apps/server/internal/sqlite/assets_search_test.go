@@ -2,14 +2,10 @@ package sqlite
 
 import (
 	"context"
-	"encoding/json"
-	"path/filepath"
-	"strings"
-	"testing"
-	"unicode/utf8"
-
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
+	"path/filepath"
+	"testing"
 )
 
 func TestWorkspaceAssetPersistsAcrossReopen(t *testing.T) {
@@ -45,143 +41,28 @@ func TestWorkspaceAssetPersistsAcrossReopen(t *testing.T) {
 	}
 }
 
-func TestIndexedSearchFindsExactBlockContext(t *testing.T) {
-	ctx := context.Background()
-	store, err := Open(ctx, filepath.Join(t.TempDir(), "notespace.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	indexed := NewIndexedWorkspaceStore(store)
-	service := workspacepkg.NewService(indexed)
-	workspace, err := service.Create(ctx, "Search workspace")
-	if err != nil {
-		t.Fatal(err)
-	}
-	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"block-needle"},"content":[{"type":"text","text":"Raft consensus needle"}]}]}`)}
-	notes := append([]workspacepkg.Note(nil), workspace.Notes...)
-	notes[0].Document = document
-	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspacepkg.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
-		t.Fatal(err)
-	}
-
-	results, err := service.Search(ctx, "consensus")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, result := range results {
-		if result.Type == "block" && result.WorkspaceID == workspace.ID && result.NoteID == notes[0].ID && result.BlockID == "block-needle" {
-			return
-		}
-	}
-	t.Fatalf("expected exact block search result, got %#v", results)
-}
-
-func TestIndexedSearchTreatsQuotesAsPunctuationAndSupportsUnicode(t *testing.T) {
+func TestIndexedSearchFindsWorkspaceTitle(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "search-input.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.NewService(store)
-	workspace, err := service.Create(ctx, "International search")
+	service := workspacepkg.NewService(NewIndexedWorkspaceStore(store))
+	workspace, err := service.Create(ctx, "Raft consensus workspace")
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"unicode-block"},"content":[{"type":"text","text":"Raft consensus 日本語 knowledge"}]}]}`)}
-	notes := append([]workspacepkg.Note(nil), workspace.Notes...)
-	notes[0].Document = document
-	if _, err := service.Update(ctx, workspace.ID, workspacepkg.Update{Title: workspace.Title, Document: document, Notes: notes, Canvas: workspace.Canvas, References: []workspacepkg.Reference{}, SplitRatio: workspace.SplitRatio, Version: workspace.Version}); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, query := range []string{`"consensus"`, "日本語"} {
-		results, err := store.SearchIndexed(ctx, query)
-		if err != nil {
-			t.Fatalf("search %q: %v", query, err)
-		}
-		found := false
-		for _, result := range results {
-			if result.Type == "block" && result.BlockID == "unicode-block" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("search %q did not return unicode-block: %#v", query, results)
-		}
-	}
-}
-
-func TestExcerptPreservesUnicodeBoundaries(t *testing.T) {
-	text := strings.Repeat("界", 80) + " needle " + strings.Repeat("🙂", 80)
-	got := excerpt(text, "needle")
-	if !utf8.ValidString(got) {
-		t.Fatalf("excerpt is invalid UTF-8: %q", got)
-	}
-	if !strings.Contains(got, "needle") {
-		t.Fatalf("excerpt does not contain query: %q", got)
-	}
-	if utf8.RuneCountInString(got) > 140 {
-		t.Fatalf("excerpt has %d runes, want <= 140", utf8.RuneCountInString(got))
-	}
-}
-
-func TestNoteAutosaveDefersSearchProjectionUntilSearch(t *testing.T) {
-	ctx := context.Background()
-	store, err := Open(ctx, filepath.Join(t.TempDir(), "lazy-search.db"))
+	results, err := service.Search(ctx, "consensus")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
-
-	indexed := NewIndexedWorkspaceStore(store)
-	service := workspacepkg.NewService(indexed)
-	workspace, err := service.Create(ctx, "Lazy search")
-	if err != nil {
-		t.Fatal(err)
-	}
-	note := workspace.Notes[0]
-	document := workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"lazy-block"},"content":[{"type":"text","text":"deferred projection needle"}]}]}`)}
-	note, err = service.UpdateNote(ctx, workspace.ID, note.ID, workspacepkg.NoteUpdate{
-		Title: note.Title, Document: document, Version: note.Version,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var projectRevision, indexedRevision int
-	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM projects WHERE id=?`, workspace.ID).Scan(&projectRevision); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM workspace_search_meta WHERE workspace_id=?`, workspace.ID).Scan(&indexedRevision); err != nil {
-		t.Fatal(err)
-	}
-	if indexedRevision == projectRevision {
-		t.Fatalf("note autosave rebuilt search synchronously: project=%d index=%d", projectRevision, indexedRevision)
-	}
-
-	results, err := service.Search(ctx, "needle")
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
 	for _, result := range results {
-		if result.Type == "block" && result.BlockID == "lazy-block" {
-			found = true
-			break
+		if result.Type == "workspace" && result.WorkspaceID == workspace.ID {
+			return
 		}
 	}
-	if !found {
-		t.Fatalf("lazy search repair missed updated note: %#v", results)
-	}
-	if err := store.db.QueryRowContext(ctx, `SELECT notes_revision FROM workspace_search_meta WHERE workspace_id=?`, workspace.ID).Scan(&indexedRevision); err != nil {
-		t.Fatal(err)
-	}
-	if indexedRevision != projectRevision {
-		t.Fatalf("search did not repair projection: project=%d index=%d", projectRevision, indexedRevision)
-	}
+	t.Fatalf("expected workspace search result, got %#v", results)
 }
 
 func TestWorkspaceExistsAndAssetPutAvoidHydratedReadback(t *testing.T) {

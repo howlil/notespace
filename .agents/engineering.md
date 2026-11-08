@@ -1,757 +1,197 @@
-# Notespace Engineering Rules
+# Engineering
 
-This file is the repository-local engineering contract for implementation and refactoring. Read it before changing application structure, ownership, module boundaries, or code organization.
+This is the system contract for Notespace. It records ownership and boundaries, not a promise to reorganize the whole repository. Current source and tests are the implementation truth; migrations are incremental and behavior-preserving.
 
-The goal is not to maximize abstraction. The goal is to keep ownership obvious, dependencies directional, changes local, and verification proportional to risk.
+## System
 
-## 1. Core engineering model
-
-Use this dependency model for `apps/web`:
+Notespace is a browser product with an optional Windows Tauri shell around the same Go HTTP server and one SQLite source of truth.
 
 ```text
-route
-  ↓
-page composition
-  ↓
-feature / use-case
-  ↓
-domain
-  ↘
-   adapter / I/O
-
-shared = generic foundation
+browser / Tauri WebView
+        ↓ same-origin HTTP
+httpapi + desktop boundary
+        ↓ application capabilities
+workspace  planning  activity  asset  icon  library
+        ↓ consumer-owned ports
+SQLite adapter + migrations
 ```
 
-Dependency direction matters more than folder names.
-
-A file should live with the capability that owns its behavior, not with the technology it happens to use.
-
-## 2. Web ownership model
-
-Preferred top-level responsibilities:
+The desktop path is:
 
 ```text
-apps/web/src/
-├── routes/     URL boundary and route-level composition
-├── pages/      screen-level composition, including pages/_shared for shared page composition
-├── features/   product behavior and use-cases
-├── domain/     pure product models, rules, and state transformations
-├── adapters/   product-facing HTTP, browser event, asset, and external technology boundaries
-└── shared/     genuinely generic UI, browser primitives, styles, and utilities
+Tauri lifecycle → one Go sidecar on loopback → existing web/API contract → SQLite
 ```
 
-Do not create a folder only because a pattern exists elsewhere. Add a boundary only when it clarifies ownership or dependency direction.
+Product references: Desktop behavior and recovery in `product.md`; paginated Workspace traversal in `product.md`. The current branch also carries the explicit Canvas-only/Note-retirement migration; it must not create a second product model.
 
-## 3. Allowed dependency direction
+## Responsibilities
 
-Default rules:
+R1 (Desktop): own window, single-instance, resource path, sidecar lifecycle, loopback origin, update and close/flush orchestration. It must not own product entities or ordinary CRUD.
 
-```text
-routes   → routes, pages, features, domain, adapters, shared
-pages    → pages, features, domain, adapters, shared
-features → same feature, domain, adapters, shared
-adapters → adapters, domain, shared
-domain   → domain only
-shared   → shared only
-```
+R2 (Web shell): own routes, page composition, loading/error boundaries and browser/desktop presentation. Routes select data and pages; they do not own mutations or editor state.
 
-Important constraints:
+R3 (Feature use-cases): own user workflows and feature state. Current primary owners are `features/library`, `features/search`, and `features/workspace-authoring`.
 
-- `domain` must not depend on React, routes, features, adapters, browser APIs, or HTTP.
-- `shared` must not contain Notespace-specific product behavior.
-- A feature should not import another feature's implementation by default.
-- If two features share stable product rules or data shapes, move that shared concept down to `domain`.
-- If two features only need to appear together, compose them in a page or application boundary.
-- Technology-specific code must not become the owner of product concepts merely because it renders or persists them.
+R4 (Domain): own pure Workspace, Canvas, diagram, autosave, merge and validation rules. Domain code is framework-, HTTP- and browser-independent.
 
-These rules should be enforced through automated architecture tests when practical.
+R5 (Adapters): own HTTP transport/mapping, browser events/storage, durable assets and third-party editor integration. Adapters do not become product orchestrators.
 
-Architecture enforcement rules:
-- prefer an explicit dependency allowlist over a forbidden-import denylist;
-- architecture checks must inspect both static local imports and dynamic `import(...)` edges;
-- sibling feature implementations must not depend on each other;
-- every `*.test.ts` and `*.test.tsx` under `apps/web/src` and `tests` must be discovered automatically by the Node test runner.
+R6 (Application packages): own server use-cases and invariants. `workspace` owns Workspace/category/Canvas semantics; `library` owns Trash, backup and restore; `planning`, `activity`, `asset`, and `icon` retain their explicit contracts until product scope retires them.
 
-Page-composition rule:
-- `pages/_shared` may contain product-specific composition used by multiple routed pages;
-- `pages/_shared` may combine sibling features because it belongs to the page composition layer;
-- do not move product-specific composition into `shared` merely to make it reusable.
+R7 (HTTP controller): own routing, decoding, transport validation, authorization/middleware, status/error mapping and compatibility headers. It calls one application use-case and does not perform transactions.
 
-## 4. Routes
+R8 (SQLite adapter): own SQL, scanning, transactions, derived projections, connection configuration and migration execution. It implements ports; it is not imported by application packages.
 
-`routes/` is the URL boundary.
+## State and ownership
 
-A route may:
-- declare the route;
-- parse route params/search state;
-- load route-level data;
-- redirect;
-- select pending/error/not-found UI;
-- hand data to a page.
+S1: Workspace metadata and category membership | owner R6/workspace + SQLite | titles/category/version invariants are checked before persistence | concurrent writers use expected values/optimistic conflicts | durable local data, no RPO number supplied (A1).
 
-A route should not own:
-- product workflows;
-- editor state;
-- mutation orchestration;
-- reusable feature behavior;
-- large presentation trees.
+S2: Canvas authored snapshot and Canvas version | owner R6/workspace + SQLite | each accepted update advances the server version and rejects stale writes | frontend never treats an older acknowledgement as current state.
 
-Keep TanStack file-based routing in `src/routes`.
+S3: In-memory authoring draft, dirty state and flush registry | owner R3 `useWorkspaceSession`/autosave | browser memory is disposable and must flush registered Canvas asset writes before the authored snapshot, then flush to S2 before close/navigation when dirty.
 
-## 5. Pages
+S4: Library pagination snapshot/token | owner workspace application/store | snapshot membership and ordering remain stable for one traversal; refresh, filter, sort or eviction starts a new traversal.
 
-A page is a screen-level composition boundary.
+S5: Search/FTS projection | owner SQLite | derived and repairable; authored Workspace/Canvas state remains authoritative.
 
-Examples:
-- Home
-- Category (filtered Home)
-- Workspace
+S6: Desktop session cookie, pinned loopback origin and child-process generation | owner R1 plus desktop server boundary | one bootstrap is single-use; API requires the HttpOnly same-origin session; a busy pinned port is a recovery failure, not an automatic origin change.
 
-Pages may combine multiple features and application-level layout.
+S7: Browser theme, cache and local asset cache | owner shared/browser or asset adapter | never authoritative for Workspace content. Memory is an LRU capped at 32 MiB/64 entries; disk targets 128 MiB, evicting only confirmed server copies. Unknown legacy assets remain protected until upload succeeds. Permanent deletion and successful library restore invalidate caches and fence stale in-flight loads.
 
-Pages should stay thin enough that product behavior remains owned by features or domain modules.
+## Structure and dependency direction
 
-If a component primarily represents an entire routed screen, prefer `pages/` over `features/`.
+Keep the six web layers: routes → pages → features → domain; routes/pages/features may use adapters, adapters may use domain/shared, shared imports shared only. Folder moves do not change authoritative state, routes, schemas, public HTTP/IPC contracts or process topology.
 
-## 6. Features
+These seams are implemented. Current source and executable architecture checks define their exact entries; changes move the owner, its callers, tests and operational references together.
 
-A feature owns a coherent user-facing capability or use-case.
+| Owner | Target grouping / entry | Contract |
+|---|---|---|
+| R2 composition | routes stays framework-owned; pages/{home,workspace,shell} | Thin URL routes; pages compose features. |
+| R3 library | features/library/index.ts; collection/, explorer/, backup/ | Sidebar joins Explorer state/UI; one root-mounted provider survives route changes. |
+| R3 authoring | features/workspace-authoring/index.ts; session/, canvas/ | Session owns draft/save/recovery; CanvasEditor stays the Canvas orchestrator. |
+| Canvas | Keep assets/chrome/code/diagram/flowchart/native/selection/state/sync/viewport | Colocate the Canvas-only palette in canvas/diagram/palette; sole-consumer code runtime/HTML preview in canvas/code/{execution,preview}. |
+| R1 web desktop | features/desktop/index.ts; chrome/lifecycle/recovery/updates | Native UI and close bridge leave generic shared UI/root route bodies; root still composes cross-feature slots. |
+| R4 rules | domain/{workspace,diagram,code} | Small cohesive modules stay flat; framework/HTTP/browser/editor dependencies stay outside. |
+| R5 adapters | adapters/{http,browser,assets,desktop} | IPC/quiescence is distinct from generic browser events. Adapters never import features. |
+| Generic UI | shared/ui/{controls,overlays,feedback,theme,brand} | Export consumed primitives; native chrome belongs to R1. |
+| R6 Go use-cases | Existing internal/{workspace,planning,activity,capture,asset,icon,library} | Keep small packages flat; consumer-owned ports remain here. |
+| R7 HTTP | httpapi.New(Dependencies) facade; capability handler packages; httpapi/internal/transport | Root mounts middleware once. Children cannot import root API or persistence. |
+| R8 SQLite | Root Store/connection/transaction facade; sqlite/internal/{dbtx,workspace,planning,activity,capture,assets,search,backup} | One adapter/pool/transaction authority, not one database per capability. |
+| R1 Rust | Thin lib.rs; runtime.rs + runtime/{state,sidecar,readiness,shutdown}.rs; window/recovery/updates/diagnostics.rs | Crate-private facade; one RuntimeProcess owns child generation and close/backup locks. |
+| Browser proofs | tests/e2e/{canvas,library,settings,compatibility,support} | One harness; recursive discovery, critical selection and fixture roots move together. |
+| CLI / landing | scripts/{dev,verify,release,assets}; Astro pages/layouts/components/styles/lib | Update Taskfile/package/workflow paths together. Small landing needs no additional hierarchy. |
 
-Examples:
-- workspace authoring;
-- search;
-- activity;
-- library management.
+Outside feature callers use its public entry; internals use direct imports, not self-barrels. Root-owned stylesheet imports remain explicit and ordered in the managed head. Do not eagerly export CanvasEditor and collapse its lazy engine boundary. A directory needs a coherent owner/capability, not a mandatory file-count threshold.
 
-A feature may contain local UI, hooks, orchestration, state, and feature-specific helpers.
+Go subfolders create packages; Store/API receiver methods cannot move there unchanged. Extract repositories/handlers behind existing facade signatures. Children must not import their parent facade; Go packages are the entries, not TypeScript-style index files.
 
-Prefer cohesion over technical grouping:
+SQLite root coordinators begin/commit/rollback. Compound backup/restore/Trash/migration passes the same borrowed *sql.Tx through a minimal SQL-only DBTX interface. Children never begin transactions or use *sql.DB inside a borrowed transaction. Cross-capability recovery uses explicit transaction-bound snapshot/restore entries, not another repository's tables. Preserve the single connection, paging-cache lifetime, search refresh and pre-upgrade snapshot ordering. Aggregate tests stay at the facade; repository tests follow their package.
 
-```text
-features/workspace-authoring/
-├── model/
-├── ui/
-├── document/
-└── canvas/
-```
+Place new files in the existing owning capability. Keep small cohesive capabilities flat; add a subfolder only for a distinct responsibility or dependency boundary. Do not introduce generic catch-all components/hooks/utils folders, unused barrels, or forwarding files for retired locations. Feature roots and operational script groups are checked automatically. New import aliases require resolver support in the architecture check.
 
-Do not split code into global `hooks/`, `utils/`, or `components/` folders when the code has one clear feature owner.
+Change one owner with its callers/tests/checks together. Keep public feature exports limited to consumed interfaces, and cross-feature composition in pages/root. Go children cannot reach parent facades; shared SQL contracts remain SQL-only. No schema/API/source-of-truth change belongs to a folder move.
 
-## 7. Domain
+## Contracts
 
-`domain/` contains stable Notespace concepts and pure rules.
+K1 Web → HTTP: relative `/api/...` requests use typed adapters; transport maps status/errors, while application packages own semantics. New APIs use `Workspace`; `/api/projects` and old schema names remain compatibility-only.
 
-Examples:
-- workspace and note models;
-- persisted Task model used by Activity recovery;
-- diagram model and routing rules;
-- autosave state machines;
-- conflict-resolution rules;
-- code-language rules.
+K2 HTTP → application: decode and validate transport input, call the narrow use-case, map known domain errors. No handler reaches through a service to its store or starts a cross-domain transaction.
 
-Domain code should be:
-- deterministic where possible;
-- framework-independent;
-- transport-independent;
-- easy to unit test without browser or network setup.
+K3 Application → SQLite: interfaces are owned by the consuming application package. A transaction is required when one invariant spans Workspace, Canvas, history, assets, Trash or full-library restore.
 
-HTTP endpoints, fetch calls, React hooks, localStorage, IndexedDB, and third-party editor APIs do not belong in domain.
+K4 Canvas save: client sends the base version; server accepts the next state or returns conflict; client fetches/rebases/merges according to the Canvas conflict rules and never overwrites an unresolved concurrent edit. Acknowledgements merge into both the live draft and any queued edit before the next write. Failed image uploads remain in the asset barrier until retry succeeds or the image is removed.
 
-Use canonical product terminology. New web code should prefer `Workspace` terminology. Keep `Project` naming only where compatibility requires it, and do not expand legacy naming.
+K5 Desktop: Tauri starts the sidecar, waits for its one-use bootstrap URL, then uses the authenticated sidecar origin. In debug, static bootstrap prevents an aborted initial Vite SSR stream; UI/HMR may proxy to Vite, but `/api` remains sidecar-owned.
 
-## 8. Adapters
+K6 Migration: migrations are append-only and must validate existing data, retain a verified pre-upgrade recovery copy when required, then commit or rollback atomically. Code N must read the supported N-1 state during rollout; breaking removal uses expand → migrate → contract. Previously applied migration variants are recognized only by explicit checksum; follow-up behavior ships in a new migration, never by rewriting stored checksums or replacing the library. Each migration commits its schema fingerprint in the same transaction so restart can resume after a later step fails.
 
-`adapters/` owns external and side-effect boundaries.
+K7 Note retirement: the runtime is Canvas-only, but the current code still has compatibility DTO fields (`Note`, document, references) and historical schema names. New behavior must not create Note state. Removing those fields or legacy routes is a separate contract change and requires migration/backup evidence.
 
-Examples:
+DEP1 SQLite/modernc: local durable store; failure blocks writes and startup, recovery is through validation and backup paths; no remote availability target is assumed.
+DEP2 Tauri/WebView2: desktop host boundary; failure is surfaced as recoverable startup/native verification failure, not hidden in web product code.
+DEP3 Excalidraw: editor implementation dependencies; failures are contained by Workspace-authoring adapters and persisted snapshots.
+DEP4 Eraser/CDN icon source: optional external dependency; timeout/cache/fallback must not corrupt authored state.
 
-```text
-adapters/
-├── http/
-├── browser/
-└── assets/
-```
+## Critical flows
 
-Typical responsibilities:
-- fetch/HTTP transport;
-- mapping API payloads to domain shapes;
-- browser storage;
-- BroadcastChannel;
-- asset persistence;
-- external SDK wrappers.
+FL1 Desktop launch: Tauri → sidecar → SQLite migration/health → one-use session → WebView → existing UI. If startup fails, show Retry/diagnostics without creating a second runtime.
 
-Adapters implement infrastructure concerns; they do not own product behavior.
+FL2 Canvas authoring: Canvas event → authoring session → registered asset writes → autosave/conflict core → HTTP API → workspace service → SQLite versioned Canvas row → acknowledgement. Close/navigation first flushes assets and granular saves.
 
-Adapter facades may orchestrate narrower infrastructure responsibilities, but keep transport, browser cache, and media normalization separate when they have independent failure modes. Preserve a stable facade when splitting those internals prevents consumer churn.
+FL3 Pagination: library query → workspace service/store creates or resumes a snapshot → SQLite returns stable page → UI advances using snapshot token. A stale/evicted token restarts from page one.
 
-### CSS ownership
+FL4 Destructive lifecycle: Trash/restore/backup request → library use-case → one SQLite transaction → validated durable result. No raw delete path bypasses the library contract.
 
-- Keep generic tokens, document defaults, and framework entry styles in `shared/styles`.
-- Keep product-specific selectors with the feature that owns them; Workspace authoring CSS belongs under `features/workspace-authoring`.
-- Root route may import feature-owned global CSS once to preserve deterministic cascade order.
-- Do not recreate a generic top-level `src/styles` bucket.
+FL5 Note retirement: startup migration validates and snapshots old data → removes retired Note payloads/links → scrubs Canvas artifacts → serves empty compatibility fields. Restore/backup remains the recovery boundary; no hidden Note payload may remain in active or Trash state.
 
-## 9. Shared code
+## Guarantees
 
-`shared/` is for code that is genuinely reusable without knowing Notespace product semantics.
+G1 (Desktop, Canvas close) [H]: when a dirty Canvas is closed or navigated, the system either persists it or blocks/communicates failure; measure at the HTTP acknowledgement and reopen/read-back boundary. Numeric SLO is A1.
 
-Good examples:
-- Button;
-- Dialog primitive;
-- generic popup behavior;
-- generic class-name helper;
-- generic formatting helper.
+G2 (Desktop) [H]: opening an already-running instance focuses the existing window and does not create a second owned runtime; measure with the single- instance/native lifecycle proof.
 
-Bad examples:
-- WorkspaceSidebar;
-- WorkspaceMutationPolicy;
-- ActivityDock;
-- LibraryTools;
-- CanvasNoteArtifact.
+G3 (Pagination) [H]: one traversal returns each snapshot member once in its initial order despite later mutation; measure with SQLite integration and browser race proof.
 
-If the name contains a product concept, it usually has a product owner and should not be in `shared`.
+G4 (Migration) [H]: an invalid or interrupted upgrade never silently replaces the source database; measure with migration integrity and recovery tests.
 
-## 10. Third-party editor boundaries
+G5 (Structure) [H]: application/domain packages cannot depend upward on HTTP, SQLite or UI; measure with architecture checks on every PR.
 
-Tiptap and Excalidraw are implementation technologies behind Notespace-owned behavior.
+## Challenge
 
-Do not let library-specific types leak farther than necessary.
+| Flow | Failure/threat | Containment | Detection | Recovery |
+|---|---|---|---|---|
+| FL1 | sidecar crash, port occupied, invalid bootstrap | pinned loopback, generation guard, recovery UI | readiness/exit signal | Retry; preserve origin/data |
+| FL2 | stale version, response loss, close during save | optimistic version, idempotent creation IDs, flush barrier | conflict/error status and save state | refetch/rebase/merge or preserve draft |
+| FL3 | mutation reorders results, token expires | server-owned snapshot token and restart rule | snapshot/offset contract tests | restart traversal at page one |
+| FL4/FL5 | partial delete/restore or corrupt migration input | single transaction, validation, recovery snapshot | integrity/migration tests | rollback or manual verified restore |
+| FL5 | legacy Note data hidden in opaque payloads | explicit scrub/delete policy before serving | migration artifact and search checks | restore from pre-upgrade snapshot |
+| K1/K2 | unauthorized loopback/cross-origin API call | host/origin checks, one-use HttpOnly session, same-origin mutation middleware | HTTP security tests | reject request; do not mutate |
 
-Preferred direction:
+## Decisions
 
-```text
-Notespace feature/domain
-        ↓
-editor adapter/component
-        ↓
-Tiptap / Excalidraw
-```
+DEC1 [one-way]: keep a modular monolith with one Go process and SQLite instead of service splitting. Driver: G1/G4 and local-first product constraints. Trade-off: less independent scaling, far simpler transactions and recovery. Revisit only with measured independent scaling/team/failure-domain pressure.
 
-Canvas/document code that directly implements Workspace authoring behavior should remain owned by the Workspace authoring feature even when it wraps third-party libraries.
+DEC2 [one-way]: keep Tauri as a thin shell and same-origin HTTP instead of duplicating product logic in Rust IPC. Driver: Desktop constraint and G1. Trade-off: native features need explicit adapters; product behavior stays shared.
 
-Shared product concepts used by both Canvas and other features must live below them in `domain`, not inside one adapter.
+DEC3 [one-way]: keep one SQLite adapter/connection/transaction authority instead of per-domain database owners. Driver: FL4/FL5 atomicity. Private query/codec packages behind Store are allowed only with a borrowed-transaction contract and rollback proof, never independent pools or commits. Trade-off: explicit facade/delegation work reduces density while preserving recovery. Revisit for a new authoritative state owner or transaction boundary.
 
-## 11. Component and file responsibilities
+DEC4 [two-way]: retain legacy Project/Note-compatible read shapes while the Canvas-only migration settles. Driver: K6/K7 compatibility. Contract removal requires explicit product scope and migration proof.
 
-Do not split files based only on line count.
+## Fitness rules
 
-Split when one file owns multiple reasons to change.
+F1: Web dependency allowlist and dynamic-import scan | `tests/architecture-boundaries.test.ts` | CI `bun run test` | routes/pages/features/adapters/domain/shared graph passes; no exception.
+F2: Web domain has no browser/HTTP/framework imports | same architecture test | CI | pass when all domain files remain pure; exception requires D#.
+F3: Features do not import sibling implementations | same architecture test | CI | pass; compose siblings in pages.
+F4: Server packages keep `httpapi → capability → sqlite` direction through consumer-owned ports | `internal/architecture` import checks | enforced in Go tests; exception requires D#.
+F5: No new Note authoring surface or legacy UI route | source/route contract tests | CI | pass when retirement tests remain green; compatibility fields are allowed only at K7.
+F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.
 
-Prefer separating:
+F7: Feature outsiders use its public entry; no self-barrel, eager Canvas export or scattered large-feature roots | web architecture tests with negative entry cases | `bun run test`.
+F8: Handler/query children cannot import root facades; query packages cannot open connections or own Begin/Commit/Rollback | Go AST/import checks, negative dependency cases; real mid-write restore rollback proof | `go test -race ./...`.
+F9: Nested browser suites remain discovered exactly once; configured script entries exist in dev/verify/release/assets | `tests/browser-discovery.test.ts`, recursive all/critical/file selection | `bun run test`; script-specific suites retain existing CI owners.
 
-```text
-composition
-→ state/model
-→ commands/use-cases
-→ presentation
-```
+## Debt and risks
 
-A component should not simultaneously become the primary owner of:
-- routing;
-- remote mutation;
-- domain transformation;
-- editor lifecycle;
-- large presentation trees.
+D1: Workspace DTO/model still carries `Note`, `document`, `references` and empty compatibility arrays | preserves rollout compatibility | pay when K7 contract is explicitly removed | workspace owner.
 
-Large third-party integration components can remain large when the behavior is cohesive, but orchestration and pure logic should be extracted when doing so creates a clearer boundary.
+D2: `/api/projects` and historical SQLite table names remain | avoids destructive rename with no product payoff | pay only with measured migration benefit | httpapi/migrations owner.
 
-## 12. Naming and placement test
+D3: planning/activity/capture server contracts remain while their UI surfaces are retired | preserves stored history/API compatibility | pay after product scope decides data/API retirement | product + application owners.
 
-Before adding a file, answer:
+Risks/trade-offs: (1) legacy compatibility widens DTO and test surface; (2) one SQLite boundary limits future independent scaling; (3) third-party Canvas/editor state is complex, so browser/native proof must remain focused on durable behavior rather than implementation details.
 
-1. What behavior does this file own?
-2. Which capability changes when this file changes?
-3. What may this file depend on?
-4. Who may depend on this file?
+## Assumptions
 
-If those answers are unclear, do not add a new abstraction yet.
+A1: Product supplies numeric latency/availability/RPO targets later; until then, correctness and recovery are verified behaviorally and no invented SLO is used.
+A2: Browser and desktop continue to share product behavior and local SQLite remains authoritative.
+A3: Planning/activity/capture data retirement is not authorized merely because its UI is absent; the current contract keeps those packages isolated.
 
-Prefer:
+## Verification and release boundary
 
-```text
-reuse existing owner
-→ extend existing owner
-→ small local abstraction
-→ new module
-→ new architectural boundary
-```
+- Web boundary: `bun run typecheck`, `bun run lint`, `bun run test`, then the   affected WebdriverIO critical journey when a user flow changes.
+- Server boundary: `gofmt`, `go vet ./...`, focused tests, and `go test -race ./...`   when concurrency or persistence semantics change.
+- Persistence/migration: real SQLite integration tests and server-process   restart smoke; never fake transaction semantics.
+- Desktop boundary: prepare sidecar, lifecycle smoke, `cargo check --no-default-features`,   and native WebDriver only when the matching Windows driver is available.
+- Release evidence, versioning and publication remain owned by   `release-engineering`; this file does not claim deployed/released state.
 
-## 13. Imports
-
-Prefer imports that reveal ownership.
-
-Do not use path aliases to hide architectural violations.
-
-Aliases may be added for readability only after boundaries are stable.
-
-Avoid barrel files that create unclear dependency edges, accidental cycles, or broad imports. Use them only when they form an intentional public boundary.
-
-## 14. Refactoring discipline
-
-Structural refactors must preserve behavior unless behavior change is explicitly requested.
-
-For architecture refactors:
-
-```text
-define target dependency graph
-→ add or strengthen architecture checks
-→ move one ownership boundary at a time
-→ update imports
-→ run narrow verification
-→ continue
-```
-
-Avoid big-bang folder migrations.
-
-Do not mix broad cleanup, redesign, new features, and architecture migration in one change unless they are inseparable.
-
-## 15. Verification
-
-For structural changes, verify at least:
-
-- TypeScript typecheck;
-- lint;
-- relevant unit tests;
-- architecture-boundary tests;
-- build when import/module topology changes.
-
-Add deterministic architecture tests for durable rules instead of relying on documentation alone.
-
-Tests should validate meaningful boundaries, not exact incidental file layouts unless the layout itself is the contract.
-
-## 16. Current Notespace migration direction
-
-When touching existing web code, move toward these boundaries incrementally:
-
-```text
-features/dashboard        → pages/home
-features/category         → pages/category
-features/workspace screen → pages/workspace
-legacy Today/Inbox screens → retired; keep redirect-only routes
-
-components/ui             → shared/ui
-application Sidebar       → pages/_shared/LibrarySidebar
-application providers     → shared/ui when generic
-generic browser storage   → shared/browser
-
-domain/project HTTP       → adapters/http
-domain/project model      → domain/workspace
-
-integrations/document     → workspace-authoring/document
-integrations/canvas       → workspace-authoring/canvas
-
-shared diagram rules      → domain/diagram
-legacy Plan/Today/Inbox UI  → removed
-features/study            → features/activity
-```
-
-This is migration guidance, not permission for an unrelated full-repository rewrite.
-
-Whenever current code and this target differ, prefer the smallest coherent migration that improves the dependency graph while keeping behavior stable.
-
-## 17. Server architecture
-
-These rules apply to `apps/server`.
-
-Use package boundaries to express ownership. Do not reorganize the server into generic technical layers such as `controllers/`, `services/`, `repositories/`, and `models/`.
-
-Preferred dependency graph:
-
-```text
-cmd/notespace
-    ├── wires → httpapi
-    ├── wires → sqlite
-    └── wires → icon
-
-httpapi
-    ├── → workspace
-    ├── → planning
-    ├── → activity
-    ├── → library
-    ├── → asset
-    └── → icon
-
-sqlite
-    ├── implements → workspace ports
-    ├── implements → planning ports
-    ├── implements → activity ports
-    ├── implements → library ports
-    └── implements → asset ports
-```
-
-Forbidden dependency direction:
-
-```text
-workspace / planning / activity / library / asset / icon ─X→ httpapi
-workspace / planning / activity / library / asset / icon ─X→ sqlite
-httpapi                                      ─X→ sqlite concrete implementation
-```
-
-`cmd/notespace` is the composition root. It is the normal place where concrete adapters are selected and wired to application/domain packages.
-
-Prefer interfaces owned by the package that consumes the capability. A domain/application package defines the smallest port it needs; the SQLite adapter satisfies that port.
-
-Keep the application dependency graph explicit:
-
-```text
-workspace → {}
-planning  → {}
-activity  → {}
-asset     → {}
-icon      → {}
-library   → {workspace}
-```
-
-`httpapi` may depend on those application capabilities, and `sqlite` may implement their persistence ports. Do not add a new cross-domain import unless the owning use-case genuinely requires it and the architecture guard is updated deliberately.
-
-Service construction dependencies must stay private after construction. Callers use exported use-cases; they must not reach through a service to its store, reference lookup, or clock.
-
-## 18. Server responsibility ownership
-
-Canonical responsibility boundaries:
-
-```text
-workspace
-  owns Workspace, Note, Canvas, category, history,
-  authored-state invariants, and workspace use-cases
-
-planning
-  owns persisted Milestone and Task data contracts, legacy API compatibility,
-  planning validation, and planning concurrency semantics; no Today/Inbox UI
-
-activity
-  owns ActivitySession, heartbeats, duration/statistics,
-  and activity-specific validation
-
-asset
-  owns durable binary asset semantics and asset use-cases
-
-icon
-  owns external icon retrieval, SVG trust validation,
-  bounded caching, and concurrent fetch deduplication
-
-library
-  owns recovery and portability use-cases:
-  Trash, restore, backup, and full-library restore
-
-httpapi
-  owns HTTP transport only:
-  routes, request decoding, transport validation,
-  status/error mapping, headers, and middleware
-
-sqlite
-  owns SQLite implementation details:
-  SQL, scanning, transactions, projection maintenance,
-  connection configuration, and persistence-specific codecs
-
-cmd/notespace
-  owns process bootstrap and concrete dependency wiring
-```
-
-A responsibility should have one obvious owner. Do not put product orchestration in `httpapi` merely because an HTTP request triggered it.
-
-If one use-case needs information from multiple domains, place the orchestration with the use-case owner and depend on narrow ports.
-
-Example:
-
-```text
-HTTP activity heartbeat
-  ↓
-activity application service
-  ├── read linked Task through a narrow planning-facing port
-  ├── read linked Workspace through a narrow workspace-facing port
-  └── persist ActivitySession
-```
-
-Do not make the HTTP handler the application service.
-
-Destructive Workspace lifecycle is Library-owned. Do not add raw Workspace or Category hard-delete APIs that bypass Trash/recovery invariants. SQLite may expose the semantic Library operations needed to implement the Library port, but it must not expose a second weaker deletion path.
-
-## 19. Server package and file structure
-
-The target shape is capability-oriented:
-
-```text
-apps/server/
-├── cmd/
-│   └── notespace/
-├── internal/
-│   ├── workspace/
-│   ├── planning/
-│   ├── activity/
-│   ├── asset/
-│   ├── icon/
-│   ├── library/
-│   ├── httpapi/
-│   └── sqlite/
-└── migrations/
-```
-
-This is a responsibility map, not a requirement for symmetrical folders.
-
-Inside a capability package, keep model, invariants, service/use-case code, and consumer-owned ports together while they remain cohesive. Split files when they have different reasons to change, not because they cross an arbitrary line count.
-
-Good examples:
-
-```text
-workspace/
-├── model.go
-├── service.go
-├── store.go
-├── queries.go
-├── granular.go
-├── note.go
-├── canvas.go
-└── validation.go
-
-httpapi/
-├── router.go
-├── errors.go
-├── middleware.go
-├── workspace.go
-├── planning.go
-├── activity.go
-├── library.go
-└── assets.go
-
-sqlite/
-├── sqlite.go
-├── workspace_scan.go
-├── workspace_queries.go
-├── workspace_mutations.go
-├── workspace_granular.go
-├── workspace_notes.go
-├── workspace_canvas.go
-├── history_store.go
-├── planning_queries.go
-├── planning_milestones.go
-├── planning_tasks.go
-├── planning_restore.go
-├── activity_store.go
-├── activity_sessions.go
-├── activity_references.go
-├── assets.go
-├── library_state.go
-├── library_workspace_snapshot.go
-├── library_trash_atomic.go
-├── library_backup_snapshot.go
-├── library_restore.go
-├── library_recovery.go
-└── library_archive.go
-```
-
-Do not introduce nested packages unless an independent contract, lifecycle, state owner, or dependency boundary justifies them.
-
-## 20. SQLite and transaction boundaries
-
-SQLite is one adapter and one transactional ownership boundary for this single-owner application.
-
-Do not split `sqlite` into one package per domain merely for folder symmetry. Cross-domain SQL inside the adapter is valid when one product invariant requires one atomic transaction.
-
-Important atomic flows include:
-
-```text
-Trash Workspace
-  ↓
-snapshot Workspace + Plan + History + Assets
-  ↓
-write Trash record
-  ↓
-remove active Workspace
-  ↓
-COMMIT
-```
-
-and:
-
-```text
-Full-library restore
-  ↓
-validate complete input
-  ↓
-replace canonical state
-  ↓
-validate resulting database
-  ↓
-COMMIT or ROLLBACK
-```
-
-The application/domain layer owns the required atomic outcome. The SQLite adapter owns how that transaction is executed.
-
-Derived state such as FTS/search projection must not become authoritative. Canonical authored state remains the source of truth.
-
-## 21. HTTP boundary
-
-HTTP handlers should normally follow:
-
-```text
-request
-  ↓
-parse/decode transport input
-  ↓
-call one application use-case
-  ↓
-map known error/result
-  ↓
-response
-```
-
-Handlers may own HTTP-specific concerns such as:
-- path/query/header parsing;
-- request-size limits;
-- content type;
-- status codes;
-- deprecation headers;
-- same-origin policy;
-- cache/security headers.
-
-Handlers should not own:
-- cross-domain enrichment;
-- persistence transactions;
-- domain invariants;
-- authoritative state transitions;
-- SQLite-specific behavior.
-
-Keep compatibility behavior at the transport edge when possible. New server code should use canonical `Workspace` terminology. Keep `Project` naming only where legacy API/schema compatibility still requires it.
-
-## 22. Server naming and migration direction
-
-The package migration is complete:
-
-```text
-internal/persistence → internal/sqlite
-internal/study       → internal/activity
-internal/project     → internal/workspace
-```
-
-Do not reintroduce the legacy `persistence`, `study`, or `project` packages. Continue refactors by moving one ownership boundary at a time while keeping behavior stable.
-
-Do not rename database tables such as `projects` merely to match package terminology. Schema renames require their own concrete payoff and migration justification.
-
-Do not expand legacy `Project` terminology into new APIs, domain types, or packages.
-
-## 23. Server verification
-
-Structural server changes should prove dependency direction and preserve runtime behavior.
-
-At minimum, choose the relevant subset of:
-
-- `gofmt`;
-- `go vet`;
-- focused package tests;
-- `go test -race` where concurrency semantics are touched;
-- migration/integrity tests when SQL or schema behavior changes;
-- HTTP integration tests when transport contracts move;
-- deterministic architecture-boundary checks when package imports or ownership rules change;
-- server build when package topology changes.
-
-Architecture tests should enforce meaningful dependency rules rather than exact incidental filenames.
-
-For architecture migration:
-
-```text
-define one target boundary
-→ add/strengthen the boundary proof
-→ move that owner
-→ update wiring/imports
-→ run focused verification
-→ continue
-```
-
-Avoid a big-bang server rewrite.
-
-## 24. Testing ownership and verification
-
-Test observable behavior at the lowest boundary that owns it.
-
-```text
-business rule / state transition → domain or service test
-persistence semantics            → real SQLite integration test
-HTTP decoding/status/headers     → httpapi contract test
-browser-specific interaction     → focused WebdriverIO browser smoke
-critical cross-system journey    → critical E2E
-```
-
-Rules:
-- do not require one test per file or function;
-- do not duplicate the same business-rule assertion across layers unless each layer proves a distinct contract;
-- use small behavioral fakes for service dependencies; do not build fake databases;
-- use real SQLite for transactions, foreign keys, optimistic concurrency, FTS, backup/restore, migration, and persistence-specific behavior;
-- keep tests deterministic: inject clocks where supported, avoid sleep-based correctness assertions, and do not assert random identifiers exactly;
-- prefer table-driven tests when variants share the same mechanism and assertion shape;
-- keep fixtures local to the owning package unless a stable cross-package test contract genuinely exists;
-- WebdriverIO standalone owns critical Chrome/Go/SQLite browser journeys; legacy Playwright specs remain optional until equivalent fidelity is restored.
-
-For bug fixes:
-
-```text
-find lowest owning boundary
-→ write or identify failing behavioral regression test
-→ confirm it fails for the intended reason
-→ implement the smallest fix
-→ run progressively broader verification
-```
-
-Verification escalates from nearest test → affected package → static checks → affected integration boundary → critical E2E when the user journey changed → full release verification when appropriate.
-
-CI intent:
-- PR: web build, static checks, Node/Go tests (including race), critical browser journeys, desktop policy checks, and Windows 2022 native close/reopen;
-- master: web + landing build, WebdriverIO critical journeys, Docker restart/persistence, Linux Tauri build and Windows-latest compatibility, plus Windows 2022 native acceptance. Legacy Playwright regression parity remains an explicit migration gap;
-- beta release remains blocked until Verify and Verify Desktop both succeed on the exact master SHA; failed, skipped, or cancelled master checks never authorize publication;
-- scale and migration compatibility remain release/scheduled evidence rather than inner-loop tests.
-
-## Desktop runtime boundary
-
-Notespace Desktop is a thin runtime shell around the existing application, not a second product implementation.
-
-```text
-Tauri shell
-  → owns desktop process/window/resource lifecycle
-  → starts one bundled Notespace Go process on loopback
-        ↓
-existing Go HTTP server
-  → serves the existing web SPA and /api on one origin
-        ↓
-existing application services
-        ↓
-existing SQLite source of truth
-```
-
-Rules:
-
-- `apps/web` remains the single user-interface implementation for browser and desktop.
-- `apps/server` remains the owner of API, application behavior, persistence wiring, and SQLite lifecycle.
-- Desktop code must not duplicate Workspace, Note, Canvas, planning, activity, search, asset, or backup behavior.
-- Desktop product state must not move into Rust/Tauri storage; SQLite remains authoritative and browser storage keeps its existing cache/UI roles.
-- Keep web → server communication on the existing same-origin HTTP contract; do not introduce Tauri IPC for ordinary product operations.
-- The desktop shell may own only OS-specific concerns such as application-data/resource paths, sidecar lifecycle, single-instance behavior, and window lifecycle.
-- Prefer compatibility with existing browser APIs inside the WebView; add native adapters only when target-platform verification proves an existing browser capability is insufficient.
-- Desktop runtime must bind the embedded server to loopback only. On the first launch it prefers `127.0.0.1:49832`, selects a fallback only when necessary, and durably pins the selected port in app-owned OS configuration. All later launches must reuse that exact origin; if occupied, show actionable recovery and Retry rather than switching origin and hiding localStorage/IndexedDB state. Shut down the owned child process with the app.
-
-## 25. Stop rule
-
-A refactor is complete when:
-- ownership is clearer;
-- dependency direction is valid;
-- changed behavior is covered by the relevant automated checks;
-- no unnecessary abstraction was introduced.
-
-Do not continue reorganizing code merely to make the tree look symmetrical.
-
-
-### Routed page ownership
-
-- Routed pages are composition boundaries, not feature implementations.
-- Pages may compose multiple features and domain types, but must not call HTTP adapters directly.
-- CRUD state, mutation flows, and reusable screen behavior belong to the owning feature.
-- When two sibling features meet on one screen, compose them in the page through props or render slots instead of importing one feature from the other.
-
-## Workspace library pagination consistency
-
-The Workspace application service owns the paged query contract. SQLite owns query ordering, filters, and optional ephemeral snapshot sessions; HTTP parses the opt-in `snapshot` parameter. Web Library owns the active token and resets traversal on filters/refresh. The domain model carries the token without owning its lifetime.
-
-`snapshot=start` captures one ordered Workspace summary list at the query serialization point. Later `snapshot=<opaque-token>` requests use the captured projection and must match the original category/query/sort/filter contract. In-memory sessions are bounded and expire; unknown/expired tokens return conflict, and the UI restarts from page one. Do not hold a database transaction open across user navigation, introduce a second persistent library source of truth, or silently downgrade a failed snapshot to live offsets.
-
-The legacy `offset` API remains live and unchanged for compatibility. Session expiration and in-memory eviction are not durable user state. Snapshot projections can become stale for renamed/deleted Workspace details; individual Workspace routes still read current authored records.
-
-Verify query correctness using real SQLite and HTTP, including mutable default recent ordering, note-count sort, and filter/token mismatch. Test UI restart on expired sessions at the smallest faithful boundary.
+Stop when the requested owner/boundary is explicit, its invariant has a proof, and the relevant checks are green. Do not reorganize for symmetry alone.

@@ -1,4 +1,4 @@
-import { trackDesktopMutation } from "../browser/desktop-lifecycle.ts";
+import { trackDesktopMutation } from "../desktop/desktop-lifecycle.ts";
 
 export interface HttpTransport {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;

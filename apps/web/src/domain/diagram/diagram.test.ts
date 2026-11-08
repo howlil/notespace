@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { directionalSpawnPosition, spawnConnectedStructuredNode } from "../../features/workspace-authoring/canvas/CanvasDirectionalSpawn.ts";
+import { directionalSpawnPosition, spawnConnectedStructuredNode } from "../../features/workspace-authoring/canvas/flowchart/CanvasDirectionalSpawn.ts";
 import {
   addCatalogNode,
   connectDiagramNodes,
@@ -21,7 +21,7 @@ import {
   selectionForElements,
   syncDiagramsFromElements,
   ungroupDiagramNodes,
-  withStructuredDiagrams,
+  DIAGRAM_DATA_KEY,
 } from "./diagram.ts";
 
 function ids() {
@@ -64,7 +64,7 @@ test("new insertion is icon-only while old component snapshots remain readable",
     ...diagram,
     nodes: [{ ...diagram.nodes[0], renderMode: "component" as const, width: 164, height: 72 }],
   };
-  assert.equal(readStructuredDiagrams(withStructuredDiagrams({}, [legacy]))[0].nodes[0].renderMode, "component");
+  assert.equal(readStructuredDiagrams({ [DIAGRAM_DATA_KEY]: [legacy] })[0].nodes[0].renderMode, "component");
 });
 
 test("architecture and flow layout keep their historical orientation", () => {
@@ -101,7 +101,7 @@ test("connect, group, layout, and snapshot round-trip preserve Notespace ids", (
   assert.equal(diagram.groups.length, 1);
   assert(diagram.edges.some((edge) => edge.to === diagram.nodes[3].id));
 
-  const data = withStructuredDiagrams({ elements: [] }, [diagram]);
+  const data = { elements: [], [DIAGRAM_DATA_KEY]: [diagram] };
   const restored = readStructuredDiagrams(data);
   assert.equal(restored[0].id, diagram.id);
   assert.equal(restored[0].nodes[3].id, diagram.nodes[3].id);

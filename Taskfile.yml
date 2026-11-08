@@ -16,7 +16,7 @@ tasks:
   dev:web:
     internal: true
     cmds:
-      - pnpm dev
+      - bun dev
 
   dev:server:
     internal: true
@@ -34,15 +34,15 @@ tasks:
   check:web:
     desc: Run frontend typecheck, lint, and unit tests
     cmds:
-      - pnpm typecheck
-      - pnpm lint
-      - pnpm test
+      - bun run typecheck
+      - bun run lint
+      - bun run test
 
   check:server:
     desc: Run Go formatting, vet, and race-test gates
     dir: apps/server
     cmds:
-      - node ../../scripts/check-gofmt.mjs
+      - node ../../scripts/verify/check-gofmt.mjs
       - go vet ./...
       - go test -race ./...
 
@@ -70,7 +70,7 @@ tasks:
   build:web:
     internal: true
     cmds:
-      - pnpm build
+      - bun run build
 
   build:server:
     internal: true
@@ -79,37 +79,37 @@ tasks:
       - go -C ../apps/server build -o ../../bin/notespace{{exeExt}} ./cmd/notespace
 
   e2e:
-    desc: Build the web app once and run browser tests against the real Go server
+    desc: Build the web app once and run every WebdriverIO browser journey
     cmds:
-      - pnpm test:e2e
+      - bun run test:e2e
 
   e2e:critical:
     desc: Build the web app and run only critical cross-system journeys
     cmds:
-      - pnpm --filter @notespace/web build
-      - pnpm test:e2e:critical
+      - bun run --filter @notespace/web build
+      - bun run test:e2e:critical
 
   e2e:target:
-    desc: Legacy-only Playwright focused spec while browser tests migrate to WebdriverIO
+    desc: Run one focused WebdriverIO journey file (SPEC=path/to/file.e2e.mjs)
     requires:
       vars: [SPEC]
     cmds:
-      - pnpm --filter @notespace/web build
-      - pnpm exec playwright test "{{.SPEC}}"
+      - bun run --filter @notespace/web build
+      - node scripts/verify/browser-e2e.mjs --file "{{.SPEC}}"
 
   verify:
     desc: Run the full local release verification suite
     cmds:
       - task: build
       - task: check
-      - pnpm test:e2e:critical
+      - bun run test:e2e:critical
 
   perf:evidence:
     desc: Run repeatable performance evidence checks
     cmds:
       - task: test:web
         vars:
-          TEST: apps/web/src/domain/workspace/canvas-frame-link.test.ts
+          TEST: apps/web/src/features/workspace-authoring/canvas/state/canvas-scene-state.test.ts
       - task: perf:persistence
 
   perf:persistence:
@@ -138,9 +138,9 @@ tasks:
   desktop:prepare:
     desc: Build web assets and prepare the native Go sidecar for the current Rust host target
     cmds:
-      - pnpm --filter @notespace/web build
-      - pnpm desktop:icons
-      - node scripts/prepare-desktop-sidecar.mjs
+      - bun run --filter @notespace/web build
+      - bun run desktop:icons
+      - node scripts/dev/prepare-desktop-sidecar.mjs
 
   desktop:test-shell:
     internal: true
@@ -153,15 +153,27 @@ tasks:
     deps:
       - desktop:prepare
     cmds:
-      - pnpm test:desktop:lifecycle
-      - node scripts/smoke-desktop-runtime.mjs
+      - bun run test:desktop:lifecycle
+      - node scripts/verify/smoke-desktop-runtime.mjs
       - task: desktop:test-shell
 
+  desktop:stop:
+    desc: Stop running Notespace desktop processes that can lock the debug binaries
+    cmds:
+      - powershell -NoProfile -NonInteractive -File scripts/dev/stop-desktop-dev.ps1
+
   desktop:dev:
-    desc: Run the desktop shell against the bundled local Notespace runtime
-    deps:
-      - desktop:prepare
+    desc: Run the desktop shell with Vite hot reload and the local Notespace runtime
+    cmds:
+      - task: desktop:stop
+      - task: desktop:prepare
+      - task: desktop:run
+
+  desktop:run:
+    internal: true
     dir: apps/desktop/src-tauri
+    env:
+      NOTESPACE_DEV_SERVER_URL: http://127.0.0.1:3000
     cmds:
       - cargo tauri dev
 

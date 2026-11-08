@@ -27,4 +27,4 @@ platform is explicitly named rather than silently offering an unsupported OS.
 
 ## Verification
 
-Build with `pnpm --dir landing build`, then `node --test landing/tests/hero.test.mjs`. Inspect desktop 1448px and mobile 390px/320px screenshots. Root Cloudflare deployment continues to package only the Astro `landing/dist` static assets.
+Build with `bun --cwd landing run build`, then `node --test landing/tests/hero.test.mjs`. Inspect desktop 1448px and mobile 390px/320px screenshots. Root Cloudflare deployment continues to package only the Astro `landing/dist` static assets.

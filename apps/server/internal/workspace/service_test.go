@@ -19,7 +19,7 @@ func TestServiceCreateNormalizesInputAndHydratesCanonicalState(t *testing.T) {
 	if store.createInput.CategoryID != UncategorizedCategoryID {
 		t.Fatalf("category = %q", store.createInput.CategoryID)
 	}
-	if store.createInput.Version != 1 || len(store.createInput.Notes) != 1 || store.createInput.CanvasVersion != 1 {
+	if store.createInput.Version != 1 || len(store.createInput.Notes) != 0 || store.createInput.CanvasVersion != 1 {
 		t.Fatalf("invalid create defaults: %#v", store.createInput)
 	}
 	if got.ID == "" || got.Document.Format != "tiptap" || got.Canvas.Format != "excalidraw" {
@@ -42,7 +42,6 @@ func TestServiceRenameDoesNotRewriteGranularAuthoredState(t *testing.T) {
 	current := validWorkspaceFixture()
 	store := &workspaceTestStore{
 		record: current,
-		notes:  append([]Note(nil), current.Notes...),
 		canvas: CanvasState{Canvas: current.Canvas, Version: current.CanvasVersion},
 	}
 	got, err := NewService(store).Rename(context.Background(), current.ID, "  Renamed  ", current.Title)

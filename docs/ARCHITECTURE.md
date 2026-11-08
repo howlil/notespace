@@ -37,10 +37,9 @@ The main user-facing model is:
 ```text
 Home / Category Explorer
 └── Workspace
-    ├── Notes[]
     ├── Canvas
     ├── durable image assets
-    └── Workspace-scoped Activity (global running timer)
+    └── Canvas conflict recovery and durable images
 
 Settings
 └── Data & backup (portable export, import, Trash, native backups)
@@ -48,33 +47,36 @@ Settings
 
 Historical Capture, Task, Milestone and Activity rows may still exist in SQLite and backup archives. They are not exposed through the retired Today/Inbox screens. Keeping their storage and API compatibility separate from UI ownership prevents destructive upgrades.
 
-A Workspace is the main authored unit. Notes and Canvas have granular persistence and independent optimistic versions. Planning, assets, activity, Trash, backup/restore, and search are separate capabilities around that authored state.
+A Workspace is the main authored unit and Canvas is its only authored content. Planning, assets, activity, Trash, backup/restore, and workspace search are separate capabilities around that authored state.
 
 ## Repository map
 
 ```text
 apps/
-├── web/
-│   └── src/
-│       ├── routes/      URL boundary
-│       ├── pages/       routed screen composition
-│       ├── features/    user-facing use-cases and orchestration
-│       ├── domain/      pure product rules and models
-│       ├── adapters/    HTTP, browser, and asset boundaries
-│       └── shared/      generic UI/browser/utilities
-│
-└── server/
-    ├── cmd/notespace/   process bootstrap and wiring
-    ├── internal/
-    │   ├── workspace/
-    │   ├── planning/
-    │   ├── activity/
-    │   ├── asset/
-    │   ├── icon/
-    │   ├── library/
-    │   ├── httpapi/
-    │   └── sqlite/
-    └── migrations/
+├── web/src/
+│   ├── routes/              URL boundary
+│   ├── pages/               home, workspace, shell composition
+│   ├── features/            capability-owned user workflows
+│   ├── domain/              pure product rules
+│   ├── adapters/            HTTP, browser, assets, desktop
+│   └── shared/              reusable foundations
+├── server/
+│   ├── cmd/notespace/        process bootstrap
+│   ├── internal/
+│   │   ├── workspace/ planning/ activity/ capture/ asset/ icon/ library/
+│   │   ├── httpapi/          facade, capability handlers, internal/transport
+│   │   └── sqlite/           Store facade and transaction coordinators
+│   │       └── internal/    dbtx, workspace, planning, activity, capture,
+│   │                       assets, search, backup query packages
+│   └── migrations/
+└── desktop/src-tauri/src/
+    ├── lib.rs               Tauri assembly and command registration
+    ├── runtime.rs           crate-private runtime facade
+    ├── runtime/             state, sidecar, readiness, shutdown
+    └── window.rs recovery.rs updates.rs diagnostics.rs
+
+tests/e2e/                   canvas, library, settings, compatibility, support
+scripts/                     dev, verify, release, assets
 ```
 
 The web and server are both capability-oriented. Notespace deliberately avoids generic application-wide `controllers/services/repositories` folders.
@@ -88,10 +90,7 @@ The web and server are both capability-oriented. Notespace deliberately avoids g
 Current routed surfaces include:
 
 - Home / Library
-- Category view
 - Workspace
-- `/today` and `/inbox` redirect-only compatibility routes to Home (no loaders or recovery UI)
-- `/projects/:id` redirect for historical links
 
 Routes should not own editor workflows or mutation orchestration.
 
@@ -103,7 +102,8 @@ Examples:
 
 - `pages/home/HomePage.tsx`
 - `pages/workspace/WorkspacePage.tsx`
-- `pages/_shared/LibrarySidebar`
+- `pages/shell/LibraryPageShell.tsx`
+- `features/library/explorer/LibrarySidebar.tsx`
 
 A page may combine sibling features through props or render slots. Product logic should remain in the owning feature or domain module.
 
@@ -113,19 +113,21 @@ Current feature owners are:
 
 ```text
 features/
-├── activity/
-├── library/
+├── library/                 collection, explorer, backup
 ├── search/
-└── workspace-authoring/
+├── workspace-authoring/     session, canvas
+├── settings/
+└── desktop/                 chrome, lifecycle, recovery, updates
 ```
 
-`workspace-authoring` is the largest feature because it owns the editor session, Note authoring, Canvas authoring, pane behavior, editor-specific commands, and granular save orchestration.
+`workspace-authoring` owns the Canvas session, Canvas behavior, and granular save orchestration.
+
+Pages and routes consume feature `index.ts` entries. Feature internals import their own modules directly. CanvasEditor remains lazy; public authoring exports do not eagerly load the editor engine. The Explorer provider stays mounted in the root application across route changes.
 
 Important orchestration boundaries include:
 
-- `features/library/save-workspace-core.ts` — conflict/rebase behavior for the aggregate Workspace compatibility save path;
-- `features/workspace-authoring/document/document-image-actions.ts` — durable document-image insertion boundary;
-- `features/workspace-authoring/canvas/canvas-assets.ts` — durable Canvas-image persistence boundary.
+- `features/workspace-authoring/session/granular-save-core.ts` — Canvas conflict/rebase behavior for the active authoring save path;
+- `features/workspace-authoring/canvas/assets/canvas-assets.ts` — durable Canvas-image persistence boundary.
 
 These modules exist so behavior with meaningful failure modes can be tested without mounting the full React tree.
 
@@ -135,22 +137,17 @@ These modules exist so behavior with meaningful failure modes can be tested with
 
 ```text
 domain/
-├── activity/
 ├── code/
 ├── diagram/
-├── document/
-├── planning/
 └── workspace/
 ```
 
 Examples of domain-owned behavior:
 
-- Workspace and Note shapes;
+- Workspace and Canvas shapes;
 - autosave state transitions;
 - Canvas merge/conflict rules;
-- persisted Task shape used by Activity finalization;
 - diagram routing/layout rules;
-- Markdown transformations;
 - code language/theme behavior.
 
 Domain code must not depend on React, browser APIs, HTTP, or feature implementation.
@@ -166,7 +163,7 @@ adapters/
 └── assets/
 ```
 
-HTTP adapters map live frontend calls to the Go API. The web planning adapter now exposes only Task read/versioned update for Activity-completion handoff. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner; historical records and compatible backend APIs remain in Go/SQLite.
+HTTP adapters map live frontend calls to the Go API. The frontend has no active planning, activity or capture client. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner; historical records and compatible backend APIs remain in Go/SQLite.
 
 Browser adapters own process-local/browser-global events such as library revision notifications and Workspace conflict events.
 
@@ -182,23 +179,15 @@ local compatibility cache
 image-store orchestration facade
 ```
 
-The server is the durable owner of image assets. IndexedDB is a compatibility/read-through cache. An asset rejected because Workspace ownership disappeared is not treated as persisted, and authored document/Canvas references are only committed after durable storage succeeds.
+The server is the durable owner of image assets. IndexedDB is a compatibility/read-through cache. Memory uses a 32 MiB/64-entry LRU. Disk maintenance targets 128 MiB but preserves unconfirmed legacy copies until migration upload succeeds. Permanent deletion and successful library restore invalidate the corresponding cache. An asset rejected because Workspace ownership disappeared is not treated as persisted, and authored Canvas references are only committed after durable storage succeeds.
 
 ## Authoring and consistency
 
-### Granular Note and Canvas persistence
+### Granular Canvas persistence
 
 Primary authoring uses resource-specific writes:
 
 ```text
-Note edit
-  ↓
-Note autosave queue
-  ↓
-PATCH Note with Note version
-  ↓
-SQLite transaction
-
 Canvas edit
   ↓
 Canvas autosave queue
@@ -208,15 +197,15 @@ PATCH Canvas with Canvas version
 SQLite transaction
 ```
 
-A stale Note conflicts with that Note instead of blocking an unrelated Note or Canvas.
-
 Canvas has its own optimistic version and Excalidraw-specific element reconciliation.
+
+The Note route, Note API, Note capture conversion, Note search projection and Note-containing backup payloads are retired. Migration `0025_remove_notes.sql` retires relational Note data; `0026_scrub_retired_note_artifacts.sql` and its transactional Go hook scrub hidden Canvas, history and Trash payloads. Explicit historical checksums remain supported.
 
 ### Aggregate compatibility save
 
-The legacy/aggregate Workspace save path still exists for compatibility.
-
-Its orchestration lives in `features/library/save-workspace-core.ts`:
+The legacy/aggregate Workspace HTTP save path still exists for compatibility,
+but current authoring uses the granular Canvas save path. Its active
+orchestration lives in `features/workspace-authoring/session/granular-save-core.ts`:
 
 ```text
 save candidate
@@ -287,7 +276,7 @@ sqlite
 Owns:
 
 - Workspace;
-- Note;
+- retired Note DTO fields for compatibility only;
 - Canvas;
 - category behavior;
 - authored-state validation;
@@ -348,6 +337,8 @@ Owns transport concerns only:
 - request observability;
 - cache/security headers.
 
+The root `New(Dependencies)` facade registers routes and middleware. Capability handler packages receive application services; shared codecs and error mapping live in `httpapi/internal/transport`. Handler children cannot import the root facade or persistence.
+
 It should not own product transactions or cross-domain business state.
 
 ### `sqlite`
@@ -366,6 +357,8 @@ SQLite is configured with:
 
 The single connection keeps transaction and concurrency behavior explicit for this workload.
 
+Private capability query packages borrow `DBTX` or a transaction. Store begins, commits and rolls back compound operations. Workspace snapshot/restore composes explicit workspace, planning and asset query entries using the same transaction. The paging snapshot cache remains attached to the Store lifetime. Architecture tests reject query-owned connections or transaction lifetime.
+
 ## Persistence model
 
 Migration files remain append-only under `apps/server/migrations`.
@@ -376,7 +369,7 @@ Current persistence covers:
 
 - Categories;
 - Workspaces;
-- granular Notes;
+- legacy authored compatibility fields;
 - granular Canvas;
 - Workspace references;
 - planning milestones/tasks;
@@ -392,7 +385,7 @@ Current persistence covers:
 
 Authored state is authoritative; FTS rows are derived.
 
-High-frequency granular Note saves may commit authored state before FTS refresh. Search detects stale projection metadata and repairs the index lazily.
+Granular Canvas saves may commit authored state before FTS refresh. Search detects stale projection metadata and repairs the index lazily.
 
 A successful authored save is therefore not turned into a failed save because a derived search projection could not be refreshed synchronously.
 
@@ -434,8 +427,6 @@ Canonical client terminology:
 /workspaces/:id
 /api/workspaces/*
 ```
-
-Legacy browser `/projects/:id` redirects to the Workspace route.
 
 Legacy `/api/projects/*` endpoints remain as compatibility surfaces and emit deprecation metadata. New code should not introduce new Project-named consumers.
 

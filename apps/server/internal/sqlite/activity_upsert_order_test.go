@@ -3,14 +3,15 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"github.com/howlil/notespace/apps/server/internal/activity"
+	activityquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/activity"
+
+	// The SQL upsert owns the atomic duration/metadata invariant, not HTTP arrival order.
 	"path/filepath"
 	"sync"
 	"testing"
-
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
-// The SQL upsert owns the atomic duration/metadata invariant, not HTTP arrival order.
 func TestActivityUpsertMetadataTracksMonotonicDuration(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "activity-order.db"))
@@ -127,8 +128,8 @@ func TestActivityConcurrentUpsertsKeepHighestDurationMetadata(t *testing.T) {
 			}
 		}
 		// Read without another upsert: a recovery write would hide a race failure.
-		saved, err := scanActivitySession(store.db.QueryRowContext(ctx,
-			"SELECT "+activityColumns+" FROM activity_sessions WHERE id=?", id))
+		saved, err := activityquery.ScanActivitySession(store.db.QueryRowContext(ctx,
+			"SELECT "+activityquery.ActivityColumns+" FROM activity_sessions WHERE id=?", id))
 		if err != nil {
 			t.Fatal(err)
 		}

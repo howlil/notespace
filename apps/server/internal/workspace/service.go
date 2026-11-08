@@ -116,8 +116,8 @@ func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID 
 			UpdatedAt:  now,
 			Version:    1,
 		},
-		Document:      Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)},
-		Notes:         []Note{{ID: rand.Text(), Title: "Untitled", Document: Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)}, CreatedAt: now, UpdatedAt: now, Version: 1}},
+		Document:      Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[]}`)},
+		Notes:         []Note{},
 		Canvas:        Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 		CanvasVersion: 1,
 		References:    []Reference{},
@@ -140,8 +140,7 @@ func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID 
 
 func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, error) {
 	u.Title = strings.TrimSpace(u.Title)
-	notesOmitted := u.Notes == nil
-	if u.References == nil || notesOmitted {
+	if u.References == nil {
 		current, err := s.Get(ctx, id)
 		if err != nil {
 			return Workspace{}, err
@@ -149,17 +148,6 @@ func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, er
 		if u.References == nil {
 			u.References = current.References
 		}
-		if notesOmitted {
-			u.Notes = append([]Note(nil), current.Notes...)
-			if len(u.Notes) > 0 {
-				u.Notes[0].Document = u.Document
-			}
-		}
-	}
-	if len(u.Notes) > 0 {
-		// Notes are canonical authored state. The legacy top-level Document
-		// remains a compatibility projection of the first Note.
-		u.Document = u.Notes[0].Document
 	}
 	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
 		return Workspace{}, ErrInvalid

@@ -43,13 +43,13 @@ disabled.
 
 ### Implementation boundaries
 
-- `apps/desktop/src-tauri/src/desktop_updates.rs`: official updater I/O,
+- `apps/desktop/src-tauri/src/updates.rs`: official updater I/O,
   verification, prepared bytes, native installation/sidecar handoff.
 - `apps/web/src/features/desktop-updates/`: small native-only UI;
   no new storage; uses established desktop flush callback.
-- `scripts/create-desktop-update-manifest.mjs`: strict stable release manifest
+- `scripts/release/create-desktop-update-manifest.mjs`: strict stable release manifest
   generation from the MSI and its actual `.msi.sig` file.
-- `scripts/prepare-desktop-updater-config.mjs`: release-only configuration from
+- `scripts/release/prepare-desktop-updater-config.mjs`: release-only configuration from
   external GitHub Actions credentials; fails closed when missing.
 - `.github/workflows/release-desktop.yml`: builds and publishes the manifest
   only after the release native checks and MSI upgrade test.
@@ -62,7 +62,7 @@ workflow log, or committed config.
 
 1. On a trusted workstation, install Tauri CLI and run
    `cargo tauri signer generate -w ~/.tauri/notespace.key`
-   (or use the equivalent official npm/pnpm signer command).
+   (or use the equivalent official npm/bun signer command).
 2. Store `~/.tauri/notespace.key` in a secure encrypted vault with an
    independently held backup. Keep its password separately.
 3. In repository **Settings → Secrets and variables → Actions**:
@@ -118,9 +118,9 @@ independent production acceptance gates.
 ## Verification
 
 ```sh
-node --test scripts/create-desktop-update-manifest.test.mjs
-node --check scripts/prepare-desktop-updater-config.mjs
-pnpm test
+node --test scripts/release/create-desktop-update-manifest.test.mjs
+node --check scripts/release/prepare-desktop-updater-config.mjs
+bun run test
 cd apps/desktop/src-tauri && cargo test --locked
 ```
 

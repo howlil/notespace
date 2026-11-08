@@ -19,14 +19,14 @@ test('Cloudflare root Wrangler deploys only built landing assets', () => {
 
 test('existing root build retains the web build and also builds Astro from landing', () => {
   const build = pkg.scripts.build
-  assert.match(build, /pnpm --filter @notespace\/web build/)
-  assert.match(build, /pnpm --dir landing install --frozen-lockfile/)
-  assert.match(build, /pnpm --dir landing build/)
+  assert.match(build, /bun run --filter @notespace\/web build/)
+  assert.match(build, /bun install --cwd landing --frozen-lockfile/)
+  assert.match(build, /bun --cwd landing run build/)
   assert.equal(pkg.scripts.deploy, undefined, 'Cloudflare deploys using npx wrangler deploy directly')
 })
 
 test('Docker builds the independent web package without importing the landing build', () => {
   const dockerfile = readFileSync(fromRoot('Dockerfile'), 'utf8')
-  assert.ok(dockerfile.includes('RUN pnpm --filter @notespace/web build'))
-  assert.ok(!dockerfile.includes('RUN pnpm build'), 'Docker stage does not copy landing sources')
+  assert.ok(dockerfile.includes('RUN bun run --filter @notespace/web build'))
+  assert.ok(!dockerfile.includes('RUN bun run build'), 'Docker stage does not copy landing sources')
 })

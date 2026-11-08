@@ -2,8 +2,8 @@
 // The app loads its authenticated Go sidecar from an OS-assigned 127.0.0.1 port.
 // Exposing a command in invoke_handler alone does not grant loopback permission.
 fn main() {
-    let attributes = tauri_build::Attributes::new().app_manifest(
-        tauri_build::AppManifest::new().commands(&[
+    let attributes =
+        tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "request_desktop_close",
             "activate_desktop_titlebar",
             "allow_desktop_close",
@@ -17,7 +17,6 @@ fn main() {
             "desktop_recovery_diagnostics",
             "list_desktop_manual_backups",
             "create_desktop_manual_backup",
-        ]),
-    );
+        ]));
     tauri_build::try_build(attributes).expect("failed to generate Notespace desktop ACL");
 }

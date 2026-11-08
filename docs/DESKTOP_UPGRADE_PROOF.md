@@ -31,13 +31,13 @@ authored content.
 
 ## Existing CI and scope
 
-- `scripts/desktop-webdriver-smoke.mjs --upgrade-seed` creates the fixture in the
+- `scripts/verify/desktop-webdriver-smoke.mjs --upgrade-seed` creates the fixture in the
   actual *installed previous-version* process. `--upgrade-verify` exercises the
   installed candidate. Both require a deliberately isolated
   `NOTESPACE_DESKTOP_TEST_DATA_DIR`; neither points at developer data.
-- `scripts/desktop-upgrade-inventory.py` captures and verifies original SQLite
+- `scripts/release/desktop-upgrade-inventory.py` captures and verifies original SQLite
   identities and assets using Python's built-in SQLite interface.
-- `scripts/verify-desktop-msi-upgrade.ps1` installs both packages using
+- `scripts/release/verify-desktop-msi-upgrade.ps1` installs both packages using
   Windows Installer, checks registered versions, preserves the same profile,
   and fails on exit code, missing fixture, wrong version or data mismatch.
 - `.github/workflows/release-desktop.yml` chooses the latest earlier
@@ -90,12 +90,12 @@ because Notespace currently only ships a Windows MSI.
 ## Local checks
 
 ```sh
-python scripts/test-desktop-upgrade-inventory.py
-node --check scripts/desktop-webdriver-smoke.mjs
+python scripts/verify/test-desktop-upgrade-inventory.py
+node --check scripts/verify/desktop-webdriver-smoke.mjs
 ```
 
 To run the full native MSI proof on an appropriately configured Windows
 runner, supply `NOTESPACE_UPGRADE_OLD_MSI`, `NOTESPACE_UPGRADE_NEW_MSI`,
 `NOTESPACE_UPGRADE_OLD_VERSION`, and `NOTESPACE_UPGRADE_NEW_VERSION`, then
-execute `pwsh ./scripts/verify-desktop-msi-upgrade.ps1` after installing
+execute `pwsh ./scripts/release/verify-desktop-msi-upgrade.ps1` after installing
 `tauri-driver` and the matching Edge WebDriver.

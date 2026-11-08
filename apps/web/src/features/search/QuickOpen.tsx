@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Folder, Search, Settings2 } from "lucide-react";
-import { useRouterState } from "@tanstack/react-router";
+import { Folder, Search, Settings2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../shared/ui";
-import type { CategorySummary, Note, Workspace, WorkspaceSummary } from "../../domain/workspace/workspace";
-import { getWorkspace, listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
+import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
+import { listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
 import type { SearchResult } from "../../adapters/http/workspace-api";
-import { useToast } from "../../shared/ui/toast-provider";
+import { useToast } from "../../shared/ui/feedback/toast-provider";
 import {
   destinationFromSearchResult,
   type QuickOpenDestination,
 } from "./quick-open-model";
-import { RecallMode } from "./RecallMode";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 
 
 export function QuickOpen() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -29,9 +28,7 @@ export function QuickOpen() {
   const [recentStatus, setRecentStatus] = useState<"loading" | "ready" | "error">("loading");
   const [recentRevision, setRecentRevision] = useState(0);
   const [searchRevision, setSearchRevision] = useState(0);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [selected, setSelected] = useState(0);
-  const [recallNote, setRecallNote] = useState<Note | null>(null);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -63,14 +60,11 @@ export function QuickOpen() {
     setRecentStatus("loading");
     setSelected(0);
     let active = true;
-    const workspaceMatch = pathname.match(/^\/(?:workspaces|projects)\/([^/]+)$/);
-    const current = workspaceMatch ? getWorkspace(decodeURIComponent(workspaceMatch[1])).catch(() => null) : Promise.resolve(null);
-    void Promise.all([listRecentWorkspaces(8), listCategories(), current])
-      .then(([nextRecent, nextCategories, workspace]) => {
+    void Promise.all([listRecentWorkspaces(8), listCategories()])
+      .then(([nextRecent, nextCategories]) => {
         if (!active) return;
         setRecent(nextRecent);
         setCategories(nextCategories);
-        setCurrentWorkspace(workspace);
         setRecentStatus("ready");
       })
       .catch((error) => {
@@ -79,7 +73,7 @@ export function QuickOpen() {
         showToast({ kind: "error", message: error instanceof Error ? error.message : "Quick Open is unavailable." });
       });
     return () => { active = false; };
-  }, [open, pathname, recentRevision, showToast]);
+  }, [open, recentRevision, showToast]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,18 +115,20 @@ export function QuickOpen() {
       context: categoryNames.get(workspace.categoryId) ?? "Recent workspace",
       href: `/workspaces/${encodeURIComponent(workspace.id)}`,
       kind: "workspace" as const,
+      workspaceId: workspace.id,
     }));
   }, [categories, query, recent, recentStatus, searchState]);
 
   function openDestination(destination: QuickOpenDestination | undefined) {
     if (!destination) return;
     setOpen(false);
-    window.location.assign(destination.href);
-  }
-
-  function beginRecall(note: Note) {
-    setOpen(false);
-    window.setTimeout(() => setRecallNote(note), 0);
+    if (destination.kind === "category" && destination.categoryId) {
+      void navigate({ to: "/", search: { category: destination.categoryId } });
+      return;
+    }
+    if (destination.workspaceId) {
+      void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: destination.workspaceId } });
+    }
   }
 
   return (
@@ -140,13 +136,13 @@ export function QuickOpen() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(94vw,640px)] p-0">
           <DialogTitle className="sr-only">Quick Open</DialogTitle>
-          <DialogDescription className="sr-only">Open recent work or search the complete Notespace library.</DialogDescription>
+          <DialogDescription className="sr-only">Open recent work or search workspaces and categories.</DialogDescription>
           <div className="flex min-h-12 items-center gap-2 border-b border-line px-4">
             <Search size={16} className="shrink-0 text-muted" aria-hidden="true" />
             <Input
               autoFocus
               className="min-h-0 flex-1 rounded-none border-0 bg-transparent py-3 text-sm"
-              placeholder="Open workspace, note, block, or category…"
+              placeholder="Open workspace or category…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -163,18 +159,6 @@ export function QuickOpen() {
               onClick={() => { setOpen(false); window.dispatchEvent(new Event("notespace:open-settings")); }}>
               <Settings2 size={14} aria-hidden="true" /> Settings &amp; Data
             </Button>}
-            {!query.trim() && currentWorkspace?.notes.length ? (
-              <section className="mb-2 border-b border-line pb-2">
-                <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">Recall from current workspace</div>
-                {currentWorkspace.notes.slice(0, 6).map((note) => (
-                  <Button variant="ghost" size="sm" key={note.id} className="!min-h-0 w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left" onClick={() => beginRecall(note)}>
-                    <FileText size={14} className="text-accent" />
-                    <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-ink">Recall · {note.title}</span>
-                  </Button>
-                ))}
-              </section>
-            ) : null}
-
             <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
             {resultStatus === "loading" ? (
               <p className="m-0 px-2.5 py-5 text-[11px] text-muted" role="status" aria-live="polite">
@@ -197,7 +181,7 @@ export function QuickOpen() {
                 onMouseEnter={() => setSelected(index)}
                 onClick={() => openDestination(destination)}
               >
-                {destination.kind === "category" ? <Folder size={15} className="shrink-0 text-accent" /> : <FileText size={15} className="shrink-0 text-accent" />}
+                <Folder size={15} className="shrink-0 text-accent" />
                 <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{destination.context}</span></span>
                 <span className="text-[10px] text-muted">↵</span>
               </Button>
@@ -205,7 +189,6 @@ export function QuickOpen() {
           </div>
         </DialogContent>
       </Dialog>
-      <RecallMode note={recallNote} open={recallNote !== null} onOpenChange={(next) => { if (!next) setRecallNote(null); }} />
     </>
   );
 }

@@ -1,15 +1,11 @@
 import { UNCATEGORIZED_CATEGORY_ID } from "../../domain/workspace/workspace.ts";
 import type {
   CategorySummary,
-  Note,
   Workspace,
-  WorkspaceContent,
-  WorkspaceSummary,
   Snapshot,
   WorkspacePage,
 } from "../../domain/workspace/workspace";
 import {
-  APIError,
   fetchTransport,
   json,
   request,
@@ -19,21 +15,16 @@ import {
 export { APIError } from "./client.ts";
 
 export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
-export type SearchResult = { type: "category" | "workspace" | "note" | "block"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; noteId: string; noteTitle: string; blockId: string; excerpt: string };
+export type SearchResult = { type: "category" | "workspace"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; excerpt: string };
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
 
 export interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;
-  updateWorkspaceSnapshot(id: string, content: WorkspaceContent, version: number): Promise<Workspace>;
-  getWorkspaceNote(workspaceId: string, noteId: string): Promise<Note>;
-  createWorkspaceNote(workspaceId: string, input: { id: string; title: string; document: Snapshot }): Promise<Note>;
-  updateWorkspaceNote(workspaceId: string, noteId: string, input: { title: string; document: Snapshot; version: number }): Promise<Note>;
-  deleteWorkspaceNote(workspaceId: string, noteId: string, version: number): Promise<void>;
   getWorkspaceCanvas(workspaceId: string): Promise<CanvasState>;
   updateWorkspaceCanvas(workspaceId: string, canvas: Snapshot, version: number): Promise<CanvasState>;
   listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
   listCategories(): Promise<CategorySummary[]>;
-  listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; hasNotes?: boolean; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
+  listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
   createWorkspace(title: string, categoryId?: string, creationId?: string): Promise<Workspace>;
   createCategory(title: string): Promise<CategorySummary>;
   updateCategory(id: string, title: string): Promise<CategorySummary>;
@@ -58,37 +49,6 @@ export function createWorkspaceHttpClient(
         undefined,
         transport,
       ),
-
-    updateWorkspaceSnapshot: (id, content, version) =>
-      request<Workspace>(
-        `/api/workspaces/${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          ...json({ ...content, version }),
-        },
-        transport,
-      ),
-
-    getWorkspaceNote: (workspaceId, noteId) =>
-      request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, undefined, transport),
-
-    createWorkspaceNote: (workspaceId, input) =>
-      request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes`, {
-        method: "POST",
-        ...json(input),
-      }, transport),
-
-    updateWorkspaceNote: (workspaceId, noteId, input) =>
-      request<Note>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, {
-        method: "PATCH",
-        ...json(input),
-      }, transport),
-
-    deleteWorkspaceNote: (workspaceId, noteId, version) =>
-      request<void>(`/api/workspaces/${encodeURIComponent(workspaceId)}/notes/${encodeURIComponent(noteId)}`, {
-        method: "DELETE",
-        headers: { "If-Match": `"${version}"` },
-      }, transport),
 
     getWorkspaceCanvas: (workspaceId) =>
       request<CanvasState>(`/api/workspaces/${encodeURIComponent(workspaceId)}/canvas`, undefined, transport),
@@ -116,7 +76,6 @@ export function createWorkspaceHttpClient(
       if (params.query) search.set("q", params.query);
       if (params.sort) search.set("sort", params.sort);
       if (params.hasCanvas) search.set("hasCanvas", "true");
-      if (params.hasNotes) search.set("hasNotes", "true");
       if (params.snapshot) search.set("snapshot", params.snapshot);
       if (params.offset) search.set("offset", String(params.offset));
       if (params.limit) search.set("limit", String(params.limit));
@@ -212,11 +171,6 @@ export function createWorkspaceHttpClient(
 const defaultWorkspaceClient = createWorkspaceHttpClient();
 
 export const getWorkspace = defaultWorkspaceClient.getWorkspace;
-export const updateWorkspaceSnapshot = defaultWorkspaceClient.updateWorkspaceSnapshot;
-export const getWorkspaceNote = defaultWorkspaceClient.getWorkspaceNote;
-export const createWorkspaceNote = defaultWorkspaceClient.createWorkspaceNote;
-export const updateWorkspaceNote = defaultWorkspaceClient.updateWorkspaceNote;
-export const deleteWorkspaceNote = defaultWorkspaceClient.deleteWorkspaceNote;
 export const getWorkspaceCanvas = defaultWorkspaceClient.getWorkspaceCanvas;
 export const updateWorkspaceCanvas = defaultWorkspaceClient.updateWorkspaceCanvas;
 export const listAllWorkspaces = defaultWorkspaceClient.listAllWorkspaces;
@@ -237,30 +191,5 @@ export const restoreLibraryBackup = defaultWorkspaceClient.restoreLibraryBackup;
 
 export const listRecentWorkspaces = async (limit = 12) =>
   (await listAllWorkspaces({ limit })).items;
-
-export const getCategory = async (id: string) => {
-  const categories = await listCategories();
-  const category = categories.find((item) => item.id === id);
-  if (!category) throw new APIError(404, "Category not found.");
-  return category;
-};
-
-export async function listAllCategoryWorkspaces(categoryId: string) {
-  const items: WorkspaceSummary[] = [];
-  let offset = 0;
-  let snapshot = "start";
-  while (true) {
-    const page = await listCategoryWorkspaces(categoryId, {
-      sort: "name",
-      offset,
-      limit: 100,
-      snapshot,
-    });
-    snapshot = page.snapshot ?? snapshot;
-    items.push(...page.items);
-    if (page.nextOffset === undefined || page.nextOffset <= offset) return items;
-    offset = page.nextOffset;
-  }
-}
 
 export const exportLibraryBackup = () => "/api/backup";

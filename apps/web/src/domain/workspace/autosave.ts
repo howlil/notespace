@@ -75,6 +75,24 @@ export class Autosave<T> {
     return this.pending !== undefined || this.active !== undefined || this.blockedByConflict;
   }
 
+  rebase(version: number) {
+    if (this.dirty) return false;
+    return this.recover(version);
+  }
+
+  recover(version: number, value?: T) {
+    if (this.active) return false;
+    this.clearTimers();
+    this.version = Math.max(1, version);
+    this.pending = value;
+    this.checkpointAfterActive = false;
+    this.blockedByConflict = false;
+    this.conflictError = undefined;
+    this.status = value === undefined ? { state: "saved" } : { state: "pending" };
+    this.listeners.forEach((listener) => listener(this.status));
+    return true;
+  }
+
   subscribe(listener: (status: SaveStatus) => void) {
     this.listeners.add(listener);
     listener(this.status);

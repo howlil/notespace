@@ -25,15 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11.19.0
-          run_install: false
+          bun-version: 1.3.14
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
@@ -61,7 +58,7 @@ jobs:
           $checks = Join-Path $env:RUNNER_TEMP 'notespace-beta-master-ci.json'
           gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$env:GITHUB_SHA&event=push&per_page=100" | Out-File -FilePath $checks -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "Could not retrieve master CI" }
-          node scripts/assert-desktop-release-ci.mjs $checks $env:GITHUB_SHA
+          node scripts/release/assert-desktop-release-ci.mjs $checks $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "Master CI gate failed" }
 
       - name: Select next public signed-updater beta version
@@ -74,7 +71,7 @@ jobs:
           $releases = Join-Path $env:RUNNER_TEMP 'notespace-beta-releases.json'
           gh release list --limit 100 --json tagName,isDraft,isPrerelease | Out-File -FilePath $releases -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "Could not list published versions" }
-          $tag = (Get-Content -Raw $releases | node scripts/resolve-desktop-beta-version.mjs).Trim()
+          $tag = (Get-Content -Raw $releases | node scripts/release/resolve-desktop-beta-version.mjs).Trim()
           if ($LASTEXITCODE -ne 0 -or $tag -notmatch '^v0\.1\.0-beta\.[1-9][0-9]*$') {
             throw "Failed to select a valid unsigned beta tag"
           }
@@ -101,12 +98,12 @@ jobs:
         shell: pwsh
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
+        run: node scripts/release/sync-desktop-version.mjs
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @notespace/web build
-      - run: pnpm desktop:icons
-      - run: node scripts/prepare-desktop-sidecar.mjs
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @notespace/web build
+      - run: bun run desktop:icons
+      - run: node scripts/dev/prepare-desktop-sidecar.mjs
 
       - name: Build updater-signed Windows MSI (no Authenticode)
         working-directory: apps/desktop/src-tauri
@@ -127,17 +124,17 @@ jobs:
           # Preserve existing upgrade code. MSI version 0.1.N rises for every beta.
           $env:NOTESPACE_BETA_WIX_VERSION = "0.1.$sequence"
           $overlay = Join-Path $env:RUNNER_TEMP 'notespace-signed-beta-updater.json'
-          node ../../../scripts/prepare-desktop-updater-config.mjs $overlay
+          node ../../../scripts/release/prepare-desktop-updater-config.mjs $overlay
           if ($LASTEXITCODE -ne 0) { throw "Cannot prepare signed beta updater configuration" }
-          pnpm dlx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked
+          bunx @tauri-apps/cli@2.12.3 build --config $overlay -- --locked
           if ($LASTEXITCODE -ne 0) { throw "Signed-updater beta MSI build failed" }
 
       - name: Validate embedded Fox Spirit executable icon
-        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
+        run: ./scripts/assets/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
         shell: pwsh
       - name: Reject Windows console-subsystem builds before publishing
         run: >-
-          node scripts/assert-windows-pe-subsystem.mjs
+          node scripts/verify/assert-windows-pe-subsystem.mjs
           apps/desktop/src-tauri/target/release/notespace-desktop.exe
           apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
 
@@ -146,15 +143,15 @@ jobs:
         run: |
           cargo install tauri-driver --locked
           if ($LASTEXITCODE -ne 0) { throw "Failed to install Tauri WebDriver" }
-          ./scripts/install-webview2-edgedriver.ps1
-          ./scripts/diagnose-desktop-webdriver.ps1
+          ./scripts/dev/install-webview2-edgedriver.ps1
+          ./scripts/dev/diagnose-desktop-webdriver.ps1
 
       - name: Native WebView2 acceptance — write, close, and reopen Note
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/beta-critical-webview
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/beta-critical-data
-        run: pnpm test:desktop:critical
+        run: bun run test:desktop:critical
 
       # An MSI built before acceptance is NOT a release. Preserve only as a
       # short-lived diagnostic artifact when the actual native product gate
@@ -199,7 +196,7 @@ jobs:
           MSI_SIG_PATH: ${{ steps.installer.outputs.signature }}
         run: |
           $manifest = Join-Path $env:RUNNER_TEMP 'notespace-beta-latest.json'
-          node scripts/create-desktop-beta-manifest.mjs "$env:TAG" "$env:MSI_PATH" "$env:MSI_SIG_PATH" "$manifest"
+          node scripts/release/create-desktop-beta-manifest.mjs "$env:TAG" "$env:MSI_PATH" "$env:MSI_SIG_PATH" "$manifest"
           if ($LASTEXITCODE -ne 0) { throw "Signed updater manifest validation failed" }
 
       - name: Attest unsigned MSI provenance

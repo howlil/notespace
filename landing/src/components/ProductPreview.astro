@@ -2,7 +2,7 @@
 interface Props { svgIdPrefix?: string; interactive?: boolean }
 const { svgIdPrefix = "notespace", interactive = false } = Astro.props
 ---
-<div class="notespace-demo overflow-hidden rounded-xl border border-line bg-surface shadow-[0_6px_28px_rgba(28,43,64,0.055)]" data-interactive={interactive ? "true" : undefined} data-view="split">
+<div class="notespace-demo overflow-hidden rounded-xl border border-line bg-surface shadow-[0_6px_28px_rgba(28,43,64,0.055)]" data-interactive={interactive ? "true" : undefined}>
   <div class="flex h-10 items-center border-b border-line bg-soft px-3">
     <div class="flex gap-1.5" aria-hidden="true">
       <span class="size-2 rounded-full bg-muted/40"></span>
@@ -20,54 +20,15 @@ const { svgIdPrefix = "notespace", interactive = false } = Astro.props
     </div>
     {interactive ? (
       <div class="ns-demo-header-tools flex items-center gap-3">
-        <button type="button" class="ns-demo-search" data-demo-search-trigger aria-haspopup="dialog" aria-expanded="false" aria-label="Search preview notes and canvas">
+        <button type="button" class="ns-demo-search" data-demo-search-trigger aria-haspopup="dialog" aria-expanded="false" aria-label="Search preview workspaces">
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7" /><path d="m16 16 5 5" /></svg>
           Search <kbd>Ctrl K</kbd>
         </button>
-        <div class="ns-demo-tabs" role="group" aria-label="Workspace preview mode">
-          <button type="button" data-demo-mode="note" aria-pressed="false">Note</button>
-          <button type="button" data-demo-mode="canvas" aria-pressed="false">Canvas</button>
-          <button type="button" data-demo-mode="split" aria-pressed="true">Split</button>
-        </div>
       </div>
-    ) : (
-      <div class="hidden items-center rounded-md border border-line bg-background p-0.5 text-[9px] sm:flex">
-        <span class="rounded-[4px] px-2 py-1 text-muted">Note</span>
-        <span class="rounded-[4px] px-2 py-1 text-muted">Canvas</span>
-        <span class="rounded-[4px] bg-tint px-2 py-1 font-medium text-accent">Split</span>
-      </div>
-    )}
+    ) : <span class="text-[10px] text-muted">Canvas</span>}
   </div>
 
-  <div class="ns-demo-panes grid min-h-[360px] grid-cols-1 md:grid-cols-[1.02fr_0.98fr]">
-    <section class="ns-demo-note border-b border-line bg-surface md:border-r md:border-b-0">
-      <div class="flex h-9 items-center gap-2 border-b border-line px-3 text-[9px] text-muted">
-        <span class="font-medium text-ink">Raft consensus</span>
-        <span>Architecture notes</span>
-        <span class="ml-auto">Outline</span>
-      </div>
-      <div class="mx-auto max-w-[430px] px-7 py-7">
-        <div class="mb-2 text-[8px] font-medium uppercase tracking-[0.18em] text-accent">Architecture notes</div>
-        <div class="text-[25px] font-semibold tracking-[-0.035em] text-ink">Raft consensus</div>
-        <p class="mt-3 text-[11px] leading-5 text-muted">Consensus lets a cluster agree on the same ordered log even while nodes fail or messages arrive late.</p>
-
-        <div class="mt-6 border-l-2 border-accent/60 pl-3">
-          <div class="text-[10px] font-semibold">Leader election</div>
-          <p class="mt-1 text-[9px] leading-4 text-muted">A candidate wins after receiving votes from a majority in the current term.</p>
-        </div>
-
-        <div class="mt-5 space-y-2.5" aria-hidden="true">
-          <div class="h-1.5 w-full rounded bg-line/85"></div>
-          <div class="h-1.5 w-[92%] rounded bg-line/70"></div>
-          <div class="h-1.5 w-[76%] rounded bg-line/65"></div>
-        </div>
-
-        <div class="mt-6 inline-flex items-center gap-1.5 rounded-md bg-tint px-2 py-1.5 text-[9px] font-medium text-accent">
-          <span class="size-1.5 rounded-full bg-accent"></span>
-          Exact block context searchable
-        </div>
-      </div>
-    </section>
+  <div class="ns-demo-panes grid min-h-[360px] grid-cols-1">
 
     <section class="ns-demo-canvas relative min-h-[310px] overflow-hidden bg-canvas">
       <div class="flex h-9 items-center gap-2 border-b border-line bg-surface/70 px-3 text-[9px] text-muted">
@@ -118,15 +79,11 @@ const { svgIdPrefix = "notespace", interactive = false } = Astro.props
       <div class="ns-demo-dialog" role="dialog" aria-modal="true" aria-label="Search preview workspace">
         <div class="ns-demo-inputbar">
           <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="7" /><path d="m16 16 5 5" /></svg>
-          <input type="search" data-demo-query placeholder="Search notes and workspaces…" aria-label="Search notes and canvas in this demo" autocomplete="off" />
+          <input type="search" data-demo-query placeholder="Search workspaces…" aria-label="Search workspaces in this demo" autocomplete="off" />
           <button type="button" data-demo-close class="ns-demo-close" aria-label="Close search">Esc</button>
         </div>
         <div class="p-2">
           <p class="px-3 py-2 text-[10px] font-medium text-muted">EXAMPLE RESULTS</p>
-          <button type="button" class="ns-demo-result" data-demo-result="note" data-demo-search-text="raft consensus leader election distributed systems">
-            <span class="ns-demo-result-mark" aria-hidden="true">▤</span>
-            <span><strong>Raft consensus</strong><small>Distributed Systems / Note</small></span>
-          </button>
           <button type="button" class="ns-demo-result" data-demo-result="canvas" data-demo-search-text="distributed systems canvas diagram raft">
             <span class="ns-demo-result-mark" aria-hidden="true">◇</span>
             <span><strong>Distributed Systems canvas</strong><small>Distributed Systems / Canvas</small></span>
@@ -149,15 +106,7 @@ const { svgIdPrefix = "notespace", interactive = false } = Astro.props
     const closeButton = root.querySelector<HTMLButtonElement>('[data-demo-close]')
     const empty = root.querySelector<HTMLElement>('[data-demo-empty]')
     const results = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-demo-result]'))
-    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-demo-mode]'))
     let previousFocus: HTMLElement | null = null
-
-    function selectMode(mode: string) {
-      if (!["note", "canvas", "split"].includes(mode)) return
-      root.dataset.view = mode
-      tabs.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.demoMode === mode)))
-    }
-    tabs.forEach((button) => button.addEventListener("click", () => selectMode(button.dataset.demoMode ?? "")))
 
     const names: Record<string, string> = {
       Leader: "Leader · term 8",
@@ -213,7 +162,6 @@ const { svgIdPrefix = "notespace", interactive = false } = Astro.props
     query?.addEventListener("input", filterResults)
     overlay?.addEventListener("click", (event) => { if (event.target === overlay) closeSearch() })
     results.forEach((button) => button.addEventListener("click", () => {
-      selectMode(button.dataset.demoResult ?? "")
       closeSearch()
     }))
     root.addEventListener("keydown", (event) => {

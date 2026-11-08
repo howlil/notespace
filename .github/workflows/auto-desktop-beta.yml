@@ -51,7 +51,7 @@ jobs:
             exit 0
           fi
           gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$master_sha&event=push&per_page=100" > "$RUNNER_TEMP/master-ci.json"
-          if ! node scripts/assert-desktop-release-ci.mjs "$RUNNER_TEMP/master-ci.json" "$master_sha"; then
+          if ! node scripts/release/assert-desktop-release-ci.mjs "$RUNNER_TEMP/master-ci.json" "$master_sha"; then
             echo "Both master verification suites have not passed; the other completion will retrigger"
             exit 0
           fi

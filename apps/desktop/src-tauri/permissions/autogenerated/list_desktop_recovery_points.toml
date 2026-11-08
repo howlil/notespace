@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-desktop-recovery-points"
+description = "Enables the list_desktop_recovery_points command without any pre-configured scope."
+commands.allow = ["list_desktop_recovery_points"]
+
+[[permission]]
+identifier = "deny-list-desktop-recovery-points"
+description = "Denies the list_desktop_recovery_points command without any pre-configured scope."
+commands.deny = ["list_desktop_recovery_points"]

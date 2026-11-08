@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
 	"github.com/howlil/notespace/apps/server/migrations"
 	_ "modernc.org/sqlite"
 )
@@ -51,7 +52,12 @@ func Open(ctx context.Context, path string) (*Store, error) {
 			}
 		}
 		if err == nil {
-			err = migrations.Run(ctx, db)
+			err = migrations.RunWithHook(ctx, db, func(hookCtx context.Context, tx *sql.Tx, name string) error {
+				if name != backupquery.RetiredNotesMigration {
+					return nil
+				}
+				return backupquery.ScrubRetiredNoteArtifactsTx(hookCtx, tx)
+			})
 			if err == nil && wasExisting && inspection.NeedsMigration {
 				err = migrations.ValidateFull(ctx, db)
 			}

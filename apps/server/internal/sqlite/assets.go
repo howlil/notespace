@@ -2,11 +2,10 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	assetsquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/assets"
 )
 
 func (s *Store) PutAsset(ctx context.Context, value asset.Stored) (asset.Stored, error) {
@@ -57,42 +56,9 @@ RETURNING created_at`,
 }
 
 func (s *Store) GetAsset(ctx context.Context, workspaceID, id string) (asset.Stored, error) {
-	var value asset.Stored
-	err := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,mime_type,data,created_at FROM workspace_assets WHERE workspace_id=? AND id=?`, workspaceID, id).Scan(&value.ID, &value.WorkspaceID, &value.MimeType, &value.Data, &value.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return value, asset.ErrNotFound
-	}
-	return value, err
-}
-
-func (s *Store) ListAssets(ctx context.Context, workspaceID string) ([]asset.Stored, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,workspace_id,mime_type,data,created_at FROM workspace_assets WHERE workspace_id=? ORDER BY created_at,id`, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	values := []asset.Stored{}
-	for rows.Next() {
-		var value asset.Stored
-		if err := rows.Scan(&value.ID, &value.WorkspaceID, &value.MimeType, &value.Data, &value.CreatedAt); err != nil {
-			return nil, err
-		}
-		values = append(values, value)
-	}
-	return values, rows.Err()
+	return assetsquery.GetAsset(s.db, ctx, workspaceID, id)
 }
 
 func (s *Store) DeleteAsset(ctx context.Context, workspaceID, id string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM workspace_assets WHERE workspace_id=? AND id=?`, workspaceID, id)
-	if err != nil {
-		return err
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return asset.ErrNotFound
-	}
-	return nil
+	return assetsquery.DeleteAsset(s.db, ctx, workspaceID, id)
 }

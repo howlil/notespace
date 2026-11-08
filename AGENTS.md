@@ -45,6 +45,14 @@ reuse
 
 Avoid unrelated refactors, speculative abstractions, dependency churn, and generic best-practice expansion.
 
+## Keeping ownership clear
+
+- Place new code in its existing owning capability; follow the structure and dependency rules in `.agents/engineering.md`.
+- Web callers outside a feature use its public entry. Keep internal imports direct and preserve lazy editor boundaries.
+- Keep SQL connections and transaction lifetime in the SQLite Store facade. Private query packages borrow SQL access.
+- Move callers, colocated tests, source-contract paths, discovery, and script references together.
+- Extend the existing architecture checks when a boundary changes; do not add generic catch-all folders or forwarding files for obsolete paths.
+
 ## Verification rule
 
 Verification is risk-proportional and evidence-driven.

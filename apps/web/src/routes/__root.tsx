@@ -1,28 +1,29 @@
+import { DesktopCloseBridge } from "../features/desktop";
 import {
   createRootRoute,
   HeadContent,
   Link,
   Outlet,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { useEffect, useState, type ReactNode } from "react";
-import "../shared/styles/globals.css";
-import "../features/workspace-authoring/workspace-authoring.css";
-import "../shared/ui/desktop-titlebar/desktop-titlebar.css";
+import { type ReactNode } from "react";
+import globalStyles from "../shared/styles/globals.css?inline";
+import workspaceAuthoringStyles from "../features/workspace-authoring/workspace-authoring.css?inline";
+import desktopTitlebarStyles from "../features/desktop/chrome/desktop-titlebar.css?inline";
 import { Button } from "../shared/ui";
-import { ThemeProvider } from "../shared/ui/theme-provider";
-import { ToastProvider } from "../shared/ui/toast-provider";
-import { NativePopupManager } from "../shared/ui/dismissable";
-import { QuickOpen } from "../features/search/QuickOpen";
-import { LibraryTools } from "../features/library/LibraryTools";
-import { DesktopUpdateControl } from "../features/desktop-updates/DesktopUpdateControl";
-import { DesktopChromeProvider } from "../shared/ui/desktop-titlebar/DesktopChromeProvider";
-import { LibraryExplorerProvider } from "../shared/ui/library-explorer-provider";
-import { AppSettings } from "../features/settings/AppSettings";
-import { DesktopRecoveryTools } from "../features/desktop-recovery/DesktopRecoveryTools";
-import { ConflictRecoveryDialog } from "../features/workspace-authoring/ui/ConflictRecoveryDialog";
-import { allowDesktopClose, beginDesktopQuiescence, cancelDesktopClose, flushDesktopState, isTauriRuntime, sealDesktopWrites } from "../adapters/browser/desktop-lifecycle";
+import { ThemeProvider } from "../shared/ui/theme/theme-provider";
+import { ToastProvider } from "../shared/ui/feedback/toast-provider";
+import { NativePopupManager } from "../shared/ui/overlays/dismissable";
+import { QuickOpen } from "../features/search";
+import { LibraryTools } from "../features/library";
+import { DesktopUpdateControl } from "../features/desktop";
+import { DesktopChromeProvider } from "../features/desktop";
+import { LibraryExplorerProvider } from "../features/library";
+import { AppSettings } from "../features/settings";
+import { DesktopRecoveryTools } from "../features/desktop";
+import { RoutePending } from "../pages/shell/RoutePending";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -38,27 +39,15 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://storage.googleapis.com" },
       { rel: "dns-prefetch", href: "//storage.googleapis.com" },
     ],
+    // Keep app styles in TanStack's managed head so they survive client head reconciliation.
+    styles: [
+      { children: globalStyles },
+      { children: workspaceAuthoringStyles },
+      { children: desktopTitlebarStyles },
+    ],
   }),
   shellComponent: RootDocument,
-  component: () => (
-    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: "easeOut" }}>
-      <NativePopupManager>
-        <ToastProvider>
-          <ThemeProvider>
-              <DesktopCloseBridge />
-              <DesktopUpdateControl />
-              <AppSettings
-                renderLibraryTools={(onBusyChange, disabled) => <LibraryTools onBusyChange={onBusyChange} disabled={disabled} />}
-                renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />}
-              />
-              <QuickOpen />
-              <ConflictRecoveryDialog />
-              <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
-          </ThemeProvider>
-        </ToastProvider>
-      </NativePopupManager>
-    </MotionConfig>
-  ),
+  component: RootApplication,
   notFoundComponent: () => (
     <main className={routeMessageClass}>
       <h1 className="m-0 text-2xl font-medium tracking-tight text-ink">Workspace not found</h1>
@@ -75,52 +64,29 @@ export const Route = createRootRoute({
   ),
 });
 
-function DesktopCloseBridge() {
-  const [closeState, setCloseState] = useState<"idle" | "flushing" | "error">("idle");
-  const [closeError, setCloseError] = useState<string | null>(null);
+function RootApplication() {
+  const initialRoutePending = useRouterState({
+    select: (state) => state.status === "pending" && state.resolvedLocation === undefined,
+  });
 
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-    const requestClose = () => {
-      setCloseState("flushing");
-      setCloseError(null);
-      let release: (() => void) | null = null;
-      try {
-        release = beginDesktopQuiescence();
-      } catch (error) {
-        setCloseState("error");
-        setCloseError(error instanceof Error ? error.message : "Penyimpanan lain masih berjalan.");
-        void cancelDesktopClose().catch(() => {});
-        return;
-      }
-      void flushDesktopState()
-        .then(async () => {
-          sealDesktopWrites();
-          await allowDesktopClose();
-        })
-        .catch(async (error) => {
-          release?.();
-          console.error("Notespace close flush failed", error);
-          setCloseState("error");
-          setCloseError(error instanceof Error ? error.message : "Perubahan belum tersimpan. Coba tutup lagi.");
-          try {
-            await cancelDesktopClose();
-          } catch (cancelError) {
-            console.error("Notespace close cancellation failed", cancelError);
-          }
-        });
-    };
-    window.addEventListener("notespace:close-requested", requestClose);
-    return () => window.removeEventListener("notespace:close-requested", requestClose);
-  }, []);
-  if (closeState === "idle") return null;
-  const failed = closeState === "error";
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex justify-center p-3" data-testid="desktop-close-status" data-desktop-close-state={closeState}>
-      <div className={`rounded-md border bg-surface px-3 py-2 text-xs shadow-sm ${failed ? "border-danger/40 text-danger" : "border-line text-muted"}`} role={failed ? "alert" : "status"} aria-live={failed ? "assertive" : "polite"}>
-        {failed ? closeError ?? "Perubahan belum tersimpan. Coba tutup lagi." : "Menyimpan perubahan sebelum menutup…"}
-      </div>
-    </div>
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: "easeOut" }}>
+      <NativePopupManager>
+        <ToastProvider>
+          <ThemeProvider>
+              <DesktopCloseBridge />
+              <DesktopUpdateControl />
+              <AppSettings
+                renderLibraryTools={(onBusyChange, disabled, deviceRecovery) => <LibraryTools onBusyChange={onBusyChange} disabled={disabled} deviceRecovery={deviceRecovery} />}
+                renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />}
+              />
+              <QuickOpen />
+              {initialRoutePending && <RoutePending />}
+              <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
+          </ThemeProvider>
+        </ToastProvider>
+      </NativePopupManager>
+    </MotionConfig>
   );
 }
 

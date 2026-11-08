@@ -3,10 +3,9 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"github.com/howlil/notespace/apps/server/internal/activity"
 	"path/filepath"
 	"testing"
-
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestDeletedActivitySessionRejectsLateAndNewDayHeartbeatsAcrossRestart(t *testing.T) {

@@ -1,6 +1,6 @@
 # Notespace Design Contract
 
-This contract defines the planned single-shell Welcome + Canvas navigation. The approved Welcome v3 and Canvas prototype are visual references; product code is not yet migrated. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Existing SQLite, backup, and compatibility contracts are preserved.
+This contract defines the single-shell Welcome + Canvas navigation. The approved Welcome v3 and Canvas prototype are visual references. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Note data and Note authoring are retired; Canvas is the authored content contract.
 
 ## Decision order
 
@@ -8,37 +8,46 @@ This contract defines the planned single-shell Welcome + Canvas navigation. The 
 
 ## Product intent
 
-Notespace is a self-hosted, compact writing and spatial knowledge workspace. Make finding a Workspace, editing Notes/Canvas, and resuming focused work the shortest useful paths. Avoid extra top-level destinations, dashboard chrome, and duplicative navigation.
+Notespace is a self-hosted, compact spatial knowledge workspace. Make finding a Workspace, editing its Canvas, and resuming focused work the shortest useful paths. Avoid extra top-level destinations, dashboard chrome, and duplicative navigation.
 
 ## Canonical navigation — single shell (planned)
 
 - **One shell, two addressable content states:** `/` renders Welcome; `/workspaces/$workspaceId` renders the selected Workspace Canvas. They share the same application chrome, optional Explorer, Quick Open and Settings. This does **not** collapse distinct URLs or replace browser Back/Forward with local state.
-- **Welcome, first-run:** if the authoritative library has zero Workspaces, show the approved Welcome v3 first-run composition: a compact visual Canvas example, one primary **Create Workspace** action, and a secondary **Import Markdown** action. Never treat an empty category as an empty library.
+- **Shell controls:** the brand mark toggles the Explorer; a centered, input-like Search trigger opens Quick Open; Settings stays in the Explorer footer.
+- **Welcome, first-run:** if the authoritative library has zero Workspaces, show the approved Welcome v3 first-run composition: a compact visual Canvas example and one primary **Create Workspace** action. Never treat an empty category as an empty library.
 - **Welcome, existing library:** show the Notespace cobalt paper-stack Workspace cards, compact continue/resume entry, library search and creation actions. The Category Explorer remains available; selecting a category is addressable through `/?category=...`. No second dashboard, stats, activity feed or redundant navigation.
-- **Workspace:** full-bleed Excalidraw Canvas is the only permanent authoring surface. Its floating tool rail, Diagram palette, More tools and view controls retain the existing native Notespace SVG geometry and behaviors. Explorer is optional and can be toggled without leaving the selected Workspace.
-- **Notes:** existing Notes remain versioned records and appear as linked Canvas artifacts. Embedded Tiptap inside the Canvas is explicitly deferred. Opening an artifact or search/deep link opens a temporary full-featured Note editor overlay; close/route changes must respect pending snapshots and autosave.
+- **Workspace:** full-bleed Excalidraw Canvas is the only authoring surface. Its floating tool rail, Diagram palette and More tools retain the existing native Notespace SVG geometry and behaviors. Upper-right Canvas chrome keeps fit, zoom, and history as direct compact icon controls; **More canvas actions** opens only secondary view, background, library, file, export, navigation and help actions. Explorer is optional and can be toggled without leaving the selected Workspace.
+- **Retired Note model:** Notes, Note editors, linked Note artifacts, Note search destinations and Markdown-to-Note import are removed. Existing Note data is purged by the Canvas-only migration.
 - **Removed from navigation:** standalone Note view, Split View, Focus Mode, Activity indicators/dock, and their switches/rails. No permanent page or navigation for these modes.
-- **Global utilities:** Quick Open (`Ctrl/Cmd+K`), Settings, import/export, backup/restore, Trash, confirmations, and conflict recovery remain reachable in both content states.
+- **Global utilities:** Quick Open (`Ctrl/Cmd+K`), Settings, backup export/restore, Trash, confirmations, and Canvas conflict recovery remain reachable in both content states.
 - **Desktop:** reuse the existing 38px titlebar/native window controls and one application shell. Avoid extra Workspace rail, duplicate branding or titlebar controls; browser and Tauri share product behavior.
-- **Compatibility:** old links to a Workspace remain valid; legacy `?note=...` and `?block=...` must resolve into the temporary editor and targeted content. Existing local pane-layout preferences may be ignored, never treated as authored data or destructively migrated. Preserve historical Activity/Task/Milestone records, API contracts, SQLite migrations and backup compatibility even after UI removal.
+- **Compatibility:** old links to a Workspace remain valid; legacy `?note=...` and `?block=...` query state is ignored because the Note editor no longer exists. Existing local pane-layout preferences may be ignored, never treated as authored data or destructively migrated. Preserve historical Activity/Task/Milestone records while rejecting pre-Canvas-only Note backups.
 
 ## Layout archetypes
 
 | Surface | Ownership | UI contract |
 | --- | --- | --- |
-| Welcome (first-run) | Route + library feature | Same shell, restrained Canvas illustration, clear Create and Import entry, no Canvas tool rail |
+| Welcome (first-run) | Route + library feature | Same shell, restrained Canvas illustration, clear Create entry, no Canvas tool rail |
 | Welcome (existing library) | Route + `WorkspaceLibrary` | Same shell, existing cobalt paper-stack cards (max 196px, radius 18px), optional 228px Explorer |
-| Workspace authoring | `WorkspacePage` + Canvas feature | Same shell, full-bleed Canvas, floating native tools and view controls; no permanent Note/Split/Focus/Activity chrome |
-| Note editing | Workspace authoring overlay | Temporary Tiptap editor, versioned Note source of truth, explicit close/flush and conflict handling |
+| Workspace authoring | `WorkspacePage` + Canvas feature | Persistent shell, full-bleed Canvas, floating native tools, one Canvas options panel |
+| Note editing | Retired | No Note route, editor, picker or artifact surface |
 | Utilities | Settings, Quick Open, data/recovery | Overlays keep accessible focus and recoverable pending/error states |
 
 ## Workspace editor and Canvas contract
 
-Preserve existing Excalidraw primitives, diagrams, code blocks, image assets, keyboard shortcuts, pan/zoom and undo/redo. Canvas Note artifacts link by Note ID and store only placement/presentation metadata, not copied Note content. Deleting an artifact must not delete its Note. Users must still be able to find and edit unplaced Notes through search or a Note picker.
+Preserve existing Excalidraw primitives, diagrams, code blocks, image assets, keyboard shortcuts, pan/zoom and undo/redo. Canvas is the sole authored content boundary; no Canvas element may reference a retired Note artifact.
 
-Keep current granular Note/Canvas autosave and conflict handling, blocking stale cached route re-entry and unsafe navigation/desktop close until pending snapshots are settled. Maintain a recoverable empty Canvas state; distinguish genuinely empty Canvas from content positioned offscreen (offer **Back to content** where applicable).
+Keep Canvas granular autosave and conflict handling, blocking unsafe navigation/desktop close until pending Canvas snapshots are settled. Maintain a recoverable empty Canvas state; distinguish genuinely empty Canvas from content positioned offscreen (offer **Back to content** where applicable).
 
 Preserve theme, Open Sans, the semantic tokens below, 4px spacing rhythm, 6px controls, 8px popup surfaces and low-elevation Canvas chrome. Follow the approved Welcome v3 first-run/resume composition rather than a generic blank-state illustration. Keyboard, reduced motion, focus restoration and touch/pointer interaction must remain usable.
+
+Canvas chrome has three explicit scopes: the left rail creates and selects content, direct upper-right controls own fit, zoom and history, the adjacent **More canvas actions** panel owns secondary view, background, library, file, export, navigation and help actions, and the contextual selection toolbar owns selected-object actions. Secondary tool overflow opens by click, keyboard focus, or touch—not hover—and exposes visible group labels and tool names. A secondary tool remains reflected in the rail after selection. Fit, zoom and history remain compact labelled icon controls aligned with the More trigger, not nested inside its popup. Canvas options opens vertically below More with its right edge aligned to that trigger; it stays scrollable but never exposes a scrollbar.
+
+Tool defaults use compact vertical controls beside the active rail button, horizontal above the mobile rail. Idle Select has no property controls. Selected-object actions form a horizontal toolbar 4px above the selection bounds, clamped to the Canvas viewport; when there is no room above, it moves below. The toolbar exposes at most three type-sensitive quick actions. **More selected shape actions** contains actions not already visible, including applicable properties omitted from the quick controls. Batch properties display shared values or Mixed; multiple Pen strokes retain Pressure and multiple shapes retain Corners. A round stroke swatch distinguishes Colors from shape creation.
+
+Contextual controls are temporarily hidden while an object is dragged, resized, rotated, edited, or has a native context menu open; they are not recreated after every gesture. Popup coordinates belong to a static outer container and only the inner content animates. Excalidraw's native context menu is the full-command surface: it retains an existing selection, selects an unselected target before opening, shares the action manager with keyboard commands, and closes on Escape without deselecting. Selection overflow keeps its entry point visible while the action list can scroll. Opening one overlay scope closes the other scopes. Escape restores its trigger; a new tool or selection closes stale properties without stealing pointer focus.
+
+Workspace navigation keeps the application shell visible while destination data loads. Once the destination is ready, replace only the keyed authoring session; do not fade the whole page out before showing the next Canvas. The active Workspace indicator morphs within the persistent Explorer; categories stay visually neutral even when their Workspace list is shown.
 
 ## Visual direction
 
@@ -313,7 +322,7 @@ The approved rebrand uses **Cobalt `#2858D8` and White `#FFFFFF`** for the fox c
 - `/brand/notespace-fox-micro.svg` — reduced-details fallback used by `/favicon.svg` at 16–32px.
 - The web and Astro landing `public/brand` copies must remain byte-identical; `NotespaceLogo` owns application logo rendering. Do not restore retired Foldling assets or use them for new app chrome.
 - Preserve the real 6/8/12/18px radius hierarchy, compact icon controls, neutral-first primary buttons, border-only Workspace and user-authored Canvas colors. Do not add decorative foxes to editor or Canvas tool chrome.
-- Before any native build or release, run `pnpm desktop:icons` to regenerate ICO, ICNS and PNG packaging assets into ignored `icons/fox-spirit/` from the reviewed `notespace-fox-full.svg`; builds without regeneration must fail instead of using checked-in legacy icons. Windows CI verifies the actual EXE icon resource is cobalt Fox Spirit. Preserve `com.howlil.notespace` so MSI upgrades do not create a new application or orphan user data.
+- Before any native build or release, run `bun run desktop:icons` to regenerate ICO, ICNS and PNG packaging assets into ignored `icons/fox-spirit/` from the reviewed `notespace-fox-full.svg`; builds without regeneration must fail instead of using checked-in legacy icons. Windows CI verifies the actual EXE icon resource is cobalt Fox Spirit. Preserve `com.howlil.notespace` so MSI upgrades do not create a new application or orphan user data.
 
 ## Component and interaction rules
 

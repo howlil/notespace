@@ -1,32 +1,32 @@
 # Notespace
 
-A free, self-hosted knowledge workspace for structured notes, spatial thinking, and deliberate study.
+A free, self-hosted Canvas workspace for diagrams, sketches, images, and code.
 
-The current single-shell navigation model is:
+The current navigation model is:
 
 ```text
 Notespace
-├── Welcome (first-run or Workspace library)
-│   └── Explorer (Categories → Workspaces, optional)
-└── Workspace Canvas (Excalidraw)
-    ├── Note artifacts → temporary Tiptap editor dialog
-    ├── Shapes, diagrams, connections and code blocks
-    └── Global Quick Open, Settings, Backup and recovery
+├── Welcome / Workspace library
+│   └── Optional Explorer (Categories → Workspaces)
+└── Workspace Canvas
+    ├── Shapes, diagrams, connections, images and code blocks
+    └── Quick Open, Settings, backup and recovery
 ```
 
-Welcome and Canvas share one shell and an optional 228px Explorer. They remain addressable at `/` and `/workspaces/:id`. The desktop app retains a 38px native titlebar with window controls. There is no permanent Note page, Split View, Focus Mode, Workspace rail or Activity dock. Embedded rich-text editing inside Excalidraw is intentionally deferred.
+Welcome and Canvas share one shell at `/` and `/workspaces/:id`. The logo toggles the Explorer; the titlebar shows the current Workspace and Search. Browser and Windows desktop share the same product behavior.
 
 ## Core capability
 
-- Category-organized Workspace library, progressive disclosure and server-backed browsing.
-- Multiple durable Tiptap Notes per Workspace, opened through a temporary editor and linked as Canvas artifacts.
-- Excalidraw Canvas for shapes, diagrams, image assets, code and spatial knowledge.
-- Granular optimistic-versioned Note and Canvas autosave with conflict protection and recovery.
-- Global text/Note search and keyboard-operated Quick Open (`Ctrl/Cmd+K`).
-- Durable image assets, Markdown/Obsidian-vault folder import, recoverable Trash, and full-library ZIP backup/transactional restore.
-- Browser and Tauri desktop share product behavior, with a native window/SQLite sidecar on Windows.
+- Category-organized Workspace library with server-backed pagination.
+- Excalidraw Canvas with diagrams, images, code execution and isolated HTML previews.
+- Versioned Canvas autosave, conflict recovery, and save barriers before navigation or desktop close.
+- Workspace/category search and keyboard-operated Quick Open (`Ctrl/Cmd+K`).
+- Recoverable Trash, full-library ZIP export, and transactional backup restore.
+- One Go application and SQLite database, optionally wrapped by the Windows Tauri shell.
 
-Retired navigation does **not** delete previously saved Capture, Task, Milestone or Activity records. Historical rows, backup compatibility and externally exposed HTTP endpoints remain until their consumers and data-compatibility contracts can be safely retired. Do not delete SQLite migrations or restore functionality merely to remove a legacy screen.
+Notes, Tiptap editors, Note artifacts, Markdown-to-Note import, Split View and Focus Mode are retired. Legacy `?note=...` and `?block=...` links still open the Workspace Canvas.
+
+Historical Capture, Task, Milestone and Activity records and HTTP contracts remain for compatibility. Their absence from navigation does not authorize deleting their data, migrations or recovery paths.
 
 ## Windows Desktop
 
@@ -94,16 +94,16 @@ The application backup/restore path is currently intentionally capped at **64 Mi
 
 ## Development
 
-Requires Node.js 24, pnpm 11.19.0, Go 1.25+ and Task 3.x. Windows PowerShell is supported.
+Requires Node.js 24, bun 1.3.14, Go 1.25+ and Task 3.x. Windows PowerShell is supported.
 
 ```sh
-npm install --global pnpm@11.19.0
+npm install --global bun@1.3.14
 go install github.com/go-task/task/v3/cmd/task@latest
-pnpm install --frozen-lockfile
+bun install --frozen-lockfile
 task dev
 ```
 
-Open `http://localhost:3000`. Task orchestrates the Go API and Vite development server; pnpm owns frontend package commands, Go owns backend build/test commands, and Docker Compose owns the self-hosted runtime.
+Open `http://localhost:3000`. Task orchestrates the Go API and Vite development server; bun owns frontend package commands and the lockfile, Go owns backend build/test commands, and Docker Compose owns the self-hosted runtime.
 
 Useful commands:
 
@@ -136,11 +136,11 @@ Compose additionally supports `NOTESPACE_BIND_IP`, `NOTESPACE_PORT`, and `NOTESP
 
 ## Save and consistency behavior
 
-Edits update immediately and durable authoring saves are coalesced independently for each Note and for the Canvas. Notes use per-Note optimistic versions and Canvas uses its own version, so editing one surface no longer rewrites the whole Workspace snapshot. **Saved** appears only after all pending authoring queues are acknowledged by SQLite. Normal autosave does not write periodic history checkpoints.
+Edits update immediately and durable Canvas saves are coalesced through the granular Canvas boundary. Legacy compatibility fields remain readable but are not authored by the current UI. **Saved** appears only after pending authoring writes are acknowledged by SQLite. Normal autosave does not write periodic history checkpoints.
 
 For the same Workspace opened in multiple tabs in one browser, Canvas element changes are exchanged directly through `BroadcastChannel` and reconciled with Excalidraw element version semantics. This local path is coalesced separately from server autosave, so sibling tabs can converge quickly without sending an HTTP request for every pointer movement.
 
-Granular durable writes carry the version of the resource they mutate. A stale Note conflicts with that Note rather than blocking unrelated Notes or Canvas. Canvas keeps an independent version and its Excalidraw-specific reconciliation boundary. Legacy whole-workspace update routes remain compatibility surfaces, not the primary authoring path.
+Granular durable Canvas writes carry the version of the resource they mutate and use the Excalidraw-specific reconciliation boundary. Legacy whole-workspace update routes remain compatibility surfaces, not the primary authoring path.
 
 Pan and zoom are per-tab view state and are not persisted as authored Canvas changes. This prevents ordinary navigation from generating unnecessary saves or false conflicts.
 
@@ -154,7 +154,7 @@ Activity tracking is manual: Start, Pause/Resume, and End are explicit user acti
 
 ## Search behavior
 
-SQLite authored Workspace state remains authoritative. High-frequency granular Note autosaves acknowledge after the authored transaction commits and deliberately leave FTS repair to the next search. Lower-frequency create/move operations may refresh their projection eagerly. Search compares projection metadata with authored revisions and repairs stale rows lazily, so derived indexing never turns a successfully committed Note autosave into a failed save.
+SQLite authored Workspace state remains authoritative. Granular Canvas saves acknowledge after the authored transaction commits and deliberately leave FTS repair to the next search. Lower-frequency create/move operations may refresh their projection eagerly. Search compares projection metadata with authored revisions and repairs stale rows lazily, so derived indexing never turns a successfully committed Canvas save into a failed save.
 
 ## API compatibility
 
@@ -169,16 +169,16 @@ Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/
 
 ## Verification
 
-`task check` runs local static and unit/integration checks; `task verify` adds production builds and WebdriverIO critical browser journeys. The older Playwright suite remains available only via `pnpm test:e2e:legacy` during the migration.
+`task check` runs local static and unit/integration checks; `task verify` adds production builds and the critical WebdriverIO browser journeys.
 
-Pull requests and pushes to `master` run one **full browser suite** (including tests tagged `@critical`), Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
+The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. Pull requests run the critical journeys, pushes to `master` run the same critical gate plus Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
 
 For ownership and focused commands, read [testing and CI](docs/TESTING.md).
 
 ## Implementation boundaries
 
 - TanStack Start SPA, React, TypeScript, Vite, Tailwind utilities/tokens, Radix primitives.
-- Tiptap and Excalidraw are adapters behind Notespace-owned Workspace/Note snapshots.
+- Excalidraw is an adapter behind Notespace-owned Canvas snapshots; legacy DTO fields stay at the compatibility boundary.
 - Same-browser Canvas tab synchronization uses `BroadcastChannel`; durable persistence remains server-owned.
 - Go `net/http`, `database/sql`, pure-Go `modernc.org/sqlite`, explicit SQL and embedded transactional migrations.
 - SQLite uses WAL + FULL synchronous with one pooled connection.

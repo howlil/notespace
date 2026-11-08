@@ -3,11 +3,11 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"github.com/howlil/notespace/apps/server/internal/activity"
+	activityquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/activity"
 	"path/filepath"
 	"sync"
 	"testing"
-
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestActivityCompletedSessionDoesNotMoveToTopAfterDelayedRetries(t *testing.T) {
@@ -150,8 +150,8 @@ func TestActivityConcurrentLateRetriesCannotRefreshCompletedSession(t *testing.T
 		}
 
 		// Read the committed row directly; an additional upsert could hide a race.
-		got, err := scanActivitySession(store.db.QueryRowContext(ctx,
-			"SELECT "+activityColumns+" FROM activity_sessions WHERE id=?", base.ID))
+		got, err := activityquery.ScanActivitySession(store.db.QueryRowContext(ctx,
+			"SELECT "+activityquery.ActivityColumns+" FROM activity_sessions WHERE id=?", base.ID))
 		if err != nil {
 			t.Fatal(err)
 		}

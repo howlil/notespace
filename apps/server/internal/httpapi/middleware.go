@@ -1,5 +1,6 @@
 package httpapi
 
+import "github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
 import "net/http"
 
 func sameOriginMutation(w http.ResponseWriter, r *http.Request) bool {
@@ -7,11 +8,11 @@ func sameOriginMutation(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-		send(w, http.StatusForbidden, map[string]string{"error": "Cross-site request rejected"})
+		transport.Send(w, http.StatusForbidden, map[string]string{"error": "Cross-site request rejected"})
 		return false
 	}
 	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host && origin != "https://"+r.Host {
-		send(w, http.StatusForbidden, map[string]string{"error": "Origin rejected"})
+		transport.Send(w, http.StatusForbidden, map[string]string{"error": "Origin rejected"})
 		return false
 	}
 	return true

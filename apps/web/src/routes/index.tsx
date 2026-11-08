@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { listCategories, listCategoryWorkspaces } from "../adapters/http/workspace-api";
 import { HomePage } from "../pages/home/HomePage";
-import { RoutePending } from "../pages/_shared/RoutePending";
 
 type DashboardSearch = {
   category?: string;
@@ -25,7 +24,6 @@ export const Route = createFileRoute("/")({
 
     return { categories, initialSelectedCategoryId, initialCategoryPage };
   },
-  pendingComponent: RoutePending,
   component: DashboardRoute,
 });
 

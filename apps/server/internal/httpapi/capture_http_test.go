@@ -65,7 +65,7 @@ func TestCaptureConversionIsAtomicAndRetrySafe(t *testing.T) {
 		t.Fatalf("target count/identity incorrect: %+v", plan.Tasks)
 	}
 	other := capture.Organize{Version: item.Version, WorkspaceID: w.ID, Kind: "note"}
-	expect(t, call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", other), http.StatusConflict)
+	expect(t, call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", other), http.StatusBadRequest)
 	expect(t, call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", capture.Organize{Version: converted.Version, WorkspaceID: w.ID, Kind: "task"}), http.StatusConflict)
 	list := call(t, api, http.MethodGet, "/api/captures", nil)
 	expect(t, list, http.StatusOK)
@@ -83,87 +83,13 @@ func TestCaptureConversionIsAtomicAndRetrySafe(t *testing.T) {
 	}
 }
 
-func TestCaptureToNoteAndBackupRestore(t *testing.T) {
-	store, api := captureFixture(t)
-	w := captureCreateWorkspace(t, api)
-	content := "# Important\n\nUse indexes where appropriate."
-	res := call(t, api, http.MethodPost, "/api/captures", map[string]string{"content": content})
-	expect(t, res, http.StatusCreated)
-	item := captureFromResponse(t, res.Body.Bytes())
-	res = call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", capture.Organize{Version: 1, WorkspaceID: w.ID, Kind: "note"})
-	expect(t, res, http.StatusOK)
-	converted := captureFromResponse(t, res.Body.Bytes())
-	notes, err := store.ListNotes(context.Background(), w.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, note := range notes {
-		if note.ID == converted.TargetID {
-			found = true
-			if note.Document.Format != "tiptap" {
-				t.Fatalf("bad note format: %+v", note.Document)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("converted Note does not exist")
-	}
-	// Server-side conversion is also used by clients that omit the optional
-	// rich document. The content must be searchable without an editor save.
-	search := call(t, api, http.MethodGet, "/api/search?q=indexes", nil)
-	expect(t, search, http.StatusOK)
-	var matches []workspacepkg.SearchResult
-	if err := json.Unmarshal(search.Body.Bytes(), &matches); err != nil {
-		t.Fatal(err)
-	}
-	indexed := false
-	for _, result := range matches {
-		if result.Type == "block" && result.WorkspaceID == w.ID &&
-			result.NoteID == converted.TargetID && result.BlockID != "" {
-			indexed = true
-		}
-	}
-	if !indexed {
-		t.Fatalf("converted Note body was not indexed by block ID: %+v", matches)
-	}
-	draft := call(t, api, http.MethodPost, "/api/captures", map[string]string{"content": "Unorganized task"})
-	expect(t, draft, http.StatusCreated)
-	backup, err := store.ExportBackupArchive(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	other, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "restored.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer other.Close()
-	if err := other.RestoreBackupArchive(context.Background(), backup); err != nil {
-		t.Fatal(err)
-	}
-	restored, err := other.GetCapture(context.Background(), item.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if restored.Status != "converted" || restored.TargetID != converted.TargetID {
-		t.Fatalf("receipt not restored: %+v", restored)
-	}
-	pending, err := other.ListCaptures(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pending) != 1 || pending[0].Content != "Unorganized task" {
-		t.Fatalf("pending capture not restored: %+v", pending)
-	}
-}
-
 func TestCaptureVersionAndMissingDestination(t *testing.T) {
 	_, api := captureFixture(t)
 	item := captureFromResponse(t, call(t, api, http.MethodPost, "/api/captures", map[string]string{"content": "Something useful"}).Body.Bytes())
 	if item.ID == "" {
 		t.Fatal("missing capture ID")
 	}
-	expect(t, call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", capture.Organize{Version: 1, WorkspaceID: "not-a-workspace", Kind: "note"}), http.StatusNotFound)
+	expect(t, call(t, api, http.MethodPost, "/api/captures/"+item.ID+"/organize", capture.Organize{Version: 1, WorkspaceID: "not-a-workspace", Kind: "note"}), http.StatusBadRequest)
 	old := call(t, api, http.MethodPatch, "/api/captures/"+item.ID, map[string]any{"version": 1, "content": "Changed title"})
 	expect(t, old, http.StatusOK)
 	expect(t, call(t, api, http.MethodPatch, "/api/captures/"+item.ID, map[string]any{"version": 1, "content": "Overwritten"}), http.StatusConflict)

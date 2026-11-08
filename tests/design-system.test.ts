@@ -55,20 +55,17 @@ test("filled destructive actions have readable foreground in both themes", () =>
     const ratio = contrast(color(theme, "--danger-foreground"), color(theme, "--danger"));
     assert.ok(ratio >= 4.5, "Danger button contrast: " + ratio.toFixed(2));
   }
-  assert.match(read("apps/web/src/shared/ui/button.tsx"), /text-\[var\(--danger-foreground\)\]/);
+  assert.match(read("apps/web/src/shared/ui/controls/button.tsx"), /text-\[var\(--danger-foreground\)\]/);
 });
 
 test("shared transient surfaces keep tokenized elevation while Workspace chrome stays flat", () => {
   for (const path of [
-    "apps/web/src/shared/ui/popup-surface.tsx",
-    "apps/web/src/shared/ui/context-menu.tsx",
-    "apps/web/src/features/activity/ActivityDock.tsx",
+    "apps/web/src/shared/ui/overlays/context-menu.tsx",
   ]) {
     assert.ok(read(path).includes("[box-shadow:var(--shadow-popup)]"), path);
   }
   for (const path of [
-    "apps/web/src/features/workspace-authoring/ui/workspace-ui-classes.ts",
-    "apps/web/src/features/workspace-authoring/document/DocumentEditor.tsx",
+    "apps/web/src/features/workspace-authoring/canvas/chrome/CanvasChrome.tsx",
   ]) {
     const workspaceChrome = read(path);
     assert.ok(workspaceChrome.includes("shadow-none"), path);
@@ -78,7 +75,7 @@ test("shared transient surfaces keep tokenized elevation while Workspace chrome 
 
 test("keyboard focus is visible even for borderless edit fields", () => {
   assert.match(globals, /input:focus-visible,[\s\S]*?outline: 2px solid var\(--accent\)/);
-  const input = read("apps/web/src/shared/ui/input.tsx");
+  const input = read("apps/web/src/shared/ui/controls/input.tsx");
   assert.ok(input.includes("focus-visible:outline-2"));
-  assert.ok(!read("apps/web/src/shared/ui/button.tsx").includes("disabled:cursor-wait"));
+  assert.ok(!read("apps/web/src/shared/ui/controls/button.tsx").includes("disabled:cursor-wait"));
 });

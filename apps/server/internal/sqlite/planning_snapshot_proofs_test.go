@@ -4,19 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/howlil/notespace/apps/server/internal/planning"
+	planningquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/planning"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
+
+	// planningMutationBetweenQueries runs a real SQLite write only after the
+	// milestone result has been consumed, immediately before the task query.
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/howlil/notespace/apps/server/internal/planning"
-	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-// planningMutationBetweenQueries runs a real SQLite write only after the
-// milestone result has been consumed, immediately before the task query.
 type planningMutationBetweenQueries struct {
-	planningQueryer
+	planningquery.PlanningQueryer
 	beforeTaskQuery func() error
 	injected        bool
 }
@@ -28,7 +29,7 @@ func (q *planningMutationBetweenQueries) QueryContext(ctx context.Context, query
 			return nil, err
 		}
 	}
-	return q.planningQueryer.QueryContext(ctx, query, args...)
+	return q.PlanningQueryer.QueryContext(ctx, query, args...)
 }
 
 func TestPlanReadKeepsMilestoneAndTaskMembershipFromOneSQLiteSnapshot(t *testing.T) {
@@ -71,7 +72,7 @@ func TestPlanReadKeepsMilestoneAndTaskMembershipFromOneSQLiteSnapshot(t *testing
 	var createdMilestone planning.Milestone
 	var createdTask planning.Task
 	hook := &planningMutationBetweenQueries{
-		planningQueryer: tx,
+		PlanningQueryer: tx,
 		beforeTaskQuery: func() error {
 			var createErr error
 			createdMilestone, createErr = service.CreateMilestone(ctx, workspace.ID, "Concurrent milestone")
@@ -82,7 +83,7 @@ func TestPlanReadKeepsMilestoneAndTaskMembershipFromOneSQLiteSnapshot(t *testing
 			return createErr
 		},
 	}
-	plan, err := readPlan(ctx, hook, workspace.ID)
+	plan, err := planningquery.ReadPlan(ctx, hook, workspace.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

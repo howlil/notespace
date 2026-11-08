@@ -7,14 +7,11 @@ import {
 import type { SearchResult } from "../../adapters/http/workspace-api.ts";
 
 const result = (overrides: Partial<SearchResult> = {}): SearchResult => ({
-  type: "note",
+  type: "workspace",
   categoryId: "category-1",
   categoryTitle: "Backend",
   workspaceId: "workspace/a",
   workspaceTitle: "Distributed Systems",
-  noteId: "note with spaces",
-  noteTitle: "Replication",
-  blockId: "",
   excerpt: "Raft",
   ...overrides,
 });
@@ -30,20 +27,27 @@ test("Quick Open maps category and workspace results to canonical routes", () =>
   );
 });
 
-test("Quick Open encodes note and block destinations", () => {
+test("Quick Open routes search results to the owning workspace", () => {
   assert.equal(
     searchResultHref(result()),
-    "/workspaces/workspace%2Fa?note=note%20with%20spaces",
-  );
-  assert.equal(
-    searchResultHref(result({ type: "block", blockId: "block/a" })),
-    "/workspaces/workspace%2Fa?note=note%20with%20spaces&block=block%2Fa",
+    "/workspaces/workspace%2Fa",
   );
 });
 
 test("Quick Open destination preserves display context", () => {
-  const destination = destinationFromSearchResult(result({ type: "block", blockId: "block-1" }));
-  assert.equal(destination.kind, "block");
-  assert.equal(destination.title, "Replication");
-  assert.equal(destination.context, "Distributed Systems · Raft");
+  const destination = destinationFromSearchResult(result());
+  assert.equal(destination.kind, "workspace");
+  assert.equal(destination.title, "Distributed Systems");
+  assert.equal(destination.context, "Backend");
+  assert.equal(destination.workspaceId, "workspace/a");
+});
+
+test("Quick Open category destinations carry the category route identity", () => {
+  const destination = destinationFromSearchResult(result({
+    type: "category",
+    categoryId: "category/a",
+  }));
+  assert.equal(destination.kind, "category");
+  assert.equal(destination.categoryId, "category/a");
+  assert.equal(destination.workspaceId, "workspace/a");
 });

@@ -35,32 +35,24 @@ function workspace(): Workspace {
   };
 }
 
-test("workspaceContentOf preserves canonical authored content without mutation", () => {
+test("workspaceContentOf preserves Canvas content without mutation", () => {
   const source = workspace();
   const before = structuredClone(source);
   const content = workspaceContentOf(source);
 
   assert.equal(content.title, source.title);
-  assert.equal(content.notes, source.notes);
+  assert.deepEqual(content.notes, []);
   assert.equal(content.document, source.document);
   assert.equal(content.canvas, source.canvas);
   assert.deepEqual(source, before);
 });
 
-test("workspaceContentOf synthesizes one deterministic compatibility Note for legacy empty-note workspaces", () => {
+test("workspaceContentOf does not synthesize a legacy Note", () => {
   const source = workspace();
   source.notes = [];
 
   const content = workspaceContentOf(source);
 
-  assert.equal(content.notes.length, 1);
-  assert.deepEqual(content.notes[0], {
-    id: "workspace-1-default",
-    title: "Untitled",
-    document: source.document,
-    createdAt: source.createdAt,
-    updatedAt: source.updatedAt,
-    version: 1,
-  });
+  assert.deepEqual(content.notes, []);
   assert.equal(source.notes.length, 0);
 });

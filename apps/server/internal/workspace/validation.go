@@ -10,12 +10,8 @@ func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
 
-// ValidDocumentSnapshot validates the same authored Tiptap snapshot used by normal Note creation.
 func ValidDocumentSnapshot(snapshot Snapshot) bool { return validDocument(snapshot) }
 
-// ValidateWorkspace is the domain boundary for complete aggregate snapshots.
-// Persistence imports and other adapters must use the same rules as ordinary
-// updates before accepting externally supplied workspace data.
 func ValidateWorkspace(p Workspace) error {
 	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 || p.SplitRatio < .25 || p.SplitRatio > .7 || !validDocument(p.Document) || !validCanvas(p.Canvas) || !validReferences(p.References) || !validNotes(p.Notes) {
 		return ErrInvalid
@@ -33,7 +29,7 @@ func ValidateHistorySnapshot(snapshot HistorySnapshot) error {
 const MaxNotesPerWorkspace = 100
 
 func validNotes(notes []Note) bool {
-	if len(notes) == 0 || len(notes) > MaxNotesPerWorkspace {
+	if len(notes) > MaxNotesPerWorkspace {
 		return false
 	}
 	seen := map[string]bool{}

@@ -1,4 +1,4 @@
-import { isTauriRuntime } from "./desktop-lifecycle.ts";
+import { isTauriRuntime } from "../desktop/desktop-lifecycle.ts";
 
 const EXTERNAL_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
 

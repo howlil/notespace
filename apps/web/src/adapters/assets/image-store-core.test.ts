@@ -70,6 +70,7 @@ test("loadImageAsset falls back to local legacy asset and migrates it", async ()
   assert.equal(calls.remoteLoads, 1);
   assert.equal(calls.localReads, 1);
   assert.equal(calls.uploads, 1);
+  assert.equal(calls.localPuts, 1, "Successful legacy migration confirms the durable server copy");
 });
 
 test("loadImageAsset removes legacy cache when server rejects ownership", async () => {
@@ -90,6 +91,44 @@ test("loadImageAsset keeps legacy readable when migration upload is temporarily 
   });
   assert.equal(await store.loadImageAsset("workspace-1", "asset-1"), legacy);
   assert.equal(calls.localRemoves, 0);
+  assert.equal(calls.localPuts, 0, "An offline legacy copy must not become eligible for eviction");
+});
+
+test("cache invalidation prevents a stale remote load from repopulating a restored library", async () => {
+  let finish!: (value: LocalImageAsset | null) => void;
+  const pending = new Promise<LocalImageAsset | null>((resolve) => { finish = resolve; });
+  const { calls, store } = harness({ loadRemote: () => pending });
+  const oldLoad = store.loadImageAsset("workspace-1", "asset-1");
+  store.invalidateCache();
+  finish(asset());
+  await oldLoad;
+  assert.equal(calls.localPuts, 0);
+});
+
+test("stale ownership rejection cannot remove a new library's cache", async () => {
+  let finish!: (accepted: boolean) => void;
+  const pending = new Promise<boolean>((resolve) => { finish = resolve; });
+  const { calls, store } = harness({ uploadRemote: () => pending });
+  const upload = store.storeImageAsset("workspace-1", "asset-1", new Blob(["image"]));
+  await Promise.resolve();
+  store.invalidateCache();
+  finish(false);
+  await upload;
+  assert.equal(calls.localRemoves, 0);
+});
+
+test("invalidating one workspace preserves another workspace's pending legacy recovery", async () => {
+  let finish!: () => void;
+  const pending = new Promise<null>((resolve) => { finish = () => resolve(null); });
+  const { calls, store } = harness({ loadRemote: () => pending,
+    readLocal: async (workspaceId, id) => ({ ...asset(id), workspaceId }) });
+  const removed = store.loadImageAsset("workspace-1", "asset-1");
+  const retained = store.loadImageAsset("workspace-2", "asset-1");
+  store.invalidateCache("workspace-1");
+  finish();
+  assert.equal(await removed, null);
+  assert.equal((await retained)?.workspaceId, "workspace-2");
+  assert.equal(calls.uploads, 1);
 });
 
 test("loadImageAsset deduplicates concurrent remote loads", async () => {

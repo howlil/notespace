@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
-import { DatabaseBackup, Settings2, SlidersHorizontal, X } from "lucide-react";
+import { DatabaseBackup, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -10,8 +10,8 @@ import {
   DialogTitle,
   IconButton,
 } from "../../shared/ui";
-import { useTheme } from "../../shared/ui/theme-provider";
-import { isTauriRuntime } from "../../adapters/browser/desktop-lifecycle";
+import { useTheme } from "../../shared/ui/theme/theme-provider";
+import { isTauriRuntime } from "../../adapters/desktop/desktop-lifecycle";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
 type SettingsTab = "general" | "data";
@@ -46,7 +46,7 @@ export function SettingsTrigger({ className, showLabel = false }: { className?: 
 }
 
 export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
-  renderLibraryTools: (onBusyChange: (busy: boolean) => void, disabled: boolean) => ReactNode;
+  renderLibraryTools: (onBusyChange: (busy: boolean) => void, disabled: boolean, deviceRecovery: ReactNode) => ReactNode;
   renderDesktopRecovery: (onBusyChange: (busy: boolean) => void) => ReactNode;
 }) {
   const { dark, toggle } = useTheme();
@@ -85,19 +85,23 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
     setOpen(next);
   }
 
+  const deviceRecovery = native
+    ? <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">{renderDesktopRecovery(onBusyChange)}</fieldset>
+    : <section className="py-2" aria-label="Device recovery"><p className="m-0 text-[10px] leading-4 text-muted">Device recovery snapshots are available in the Windows desktop app.</p></section>;
+
   return (
     <Dialog open={open} onOpenChange={onChangeOpen}>
       <DialogContent
-        className="w-[min(94vw,740px)] p-0 max-[480px]:p-0"
+        className="w-[min(94vw,640px)] p-0 max-[480px]:p-0"
         data-notespace-settings-root
         aria-label="Notespace settings"
         onEscapeKeyDown={(event) => { if (busyRef.current) event.preventDefault(); }}
         onInteractOutside={(event) => { if (busyRef.current) event.preventDefault(); }}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-2.5">
           <div>
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>App preferences, your data, and backups.</DialogDescription>
+            <DialogDescription>Preferences and data</DialogDescription>
           </div>
           <IconButton
             type="button"
@@ -110,8 +114,8 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
           </IconButton>
         </header>
 
-        <div className="grid min-h-[300px] grid-cols-[170px_minmax(0,1fr)] max-[560px]:grid-cols-1">
-          <div className="flex flex-col gap-1 border-r border-line p-3 max-[560px]:flex-row max-[560px]:border-r-0 max-[560px]:border-b">
+        <div className="grid min-h-0 grid-cols-[132px_minmax(0,1fr)] max-[560px]:grid-cols-1">
+          <div className="flex flex-col gap-1 border-r border-line p-1.5 max-[560px]:flex-row max-[560px]:border-r-0 max-[560px]:border-b">
             <SettingsTabButton
               active={tab === "general"}
               disabled={backupBusy}
@@ -130,28 +134,47 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
             </SettingsTabButton>
           </div>
 
-          <div className="min-w-0 max-h-[min(70dvh,560px)] overflow-y-auto p-5 text-xs max-[560px]:p-4">
+          <div className="min-w-0 max-h-[min(72dvh,520px)] overflow-y-auto p-3 text-xs max-[560px]:p-2.5">
             {tab === "general" ? (
-              <section aria-label="General settings">
-                <h3 className="text-sm font-medium text-ink">Appearance</h3>
-                <p className="mt-1 text-muted">Choose how Notespace looks on this device.</p>
-                <div className="mt-4 flex items-center justify-between gap-3 border-y border-line py-3">
-                  <div>
-                    <p className="font-medium text-ink">Theme</p>
-                    <p className="mt-1 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
-                  </div>
-                  <Button variant="secondary" size="sm" onClick={toggle}>
-                    Use {dark ? "light" : "dark"} theme
-                  </Button>
+              <section aria-label="General settings" className="space-y-2.5">
+                <div>
+                  <h3 className="text-sm font-medium text-ink">Appearance</h3>
+                  <p className="mt-1 text-muted">Change the look of Notespace.</p>
                 </div>
-                <p className="mt-4 text-muted">
-                  {native ? "Desktop library data is stored on this device." : "Notespace is running in your browser."}
-                </p>
+                <div className="divide-y divide-line border-y border-line">
+                  <div className="flex items-center justify-between gap-3 py-2.5">
+                    <div>
+                      <p id="notespace-theme-label" className="font-medium text-ink">Theme</p>
+                      <p id="notespace-theme-value" className="mt-0.5 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={dark}
+                      aria-labelledby="notespace-theme-label"
+                      aria-describedby="notespace-theme-value"
+                      onClick={toggle}
+                      className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${dark ? "bg-accent" : "bg-line/70 hover:bg-line"}`}
+                      data-state={dark ? "checked" : "unchecked"}
+                    >
+                      <span className={`grid size-6 place-items-center rounded-full bg-surface text-accent shadow-sm transition-transform duration-150 ${dark ? "translate-x-5" : "translate-x-0"}`}>
+                        {dark ? <Moon size={13} aria-hidden="true" /> : <Sun size={13} aria-hidden="true" />}
+                      </span>
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-2.5">
+                    <div>
+                      <p className="font-medium text-ink">Library storage</p>
+                      <p className="mt-0.5 text-muted">{native ? "Saved on this device" : "Saved in this browser"}</p>
+                    </div>
+                    <span className="text-[10px] text-muted">Local</span>
+                  </div>
+                </div>
                 {updaterEnabled && (
-                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4">
+                  <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
                     <div>
                       <p className="font-medium text-ink">Desktop updates</p>
-                      <p className="mt-1 text-muted">Check for signed Notespace updates.</p>
+                      <p className="mt-0.5 text-muted">Check for signed updates.</p>
                     </div>
                     <Button variant="secondary" size="sm" onClick={() => {
                       onChangeOpen(false);
@@ -163,24 +186,8 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
             ) : (
               <section aria-label="Data and backup settings">
                 <h3 className="text-sm font-medium text-ink">Data &amp; backup</h3>
-                <p className="mt-1 leading-5 text-muted">
-                  Download a portable ZIP copy of your library. On desktop you can also create
-                  a verified SQLite snapshot without interrupting your workspace.
-                </p>
-                {renderLibraryTools(onBusyChange, backupBusy)}
-                {native ? (
-                  <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">
-                    {renderDesktopRecovery(onBusyChange)}
-                  </fieldset>
-                ) : (
-                  <p className="mt-4 text-muted">
-                    Verified SQLite snapshots are available in the Windows desktop app.
-                  </p>
-                )}
-                <p className="mt-4 text-muted">
-                  Restoring a portable library backup replaces its current content.
-                  Desktop SQLite recovery uses an offline procedure and never replaces the live database automatically.
-                </p>
+                <p className="mt-1 leading-4 text-muted">Export or restore your library, recover this device, or bring back deleted Workspaces.</p>
+                {renderLibraryTools(onBusyChange, backupBusy, deviceRecovery)}
               </section>
             )}
           </div>

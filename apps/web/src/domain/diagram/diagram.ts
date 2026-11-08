@@ -283,10 +283,6 @@ export function readStructuredDiagrams(data: Record<string, unknown>): Structure
   return Array.isArray(value) ? value.filter(isStructuredDiagram) : [];
 }
 
-export function withStructuredDiagrams(data: Record<string, unknown>, diagrams: readonly StructuredDiagram[]) {
-  return { ...data, [DIAGRAM_DATA_KEY]: diagrams };
-}
-
 export function structuredElementIds(diagram: StructuredDiagram) {
   return new Set([
     ...diagram.nodes.flatMap((node) => [node.elementId, diagramNodeLabelElementId(node.elementId)]),

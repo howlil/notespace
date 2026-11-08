@@ -13,4 +13,14 @@ export default tseslint.config(
     plugins: { "react-hooks": hooks },
     rules: hooks.configs.recommended.rules,
   },
+  {
+    files: ["**/*.{mjs,js}"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    // Browser journeys evaluate closures inside the page, so these files
+    // legitimately use both Node and DOM globals.
+    files: ["tests/e2e/**/*.mjs", "scripts/verify/browser-e2e.mjs"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
 );

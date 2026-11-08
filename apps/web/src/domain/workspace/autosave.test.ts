@@ -193,3 +193,55 @@ test("can rebase a queued snapshot after an in-flight save is acknowledged", asy
     ["rebased queued", 2],
   ]);
 });
+
+test("rebases a clean queue to a newer server version but refuses dirty state", async () => {
+  const calls: Array<[string, number]> = [];
+  const saver = new Autosave(
+    2,
+    async (value: string, version) => {
+      calls.push([value, version]);
+      return { version: version + 1 };
+    },
+    60_000,
+  );
+
+  assert.equal(saver.rebase(8), true);
+  saver.schedule("local draft");
+  assert.equal(saver.rebase(9), false);
+  await saver.flush();
+  assert.deepEqual(calls, [["local draft", 8]]);
+});
+
+test("explicit recovery resumes a blocked queue at the freshly fetched version", async () => {
+  let fail = true;
+  const calls: Array<[string, number]> = [];
+  const saver = new Autosave(1, async (value: string, version) => {
+    calls.push([value, version]);
+    if (fail) throw new BlockingAutosaveError("conflict");
+    return { version: version + 1 };
+  });
+  saver.schedule("draft");
+  await assert.rejects(saver.flush(), /conflict/);
+  fail = false;
+  assert.equal(saver.recover(8, "merged draft"), true);
+  await saver.flush();
+  assert.deepEqual(calls, [["draft", 1], ["merged draft", 8]]);
+  assert.equal(saver.dirty, false);
+});
+
+test("explicit discard clears a conflict but cannot interrupt an in-flight save", async () => {
+  let release!: () => void;
+  const wait = new Promise<void>((resolve) => { release = resolve; });
+  const saver = new Autosave(1, async () => {
+    await wait;
+    throw new BlockingAutosaveError("conflict");
+  });
+  saver.schedule("draft");
+  const saving = saver.flush();
+  assert.equal(saver.recover(8), false);
+  release();
+  await assert.rejects(saving, /conflict/);
+  assert.equal(saver.recover(8), true);
+  assert.equal(saver.dirty, false);
+  await saver.flush();
+});

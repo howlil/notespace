@@ -1,26 +1,11 @@
-import type { Note, Workspace, WorkspaceContent, Snapshot } from "./workspace";
+import type { Snapshot } from "./workspace";
 
-export type WorkspaceConflictDraft = {
+export type GranularConflictDraft = {
+  kind: "canvas";
   workspaceId: string;
-  local: WorkspaceContent;
-  latest: Workspace;
+  local: Snapshot;
+  latest?: Snapshot;
+  latestVersion?: number;
 };
 
-export type GranularConflictDraft =
-  | {
-      kind: "note";
-      workspaceId: string;
-      noteId: string;
-      local: Pick<Note, "title" | "document" | "version">;
-    }
-  | {
-      kind: "canvas";
-      workspaceId: string;
-      local: Snapshot;
-      latest?: Snapshot;
-      latestVersion?: number;
-    };
-
-export type ConflictDraft =
-  | ({ kind: "workspace" } & WorkspaceConflictDraft)
-  | GranularConflictDraft;
+export type ConflictDraft = GranularConflictDraft;

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-desktop-close"
+description = "Enables the cancel_desktop_close command without any pre-configured scope."
+commands.allow = ["cancel_desktop_close"]
+
+[[permission]]
+identifier = "deny-cancel-desktop-close"
+description = "Denies the cancel_desktop_close command without any pre-configured scope."
+commands.deny = ["cancel_desktop_close"]

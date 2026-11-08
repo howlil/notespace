@@ -6,6 +6,5 @@ apps/web/public/excalidraw-assets
 data
 bin
 test-results
-playwright-report
 .env
 *.db*

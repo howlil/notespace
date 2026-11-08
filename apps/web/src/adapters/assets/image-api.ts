@@ -1,4 +1,4 @@
-import { trackDesktopMutation } from "../browser/desktop-lifecycle.ts";
+import { trackDesktopMutation } from "../desktop/desktop-lifecycle.ts";
 import type { LocalImageAsset } from "./image-types";
 
 function assetUrl(workspaceId: string, assetId: string) {

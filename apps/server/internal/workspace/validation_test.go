@@ -35,14 +35,6 @@ func TestValidateWorkspaceOwnsAggregateInvariants(t *testing.T) {
 		{"invalid document json", func(w *Workspace) { w.Document.Data = []byte("{") }},
 		{"invalid canvas format", func(w *Workspace) { w.Canvas.Format = "svg" }},
 		{"invalid canvas shape", func(w *Workspace) { w.Canvas.Data = []byte("{\"elements\":[],\"appState\":{}}") }},
-		{"no notes", func(w *Workspace) { w.Notes = nil }},
-		{"duplicate note ids", func(w *Workspace) { w.Notes = append(w.Notes, validNoteFixture(w.Notes[0].ID)) }},
-		{"too many notes", func(w *Workspace) {
-			w.Notes = make([]Note, 101)
-			for i := range w.Notes {
-				w.Notes[i] = validNoteFixture(fmt.Sprintf("note-%d", i))
-			}
-		}},
 		{"duplicate reference ids", func(w *Workspace) {
 			w.References = []Reference{
 				{ID: "ref-1", BlockID: "block-1", ElementID: "element-1"},

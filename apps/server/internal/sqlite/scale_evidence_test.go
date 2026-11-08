@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type scaleEvidence struct {
@@ -19,10 +18,10 @@ type scaleEvidence struct {
 	DatabaseBytes         int64   `json:"databaseBytes"`
 	WALBytes              int64   `json:"walBytes"`
 	BackupBytes           int64   `json:"backupBytes"`
-	AutosaveP50MS         float64 `json:"autosaveP50Ms"`
-	AutosaveP95MS         float64 `json:"autosaveP95Ms"`
-	FTSSyncP50MS          float64 `json:"ftsSyncP50Ms"`
-	FTSSyncP95MS          float64 `json:"ftsSyncP95Ms"`
+	CanvasSaveP50MS       float64 `json:"canvasSaveP50Ms"`
+	CanvasSaveP95MS       float64 `json:"canvasSaveP95Ms"`
+	CanvasReadP50MS       float64 `json:"canvasReadP50Ms"`
+	CanvasReadP95MS       float64 `json:"canvasReadP95Ms"`
 	NormalizationDecision string  `json:"normalizationDecision"`
 }
 
@@ -36,17 +35,14 @@ func percentile(values []time.Duration, fraction float64) time.Duration {
 	return ordered[index]
 }
 
-func scaleDocument(iteration, size int) workspacepkg.Snapshot {
-	text := fmt.Sprintf("needle-%d ", iteration) + strings.Repeat("x", size)
-	body, _ := json.Marshal(map[string]any{
-		"type": "doc",
-		"content": []any{map[string]any{
-			"type":    "paragraph",
-			"attrs":   map[string]any{"blockId": "scale-block"},
-			"content": []any{map[string]any{"type": "text", "text": text}},
+func scaleCanvas(iteration, size int) workspacepkg.Snapshot {
+	data, _ := json.Marshal(map[string]any{
+		"elements": []any{map[string]any{
+			"id": fmt.Sprintf("scale-%d", iteration), "type": "text", "text": fmt.Sprintf("needle-%d %s", iteration, strings.Repeat("x", size)),
 		}},
+		"appState": map[string]any{}, "files": map[string]any{},
 	})
-	return workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(body)}
+	return workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(data)}
 }
 
 func fileSize(path string) int64 {
@@ -68,42 +64,37 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	service := workspacepkg.NewService(NewIndexedWorkspaceStore(store))
-	workspace, err := service.Create(ctx, "Scale evidence")
+	service := workspacepkg.NewService(store)
+	created, err := service.Create(ctx, "Canvas scale evidence")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Exercise the production hot path directly: one large Note autosave must
-	// update only that Note row, not duplicate the full Workspace aggregate.
 	const iterations = 12
-	const documentBytes = 1 << 20
+	const canvasBytes = 1 << 20
 	saves := make([]time.Duration, 0, iterations)
-	searches := make([]time.Duration, 0, iterations)
-	note := workspace.Notes[0]
+	reads := make([]time.Duration, 0, iterations)
+	state := workspacepkg.CanvasState{Canvas: created.Canvas, Version: created.CanvasVersion}
 	for i := 0; i < iterations; i++ {
-		document := scaleDocument(i, documentBytes)
+		canvas := scaleCanvas(i, canvasBytes)
 		started := time.Now()
-		note, err = service.UpdateNote(ctx, workspace.ID, note.ID, workspacepkg.NoteUpdate{
-			Title: note.Title, Document: document, Version: note.Version,
-		})
+		state, err = service.UpdateCanvas(ctx, created.ID, workspacepkg.CanvasUpdate{Canvas: canvas, Version: state.Version})
 		if err != nil {
 			t.Fatal(err)
 		}
 		saves = append(saves, time.Since(started))
 		started = time.Now()
-		if _, err := store.SearchIndexed(ctx, "needle"); err != nil {
+		if _, err := service.GetCanvasState(ctx, created.ID); err != nil {
 			t.Fatal(err)
 		}
-		searches = append(searches, time.Since(started))
+		reads = append(reads, time.Since(started))
 	}
 
 	var authoredBytes int64
 	if err := store.db.QueryRowContext(ctx, `SELECT
-COALESCE((SELECT SUM(length(title)+length(document_state)) FROM workspace_notes WHERE workspace_id=?),0)
-+ COALESCE((SELECT length(canvas_state) FROM workspace_canvas WHERE workspace_id=?),0)
+COALESCE((SELECT length(canvas_state) FROM workspace_canvas WHERE workspace_id=?),0)
 + COALESCE((SELECT length(title)+length(references_state) FROM projects WHERE id=?),0)`,
-		workspace.ID, workspace.ID, workspace.ID).Scan(&authoredBytes); err != nil {
+		created.ID, created.ID).Scan(&authoredBytes); err != nil {
 		t.Fatal(err)
 	}
 	backup, err := store.ExportBackupArchive(ctx)
@@ -111,15 +102,15 @@ COALESCE((SELECT SUM(length(title)+length(document_state)) FROM workspace_notes 
 		t.Fatal(err)
 	}
 	saveP50, saveP95 := percentile(saves, .50), percentile(saves, .95)
-	searchP50, searchP95 := percentile(searches, .50), percentile(searches, .95)
-	decision := "granular"
+	readP50, readP95 := percentile(reads, .50), percentile(reads, .95)
+	decision := "granular-canvas"
 	if saveP95 > 250*time.Millisecond {
-		decision = "investigate-granular-write-latency"
+		decision = "investigate-granular-canvas-write-latency"
 	}
 	evidence := scaleEvidence{
 		AuthoredBytes: authoredBytes, DatabaseBytes: fileSize(dbPath), WALBytes: fileSize(dbPath + "-wal"), BackupBytes: int64(len(backup)),
-		AutosaveP50MS: float64(saveP50.Microseconds()) / 1000, AutosaveP95MS: float64(saveP95.Microseconds()) / 1000,
-		FTSSyncP50MS: float64(searchP50.Microseconds()) / 1000, FTSSyncP95MS: float64(searchP95.Microseconds()) / 1000,
+		CanvasSaveP50MS: float64(saveP50.Microseconds()) / 1000, CanvasSaveP95MS: float64(saveP95.Microseconds()) / 1000,
+		CanvasReadP50MS: float64(readP50.Microseconds()) / 1000, CanvasReadP95MS: float64(readP95.Microseconds()) / 1000,
 		NormalizationDecision: decision,
 	}
 	encoded, _ := json.MarshalIndent(evidence, "", "  ")

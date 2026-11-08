@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-activate-desktop-titlebar"
+description = "Enables the activate_desktop_titlebar command without any pre-configured scope."
+commands.allow = ["activate_desktop_titlebar"]
+
+[[permission]]
+identifier = "deny-activate-desktop-titlebar"
+description = "Denies the activate_desktop_titlebar command without any pre-configured scope."
+commands.deny = ["activate_desktop_titlebar"]

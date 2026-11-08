@@ -1,0 +1,176 @@
+/* Scoped to the Tauri-only React shell. The web app retains its original layout. */
+.desktop-shell-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.desktop-shell--native .desktop-shell-content { height: 100dvh; }
+
+.desktop-shell--native .desktop-titlebar {
+  position: absolute;
+  pointer-events: none;
+  visibility: hidden;
+}
+.desktop-shell--custom {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.desktop-titlebar {
+  position: relative;
+  z-index: 45;
+  flex: 0 0 38px;
+  height: 38px;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+.desktop-titlebar-brand {
+  width: 224px;
+  min-width: 224px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+.desktop-shell--custom #notespace-home-sidebar .notespace-sidebar-brand { display: none; }
+.desktop-shell--custom .desktop-titlebar-brand {
+  width: 56px;
+  min-width: 56px;
+}
+.desktop-shell--custom:has(#notespace-library-explorer) .desktop-titlebar-brand {
+  width: 228px;
+  min-width: 228px;
+}
+/* Controls are interactive islands; the remaining titlebar is draggable. */
+.desktop-shell--custom .desktop-titlebar-header-slot .notespace-titlebar-search {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
+  z-index: 1;
+  min-height: 28px;
+  height: 28px;
+  width: min(320px, 35vw);
+  min-width: 0;
+}
+@media (max-width: 750px) {
+  .desktop-shell--custom .desktop-titlebar-header-slot .notespace-titlebar-search {
+    left: 62%;
+    width: min(180px, 28vw);
+  }
+  .desktop-shell--custom .desktop-titlebar-header-slot .notespace-titlebar-search kbd { display: none; }
+}
+.desktop-titlebar-brand-label > span {
+  display: none;
+}
+.desktop-shell--custom:has(#notespace-library-explorer) nav[aria-label="Primary navigation"] > a[aria-label="Notespace home"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.desktop-titlebar-brand-label { font-size: 12px !important; letter-spacing: -.4px; }
+.desktop-titlebar-mark { width: 22px !important; height: 22px !important; }
+.desktop-titlebar-header-slot {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+}
+.desktop-shell--custom [data-notespace-single-shell] {
+  height: 100% !important;
+  min-height: 0;
+}
+
+.desktop-shell--custom .desktop-page-viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.desktop-shell--custom .desktop-page-viewport > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.desktop-shell--custom .dashboard-shell > main,
+.desktop-shell--custom .desktop-page-viewport > div > main,
+.desktop-shell--custom .workspace-main {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.desktop-shell--custom .desktop-page-viewport aside[aria-label="Library navigation"],
+.desktop-shell--custom .desktop-page-viewport .dashboard-shell > aside,
+.desktop-shell--custom .desktop-page-viewport > div > aside {
+  height: 100% !important;
+  min-height: 0 !important;
+  position: relative;
+}
+.desktop-placed-header {
+  /* Home's original relative header must not become the containing block
+     of the absolutely centered titlebar search after portalling. */
+  position: static !important;
+  height: 37px !important;
+  min-height: 37px !important;
+  flex: 1;
+  min-width: 0;
+  padding: 0 9px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.desktop-window-controls {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-left: 1px solid var(--line);
+}
+.desktop-window-controls > button {
+  display: grid;
+  width: 39px;
+  place-items: center;
+  border: none;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+}
+.desktop-window-controls > button:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+.desktop-window-controls > button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.desktop-window-controls > button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+.desktop-window-controls > button.desktop-window-close:hover {
+  background: var(--danger);
+  color: white;
+}
+.desktop-titlebar--inactive {
+  color: var(--muted);
+}
+.desktop-titlebar--inactive .desktop-titlebar-brand,
+.desktop-titlebar--inactive .desktop-window-controls {
+  opacity: .72;
+}
+.desktop-window-error {
+  position: absolute;
+  right: 2px;
+  top: calc(100% + 6px);
+  max-width: 320px;
+  padding: 8px;
+  border: 1px solid var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 11px;
+  z-index: 80;
+}

@@ -104,7 +104,7 @@ test("desktop flush rejects HTTP mutation errors including 409 and 500", async (
     value: { __TAURI_INTERNALS__: {} },
   });
   try {
-    const { flushDesktopState } = await import("../browser/desktop-lifecycle.ts");
+    const { flushDesktopState } = await import("../desktop/desktop-lifecycle.ts");
     for (const status of [409, 500]) {
       let respond!: (response: Response) => void;
       globalThis.fetch = () => new Promise<Response>((resolve) => { respond = resolve; });

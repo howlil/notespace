@@ -123,20 +123,20 @@ bypasses the native test. No automatic `continue-on-error`.
 
 ## Developer commands
 
-On Windows with Rust, Go, Node/pnpm and a compatible WebView2 runtime:
+On Windows with Rust, Go, Node/bun and a compatible WebView2 runtime:
 
 ```powershell
-pnpm install --frozen-lockfile
-pnpm build
-node scripts/prepare-desktop-sidecar.mjs
+bun install --frozen-lockfile
+bun run build
+node scripts/dev/prepare-desktop-sidecar.mjs
 cd apps/desktop/src-tauri
 cargo test --locked
 cargo tauri build --debug --no-bundle -- --locked
 cd ../../..
 cargo install tauri-driver --locked
-./scripts/install-webview2-edgedriver.ps1
-./scripts/diagnose-desktop-webdriver.ps1
-pnpm test:desktop:native
+./scripts/dev/install-webview2-edgedriver.ps1
+./scripts/dev/diagnose-desktop-webdriver.ps1
+bun run test:desktop:native
 ```
 
 If the launcher fails only on a newer Evergreen runtime, retain independent

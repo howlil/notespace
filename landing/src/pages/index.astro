@@ -8,7 +8,7 @@ import '../styles/white-hero.css'
 const repoUrl = 'https://github.com/howlil/notespace'
 const docsUrl = `${repoUrl}#self-host-with-docker`
 const windowsMsiUrl = `${repoUrl}/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi`
-const description = 'Own your thinking. Write notes, connect ideas visually, and turn insights into plans in one self-hosted workspace.'
+const description = 'Own your thinking. Connect diagrams, sketches, images, and code on one Canvas in a self-hosted workspace.'
 ---
 
 <BaseLayout title="Notespace — Own your thinking" description={description}>
@@ -52,7 +52,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
             <span class="ns-ambient-line">Shape ideas. Build a calmer</span>
             <span class="ns-ambient-line">knowledge system.</span>
           </h1>
-          <p class="ns-ambient-summary">Notespace helps you write notes, connect ideas visually, and turn insights into plans. Download the Windows desktop app and keep your work on your computer.</p>
+          <p class="ns-ambient-summary">Notespace brings diagrams, sketches, images, and code together on one Canvas. Download the Windows desktop app and keep your work on your computer.</p>
           <div class="ns-ambient-hero-actions">
             <a class="ns-arc-button ns-arc-button-dark ns-white-primary" href={windowsMsiUrl} data-notespace-windows-download aria-label="Download Notespace Windows beta MSI installer">
               Download for Windows
@@ -62,7 +62,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
           </div>
           <p class="ns-ambient-download-note">Free beta · Windows 64-bit · <span data-notespace-windows-version>v0.1.0-beta.1</span> · Unsigned installer</p>
         </section>
-        <a class="ns-ambient-art" href="#workflow" aria-label="Explore how Notespace connects notes, canvas, and plans">
+        <a class="ns-ambient-art" href="#workflow" aria-label="Explore how Notespace connects workspaces, diagrams, and code">
           <img src="/notespace-ambient-hero.webp" alt="A writer working under a tree overlooking a mountain valley, with notes visually connected across the landscape" width="1349" height="506" decoding="async" fetchpriority="high" />
         </a>
         <div class="ns-ambient-under-image">
@@ -77,7 +77,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
             <div>
               <p class="text-[10px] font-medium uppercase tracking-[0.14em] text-accent">The product model</p>
               <h2 id="product-title" class="mt-3 max-w-[370px] text-[28px] font-semibold leading-[1.12] tracking-[-0.04em]">A knowledge workspace, not another dashboard.</h2>
-              <p class="mt-4 max-w-[390px] text-[13px] leading-6 text-muted">The library stays simple. Categories organize workspaces. Each workspace owns its notes and canvas. No separate graph, database, or file-explorer hierarchy to manage.</p>
+              <p class="mt-4 max-w-[390px] text-[13px] leading-6 text-muted">The library stays simple. Categories organize workspaces. Each workspace owns one Canvas for diagrams, images, and code.</p>
             </div>
 
             <div class="divide-y divide-line border-y border-line">
@@ -87,11 +87,11 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
               </div>
               <div class="grid gap-3 py-6 sm:grid-cols-[140px_1fr] sm:gap-8">
                 <span class="font-mono text-[10px] text-muted">WORKSPACE</span>
-                <div><h3 class="text-[13px] font-semibold">Keep writing and spatial thinking in one durable context.</h3><p class="mt-1.5 text-[12px] leading-5 text-muted">A workspace can hold multiple notes plus one canvas, with split layouts when you need to see them together.</p></div>
+                <div><h3 class="text-[13px] font-semibold">Keep spatial thinking in one durable context.</h3><p class="mt-1.5 text-[12px] leading-5 text-muted">Arrange sketches, diagrams, images, and code on one Canvas. Your workspace keeps them together as you move between ideas.</p></div>
               </div>
               <div class="grid gap-3 py-6 sm:grid-cols-[140px_1fr] sm:gap-8">
                 <span class="font-mono text-[10px] text-muted">NOTE / CANVAS</span>
-                <div><h3 class="text-[13px] font-semibold">Use the right surface without creating another top-level object.</h3><p class="mt-1.5 text-[12px] leading-5 text-muted">Write structured notes with Tiptap. Sketch systems and relationships with Excalidraw. Both remain owned by the workspace.</p></div>
+                <div><h3 class="text-[13px] font-semibold">Keep ideas together in one workspace.</h3><p class="mt-1.5 text-[12px] leading-5 text-muted">Draw systems and relationships with Excalidraw. Add images, structured diagrams, and runnable code to the same Canvas.</p></div>
               </div>
             </div>
           </div>
@@ -103,7 +103,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
           <div class="mb-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="text-[10px] font-medium uppercase tracking-[0.14em] text-accent">Core workflow</p>
-              <h2 id="workflow-title" class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">Capture → work → find → resume.</h2>
+              <h2 id="workflow-title" class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">Create → draw → find → resume.</h2>
             </div>
             <p class="max-w-[420px] text-[12px] leading-5 text-muted">The landing page mirrors the real product loop instead of selling a pile of disconnected features.</p>
           </div>
@@ -112,17 +112,17 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
             <article class="min-h-[190px] border-b border-line p-5 sm:border-r lg:border-b-0">
               <span class="font-mono text-[10px] text-muted">01 / CAPTURE</span>
               <h3 class="mt-8 text-[14px] font-semibold">Save an idea where it belongs.</h3>
-              <p class="mt-2 text-[11px] leading-5 text-muted">Quick Capture creates a durable note inside an existing workspace, including Markdown import.</p>
+              <p class="mt-2 text-[11px] leading-5 text-muted">Create a named workspace, draw on its Canvas, and find it again through categories or search.</p>
             </article>
             <article class="min-h-[190px] border-b border-line p-5 lg:border-b-0 lg:border-r">
               <span class="font-mono text-[10px] text-muted">02 / WORK</span>
               <h3 class="mt-8 text-[14px] font-semibold">Write and sketch side by side.</h3>
-              <p class="mt-2 text-[11px] leading-5 text-muted">Use Note, Canvas, or bounded split panes without leaving the workspace context.</p>
+              <p class="mt-2 text-[11px] leading-5 text-muted">Arrange shapes, diagrams, images, and code on one Canvas. Move between workspaces with your changes saved.</p>
             </article>
             <article class="min-h-[190px] border-b border-line p-5 sm:border-r sm:border-b-0 lg:border-r">
               <span class="font-mono text-[10px] text-muted">03 / FIND</span>
               <h3 class="mt-8 text-[14px] font-semibold">Return to the exact context.</h3>
-              <p class="mt-2 text-[11px] leading-5 text-muted">Global search resolves categories, workspaces, notes, and exact blocks instead of only matching titles.</p>
+              <p class="mt-2 text-[11px] leading-5 text-muted">Find workspaces and categories, then reopen their Canvas with your saved work.</p>
             </article>
             <article class="min-h-[190px] p-5">
               <span class="font-mono text-[10px] text-muted">04 / RECOVER</span>
@@ -176,7 +176,7 @@ const description = 'Own your thinking. Write notes, connect ideas visually, and
     <footer class="border-t border-line bg-surface">
       <div class="mx-auto flex max-w-[1180px] flex-col gap-3 px-5 py-7 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between sm:px-7 lg:px-8">
         <span>Notespace — free, self-hosted knowledge workspace.</span>
-        <span>Built for notes, canvas, and durable ownership.</span>
+        <span>Built for Canvas, code, and durable ownership.</span>
       </div>
     </footer>
 

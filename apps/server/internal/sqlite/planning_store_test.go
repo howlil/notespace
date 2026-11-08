@@ -3,13 +3,12 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"github.com/howlil/notespace/apps/server/internal/planning"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/howlil/notespace/apps/server/internal/planning"
-	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestWorkspacePlanningSurvivesTrashRestore(t *testing.T) {

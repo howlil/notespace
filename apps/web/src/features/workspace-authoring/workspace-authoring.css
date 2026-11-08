@@ -3,7 +3,6 @@
 @utility pane-actions {
   margin-left: auto;
 }
-
 /* Excalidraw adapter: the engine owns canvas rendering, while Notespace owns
    the visual language of every UI surface rendered inside the canvas. Keep
    this scoped to the host so Excalidraw never changes other app surfaces. */
@@ -100,12 +99,8 @@
     display: none !important;
   }
 
-  .notespace-canvas-surface .notespace-canvas-bottom-chrome {
-    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
-    width: calc(100% - 16px);
-  }
-
   .notespace-canvas-surface [aria-label="Canvas tools"] {
+    flex-direction: row;
     width: 100%;
     max-height: 40px;
     gap: 2px;
@@ -114,6 +109,7 @@
   }
 
   .notespace-canvas-surface [aria-label="Canvas tools"] > div:first-child {
+    flex-direction: row;
     min-width: 0;
     flex: 1;
     gap: 2px;
@@ -126,6 +122,12 @@
     display: none;
   }
 
+  .notespace-canvas-surface [aria-label="Canvas tools"] > span {
+    margin: 0 2px;
+    height: 20px;
+    width: 1px;
+  }
+
   .notespace-canvas-surface [aria-label="Canvas tools"] button {
     width: 32px !important;
     height: 32px !important;
@@ -135,9 +137,18 @@
     display: none;
   }
 
-  .notespace-canvas-surface .notespace-selection-actions {
-    width: max-content !important;
-    max-width: 100% !important;
+  .notespace-canvas-tool-dock {
+    top: auto;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    width: auto;
+    transform: none;
+  }
+
+  .notespace-canvas-contextual-chrome {
+    max-width: calc(100% - 16px);
+    align-items: flex-start;
   }
 
   .notespace-canvas-surface [aria-label="Canvas view controls"] {
@@ -273,17 +284,6 @@
 
 /* Small interaction controls that need browser-native pseudo-element styling. */
 
-/* Workspace rail: icon-only vertical navigation; anchored to viewport edges.
- * Do not style the Note header here: it is a separate 34px pane-level surface. */
-.workspace-rail [data-testid="workspace-view-switcher"] button svg {
-  width: 17px;
-  height: 17px;
-  stroke-width: 1.9;
-}
-.workspace-rail [role="dialog"] {
-  box-shadow: none !important;
-}
-
 /* Canvas opacity: replace the browser's heavy default range treatment with
    a thin track and a clear, theme-aware thumb. */
 .notespace-selection-actions input[type="range"][aria-label="Opacity"] {
@@ -363,27 +363,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* M5: a Split Canvas can be narrower than the browser viewport.
- * Use the Canvas pane's inline size, not `max-width: 560px` viewport
- * assumptions, so tool rails stay inside their own panel on tablet Split.
- */
+/* Explorer can make the Canvas narrower than the browser viewport. */
 .notespace-canvas-surface {
   container: notespace-canvas / inline-size;
 }
 
 @container notespace-canvas (max-width: 560px) {
-  .notespace-canvas-bottom-chrome {
-    width: calc(100% - 16px);
-    max-width: calc(100% - 16px);
-  }
-
   [aria-label="Canvas tools"] {
+    flex-direction: row;
     width: 100%;
     max-width: 100%;
     min-width: 0;
   }
 
   [aria-label="Canvas tools"] > div:first-child {
+    flex-direction: row;
     min-width: 0;
     flex: 1;
     overflow-x: auto;
@@ -394,52 +388,29 @@
     display: none;
   }
 
+  [aria-label="Canvas tools"] > span {
+    margin: 0 2px;
+    height: 20px;
+    width: 1px;
+  }
+
+  .notespace-canvas-tool-dock {
+    top: auto;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    width: auto;
+    transform: none;
+  }
+
+  .notespace-canvas-contextual-chrome {
+    bottom: auto;
+    max-width: calc(100% - 16px);
+  }
+
   [aria-label="Canvas view controls"] {
     right: 8px;
     max-width: calc(100% - 16px);
   }
 
-  [aria-label="Canvas view controls"] button[aria-label="Browse library"],
-  [aria-label="Canvas view controls"] > span {
-    display: none;
-  }
-}
-
-/* Note Outline v3: pane-owned, border-only; no visible scrollbar or second sidebar. */
-.notespace-note-editor {
-  container: notespace-note / inline-size;
-}
-.notespace-note-navigate {
-  position: absolute;
-  z-index: 30;
-  top: 8px;
-  right: 8px;
-  bottom: 8px;
-  width: min(232px, calc(100% - 16px));
-  border-radius: 8px;
-  box-shadow: none;
-}
-.notespace-note-outline-scroll,
-.notespace-note-editor .ProseMirror {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.notespace-note-outline-scroll::-webkit-scrollbar,
-.notespace-note-editor .ProseMirror::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-@container notespace-note (min-width: 850px) {
-  .notespace-note-outline-dockable > .notespace-note-navigate {
-    position: relative;
-    inset: auto;
-    order: 2;
-    width: 232px;
-    flex: 0 0 232px;
-    height: 100%;
-    border: 0;
-    border-left: 1px solid var(--line);
-    border-radius: 0;
-  }
 }

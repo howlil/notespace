@@ -31,7 +31,6 @@ type Summary struct {
 	CreatedAt  string `json:"createdAt"`
 	UpdatedAt  string `json:"updatedAt"`
 	Version    int    `json:"version"`
-	NoteCount  int    `json:"noteCount,omitempty"`
 	HasCanvas  bool   `json:"hasCanvas,omitempty"`
 }
 
@@ -51,7 +50,6 @@ type WorkspaceQuery struct {
 	Query      string
 	Sort       string
 	HasCanvas  bool
-	HasNotes   bool
 	Offset     int
 	Limit      int
 	Snapshot   string
@@ -72,7 +70,6 @@ type CategorySummary struct {
 // by the client rather than silently reassigned by the server.
 type Reference struct {
 	ID        string `json:"id"`
-	NoteID    string `json:"noteId,omitempty"`
 	BlockID   string `json:"blockId"`
 	ElementID string `json:"elementId"`
 }
@@ -102,9 +99,6 @@ type SearchResult struct {
 	CategoryTitle  string `json:"categoryTitle,omitempty"`
 	WorkspaceID    string `json:"workspaceId"`
 	WorkspaceTitle string `json:"workspaceTitle"`
-	NoteID         string `json:"noteId"`
-	NoteTitle      string `json:"noteTitle"`
-	BlockID        string `json:"blockId"`
 	Excerpt        string `json:"excerpt"`
 }
 

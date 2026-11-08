@@ -104,7 +104,7 @@ cd apps/server
 go test ./internal/sqlite ./cmd/notespace
 go test -race ./...
 cd ../..
-pnpm test
+bun run test
 cd apps/desktop/src-tauri
 cargo test --locked
 ```

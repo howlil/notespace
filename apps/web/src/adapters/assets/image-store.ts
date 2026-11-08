@@ -4,6 +4,7 @@ import {
   putLocalImageCache,
   readLocalImageCache,
   removeLocalImageCache,
+  clearLocalImageCache,
 } from "./image-cache";
 import { loadRemoteImageAsset, uploadRemoteImageAsset } from "./image-api";
 import { normalizeImageBlob } from "./image-normalizer";
@@ -11,19 +12,13 @@ import { createImageStore } from "./image-store-core";
 
 export type { LocalImageAsset } from "./image-types";
 export { normalizeImageBlob } from "./image-normalizer";
-export { pruneLocalImageCache } from "./image-cache";
-
-export function createLocalAssetId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `asset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 const defaultImageStore = createImageStore({
   normalize: normalizeImageBlob,
   uploadRemote: uploadRemoteImageAsset,
   loadRemote: loadRemoteImageAsset,
   getMemory: getMemoryImageAsset,
-  putLocal: putLocalImageCache,
+  putLocal: (record) => putLocalImageCache(record, true),
   readLocal: readLocalImageCache,
   removeLocal: removeLocalImageCache,
   cacheKey: imageCacheKey,
@@ -32,6 +27,11 @@ const defaultImageStore = createImageStore({
 
 export const storeImageAsset = defaultImageStore.storeImageAsset;
 export const loadImageAsset = defaultImageStore.loadImageAsset;
+
+export async function clearImageCache(workspaceId?: string) {
+  defaultImageStore.invalidateCache(workspaceId);
+  await clearLocalImageCache(workspaceId);
+}
 
 export async function blobFromDataUrl(dataUrl: string) {
   const response = await fetch(dataUrl);

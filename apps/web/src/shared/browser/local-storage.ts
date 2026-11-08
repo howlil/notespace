@@ -16,12 +16,3 @@ export function writeLocalStorage(key: string, value: string): boolean {
     return false;
   }
 }
-
-export function removeLocalStorage(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // Browser storage may be disabled or unavailable.
-  }
-}

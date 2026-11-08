@@ -1,11 +1,25 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
 )
+
+func newDevelopmentWebProxy(rawTarget string) (http.Handler, error) {
+	target, err := url.Parse(rawTarget)
+	if err != nil {
+		return nil, fmt.Errorf("parse development web URL: %w", err)
+	}
+	if target.Scheme != "http" || target.Hostname() != "127.0.0.1" || target.Port() == "" {
+		return nil, fmt.Errorf("development web URL must be an HTTP loopback URL with an explicit port")
+	}
+	return httputil.NewSingleHostReverseProxy(target), nil
+}
 
 // isClientNavigationRoute defines the authoritative single source of truth for SPA client routes.
 func isClientNavigationRoute(clean string) bool {
@@ -25,6 +39,10 @@ func isClientNavigationRoute(clean string) bool {
 }
 
 func routes(api http.Handler, webDir string) http.Handler {
+	return routesWithDevelopmentProxy(api, webDir, nil)
+}
+
+func routesWithDevelopmentProxy(api http.Handler, webDir string, developmentProxy http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +53,10 @@ func routes(api http.Handler, webDir string) http.Handler {
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		if developmentProxy != nil {
+			developmentProxy.ServeHTTP(w, r)
+			return
+		}
 		clean := path.Clean("/" + r.URL.Path)
 		// Only explicit client navigation routes use the SPA shell; missing assets/unknown routes stay 404.
 		if isClientNavigationRoute(clean) {

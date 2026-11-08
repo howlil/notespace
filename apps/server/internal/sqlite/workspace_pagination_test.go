@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
-
-	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestWorkspaceSnapshotTraversalDoesNotSkipOrRepeatOnConcurrentMutations(t *testing.T) {
-	for _, sort := range []string{"", "notes", "name", "created"} {
+	for _, sort := range []string{"", "name", "created"} {
 		t.Run(fmt.Sprintf("sort=%q", sort), func(t *testing.T) {
 			ctx := context.Background()
 			store, err := Open(ctx, filepath.Join(t.TempDir(), "stable-pages.db"))
@@ -49,22 +48,8 @@ func TestWorkspaceSnapshotTraversalDoesNotSkipOrRepeatOnConcurrentMutations(t *t
 			if first.Snapshot == "" || first.NextOffset == nil || first.Total != 6 {
 				t.Fatalf("missing snapshot metadata: %+v", first)
 			}
-			// Edit an off-page Workspace in ways that change the live sort.
+			// Edit an off-page Workspace in a way that changes the live sort.
 			oldest := entries[0]
-			if _, err := service.UpdateNote(ctx, oldest.ID, oldest.Notes[0].ID, workspacepkg.NoteUpdate{
-				Title:    oldest.Notes[0].Title,
-				Document: granularDocument("autosaved"),
-				Version:  oldest.Notes[0].Version,
-			}); err != nil {
-				t.Fatal(err)
-			}
-			if sort == "notes" {
-				if _, err := service.CreateNote(ctx, oldest.ID, workspacepkg.NoteCreate{
-					ID: "extra-note", Title: "New", Document: oldest.Document,
-				}); err != nil {
-					t.Fatal(err)
-				}
-			}
 			if sort == "name" {
 				if _, err := service.Rename(ctx, oldest.ID, "Zulu", oldest.Title); err != nil {
 					t.Fatal(err)
@@ -153,7 +138,6 @@ func TestWorkspaceSnapshotIsScopedToFiltersAndExpires(t *testing.T) {
 	}
 	for _, invalid := range []workspacepkg.WorkspaceQuery{
 		{CategoryID: secondCategory.ID, Limit: 1, Snapshot: first.Snapshot},
-		{CategoryID: firstCategory.ID, Limit: 1, Sort: "notes", Snapshot: first.Snapshot},
 		{CategoryID: firstCategory.ID, Limit: 1, HasCanvas: true, Snapshot: first.Snapshot},
 		{CategoryID: firstCategory.ID, Limit: 1, Query: "different", Snapshot: first.Snapshot},
 	} {

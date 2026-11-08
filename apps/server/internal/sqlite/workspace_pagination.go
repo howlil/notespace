@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/workspace"
+	searchquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/search"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 // a database transaction or prevent authors from editing Workspaces.
 type workspacePagingSession struct {
 	key       workspacePagingKey
-	items     []workspace.Summary
+	items     []workspacepkg.Summary
 	expiresAt time.Time
 }
 
@@ -28,20 +29,18 @@ type workspacePagingKey struct {
 	query      string
 	sort       string
 	hasCanvas  bool
-	hasNotes   bool
 }
 
-func pagingKey(query workspace.WorkspaceQuery) workspacePagingKey {
+func pagingKey(query workspacepkg.WorkspaceQuery) workspacePagingKey {
 	return workspacePagingKey{
 		categoryID: query.CategoryID, query: query.Query, sort: query.Sort,
-		hasCanvas: query.HasCanvas, hasNotes: query.HasNotes,
+		hasCanvas: query.HasCanvas,
 	}
 }
 
 // Keep the live and captured query paths on exactly the same filter/sort
 // contract; snapshotting changes consistency, not which items qualify.
-func workspaceListingParts(query workspace.WorkspaceQuery) (string, []any, string, string, string) {
-	noteCount := "(SELECT COUNT(*) FROM workspace_notes n WHERE n.workspace_id=p.id)"
+func workspaceListingParts(query workspacepkg.WorkspaceQuery) (string, []any, string, string) {
 	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
 	orderBy := "p.updated_at DESC, p.id"
 	if query.CategoryID != "" {
@@ -52,8 +51,6 @@ func workspaceListingParts(query workspace.WorkspaceQuery) (string, []any, strin
 		orderBy = "p.created_at DESC, p.id"
 	case "name":
 		orderBy = "p.title COLLATE NOCASE ASC, p.id"
-	case "notes":
-		orderBy = noteCount + " DESC, p.updated_at DESC, p.id"
 	}
 
 	conditions := []string{"1=1"}
@@ -64,18 +61,15 @@ func workspaceListingParts(query workspace.WorkspaceQuery) (string, []any, strin
 	}
 	if strings.TrimSpace(query.Query) != "" {
 		conditions = append(conditions, "LOWER(p.title) LIKE ? ESCAPE '\\'")
-		args = append(args, containsLikeLiteral(query.Query))
+		args = append(args, searchquery.ContainsLikeLiteral(query.Query))
 	}
 	if query.HasCanvas {
 		conditions = append(conditions, hasCanvasExpr)
 	}
-	if query.HasNotes {
-		conditions = append(conditions, noteCount+" > 0")
-	}
-	return strings.Join(conditions, " AND "), args, orderBy, noteCount, hasCanvasExpr
+	return strings.Join(conditions, " AND "), args, orderBy, hasCanvasExpr
 }
 
-func snapshotPage(items []workspace.Summary, token string, query workspace.WorkspaceQuery) workspace.WorkspacePage {
+func snapshotPage(items []workspacepkg.Summary, token string, query workspacepkg.WorkspaceQuery) workspacepkg.WorkspacePage {
 	offset := query.Offset
 	if offset > len(items) {
 		offset = len(items)
@@ -84,8 +78,8 @@ func snapshotPage(items []workspace.Summary, token string, query workspace.Works
 	if end > len(items) {
 		end = len(items)
 	}
-	page := workspace.WorkspacePage{
-		Items:    append([]workspace.Summary{}, items[offset:end]...),
+	page := workspacepkg.WorkspacePage{
+		Items:    append([]workspacepkg.Summary{}, items[offset:end]...),
 		Total:    len(items),
 		Offset:   query.Offset,
 		Limit:    query.Limit,
@@ -98,9 +92,9 @@ func snapshotPage(items []workspace.Summary, token string, query workspace.Works
 	return page
 }
 
-func (s *Store) listWorkspaceSnapshot(ctx context.Context, query workspace.WorkspaceQuery) (workspace.WorkspacePage, error) {
+func (s *Store) listWorkspaceSnapshot(ctx context.Context, query workspacepkg.WorkspaceQuery) (workspacepkg.WorkspacePage, error) {
 	if query.Offset < 0 || query.Limit < 1 || query.Limit > 100 || len(query.Snapshot) > 128 {
-		return workspace.WorkspacePage{}, workspace.ErrInvalid
+		return workspacepkg.WorkspacePage{}, workspacepkg.ErrInvalid
 	}
 	if query.Snapshot != "start" {
 		s.pagingMu.Lock()
@@ -109,41 +103,41 @@ func (s *Store) listWorkspaceSnapshot(ctx context.Context, query workspace.Works
 		session, ok := s.pagingSnapshots[query.Snapshot]
 		if !ok || !now.Before(session.expiresAt) {
 			delete(s.pagingSnapshots, query.Snapshot)
-			return workspace.WorkspacePage{}, workspace.ErrConflict
+			return workspacepkg.WorkspacePage{}, workspacepkg.ErrConflict
 		}
 		if session.key != pagingKey(query) {
-			return workspace.WorkspacePage{}, workspace.ErrInvalid
+			return workspacepkg.WorkspacePage{}, workspacepkg.ErrInvalid
 		}
 		return snapshotPage(session.items, query.Snapshot, query), nil
 	}
 	if query.Offset != 0 {
-		return workspace.WorkspacePage{}, workspace.ErrInvalid
+		return workspacepkg.WorkspacePage{}, workspacepkg.ErrInvalid
 	}
 
-	where, args, orderBy, noteCount, hasCanvas := workspaceListingParts(query)
+	where, args, orderBy, hasCanvas := workspaceListingParts(query)
 	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,`+
-		noteCount+`,`+hasCanvas+` FROM projects p WHERE `+where+
+		hasCanvas+` FROM projects p WHERE `+where+
 		` ORDER BY `+orderBy+` LIMIT ?`, append(args, maxWorkspaceSnapshotRows+1)...)
 	if err != nil {
-		return workspace.WorkspacePage{}, err
+		return workspacepkg.WorkspacePage{}, err
 	}
-	items := make([]workspace.Summary, 0)
+	items := make([]workspacepkg.Summary, 0)
 	for rows.Next() {
-		var item workspace.Summary
+		var item workspacepkg.Summary
 		if err := rows.Scan(&item.ID, &item.CategoryID, &item.Title,
-			&item.CreatedAt, &item.UpdatedAt, &item.Version, &item.NoteCount, &item.HasCanvas); err != nil {
+			&item.CreatedAt, &item.UpdatedAt, &item.Version, &item.HasCanvas); err != nil {
 			rows.Close()
-			return workspace.WorkspacePage{}, err
+			return workspacepkg.WorkspacePage{}, err
 		}
 		items = append(items, item)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return workspace.WorkspacePage{}, err
+		return workspacepkg.WorkspacePage{}, err
 	}
 	if len(items) > maxWorkspaceSnapshotRows {
-		return workspace.WorkspacePage{}, workspace.ErrInvalid
+		return workspacepkg.WorkspacePage{}, workspacepkg.ErrInvalid
 	}
 
 	s.pagingMu.Lock()

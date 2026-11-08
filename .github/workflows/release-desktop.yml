@@ -121,16 +121,13 @@ jobs:
       - name: Synchronize desktop version
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
-      - uses: pnpm/action-setup@v4
+        run: node scripts/release/sync-desktop-version.mjs
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11.19.0
-          run_install: false
+          bun-version: 1.3.14
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
@@ -144,12 +141,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @notespace/web build
-      - run: pnpm desktop:icons
-      - run: node scripts/prepare-desktop-sidecar.mjs
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @notespace/web build
+      - run: bun run desktop:icons
+      - run: node scripts/dev/prepare-desktop-sidecar.mjs
       - name: Smoke sidecar parent lifecycle
-        run: pnpm test:desktop:lifecycle
+        run: bun run test:desktop:lifecycle
       - name: Test desktop runtime
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked
@@ -158,7 +155,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
-        run: node scripts/prepare-desktop-updater-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
+        run: node scripts/release/prepare-desktop-updater-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
       - name: Require Windows publisher signing and Azure credentials
         shell: pwsh
         env:
@@ -168,7 +165,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: node scripts/prepare-desktop-windows-sign-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
+        run: node scripts/release/prepare-desktop-windows-sign-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
       - name: Install official Windows Artifact Signing CLI
         run: cargo install artifact-signing-cli --locked
       - name: Build signed Windows installer and updater artifact
@@ -181,13 +178,13 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         shell: pwsh
-        run: pnpm dlx @tauri-apps/cli@2.12.3 build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
+        run: bunx @tauri-apps/cli@2.12.3 build --config "$env:RUNNER_TEMP/notespace-updater-release.json" -- --locked
       - name: Validate embedded Fox Spirit executable icon
-        run: ./scripts/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
+        run: ./scripts/assets/assert-desktop-icon.ps1 apps/desktop/src-tauri/target/release/notespace-desktop.exe
         shell: pwsh
       - name: Reject Windows console-subsystem builds before signing
         run: >-
-          node scripts/assert-windows-pe-subsystem.mjs
+          node scripts/verify/assert-windows-pe-subsystem.mjs
           apps/desktop/src-tauri/target/release/notespace-desktop.exe
           apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
 
@@ -195,22 +192,22 @@ jobs:
         run: cargo install tauri-driver --locked
       - name: Install Microsoft EdgeDriver matching WebView2 Runtime
         shell: pwsh
-        run: ./scripts/install-webview2-edgedriver.ps1
+        run: ./scripts/dev/install-webview2-edgedriver.ps1
       - name: Diagnose release WebView2 environment
         shell: pwsh
-        run: ./scripts/diagnose-desktop-webdriver.ps1
+        run: ./scripts/dev/diagnose-desktop-webdriver.ps1
       - name: Smoke release binary
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
-        run: pnpm test:desktop:native
+        run: bun run test:desktop:native
       - name: Verify release product persistence
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
-        run: pnpm test:desktop:critical
+        run: bun run test:desktop:critical
       - name: Download previous stable MSI
         if: steps.previous.outputs.enabled == 'true'
         id: baseline
@@ -237,7 +234,7 @@ jobs:
           $candidates = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
           if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
           $env:NOTESPACE_UPGRADE_NEW_MSI = $candidates[0].FullName
-          ./scripts/verify-desktop-msi-upgrade.ps1
+          ./scripts/release/verify-desktop-msi-upgrade.ps1
       - name: Verify Windows publisher signature on installer
         shell: pwsh
         env:
@@ -257,7 +254,7 @@ jobs:
         shell: pwsh
         env:
           NOTESPACE_RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/create-desktop-update-manifest.mjs apps/desktop/src-tauri/target/release/bundle $env:NOTESPACE_RELEASE_VERSION
+        run: node scripts/release/create-desktop-update-manifest.mjs apps/desktop/src-tauri/target/release/bundle $env:NOTESPACE_RELEASE_VERSION
       - name: Inspect bundle contents
         shell: pwsh
         run: |
@@ -346,16 +343,13 @@ jobs:
       - name: Synchronize desktop version
         env:
           NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/sync-desktop-version.mjs
-      - uses: pnpm/action-setup@v4
+        run: node scripts/release/sync-desktop-version.mjs
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11.19.0
-          run_install: false
+          bun-version: 1.3.14
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
@@ -367,11 +361,11 @@ jobs:
           cache-bin: "false"
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @notespace/web build
-      - run: pnpm desktop:icons
-      - run: node scripts/prepare-desktop-sidecar.mjs
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @notespace/web build
+      - run: bun run desktop:icons
+      - run: node scripts/dev/prepare-desktop-sidecar.mjs
       - working-directory: apps/desktop/src-tauri
         run: cargo test --locked
       - working-directory: apps/desktop/src-tauri
-        run: pnpm dlx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked
+        run: bunx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked

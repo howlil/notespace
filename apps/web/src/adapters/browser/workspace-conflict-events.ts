@@ -1,15 +1,11 @@
-import type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/workspace/conflict";
-export type { ConflictDraft, GranularConflictDraft, WorkspaceConflictDraft } from "../../domain/workspace/conflict";
+import type { ConflictDraft, GranularConflictDraft } from "../../domain/workspace/conflict";
+export type { ConflictDraft, GranularConflictDraft } from "../../domain/workspace/conflict";
 
 const conflictEvent = "notespace:workspace-conflict";
 
 function publishConflict(draft: ConflictDraft) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<ConflictDraft>(conflictEvent, { detail: draft }));
-}
-
-export function publishWorkspaceConflict(draft: WorkspaceConflictDraft) {
-  publishConflict({ kind: "workspace", ...draft });
 }
 
 export function publishGranularConflict(draft: GranularConflictDraft) {

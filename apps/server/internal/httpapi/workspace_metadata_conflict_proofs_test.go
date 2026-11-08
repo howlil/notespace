@@ -71,7 +71,7 @@ func TestWorkspaceMetadataStalePreconditionsRejectWithoutMutation(t *testing.T) 
 	if persisted.Title != renamed.Title || persisted.CategoryID != destination || persisted.Version != moved.Version {
 		t.Fatalf("stale metadata request mutated persisted workspace: %+v", persisted.Summary)
 	}
-	if len(persisted.Notes) != len(created.Notes) || persisted.Notes[0].ID != created.Notes[0].ID ||
+	if len(persisted.Notes) != len(created.Notes) ||
 		persisted.CanvasVersion != created.CanvasVersion {
 		t.Fatal("stale metadata request modified authored state")
 	}

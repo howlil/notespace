@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"path/filepath"
 	"testing"
-
-	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 func TestCaptureBackupRejectsInvalidReceiptWithoutReplacingLibrary(t *testing.T) {

@@ -59,8 +59,3 @@ export function detectCodeLanguage(code: string) {
     return "plaintext";
   }
 }
-
-export function codeLanguageLabel(language: string) {
-  const normalized = normalizeCodeLanguage(language);
-  return codeLanguageOptions.find(([value]) => value === normalized)?.[1] ?? normalized;
-}

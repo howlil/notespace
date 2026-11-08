@@ -8,6 +8,23 @@ import (
 	"sort"
 )
 
+// These exact 0025 variants were already applied by local Notespace builds.
+// Keep their history readable and perform the current payload scrub in 0026.
+var legacyMigrationChecksums = map[string]map[string]struct{}{
+	"0025_remove_notes.sql": {
+		"724761d1d59d36738f264fd3fe257d8f686b26909178e63c91b7aa599d90d7fb": {},
+		"1b90d2215c58c5f0bed78e3eaa1a09daeaff0375d57f9c1f0f76c6f273090a9a": {},
+	},
+}
+
+func migrationChecksumMatches(name, recorded, current string) bool {
+	if recorded == current {
+		return true
+	}
+	_, ok := legacyMigrationChecksums[name][recorded]
+	return ok
+}
+
 // Inspection describes whether the existing library needs a schema change.
 // Inspect only reads the database: an older binary must reject unknown schema
 // versions before ensureMetadata or another migration changes anything.
@@ -63,7 +80,7 @@ func Inspect(ctx context.Context, db *sql.DB) (Inspection, error) {
 			rows.Close()
 			return Inspection{}, fmt.Errorf("unsupported database schema: migration %q is unknown to this Notespace version; use a newer application", name)
 		}
-		if recorded.Valid && recorded.String != "" && recorded.String != want {
+		if recorded.Valid && recorded.String != "" && !migrationChecksumMatches(name, recorded.String, want) {
 			rows.Close()
 			return Inspection{}, fmt.Errorf("migration %s checksum changed: recorded %s, embedded %s", name, recorded.String, want)
 		}

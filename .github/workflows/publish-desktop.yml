@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" > "$RUNNER_TEMP/desktop-ci.json"
-          node scripts/assert-desktop-release-ci.mjs "$RUNNER_TEMP/desktop-ci.json" "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs "$RUNNER_TEMP/desktop-ci.json" "$GITHUB_SHA"
 
       - name: Require production updater and Windows publisher signing configuration
         shell: bash
@@ -105,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release list --limit 100 --json tagName,isDraft,isPrerelease > "$RUNNER_TEMP/desktop-releases.json"
-          tag=$(node scripts/resolve-desktop-release-version.mjs "$BUMP" "$VERSION_OVERRIDE" < "$RUNNER_TEMP/desktop-releases.json")
+          tag=$(node scripts/release/resolve-desktop-release-version.mjs "$BUMP" "$VERSION_OVERRIDE" < "$RUNNER_TEMP/desktop-releases.json")
           if [[ -n "$(git ls-remote --tags --refs origin "refs/tags/$tag")" ]]; then
             echo "::error::Tag $tag already exists. No tag was created; use a newer version."
             exit 1

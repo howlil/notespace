@@ -64,8 +64,8 @@ test('Cloudflare deployment is scoped to Astro landing build', () => {
   assert.equal(wrangler.assets.directory, './dist')
   assert.equal(wrangler.main, undefined)
   assert.equal(landing.scripts.build, 'astro build')
-  assert.ok(root.scripts.build.includes('pnpm --filter @notespace/web build'))
-  assert.match(root.scripts.build, /pnpm --dir landing build/)
+  assert.ok(root.scripts.build.includes('bun run --filter @notespace/web build'))
+  assert.match(root.scripts.build, /bun --cwd landing run build/)
   assert.equal(landing.scripts.deploy, undefined)
 })
 

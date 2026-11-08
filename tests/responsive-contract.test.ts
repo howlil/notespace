@@ -5,22 +5,22 @@ import { join } from "node:path";
 
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
-const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "ui", "WorkspaceAuthoring.tsx");
+const WORKSPACE = join(WEB_SRC, "features", "workspace-authoring", "session", "WorkspaceAuthoring.tsx");
 const WORKSPACE_PAGE = join(WEB_SRC, "pages", "workspace", "WorkspacePage.tsx");
-const PAGE_SHELL = join(WEB_SRC, "pages", "_shared", "LibraryPageShell.tsx");
-const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "WorkspaceLibrary.tsx");
-const SIDEBAR = join(WEB_SRC, "pages", "_shared", "LibrarySidebar.tsx");
+const PAGE_SHELL = join(WEB_SRC, "pages", "shell", "LibraryPageShell.tsx");
+const WORKSPACE_LIBRARY = join(WEB_SRC, "features", "library", "collection", "WorkspaceLibrary.tsx");
+const SIDEBAR = join(WEB_SRC, "features", "library", "explorer", "LibrarySidebar.tsx");
 const HOME = join(WEB_SRC, "pages", "home", "HomePage.tsx");
 const RETIRED_ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "ActivityDashboard.tsx");
 const RETIRED_SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
-const DIALOG = join(WEB_SRC, "shared", "ui", "dialog.tsx");
+const DIALOG = join(WEB_SRC, "shared", "ui", "overlays", "dialog.tsx");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
-const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasChrome.tsx");
-const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasSelectionActions.tsx");
+const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "chrome", "CanvasChrome.tsx");
+const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "selection", "CanvasSelectionActions.tsx");
 
 function source(path: string) { return readFileSync(path, "utf8"); }
 
-test("responsive contract: Welcome and Canvas share one collapsible Explorer", () => {
+test("responsive contract: Welcome and Canvas share a toggleable Explorer", () => {
   const workspace = source(WORKSPACE);
   const workspacePage = source(WORKSPACE_PAGE);
   const shell = source(PAGE_SHELL);
@@ -33,7 +33,8 @@ test("responsive contract: Welcome and Canvas share one collapsible Explorer", (
   assert.match(shell, /w-\[228px\]/);
   assert.match(shell, /max-\[560px\]:w-\[200px\]/);
   assert.match(shell, /Hide Explorer|Show Explorer/);
-  assert.match(shell, /aria-expanded=\{explorerOpen\}/);
+  assert.match(shell, /NotespaceLogo/);
+  assert.match(shell, /preference/);
   assert.match(sidebar, /aria-label="Category explorer"/);
   assert.match(sidebar, /aria-label="New category"/);
   assert.match(library, /function WorkspaceFolderCard/);
@@ -55,24 +56,29 @@ test("responsive contract: canvas chrome is compact, distinct, and touch-safe", 
   assert.match(authoringStyles, /\.main-menu-trigger/);
   assert.match(authoringStyles, /\[data-testid="main-menu-trigger"\]/);
   assert.match(authoringStyles, /\.undo-redo-buttons/);
-  assert.match(authoringStyles, /\.notespace-canvas-bottom-chrome[\s\S]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\) !important;\s*width: calc\(100% - 16px\)/);
+  assert.match(authoringStyles, /\.notespace-canvas-tool-dock[\s\S]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(authoringStyles, /\.notespace-canvas-contextual-chrome[\s\S]*max-width: calc\(100% - 16px\)/);
+  assert.match(chrome, /toolButton\?\.getBoundingClientRect/);
   assert.match(authoringStyles, /\[aria-label="Canvas view controls"\][\s\S]*right: 8px;\s*max-width: calc\(100% - 16px\)/);
   assert.doesNotMatch(authoringStyles, /\.notespace-selection-actions[\s\S]*bottom: calc\(50px/);
   assert.match(authoringStyles, /\[aria-label="Canvas tools"\] button[\s\S]*width: 32px !important/);
   assert.match(chrome, /nativeActionIcon/);
   assert.match(chrome, /secondaryToolGroups/);
-  assert.match(chrome, /event\.pointerType === "mouse"/);
+  assert.match(chrome, /aria-label="More canvas tools"/);
+  assert.doesNotMatch(chrome, /onPointerEnter=/);
   assert.match(chrome, /event\.key !== "\/"/);
-  assert.match(chrome, /aria-label="More canvas view controls"/);
+  assert.match(chrome, /aria-label="More canvas actions"/);
   assert.match(chrome, /keepSelection: false/);
-  assert.match(chrome, /name="undo" label="Undo"/);
-  assert.match(chrome, /name="redo" label="Redo"/);
+  assert.match(chrome, /nativeAction="undo" label="Undo"/);
+  assert.match(chrome, /nativeAction="redo" label="Redo"/);
   assert.doesNotMatch(chrome, /min-\[561px\]:!size-10/);
   assert.match(chrome, /CanvasBottomChrome/);
-  assert.match(chrome, /flex-col items-center gap-2/);
+  assert.match(chrome, /notespace-canvas-tool-dock/);
   assert.match(selection, /analyzeCanvasSelection/);
   assert.match(selection, /onInteractionStateChange/);
-  assert.match(selection, /w-fit max-w-full/);
+  assert.match(selection, /w-fit max-w-\[calc\(100vw-16px\)\]/);
+  assert.match(selection, /aria-orientation=\{vertical \? "vertical" : "horizontal"\}/);
+  assert.match(selection, /overflow-visible/);
   assert.match(selection, /Interact with embed/);
   assert.doesNotMatch(selection, /min-\[561px\]:left-\[48px\]|min-\[561px\]:flex-col|min-\[561px\]:left-\[calc\(100%\+6px\)\]/);
   assert.doesNotMatch(selection, /min-\[561px\]:size-10/);

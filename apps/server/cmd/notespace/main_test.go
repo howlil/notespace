@@ -45,3 +45,38 @@ func TestProductionRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestDevelopmentRoutesProxyUiButKeepApiOwnedByServer(t *testing.T) {
+	devServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/src/main.tsx" {
+			t.Fatalf("development proxy path = %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("vite module"))
+	}))
+	defer devServer.Close()
+
+	proxy, err := newDevelopmentWebProxy(devServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/health" {
+			t.Fatalf("API path = %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := routesWithDevelopmentProxy(api, t.TempDir(), proxy)
+
+	ui := httptest.NewRecorder()
+	handler.ServeHTTP(ui, httptest.NewRequest(http.MethodGet, "/src/main.tsx", nil))
+	if ui.Code != http.StatusOK || ui.Body.String() != "vite module" {
+		t.Fatalf("UI proxy response = %d %q", ui.Code, ui.Body.String())
+	}
+
+	apiResponse := httptest.NewRecorder()
+	handler.ServeHTTP(apiResponse, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if apiResponse.Code != http.StatusNoContent {
+		t.Fatalf("API response = %d", apiResponse.Code)
+	}
+}

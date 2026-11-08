@@ -70,14 +70,9 @@ export function workspaceContentOf(project: Workspace): WorkspaceContent {
   return {
     title: project.title,
     document: project.document,
-    notes: project.notes?.length ? project.notes : [{
-      id: `${project.id}-default`,
-      title: "Untitled",
-      document: project.document,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-      version: 1,
-    }],
+    // Notes are retired. Keep the optional compatibility field empty while
+    // older server payloads roll forward through the Canvas-only migration.
+    notes: [],
     canvas: project.canvas,
     references: project.references,
     splitRatio: project.splitRatio,

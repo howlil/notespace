@@ -20,13 +20,13 @@ This was a real release blocker, not a signing failure.
 
 ## Changes made
 
-- Use `pnpm dlx @tauri-apps/cli@2.12.3` (a fixed Tauri v2 CLI version) instead
+- Use `bunx @tauri-apps/cli@2.12.3` (a fixed Tauri v2 CLI version) instead
   of compiling the CLI from source via `cargo install`. It intentionally
-  does not modify the root pnpm lockfile; the CLI is a build tool obtained
+  does not modify the root bun lockfile; the CLI is a build tool obtained
   separately and pinned to an exact version. An offline build still needs an
   available package cache.
-- Install pnpm via `pnpm/action-setup@v4` before `actions/setup-node@v4`,
-  then enable pnpm dependency-store caching keyed by `pnpm-lock.yaml`.
+- Install bun via `oven-sh/setup-bun@v2` before `actions/setup-node@v4`,
+  Bun installs from `bun.lock`, so no separate dependency cache is configured.
 - Use `Swatinem/rust-cache@v2` on Linux, Windows 2022, Windows latest,
   unsigned beta, and stable native release jobs.
 - Share a Windows 2022 cache namespace between desktop verification and the
@@ -38,8 +38,8 @@ This was a real release blocker, not a signing failure.
   binary separately. Windows latest and Linux compilation remain mandatory.
 - Desktop jobs build only `@notespace/web` assets, not the unrelated landing
   project. Ordinary `Verify` still validates the full application build.
-- The full browser journey uses `pnpm exec playwright test` after the
-  existing `pnpm build` step, avoiding the second `pnpm build` hidden
+- The full browser journey uses `node scripts/verify/browser-e2e.mjs` after the
+  existing `bun run build` step, avoiding a second build hidden
   in the developer convenience script `test:e2e`.
 - Cancel superseded PR runs for `Verify` and `Verify Desktop`. Never
   auto-cancel master verification or an ongoing release job.

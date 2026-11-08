@@ -95,25 +95,3 @@ const tokenPalettes = {
 export function codeTokenColor(classes: readonly string[], theme: ResolvedCodeTheme) {
   return tokenPalettes[theme][tokenRole(classes)];
 }
-
-export function codeThemeVariables(theme: ResolvedCodeTheme): Record<string, string> {
-  const surface = surfaces[theme];
-  const tokens = tokenPalettes[theme];
-  return {
-    "--code-bg": surface.background,
-    "--code-fg": surface.foreground,
-    "--code-muted": surface.muted,
-    "--code-border": surface.border,
-    "--code-toolbar": surface.toolbar,
-    "--code-error": surface.error,
-    "--code-comment": tokens.comment,
-    "--code-keyword": tokens.keyword,
-    "--code-string": tokens.string,
-    "--code-number": tokens.number,
-    "--code-function": tokens.function,
-    "--code-type": tokens.type,
-    "--code-property": tokens.property,
-    "--code-variable": tokens.variable,
-    "--code-deletion": tokens.deletion,
-  };
-}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { enqueueToast, toastDuration, updateToastItem } from "../apps/web/src/shared/ui/toast-state.ts";
+import { enqueueToast, toastDuration, updateToastItem } from "../apps/web/src/shared/ui/feedback/toast-state.ts";
 
 test("updating a stable toast ID preserves its queue position", () => {
   const a = enqueueToast([], { message: "Saving", kind: "loading" }, "a");

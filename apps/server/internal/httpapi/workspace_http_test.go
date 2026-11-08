@@ -205,79 +205,19 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSupportsMultipleNotes(t *testing.T) {
+func TestWorkspaceHasNoNoteState(t *testing.T) {
 	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "notes.db"))
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "canvas-only.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Research"}))
-	second := workspacepkg.Note{ID: "note-second", Title: "References", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
-	update := workspacepkg.Update{Title: p.Title, Document: p.Document, Canvas: p.Canvas, Notes: append(p.Notes, second), SplitRatio: p.SplitRatio, Version: p.Version}
-	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
-	expect(t, saved, 200)
-	got := decodeWorkspace(t, saved)
-	if len(got.Notes) != 2 || got.Notes[1].Title != "References" {
-		t.Fatalf("notes not persisted: %+v", got.Notes)
+	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Canvas only"}))
+	if len(p.Notes) != 0 {
+		t.Fatalf("workspace returned retired notes: %+v", p.Notes)
 	}
-	reloaded := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
-	if len(reloaded.Notes) != 2 || reloaded.Notes[1].ID != "note-second" {
-		t.Fatalf("notes not durable: %+v", reloaded.Notes)
-	}
-}
-
-func TestNoteHighlightAndReferenceMappingRoundTrip(t *testing.T) {
-	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-actions.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	api := newAPI(store)
-	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Note actions"}))
-	note := p.Notes[0]
-	note.Document = workspacepkg.Snapshot{
-		Format:  "tiptap",
-		Version: 1,
-		Data:    json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","attrs":{"blockId":"highlight-block"},"content":[{"type":"text","text":"Marked","marks":[{"type":"highlight"}]}]}]}`),
-	}
-	canvas := workspacepkg.Snapshot{
-		Format:  "excalidraw",
-		Version: 1,
-		Data:    json.RawMessage(`{"elements":[{"id":"linked-element","type":"rectangle"}],"appState":{},"files":{}}`),
-	}
-	update := workspacepkg.Update{
-		Title:      p.Title,
-		Version:    p.Version,
-		Document:   note.Document,
-		Notes:      []workspacepkg.Note{note},
-		Canvas:     canvas,
-		References: []workspacepkg.Reference{{ID: "highlight-link", NoteID: note.ID, BlockID: "highlight-block", ElementID: "linked-element"}},
-		SplitRatio: p.SplitRatio,
-	}
-	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
-	expect(t, saved, 200)
-	reloaded := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
-	if len(reloaded.Notes) != 1 || string(reloaded.Notes[0].Document.Data) != string(note.Document.Data) {
-		t.Fatalf("highlighted note was not persisted: %+v", reloaded.Notes)
-	}
-	if !reflect.DeepEqual(reloaded.References, update.References) {
-		t.Fatalf("reference mapping was not persisted: %+v", reloaded.References)
-	}
-
-	second := workspacepkg.Note{ID: "note-keep", Title: "Keep this note", Document: p.Document, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
-	deleted := update
-	deleted.Version = reloaded.Version
-	deleted.Document = second.Document
-	deleted.Notes = []workspacepkg.Note{second}
-	deleted.References = []workspacepkg.Reference{}
-	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, deleted), 200)
-	afterDelete := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+p.ID, nil))
-	if len(afterDelete.Notes) != 1 || afterDelete.Notes[0].ID != second.ID || len(afterDelete.References) != 0 {
-		t.Fatalf("note deletion mapping was not persisted: notes=%+v references=%+v", afterDelete.Notes, afterDelete.References)
-	}
+	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID+"/notes", nil), http.StatusNotFound)
 }
 
 func TestProjectJourneyAndRestart(t *testing.T) {
@@ -385,7 +325,6 @@ func TestWorkspaceQueryRejectsInvalidBoundaryValues(t *testing.T) {
 		"?offset=-1",
 		"?sort=unsupported",
 		"?hasCanvas=maybe",
-		"?hasNotes=maybe",
 	} {
 		expect(t, call(t, api, "GET", "/api/workspaces"+query, nil), 400)
 	}

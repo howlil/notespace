@@ -134,7 +134,13 @@ func Validate(ctx context.Context, q queryContext) error {
 	return nil
 }
 
+type TransactionHook func(context.Context, *sql.Tx, string) error
+
 func Run(ctx context.Context, db *sql.DB) error {
+	return RunWithHook(ctx, db, nil)
+}
+
+func RunWithHook(ctx context.Context, db *sql.DB, hook TransactionHook) error {
 	// Reject a future or inconsistent schema before ensureMetadata writes anything.
 	if _, err := Inspect(ctx, db); err != nil {
 		return err
@@ -161,7 +167,7 @@ func Run(ctx context.Context, db *sql.DB) error {
 		err = db.QueryRowContext(ctx, `SELECT checksum FROM schema_migrations WHERE name=?`, name).Scan(&recorded)
 		switch {
 		case err == nil:
-			if recorded.Valid && recorded.String != "" && recorded.String != wantChecksum {
+			if recorded.Valid && recorded.String != "" && !migrationChecksumMatches(name, recorded.String, wantChecksum) {
 				return fmt.Errorf("migration %s checksum changed: recorded %s, embedded %s", name, recorded.String, wantChecksum)
 			}
 			if !recorded.Valid || recorded.String == "" {
@@ -178,8 +184,18 @@ func Run(ctx context.Context, db *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, string(contents)); err == nil {
+		if _, err = tx.ExecContext(ctx, string(contents)); err == nil && hook != nil {
+			err = hook(ctx, tx, name)
+		}
+		if err == nil {
 			_, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, wantChecksum, time.Now().UTC().Format(time.RFC3339Nano))
+		}
+		if err == nil {
+			var fingerprint string
+			fingerprint, err = schemaFingerprint(ctx, tx)
+			if err == nil {
+				_, err = tx.ExecContext(ctx, `INSERT INTO schema_state(key,value) VALUES ('schema_fingerprint',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, fingerprint)
+			}
 		}
 		if err != nil {
 			_ = tx.Rollback()

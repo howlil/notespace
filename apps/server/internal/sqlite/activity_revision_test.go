@@ -3,11 +3,11 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"github.com/howlil/notespace/apps/server/internal/activity"
+	activityquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/activity"
 	"path/filepath"
 	"sync"
 	"testing"
-
-	"github.com/howlil/notespace/apps/server/internal/activity"
 )
 
 func TestActivityRevisionsOrderEqualDurationMetadata(t *testing.T) {
@@ -113,8 +113,8 @@ func TestActivityConcurrentVersionedHeartbeatsKeepHighestRevisionAndDuration(t *
 				t.Fatal(err)
 			}
 		}
-		stored, err := scanActivitySession(store.db.QueryRowContext(ctx,
-			"SELECT "+activityColumns+" FROM activity_sessions WHERE id=?", base.ID))
+		stored, err := activityquery.ScanActivitySession(store.db.QueryRowContext(ctx,
+			"SELECT "+activityquery.ActivityColumns+" FROM activity_sessions WHERE id=?", base.ID))
 		if err != nil {
 			t.Fatal(err)
 		}

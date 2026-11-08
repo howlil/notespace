@@ -49,7 +49,6 @@ func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing
 	wg.Wait()
 	close(responses)
 
-	var canonicalNoteID string
 	for response := range responses {
 		if response.Code != http.StatusCreated {
 			t.Fatalf("concurrent replay status %d: %s", response.Code, response.Body.String())
@@ -58,14 +57,8 @@ func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing
 		if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
 			t.Fatal(err)
 		}
-		if created.ID != "same-client-command" || len(created.Notes) != 1 {
+		if created.ID != "same-client-command" || len(created.Notes) != 0 {
 			t.Fatalf("unexpected replay receipt: %+v", created.Summary)
-		}
-		if canonicalNoteID == "" {
-			canonicalNoteID = created.Notes[0].ID
-		}
-		if created.Notes[0].ID != canonicalNoteID {
-			t.Fatalf("two default Notes were created for one command: %q != %q", created.Notes[0].ID, canonicalNoteID)
 		}
 	}
 	page, err := workspacepkg.NewService(store).ListWorkspaces(ctx, workspacepkg.WorkspaceQuery{Limit: 10})
@@ -133,47 +126,6 @@ func TestWorkspaceCreateIdentityRejectsConcurrentDifferentPayloads(t *testing.T)
 	}
 }
 
-// A Note ID is scoped to its owning Workspace across reads AND writes.
-// Use two Notes in the target workspace so DELETE reaches its identity lookup,
-// rather than being rejected early by the last-Note invariant.
-func TestNoteRoutesCannotReadOrMutateAnotherWorkspacesNote(t *testing.T) {
-	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-ownership.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	api := newAPI(store)
-
-	owner := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Owner"}))
-	other := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Other"}))
-	target := workspacepkg.NoteCreate{ID: "owned-by-a", Title: "Private Note", Document: owner.Document}
-	expect(t, call(t, api, http.MethodPost, "/api/workspaces/"+owner.ID+"/notes", target), http.StatusCreated)
-	expect(t, call(t, api, http.MethodPost, "/api/workspaces/"+other.ID+"/notes", workspacepkg.NoteCreate{
-		ID: "owned-by-b", Title: "Other Note", Document: other.Document,
-	}), http.StatusCreated)
-
-	wrongPath := "/api/workspaces/" + other.ID + "/notes/" + target.ID
-	expect(t, call(t, api, http.MethodGet, wrongPath, nil), http.StatusNotFound)
-	expect(t, call(t, api, http.MethodPatch, wrongPath, workspacepkg.NoteUpdate{
-		Title: "Corrupted title", Document: owner.Document, Version: 1,
-	}), http.StatusNotFound)
-	request := httptest.NewRequest(http.MethodDelete, wrongPath, nil)
-	request.Header.Set("If-Match", "\"1\"")
-	deleteResult := httptest.NewRecorder()
-	api.ServeHTTP(deleteResult, request)
-	expect(t, deleteResult, http.StatusNotFound)
-
-	persistedOwner := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/"+owner.ID, nil))
-	persistedOther := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/"+other.ID, nil))
-	if len(persistedOwner.Notes) != 2 || persistedOwner.Notes[1].Title != target.Title || persistedOwner.Version != owner.Version+1 {
-		t.Fatalf("cross-workspace mutation changed owner's data: %+v", persistedOwner.Summary)
-	}
-	if len(persistedOther.Notes) != 2 || persistedOther.Version != other.Version+1 {
-		t.Fatalf("cross-workspace mutation changed destination's data: %+v", persistedOther.Summary)
-	}
-}
-
 func TestWorkspaceMetadataNoopsDoNotIncrementVersionOrInvalidateSnapshots(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "metadata-noop.db"))
@@ -193,7 +145,7 @@ func TestWorkspaceMetadataNoopsDoNotIncrementVersionOrInvalidateSnapshots(t *tes
 	if rename.Version != before.Version || move.Version != before.Version || after.Version != before.Version {
 		t.Fatalf("no-op metadata mutation advanced version: before=%d rename=%d move=%d after=%d", before.Version, rename.Version, move.Version, after.Version)
 	}
-	if len(after.Notes) != 1 || after.Notes[0].ID != before.Notes[0].ID || after.CanvasVersion != before.CanvasVersion {
+	if len(after.Notes) != 0 || after.CanvasVersion != before.CanvasVersion {
 		t.Fatal("no-op metadata mutation replaced authored state")
 	}
 }

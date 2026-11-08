@@ -1,12 +1,11 @@
-FROM node:24-bookworm-slim AS web
+FROM oven/bun:1.3.14 AS web
 WORKDIR /src
-RUN npm install --global pnpm@11.19.0
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json bun.lock ./
 COPY apps/web/package.json apps/web/package.json
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY apps/web apps/web
-RUN pnpm --filter @notespace/web build
+RUN bun run --filter @notespace/web build
 
 FROM golang:1.25-bookworm AS server
 WORKDIR /src

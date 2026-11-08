@@ -3,13 +3,12 @@ package sqlite
 import (
 	"context"
 	"errors"
-	"path/filepath"
-	"testing"
-	"time"
-
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
+	"path/filepath"
+	"testing"
+	"time"
 )
 
 func TestStudySessionHistoryGroupsAndDeletesLogicalSession(t *testing.T) {

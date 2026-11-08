@@ -76,6 +76,17 @@ func run() error {
 	})
 	webDir := env("NOTESPACE_WEB_DIR", "apps/web/dist/client")
 	desktop := env("NOTESPACE_PARENT_LIFECYCLE", "") == "1"
+	var developmentProxy http.Handler
+	if desktop {
+		// The desktop debug task keeps the authenticated server origin while
+		// proxying only the UI and Vite HMR traffic to the loopback dev server.
+		if rawTarget := os.Getenv("NOTESPACE_DEV_SERVER_URL"); rawTarget != "" {
+			developmentProxy, err = newDevelopmentWebProxy(rawTarget)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	listenAddress := env("NOTESPACE_ADDR", "127.0.0.1:8080")
 	var listener net.Listener
 	if desktop {
@@ -91,8 +102,8 @@ func run() error {
 	}
 	defer listener.Close()
 	actualAddress := listener.Addr().String()
-	handler := ownerAuth(routes(api, webDir), env("NOTESPACE_PASSWORD", ""))
-	handler = withTestNoteSaveDelay(handler)
+	handler := ownerAuth(routesWithDevelopmentProxy(api, webDir, developmentProxy), env("NOTESPACE_PASSWORD", ""))
+	handler = withTestCanvasSaveDelay(handler)
 	var bootstrapURL string
 	if desktop {
 		session, err := newDesktopSession()
@@ -130,17 +141,17 @@ func run() error {
 	return nil
 }
 
-// withTestNoteSaveDelay is an opt-in integration-test fixture. It delays only
-// granular Note writes so the desktop close journey can observe an in-flight
-// save and prove that the second pending snapshot is flushed before exit.
-func withTestNoteSaveDelay(next http.Handler) http.Handler {
-	delayMs, err := strconv.Atoi(os.Getenv("NOTESPACE_TEST_NOTE_SAVE_DELAY_MS"))
+// withTestCanvasSaveDelay is an opt-in integration-test fixture. It delays only
+// granular Canvas writes so the desktop close journey can observe an in-flight
+// save and prove that a pending snapshot is flushed before exit.
+func withTestCanvasSaveDelay(next http.Handler) http.Handler {
+	delayMs, err := strconv.Atoi(os.Getenv("NOTESPACE_TEST_CANVAS_SAVE_DELAY_MS"))
 	if err != nil || delayMs <= 0 {
 		return next
 	}
 	delay := time.Duration(delayMs) * time.Millisecond
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/notes/") {
+		if r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/canvas") {
 			timer := time.NewTimer(delay)
 			defer timer.Stop()
 			select {

@@ -21,7 +21,7 @@ test('existing root build retains the web build and also builds Astro from landi
   const build = pkg.scripts.build
   assert.match(build, /bun run --filter @notespace\/web build/)
   assert.match(build, /bun install --cwd landing --frozen-lockfile/)
-  assert.match(build, /bun --cwd landing run build/)
+  assert.match(build, /bun (?:run --cwd landing build|--cwd landing run build)/)
   assert.equal(pkg.scripts.deploy, undefined, 'Cloudflare deploys using npx wrangler deploy directly')
 })
 

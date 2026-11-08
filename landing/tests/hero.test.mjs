@@ -9,7 +9,8 @@ test('approved ambient hero is emitted with truthful self-hosted copy and access
   assert.match(html, /Own your thinking\./)
   assert.match(html, /Shape ideas\. Build a calmer/)
   assert.match(html, /knowledge system\./)
-  assert.match(html, /notes, connect ideas visually/)
+  assert.match(html, /diagrams, sketches, images, and code together on one Canvas/)
+  assert.match(html, /keep your work on your computer/)
   assert.match(html, /href="#self-host"/)
   assert.match(html, /Download for Windows/)
   assert.match(html, /See how it works/)
@@ -65,7 +66,7 @@ test('Cloudflare deployment is scoped to Astro landing build', () => {
   assert.equal(wrangler.main, undefined)
   assert.equal(landing.scripts.build, 'astro build')
   assert.ok(root.scripts.build.includes('bun run --filter @notespace/web build'))
-  assert.match(root.scripts.build, /bun --cwd landing run build/)
+  assert.match(root.scripts.build, /bun (?:run --cwd landing build|--cwd landing run build)/)
   assert.equal(landing.scripts.deploy, undefined)
 })
 

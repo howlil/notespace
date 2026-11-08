@@ -11,6 +11,10 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 
+fn configured_development_server_url(value: Option<String>) -> Option<String> {
+    value.filter(|url| !url.trim().is_empty())
+}
+
 // One in-flight runtime operation at a time. Do not restart an existing
 // sidecar, as doing so could create simultaneous SQLite writers.
 pub(crate) fn launch_runtime(app: &AppHandle) -> Result<(), String> {
@@ -92,11 +96,13 @@ pub(crate) async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Re
         .env("NOTESPACE_PASSWORD", "")
         .env("NOTESPACE_PARENT_LIFECYCLE", "1")
         .env("NOTESPACE_READY_STDOUT", "1");
-    // The desktop WebView navigates to the authenticated sidecar origin.
-    // In debug, make the sidecar proxy UI assets and HMR traffic to Vite
-    // explicitly instead of relying on environment inheritance.
-    let command = if cfg!(debug_assertions) {
-        command.env("NOTESPACE_DEV_SERVER_URL", "http://127.0.0.1:3000")
+    // The desktop WebView navigates to the authenticated sidecar origin. The
+    // Vite proxy is an explicit development opt-in: debug release checks do
+    // not run a Vite server and must instead serve packaged web assets.
+    let command = if let Some(url) =
+        configured_development_server_url(std::env::var("NOTESPACE_DEV_SERVER_URL").ok())
+    {
+        command.env("NOTESPACE_DEV_SERVER_URL", url)
     } else {
         command
     };
@@ -196,4 +202,20 @@ pub(crate) async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Re
         show_runtime_failure(app, "Local runtime stopped unexpectedly.");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn development_proxy_requires_an_explicit_url() {
+        assert_eq!(configured_development_server_url(None), None);
+        assert_eq!(configured_development_server_url(Some("".into())), None);
+        assert_eq!(configured_development_server_url(Some("  ".into())), None);
+        assert_eq!(
+            configured_development_server_url(Some("http://127.0.0.1:3000".into())),
+            Some("http://127.0.0.1:3000".into())
+        );
+    }
 }

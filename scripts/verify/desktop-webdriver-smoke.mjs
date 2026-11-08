@@ -141,6 +141,7 @@ async function assertDesktopChrome(session, workspace) {
   // The native app must show one shared 38px header without an old rail.
   await visibleElement(session, By.css(".desktop-titlebar .desktop-window-controls"));
   await visibleElement(session, By.css(".desktop-titlebar .desktop-placed-header"));
+  await visibleElement(session, By.css('.desktop-titlebar button[aria-label="Search Notespace"]'));
   // The Canvas editor is code-split; wait for it to mount and draw before
   // asserting its native viewport size.
   if (workspace) {
@@ -155,7 +156,7 @@ async function assertDesktopChrome(session, workspace) {
     return {
       height: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
       controls: chrome?.querySelectorAll(".desktop-window-controls > button").length ?? 0,
-      search: explorer?.querySelectorAll('button[aria-label="Search Notespace"]').length ?? 0,
+      search: chrome?.querySelectorAll('button[aria-label="Search Notespace"]').length ?? 0,
       settings: explorer?.querySelectorAll('button[aria-label="Open Notespace settings"]').length ?? 0,
       explorerWidth: Math.round(explorer?.getBoundingClientRect().width ?? 0),
       explorerCount: shell?.querySelectorAll('aside[aria-label="Category explorer"]').length ?? 0,
@@ -167,7 +168,7 @@ async function assertDesktopChrome(session, workspace) {
   `);
   assert.equal(state.height, 38, "Native titlebar remains 38px");
   assert.equal(state.controls, 3, "Minimize, maximize and close remain accessible");
-  assert.equal(state.search, 1, "Search remains reachable in both shell states");
+  assert.equal(state.search, 1, "Search remains reachable in the native titlebar");
   assert.equal(state.settings, 1, "Settings remain reachable in both shell states");
   assert.equal(state.explorerWidth, 228, "One shared 228px Explorer");
   assert.equal(state.explorerCount, 1, "One category explorer");

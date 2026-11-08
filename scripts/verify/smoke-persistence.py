@@ -20,13 +20,26 @@ class StylesheetParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.hrefs = []
+        self.inline_styles = []
+        self._inside_style = False
 
     def handle_starttag(self, tag, attrs):
+        if tag == 'style':
+            self._inside_style = True
+            return
         if tag != 'link':
             return
         values = dict(attrs)
         if values.get('rel') == 'stylesheet' and values.get('href'):
             self.hrefs.append(values['href'])
+
+    def handle_endtag(self, tag):
+        if tag == 'style':
+            self._inside_style = False
+
+    def handle_data(self, data):
+        if self._inside_style:
+            self.inline_styles.append(data)
 
 
 def call(path, method='GET', body=None, headers=None):
@@ -55,7 +68,9 @@ def wait_ready():
 def verify_stylesheet(shell):
     parser = StylesheetParser()
     parser.feed(shell.decode())
-    assert parser.hrefs, 'Application shell has no stylesheet link'
+    assert parser.hrefs or parser.inline_styles, 'Application shell has no stylesheet'
+    if parser.inline_styles:
+        assert any(stylesheet.strip() for stylesheet in parser.inline_styles), 'Inline stylesheet is empty'
     for href in parser.hrefs:
         url = urllib.parse.urljoin(args.url + '/', href)
         with urllib.request.urlopen(url, timeout=10) as response:

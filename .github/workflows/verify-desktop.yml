@@ -14,6 +14,7 @@ on:
       - ".github/workflows/ci.yml"
       - "scripts/verify/ci.mjs"
       - "scripts/verify/ci-policy.mjs"
+      - "scripts/verify/check-native-dependency-cache.mjs"
       - ".agents/engineering.md"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
@@ -72,6 +73,7 @@ on:
       - ".github/workflows/ci.yml"
       - "scripts/verify/ci.mjs"
       - "scripts/verify/ci-policy.mjs"
+      - "scripts/verify/check-native-dependency-cache.mjs"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
       - "apps/server/internal/sqlite/**"
@@ -221,22 +223,53 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: bunx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked
 
+  classify-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      desktop: ${{ steps.plan.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Prove native selection policy
+        run: node --experimental-strip-types --test tests/ci-policy.test.ts
+      - id: plan
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/verify/ci.mjs classify
+
   # WebView2 + EdgeDriver regression on Windows Server 2025:
   # https://github.com/actions/runner-images/issues/14738
   # Keep genuine native WebView2 acceptance on 2022; do NOT mark it skipped.
   check-desktop-windows:
+    needs: classify-native
+    # Master always keeps native after the unconditional policy preflight;
+    # PRs use the shared required map. A failed selector fails the workflow.
+    if: github.event_name == 'push' || needs.classify-native.outputs.desktop == 'true'
     runs-on: windows-2022
     timeout-minutes: 45
+    env:
+      BUN_VERSION: "1.3.14"
+      NODE_VERSION: "24"
+      TAURI_DRIVER_VERSION: "2.1.0"
     outputs:
       sha: ${{ steps.ci-identity.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: ${{ env.NODE_VERSION }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
@@ -258,6 +291,14 @@ jobs:
           shared-key: windows-2022-desktop
           save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-bin: "false"
+      - uses: actions/cache/restore@v4
+        id: native-modules
+        with:
+          path: |
+            node_modules
+            apps/web/node_modules
+          key: windows-2022-${{ runner.arch }}-native-modules-v1-bun${{ env.BUN_VERSION }}-node${{ env.NODE_VERSION }}-${{ hashFiles('bun.lock', 'package.json', 'apps/web/package.json') }}
+      # Always validate/repair installed dependencies, including on a hit.
       - run: bun install --frozen-lockfile
       - run: bun run --filter @notespace/web build
       - run: bun run desktop:icons
@@ -291,8 +332,31 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { throw ($errors | Out-String) }
           }
-      - name: Install Tauri WebDriver server
-        run: cargo install tauri-driver --locked
+      - name: Configure isolated native tool root
+        shell: pwsh
+        run: '"TAURI_DRIVER_ROOT=$env:RUNNER_TOOL_CACHE/notespace-tauri-driver" >> $env:GITHUB_ENV'
+      - uses: actions/cache/restore@v4
+        id: native-driver
+        with:
+          path: ${{ env.TAURI_DRIVER_ROOT }}
+          key: windows-2022-${{ runner.arch }}-tauri-driver-${{ env.TAURI_DRIVER_VERSION }}-v1
+      - name: Install pinned Tauri WebDriver server on cache miss
+        if: steps.native-driver.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --version $env:TAURI_DRIVER_VERSION --locked --root $env:TAURI_DRIVER_ROOT
+          if ($LASTEXITCODE -ne 0) { throw "Pinned tauri-driver installation failed" }
+      - name: Validate native driver cache before use
+        shell: pwsh
+        run: |
+          $driver = Join-Path $env:TAURI_DRIVER_ROOT 'bin/tauri-driver.exe'
+          if (-not (Test-Path -LiteralPath $driver -PathType Leaf)) { throw "Native driver binary is missing" }
+          $installed = (& cargo install --list --root $env:TAURI_DRIVER_ROOT --color never) -join "`n"
+          $version = [regex]::Escape($env:TAURI_DRIVER_VERSION)
+          if ($LASTEXITCODE -ne 0 -or $installed -notmatch "(?m)^tauri-driver v${version}:$") { throw "Native driver version does not match cache contract" }
+          & $driver --help
+          if ($LASTEXITCODE -ne 0) { throw "Native driver cannot execute" }
+          (Join-Path $env:TAURI_DRIVER_ROOT 'bin') >> $env:GITHUB_PATH
       - name: Install Microsoft EdgeDriver matching WebView2 Runtime
         shell: pwsh
         run: ./scripts/dev/install-webview2-edgedriver.ps1
@@ -304,7 +368,24 @@ jobs:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/debug/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/pr-critical-webview
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/pr-critical-data
+          TAURI_DRIVER: ${{ env.TAURI_DRIVER_ROOT }}/bin/tauri-driver.exe
         run: bun run test:desktop:critical
+      - name: Reject dependency-cache links into source or profile data
+        run: node scripts/verify/check-native-dependency-cache.mjs
+      # Publish dependency/tool caches only from a successful trusted master
+      # proof. PRs restore but never write these caches; no app/profile data.
+      - uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/master' && steps.native-modules.outputs.cache-hit != 'true'
+        with:
+          path: |
+            node_modules
+            apps/web/node_modules
+          key: ${{ steps.native-modules.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/master' && steps.native-driver.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.TAURI_DRIVER_ROOT }}
+          key: ${{ steps.native-driver.outputs.cache-primary-key }}
       - name: Collect native WebDriver environment after failure
         if: failure()
         shell: pwsh

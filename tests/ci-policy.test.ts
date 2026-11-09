@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
+import { assertNativeDependencyCache } from "../scripts/verify/check-native-dependency-cache.mjs";
 import { CI_JOBS, assertCiGate, classifyDiff, parseNameStatus } from "../scripts/verify/ci-policy.mjs";
 
 const sha = "a".repeat(40), baseSha = "b".repeat(40);
@@ -21,6 +22,13 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
   for (const [path, expected] of [
     ["apps/web/src/features/library/collection/WorkspaceLibrary.tsx", ["web", "browser"]],
     ["apps/web/src/styles.css", ["web", "browser"]],
+    ["apps/web/src/shared/styles/globals.css", ["web", "browser"]],
+    ["apps/web/src/features/workspace-authoring/workspace-authoring.css", ["web", "browser"]],
+    ["apps/web/src/features/desktop/chrome/desktop-titlebar.css", ["web", "browser", "desktop"]],
+    ["apps/web/src/adapters/desktop/desktop-lifecycle.test.ts", ["web"]],
+    ["apps/web/src/features/workspace-authoring/session/granular-save.test.ts", ["web"]],
+    ["apps/server/internal/sqlite/migrations_test.go", ["server"]],
+    ["apps/server/cmd/notespace/desktop_boundary_test.go", ["server"]],
     ["apps/server/internal/planning/service.go", ["web", "server", "browser"]],
     ["apps/server/internal/sqlite/store.go", ["web", "server", "browser", "desktop"]],
     ["apps/server/migrations/099.sql", ["web", "server", "browser", "desktop"]],
@@ -36,9 +44,28 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
     ["docs/TESTING.md", []],
     [".agents/engineering.md", []],
   ] as [string, string[]][]) assert.deepEqual(selected([path]), [...expected].sort(), path);
+  assert.deepEqual(selected(["apps/web/src/adapters/desktop/desktop-lifecycle.test.ts", "apps/web/src/adapters/desktop/desktop-lifecycle.ts"]), ["web", "browser", "desktop"].sort());
   for (const path of ["bun.lock", "package.json", ".github/workflows/ci.yml", "new-owner/file", "tests/e2e/support/resolve.mjs", "apps/web/dist/client/index.html"]) {
     assert.deepEqual(selected([path]), [...CI_JOBS].sort(), path);
   }
+});
+
+test("native dependency cache permits internal links but rejects source/profile junctions", () => {
+  const directory = mkdtempSync(join(tmpdir(), "notespace-native-cache-"));
+  try {
+    const modules = join(directory, "node_modules"), webModules = join(directory, "apps/web/node_modules");
+    mkdirSync(join(modules, "vendor"), { recursive: true });
+    mkdirSync(webModules, { recursive: true });
+    symlinkSync(join(modules, "vendor"), join(webModules, "vendor"), "junction");
+    assertNativeDependencyCache(directory);
+    mkdirSync(join(directory, "source"));
+    symlinkSync(join(directory, "source"), join(modules, "workspace"), "junction");
+    assert.throws(() => assertNativeDependencyCache(directory), /escapes into source\/data/);
+    rmSync(join(modules, "workspace"));
+    rmSync(webModules, { recursive: true });
+    symlinkSync(join(directory, "source"), webModules, "junction");
+    assert.throws(() => assertNativeDependencyCache(directory), /root cannot be a junction/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("NUL git diff retains both rename/copy owners and deletion paths including whitespace", () => {

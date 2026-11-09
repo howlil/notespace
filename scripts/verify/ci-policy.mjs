@@ -52,11 +52,13 @@ function ownersFor(path) {
 }
 
 function serverOwners(path) {
+  if (path.endsWith("_test.go")) return ["server"];
   const native = /^apps\/server\/(cmd\/|migrations\/|internal\/(sqlite|workspace|library|asset|httpapi)\/|go\.(mod|sum)$)/.test(path);
   return native ? ["server", "browser", "desktop"] : ["server", "browser"];
 }
 
 function webOwners(path) {
+  if (/\.test\.tsx?$/.test(path)) return ["web"];
   const native = [
     /^apps\/web\/(vite\.config\.|src\/routes\/__root)/,
     /^apps\/web\/src\/(features\/desktop|adapters\/(desktop|assets|http)|domain\/workspace)\//,

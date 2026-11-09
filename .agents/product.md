@@ -135,6 +135,25 @@ J2: Draw and edit Canvas objects while understanding what each control changes.
 - P5 (B6,B8): Selection tests and the property-editing journey prove Mixed,
   batch pressure/corners, nonduplicated overflow, fallback properties and Undo/Redo.
 
+## Canvas Code Module (#199)
+
+J-CODE-01: Edit and execute existing Canvas Code Blocks through one predictable toolbar without risking authored source.
+- B-CODE-01: One headerless/footerless card and one single-selection toolbar: Language, Output, Run/Stop, Copy, More.
+- B-CODE-02: Searchable canonical languages plus Auto; explicit language locks detection and never replaces source.
+- B-CODE-03: More retains theme, line numbers, UI-local wrap, auto height, native duplicate and delete.
+- B-CODE-04: Output is inside Main, split by rendered card width or stacked; Run reveals it automatically.
+- B-CODE-05: Native Excalidraw geometry and undo remain authoritative; output does not change geometry or schema v1.
+- B-CODE-06: Toolbar remains while editing source; manipulation/native context menu suppresses it. Mixed selection uses generic actions.
+- B-CODE-07: JavaScript uses the bounded Worker. Other languages are source-only; HTML preview stays disabled without browser and WebView2 security proof.
+- B-CODE-08: Output/menu/wrap/runtime state is ephemeral; snapshots, copies and PNG/SVG exports contain authored source only.
+- X-CODE-01: Stop, timeout, error and truncation are output content; stale source/language/deleted-block results are invalidated and workers terminated.
+- X-CODE-02: Escape closes a popup first, then exits editing retaining selection; toolbar interaction must preserve editing and source.
+- P-CODE-01 (B-CODE-01,06,X-CODE-02): Existing Canvas toolbar journey proves one toolbar, focus/selection, output toggle and no header.
+- P-CODE-02 (B-CODE-02,03): Language unit tests and toolbar journey prove preserved source, Auto/locked language and secondary actions.
+- P-CODE-03 (B-CODE-04,05,08): Layout/scene/export tests and toolbar journey prove responsive output and headerless source-only export.
+- P-CODE-04 (B-CODE-07,X-CODE-01): Runner tests and browser isolation journey prove bounded execution, cancellation and stale-source fencing.
+- P-CODE-05 (B-CODE-07): Existing HTML-source journey proves disabled preview and preserved source; enabling preview requires separate browser + native isolation evidence.
+
 ## Workspace library pagination
 
 ### Problem and outcome

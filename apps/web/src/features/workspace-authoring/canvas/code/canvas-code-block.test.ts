@@ -6,6 +6,7 @@ import {
   codeTokenColor,
   defaultCanvasCodeBlock,
   detectCodeLanguage,
+  effectiveCanvasCodeLanguage,
   highlightCode,
   highlightCodeLines,
   normalizeCodeLanguage,
@@ -37,6 +38,13 @@ test("language normalization handles common aliases and empty content safely", (
   assert.equal(normalizeCodeLanguage("py"), "python");
   assert.equal(normalizeCodeLanguage("html"), "xml");
   assert.equal(detectCodeLanguage("   "), "plaintext");
+});
+
+test("effective language derives Auto from source but respects explicit aliases without changing v1 data", () => {
+  const block = { ...defaultCanvasCodeBlock(), code: "const answer = 42;\nconsole.log(answer);", language: "plaintext", languageLocked: false };
+  assert.equal(effectiveCanvasCodeLanguage(block), "javascript");
+  assert.equal(block.language, "plaintext");
+  assert.equal(effectiveCanvasCodeLanguage({ ...block, language: "py", languageLocked: true }), "python");
 });
 
 test("auto detection identifies an obvious JavaScript snippet", () => {

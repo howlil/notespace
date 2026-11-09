@@ -1,12 +1,13 @@
 import { exportToSvg } from "@excalidraw/excalidraw";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawFrameLikeElement, NonDeleted, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { appendCanvasCodeBlocksToSvg } from "./canvas-code-block-export.ts";
+import { appendCanvasCodeBlocksToSvg, type CodeBlockExportViews } from "./canvas-code-block-export.ts";
 
 export type CanvasImageFormat = "png" | "svg";
 export type CanvasImageExportSource = {
   elements: readonly NonDeletedExcalidrawElement[];
   appState: AppState;
+  codeBlockViews?: CodeBlockExportViews;
   exportingFrame?: NonDeleted<ExcalidrawFrameLikeElement> | null;
 };
 
@@ -45,7 +46,7 @@ export async function createCanvasImageBlob(
       exportingFrame: source?.exportingFrame,
     },
   });
-  appendCanvasCodeBlocksToSvg(svg, elements, darkMode);
+  appendCanvasCodeBlocksToSvg(svg, elements, darkMode, source?.codeBlockViews);
   const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" });
   if (format === "svg") return svgBlob;
 

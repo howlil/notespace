@@ -72,16 +72,18 @@ def check_native_verification(doc):
     assert install["if"] == "steps.native-driver.outputs.cache-hit != 'true'"
     assert "--version $env:TAURI_DRIVER_VERSION --locked --root $env:TAURI_DRIVER_ROOT" in install["run"]
     restores = {step["id"]: step for step in steps if step.get("uses") == "actions/cache/restore@v4"}
-    assert set(restores) == {"native-modules", "native-driver"}
-    assert restores["native-modules"]["with"]["path"].split() == ["node_modules", "apps/web/node_modules"]
-    assert "env.BUN_VERSION" in restores["native-modules"]["with"]["key"] and "env.NODE_VERSION" in restores["native-modules"]["with"]["key"]
-    assert "hashFiles('bun.lock', 'package.json', 'apps/web/package.json')" in restores["native-modules"]["with"]["key"]
+    assert set(restores) == {"native-packages", "native-driver"}
+    package_root = next(step for step in steps if step.get("name") == "Configure isolated Bun package cache")
+    assert package_root["run"] == '\"BUN_INSTALL_CACHE_DIR=$env:RUNNER_TOOL_CACHE/notespace-bun-packages\" >> $env:GITHUB_ENV'
+    assert restores["native-packages"]["with"]["path"] == "${{ env.BUN_INSTALL_CACHE_DIR }}", "Never archive installed Windows node_modules junctions"
+    assert "env.BUN_VERSION" in restores["native-packages"]["with"]["key"] and "env.NODE_VERSION" in restores["native-packages"]["with"]["key"]
+    assert "hashFiles('bun.lock', 'package.json', 'apps/web/package.json')" in restores["native-packages"]["with"]["key"]
     assert "env.TAURI_DRIVER_VERSION" in restores["native-driver"]["with"]["key"]
     topology = next(step for step in steps if step.get("run") == "node scripts/verify/check-native-dependency-cache.mjs")
-    assert "if" not in topology, "Dependency roots cannot silently include workspace/profile junctions"
+    assert "if" not in topology, "Package cache cannot silently include workspace/profile junctions"
     saves = [step for step in steps if step.get("uses") == "actions/cache/save@v4"]
     assert len(saves) == 2
-    for saved, restore_id in zip(saves, ["native-modules", "native-driver"]):
+    for saved, restore_id in zip(saves, ["native-packages", "native-driver"]):
         assert saved["if"] == f"github.ref == 'refs/heads/master' && steps.{restore_id}.outputs.cache-hit != 'true'"
         assert steps.index(saved) > max(steps.index(proof), steps.index(topology)), "Only successfully proven master builds may seed caches"
         assert saved["with"]["path"] == restores[restore_id]["with"]["path"]

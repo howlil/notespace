@@ -291,14 +291,16 @@ jobs:
           shared-key: windows-2022-desktop
           save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-bin: "false"
+      - name: Configure isolated Bun package cache
+        shell: pwsh
+        run: '"BUN_INSTALL_CACHE_DIR=$env:RUNNER_TOOL_CACHE/notespace-bun-packages" >> $env:GITHUB_ENV'
       - uses: actions/cache/restore@v4
-        id: native-modules
+        id: native-packages
         with:
-          path: |
-            node_modules
-            apps/web/node_modules
-          key: windows-2022-${{ runner.arch }}-native-modules-v1-bun${{ env.BUN_VERSION }}-node${{ env.NODE_VERSION }}-${{ hashFiles('bun.lock', 'package.json', 'apps/web/package.json') }}
-      # Always validate/repair installed dependencies, including on a hit.
+          path: ${{ env.BUN_INSTALL_CACHE_DIR }}
+          key: windows-2022-${{ runner.arch }}-native-packages-v1-bun${{ env.BUN_VERSION }}-node${{ env.NODE_VERSION }}-${{ hashFiles('bun.lock', 'package.json', 'apps/web/package.json') }}
+      # Never restore installed Windows junctions: recreate them from package
+      # downloads on every run, including a package-cache hit.
       - run: bun install --frozen-lockfile
       - run: bun run --filter @notespace/web build
       - run: bun run desktop:icons
@@ -370,17 +372,15 @@ jobs:
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/pr-critical-data
           TAURI_DRIVER: ${{ env.TAURI_DRIVER_ROOT }}/bin/tauri-driver.exe
         run: bun run test:desktop:critical
-      - name: Reject dependency-cache links into source or profile data
+      - name: Reject package-cache links into source or profile data
         run: node scripts/verify/check-native-dependency-cache.mjs
       # Publish dependency/tool caches only from a successful trusted master
       # proof. PRs restore but never write these caches; no app/profile data.
       - uses: actions/cache/save@v4
-        if: github.ref == 'refs/heads/master' && steps.native-modules.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/master' && steps.native-packages.outputs.cache-hit != 'true'
         with:
-          path: |
-            node_modules
-            apps/web/node_modules
-          key: ${{ steps.native-modules.outputs.cache-primary-key }}
+          path: ${{ env.BUN_INSTALL_CACHE_DIR }}
+          key: ${{ steps.native-packages.outputs.cache-primary-key }}
       - uses: actions/cache/save@v4
         if: github.ref == 'refs/heads/master' && steps.native-driver.outputs.cache-hit != 'true'
         with:

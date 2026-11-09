@@ -50,21 +50,20 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
   }
 });
 
-test("native dependency cache permits internal links but rejects source/profile junctions", () => {
+test("native package cache permits internal links but rejects source/profile junctions", () => {
   const directory = mkdtempSync(join(tmpdir(), "notespace-native-cache-"));
   try {
-    const modules = join(directory, "node_modules"), webModules = join(directory, "apps/web/node_modules");
-    mkdirSync(join(modules, "vendor"), { recursive: true });
-    mkdirSync(webModules, { recursive: true });
-    symlinkSync(join(modules, "vendor"), join(webModules, "vendor"), "junction");
-    assertNativeDependencyCache(directory);
-    mkdirSync(join(directory, "source"));
-    symlinkSync(join(directory, "source"), join(modules, "workspace"), "junction");
-    assert.throws(() => assertNativeDependencyCache(directory), /escapes into source\/data/);
-    rmSync(join(modules, "workspace"));
-    rmSync(webModules, { recursive: true });
-    symlinkSync(join(directory, "source"), webModules, "junction");
-    assert.throws(() => assertNativeDependencyCache(directory), /root cannot be a junction/);
+    const cache = join(directory, "packages"), source = join(directory, "source");
+    mkdirSync(join(cache, "vendor"), { recursive: true });
+    symlinkSync(join(cache, "vendor"), join(cache, "alias"), "junction");
+    assertNativeDependencyCache(cache);
+    mkdirSync(source);
+    symlinkSync(source, join(cache, "workspace"), "junction");
+    assert.throws(() => assertNativeDependencyCache(cache), /escapes into source\/data/);
+    rmSync(join(cache, "workspace"));
+    symlinkSync(source, join(directory, "linked-cache"), "junction");
+    assert.throws(() => assertNativeDependencyCache(join(directory, "linked-cache")), /root cannot be a junction/);
+    assert.throws(() => assertNativeDependencyCache(undefined), /cache root is required/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

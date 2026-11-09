@@ -9,6 +9,8 @@ export type ExplorerPreference = "auto" | "open" | "closed";
 const ExplorerContext = createContext<{
   preference: ExplorerPreference;
   setPreference: (value: ExplorerPreference) => void;
+  drawerOpen: boolean;
+  setDrawerOpen: (value: boolean) => void;
   expandedCategories: Set<string>;
   setExpandedCategories: React.Dispatch<React.SetStateAction<Set<string>>>;
   categoryPages: Record<string, WorkspacePage>;
@@ -19,6 +21,7 @@ const ExplorerContext = createContext<{
 
 export function LibraryExplorerProvider({ children }: { children: ReactNode }) {
   const [preference, setPreference] = useState<ExplorerPreference>("auto");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [categoryPages, setCategoryPages] = useState<Record<string, WorkspacePage>>({});
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(() => new Set());
@@ -60,17 +63,33 @@ export function LibraryExplorerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     for (const categoryId of expandedCategories) void loadCategory(categoryId);
   }, [expandedCategories, loadCategory]);
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    document.querySelector<HTMLButtonElement>('[data-explorer-toggle]')?.focus({ preventScroll: true });
+  }, []);
+  // A Home activation can keep the same URL. Dismiss presentation without
+  // introducing another navigation owner, including the native titlebar link.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onHomeClick = (event: MouseEvent) => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (event.target instanceof Element && event.target.closest('a[aria-label="Notespace home"]')) closeDrawer();
+    };
+    document.addEventListener("click", onHomeClick);
+    return () => document.removeEventListener("click", onHomeClick);
+  }, [closeDrawer, drawerOpen]);
   const locationKey = useRouterState({ select: (state) => `${state.location.pathname}|${JSON.stringify(state.location.search)}` });
   const previousLocationKey = useRef(locationKey);
 
   useEffect(() => {
     if (locationKey === previousLocationKey.current) return;
     previousLocationKey.current = locationKey;
-    if (window.matchMedia("(max-width: 760px)").matches) setPreference("closed");
-  }, [locationKey]);
+    if (!drawerOpen) return;
+    closeDrawer();
+  }, [closeDrawer, drawerOpen, locationKey]);
 
   return (
-    <ExplorerContext.Provider value={{ preference, setPreference, expandedCategories, setExpandedCategories,
+    <ExplorerContext.Provider value={{ preference, setPreference, drawerOpen, setDrawerOpen, expandedCategories, setExpandedCategories,
       categoryPages, loadingCategories, categoryErrors, loadCategory }}>
       {children}
     </ExplorerContext.Provider>

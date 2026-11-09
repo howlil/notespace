@@ -1,9 +1,9 @@
 /* Design contract: Library tree, inline editing, contextual actions, focused Canvas shell. */
 import { after, before, test } from "node:test";
 import {
-  assert, click, count, createCategory, createWorkspace, deleteCategory, deleteWorkspace,
-  doubleClick, expectCount, expectFocused, goto, placeholder, press, purgeTrash,
-  rightClick, role, start, stop, visible, within,
+  api, assert, click, count, createCategory, createWorkspace, deleteCategory, deleteWorkspace, fill,
+  expectCount, expectFocused, goto, placeholder, press, purgeTrash,
+  resetViewport, rightClick, role, setViewport, start, stop, visible, within,
 } from "../support/harness.mjs";
 
 before(start);
@@ -18,7 +18,8 @@ test("design contract: Library keeps a persistent category tree and global quick
     const categories = role("navigation", "Categories");
     await visible(categories);
     await visible(role("button", "New category"));
-    await visible(role("button", "New workspace", { exact: true }));
+    await expectCount('#notespace-home-sidebar button[aria-label="New workspace"]', 0);
+    await visible(role("link", "Notespace home", { exact: true }));
     await expectCount(role("navigation", "Primary navigation"), 0);
     await expectCount(role("button", "Collapse sidebar"), 0);
     await expectCount(role("button", "Expand sidebar"), 0);
@@ -34,10 +35,10 @@ test("design contract: Library keeps a persistent category tree and global quick
     await expectFocused(search);
     await press("Escape");
 
-    const collapsed = await within(categories, 'button[aria-expanded="false"]');
+    const collapsed = await within(categories, 'button[aria-expanded="false"][aria-label^="Expand "]');
     if (await count(collapsed) > 0) {
       await click(collapsed);
-      await visible(await within(categories, 'button[aria-expanded="true"]'));
+      await visible(await within(categories, 'button[aria-expanded="true"][aria-label^="Collapse "]'));
     }
 
     await visible(role("main"));
@@ -54,14 +55,23 @@ test("design contract: sidebar tree keeps inline editing and contextual actions"
     await goto("/");
     const button = role("button", new RegExp(title), { exclude: /^(Expand|Collapse)/ });
     await visible(button);
-    await doubleClick(button);
+    await click(button);
+    await press("F2");
     await visible(role("textbox", "Category title"));
+    await fill(role("textbox", "Category title"), `${title} draft`);
+    await setViewport(390, 780);
+    await click(role("button", "Show Explorer", { exact: true }));
+    assert.equal(await (await visible(role("textbox", "Category title"))).getValue(), `${title} draft`);
+    assert.equal((await api("/api/categories")).find((item) => item.id === category.id).title, title, "Breakpoint collapse does not submit rename through blur");
+    await resetViewport();
+    await click(role("textbox", "Category title"));
     await press("Escape");
 
     await rightClick(button);
     await visible(role("menuitem", "New workspace"));
     await visible(role("menuitem", "Delete"));
   } finally {
+    await resetViewport();
     await deleteCategory(category.id);
   }
 });

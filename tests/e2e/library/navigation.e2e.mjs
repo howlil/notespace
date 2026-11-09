@@ -58,7 +58,7 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
 
   const assertWorkspaceLoaded = async (title) => {
     await visible(".excalidraw__canvas.interactive");
-    await visible(role("link", "All workspaces", { exact: true }));
+    await visible(role("link", "Notespace home", { exact: true }));
     await visible(role("group", "Current workspace"));
     await containsText(role("group", "Current workspace"), title);
     await visible('header [aria-label="Current workspace"]');
@@ -102,7 +102,7 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
     assert.equal(after, before, "Route switching must reuse the Explorer's current listing");
     await capture("workspace-navigation");
 
-    await click(role("link", "All workspaces", { exact: true }));
+    await click(role("link", "Notespace home", { exact: true }));
     const siblingLink = role("link", `Open ${sibling.title}`);
     await visible(siblingLink);
     await click(siblingLink);

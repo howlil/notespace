@@ -686,6 +686,7 @@ const MODIFIER_KEYS = {
 const NAMED_KEYS = {
   Enter: String.fromCharCode(0xE007),
   Escape: String.fromCharCode(0xE00C),
+  F2: String.fromCharCode(0xE032),
   Tab: String.fromCharCode(0xE004),
   Backspace: String.fromCharCode(0xE003),
   Delete: String.fromCharCode(0xE017),

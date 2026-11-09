@@ -2,13 +2,16 @@
 import { after, before, test } from "node:test";
 import {
   assert, cleanupWorkspace, click, createCategory, createWorkspace, deleteCategory,
-  expectCount, goto, injectFault, queryParam, role, start, stop, visible, waitFor,
+  expectCount, goto, injectFault, queryParam, rightClick, role, start, stop, visible, waitFor,
 } from "../support/harness.mjs";
 
 before(start);
 after(stop);
 
-const categoryButton = (title) => role("button", new RegExp(title), { exclude: /^(Expand|Collapse)/ });
+async function viewCategory(title) {
+  await rightClick(role("button", title, { exact: true }));
+  await click(role("menuitem", "View category"));
+}
 
 test("critical: latest Library category selection wins over stale responses", async () => {
   const suffix = Date.now();
@@ -38,10 +41,10 @@ test("critical: latest Library category selection wins over stale responses", as
       },
     });
 
-    await click(categoryButton(categoryA.title));
+    await viewCategory(categoryA.title);
     await waitFor(() => held, "Category request must reach the transport boundary");
 
-    await click(categoryButton(categoryB.title));
+    await viewCategory(categoryB.title);
     await visible(role("link", `Open ${workspaceB.title}`));
 
     release();

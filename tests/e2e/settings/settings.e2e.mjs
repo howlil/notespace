@@ -105,7 +105,7 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
     await visible(".excalidraw__canvas.interactive");
     await expectCount(role("button", "Settings", { exact: true }), 0);
     await expectCount('[aria-label="Desktop backup and recovery"]', 0);
-    await click(role("link", "All workspaces", { exact: true }));
+    await click(role("link", "Notespace home", { exact: true }));
     await goto("/");
     await openSettings();
     await visible(settingsDialog());

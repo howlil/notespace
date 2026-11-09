@@ -127,9 +127,9 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.3.14-${{ hashFiles('bun.lock') }}
-      - run: bun install --frozen-lockfile
-      - run: bun run --filter @notespace/landing build
+          key: ${{ runner.os }}-bun-1.3.14-${{ hashFiles('landing/bun.lock') }}
+      - run: bun install --cwd landing --frozen-lockfile
+      - run: bun run --cwd landing build
       - working-directory: landing
         run: node --test tests/hero.test.mjs tests/workers-root.test.mjs tests/windows-release.test.mjs
 

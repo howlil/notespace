@@ -167,5 +167,9 @@ test("workflow wiring retains always-running gate, unfiltered PR and isolated re
   assert.match(desktop, /group: desktop-\$\{\{ github.workflow \}\}/);
   assert.match(ci, /path: apps\/web\/dist\/client/);
   assert.match(ci, /if-no-files-found: error/);
+  // Landing is a standalone Bun project, not a root workspace.
+  assert.match(ci, /bun install --cwd landing --frozen-lockfile/);
+  assert.match(ci, /bun run --cwd landing build/);
+  assert.doesNotMatch(ci, /--filter @notespace\/landing/);
   assert.equal((ci.match(/run: bun run --filter @notespace\/web build/g) ?? []).length, 1);
 });

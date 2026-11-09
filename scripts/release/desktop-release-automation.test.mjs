@@ -118,8 +118,10 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
   const basic = readFileSync(new URL("../../.github/workflows/verify.yml", import.meta.url), "utf8");
   const desktop = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
   const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
+  assert.match(basic, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
+  // Reusable native CI must not cancel its caller (github.workflow is inherited).
+  assert.match(desktop, /group: desktop-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
   for (const workflow of [basic, desktop]) {
-    assert.match(workflow, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   }
   assert.match(beta, /cancel-in-progress: false/);

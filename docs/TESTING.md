@@ -205,7 +205,7 @@ Rules for this suite:
 - the browser talks to a local proxy in front of the real server; failures are injected there (`injectFault`), never by mocking the application or the database;
 - assertions read either the real DOM or the real HTTP API, so a simulated transport failure cannot hide durable state;
 - journeys are independent: no ordering dependency between files or tests;
-- `critical:` remains the legacy CI set during #200 migration; adding risk modes does not change active workflows.
+- `critical:` remains the legacy Verify set during #200 migration; the new PR ci lane uses affected + risk smoke.
 - `browser-proof-policy.mjs` maps every discovered case to its suite property/risk, with case-specific security/recovery overrides. P0 is loss/security/recovery, P1 functional, P2 interaction/layout, P3 cosmetic-only. Smoke includes all P0 cases and core creation/navigation/search; affected unions whole affected suites with that smoke floor. Full retains every case.
 - Shared/unknown changed paths, unclassified suites and unsupported/dynamic case registrations fall back to the full run rather than disappearing. Invalid paths/options, missing inputs, empty suites and empty selections fail. Supply both old/new paths for renames; complete diff collection belongs to the CI classifier.
 - `--file` still runs one complete suite within `tests/e2e`; `--list` validates/prints full, smoke, affected or legacy plans without acquiring browser/server resources.
@@ -251,9 +251,15 @@ cargo tauri build -- --locked
 
 ### Pull requests and `master`
 
+`ci.yml` is the transitional, unfiltered PR lane alongside the legacy gates. It classifies the complete merge-base diff into web/server/landing/browser/desktop/release-policy. Unknown paths, tracked generated output, invalid status or unavailable history select all owners; rename/copy paths include both old/new owners. Browser proof reuses the one web build artifact from the same run/attempt. Desktop delegates to the existing real Windows owner; no mocks or publication permissions are introduced.
+
+`ci / gate` runs with `always()`, independently recollects the diff and rejects a mismatched plan, failed classifier, missing/failed/canceled required result, required skip or stale/missing job SHA. Docs-only PRs explicitly skip unnecessary jobs but still complete the gate. PR identity is GitHub's checked-out merge SHA, not a substituted branch head. Legacy exact-master publisher assertions remain unchanged; master safety-net/cutover work is staged separately.
+
+Focused policy proof: `node --experimental-strip-types --test tests/ci-policy.test.ts` (decision matrices + isolated real Git CLI). Parsed DAG/permission proof: `python scripts/verify/test-desktop-workflow-yaml.py` with the existing pinned PyYAML tooling.
+
 For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and the **critical WebdriverIO** suite. On `master`, it runs the full web + landing build, the **critical WebdriverIO** suite, and Docker Compose restart/persistence smoke. The full browser suite (all journey files) runs locally and on demand through `bun run test:e2e`.
 
-`Verify Desktop` runs deterministic policy/YAML checks on Linux for PRs, while Windows Server 2022 still owns **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey. Full Linux native build/smoke and Windows-latest toolchain checks run on `master`, before the exact-SHA beta publication gate. No duplicate native launch is added.
+`Verify Desktop` runs deterministic policy/YAML checks on Linux for PRs, while Windows Server 2022 still owns **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey. Full Linux native build/smoke and Windows-latest toolchain checks run on `master`, before the exact-SHA beta publication gate. During the #200 M2 transition, selected native changes also run that same reusable native workflow from `ci`; legacy checks intentionally remain active until the M5a publisher/required-check cutover. This temporary overlap is not a performance improvement claim.
 
 Separate, explicit publication workflows protect actual MSI signing, installed-upgrade and provenance contracts. Windows 11 physical visual acceptance is manual and never claimed to be performed by CI.
 

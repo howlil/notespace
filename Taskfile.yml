@@ -91,6 +91,20 @@ tasks:
       - bun run --filter @notespace/web build
       - bun run test:e2e:critical
 
+  e2e:smoke:
+    desc: Build the web app and run risk-based durability/security smoke
+    cmds:
+      - bun run --filter @notespace/web build
+      - bun run test:e2e:smoke
+
+  e2e:affected:
+    desc: Build and run affected owners plus smoke (CHANGED_FILES=repository-relative-paths.json)
+    requires:
+      vars: [CHANGED_FILES]
+    cmds:
+      - bun run --filter @notespace/web build
+      - bun run test:e2e:affected --changed-files "{{.CHANGED_FILES}}"
+
   e2e:target:
     desc: Run one focused WebdriverIO journey file (SPEC=path/to/file.e2e.mjs)
     requires:

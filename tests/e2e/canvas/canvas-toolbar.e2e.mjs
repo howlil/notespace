@@ -91,8 +91,11 @@ test("keeps primary tools in the rail and secondary tools in More", async () => 
     const activePen = await box(role("button", "Draw", { exact: true, scope: toolbar }));
     const scroller = await box('[aria-label="Canvas tools"] > div:first-child');
     assert.ok(activePen.x >= scroller.x - 1 && activePen.x + activePen.width <= scroller.x + scroller.width + 1, "Keyboard activation reveals the active tool inside the scrolling rail");
-    await setViewport(760, 798);
-    await click(role("button", "Show Explorer"));
+    // <=760px now opens an overlay and makes Canvas inert. Exercise the
+    // desktop dock instead: 780 - 228px still gives a narrow Canvas.
+    await setViewport(780, 798);
+    await visible(role("button", "Hide Explorer", { exact: true }));
+    await waitFor(async () => (await box(canvas)).width < 560, "Desktop dock and Canvas resize settle below the compact threshold");
     await expectAttribute(penSettings, "aria-orientation", "horizontal");
     await waitFor(async () => {
       const settings = await box(penSettings), controls = await box(toolbar);

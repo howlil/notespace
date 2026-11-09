@@ -176,8 +176,13 @@ Suites are grouped by capability and discovered recursively. `tests/browser-disc
 
 ```sh
 bun run test:e2e            # build the web app, then every browser journey
-bun run test:e2e:critical   # build the web app, then only `critical:` journeys
-task e2e:critical           # same, through Task
+bun run test:e2e:critical   # existing build required; legacy `critical:` set
+bun run test:e2e:smoke      # existing build required; P0 + core create/navigation/search
+bun run test:e2e:affected --changed-files paths.json  # JSON array of repo-relative old/new paths
+task e2e:critical           # builds first, then legacy critical
+task e2e:smoke              # builds first, then risk smoke
+task e2e:affected CHANGED_FILES=paths.json            # builds first, then affected + smoke
+node scripts/verify/browser-e2e.mjs --mode smoke --list # inspect without starting fixtures
 node scripts/verify/browser-e2e.mjs --file tests/e2e/library/search.e2e.mjs   # one journey file
 ```
 
@@ -185,11 +190,13 @@ node scripts/verify/browser-e2e.mjs --file tests/e2e/library/search.e2e.mjs   # 
 
 ```text
 tests/e2e/
-├── harness.mjs     Chrome session, isolated Go/SQLite server, UI + API helpers
-├── proxy.mjs       transport-boundary fault injection (503, 409, abort, hold)
-├── resolve.mjs     Playwright-compatible role/name resolution, executed in-page
-├── frame-fixtures.mjs
-└── *.e2e.mjs       one file per owned behavior area
+├── canvas/, library/, settings/, compatibility/   owned *.e2e.mjs journeys
+└── support/
+    ├── harness.mjs     UI/API helpers and scoped fixture lifetime
+    ├── browser.mjs     Chrome session
+    ├── server.mjs      isolated Go/SQLite process
+    ├── proxy.mjs       transport fault injection (503, 409, abort, hold)
+    └── resolve.mjs     in-page role/name resolution
 ```
 
 Rules for this suite:
@@ -198,7 +205,10 @@ Rules for this suite:
 - the browser talks to a local proxy in front of the real server; failures are injected there (`injectFault`), never by mocking the application or the database;
 - assertions read either the real DOM or the real HTTP API, so a simulated transport failure cannot hide durable state;
 - journeys are independent: no ordering dependency between files or tests;
-- `critical:` marks the journeys the fast PR gate runs.
+- `critical:` remains the legacy CI set during #200 migration; adding risk modes does not change active workflows.
+- `browser-proof-policy.mjs` maps every discovered case to its suite property/risk, with case-specific security/recovery overrides. P0 is loss/security/recovery, P1 functional, P2 interaction/layout, P3 cosmetic-only. Smoke includes all P0 cases and core creation/navigation/search; affected unions whole affected suites with that smoke floor. Full retains every case.
+- Shared/unknown changed paths, unclassified suites and unsupported/dynamic case registrations fall back to the full run rather than disappearing. Invalid paths/options, missing inputs, empty suites and empty selections fail. Supply both old/new paths for renames; complete diff collection belongs to the CI classifier.
+- `--file` still runs one complete suite within `tests/e2e`; `--list` validates/prints full, smoke, affected or legacy plans without acquiring browser/server resources.
 
 Coverage includes canonical Home/category/Workspace navigation, Library/first-run shell, Canvas authoring (flowchart spawn, bounded code execution, undo-safe output, PNG/SVG code-block export, source-only HTML blocks, embeds), workspace/category search and Quick Open, Settings and backup lifecycle, pagination snapshots, category races, Library recovery, Canvas peer sync across tabs, and the retired Capture/Plan/Today/Inbox data boundaries that must stay readable while their UI stays gone. HTML preview remains disabled until browser navigation and network access can be contained. Note routes, editors, artifacts and Note imports are intentionally absent.
 

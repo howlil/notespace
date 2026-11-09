@@ -194,6 +194,7 @@ A3: Planning/activity/capture data retirement is not authorized merely because i
 
 - PF-CODE-01 (P-CODE-01…03) [important] | layout/scene/export + source contracts | iter: `bun run test`; pr: `bun run typecheck`, `bun run lint`.
 - PF-CODE-02 (P-CODE-01…05,X-CODE-01…02) [critical] | existing Canvas toolbar + HTML-source browser journeys | pr: web build then `node scripts/verify/browser-e2e.mjs --file tests/e2e/canvas/canvas-toolbar.e2e.mjs` and HTML-source file; native proof remains required before enabling preview.
+- PF-CI-01 (#200 A2/M1): browser discovery owns full/legacy/smoke/affected plans; policy maps suite/case risks, always retains P0 smoke, and falls back to full for unknown/shared impact. Invalid inputs fail; existing workflows/publisher names remain unchanged until explicit cutover. Proof: discovery/CLI unit tests at iter; actual selected/full WebdriverIO runs at pr. No application/storage/native lifecycle authority moves.
 - Web boundary: `bun run typecheck`, `bun run lint`, `bun run test`, then the   affected WebdriverIO critical journey when a user flow changes.
 - Server boundary: `gofmt`, `go vet ./...`, focused tests, and `go test -race ./...`   when concurrency or persistence semantics change.
 - Persistence/migration: real SQLite integration tests and server-process   restart smoke; never fake transaction semantics.

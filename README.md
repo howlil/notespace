@@ -1,5 +1,7 @@
 # Notespace
 
+<!-- Temporary #200 A1 docs-only gate acceptance probe. Never merge this branch. -->
+
 A free, self-hosted Canvas workspace for diagrams, sketches, images, and code.
 
 The current navigation model is:

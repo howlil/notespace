@@ -79,8 +79,9 @@ def check_native_verification(doc):
     assert "env.BUN_VERSION" in restores["native-packages"]["with"]["key"] and "env.NODE_VERSION" in restores["native-packages"]["with"]["key"]
     assert "hashFiles('bun.lock', 'package.json', 'apps/web/package.json')" in restores["native-packages"]["with"]["key"]
     assert "env.TAURI_DRIVER_VERSION" in restores["native-driver"]["with"]["key"]
-    topology = next(step for step in steps if step.get("run") == "node scripts/verify/check-native-dependency-cache.mjs")
-    assert "if" not in topology, "Package cache cannot silently include workspace/profile junctions"
+    topology = next(step for step in steps if step.get("run") == "node scripts/verify/prepare-native-package-cache.mjs")
+    assert "if" not in topology, "Package snapshots must exclude all Windows lookup junctions"
+    assert "native-packages-v2-" in restores["native-packages"]["with"]["key"], "Never reuse snapshots with nonportable alias metadata"
     saves = [step for step in steps if step.get("uses") == "actions/cache/save@v4"]
     assert len(saves) == 2
     for saved, restore_id in zip(saves, ["native-packages", "native-driver"]):

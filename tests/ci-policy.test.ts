@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
-import { assertNativeDependencyCache } from "../scripts/verify/check-native-dependency-cache.mjs";
+import { prepareNativePackageCache } from "../scripts/verify/prepare-native-package-cache.mjs";
 import { CI_JOBS, assertCiGate, classifyDiff, parseNameStatus } from "../scripts/verify/ci-policy.mjs";
 
 const sha = "a".repeat(40), baseSha = "b".repeat(40);
@@ -50,20 +50,24 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
   }
 });
 
-test("native package cache permits internal links but rejects source/profile junctions", () => {
+test("native package snapshot strips internal/external/broken aliases without touching targets", () => {
   const directory = mkdtempSync(join(tmpdir(), "notespace-native-cache-"));
   try {
     const cache = join(directory, "packages"), source = join(directory, "source");
     mkdirSync(join(cache, "vendor"), { recursive: true });
     symlinkSync(join(cache, "vendor"), join(cache, "alias"), "junction");
-    assertNativeDependencyCache(cache);
     mkdirSync(source);
+    writeFileSync(join(source, "profile.txt"), "must remain untouched");
+    writeFileSync(join(cache, "vendor", "package.json"), "{}");
     symlinkSync(source, join(cache, "workspace"), "junction");
-    assert.throws(() => assertNativeDependencyCache(cache), /escapes into source\/data/);
-    rmSync(join(cache, "workspace"));
+    symlinkSync(join(directory, "absent"), join(cache, "broken"), "junction");
+    prepareNativePackageCache(cache);
+    for (const alias of ["alias", "workspace", "broken"]) assert.throws(() => lstatSync(join(cache, alias)), { code: "ENOENT" });
+    assert.equal(readFileSync(join(source, "profile.txt"), "utf8"), "must remain untouched");
+    assert.equal(readFileSync(join(cache, "vendor", "package.json"), "utf8"), "{}");
     symlinkSync(source, join(directory, "linked-cache"), "junction");
-    assert.throws(() => assertNativeDependencyCache(join(directory, "linked-cache")), /root cannot be a junction/);
-    assert.throws(() => assertNativeDependencyCache(undefined), /cache root is required/);
+    assert.throws(() => prepareNativePackageCache(join(directory, "linked-cache")), /root cannot be a junction/);
+    assert.throws(() => prepareNativePackageCache(undefined), /cache root is required/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

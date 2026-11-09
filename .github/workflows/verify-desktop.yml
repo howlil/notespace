@@ -1,11 +1,19 @@
 name: Verify Desktop
 
 on:
+  workflow_call:
+    outputs:
+      sha:
+        description: Exact source verified by required real Windows native proof
+        value: ${{ jobs.check-desktop-windows.outputs.sha }}
   pull_request:
     paths:
       # Release-note-only opt-in commits must still validate this exact master SHA.
       - "docs/DESKTOP_BETA_RELEASE_*.md"
       - ".github/workflows/verify-desktop.yml"
+      - ".github/workflows/ci.yml"
+      - "scripts/verify/ci.mjs"
+      - "scripts/verify/ci-policy.mjs"
       - ".agents/engineering.md"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
@@ -61,6 +69,9 @@ on:
       # Release-note-only opt-in commits must still validate this exact master SHA.
       - "docs/DESKTOP_BETA_RELEASE_*.md"
       - ".github/workflows/verify-desktop.yml"
+      - ".github/workflows/ci.yml"
+      - "scripts/verify/ci.mjs"
+      - "scripts/verify/ci-policy.mjs"
       - "apps/desktop/**"
       - "apps/server/cmd/notespace/**"
       - "apps/server/internal/sqlite/**"
@@ -111,7 +122,7 @@ on:
       - "bun.lock"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -216,6 +227,8 @@ jobs:
   check-desktop-windows:
     runs-on: windows-2022
     timeout-minutes: 45
+    outputs:
+      sha: ${{ steps.ci-identity.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -231,6 +244,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - id: ci-identity
+        name: Bind native proof to exact checkout SHA
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: node scripts/verify/ci.mjs identity
       # Deterministic YAML/release policy tests run once in the Linux job.
       # Keep only Windows-specific assertions and real native WebView2 here.
       - uses: dtolnay/rust-toolchain@stable

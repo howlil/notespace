@@ -54,6 +54,26 @@ def main():
     for path in paths:
         check_workflow(path)
 
+    ci = check_workflow(WORKFLOWS / "ci.yml")
+    expected = {"classify", "web", "server", "landing", "browser", "desktop", "release-policy"}
+    assert set(ci["jobs"]) == expected | {"gate"}, "All CI jobs must belong to the gate contract"
+    assert ci["on"].get("pull_request") == "", "PR gate must have no top-level path filters"
+    assert ci["jobs"]["gate"]["name"] == "ci / gate", "Keep one stable check identity for cutover"
+    assert ci["jobs"]["gate"]["if"] == "always()", "Final gate must run after failure/skip"
+    assert set(ci["jobs"]["gate"]["needs"]) == expected, "No required job may escape aggregation"
+    assert ci["permissions"] == {"contents": "read"}, "Untrusted PRs cannot receive write authority"
+    assert ci["jobs"]["desktop"]["uses"] == "./.github/workflows/verify-desktop.yml"
+    classify_steps = ci["jobs"]["classify"]["steps"]
+    preflight = next(step for step in classify_steps if step.get("run") == "node --experimental-strip-types --test tests/ci-policy.test.ts")
+    planner = next(step for step in classify_steps if step.get("id") == "plan")
+    assert "if" not in preflight and classify_steps.index(preflight) < classify_steps.index(planner), "Classifier cannot skip its own proof"
+    for name in expected - {"classify", "desktop"}:
+        job = ci["jobs"][name]
+        assert job["outputs"].get("sha") == "${{ steps.identity.outputs.sha }}", f"{name}: missing SHA binding"
+        identity = next(step for step in job["steps"] if step.get("id") == "identity")
+        assert identity["env"]["EXPECTED_SHA"] == "${{ github.sha }}"
+        assert identity["run"] == "node scripts/verify/ci.mjs identity"
+
     beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
     assert list(beta["on"]) == ["workflow_dispatch"], "Free beta must be manually launched"
     assert len(beta["jobs"]) == 1, "Free beta must remain a single Windows job"

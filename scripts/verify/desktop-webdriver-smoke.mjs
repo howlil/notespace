@@ -246,8 +246,32 @@ async function runProductPersistenceJourney(session) {
     await reenter.click();
     await waitForUrl(session, /[/]workspaces[/]/);
     await assertDesktopChrome(session, true);
+    await assertCodeModule(session);
   }
   return { workspaceTitle, workspaceId };
+}
+
+async function assertCodeModule(session) {
+  await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Code block"]'))).click();
+  const block = await visibleElement(session, By.css('[data-canvas-code-block]'));
+  assert.equal((await session.findElements(By.css('[data-canvas-code-header]'))).length, 0);
+  assert.equal((await session.findElements(By.css('[role="toolbar"][aria-label="Code block settings"]'))).length, 1);
+  await session.actions().doubleClick(block).perform();
+  const editor = await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
+  await editor.sendKeys('console.log("desktop-code-module");');
+  await editor.sendKeys(Key.chord(Key.CONTROL, Key.ENTER));
+  const output = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code output"]'));
+  await session.wait(async () => (await output.getText()).includes("desktop-code-module"), 10_000, "Native Worker output appears inside the card");
+  await (await visibleElement(session, By.css('[aria-label="Hide code output"]'))).click();
+  await (await visibleElement(session, By.css('[aria-label="Code language"]'))).click();
+  const search = await visibleElement(session, By.css('[aria-label="Search code languages"]'));
+  await search.sendKeys("HTML");
+  await (await visibleElement(session, By.xpath('//div[@data-code-toolbar-popup]//button[normalize-space()="HTML / XML"]'))).click();
+  await visibleElement(session, By.css('button[aria-label="HTML preview disabled: browser and WebView2 isolation is not verified"][disabled]'));
+  assert.equal((await session.findElements(By.css('iframe[title="Canvas interactive HTML preview"]'))).length, 0);
+  await editor.sendKeys(Key.ESCAPE);
+  await waitForWorkspaceSaved(session);
+  console.log("native Code Module proof passed: one toolbar, headerless card, Worker output and disabled HTML preview");
 }
 
 async function assertProductPersistence(session, marker) {

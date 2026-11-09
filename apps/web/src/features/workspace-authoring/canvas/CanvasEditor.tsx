@@ -26,9 +26,9 @@ import { useToast } from "../../../shared/ui/feedback/toast-provider";
 import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./state/canvas-state";
 import { directionFromKey } from "./flowchart/CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./code/CanvasCodeBlockActions";
-import { CanvasCodeBlockLayer } from "./code/CanvasCodeBlockLayer";
+import { CanvasCodeBlockLayer, defaultCodeBlockView, type CodeBlockViewOptions } from "./code/CanvasCodeBlockLayer";
 import { copyCanvasImage, downloadCanvasImage } from "./code/canvas-code-block-export-actions";
-import { defaultCanvasCodeBlock, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
+import { defaultCanvasCodeBlock, effectiveCanvasCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./code/canvas-code-block-layout";
 import { CanvasBottomChrome, CanvasToolRail, CanvasViewControls, type CanvasContextualAnchor } from "./chrome/CanvasChrome";
 import { CanvasFlowchartHandles } from "./flowchart/CanvasFlowchartHandles";
@@ -191,6 +191,10 @@ export default function CanvasEditor({
   const [overlayElements, setOverlayElements] = useState<readonly OrderedExcalidrawElement[]>(initialCodeElements);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
+  const [codeBlockViews, setCodeBlockViews] = useState<Record<string, CodeBlockViewOptions>>({});
+  const updateCodeView = useCallback((id: string, patch: Partial<CodeBlockViewOptions>) => {
+    setCodeBlockViews((current) => ({ ...current, [id]: { ...(current[id] ?? defaultCodeBlockView), ...patch } }));
+  }, []);
   const [canvasViewport, setCanvasViewport] = useState({ zoom: 1, scrollX: 0, scrollY: 0 });
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialCodeElements));
@@ -238,7 +242,7 @@ export default function CanvasEditor({
     const appState = currentApi.getAppState();
     const scene = currentApi.getSceneElements();
     const selected = scene.filter((element) => appState.selectedElementIds[element.id]);
-    const source = { elements: selected.length ? selected : scene, appState };
+    const source = { elements: selected.length ? selected : scene, appState, codeBlockViews };
     void copyCanvasImage(currentApi, dark, format, source).then(() => {
       showToast({ kind: "success", message: `${format.toUpperCase()} copied.` });
     }).catch((error: unknown) => {
@@ -249,12 +253,16 @@ export default function CanvasEditor({
   const liveCodeBlocks = useMemo(
     () => overlayElements.flatMap((element) => {
       const block = readCanvasCodeBlock(element);
-      return block ? [{ id: element.id, code: block.code, language: block.language }] : [];
+      return block ? [{ id: element.id, code: block.code, language: effectiveCanvasCodeLanguage(block) }] : [];
     }),
     [overlayElements],
   );
   const liveCodeElementIds = useMemo(() => liveCodeBlocks.map(({ id }) => id), [liveCodeBlocks]);
-  const { runs: codeRuns, runBlock: runCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeBlocks);
+  const { runs: codeRuns, runBlock: executeCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeBlocks);
+  const runCodeBlock = useCallback((id: string, block: CanvasCodeBlockData) => {
+    updateCodeView(id, { showOutput: true });
+    executeCodeBlock(id, { ...block, language: effectiveCanvasCodeLanguage(block) });
+  }, [executeCodeBlock, updateCodeView]);
 
   useEffect(() => {
     if (!canvasApi) return;
@@ -266,7 +274,7 @@ export default function CanvasEditor({
     return interceptNativeImageExportCallback(canvasApi, async (type, elements, options) => {
       if (!elements.some((element) => readCanvasCodeBlock(element))) return false;
       const appState = canvasApi.getAppState();
-      const source = { elements, appState, exportingFrame: options.exportingFrame };
+      const source = { elements, appState, exportingFrame: options.exportingFrame, codeBlockViews };
       const exportDark = appState.exportWithDarkMode || appState.theme === "dark";
       const name = canvasApi.app.getName() || "notespace-canvas";
       try {
@@ -279,7 +287,7 @@ export default function CanvasEditor({
       }
       return true;
     });
-  }, [canvasApi, showToast]);
+  }, [canvasApi, codeBlockViews, showToast]);
 
   const closeCanvasPopovers = useCallback(() => {
     setToolOverlay(null);
@@ -789,8 +797,12 @@ export default function CanvasEditor({
   }, [canvasOverlayInteractionActive, commitNativeFlowchartPreview, flowchartPreviewDirection]);
 
   useEffect(() => {
-    if (editingCodeBlockId && !liveCodeElementIds.includes(editingCodeBlockId)) setEditingCodeBlockId(null);
-  }, [editingCodeBlockId, liveCodeElementIds]);
+    if (editingCodeBlockId && (!liveCodeElementIds.includes(editingCodeBlockId) || selectedElementCount !== 1 || selectedElementId !== editingCodeBlockId)) setEditingCodeBlockId(null);
+    setCodeBlockViews((current) => {
+      const entries = Object.entries(current).filter(([id]) => liveCodeElementIds.includes(id));
+      return entries.length === Object.keys(current).length ? current : Object.fromEntries(entries);
+    });
+  }, [editingCodeBlockId, liveCodeElementIds, selectedElementCount, selectedElementId]);
 
   useEffect(() => {
     // Excalidraw's wheel handler accepts only select DOM targets. The authoring
@@ -890,11 +902,10 @@ export default function CanvasEditor({
         selectedElementId={selectedElementId}
         editingElementId={editingCodeBlockId}
         runs={codeRuns}
+        views={codeBlockViews}
         onUpdate={updateCodeBlock}
         onEditingChange={setEditingCodeBlockId}
         onRun={runCodeBlock}
-        onStop={stopCodeRun}
-        onClearRun={clearCodeRun}
         onAutoFit={autoFitCodeBlock}
       />
       <CanvasViewControls api={canvasApi} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} onToolOverlayOpen={closeCanvasPopovers} onOverlayOpen={() => setActiveCanvasOverlay("view")} overlayActive={activeCanvasOverlay === null || activeCanvasOverlay === "view"} toolOverlayOpen={toolOverlay !== null} />
@@ -908,10 +919,24 @@ export default function CanvasEditor({
           if (selectedElementCount === 1 && selectedCodeElement && selectedCodeBlock) {
             return (
               <CanvasCodeBlockActions
-                block={selectedCodeBlock}
                 appDark={dark}
+                key={selectedCodeElement.id}
+                suppressed={isObjectManipulating || contextMenuOpen || viewModeEnabled}
+                onExitEditing={() => setEditingCodeBlockId(null)}
+                block={selectedCodeBlock}
+                outputVisible={Boolean((codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).showOutput)}
+                wordWrap={(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).wordWrap}
+                running={codeRuns[selectedCodeElement.id]?.status === "running"}
+                onToggleOutput={() => updateCodeView(selectedCodeElement.id, { showOutput: !(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).showOutput })}
+                onToggleWrap={() => updateCodeView(selectedCodeElement.id, { wordWrap: !(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).wordWrap })}
+                onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
+                onStop={() => stopCodeRun(selectedCodeElement.id)}
+                onDuplicate={() => runCanvasAction("duplicateSelection")}
                 onUpdate={(block) => updateCodeBlock(selectedCodeElement.id, block)}
-                onFitContent={() => updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" })}
+                onFitContent={() => {
+                  updateCodeView(selectedCodeElement.id, { fitRevision: (codeBlockViews[selectedCodeElement.id]?.fitRevision ?? 0) + 1 });
+                  updateCodeBlock(selectedCodeElement.id, { ...selectedCodeBlock, heightMode: "auto" });
+                }}
                 onDelete={() => {
                   clearCodeRun(selectedCodeElement.id);
                   setEditingCodeBlockId(null);

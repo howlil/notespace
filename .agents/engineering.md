@@ -56,6 +56,8 @@ S5: Search/FTS projection | owner SQLite | derived and repairable; authored Work
 
 S6: Desktop session cookie, pinned loopback origin, child-process generation and profile data root | owner R1 plus desktop server boundary | one bootstrap is single-use; API requires the HttpOnly same-origin session; a busy pinned port is a recovery failure, not an automatic origin change. Debug builds use `<app-data>/dev`, packaged builds use `<app-data>`, test override uses its exact supplied directory, and stores are never moved or merged automatically.
 
+S-CODE (#199): Excalidraw owns selected IDs and geometry; existing CanvasCodeBlockData v1 owns source/language/theme/line numbers/heightMode. CanvasEditor owns per-element ephemeral output visibility/wrap, while useCodeRunner owns bounded Worker handles/results with source/run identity fencing and cleanup. The single contextual toolbar stays visible while editing code, not manipulation. Source-only exports and measurement use headerless geometry and the same UI-local wordWrap option. Export adapters borrow per-element view options at invocation without serializing them. Selected source/output panes own local scroll/focus, while modified-wheel pinch remains Canvas-owned; reading never updates authored geometry. No new renderer sandbox, persistence or runtime is introduced.
+
 S7: Browser theme, cache and local asset cache | owner shared/browser or asset adapter | never authoritative for Workspace content. Memory is an LRU capped at 32 MiB/64 entries; disk targets 128 MiB, evicting only confirmed server copies. Unknown legacy assets remain protected until upload succeeds. Permanent deletion and successful library restore invalidate caches and fence stale in-flight loads.
 
 ## Structure and dependency direction
@@ -188,6 +190,8 @@ A3: Planning/activity/capture data retirement is not authorized merely because i
 
 ## Verification and release boundary
 
+- PF-CODE-01 (P-CODE-01…03) [important] | layout/scene/export + source contracts | iter: `bun run test`; pr: `bun run typecheck`, `bun run lint`.
+- PF-CODE-02 (P-CODE-01…05,X-CODE-01…02) [critical] | existing Canvas toolbar + HTML-source browser journeys | pr: web build then `node scripts/verify/browser-e2e.mjs --file tests/e2e/canvas/canvas-toolbar.e2e.mjs` and HTML-source file; native proof remains required before enabling preview.
 - Web boundary: `bun run typecheck`, `bun run lint`, `bun run test`, then the   affected WebdriverIO critical journey when a user flow changes.
 - Server boundary: `gofmt`, `go vet ./...`, focused tests, and `go test -race ./...`   when concurrency or persistence semantics change.
 - Persistence/migration: real SQLite integration tests and server-process   restart smoke; never fake transaction semantics.

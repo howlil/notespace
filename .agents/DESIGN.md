@@ -74,6 +74,25 @@ same-type selections retain Pressure/Corners. Overlay dismissal releases only
 its own scope; Escape restores its trigger without clearing selection, and a
 changed context closes stale properties without stealing pointer focus.
 
+Code Blocks are the selection-toolbar exception: remain visible during source
+editing, hide during manipulation/context menus, and expose Language, Output,
+Run/Stop, Copy and More. Keep source and transient output in one headerless card;
+use rendered width for split/stack without modifying native scene geometry.
+Languages are searchable in a viewport-clamped popup capped at 320px with
+search pinned above its scrolling list. The toolbar shows only the language name,
+with Auto/detection kept in the popup and tooltip. The name truncates before any
+action clips; all five actions remain reachable at 320px. Output has a
+tooltip and a visibly pressed state. Compact More uses a light/dark theme switch
+reflecting the resolved theme and an Auto reset; it also holds lines/wrap/fit/duplicate/delete.
+Selected source and output are focusable scroll regions with thin scrollbar
+affordances; source reading does not require editing. Pane scrolling stays local,
+while modified-wheel pinch remains Canvas-owned. Fit and source-only image export
+follow the current UI-local wrap option without persisting it.
+Popup Escape restores its trigger before editing Escape retains selection.
+Use existing semantic tokens and Lucide; no permanent status or output toolbar.
+JavaScript retains bounded Worker execution; HTML preview stays disabled until
+browser and WebView2 isolation is proven. Exports remain headerless source-only.
+
 Canvas conflicts expose retry-merge, a downloadable local draft including images,
 and use-saved recovery with explicit local-discard confirmation. Recovery errors
 stay visible in the dialog and busy recovery keeps the dialog open.

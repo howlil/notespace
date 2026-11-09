@@ -1,238 +1,69 @@
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { Check, ChevronDown, ChevronUp, Clipboard, Code2, Play, Square, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type WheelEvent } from "react";
 import {
-  codeLanguageOptions,
-  codeThemeSurface,
-  codeTokenColor,
-  detectCodeLanguage,
-  highlightCodeLines,
-  readCanvasCodeBlock,
-  resolveCodeTheme,
-  type CanvasCodeBlockData,
+  codeThemeSurface, codeTokenColor, detectCodeLanguage, effectiveCanvasCodeLanguage, highlightCodeLines,
+  readCanvasCodeBlock, resolveCodeTheme, type CanvasCodeBlockData,
 } from "./canvas-code-block";
 import {
-  CODE_BLOCK_BORDER_ALLOWANCE,
-  codeBlockIntersectsViewport,
-  CODE_BLOCK_BODY_PADDING_X,
-  CODE_BLOCK_BODY_PADDING_Y,
-  CODE_BLOCK_FONT_SIZE,
-  CODE_BLOCK_HEADER_HEIGHT,
-  CODE_BLOCK_LINE_HEIGHT,
-  CODE_BLOCK_LINE_NUMBER_WIDTH,
+  CODE_BLOCK_BORDER_ALLOWANCE, codeBlockIntersectsViewport, codeBlockOutputLayout,
+  CODE_BLOCK_BODY_PADDING_X, CODE_BLOCK_BODY_PADDING_Y, CODE_BLOCK_FONT_SIZE,
+  CODE_BLOCK_LINE_HEIGHT, CODE_BLOCK_LINE_NUMBER_WIDTH,
 } from "./canvas-code-block-layout";
 import { CanvasCodeBlockMeasure } from "./CanvasCodeBlockMeasure";
 import { canRunCanvasCode } from "./canvas-code-runner";
 import type { CodeRunView } from "./use-canvas-code-runner";
 
-type CanvasViewport = {
-  zoom: number;
-  scrollX: number;
-  scrollY: number;
-};
+export type CodeBlockViewOptions = { showOutput: boolean; wordWrap: boolean; fitRevision?: number };
+export const defaultCodeBlockView: CodeBlockViewOptions = { showOutput: false, wordWrap: true };
+type CanvasViewport = { zoom: number; scrollX: number; scrollY: number };
 
-type CodeElement = OrderedExcalidrawElement & {
-  customData?: Record<string, unknown>;
-};
-
-function runStatusLabel(run: CodeRunView) {
-  if (run.status === "running") return "Running";
-  if (run.status === "success") return `Done · ${run.durationMs} ms`;
-  if (run.status === "timeout") return `Timed out · ${run.durationMs} ms`;
-  if (run.status === "cancelled") return `Stopped · ${run.durationMs} ms`;
-  return `Error · ${run.durationMs} ms`;
-}
-
-function HighlightedCodeLines({
-  code,
-  language,
-  resolvedTheme,
-  foreground,
-  muted,
-  lineNumbers,
-  zoom,
-  gutterWidth,
-  paddingX,
-  fontSize,
-  lineHeight,
-}: {
-  code: string;
-  language: string;
-  resolvedTheme: "light" | "dark";
-  foreground: string;
-  muted: string;
-  lineNumbers: boolean;
-  zoom: number;
-  gutterWidth: number;
-  paddingX: number;
-  fontSize: number;
-  lineHeight: number;
-}) {
-  const highlightedLines = useMemo(() => highlightCodeLines(code, language), [code, language]);
-  return (
-    <>
-      {highlightedLines.map((lineTokens, lineIndex) => (
-        <div
-          key={lineIndex}
-          className="grid min-w-0"
-          style={{ gridTemplateColumns: lineNumbers ? `${gutterWidth}px minmax(0,1fr)` : "minmax(0,1fr)" }}
-        >
-          {lineNumbers && (
-            <span
-              className="select-none text-right"
-              style={{ paddingRight: Math.max(3, 6 * zoom), color: muted }}
-              aria-hidden="true"
-            >
-              {lineIndex + 1}
-            </span>
-          )}
-          <code
-            className="block min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
-            aria-label={lineIndex === 0 ? "Highlighted code" : undefined}
-            style={{
-              paddingLeft: paddingX,
-              paddingRight: paddingX,
-              color: foreground,
-              fontSize,
-              lineHeight: `${lineHeight}px`,
-            }}
-          >
-            {lineTokens.map((token, tokenIndex) => (
-              <span key={tokenIndex} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>
-            ))}
-            {lineTokens.length === 0 ? "\u200b" : null}
-          </code>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function codeLanguageLabel(language: string) {
-  return codeLanguageOptions.find(([value]) => value === language)?.[1] ?? language;
-}
-
-function CanvasCodeBlockHeader({
-  elementId,
-  block,
-  language,
-  selected,
-  runnable,
-  run,
-  height,
-  fontSize,
-  palette,
-  onRun,
-  onStop,
-}: {
-  elementId: string;
-  block: CanvasCodeBlockData;
-  language: string;
-  selected: boolean;
-  runnable: boolean;
-  run?: CodeRunView;
-  height: number;
-  fontSize: number;
-  palette: ReturnType<typeof codeThemeSurface>;
-  onRun: () => void;
-  onStop: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const copiedReset = useRef<number | null>(null);
-  const languageLabel = codeLanguageLabel(language);
-  const controlSize = Math.max(1, Math.min(28, height - 4));
-  const iconSize = Math.max(1, Math.round(controlSize * 0.55));
-
-  useEffect(() => () => {
-    if (copiedReset.current !== null) window.clearTimeout(copiedReset.current);
-  }, []);
-
-  const copyCode = () => {
-    if (!navigator.clipboard?.writeText) return;
-    void navigator.clipboard.writeText(block.code).then(() => {
-      setCopied(true);
-      if (copiedReset.current !== null) window.clearTimeout(copiedReset.current);
-      copiedReset.current = window.setTimeout(() => setCopied(false), 1200);
-    }).catch(() => undefined);
+function codeOutputMessage(run: CodeRunView | undefined, runnable: boolean) {
+  if (!run) return runnable ? "Run JavaScript to see output" : "Source only; execution is available for JavaScript";
+  const messages = {
+    running: "Running…",
+    timeout: "Execution timed out. Run again to retry.",
+    cancelled: "Execution stopped. Run again to retry.",
+    error: "Execution failed. Edit the source and run again.",
   };
+  if (run.status !== "success") return messages[run.status];
+  return !run.stdout.length && !run.stderr.length && run.result === undefined ? "Completed without output" : null;
+}
 
+function containPaneWheel(event: WheelEvent) {
+  if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
+}
+
+function containPaneNavigation(event: KeyboardEvent) {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) event.stopPropagation();
+}
+
+function CodeOutput({ run, runnable, compact }: { run?: CodeRunView; runnable: boolean; compact: boolean }) {
+  const message = codeOutputMessage(run, runnable);
   return (
-    <header
-      className="flex shrink-0 items-center justify-between gap-1 border-b px-2 font-sans"
-      style={{
-        height,
-        minHeight: height,
-        background: palette.toolbar,
-        borderColor: palette.border,
-        color: palette.foreground,
-        fontSize: Math.max(1, Math.min(11, fontSize)),
-        lineHeight: 1,
-      }}
-      data-canvas-code-header={elementId}
-      aria-label={"Code block header, " + languageLabel}
-    >
-      <span className="flex min-w-0 items-center gap-1">
-        <Code2 className="shrink-0" style={{ width: iconSize, height: iconSize, color: palette.muted }} strokeWidth={1.5} aria-hidden="true" />
-        <span className="truncate font-medium">{languageLabel}</span>
-        {!block.languageLocked && <span className="shrink-0" style={{ color: palette.muted }}>Auto</span>}
-      </span>
-      {selected && (
-        <span className="flex shrink-0 items-center gap-1">
-          {run && <span className="pointer-events-none truncate" aria-hidden="true" style={{ color: palette.muted }}>{runStatusLabel(run)}</span>}
-          {runnable && (
-            <button
-              type="button"
-              className="pointer-events-auto grid shrink-0 place-items-center rounded-md transition-[color,background-color] duration-100 hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-              style={{ width: controlSize, height: controlSize, color: palette.foreground }}
-              aria-label={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"}
-              title={run?.status === "running" ? "Stop JavaScript" : "Run JavaScript"}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (run?.status === "running") onStop();
-                else onRun();
-              }}
-            >
-              {run?.status === "running"
-                ? <Square style={{ width: iconSize - 1, height: iconSize - 1 }} fill="currentColor" aria-hidden="true" />
-                : <Play style={{ width: iconSize, height: iconSize }} fill="currentColor" aria-hidden="true" />}
-            </button>
-          )}
-          <button
-            type="button"
-            className="pointer-events-auto grid shrink-0 place-items-center rounded-md transition-[color,background-color] duration-100 hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-            style={{ width: controlSize, height: controlSize, color: palette.foreground }}
-            aria-label={copied ? "Code copied" : "Copy code"}
-            title={copied ? "Code copied" : "Copy code"}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              copyCode();
-            }}
-          >
-            {copied
-              ? <Check style={{ width: iconSize, height: iconSize }} aria-hidden="true" />
-              : <Clipboard style={{ width: iconSize, height: iconSize }} aria-hidden="true" />}
-          </button>
-        </span>
-      )}
-    </header>
+    <div className={`h-full min-h-0 min-w-0 overflow-auto overscroll-contain whitespace-pre-wrap ${compact ? "px-1" : "p-2"} [overflow-wrap:anywhere] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent`} role="region" tabIndex={0} aria-label="Code output" onWheel={containPaneWheel} onKeyDown={containPaneNavigation}>
+      {message && <div role="status" aria-live="polite" className="text-muted">{message}</div>}
+      {run && <CodeRunContent run={run} />}
+    </div>
   );
+}
+
+function CodeRunContent({ run }: { run: CodeRunView }) {
+  return <>
+    {run.stdout.map((line, index) => <div key={`out-${index}`}>{line}</div>)}
+    {run.stderr.map((line, index) => <div key={`err-${index}`} className="text-danger">{line}</div>)}
+    {"result" in run && run.result !== undefined && <div>{run.result}</div>}
+  </>;
+}
+
+type InitialCodeMeasurement = { code: string; width: number; lineNumbers: boolean; height: number };
+
+function matchesInitialMeasurement(baseline: InitialCodeMeasurement | undefined, element: OrderedExcalidrawElement, block: CanvasCodeBlockData) {
+  return baseline?.code === block.code && baseline.width === element.width && baseline.lineNumbers === block.lineNumbers;
 }
 
 export function CanvasCodeBlockLayer({
-  elements,
-  viewport,
-  appDark,
-  selectedElementId,
-  editingElementId,
-  runs,
-  onUpdate,
-  onEditingChange,
-  onRun,
-  onStop,
-  onClearRun,
-  onAutoFit,
+  elements, viewport, appDark, selectedElementId, editingElementId, runs, views,
+  onUpdate, onEditingChange, onRun, onAutoFit,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   viewport: CanvasViewport;
@@ -240,321 +71,165 @@ export function CanvasCodeBlockLayer({
   selectedElementId: string | null;
   editingElementId: string | null;
   runs: Record<string, CodeRunView>;
+  views: Record<string, CodeBlockViewOptions>;
   onUpdate: (elementId: string, block: CanvasCodeBlockData) => void;
   onEditingChange: (elementId: string | null) => void;
   onRun: (elementId: string, block: CanvasCodeBlockData) => void;
-  onStop: (elementId: string) => void;
-  onClearRun: (elementId: string) => void;
   onAutoFit: (elementId: string, height: number) => void;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
   const [layerSize, setLayerSize] = useState({ width: 0, height: 0 });
-  const [collapsedOutputIds, setCollapsedOutputIds] = useState<Set<string>>(() => new Set());
-  const codeElements = elements
-    .filter((element) => !element.isDeleted)
-    .map((element) => ({ element: element as CodeElement, block: readCanvasCodeBlock(element as CodeElement) }))
-    .filter((entry): entry is { element: CodeElement; block: CanvasCodeBlockData } => entry.block !== null);
-
+  // Removing chrome must not resize existing auto-height snapshots on opening.
+  const initialMeasurements = useRef(new Map(elements.flatMap((element) => {
+    const block = readCanvasCodeBlock(element);
+    return block ? [[element.id, { code: block.code, width: element.width, lineNumbers: block.lineNumbers, height: element.height }] as const] : [];
+  })));
+  const codeElements = elements.filter((element) => !element.isDeleted)
+    .flatMap((element) => { const block = readCanvasCodeBlock(element); return block ? [{ element, block }] : []; });
   useEffect(() => {
     const layer = layerRef.current;
     if (!layer || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      const next = { width: entry.contentRect.width, height: entry.contentRect.height };
-      setLayerSize((current) => current.width === next.width && current.height === next.height ? current : next);
-    });
+    const measure = () => setLayerSize({ width: layer.clientWidth, height: layer.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(layer);
     return () => observer.disconnect();
   }, []);
-
-  const visibleCodeElements = codeElements.filter(({ element }) => (
-    element.id === selectedElementId
-    || element.id === editingElementId
-    || codeBlockIntersectsViewport({
-      x: element.x,
-      y: element.y,
-      width: element.width,
-      height: element.height,
-      angle: element.angle,
-      zoom: viewport.zoom,
-      scrollX: viewport.scrollX,
-      scrollY: viewport.scrollY,
-      viewportWidth: layerSize.width,
-      viewportHeight: layerSize.height,
-    })
-  ));
-
+  const visibleElements = codeElements.filter(({ element }) => codeBlockIntersectsViewport({
+    ...element, ...viewport, viewportWidth: layerSize.width, viewportHeight: layerSize.height,
+  }));
   return (
     <div ref={layerRef} className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-label="Canvas code blocks">
-      {codeElements.map(({ element, block }) => block.heightMode === "auto" ? (
-        <CanvasCodeBlockMeasure
-          key={`measure-${element.id}`}
-          code={block.code}
-          width={element.width}
-          lineNumbers={block.lineNumbers}
-          onHeight={(targetHeight) => onAutoFit(element.id, targetHeight)}
-        />
-      ) : null)}
-      {visibleCodeElements.map(({ element, block }) => {
-        const resolvedTheme = resolveCodeTheme(block.theme, appDark);
-        const palette = codeThemeSurface(resolvedTheme);
-        const selected = selectedElementId === element.id;
-        const editing = editingElementId === element.id;
-        const run = runs[element.id];
-        const effectiveLanguage = block.languageLocked ? block.language : detectCodeLanguage(block.code);
-        const runnable = canRunCanvasCode(effectiveLanguage);
-        const zoom = viewport.zoom;
-        const left = (element.x + viewport.scrollX) * zoom;
-        const top = (element.y + viewport.scrollY) * zoom;
-        const width = Math.max(1, element.width * zoom);
-        const height = Math.max(1, element.height * zoom);
-        const paddingX = CODE_BLOCK_BODY_PADDING_X * zoom;
-        const paddingY = CODE_BLOCK_BODY_PADDING_Y * zoom;
-        const gutterWidth = CODE_BLOCK_LINE_NUMBER_WIDTH * zoom;
-        const fontSize = CODE_BLOCK_FONT_SIZE * zoom;
-        const headerHeight = CODE_BLOCK_HEADER_HEIGHT * zoom;
-        const bodyHeight = Math.max(0, height - headerHeight - (CODE_BLOCK_BORDER_ALLOWANCE * zoom));
-        const lineHeight = CODE_BLOCK_LINE_HEIGHT * zoom;
-
-        const update = (patch: Partial<CanvasCodeBlockData>) => {
-          onUpdate(element.id, { ...block, ...patch });
-        };
-
-        const finishEditing = () => {
-          if (!block.languageLocked) update({ language: detectCodeLanguage(block.code) });
-          onEditingChange(null);
-        };
-
-        const revealOutput = () => {
-          setCollapsedOutputIds((current) => {
-            if (!current.has(element.id)) return current;
-            const next = new Set(current);
-            next.delete(element.id);
-            return next;
-          });
-        };
-
-        const startRun = () => {
-          revealOutput();
-          onRun(element.id, block);
-        };
-
-        const clearOutput = () => {
-          setCollapsedOutputIds((current) => {
-            if (!current.has(element.id)) return current;
-            const next = new Set(current);
-            next.delete(element.id);
-            return next;
-          });
-          onClearRun(element.id);
-        };
-
-        const outputCollapsed = collapsedOutputIds.has(element.id);
-        const outputContentId = "code-output-" + element.id;
-
-        return (
-          <div
-            key={element.id}
-            className="absolute overflow-visible"
-            style={{
-              left,
-              top,
-              width,
-              transform: `rotate(${element.angle}rad)`,
-              transformOrigin: "center",
-              fontFamily: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace',
-              fontSize,
-              lineHeight: `${lineHeight}px`,
-            }}
-          >
-            <section
-              className={editing ? "pointer-events-auto overflow-hidden rounded-[6px]" : "overflow-hidden rounded-[6px]"}
-              style={{
-                width,
-                height,
-                background: palette.background,
-                color: palette.foreground,
-                border: `1px solid ${selected ? "var(--accent)" : palette.border}`,
-                boxShadow: selected ? "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent)" : "none",
-              }}
-              data-canvas-code-block={element.id}
-              aria-label={`Code block, ${effectiveLanguage}`}
-            >
-              <CanvasCodeBlockHeader
-                elementId={element.id}
-                block={block}
-                language={effectiveLanguage}
-                selected={selected}
-                runnable={runnable}
-                run={run}
-                height={headerHeight}
-                fontSize={fontSize}
-                palette={palette}
-                onRun={startRun}
-                onStop={() => onStop(element.id)}
-              />
-              <div className="relative min-h-0 overflow-hidden" style={{ height: bodyHeight }}>
-                <div
-                  className="min-h-full min-w-0 overflow-x-hidden"
-                  style={{
-                    paddingTop: paddingY,
-                    paddingBottom: paddingY,
-                    transform: "translateY(var(--code-scroll-y, 0px))",
-                  }}
-                  aria-label={editing ? "Live syntax preview" : undefined}
-                >
-                  <HighlightedCodeLines
-                    code={block.code}
-                    language={effectiveLanguage}
-                    resolvedTheme={resolvedTheme}
-                    foreground={palette.foreground}
-                    muted={palette.muted}
-                    lineNumbers={block.lineNumbers}
-                    zoom={zoom}
-                    gutterWidth={gutterWidth}
-                    paddingX={paddingX}
-                    fontSize={fontSize}
-                    lineHeight={lineHeight}
-                  />
-                </div>
-
-                {editing && (
-                  <textarea
-                    autoFocus
-                    wrap="soft"
-                    spellCheck={false}
-                    value={block.code}
-                    aria-label="Edit code block"
-                    className="absolute inset-0 h-full w-full resize-none overflow-x-hidden border-0 bg-transparent font-[inherit] outline-none whitespace-pre-wrap [overflow-wrap:anywhere]"
-                    style={{
-                      boxSizing: "border-box",
-                      color: "transparent",
-                      caretColor: palette.foreground,
-                      WebkitTextFillColor: "transparent",
-                      tabSize: 2,
-                      paddingTop: paddingY,
-                      paddingBottom: paddingY,
-                      paddingLeft: (block.lineNumbers ? gutterWidth : 0) + paddingX,
-                      paddingRight: paddingX,
-                      fontSize,
-                      lineHeight: `${lineHeight}px`,
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onScroll={(event) => {
-                      event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", `${-event.currentTarget.scrollTop}px`);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", "0px");
-                        finishEditing();
-                        return;
-                      }
-                      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                        event.preventDefault();
-                        if (runnable) startRun();
-                        else finishEditing();
-                        return;
-                      }
-                      if (event.key === "Tab") {
-                        event.preventDefault();
-                        const target = event.currentTarget;
-                        const start = target.selectionStart;
-                        const end = target.selectionEnd;
-                        const nextCode = `${block.code.slice(0, start)}  ${block.code.slice(end)}`;
-                        update({
-                          code: nextCode,
-                          ...(!block.languageLocked ? { language: detectCodeLanguage(nextCode) } : {}),
-                        });
-                        requestAnimationFrame(() => {
-                          target.selectionStart = target.selectionEnd = start + 2;
-                        });
-                      }
-                    }}
-                    onChange={(event) => {
-                      const code = event.target.value;
-                      update({
-                        code,
-                        ...(!block.languageLocked ? { language: detectCodeLanguage(code) } : {}),
-                      });
-                    }}
-                    onBlur={(event) => {
-                      event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", "0px");
-                      finishEditing();
-                    }}
-                  />
-                )}
-              </div>
-            </section>
-
-            {run && (
-              <div
-                className={selected ? "pointer-events-auto mt-1 max-h-24 overflow-auto rounded-md border px-2 py-1.5" : "mt-1 max-h-24 overflow-auto rounded-md border px-2 py-1.5"}
-                style={{
-                  width,
-                  background: palette.toolbar,
-                  color: palette.foreground,
-                  borderColor: palette.border,
-                  fontSize: Math.max(9, 10 * zoom),
-                  lineHeight: `${Math.max(12, 15 * zoom)}px`,
-                }}
-                aria-label="Code output"
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium" role="status" aria-live="polite">{runStatusLabel(run)}</span>
-                  {selected && (
-                    <span className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        className="grid size-7 place-items-center rounded-md transition-[color,background-color,transform] duration-100 hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] active:scale-[0.97]"
-                        aria-label={outputCollapsed ? "Expand code output" : "Collapse code output"}
-                        aria-expanded={!outputCollapsed}
-                        aria-controls={outputContentId}
-                        title={outputCollapsed ? "Expand code output" : "Collapse code output"}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setCollapsedOutputIds((current) => {
-                            const next = new Set(current);
-                            if (outputCollapsed) next.delete(element.id);
-                            else next.add(element.id);
-                            return next;
-                          });
-                        }}
-                      >
-                        {outputCollapsed
-                          ? <ChevronDown className="size-3.5" aria-hidden="true" />
-                          : <ChevronUp className="size-3.5" aria-hidden="true" />}
-                      </button>
-                      {run.status !== "running" && (
-                        <button
-                          type="button"
-                          className="grid size-7 place-items-center rounded-md transition-[color,background-color,transform] duration-100 hover:bg-black/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] active:scale-[0.97]"
-                          aria-label="Clear code output"
-                          title="Clear code output"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            clearOutput();
-                          }}
-                        >
-                          <X className="size-3.5" aria-hidden="true" />
-                        </button>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <div id={outputContentId} className="mt-1" data-code-output-content hidden={outputCollapsed}>
-                  {run.stdout.map((line, index) => <div key={`out-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]">{line}</div>)}
-                  {run.stderr.map((line, index) => <div key={`err-${index}`} className="whitespace-pre-wrap [overflow-wrap:anywhere]" style={{ color: resolvedTheme === "dark" ? "#ff6b68" : "#b91c1c" }}>{line}</div>)}
-                  {"result" in run && run.result !== undefined && <div className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]"><span style={{ color: palette.muted }}>↳ </span>{run.result}</div>}
-                </div>
-              </div>
-            )}
-          </div>
-        );
+      {codeElements.map(({ element, block }) => {
+        if (block.heightMode !== "auto") return null;
+        const baseline = initialMeasurements.current.get(element.id);
+        const fitRevision = views[element.id]?.fitRevision ?? 0;
+        const wordWrap = views[element.id]?.wordWrap ?? true;
+        const preserveHeight = wordWrap && fitRevision === 0 && matchesInitialMeasurement(baseline, element, block) ? baseline?.height : undefined;
+        return <CanvasCodeBlockMeasure key={`measure-${element.id}`} code={block.code} width={element.width} lineNumbers={block.lineNumbers} wordWrap={wordWrap} fitRevision={fitRevision} preserveHeight={preserveHeight} onHeight={(height) => { if (preserveHeight === undefined) initialMeasurements.current.delete(element.id); onAutoFit(element.id, height); }} />;
       })}
+      {visibleElements.map(({ element, block }) => <CodeCard key={element.id} element={element} block={block} viewport={viewport} appDark={appDark}
+        selected={selectedElementId === element.id} editing={editingElementId === element.id}
+        run={runs[element.id]} view={views[element.id] ?? defaultCodeBlockView}
+        onUpdate={(next) => onUpdate(element.id, next)} onEditingChange={onEditingChange} onRun={() => onRun(element.id, block)} />)}
     </div>
   );
+}
+
+type CodeCardProps = {
+  element: OrderedExcalidrawElement; block: CanvasCodeBlockData; viewport: CanvasViewport;
+  appDark: boolean; selected: boolean; editing: boolean; run?: CodeRunView; view: CodeBlockViewOptions;
+  onUpdate: (block: CanvasCodeBlockData) => void; onEditingChange: (id: string | null) => void; onRun: () => void;
+};
+
+function codeCardMetrics(element: OrderedExcalidrawElement, viewport: CanvasViewport, view: CodeBlockViewOptions) {
+  const zoom = viewport.zoom;
+  const width = Math.max(1, element.width * zoom);
+  const height = Math.max(1, element.height * zoom);
+  const layout = codeBlockOutputLayout(width);
+  const compactOutput = view.showOutput && layout === "stack" && element.height < 70;
+  return {
+    width, height, layout, compactOutput, zoom,
+    paddingX: CODE_BLOCK_BODY_PADDING_X * zoom,
+    paddingY: compactOutput ? 0 : CODE_BLOCK_BODY_PADDING_Y * zoom,
+    gutterWidth: CODE_BLOCK_LINE_NUMBER_WIDTH * zoom,
+    fontSize: CODE_BLOCK_FONT_SIZE * zoom,
+    lineHeight: (compactOutput ? 14 : CODE_BLOCK_LINE_HEIGHT) * zoom,
+    columns: view.showOutput && layout === "split" ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)",
+    rows: view.showOutput && layout === "stack" ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)",
+    sourceHeight: view.showOutput ? undefined : Math.max(0, height - CODE_BLOCK_BORDER_ALLOWANCE * zoom),
+  };
+}
+
+type CodeCardMetrics = ReturnType<typeof codeCardMetrics>;
+
+function CodeCard(props: CodeCardProps) {
+  const { element, block, viewport, appDark, selected, editing, run, view } = props;
+  const resolvedTheme = resolveCodeTheme(block.theme, appDark);
+  const palette = codeThemeSurface(resolvedTheme);
+  const language = effectiveCanvasCodeLanguage(block);
+  const metrics = codeCardMetrics(element, viewport, view);
+  const { width, height, fontSize, lineHeight, layout } = metrics;
+  return (
+    <section data-canvas-code-block={element.id} aria-label={`Code block, ${language}`} data-output-layout={view.showOutput ? layout : undefined}
+      className="absolute overflow-hidden rounded-md"
+      style={{ left: (element.x + viewport.scrollX) * viewport.zoom, top: (element.y + viewport.scrollY) * viewport.zoom,
+        width, height, transform: `rotate(${element.angle}rad)`, transformOrigin: "center",
+        fontFamily: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace', fontSize, lineHeight: `${lineHeight}px`,
+        background: palette.background, color: palette.foreground, border: `1px solid ${selected ? "var(--accent)" : palette.border}`,
+        display: "grid", gridTemplateColumns: metrics.columns, gridTemplateRows: metrics.rows }}>
+      <CodeSource block={block} language={language} resolvedTheme={resolvedTheme} metrics={metrics} selected={selected} editing={editing} wordWrap={view.wordWrap}
+        onUpdate={props.onUpdate} onFinishEditing={() => props.onEditingChange(null)} onRun={props.onRun} />
+      {view.showOutput && <div className={selected ? "pointer-events-auto min-h-0 min-w-0" : "min-h-0 min-w-0"}
+        style={{ borderLeft: layout === "split" ? `1px solid ${palette.border}` : undefined, borderTop: layout === "stack" ? `1px solid ${palette.border}` : undefined }}
+        onPointerDown={(event) => event.stopPropagation()}><CodeOutput run={run} runnable={canRunCanvasCode(language)} compact={metrics.compactOutput} /></div>}
+    </section>
+  );
+}
+
+function CodeSource({ block, language, resolvedTheme, metrics, selected, editing, wordWrap, onUpdate, onFinishEditing, onRun }: {
+  block: CanvasCodeBlockData; language: string; resolvedTheme: "light" | "dark"; metrics: CodeCardMetrics; selected: boolean; editing: boolean; wordWrap: boolean;
+  onUpdate: (block: CanvasCodeBlockData) => void; onFinishEditing: () => void; onRun: () => void;
+}) {
+  const sourceRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const source = sourceRef.current;
+    if (!source) return;
+    const editor = source.querySelector("textarea");
+    if (editor) {
+      editor.scrollTop = source.scrollTop;
+      editor.scrollLeft = source.scrollLeft;
+      source.style.setProperty("--code-scroll-y", `${-editor.scrollTop}px`);
+      source.style.setProperty("--code-scroll-x", `${-editor.scrollLeft}px`);
+    } else {
+      source.style.removeProperty("--code-scroll-y");
+      source.style.removeProperty("--code-scroll-x");
+    }
+    source.scrollTop = source.scrollLeft = 0;
+  }, [editing]);
+  const palette = codeThemeSurface(resolvedTheme);
+  const lines = useMemo(() => highlightCodeLines(block.code, language), [block.code, language]);
+  const { paddingX, paddingY, gutterWidth, fontSize, lineHeight, zoom } = metrics;
+  const whitespace = wordWrap ? "whitespace-pre-wrap [overflow-wrap:anywhere]" : "whitespace-pre";
+  const updateSource = (code: string) => onUpdate({ ...block, code, ...(!block.languageLocked ? { language: detectCodeLanguage(code) } : {}) });
+  return <div ref={sourceRef} role="region" aria-label="Code source" tabIndex={selected && !editing ? 0 : -1}
+    onPointerDown={(event) => event.stopPropagation()} onWheel={containPaneWheel} onKeyDown={containPaneNavigation}
+    className={`relative min-h-0 min-w-0 overscroll-contain [scrollbar-width:thin] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${editing ? "overflow-hidden" : "overflow-auto"} ${selected ? "pointer-events-auto" : ""}`} style={{ height: metrics.sourceHeight }}>
+    <div className="min-h-full min-w-0" style={{ paddingTop: paddingY, paddingBottom: paddingY, transform: "translate(var(--code-scroll-x, 0px), var(--code-scroll-y, 0px))" }} aria-label={editing ? "Live syntax preview" : undefined}>
+      {lines.map((tokens, index) => <div key={index} className="grid min-w-0" style={{ gridTemplateColumns: block.lineNumbers ? `${gutterWidth}px minmax(0,1fr)` : "minmax(0,1fr)" }}>
+        {block.lineNumbers && <span className="select-none text-right" aria-hidden="true" style={{ color: palette.muted, paddingRight: 6 * zoom }}>{index + 1}</span>}
+        <code className={`block min-w-0 ${whitespace}`} aria-label={index === 0 ? "Highlighted code" : undefined} style={{ paddingLeft: paddingX, paddingRight: paddingX }}>
+          {tokens.map((token, tokenIndex) => <span key={tokenIndex} style={{ color: codeTokenColor(token.classes, resolvedTheme) }}>{token.text}</span>)}{!tokens.length ? "\u200b" : null}
+        </code>
+      </div>)}
+    </div>
+    {editing && <textarea autoFocus wrap={wordWrap ? "soft" : "off"} spellCheck={false} value={block.code} aria-label="Edit code block"
+      className={`absolute inset-0 h-full w-full resize-none border-0 bg-transparent font-[inherit] outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${whitespace}`}
+      style={{ boxSizing: "border-box", color: "transparent", caretColor: palette.foreground, WebkitTextFillColor: "transparent", tabSize: 2,
+        paddingTop: paddingY, paddingBottom: paddingY, paddingLeft: (block.lineNumbers ? gutterWidth : 0) + paddingX, paddingRight: paddingX, fontSize, lineHeight: `${lineHeight}px` }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onScroll={(event) => {
+        event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", `${-event.currentTarget.scrollTop}px`);
+        event.currentTarget.parentElement?.style.setProperty("--code-scroll-x", `${-event.currentTarget.scrollLeft}px`);
+      }}
+      onChange={(event) => updateSource(event.target.value)}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") { event.preventDefault(); onFinishEditing(); }
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); if (canRunCanvasCode(language)) onRun(); }
+        if (event.key === "Tab") {
+          event.preventDefault();
+          const target = event.currentTarget, start = target.selectionStart, end = target.selectionEnd;
+          updateSource(`${block.code.slice(0, start)}  ${block.code.slice(end)}`);
+          requestAnimationFrame(() => { target.selectionStart = target.selectionEnd = start + 2; });
+        }
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (next instanceof Element && next.closest("[data-code-toolbar], [data-code-toolbar-popup]")) return;
+        event.currentTarget.parentElement?.style.setProperty("--code-scroll-y", "0px");
+        event.currentTarget.parentElement?.style.setProperty("--code-scroll-x", "0px");
+        onFinishEditing();
+      }} />}
+  </div>;
 }

@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef } from "react";
 import {
   CODE_BLOCK_BODY_PADDING_Y,
   CODE_BLOCK_FONT_SIZE,
-  CODE_BLOCK_HEADER_HEIGHT,
   CODE_BLOCK_LINE_HEIGHT,
   CODE_BLOCK_BORDER_ALLOWANCE,
   clampCodeBlockHeight,
@@ -13,11 +12,17 @@ export function CanvasCodeBlockMeasure({
   code,
   width,
   lineNumbers,
+  wordWrap = true,
+  preserveHeight,
+  fitRevision = 0,
   onHeight,
 }: {
   code: string;
   width: number;
   lineNumbers: boolean;
+  wordWrap?: boolean;
+  preserveHeight?: number;
+  fitRevision?: number;
   onHeight: (height: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -29,20 +34,21 @@ export function CanvasCodeBlockMeasure({
     if (!node) return;
     const frame = requestAnimationFrame(() => {
       const measured = clampCodeBlockHeight(
-        node.scrollHeight + CODE_BLOCK_HEADER_HEIGHT + CODE_BLOCK_BORDER_ALLOWANCE,
+        preserveHeight ?? node.scrollHeight + CODE_BLOCK_BORDER_ALLOWANCE,
       );
       onHeightRef.current(measured);
     });
     return () => cancelAnimationFrame(frame);
-  }, [code, lineNumbers, width]);
+  }, [code, lineNumbers, wordWrap, width, preserveHeight, fitRevision]);
 
   return (
     <div
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none fixed -left-[10000px] top-0 invisible whitespace-pre-wrap [overflow-wrap:anywhere]"
+      className={`pointer-events-none fixed -left-[10000px] top-0 invisible ${wordWrap ? "whitespace-pre-wrap [overflow-wrap:anywhere]" : "whitespace-pre"}`}
       style={{
         boxSizing: "border-box",
+        tabSize: 2,
         width: codeBlockContentWidth(width, lineNumbers),
         minHeight: CODE_BLOCK_LINE_HEIGHT,
         paddingTop: CODE_BLOCK_BODY_PADDING_Y,

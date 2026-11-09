@@ -95,9 +95,17 @@ export function createCodeRunOutputBuffer(): CodeRunOutputBuffer {
 export function startJavaScriptRun(
   code: string,
   timeoutMs = DEFAULT_CODE_RUN_TIMEOUT_MS,
+  onOutput?: (output: Pick<JavaScriptRunResult, "stdout" | "stderr">) => void,
 ): JavaScriptRunHandle {
   const worker = new Worker(CODE_RUNNER_WORKER_URL, { name: "notespace-code-runner" });
   const output = createCodeRunOutputBuffer();
+  let publishedLines = 0;
+  const publishOutput = () => {
+    const count = output.stdout.length + output.stderr.length;
+    if (count === publishedLines) return;
+    publishedLines = count;
+    onOutput?.({ stdout: [...output.stdout], stderr: [...output.stderr] });
+  };
   const startedAt = performance.now();
   let finished = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -120,14 +128,17 @@ export function startJavaScriptRun(
   const result = new Promise<JavaScriptRunResult>((resolve) => {
     resolveResult = resolve;
     worker.onmessage = (event: MessageEvent<unknown>) => {
+      if (finished) return;
       const message = parseWorkerMessage(event.data);
       if (!message) return;
       if (message.type === "stdout") {
         output.append("stdout", message.text);
+        publishOutput();
         return;
       }
       if (message.type === "stderr") {
         output.append("stderr", message.text);
+        publishOutput();
         return;
       }
       if (message.type === "done") {

@@ -4,7 +4,11 @@ export const CODE_BLOCK_LINE_HEIGHT = 17;
 export const CODE_BLOCK_BODY_PADDING_X = 8;
 export const CODE_BLOCK_BODY_PADDING_Y = 8;
 export const CODE_BLOCK_LINE_NUMBER_WIDTH = 30;
-export const CODE_BLOCK_HEADER_HEIGHT = 30;
+export const CODE_BLOCK_OUTPUT_SPLIT_WIDTH = 560;
+
+export function codeBlockOutputLayout(renderedWidth: number) {
+  return renderedWidth >= CODE_BLOCK_OUTPUT_SPLIT_WIDTH ? "split" : "stack";
+}
 export const CODE_BLOCK_BORDER_ALLOWANCE = 2;
 
 export function codeBlockContentWidth(width: number, lineNumbers: boolean) {
@@ -57,8 +61,7 @@ export function codeBlockIntersectsViewport({
 }
 
 export function codeBlockMinimumHeight() {
-  return CODE_BLOCK_HEADER_HEIGHT
-    + CODE_BLOCK_LINE_HEIGHT
+  return CODE_BLOCK_LINE_HEIGHT
     + (CODE_BLOCK_BODY_PADDING_Y * 2)
     + CODE_BLOCK_BORDER_ALLOWANCE;
 }

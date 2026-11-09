@@ -19,6 +19,10 @@ export type CanvasCodeBlockData = {
   heightMode: CodeBlockHeightMode;
 };
 
+export function effectiveCanvasCodeLanguage(block: Pick<CanvasCodeBlockData, "code" | "language" | "languageLocked">) {
+  return block.languageLocked ? normalizeCodeLanguage(block.language) : detectCodeLanguage(block.code);
+}
+
 export type HighlightToken = {
   text: string;
   classes: string[];

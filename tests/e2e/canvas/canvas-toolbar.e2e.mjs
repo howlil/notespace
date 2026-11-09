@@ -139,7 +139,7 @@ test("creates arbitrary HTTPS embeds through the UI without a whitelist toast", 
   }
 });
 
-test("code block Notebook header owns run and copy while settings keep layout controls", { timeout: 180_000 }, async () => {
+test("critical: unified code toolbar keeps editing and output inside a headerless card", { timeout: 180_000 }, async () => {
   const id = await openCanvasWorkspace(`Canvas code ${Date.now()}`);
   try {
     await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
@@ -147,10 +147,33 @@ test("code block Notebook header owns run and copy while settings keep layout co
     const settings = role("toolbar", "Code block settings");
     await visible(block);
     await visible(settings);
-    await visible(role("button", "Run JavaScript", { scope: block }));
-    await visible(role("button", "Copy code", { scope: block }));
-    await expectCount(role("button", "Run JavaScript", { scope: settings }), 0);
-    await expectAttribute(role("button", "Fit code height", { scope: settings }), "aria-pressed", "true");
+    await expectCount(settings, 1);
+    await expectText(role("button", "Code language", { scope: settings }), "JavaScript");
+    await visible(role("button", "Run JavaScript", { scope: settings }));
+    await visible(role("button", "Copy code", { scope: settings }));
+    await expectCount("[data-canvas-code-header]", 0);
+    await expectCount(await within(block, 'button[aria-label="Run JavaScript"]'), 0);
+    await click(role("button", "More code actions", { scope: settings }));
+    const morePopup = role("dialog", "More code actions");
+    await expectAttribute(role("button", "Fit code height", { scope: morePopup }), "aria-pressed", "true");
+    assert.ok((await box(morePopup)).width <= 225, "More stays compact around the theme switch");
+    const themeSwitch = role("switch", "Dark code theme", { scope: morePopup });
+    const autoTheme = role("button", "Code theme auto", { scope: morePopup });
+    const appDark = await evaluate("html", (element) => element.dataset.theme === "dark");
+    await expectAttribute(themeSwitch, "aria-checked", String(appDark));
+    await expectAttribute(autoTheme, "aria-pressed", "true");
+    await click(themeSwitch);
+    await expectAttribute(themeSwitch, "aria-checked", String(!appDark));
+    await expectAttribute(autoTheme, "aria-pressed", "false");
+    await waitSaved();
+    const themed = (await storedWorkspace(id)).canvas.data.elements.find((element) => !element.isDeleted && element.customData?.notespaceCodeBlock);
+    assert.equal(themed.customData.notespaceCodeBlock.theme, appDark ? "light" : "dark", "Switch persists an explicit code theme");
+    await press("Space");
+    await expectAttribute(themeSwitch, "aria-checked", String(appDark));
+    await click(autoTheme);
+    await expectAttribute(autoTheme, "aria-pressed", "true");
+    await expectAttribute(themeSwitch, "aria-checked", String(appDark));
+    await press("Escape");
     await expectCount(role("button", /Edit code|Finish editing/, { scope: settings }), 0);
 
     const initialBox = await box(block);
@@ -184,17 +207,47 @@ test("code block Notebook header owns run and copy while settings keep layout co
     const longValue = "abcdefghijklmnopqrstuvwxyz".repeat(12);
     const code = `const veryLong = "${longValue}"; console.log("worker-ok"); return veryLong.length;`;
     await fill(editor, code);
+    await visible(settings);
+    await click(role("button", "Code language", { scope: settings }));
+    const languagePopup = role("dialog", "Code language");
+    assert.ok((await box(languagePopup)).height <= 321, "Language picker stays compact with internal list scrolling");
+    await fill(role("textbox", "Search code languages"), "Python");
+    await click(role("button", "Python", { exact: true, scope: role("dialog", "Code language") }));
+    await expectText(role("button", "Code language", { scope: settings }), "Python");
+    assert.equal(await evaluate(editor, (element) => element.value), code, "Language selection must preserve source and editing");
+    await click(role("button", "Code language", { scope: settings }));
+    await click(role("button", "Auto / Detect language", { scope: role("dialog", "Code language") }));
+    await expectText(role("button", "Code language", { scope: settings }), "JavaScript");
+    await click(role("button", "More code actions", { scope: settings }));
+    await press("Escape");
+    await expectCount(role("dialog", "More code actions"), 0);
+    await visible(editor);
+    await press("Escape");
+    await expectCount(editor, 0);
+    await visible(settings);
+    await click(role("button", "More code actions", { scope: settings }));
+    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
+    await click(role("button", "Fit code height", { scope: role("dialog", "More code actions") }));
+    await press("Escape");
+    await waitFor(async () => (await box(block)).height < 40, "Fit must measure the visible unwrapped source, not hidden wrapped rows");
+    await click(role("button", "More code actions", { scope: settings }));
+    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
+    await press("Escape");
+    await doubleClick(block);
+    await click(editor);
     await press("Control+Enter");
 
     const output = ariaLabel("Code output");
     await containsText(output, "worker-ok");
+    await expectAttribute(role("button", "Hide code output", { scope: settings }), "aria-pressed", "true");
+    await expectAttribute(role("button", "Hide code output", { scope: settings }), "title", "Hide code output");
     await containsText(output, String(longValue.length));
-    const outputContent = within(output, "[data-code-output-content]");
-    await click(role("button", "Collapse code output", { scope: output }));
-    await visible(role("button", "Expand code output", { scope: output }));
-    await notVisible(outputContent);
-    await click(role("button", "Expand code output", { scope: output }));
-    await visible(outputContent);
+    await expectCount(await within(block, '[aria-label="Code output"]'), 1);
+    await visible(settings);
+    await click(role("button", "Hide code output", { scope: settings }));
+    await expectCount(output, 0);
+    await click(role("button", "Show code output", { scope: settings }));
+    await visible(output);
     await containsText(output, "worker-ok");
     await waitSaved();
 
@@ -208,11 +261,91 @@ test("code block Notebook header owns run and copy while settings keep layout co
     const stored = await storedWorkspace(id);
     assert.equal(JSON.stringify(stored.canvas.data).includes('"stdout"'), false);
 
+    await press("Escape");
+    await click(role("button", "Hide code output", { scope: settings }));
+    const beforeResize = await box(block);
+    await drag({ x: beforeResize.x + beforeResize.width, y: beforeResize.y + beforeResize.height },
+      { x: beforeResize.x + beforeResize.width + 240, y: beforeResize.y + beforeResize.height + 120 });
+    await waitFor(async () => (await box(block)).width > beforeResize.width + 100, "Native resize expands the code element");
+    await click(role("button", "Show code output", { scope: settings }));
+    await expectAttribute(block, "data-output-layout", "split");
+    const resized = await box(block);
+    await click(role("button", "Hide code output", { scope: settings }));
+    const hiddenOutput = await box(block);
+    assert.ok(Math.abs(resized.width - hiddenOutput.width) < 1 && Math.abs(resized.height - hiddenOutput.height) < 1, "Output visibility must not mutate authored geometry");
+    await doubleClick(block);
+    await fill(editor, Array.from({ length: 80 }, (_, index) => `console.log(${index});`).join("\n"));
+    const scrollTop = await evaluate(editor, (element) => { element.scrollTop = 120; element.dispatchEvent(new Event("scroll")); return element.scrollTop; });
+    assert.ok(scrollTop > 0, "Manual-height source must scroll");
+    await press("Escape");
+    await expectCount(editor, 0);
+    await waitFor(async () => evaluate(block, (element) => {
+      const preview = element.querySelector("code").parentElement.parentElement;
+      return new DOMMatrixReadOnly(getComputedStyle(preview).transform).m42 === 0;
+    }), "Exiting editing resets the rendered display scroll offset");
+    const sourcePane = ariaLabel("Code source");
+    const readingBounds = await box(block);
+    await click(role("button", "Run JavaScript", { scope: settings }));
+    await containsText(output, "79");
+    await click(sourcePane);
+    await press("Control+End");
+    await waitFor(async () => evaluate(sourcePane, (element) => element.scrollTop > 0), "Selected source can be read by keyboard without entering editing");
+    await expectCount(editor, 0);
+    await expectAttribute(sourcePane, "tabindex", "0");
+    await expectAttribute(output, "tabindex", "0");
+    await click(output);
+    await press("Control+End");
+    await waitFor(async () => evaluate(output, (element) => element.scrollTop > 0), "Output is keyboard-scrollable without editing or resizing");
+    const readingAfter = await box(block);
+    assert.ok(Math.abs(readingBounds.width - readingAfter.width) < 1 && Math.abs(readingBounds.height - readingAfter.height) < 1, "Scrollable panes keep authored geometry unchanged");
+    await click(role("button", "Hide code output", { scope: settings }));
+    await doubleClick(block);
+    await fill(editor, code);
+    await press("Escape");
+    await waitSaved();
+    const persisted = (await storedWorkspace(id)).canvas.data.elements.find((element) => !element.isDeleted && element.customData?.notespaceCodeBlock);
+    assert.equal(persisted.customData.notespaceCodeBlock.heightMode, "manual");
+    assert.equal(persisted.customData.notespaceCodeBlock.code, code);
+
     await reload();
     const reloaded = "[data-canvas-code-block]";
     await visible(reloaded);
+    const restored = await box(reloaded);
+    assert.ok(Math.abs(restored.width - resized.width) < 1 && Math.abs(restored.height - resized.height) < 1, "Manual geometry survives reload");
     await expectCount(ariaLabel("Code output"), 0);
+
+    // Legacy v1 may carry an outdated detected label. Auto must derive the
+    // runtime capability from source without rewriting it or shrinking bounds.
+    const legacy = await storedWorkspace(id);
+    const legacyElement = legacy.canvas.data.elements.find((element) => !element.isDeleted && element.customData?.notespaceCodeBlock);
+    legacyElement.customData.notespaceCodeBlock = { ...legacyElement.customData.notespaceCodeBlock, code: 'const answer = 42; console.log("legacy-auto", answer);', language: "plaintext", languageLocked: false, heightMode: "auto" };
+    await api(`/api/workspaces/${id}/canvas`, { method: "PATCH", body: { canvas: legacy.canvas, version: legacy.canvasVersion } });
+    await reload();
+    await visible(block);
+    const legacyBox = await box(block);
+    assert.ok(Math.abs(legacyBox.width - restored.width) < 1 && Math.abs(legacyBox.height - restored.height) < 1, "Opening legacy Auto source must preserve saved geometry");
+    await doubleClick(block);
+    await press("Control+Enter");
+    await containsText(ariaLabel("Code output"), "legacy-auto 42");
+    for (const width of [360, 320]) {
+      await setViewport(width, 800);
+      await click(role("button", "Fit canvas"));
+      await doubleClick(block);
+      const targets = await evaluate(settings, (element) => {
+        const bounds = element.getBoundingClientRect();
+        return [...element.querySelectorAll("button")].map((button) => {
+          const rect = button.getBoundingClientRect();
+          return { label: button.getAttribute("aria-label"), visibleWidth: Math.min(rect.right, bounds.right, innerWidth) - Math.max(rect.left, bounds.left, 0), height: rect.height };
+        });
+      });
+      assert.equal(targets.length, 5);
+      for (const target of targets) assert.ok(target.visibleWidth >= 24 && target.height >= 24, `${width}px: ${target.label} keeps its visible target: ${JSON.stringify(target)}`);
+      await click(role("button", "More code actions", { scope: settings }));
+      await visible(role("dialog", "More code actions"));
+      await press("Escape");
+    }
   } finally {
+    await resetViewport();
     await cleanupWorkspace(id);
   }
 });
@@ -250,7 +383,7 @@ console.log(JSON.stringify({ hasNativeFetchMethod: Boolean(nativeFetchMethod), n
 for (let index = 0; index < 150; index += 1) self.postMessage({ type: "stdout", text: "hostile-output" });`;
     await fill(editor, source);
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: block }));
+    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
 
     const output = ariaLabel("Code output");
     await visible(output);
@@ -276,14 +409,14 @@ test("undo clears code output when the block returns to a different source", { t
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-A")');
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: block }));
+    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
     const output = ariaLabel("Code output");
     await containsText(output, "source-A");
 
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-B")');
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: block }));
+    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
     await containsText(output, "source-B");
 
     const sourcePreview = () => evaluate(block, (element) => element.textContent ?? "");
@@ -294,7 +427,7 @@ test("undo clears code output when the block returns to a different source", { t
       restored = await sourcePreview();
     }
     assert.ok(restored.includes('console.log("source-A")'), `Undo should restore source A, got: ${restored}`);
-    await expectCount(output, 0);
+    assert.equal((await evaluate(output, (element) => element.textContent)).includes("source-B"), false);
   } finally {
     await cleanupWorkspace(id);
   }
@@ -307,7 +440,10 @@ test("SVG export includes the Canvas code block overlay", { timeout: 120_000 }, 
     const block = "[data-canvas-code-block]";
     await visible(block);
     await doubleClick(block);
-    await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("export-code-marker")');
+    await fill(await within(block, '[aria-label="Edit code block"]'), `console.log("export-code-marker-${"abcdefghij".repeat(30)}")`);
+    await press("Escape");
+    await click(role("button", "More code actions"));
+    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
     await press("Escape");
 
     await evaluate(canvas, () => {
@@ -335,7 +471,8 @@ test("SVG export includes the Canvas code block overlay", { timeout: 120_000 }, 
       return typeof url === "string" ? fetch(url).then((response) => response.text()) : "";
     });
     assert.ok(svg.includes("export-code-marker"), "Exported SVG should include code source rendered in the Canvas overlay");
-    assert.ok(svg.includes(">JavaScript</text>"), "Exported SVG should preserve the code block Notebook header");
+    assert.equal(svg.includes(">JavaScript</text>"), false, "Source export must be headerless");
+    assert.equal((svg.match(/<text[^>]+font-family="JetBrains Mono/g) ?? []).length, 2, "Export borrows nowrap from the current Canvas view: one gutter and one source row");
 
     await click(role("button", /Export.*PNG/i));
     await waitFor(async () => Boolean(await evaluate(canvas, () => window.__notespaceExportDownload.png)), "PNG download is created");

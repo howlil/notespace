@@ -58,8 +58,12 @@ export function useCodeRunner(liveBlocks: readonly LiveRunnableCode[]) {
     if (!canRunCode(block.language)) return;
     runHandles.current.get(id)?.handle.stop();
 
-    const handle = startJavaScriptRun(block.code);
     const source = { code: block.code, language: block.language };
+    const handle = startJavaScriptRun(block.code, undefined, (output) => {
+      if (runHandles.current.get(id)?.handle !== handle) return;
+      if (!sameRunnableCode(source, liveSourcesRef.current.get(id) ?? { code: "", language: "" })) return;
+      setRunEntries((current) => ({ ...current, [id]: { source, view: { status: "running", ...output } } }));
+    });
     runHandles.current.set(id, { handle, source });
     setRunEntries((current) => ({
       ...current,

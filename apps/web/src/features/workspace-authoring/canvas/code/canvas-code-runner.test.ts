@@ -12,9 +12,52 @@ import {
   canRunCanvasCode,
   createCodeRunOutputBuffer,
   parseWorkerMessage,
+  startJavaScriptRun,
 } from "./canvas-code-runner.ts";
 
 const workerSource = readFileSync(new URL("../../../../../public/code-runner-worker.js", import.meta.url), "utf8");
+
+test("runner streams bounded output, ignores late messages, and terminates on completion/stop/timeout", async (t) => {
+  const workers: FakeWorker[] = [];
+  class FakeWorker {
+    onmessage?: (event: { data: unknown }) => void;
+    onerror?: (event: { message: string }) => void;
+    terminated = false;
+    constructor() { workers.push(this); }
+    postMessage() {}
+    terminate() { this.terminated = true; }
+    emit(data: unknown) { this.onmessage?.({ data }); }
+  }
+  const original = Object.getOwnPropertyDescriptor(globalThis, "Worker");
+  Object.defineProperty(globalThis, "Worker", { configurable: true, value: FakeWorker });
+  t.after(() => { if (original) Object.defineProperty(globalThis, "Worker", original); else Reflect.deleteProperty(globalThis, "Worker"); });
+  const updates: { stdout: string[]; stderr: string[] }[] = [];
+  const first = startJavaScriptRun("source", 200, (output) => updates.push(output));
+  workers[0].emit({ type: "stdout", text: "live" });
+  assert.deepEqual(updates[0], { stdout: ["live"], stderr: [] });
+  for (let index = 0; index < 150; index += 1) workers[0].emit({ type: "stderr", text: "line" });
+  assert.ok(updates.length <= MAX_CODE_RUN_OUTPUT_LINES);
+  assert.deepEqual(updates[0].stdout, ["live"], "published output must be an immutable snapshot");
+  workers[0].emit({ type: "done", result: "42" });
+  assert.equal((await first.result).status, "success");
+  assert.equal(workers[0].terminated, true);
+  const count = updates.length;
+  workers[0].emit({ type: "stdout", text: "stale" });
+  assert.equal(updates.length, count);
+  const stopped = startJavaScriptRun("loop", 200);
+  stopped.stop();
+  assert.equal((await stopped.result).status, "cancelled");
+  assert.equal(workers[1].terminated, true);
+  const timeout = startJavaScriptRun("loop", 100);
+  assert.equal((await timeout.result).status, "timeout");
+  assert.equal(workers[2].terminated, true);
+  const lateUpdates: unknown[] = [];
+  const completed = startJavaScriptRun("return 1", 200, (output) => lateUpdates.push(output));
+  workers[3].emit({ type: "done", result: "1" });
+  await completed.result;
+  workers[3].emit({ type: "stdout", text: "after-completion" });
+  assert.deepEqual(lateUpdates, [], "A completed run must never publish late output, even below the output cap");
+});
 
 test("local runner is intentionally scoped to JavaScript", () => {
   assert.equal(canRunCanvasCode("javascript"), true);

@@ -1,7 +1,7 @@
 import {
-  codeLanguageOptions,
   codeThemeSurface,
   codeTokenColor,
+  effectiveCanvasCodeLanguage,
   highlightCodeLines,
   readCanvasCodeBlock,
   resolveCodeTheme,
@@ -10,10 +10,11 @@ import {
   CODE_BLOCK_BODY_PADDING_X,
   CODE_BLOCK_BODY_PADDING_Y,
   CODE_BLOCK_FONT_SIZE,
-  CODE_BLOCK_HEADER_HEIGHT,
   CODE_BLOCK_LINE_HEIGHT,
   CODE_BLOCK_LINE_NUMBER_WIDTH,
 } from "./canvas-code-block-layout.ts";
+
+export type CodeBlockExportViews = Readonly<Record<string, { wordWrap: boolean }>>;
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -63,7 +64,7 @@ function renderTokenSpans(tokens: readonly { text: string; classes: string[] }[]
   )).join("");
 }
 
-function renderCodeBlock(element: CodeBlockSceneElement, index: number, appDark: boolean) {
+function renderCodeBlock(element: CodeBlockSceneElement, index: number, appDark: boolean, wordWrap: boolean) {
   const block = readCanvasCodeBlock(element);
   if (
     !block
@@ -81,9 +82,8 @@ function renderCodeBlock(element: CodeBlockSceneElement, index: number, appDark:
   const centerX = element.x + element.width / 2;
   const centerY = element.y + element.height / 2;
   const gutterWidth = block.lineNumbers ? CODE_BLOCK_LINE_NUMBER_WIDTH : 0;
-  const headerHeight = Math.min(CODE_BLOCK_HEADER_HEIGHT, Math.max(0, element.height - 2));
-  const bodyTop = element.y + 1 + headerHeight;
-  const bodyHeight = Math.max(0, element.height - 2 - headerHeight);
+  const bodyTop = element.y + 1;
+  const bodyHeight = Math.max(0, element.height - 2);
   const contentWidth = Math.max(
     1,
     element.width - 2 - CODE_BLOCK_BODY_PADDING_X * 2 - gutterWidth,
@@ -91,15 +91,12 @@ function renderCodeBlock(element: CodeBlockSceneElement, index: number, appDark:
   const maxCharacters = Math.max(1, Math.floor(contentWidth / (CODE_BLOCK_FONT_SIZE * 0.6)));
   const left = element.x + 1 + CODE_BLOCK_BODY_PADDING_X + gutterWidth;
   const firstBaseline = bodyTop + CODE_BLOCK_BODY_PADDING_Y + CODE_BLOCK_FONT_SIZE + 2;
-  const languageLabel = codeLanguageOptions.find(([value]) => value === block.language)?.[1] ?? block.language;
-  const header = headerHeight > 0
-    ? `<rect x="${element.x + 1}" y="${element.y + 1}" width="${Math.max(0, element.width - 2)}" height="${headerHeight}" fill="${surface.toolbar}" /><line x1="${element.x + 1}" y1="${bodyTop}" x2="${element.x + Math.max(1, element.width - 1)}" y2="${bodyTop}" stroke="${surface.border}" /><text x="${element.x + 1 + CODE_BLOCK_BODY_PADDING_X}" y="${element.y + 1 + (headerHeight + 7) / 2}" fill="${surface.foreground}" font-family="Open Sans, Segoe UI, sans-serif" font-size="10" font-weight="500">${escapeXml(languageLabel)}</text>`
-    : "";
   let visualRow = 0;
   let lines = "";
 
-  for (const [lineIndex, tokens] of highlightCodeLines(block.code, block.language).entries()) {
-    const rows = wrapTokens(tokens, maxCharacters);
+  const language = effectiveCanvasCodeLanguage(block);
+  for (const [lineIndex, tokens] of highlightCodeLines(block.code, language).entries()) {
+    const rows = wordWrap ? wrapTokens(tokens, maxCharacters) : [tokens];
     for (const [rowIndex, row] of rows.entries()) {
       const baseline = firstBaseline + visualRow * CODE_BLOCK_LINE_HEIGHT;
       if (block.lineNumbers && rowIndex === 0) {
@@ -110,19 +107,20 @@ function renderCodeBlock(element: CodeBlockSceneElement, index: number, appDark:
     }
   }
 
-  return `<defs><clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${element.x + 1}" y="${element.y + 1}" width="${Math.max(0, element.width - 2)}" height="${Math.max(0, element.height - 2)}" rx="5" /></clipPath><clipPath id="${bodyClipId}" clipPathUnits="userSpaceOnUse"><rect x="${element.x + 1}" y="${bodyTop}" width="${Math.max(0, element.width - 2)}" height="${bodyHeight}" /></clipPath></defs><g transform="rotate(${rotation} ${centerX} ${centerY})"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="6" fill="${surface.background}" stroke="${surface.border}" /><g clip-path="url(#${clipId})">${header}<g clip-path="url(#${bodyClipId})">${lines}</g></g></g>`;
+  return `<defs><clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${element.x + 1}" y="${element.y + 1}" width="${Math.max(0, element.width - 2)}" height="${Math.max(0, element.height - 2)}" rx="5" /></clipPath><clipPath id="${bodyClipId}" clipPathUnits="userSpaceOnUse"><rect x="${element.x + 1}" y="${bodyTop}" width="${Math.max(0, element.width - 2)}" height="${bodyHeight}" /></clipPath></defs><g transform="rotate(${rotation} ${centerX} ${centerY})"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="6" fill="${surface.background}" stroke="${surface.border}" /><g clip-path="url(#${clipId})"><g clip-path="url(#${bodyClipId})">${lines}</g></g></g>`;
 }
 
-export function canvasCodeBlocksSvgMarkup(elements: readonly CodeBlockSceneElement[], appDark: boolean) {
-  return elements.map((element, index) => renderCodeBlock(element, index, appDark)).join("");
+export function canvasCodeBlocksSvgMarkup(elements: readonly CodeBlockSceneElement[], appDark: boolean, views: CodeBlockExportViews = {}) {
+  return elements.map((element, index) => renderCodeBlock(element, index, appDark, views[element.id]?.wordWrap ?? true)).join("");
 }
 
 export function appendCanvasCodeBlocksToSvg(
   svg: SVGSVGElement,
   elements: readonly CodeBlockSceneElement[],
   appDark: boolean,
+  views: CodeBlockExportViews = {},
 ) {
-  const markup = canvasCodeBlocksSvgMarkup(elements, appDark);
+  const markup = canvasCodeBlocksSvgMarkup(elements, appDark, views);
   if (!markup) return;
   const parsed = new DOMParser().parseFromString(`<svg xmlns="${svgNamespace}">${markup}</svg>`, "image/svg+xml");
   for (const child of Array.from(parsed.documentElement.children)) {

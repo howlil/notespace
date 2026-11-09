@@ -164,6 +164,9 @@ async function assertDesktopChrome(session, workspace) {
       canvasHeight: rect?.height ?? 0,
       railCount: document.querySelectorAll(".workspace-rail, .desktop-workspace-rail-slot").length,
       brandCount: chrome?.querySelectorAll('a[aria-label="Notespace home"]').length ?? 0,
+      toggleCount: chrome?.querySelectorAll('[data-explorer-toggle]').length ?? 0,
+      searchRight: chrome?.querySelector('[aria-label="Search Notespace"]')?.getBoundingClientRect().right ?? 0,
+      controlsLeft: chrome?.querySelector('.desktop-window-controls')?.getBoundingClientRect().left ?? 0,
     };
   `);
   assert.equal(state.height, 38, "Native titlebar remains 38px");
@@ -174,9 +177,37 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(state.explorerCount, 1, "One category explorer");
   assert.equal(state.railCount, 0, "No retired Workspace rail");
   assert.equal(state.brandCount, 1, "One native titlebar brand link");
+  assert.equal(state.toggleCount, 1, "One independent Explorer toggle in the portalled header");
+  assert.ok(state.searchRight <= state.controlsLeft, "Search does not overlap native caption controls");
   if (workspace) {
     assert.ok(state.canvasWidth > 200 && state.canvasHeight > 150, "Excalidraw must have a drawable native viewport");
   }
+}
+
+async function assertExplorerCollapse(session) {
+  const canvas = await visibleElement(session, By.css('.excalidraw__canvas.interactive'));
+  const positions = () => session.executeScript(`
+    const home = document.querySelector('.desktop-titlebar a[aria-label="Notespace home"]').getBoundingClientRect();
+    const toggle = document.querySelector('[data-explorer-toggle]').getBoundingClientRect();
+    const panel = document.querySelector('#notespace-home-sidebar');
+    return { homeX: home.x, toggleX: toggle.x, width: panel.getBoundingClientRect().width, inert: panel.inert };
+  `);
+  const before = await positions();
+  await (await visibleElement(session, By.css('[data-explorer-toggle][aria-expanded="true"]'))).click();
+  await session.wait(async () => (await positions()).width < 1, 5_000, "Explorer completely releases its native dock width");
+  const closed = await positions();
+  assert.equal(closed.homeX, before.homeX);
+  assert.equal(closed.toggleX, before.toggleX);
+  assert.equal(closed.inert, true);
+  assert.equal(await session.executeScript('return arguments[0] === document.querySelector(".excalidraw__canvas.interactive")', canvas), true, "Collapse keeps the same Canvas instance");
+  await (await visibleElement(session, By.css('[data-explorer-toggle][aria-expanded="false"]'))).click();
+  await session.wait(async () => Math.abs((await positions()).width - 228) < 1, 5_000);
+  const maximize = await visibleElement(session, By.css('.desktop-window-controls > button:nth-of-type(2)'));
+  const originalLabel = await maximize.getAttribute('aria-label');
+  await maximize.click();
+  await session.wait(async () => (await maximize.getAttribute('aria-label')) !== originalLabel, 5_000, 'Caption maximize/restore works after Explorer collapse');
+  await maximize.click();
+  await session.wait(async () => (await maximize.getAttribute('aria-label')) === originalLabel, 5_000);
 }
 
 // The retired Note editor is replaced by the Canvas as the authored surface.
@@ -238,6 +269,7 @@ async function runProductPersistenceJourney(session) {
     await assertDesktopChrome(session, true);
     await waitForWorkspaceSaved(session);
     await drawRectangleOnCanvas(session);
+    await assertExplorerCollapse(session);
     const home = await visibleElement(session, By.css('.desktop-titlebar a[aria-label="Notespace home"]'));
     await home.click();
     await waitForUrl(session, /[/]$/);

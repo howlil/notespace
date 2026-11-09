@@ -1,13 +1,17 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, FileText, Folder, Layers, LoaderCircle, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
+import { Check, ChevronRight, FileText, Folder, LoaderCircle, Pencil, Plus, Trash2, MoveRight } from "lucide-react";
 import { ConfirmDialog } from "../../../shared/ui/overlays/confirm-dialog";
 import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, IconButton, Input, Skeleton, cn } from "../../../shared/ui";
 import { useLibraryNavigation, type LibraryChange } from "./use-library-navigation";
 import type { CategorySummary, WorkspaceSummary } from "../../../domain/workspace/workspace";
 
 type Props = { categories: CategorySummary[]; selectedCategoryId?: string; activeWorkspace?: WorkspaceSummary; onSelectCategory: (categoryId: string) => void; onChanged?: (change?: LibraryChange) => void; onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean> };
+
+function isExplorerToggle(target: EventTarget | null) {
+  return target instanceof Element && target.matches('[data-explorer-toggle], [aria-label="Close Explorer"]');
+}
 
 const inlineInputClass = "min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0.5 py-[5px] text-[11px] focus:border-transparent";
 
@@ -40,7 +44,6 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
     submitCreate,
     toggleCategory,
     retryCategory,
-    uncategorized,
   } = useLibraryNavigation({ categories, selectedCategoryId, onChanged, onBeforeDeleteWorkspace });
 
   function dropWorkspace(categoryId: string, event: DragEvent<HTMLDivElement>) {
@@ -65,24 +68,16 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
 
   return <>
     <aside className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden bg-sidebar px-2 py-2" aria-label="Category explorer">
-      <Link to="/" search={{}} aria-current={!activeWorkspaceId && !selectedCategoryId ? "page" : undefined}
-        className="flex min-h-8 items-center gap-2 rounded-md px-2 text-[11px] text-ink transition-colors hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent">
-        <Layers size={14} aria-hidden="true" /> All workspaces
-      </Link>
-      <Button type="button" size="sm" variant="secondary" className="mb-2 w-full justify-start gap-2 px-2" disabled={createLoading}
-        aria-label="New workspace" onClick={() => startCreate("workspace", selectedCategoryId || uncategorized?.id)}>
-        <Plus size={14} aria-hidden="true" /> New workspace
-      </Button>
       <div className="flex min-h-8 shrink-0 items-center justify-between pl-2 pr-0">
         <span className="text-[11px] font-medium text-muted">Categories</span>
-        <Button type="button" size="sm" variant="ghost" className="gap-1 px-1.5 text-[10px]" aria-label="New category" title="New category" disabled={createLoading}
-          onClick={() => startCreate("category")}><Plus size={13} aria-hidden="true" /> New category</Button>
+        <IconButton type="button" variant="ghost" className="!size-6" aria-label="New category" title="New category" disabled={createLoading}
+          onClick={() => startCreate("category")}><Plus size={13} aria-hidden="true" /></IconButton>
       </div>
       <AnimatePresence initial={false}>
         {creating?.kind === "category" && <motion.div key="category-create" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("category")}</motion.div>}
         {creating?.kind === "workspace" && !categories.some(item => item.id === creating.categoryId) && <motion.div key="workspace-create-top" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">{inlineCreate("workspace")}</motion.div>}
       </AnimatePresence>
-      <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto pt-0.5 max-[560px]:min-h-0">
+      <nav aria-label="Categories" className="grid min-w-0 flex-1 content-start gap-0.5 overflow-auto overscroll-contain pt-0.5 max-[560px]:min-h-0">
         {categories.map((category) => {
           const isOpen = expanded.has(category.id);
           const preview = children[category.id] ?? [];
@@ -106,9 +101,9 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
                   >
                     <IconButton className="grid h-[30px] w-[27px] shrink-0 place-items-center rounded-none text-inherit hover:!bg-transparent hover:!text-inherit" aria-expanded={isOpen} aria-label={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} title={`${isOpen ? "Collapse" : "Expand"} ${category.title}`} onClick={() => void toggleCategory(category)}><ChevronRight size={14} className={cn("transition-transform", isOpen && "rotate-90")} /></IconButton>
                     {editingCategory === category.id && !isSystemCategory ? (
-                      <Input className={inlineInputClass} autoFocus disabled={savingCategoryId === category.id} aria-busy={savingCategoryId === category.id} defaultValue={category.title} aria-label="Category title" onBlur={(event) => void saveCategory(category, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void saveCategory(category, event.currentTarget.value); } if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
+                      <Input className={inlineInputClass} autoFocus disabled={savingCategoryId === category.id} aria-busy={savingCategoryId === category.id} defaultValue={category.title} aria-label="Category title" onBlur={(event) => { if (!isExplorerToggle(event.relatedTarget)) void saveCategory(category, event.currentTarget.value); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void saveCategory(category, event.currentTarget.value); } if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = category.title; setEditingCategory(null); } }} />
                     ) : (
-                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-inherit hover:!bg-transparent hover:!text-inherit", isSystemCategory && "text-ink/70")} onClick={() => onSelectCategory(category.id)} onDoubleClick={() => { if (!isSystemCategory) setEditingCategory(category.id); }}>
+                      <Button variant="ghost" size="sm" className={cn("!min-h-0 min-w-0 flex-1 justify-start gap-[7px] rounded-none border-0 px-[3px] py-1.5 text-left text-[11px] text-inherit hover:!bg-transparent hover:!text-inherit", isSystemCategory && "text-ink/70")} aria-label={category.title} aria-expanded={isOpen} onClick={() => void toggleCategory(category)}>
                         <Folder size={14} aria-hidden="true" /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{category.title}</span>
                         <small className={cn("ml-auto text-[10px] font-medium text-ink/70", isSystemCategory && "tracking-[.2px]")}>{isSystemCategory ? "Default" : category.workspaceCount}</small>
                       </Button>
@@ -119,6 +114,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => onSelectCategory(category.id)}><Folder size={13} /> View category</ContextMenuItem>
                   <ContextMenuItem onSelect={() => startCreate("workspace", category.id)}><Plus size={13} /> New workspace</ContextMenuItem>
                   {!isSystemCategory && <ContextMenuItem onSelect={() => setEditingCategory(category.id)}><Pencil size={13} /> Rename category</ContextMenuItem>}
                   {!isSystemCategory && <ContextMenuItem className="text-danger" onSelect={() => setDeleting({ kind: "category", item: category })}><Trash2 size={13} /> Delete</ContextMenuItem>}
@@ -148,7 +144,7 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
                               }}>
                               {activeWorkspaceId === workspace.id && <motion.span layoutId="notespace-active-workspace" className="pointer-events-none absolute inset-0 rounded-md bg-tint" transition={{ type: "spring", stiffness: 480, damping: 42 }} aria-hidden="true" />}
                               {editingWorkspace === workspace.id ? (
-                                <Input className={inlineInputClass} autoFocus disabled={savingWorkspaceId === workspace.id} aria-busy={savingWorkspaceId === workspace.id} defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => void saveWorkspace(workspace, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void saveWorkspace(workspace, event.currentTarget.value); } if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = workspace.title; setEditingWorkspace(null); } }} />
+                                <Input className={inlineInputClass} autoFocus disabled={savingWorkspaceId === workspace.id} aria-busy={savingWorkspaceId === workspace.id} defaultValue={workspace.title} aria-label="Workspace title" onBlur={(event) => { if (!isExplorerToggle(event.relatedTarget)) void saveWorkspace(workspace, event.currentTarget.value); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); void saveWorkspace(workspace, event.currentTarget.value); } if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = workspace.title; setEditingWorkspace(null); } }} />
                               ) : (
                                 <Link className="relative z-10 flex min-w-0 flex-1 items-center gap-[7px] px-[3px] py-[5px] text-[11px] text-inherit hover:text-inherit" to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} aria-current={activeWorkspaceId === workspace.id ? "page" : undefined} onDoubleClick={(event) => { event.preventDefault(); setEditingWorkspace(workspace.id); }}><FileText size={14} /><span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{workspace.title}</span></Link>
                               )}

@@ -22,7 +22,9 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.doesNotMatch(sidebar, /OPEN_QUICK_SEARCH_EVENT/);
   assert.match(shell, /aria-label="Search Notespace"/);
   assert.match(shell, /Hide Explorer|Show Explorer/);
-  assert.doesNotMatch(shell, /PanelLeft/);
+  assert.match(shell, /PanelLeftClose/);
+  assert.match(shell, /PanelLeftOpen/);
+  assert.match(shell, /aria-label="Notespace home"/);
   assert.match(read("../search/QuickOpen.tsx"), /notespace:open-settings/);
   assert.doesNotMatch(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);

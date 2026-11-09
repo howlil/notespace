@@ -38,15 +38,24 @@ implementation: move/restore a library first, recover this device second,
 manage deleted workspaces separately. The Theme setting takes effect
 immediately, keeps the accessible label stable, and shows its current mode.
 
-The shared shell uses the brand mark to toggle the Explorer, a centered
-input-like Search trigger to open Quick Open, and keeps application Settings in
-the Explorer footer. Workspace switches keep the shell visible and remount only
+A genuinely empty Home library uses a centered outline folder/Canvas illustration,
+short “No workspaces yet” copy, Create Workspace and secondary Restore backup.
+Keep the art decorative, static and semantic-token-colored, with no sample records
+or empty-state gallery tabs. Loading, errors and empty categories stay distinct.
+
+The shared 38px shell keeps one Fox Home link and a separate labelled Explorer
+toggle in browser and Tauri. Search opens Quick Open; Settings stays in the
+Explorer footer and remains reachable through Quick Open when collapsed. Workspace switches keep the shell visible and remount only
 the authoring session after destination data is ready; only the active
 Workspace row morphs, while categories remain visually neutral.
 
-Explorer keeps All workspaces and a labelled New workspace action above the
-category tree. New category is separate; each category exposes a create action
-on hover/focus and touch. Cached category rows live with Explorer disclosure
+Explorer contains Categories and Workspace rows, with no All workspaces or
+global New workspace entry. The Categories plus creates a category; each category
+exposes its own create action on hover/focus and touch. Name/chevron disclose;
+F2/context menu rename and an always-available View category retain navigation.
+Dock width is 228px or zero without unmounting forms. At <=760px the same panel
+overlays Canvas with backdrop/Escape/route dismissal and focus return. A transient
+drawer never overwrites session-only dock preference; hidden content is inert. Cached category rows live with Explorer disclosure
 state across routes and refresh on library changes without blanking the list.
 The active Workspace is included even outside the category preview. Its name
 appears as plain text beside the logo in the shared titlebar. Never float a

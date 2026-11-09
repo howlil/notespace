@@ -4,16 +4,16 @@ import { after, before, test } from "node:test";
 import {
   api, assert, cleanupWorkspace, click, createCategory, createWorkspace, deleteCategory,
   evaluate, expectCount, goto, injectFault, placeholder, queryParam, requestLog,
-  back, expectClass, fill, resetViewport, role, setViewport, sleep, start, stop, text,
+  back, expectAttribute, expectClass, fill, resetViewport, rightClick, role, setViewport, sleep, start, stop, text,
   visible, waitFor,
 } from "../support/harness.mjs";
 
 before(start);
 after(stop);
 
-const categoryButton = (title) => role("button", new RegExp(title), { exclude: /^(Expand|Collapse)/ });
+const categoryButton = (title) => role("button", title, { exact: true });
 
-test("critical: categories disclose without navigation and filter Home on title selection", async () => {
+test("critical: categories disclose without navigation and View category filters Home", async () => {
   const [category] = await api("/api/categories");
   assert.ok(category);
   await goto("/");
@@ -22,19 +22,24 @@ test("critical: categories disclose without navigation and filter Home on title 
   await waitFor(async () => (await queryParam("category")) === null, "Disclosure must not change the URL");
   await visible(role("button", `Collapse ${category.title}`, { scope: explorer }));
   await click(categoryButton(category.title));
-  await waitFor(async () => (await queryParam("category")) === category.id, "Category selection owns the URL");
+  assert.equal(await queryParam("category"), null, "Title activation is disclosure only");
+  await rightClick(categoryButton(category.title));
+  await click(role("menuitem", "View category"));
+  await waitFor(async () => (await queryParam("category")) === category.id, "Explicit category navigation owns the URL");
+  await visible(role("heading", "No workspaces in this category", { exact: true }));
+  await expectCount(role("heading", "No workspaces yet", { exact: true }), 0);
 });
 
-test("critical: mobile Home opens categories from the logo without a modal", async () => {
+test("critical: mobile Home opens categories from the separate Explorer toggle", async () => {
   await setViewport(390, 780);
   try {
     await goto("/");
-    await expectCount(role("navigation", "Categories"), 0);
+    await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
     await click(role("button", "Show Explorer", { exact: true }));
     await visible(role("navigation", "Categories"));
     await expectCount(role("dialog", "Workspace explorer"), 0);
     await click(role("button", "Hide Explorer", { exact: true }));
-    await expectCount(role("navigation", "Categories"), 0);
+    await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
   } finally {
     await resetViewport();
   }
@@ -100,7 +105,8 @@ test("Switching categories replaces the visible workspaces without stale results
     await visible(role("group", "Category workspaces"));
     await expectCount(role("link", `Open ${workspaceB.title}`), 0);
 
-    await click(categoryButton(categoryB.title));
+    await rightClick(categoryButton(categoryB.title));
+    await click(role("menuitem", "View category"));
     await waitFor(async () => (await queryParam("category")) === categoryB.id, "Selection switches category");
     await expectClass(role("link", `Open ${workspaceB.title}`), /./);
     assert.match(await highlight(role("link", `Open ${workspaceB.title}`)), /bg-accent/);

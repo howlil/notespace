@@ -50,6 +50,8 @@ S2: Canvas authored snapshot and Canvas version | owner R6/workspace + SQLite | 
 
 S3: In-memory authoring draft, dirty state and flush registry | owner R3 `useWorkspaceSession`/autosave | browser memory is disposable and must flush registered Canvas asset writes before the authored snapshot, then flush to S2 before close/navigation when dirty.
 
+S-EXPLORER (#198): the root LibraryExplorerProvider owns session-only dock preference, independent transient mobile drawer visibility, disclosure and cached category pages. Shell derives presentation at 760px and keeps the Explorer subtree mounted across collapse; forms/mutations retain their existing Sidebar/navigation owner. Router/save barriers still own navigation and dirty Canvas. No new persistence or duplicate navigation manager.
+
 S4: Library pagination snapshot/token | owner workspace application/store | snapshot membership and ordering remain stable for one traversal; refresh, filter, sort or eviction starts a new traversal.
 
 S5: Search/FTS projection | owner SQLite | derived and repairable; authored Workspace/Canvas state remains authoritative.
@@ -197,5 +199,19 @@ A3: Planning/activity/capture data retirement is not authorized merely because i
 - Persistence/migration: real SQLite integration tests and server-process   restart smoke; never fake transaction semantics.
 - Desktop boundary: prepare sidecar, lifecycle smoke, `cargo check --no-default-features`,   and native WebDriver only when the matching Windows driver is available.
 - Release evidence, versioning and publication remain owned by   `release-engineering`; this file does not claim deployed/released state.
+
+### #198 implementation trace (M0–M4)
+
+- T: Fox → existing Home route/save blocker; toggle → dock/drawer presentation; category title → disclosure; View category → existing category route.
+- O: root Explorer provider retains disclosure/cache and separate dock/drawer state; shell owns responsive/focus presentation; Sidebar/navigation retain drafts and mutations.
+- FL: mounted/inert collapse preserves drafts and pending dedupe; focus moves before breakpoint hiding; failed Canvas flush blocks Home and retains recovery.
+- PL: no schema, storage, API, IPC, dependency or authoring-session changes; Canvas chrome is paint-isolated below the mobile drawer.
+- LF: dock preference resets to auto on reload; drawer dismisses without writing it; media, Home-click and keyboard subscriptions clean up on owner teardown.
+- VER AC-01/02/04/16: unified-shell browser journeys, injected titlebar-activation failure, and native titlebar/Explorer/caption-control smoke.
+- VER AC-03: workspace-rail journey preserves the Canvas DOM instance, edited source, selected toolbar and zoom while releasing dock width.
+- VER AC-05/06/07/08/17: existing navigation, category-first, race and category/protected-default journeys; no parallel navigation model.
+- VER AC-09/13/14/15: creation/rename and breakpoint draft journeys; independent dock/drawer/reload assertions; Fox pending-save and failed-save/retry proof.
+- VER AC-10/11/18: drawer/Quick Open/focus journeys plus rendered 1280/390/320px light/dark, real touch-pointer and reduced-motion acceptance.
+- VER AC-12: typecheck, lint, Node contracts, complexity <=10 for shell, web build, affected browser journeys and isolated native smoke; mobile-overwrites-dock mutation was detected and restored.
 
 Stop when the requested owner/boundary is explicit, its invariant has a proof, and the relevant checks are green. Do not reorganize for symmetry alone.

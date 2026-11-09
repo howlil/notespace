@@ -91,11 +91,12 @@ Out:
 J1: When moving between Canvas workspaces, find my work and start a new Canvas
 without losing my place or wondering which Workspace is open.
 
-- B1: All workspaces is a visible Explorer destination; category disclosure
-  expands a list, while its name opens the category collection.
-- B2: New workspace creates a named Workspace in the current category (or
-  Uncategorized from All workspaces) and opens its Canvas after creation succeeds.
-  New category stays a separate, explicitly labelled action.
+- B1 (#198): The persistent Fox links Home independently of a separate Explorer
+  toggle. Explorer contains Categories/Workspaces only; category name and chevron
+  disclose without navigation. View category explicitly opens its collection.
+- B2: Explorer creation always targets the chosen category, including legacy
+  Uncategorized; New category is a separate labelled action. Home retains its
+  existing creation/first-run workflows and category/direct Workspace links.
 - B3: Workspace switches preserve loaded Explorer rows and disclosure state.
   Current authored content still loads from the server, with existing save barriers.
 - B4: The current Workspace name remains visible in the shared titlebar. Save
@@ -104,15 +105,22 @@ without losing my place or wondering which Workspace is open.
   even when it is outside the five-item preview.
 - X1: Creation failure keeps the name for retry; pending creation disables repeat
   submission/cancellation. Category load failure retains existing rows and Retry.
+- X-EXPLORER: Collapse preserves mounted create/rename drafts and in-flight dedupe.
+  Dirty Canvas → Fox waits for the existing save barrier; failures retain recovery.
 - C1: Preserve Canvas-only behavior, neutral categories and Workspace-only active
-  tint. No new persistence, favorites, recents, hierarchy or search subsystem.
+  tint. Dock preference is session-only auto/open/closed; the mobile drawer is
+  transient and never overwrites it. Reload returns to responsive auto. No new
+  persistence, favorites, recents, hierarchy or search subsystem.
 - P1 (B1-B2): The existing Library journey creates a category, creates a Workspace
-  through its visible action, opens the resulting Canvas and retains it on reload.
+  through its category-targeted action, opens the resulting Canvas and retains it
+  on reload. Shell journeys prove persistent Fox, independent toggle, disclosure,
+  explicit category routing, drawer dismissal and wide/narrow preference retention.
 - P2 (B3-B4): The navigation journey opens a Workspace directly, switches siblings
   without refetching cached Explorer rows, shows identity in the titlebar and
   survives reload without floating identity chrome over the Canvas.
 - P3 (X1): The Library journey simulates creation and category-read failures,
-  preserves the draft/list and successfully retries without duplicate creation.
+  preserves the draft/list across collapse and successfully retries without duplicate
+  creation. Canvas persistence proves Fox navigation waits for save and retains failure recovery.
 - A1: Pain points are inferred from source, prior user reports and comparative
   product documentation; they are not findings from user interviews.
 

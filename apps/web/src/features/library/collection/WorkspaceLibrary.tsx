@@ -213,6 +213,27 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
   );
 }
 
+function WorkspaceEmptyIllustration() {
+  return (
+    <svg viewBox="0 0 280 184" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      className="h-44 w-64 max-w-full shrink-0" aria-hidden="true" focusable="false">
+      <path d="M44 82V64a8 8 0 0 1 8-8h48l16 16h108a8 8 0 0 1 8 8v65H44Z"
+        fill="var(--surface)" stroke="var(--line)" />
+      <rect x="76" y="32" width="88" height="112" rx="6" transform="rotate(-12 120 88)"
+        fill="var(--surface)" stroke="var(--muted)" />
+      <rect x="124" y="22" width="88" height="120" rx="6" transform="rotate(8 168 82)"
+        fill="var(--surface)" stroke="var(--muted)" />
+      <path d="m145 46 40 6m-43 10 40 6m-42 10 24 3" stroke="var(--line)" />
+      <path d="M38 90a6 6 0 0 1 6-7h192a6 6 0 0 1 6 7l-12 61a8 8 0 0 1-8 7H58a8 8 0 0 1-8-7Z"
+        fill="var(--surface)" stroke="var(--muted)" />
+      <rect x="117" y="108" width="46" height="26" rx="4" stroke="var(--line)" />
+      <path d="M130 118h20m-20 6h12" stroke="var(--line)" />
+      <circle cx="224" cy="139" r="15" fill="var(--tint)" stroke="var(--accent)" />
+      <path d="M218 139h12m-6-6v12" stroke="var(--accent)" />
+    </svg>
+  );
+}
+
 type WorkspaceLibraryProps = {
   model: WorkspaceLibraryModel;
 };
@@ -283,57 +304,35 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
                 onCancel={() => { setCreatingWorkspace(false); setNewWorkspaceTitle(""); }} />
           </div>
         ) : view === "all" && page?.total === 0 ? (
-          <section className="mx-auto flex max-w-[940px] flex-col gap-8 py-8 max-[700px]:py-3" aria-label="Welcome to Notespace">
-            <div className="grid grid-cols-[minmax(250px,1fr)_minmax(280px,1.1fr)] items-center gap-8 max-[800px]:grid-cols-1">
-              <div className="flex flex-col items-start gap-3">
-                <span className="text-[11px] font-medium text-accent">Notespace workspace</span>
-                <h2 className="m-0 text-[28px] font-semibold leading-[1.3] text-ink">A space for ideas to take shape.</h2>
-                <p className="m-0 max-w-sm text-[13px] leading-6 text-muted">
-                  Start a Workspace to map sketches, diagrams and code on one Canvas.
-                </p>
-                {!creatingWorkspace ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Button type="button" onClick={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}>
-                      <Plus size={15} aria-hidden="true" /> Create Workspace
-                    </Button>
-                    <Button type="button" variant="secondary"
-                      onClick={() => window.dispatchEvent(new Event("notespace:open-settings-data"))}>
-                      Restore backup
-                    </Button>
-                  </div>
-                ) : (
-                  <form className="mt-2 flex w-full max-w-sm items-center gap-2" onSubmit={(event) => { void handleCreateWorkspace(event); }}>
-                    <Input autoFocus aria-label="Workspace name" placeholder="Workspace name" value={newWorkspaceTitle}
-                      onChange={(event) => setNewWorkspaceTitle(event.target.value)} disabled={createLoading} />
+          <section className="mx-auto flex min-h-[calc(100dvh-160px)] max-w-lg flex-col items-center justify-center gap-6 py-8 text-center" aria-label="Welcome to Notespace">
+            <WorkspaceEmptyIllustration />
+            <div className="flex w-full flex-col items-center gap-3">
+              <h2 className="m-0 text-[21px] font-semibold tracking-tight text-ink">No workspaces yet</h2>
+              <p className="m-0 max-w-sm text-[13px] leading-6 text-muted">
+                Bring sketches, diagrams and code together on one Canvas. Create a Workspace to get started.
+              </p>
+              {!creatingWorkspace ? (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                  <Button type="button" onClick={() => { setCreatingWorkspace(true); setNewWorkspaceTitle(""); }}>
+                    <Plus size={15} aria-hidden="true" /> Create Workspace
+                  </Button>
+                  <Button type="button" variant="secondary"
+                    onClick={() => window.dispatchEvent(new Event("notespace:open-settings-data"))}>
+                    Restore backup
+                  </Button>
+                </div>
+              ) : (
+                <form className="mt-2 grid w-full max-w-sm gap-2" onSubmit={(event) => { void handleCreateWorkspace(event); }}>
+                  <Input autoFocus aria-label="Workspace name" placeholder="Workspace name" value={newWorkspaceTitle}
+                    onChange={(event) => setNewWorkspaceTitle(event.target.value)} disabled={createLoading} />
+                  <div className="flex items-center justify-center gap-2">
                     <Button size="sm" type="submit" disabled={!newWorkspaceTitle.trim() || createLoading}>
                       {createLoading ? "Creating…" : "Create"}
                     </Button>
                     <Button size="sm" type="button" variant="secondary" onClick={() => setCreatingWorkspace(false)} disabled={createLoading}>Cancel</Button>
-                  </form>
-                )}
-              </div>
-              <div className="relative min-h-[270px] overflow-hidden rounded-lg border border-line bg-canvas p-5" aria-label="Example knowledge map">
-                <div className="mb-4 flex items-center justify-between border-b border-line pb-3 text-[10px] text-muted">
-                  <span>Untitled Canvas</span><span>100%</span>
-                </div>
-                <div className="relative mx-auto h-[195px] max-w-[360px]">
-                  <svg className="absolute inset-0 size-full" viewBox="0 0 360 195" fill="none" aria-hidden="true">
-                    <path d="M151 44C118 44 93 83 93 102M209 45C238 45 264 83 264 100M95 124C95 153 128 161 148 161M260 125C260 153 239 160 216 161" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 5" opacity=".65" />
-                  </svg>
-                  <div className="absolute left-[26%] top-1 w-[48%] rounded-lg border border-accent/25 bg-surface px-3 py-2 text-[12px] font-semibold text-ink">Database internals</div>
-                  <div className="absolute left-0 top-[43%] w-[44%] rounded-lg border border-line bg-surface px-3 py-3">
-                    <div className="text-[11px] font-semibold text-ink">MVCC</div>
-                    <div className="mt-2 h-1 w-4/5 rounded-full bg-line" />
-                    <div className="mt-1 h-1 w-3/5 rounded-full bg-line" />
                   </div>
-                  <div className="absolute right-0 top-[43%] w-[40%] rounded-lg border border-line bg-surface px-3 py-3">
-                    <div className="text-[11px] font-semibold text-ink">Transactions</div>
-                    <div className="mt-2 h-1 w-4/5 rounded-full bg-line" />
-                    <div className="mt-1 h-1 w-3/5 rounded-full bg-line" />
-                  </div>
-                  <div className="absolute bottom-0 left-[30%] w-[42%] rounded-lg border border-line bg-surface px-3 py-2 text-center text-[11px] font-medium text-ink">Isolation levels</div>
-                </div>
-              </div>
+                </form>
+              )}
             </div>
           </section>
         ) : (

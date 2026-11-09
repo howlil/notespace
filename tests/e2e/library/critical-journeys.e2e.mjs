@@ -4,12 +4,19 @@
  * first-run Canvas creation, legacy deep-link compatibility, and Quick Open.
  */
 import { after, before, test } from "node:test";
-import { api, assert, box, click, createWorkspace, createWorkspaceViaUI, deleteWorkspace, expectCount, goto, purgeTrash, role, start, stop, visible } from "../support/harness.mjs";
+import { api, assert, box, click, createWorkspace, createWorkspaceViaUI, deleteWorkspace, expectCount, goto, purgeTrash, press, role, start, stop, visible } from "../support/harness.mjs";
 
 before(start);
 after(stop);
 
 test("critical: Welcome creates a Workspace and opens a drawable Canvas", { timeout: 60_000 }, async () => {
+  await goto("/");
+  await visible(role("heading", "No workspaces yet", { exact: true }));
+  await expectCount('[aria-label="Example knowledge map"]', 0);
+  await click(role("button", "Restore backup", { exact: true }));
+  await visible(role("dialog", "Settings", { exact: true }));
+  await visible(role("heading", "Data & backup", { exact: true }));
+  await press("Escape");
   const id = await createWorkspaceViaUI("Critical welcome Workspace");
   try {
     const canvas = await box(".excalidraw__canvas.interactive");

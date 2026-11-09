@@ -38,6 +38,11 @@ implementation: move/restore a library first, recover this device second,
 manage deleted workspaces separately. The Theme setting takes effect
 immediately, keeps the accessible label stable, and shows its current mode.
 
+A genuinely empty Home library uses a centered outline folder/Canvas illustration,
+short “No workspaces yet” copy, Create Workspace and secondary Restore backup.
+Keep the art decorative, static and semantic-token-colored, with no sample records
+or empty-state gallery tabs. Loading, errors and empty categories stay distinct.
+
 The shared 38px shell keeps one Fox Home link and a separate labelled Explorer
 toggle in browser and Tauri. Search opens Quick Open; Settings stays in the
 Explorer footer and remains reachable through Quick Open when collapsed. Workspace switches keep the shell visible and remount only

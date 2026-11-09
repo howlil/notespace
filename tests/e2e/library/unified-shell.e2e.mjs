@@ -180,6 +180,7 @@ test("critical: failed library load remains recoverable, not first-run", async (
   await goto("/");
   const alert = role("alert", null, { hasText: /Workspaces could not be loaded/ });
   await visible(alert);
+  await expectCount(role("heading", "No workspaces yet", { exact: true }), 0);
   await expectCount(role("button", "Create Workspace"), 0);
   await click(role("button", "Retry", { scope: alert }));
   await expectCount(alert, 0);

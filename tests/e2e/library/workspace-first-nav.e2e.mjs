@@ -26,6 +26,8 @@ test("critical: categories disclose without navigation and View category filters
   await rightClick(categoryButton(category.title));
   await click(role("menuitem", "View category"));
   await waitFor(async () => (await queryParam("category")) === category.id, "Explicit category navigation owns the URL");
+  await visible(role("heading", "No workspaces in this category", { exact: true }));
+  await expectCount(role("heading", "No workspaces yet", { exact: true }), 0);
 });
 
 test("critical: mobile Home opens categories from the separate Explorer toggle", async () => {

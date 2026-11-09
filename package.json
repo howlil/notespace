@@ -10,7 +10,7 @@
     "dev": "bun run --filter @notespace/web dev",
     "build": "bun run --filter @notespace/web build && bun install --cwd landing --frozen-lockfile && bun run --cwd landing build",
     "typecheck": "bun run --filter @notespace/web typecheck",
-    "lint": "eslint apps/web/src tests scripts/verify/run-node-tests.mjs scripts/verify/browser-*.mjs scripts/verify/ci*.mjs scripts/verify/check-native-dependency-cache.mjs --max-warnings 0",
+    "lint": "eslint apps/web/src tests scripts/verify/run-node-tests.mjs scripts/verify/browser-*.mjs scripts/verify/ci*.mjs scripts/verify/prepare-native-package-cache.mjs --max-warnings 0",
     "test": "node scripts/verify/run-node-tests.mjs",
     "test:e2e": "bun run --filter @notespace/web build && node scripts/verify/browser-e2e.mjs",
     "test:e2e:critical": "node scripts/verify/browser-e2e.mjs --critical",

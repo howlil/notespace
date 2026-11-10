@@ -1,16 +1,24 @@
 name: ci
 
-# Transitional PR gate. Legacy Verify/Verify Desktop remain publisher authority
+# Transitional PR/master/regression gate. Legacy Verify/Verify Desktop remain publisher authority
 # until the separate #200 M5a exact-SHA/branch-protection cutover.
 on:
   pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+env:
+  CI_EVENT: ${{ github.event_name }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
@@ -24,6 +32,7 @@ jobs:
       browser: ${{ steps.plan.outputs.browser }}
       desktop: ${{ steps.plan.outputs.desktop }}
       release_policy: ${{ steps.plan.outputs.release_policy }}
+      compose: ${{ steps.plan.outputs.compose }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -168,14 +177,19 @@ jobs:
         with:
           name: ci-web-${{ github.run_id }}-${{ github.run_attempt }}
           path: apps/web/dist/client
-      - name: Run affected owners plus mandatory risk smoke
+      - name: Run fresh stage proof (PR affected, master critical plus P0, regression full)
         env:
           EXPECTED_SHA: ${{ github.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CHANGED_FILES: ${{ runner.temp }}/ci-browser-paths.json
         run: |
-          node scripts/verify/ci.mjs paths
-          node scripts/verify/browser-e2e.mjs --mode affected --changed-files "$CHANGED_FILES"
+          MODE="$(node scripts/verify/ci.mjs browser-mode)"
+          if [ "$MODE" = affected ]; then
+            node scripts/verify/ci.mjs paths
+            node scripts/verify/browser-e2e.mjs --mode affected --changed-files "$CHANGED_FILES"
+          else
+            node scripts/verify/browser-e2e.mjs --mode "$MODE"
+          fi
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -188,6 +202,38 @@ jobs:
     if: needs.classify.outputs.desktop == 'true'
     # Reuse real Windows native close/flush/shutdown/readback, not a green stub.
     uses: ./.github/workflows/verify-desktop.yml
+    with:
+      profile: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression' || 'native' }}
+
+  compose:
+    needs: classify
+    if: needs.classify.outputs.compose == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.identity.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - id: identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: node scripts/verify/ci.mjs identity
+      - run: docker compose -f compose.yaml config
+      - run: docker compose -f compose.yaml -f compose.ci.yaml up --build -d --wait
+      - name: Prove real SQLite state across container restart
+        env:
+          COMPOSE_FILE: compose.yaml:compose.ci.yaml
+        run: python3 scripts/verify/smoke-persistence.py --compose-restart
+      - name: Collect Compose logs and tear down even on failure
+        if: always()
+        run: |
+          docker compose -f compose.yaml -f compose.ci.yaml logs
+          docker compose -f compose.yaml -f compose.ci.yaml down
 
   release-policy:
     needs: classify
@@ -216,9 +262,9 @@ jobs:
       - run: node --test scripts/release/*.test.mjs scripts/assets/*.test.mjs scripts/verify/*.test.mjs
 
   gate:
-    name: ci / gate
+    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression / gate' || 'ci / gate' }}
     if: always()
-    needs: [classify, web, server, landing, browser, desktop, release-policy]
+    needs: [classify, web, server, landing, browser, desktop, release-policy, compose]
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:

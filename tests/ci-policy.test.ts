@@ -50,6 +50,24 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
   }
 });
 
+test("master/manual/scheduled stages cannot narrow docs-only or omit Compose/native proof", () => {
+  for (const [event, mode] of [["push", "master"], ["workflow_dispatch", "full"], ["schedule", "full"]]) {
+    const diff = { ...evidence(["README.md"]), event };
+    const plan = classifyDiff(diff);
+    assert.equal(plan.event, event);
+    assert.equal(plan.browserMode, mode);
+    assert.ok(Object.values(plan.required).every(Boolean));
+    assertCiGate(verdicts(diff), diff);
+    for (const job of CI_JOBS) {
+      const needs = verdicts(diff);
+      needs[job].result = "skipped";
+      assert.throws(() => assertCiGate(needs, diff), /required proof was skipped/);
+    }
+    assert.throws(() => assertCiGate(verdicts(evidence(["README.md"])), diff), /fresh gate evidence/);
+  }
+  for (const event of ["", "pull_request_target", "typo", null]) assert.throws(() => classifyDiff({ ...evidence(["README.md"]), event }), /event\/stage/);
+});
+
 test("native package snapshot strips internal/external/broken aliases without touching targets", () => {
   const directory = mkdtempSync(join(tmpdir(), "notespace-native-cache-"));
   try {
@@ -163,7 +181,7 @@ test("CI CLI collects real complete merge-base changes and propagates failed gat
     write("landing/base.astro", "base-only"); git("add", "."); git("commit", "-qm", "base diverges");
     const divergedBase = git("rev-parse", "HEAD"); git("checkout", "feature");
     const invoke = (command: string, env = {}) => spawnSync(process.execPath, [join(directory, "scripts/verify/ci.mjs"), command], {
-      cwd: directory, encoding: "utf8", env: { ...process.env, EXPECTED_SHA: head, BASE_SHA: divergedBase, GITHUB_OUTPUT: join(directory, "outputs"), ...env },
+      cwd: directory, encoding: "utf8", env: { ...process.env, EXPECTED_SHA: head, BASE_SHA: divergedBase, CI_EVENT: "pull_request", GITHUB_OUTPUT: join(directory, "outputs"), ...env },
     });
     const result = invoke("classify");
     assert.equal(result.status, 0, result.stderr);
@@ -177,6 +195,12 @@ test("CI CLI collects real complete merge-base changes and propagates failed gat
     needs.web.result = "skipped";
     assert.notEqual(invoke("gate", { CI_NEEDS: JSON.stringify(needs) }).status, 0);
     assert.notEqual(invoke("identity", { EXPECTED_SHA: base }).status, 0);
+    assert.equal(invoke("browser-mode", { CI_EVENT: "push" }).stdout.trim(), "master");
+    assert.equal(invoke("browser-mode", { CI_EVENT: "workflow_dispatch" }).stdout.trim(), "full");
+    assert.notEqual(invoke("browser-mode", { CI_EVENT: "invalid" }).status, 0);
+    const masterPlan = JSON.parse(invoke("classify", { CI_EVENT: "push" }).stdout);
+    assert.ok(Object.values(masterPlan.required).every(Boolean));
+    assert.notEqual(invoke("gate", { CI_EVENT: "push", CI_NEEDS: JSON.stringify(needs) }).status, 0);
     const unavailable = invoke("classify", { BASE_SHA: "f".repeat(40) });
     assert.equal(unavailable.status, 0);
     assert.ok(Object.values(JSON.parse(unavailable.stdout).required).every(Boolean));
@@ -188,12 +212,12 @@ test("workflow wiring retains always-running gate, unfiltered PR and isolated re
   const desktop = readFileSync(".github/workflows/verify-desktop.yml", "utf8");
   assert.match(ci, /on:\s+pull_request:/);
   assert.doesNotMatch(ci, /pull_request_target|secrets: inherit|contents: write|actions: write/);
-  assert.match(ci, /gate:\s+name: ci \/ gate\s+if: always\(\)\s+needs: \[classify, web, server, landing, browser, desktop, release-policy\]/);
+  assert.match(ci, /gate:\s+name: .*'regression \/ gate' \|\| 'ci \/ gate'.*\s+if: always\(\)\s+needs: \[classify, web, server, landing, browser, desktop, release-policy, compose\]/);
   assert.ok(ci.indexOf("run: node --experimental-strip-types --test tests/ci-policy.test.ts") < ci.indexOf("- id: plan"));
   assert.match(ci, /run: node --experimental-strip-types --test tests\/ci-policy.test\.ts/);
   assert.match(ci, /CI_NEEDS: \$\{\{ toJSON\(needs\) \}\}/);
   assert.match(ci, /uses: \.\/\.github\/workflows\/verify-desktop.yml/);
-  assert.match(desktop, /workflow_call:\s+outputs:\s+sha:/);
+  assert.match(desktop, /workflow_call:[\s\S]*?outputs:\s+sha:/);
   assert.match(desktop, /group: desktop-\$\{\{ github.workflow \}\}/);
   assert.match(ci, /path: apps\/web\/dist\/client/);
   assert.match(ci, /if-no-files-found: error/);

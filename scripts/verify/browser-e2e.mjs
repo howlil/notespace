@@ -1,5 +1,5 @@
 /* One WebdriverIO/Node runner; each suite owns isolated Go/SQLite/Chrome fixtures.
- * --mode smoke | affected | full; --changed-files paths.json for affected.
+ * --mode smoke | affected | master | full; --changed-files paths.json for affected.
  * --critical retains the legacy critical set; --file runs one complete suite.
  * --list validates and prints the plan without starting any browser/server.
  */

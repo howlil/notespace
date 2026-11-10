@@ -120,7 +120,7 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
   const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
   assert.match(basic, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
   // Reusable native CI must not cancel its caller (github.workflow is inherited).
-  assert.match(desktop, /group: desktop-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
+  assert.match(desktop, /group: desktop-\$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name \}\}-\$\{\{ github\.ref \}\}/);
   for (const workflow of [basic, desktop]) {
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   }
@@ -130,7 +130,7 @@ test("only obsolete PR checks are canceled, never master CI or a release", () =>
   assert.match(basic, /name: Run critical WebdriverIO suite on master[\s\S]*?if: github\.event_name == 'push'\s+run: bun run test:e2e:critical/);
   assert.doesNotMatch(basic, /playwright install --with-deps/);
   assert.match(basic, /docker compose -f compose\.yaml -f compose\.ci\.yaml up --build -d --wait\s+if: github\.event_name == 'push'/);
-  assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: github\.event_name == 'push'\s+runs-on: windows-latest/);
+  assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: inputs\.profile == 'regression' \|\| \(github\.event_name == 'push' && inputs\.profile != 'native'\)\s+runs-on: windows-latest/);
 });
 
 test("free beta produces signed Tauri updater artifacts without Azure publisher certificates", () => {

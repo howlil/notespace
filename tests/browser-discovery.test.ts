@@ -135,6 +135,13 @@ test("case matching escapes punctuation and anchors the entire Node test name", 
   });
 });
 
+test("master browser proof retains every legacy critical case plus all risk smoke", () => {
+  const root = process.cwd();
+  const master = selectBrowserRun(root, { mode: "master" });
+  const expected = new Set([...selectBrowserRun(root, { mode: "critical" }).proofs, ...selectBrowserRun(root, { mode: "smoke" }).proofs].map(({ name }) => name));
+  assert.deepEqual(new Set(master.proofs.map(({ name }) => name)), expected);
+});
+
 test("invalid paths, modes, empty suites and invalid changed-file input fail closed", () => {
   for (const changedFiles of [null, [], "file.ts", [null], [""], ["../outside.ts"], ["/absolute.ts"], ["C:\\outside.ts"]]) {
     assert.throws(() => selectBrowserRun(root, { mode: "affected", changedFiles }));
@@ -158,7 +165,7 @@ test("invalid paths, modes, empty suites and invalid changed-file input fail clo
 test("runner validates CLI ingress and can list full/smoke/legacy/explicit plans without launching fixtures", () => {
   const runner = join(root, "scripts/verify/browser-e2e.mjs");
   const invoke = (args: string[]) => spawnSync(process.execPath, [runner, ...args, "--list"], { cwd: root, encoding: "utf8", timeout: 15_000 });
-  for (const args of [[], ["--mode=smoke"], ["--critical"], ["--file", "tests/e2e/library/search.e2e.mjs"]]) {
+  for (const args of [[], ["--mode=smoke"], ["--mode=master"], ["--critical"], ["--file", "tests/e2e/library/search.e2e.mjs"]]) {
     const result = invoke(args);
     assert.equal(result.status, 0, result.stderr);
     assert.ok(JSON.parse(result.stdout).files.length > 0);

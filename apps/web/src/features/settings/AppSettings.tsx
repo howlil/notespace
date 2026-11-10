@@ -1,4 +1,3 @@
-// #200 M7 non-merging frontend measurement: unchanged executable behavior.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";

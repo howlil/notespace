@@ -1,3 +1,4 @@
+// #200 non-merging web-only build fallback proof; assertions unchanged.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";

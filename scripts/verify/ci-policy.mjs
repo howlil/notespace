@@ -1,5 +1,5 @@
 // #200 A1: the classifier and gate share one owner/risk contract, never a permissive default.
-export const CI_JOBS = ["web", "server", "landing", "browser", "desktop", "release-policy"];
+export const CI_JOBS = ["web", "server", "landing", "browser", "desktop", "release-policy", "compose"];
 const shaPattern = /^[a-f0-9]{40}$/;
 export const validSha = (value) => typeof value === "string" && shaPattern.test(value);
 const validPath = (path) => typeof path === "string" && path.length > 0 && !/[\0\\]/.test(path) && !/^(\/|[a-z]:)/i.test(path) && !path.split("/").some((part) => !part || part === "." || part === "..");
@@ -68,15 +68,24 @@ function webOwners(path) {
   return native ? ["web", "browser", "desktop"] : ["web", "browser"];
 }
 
+export function ciStage(event = "pull_request") {
+  const modes = { pull_request: "affected", push: "master", schedule: "full", workflow_dispatch: "full" };
+  if (!Object.hasOwn(modes, event)) throw new Error("Unknown CI event/stage");
+  return { event, browserMode: modes[event], full: event !== "pull_request" };
+}
+
 export function classifyDiff(diff) {
   if (!diff || !validSha(diff.sha)) throw new Error("CI requires an exact SHA");
+  const stage = ciStage(diff.event);
   const complete = completeDiff(diff);
   const paths = complete ? [...new Set(diff.changes.flatMap(({ paths }) => paths))] : ["__incomplete_diff__"];
   const owners = paths.map(ownersFor), conservative = !complete || owners.includes(null);
-  const selected = conservative ? CI_JOBS : [...new Set(owners.flat())];
+  const selected = conservative || stage.full ? [...CI_JOBS] : [...new Set(owners.flat())];
   if (selected.includes("browser") && !selected.includes("web")) selected.push("web");
   return {
     sha: diff.sha,
+    event: stage.event,
+    browserMode: stage.browserMode,
     baseSha: diff.baseSha ?? null,
     conservative,
     paths,

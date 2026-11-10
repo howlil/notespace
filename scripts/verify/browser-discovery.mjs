@@ -66,8 +66,8 @@ function casePattern(proofs) {
 
 function validateRunOptions(options) {
   const file = options.file ?? null, mode = options.mode ?? "full", changedFiles = options.changedFiles ?? null;
-  if (!["full", "critical", "smoke", "affected"].includes(mode)) throw new Error(`Unknown browser proof mode: ${mode}`);
-  if (file && !["full", "critical"].includes(mode)) throw new Error("--file cannot be combined with smoke/affected mode");
+  if (!["full", "critical", "master", "smoke", "affected"].includes(mode)) throw new Error(`Unknown browser proof mode: ${mode}`);
+  if (file && !["full", "critical"].includes(mode)) throw new Error("--file cannot be combined with this selection mode");
   if (mode !== "affected" && changedFiles !== null) throw new Error("Changed files apply only to affected proof");
   return { file, mode, changedFiles };
 }
@@ -81,11 +81,18 @@ export function selectBrowserRun(root, options = {}) {
   const full = { files, proofs, pattern: null, reason: "full" };
   if (mode === "full") return full;
   if (proofs.some(({ risk }) => risk === "unknown")) return { ...full, reason: "unclassified proof: conservative full run" };
-  if (mode === "critical") return selectedRun(proofs.filter(({ name }) => name.startsWith("critical:")), "legacy critical");
-  if (mode === "smoke") return selectedRun(proofs.filter(({ smoke }) => smoke), "risk smoke");
+  const riskSelection = selectRiskProof(proofs, mode);
+  if (riskSelection) return riskSelection;
   const affected = affectedFiles(root, files, paths);
   if (affected === null) return { ...full, reason: "shared/unknown path: conservative full run" };
   return selectedRun(proofs.filter(({ smoke, file: path }) => smoke || affected.has(path)), "affected + risk smoke");
+}
+
+function selectRiskProof(proofs, mode) {
+  if (mode === "critical") return selectedRun(proofs.filter(({ name }) => name.startsWith("critical:")), "legacy critical");
+  if (mode === "master") return selectedRun(proofs.filter(({ name, smoke }) => smoke || name.startsWith("critical:")), "master critical + risk smoke");
+  if (mode === "smoke") return selectedRun(proofs.filter(({ smoke }) => smoke), "risk smoke");
+  return null;
 }
 
 function selectedRun(proofs, reason) {

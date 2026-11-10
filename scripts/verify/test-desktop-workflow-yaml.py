@@ -98,14 +98,31 @@ def main():
         check_workflow(path)
 
     ci = check_workflow(WORKFLOWS / "ci.yml")
-    expected = {"classify", "web", "server", "landing", "browser", "desktop", "release-policy"}
+    expected = {"classify", "web", "server", "landing", "browser", "desktop", "release-policy", "compose"}
     assert set(ci["jobs"]) == expected | {"gate"}, "All CI jobs must belong to the gate contract"
     assert ci["on"].get("pull_request") == "", "PR gate must have no top-level path filters"
-    assert ci["jobs"]["gate"]["name"] == "ci / gate", "Keep one stable check identity for cutover"
+    assert ci["on"]["push"]["branches"] == ["master"]
+    assert ci["on"]["workflow_dispatch"] == "" and ci["on"]["schedule"], "Keep executable full regression outside PR/master"
+    assert ci["env"]["CI_EVENT"] == "${{ github.event_name }}"
+    assert ci["jobs"]["gate"]["name"] == "${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression / gate' || 'ci / gate' }}", "Regression failures must not overwrite required gate identity"
+    assert ci["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
+    assert "github.event_name" in ci["concurrency"]["group"]
     assert ci["jobs"]["gate"]["if"] == "always()", "Final gate must run after failure/skip"
     assert set(ci["jobs"]["gate"]["needs"]) == expected, "No required job may escape aggregation"
     assert ci["permissions"] == {"contents": "read"}, "Untrusted PRs cannot receive write authority"
     assert ci["jobs"]["desktop"]["uses"] == "./.github/workflows/verify-desktop.yml"
+    assert ci["jobs"]["desktop"]["with"]["profile"] == "${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression' || 'native' }}"
+    browser_script = next(s["run"] for s in ci["jobs"]["browser"]["steps"] if "ci.mjs browser-mode" in s.get("run", ""))
+    assert 'browser-e2e.mjs --mode "$MODE"' in browser_script and "ci.mjs paths" in browser_script
+    compose_steps = ci["jobs"]["compose"]["steps"]
+    assert any(s.get("run") == "python3 scripts/verify/smoke-persistence.py --compose-restart" and "if" not in s for s in compose_steps)
+    assert any(s.get("if") == "always()" and "down" in s.get("run", "") for s in compose_steps)
+    desktop = check_workflow(WORKFLOWS / "verify-desktop.yml")
+    broad = "inputs.profile == 'regression' || (github.event_name == 'push' && inputs.profile != 'native')"
+    assert desktop["env"]["EXTENDED_DESKTOP"] == "${{ " + broad + " }}"
+    assert desktop["jobs"]["check-desktop-windows-latest"]["if"] == broad
+    assert desktop["on"]["workflow_call"]["inputs"]["profile"]["default"] == "legacy"
+    assert any(s.get("run") == "cargo test --locked" and s.get("if") == "env.EXTENDED_DESKTOP == 'true'" for s in desktop["jobs"]["check-desktop"]["steps"])
     classify_steps = ci["jobs"]["classify"]["steps"]
     preflight = next(step for step in classify_steps if step.get("run") == "node --experimental-strip-types --test tests/ci-policy.test.ts")
     planner = next(step for step in classify_steps if step.get("id") == "plan")

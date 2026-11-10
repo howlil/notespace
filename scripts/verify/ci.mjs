@@ -12,13 +12,13 @@ const output = (key, value) => appendFileSync(process.env.GITHUB_OUTPUT, `${key}
 
 function collectDiff() {
   const baseSha = process.env.BASE_SHA ?? null;
-  const unavailable = { sha, baseSha, complete: false, changes: [] };
+  const unavailable = { sha, baseSha, event: process.env.CI_EVENT, complete: false, changes: [] };
   if (!validSha(baseSha)) return unavailable;
   try {
     const mergeBase = git("merge-base", baseSha, sha).trim();
     if (!validSha(mergeBase)) return unavailable;
     const changes = parseNameStatus(git("diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none", "--find-renames", "--name-status", "-z", mergeBase, sha, "--"));
-    return { sha, baseSha, mergeBase, complete: true, changes };
+    return { ...unavailable, mergeBase, complete: true, changes };
   } catch {
     // Missing history, unavailable base, unsupported status or truncated output
     // selects every owner. Checkout identity failure above is never swallowed.
@@ -38,6 +38,9 @@ switch (process.argv[2]) {
     console.log(JSON.stringify(plan));
     break;
   }
+  case "browser-mode":
+    console.log(classifyDiff(collectDiff()).browserMode);
+    break;
   case "paths": {
     const plan = classifyDiff(collectDiff());
     writeFileSync(process.env.CHANGED_FILES, JSON.stringify(plan.paths));

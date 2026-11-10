@@ -2,6 +2,11 @@ name: Verify Desktop
 
 on:
   workflow_call:
+    inputs:
+      profile:
+        description: Native gate or extended regression (standalone legacy master unchanged)
+        type: string
+        default: legacy
     outputs:
       sha:
         description: Exact source verified by required real Windows native proof
@@ -123,8 +128,11 @@ on:
       - "Taskfile.yml"
       - "bun.lock"
 
+env:
+  EXTENDED_DESKTOP: ${{ inputs.profile == 'regression' || (github.event_name == 'push' && inputs.profile != 'native') }}
+
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  group: desktop-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -132,7 +140,7 @@ permissions:
 
 jobs:
   check-desktop:
-    # PR: policy checks only; master: full Linux Tauri build and smoke.
+    # Cheap policy always; extended Linux only for regression or legacy master.
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -144,7 +152,7 @@ jobs:
         with:
           node-version: "24"
       - uses: actions/setup-go@v5
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         with:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
@@ -178,14 +186,14 @@ jobs:
           node --check scripts/release/prepare-desktop-updater-config.mjs
           node --check scripts/release/prepare-desktop-windows-sign-config.mjs
       - uses: dtolnay/rust-toolchain@stable
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - uses: Swatinem/rust-cache@v2
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         with:
           workspaces: "apps/desktop/src-tauri -> target"
           cache-bin: "false"
       - name: Install Tauri Linux dependencies
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -199,27 +207,27 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
       - run: bun install --frozen-lockfile
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - run: bun run --filter @notespace/web build
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - run: bun run desktop:icons
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - run: node --test scripts/assets/desktop-icon-contract.test.mjs
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - run: node scripts/dev/prepare-desktop-sidecar.mjs
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
       - name: Smoke sidecar parent lifecycle
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         run: bun run test:desktop:lifecycle
       - name: Smoke desktop sidecar runtime
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         run: node scripts/verify/smoke-desktop-runtime.mjs
       - name: Test desktop runtime
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         working-directory: apps/desktop/src-tauri
         run: cargo test --locked
       - name: Build native executable
-        if: github.event_name == 'push'
+        if: env.EXTENDED_DESKTOP == 'true'
         working-directory: apps/desktop/src-tauri
         run: bunx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked
 
@@ -395,8 +403,8 @@ jobs:
   # Separate current Windows image compile check: updates to the latest
   # toolchain must still be verified even while WebView2 automation is broken.
   check-desktop-windows-latest:
-    # Keep current-image compatibility on each master commit, not every PR.
-    if: github.event_name == 'push'
+    # New native gate is narrow; regression and legacy master retain compatibility.
+    if: inputs.profile == 'regression' || (github.event_name == 'push' && inputs.profile != 'native')
     runs-on: windows-latest
     timeout-minutes: 45
     steps:

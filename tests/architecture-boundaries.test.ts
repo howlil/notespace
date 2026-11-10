@@ -144,6 +144,22 @@ test("web layers follow the explicit dependency allowlist", () => {
   assertAllowedDependencyGraph();
 });
 
+function assertDesktopSdkOwner(from: string, text: string) {
+  if (from.startsWith("features/desktop/")) return;
+  assert.doesNotMatch(text, /\b(?:from\s*|import\s*\(\s*|import\s*)["']@tauri-apps\//,
+    `${from}: non-desktop features must delegate native IPC to adapters`);
+}
+
+test("non-desktop features delegate native SDK access to adapters", () => {
+  for (const text of ['import { invoke } from "@tauri-apps/api/core";', 'const sdk = import("@tauri-apps/api/core");']) {
+    assert.throws(() => assertDesktopSdkOwner("features/settings/Example.tsx", text));
+    assert.doesNotThrow(() => assertDesktopSdkOwner("features/desktop/updates/Example.tsx", text));
+  }
+  for (const file of collect(join(WEB_SRC, "features"))) {
+    assertDesktopSdkOwner(relative(WEB_SRC, file).replaceAll("\\", "/"), readFileSync(file, "utf8"));
+  }
+});
+
 test("top-level source directories are intentional architecture boundaries", () => {
   const allowedTopLevel = new Set<string>(layers);
   const directories = readdirSync(WEB_SRC)

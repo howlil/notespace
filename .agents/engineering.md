@@ -165,7 +165,7 @@ DEC4 [two-way]: retain legacy Project/Note-compatible read shapes while the Canv
 
 F1: Web dependency allowlist and dynamic-import scan | `tests/architecture-boundaries.test.ts` | CI `bun run test` | routes/pages/features/adapters/domain/shared graph passes; no exception.
 F2: Web domain has no browser/HTTP/framework imports | same architecture test | CI | pass when all domain files remain pure; exception requires D#.
-F3: Features do not import sibling implementations | same architecture test | CI | pass; compose siblings in pages.
+F3: Features do not import sibling implementations; non-desktop features delegate native SDK access to adapters | same architecture test | CI | pass; compose siblings in pages, keep updater capability IPC in adapters/desktop.
 F4: Server packages keep `httpapi → capability → sqlite` direction through consumer-owned ports | `internal/architecture` import checks | enforced in Go tests; exception requires D#.
 F5: No new Note authoring surface or legacy UI route | source/route contract tests | CI | pass when retirement tests remain green; compatibility fields are allowed only at K7.
 F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.

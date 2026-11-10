@@ -5,6 +5,7 @@ import { beginDesktopQuiescence, flushDesktopState, isTauriRuntime, sealDesktopW
 import { Button, IconButton } from "../../../shared/ui";
 import { installDesktopUpdateWith } from "./install-desktop-update";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../../shared/browser/desktop-update-events";
+import { isDesktopUpdaterEnabled } from "../../../adapters/desktop/desktop-updater";
 
 type PreparedUpdate = { version: string; notes?: string | null };
 type Phase = "idle" | "checking" | "ready" | "saving" | "installing" | "error" | "current";
@@ -50,7 +51,7 @@ export function DesktopUpdateControl() {
   useEffect(() => {
     if (!isTauriRuntime()) return;
     let active = true;
-    void invoke<boolean>("desktop_updater_enabled")
+    void isDesktopUpdaterEnabled()
       .then((value) => { if (active) setEnabled(value); })
       .catch(() => { if (active) setEnabled(false); });
     return () => { active = false; };

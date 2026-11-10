@@ -219,11 +219,17 @@ test("workflow wiring retains always-running gate, unfiltered PR and isolated re
   assert.match(ci, /uses: \.\/\.github\/workflows\/verify-desktop.yml/);
   assert.match(desktop, /workflow_call:[\s\S]*?outputs:\s+sha:/);
   assert.match(desktop, /group: desktop-\$\{\{ github.workflow \}\}/);
-  assert.match(ci, /path: apps\/web\/dist\/client/);
-  assert.match(ci, /if-no-files-found: error/);
+  const web = ci.slice(ci.indexOf("\n  web:"), ci.indexOf("\n  server:"));
+  const browser = ci.slice(ci.indexOf("\n  browser:"), ci.indexOf("\n  desktop:"));
+  assert.match(browser, /needs: classify/);
+  assert.doesNotMatch(browser, /needs: \[classify, web\]/);
+  assert.match(web, /run: bun run --filter @notespace\/web build\s+if: needs.classify.outputs.browser != 'true'/);
+  assert.match(browser, /run: bun run --filter @notespace\/web build\s+- name: Run fresh stage proof/);
+  assert.doesNotMatch(ci, /actions\/download-artifact@|name: ci-web-/);
   // Landing is a standalone Bun project, not a root workspace.
   assert.match(ci, /bun install --cwd landing --frozen-lockfile/);
   assert.match(ci, /bun run --cwd landing build/);
   assert.doesNotMatch(ci, /--filter @notespace\/landing/);
-  assert.equal((ci.match(/run: bun run --filter @notespace\/web build/g) ?? []).length, 1);
+  // Two declarations, but mutually exclusive build owners; parsed YAML also checks guards.
+  assert.equal((ci.match(/run: bun run --filter @notespace\/web build/g) ?? []).length, 2);
 });

@@ -127,7 +127,7 @@ export function QuickOpen() {
       return;
     }
     if (destination.workspaceId) {
-      void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: destination.workspaceId } });
+      void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: destination.workspaceId }, search: { noteId: destination.kind === "note" ? destination.noteId : undefined } });
     }
   }
 

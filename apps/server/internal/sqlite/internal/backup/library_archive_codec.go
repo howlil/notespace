@@ -19,7 +19,7 @@ func archiveManifest(backup LibraryBackup, blobs map[string][]byte) LibraryArchi
 	catalog := map[string]ArchiveBlob{}
 	manifest := LibraryArchiveManifest{
 		Format: LibraryBackupFormat, Version: LibraryArchiveVersion, SchemaVersion: LibraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Activity: backup.Activity, DeletedActivitySessionIDs: backup.DeletedActivitySessionIDs, Tasks: backup.Tasks, Captures: backup.Captures,
+		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Notes: backup.Notes, Activity: backup.Activity, DeletedActivitySessionIDs: backup.DeletedActivitySessionIDs, Tasks: backup.Tasks, Captures: backup.Captures,
 		Workspaces: make([]ArchiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:      make([]ArchiveTrashRecord, 0, len(backup.Trash)),
 	}
@@ -169,7 +169,7 @@ func readArchiveBlobs(manifest LibraryArchiveManifest, entries map[string]*zip.F
 func archiveBackup(manifest LibraryArchiveManifest, blobData map[string][]byte) (LibraryBackup, error) {
 	backup := LibraryBackup{
 		Format: LibraryBackupFormat, Version: manifest.Version, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Activity: manifest.Activity, DeletedActivitySessionIDs: manifest.DeletedActivitySessionIDs, Tasks: manifest.Tasks, Captures: manifest.Captures,
+		Categories: manifest.Categories, Notes: manifest.Notes, Activity: manifest.Activity, DeletedActivitySessionIDs: manifest.DeletedActivitySessionIDs, Tasks: manifest.Tasks, Captures: manifest.Captures,
 		Workspaces: make([]WorkspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:      make([]TrashRecord, 0, len(manifest.Trash)),
 	}

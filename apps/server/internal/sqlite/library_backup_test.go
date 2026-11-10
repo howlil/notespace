@@ -9,6 +9,7 @@ import (
 	"errors"
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
@@ -893,4 +894,67 @@ func TestRestoreRejectsInvalidActivitySessionFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCanvasNotesRoundTripThroughArchive(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "notes-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Canvas Note backup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"round trip"}]}]}`)
+	created, err := store.CreateNoteInstance(ctx, workspace.ID, note.CreateInstanceRequest{
+		ClientRequestID: "backup-request", ClientNoteID: "backup-note", ClientInstanceID: "backup-instance",
+		ElementID: "backup-element", ExpectedCanvasVersion: workspace.CanvasVersion, Document: document,
+		Canvas: backupNoteCanvas("backup-element", "backup-note", "backup-instance"), X: 10, Y: 20, Width: 320, Height: 180,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := store.ExportBackupArchive(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := Open(ctx, filepath.Join(t.TempDir(), "restored-notes-backup.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	if err := restored.RestoreBackupArchive(ctx, archive); err != nil {
+		t.Fatal(err)
+	}
+	got, err := restored.GetNote(ctx, created.Note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != created.Note.ID || string(got.Document) != string(document) || got.Revision != created.Note.Revision {
+		t.Fatalf("restored note = %+v", got)
+	}
+	var instanceCount int
+	if err := restored.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM canvas_note_instances WHERE workspace_id=? AND id=?`, workspace.ID, created.Instance.ID).Scan(&instanceCount); err != nil {
+		t.Fatal(err)
+	}
+	if instanceCount != 1 {
+		t.Fatalf("restored note instance count = %d, want 1", instanceCount)
+	}
+}
+
+func backupNoteCanvas(elementID, noteID, instanceID string) note.CanvasSnapshot {
+	data, _ := json.Marshal(map[string]any{
+		"elements": []any{map[string]any{
+			"id": elementID,
+			"customData": map[string]any{
+				"notespaceNote": map[string]string{"noteId": noteID, "instanceId": instanceID},
+			},
+		}},
+		"appState": map[string]any{},
+		"files":    map[string]any{},
+	})
+	return note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: data}
 }

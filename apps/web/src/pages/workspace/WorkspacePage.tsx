@@ -8,6 +8,7 @@ import { useWorkspaceAuthoring } from "../../features/workspace-authoring";
 type Props = {
   workspace: Workspace;
   categories: CategorySummary[];
+  focusNoteId?: string;
 };
 
 type WorkspaceSessionHandle = {
@@ -15,7 +16,7 @@ type WorkspaceSessionHandle = {
   prepareForDestructiveAction: () => Promise<boolean>;
 };
 
-export function WorkspacePage({ workspace, categories }: Props) {
+export function WorkspacePage({ workspace, categories, focusNoteId }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
   const sessionRef = useRef<WorkspaceSessionHandle | null>(null);
@@ -39,16 +40,17 @@ export function WorkspacePage({ workspace, categories }: Props) {
            if (change?.kind === "workspace-deleted" && change.workspaceId === workspace.id) void navigate({ to: "/" });
            else void router.invalidate();
          }} />}>
-      <WorkspaceAuthoringSession key={workspace.id} workspace={workspace} onSessionChange={registerSession} />
+      <WorkspaceAuthoringSession key={workspace.id} workspace={workspace} focusNoteId={focusNoteId} onSessionChange={registerSession} />
     </LibraryPageShell>
   );
 }
 
-function WorkspaceAuthoringSession({ workspace, onSessionChange }: {
+function WorkspaceAuthoringSession({ workspace, focusNoteId, onSessionChange }: {
   workspace: Workspace;
+  focusNoteId?: string;
   onSessionChange: (session: WorkspaceSessionHandle | null) => void;
 }) {
-  const authoring = useWorkspaceAuthoring({ workspace });
+  const authoring = useWorkspaceAuthoring({ workspace, focusNoteId });
   const prepareRef = useRef(authoring.prepareForDestructiveAction);
   prepareRef.current = authoring.prepareForDestructiveAction;
   const prepareForDestructiveAction = useCallback(() => prepareRef.current(), []);

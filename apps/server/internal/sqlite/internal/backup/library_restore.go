@@ -5,6 +5,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/capture"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	activityquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/activity"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
@@ -28,6 +29,13 @@ func ValidateLibraryBackup(backup LibraryBackup) error {
 	if !categoryIDs[workspacepkg.UncategorizedCategoryID] {
 		return workspacepkg.ErrInvalid
 	}
+	noteIDs := map[string]bool{}
+	for _, value := range backup.Notes {
+		if noteIDs[value.ID] || note.ValidateNote(value) != nil {
+			return workspacepkg.ErrInvalid
+		}
+		noteIDs[value.ID] = true
+	}
 
 	workspaceIDs := map[string]bool{}
 	activeTaskIDs := map[string]bool{}
@@ -38,6 +46,11 @@ func ValidateLibraryBackup(backup LibraryBackup) error {
 		workspaceIDs[envelope.Project.ID] = true
 		if err := ValidateWorkspaceEnvelope(envelope, envelope.Project.CategoryID); err != nil {
 			return err
+		}
+		for _, instance := range envelope.NoteInstances {
+			if !noteIDs[instance.NoteID] {
+				return workspacepkg.ErrInvalid
+			}
 		}
 		for _, task := range envelope.Plan.Tasks {
 			if activeTaskIDs[task.ID] {
@@ -83,6 +96,11 @@ func ValidateLibraryBackup(backup LibraryBackup) error {
 		trashIDs[record.ID] = true
 		if err := ValidateWorkspaceEnvelope(record.Payload, record.CategoryID); err != nil {
 			return err
+		}
+		for _, instance := range record.Payload.NoteInstances {
+			if len(backup.Notes) > 0 && !noteIDs[instance.NoteID] {
+				return workspacepkg.ErrInvalid
+			}
 		}
 	}
 	return nil

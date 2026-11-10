@@ -76,6 +76,7 @@ var allowedDependencies = map[string]map[string]bool{
 		"library":   true,
 		"asset":     true,
 		"icon":      true,
+		"note":      true,
 	},
 	"sqlite": {
 		"capture":   true,
@@ -84,6 +85,7 @@ var allowedDependencies = map[string]map[string]bool{
 		"activity":  true,
 		"library":   true,
 		"asset":     true,
+		"note":      true,
 	},
 }
 

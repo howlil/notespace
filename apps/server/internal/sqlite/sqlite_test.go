@@ -260,6 +260,9 @@ func TestRetiredNotesMigrationScrubsHistoryAndCanvasCount(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -334,6 +337,9 @@ func TestRetiredNotesMigrationPreservesModernHistoryPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -425,6 +431,9 @@ func TestRetiredNotesMigrationProcessesAllHistoryPayloads(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -475,6 +484,9 @@ func TestRetiredNotesMigrationRollsBackMalformedHistoryPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -532,6 +544,9 @@ func TestRetiredNotesMigrationRollsBackMalformedCanvas(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -712,6 +727,9 @@ func TestRetiredNotesMigrationRollsBackMalformedTrash(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -790,6 +808,9 @@ func reopenRetiredNotesMigration(t *testing.T, store *Store, path string) *Store
 	t.Helper()
 	ctx := context.Background()
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

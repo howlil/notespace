@@ -44,6 +44,28 @@ func (s *Store) Search(ctx context.Context, query string) ([]workspacepkg.Search
 			results = append(results, workspacepkg.SearchResult{Type: "workspace", CategoryID: p.CategoryID, CategoryTitle: categoryTitle, WorkspaceID: p.ID, WorkspaceTitle: p.Title, Excerpt: p.Title})
 		}
 	}
+	noteRows, err := s.db.QueryContext(ctx, `
+		SELECT n.id,COALESCE(i.id,''),COALESCE(i.element_id,''),COALESCE(i.workspace_id,''),COALESCE(p.title,''),n.document_state
+		FROM canvas_notes n
+		LEFT JOIN canvas_note_instances i ON i.note_id=n.id
+		LEFT JOIN projects p ON p.id=i.workspace_id
+		WHERE INSTR(LOWER(n.document_state), LOWER(?)) > 0
+		ORDER BY n.updated_at DESC, i.id
+		LIMIT 100`, query)
+	if err != nil {
+		return nil, err
+	}
+	defer noteRows.Close()
+	for noteRows.Next() {
+		var noteID, instanceID, elementID, workspaceID, title, document string
+		if err := noteRows.Scan(&noteID, &instanceID, &elementID, &workspaceID, &title, &document); err != nil {
+			return nil, err
+		}
+		results = append(results, workspacepkg.SearchResult{Type: "note", NoteID: noteID, InstanceID: instanceID, ElementID: elementID, WorkspaceID: workspaceID, WorkspaceTitle: title, Excerpt: document})
+	}
+	if err := noteRows.Err(); err != nil {
+		return nil, err
+	}
 	return results, nil
 }
 func (s *Store) syncSearchIndex(ctx context.Context) error {

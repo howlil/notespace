@@ -43,6 +43,7 @@ export function useWorkspaceSession({
   }, []);
 
   const onCanvasSaved = useCallback((saved: CanvasState) => {
+    identity.current.canvasVersion = saved.version;
     const next = acknowledgeCanvasSnapshot(current.current, saved.canvas);
     if (JSON.stringify(next.canvas) !== JSON.stringify(current.current.canvas)) {
       current.current = next;
@@ -50,6 +51,8 @@ export function useWorkspaceSession({
     }
     return current.current.canvas;
   }, [touch]);
+
+  const acknowledgeCanvas = useCallback((saved: CanvasState) => onCanvasSaved(saved), [onCanvasSaved]);
 
   const {
     status,
@@ -119,12 +122,14 @@ export function useWorkspaceSession({
 
   return {
     current,
+    canvasVersion: identity.current.canvasVersion,
     status,
     dirty: granularDirty,
     flushAll,
     registerAuthoringFlush,
     reconcileWorkspace,
     updateCanvas,
+    acknowledgeCanvas,
     retryConflict,
     useSavedCanvas,
     registerCanvasExport,

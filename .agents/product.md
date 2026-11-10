@@ -143,6 +143,17 @@ J2: Draw and edit Canvas objects while understanding what each control changes.
 - P5 (B6,B8): Selection tests and the property-editing journey prove Mixed,
   batch pressure/corners, nonduplicated overflow, fallback properties and Undo/Redo.
 
+## Canvas Note Card (#203)
+
+J3: While working on a spatial Canvas, capture and reuse written knowledge without leaving the Canvas.
+
+- B9: Activating Note creates one blank, visible Canvas card and focuses writing immediately. A single click selects; double-click edits; Escape exits editing; drag/resize changes only instance geometry.
+- B10: Note content is shared by stable identity across Canvas instances; removing an instance preserves the Note. Content changes save independently from Canvas geometry and remain recoverable across reload/close.
+- X3: A stale content revision or failed save preserves the local draft and exposes retry/recovery; failed create+place leaves neither an orphan Note nor an unreferenced Canvas instance.
+- C2: Canvas remains the only authoring surface. The card has no title field, icon, cover, header/footer, or persistent toolbar. Historical Note DTOs/migrations remain compatibility data and are not reused as canonical storage.
+- P6 (B9-B10): Create, type, close/reload, move/resize, duplicate/remove instance and undo preserve the expected content/geometry and focus behavior.
+- P7 (X3): Conflicting and failed writes retain the draft; retry is safe and atomic; backup/restore round-trips Notes and typed Canvas references.
+
 ## Canvas Code Module (#199)
 
 J-CODE-01: Edit and execute existing Canvas Code Blocks through one predictable toolbar without risking authored source.

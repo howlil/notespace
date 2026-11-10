@@ -12,6 +12,7 @@ import (
 	activityquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/activity"
 	assetsquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/assets"
 	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
+	canvasnotequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/canvasnote"
 	capturequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/capture"
 	planningquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/planning"
 	workspacequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/workspace"
@@ -40,6 +41,10 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (backupquery.LibraryBac
 	}
 	defer tx.Rollback()
 	categories, err := workspacequery.CategoriesTx(ctx, tx)
+	if err != nil {
+		return backupquery.LibraryBackup{}, err
+	}
+	notes, err := canvasnotequery.SnapshotNotesTx(ctx, tx)
 	if err != nil {
 		return backupquery.LibraryBackup{}, err
 	}
@@ -91,8 +96,8 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (backupquery.LibraryBac
 	}
 	backup := backupquery.LibraryBackup{
 		Format: backupquery.LibraryBackupFormat, Version: backupquery.LibraryBackupVersion,
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
-		Categories:  categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions, DeletedActivitySessionIDs: deletedIDs, Captures: captures,
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano), Notes: notes,
+		Categories: categories, Workspaces: workspaces, Tasks: tasks, Trash: trash, Activity: sessions, DeletedActivitySessionIDs: deletedIDs, Captures: captures,
 	}
 	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 		return backupquery.LibraryBackup{}, err
@@ -239,11 +244,17 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup backupquery.Lib
 			return err
 		}
 	}
+	if err := canvasnotequery.DeleteAllTx(ctx, tx); err != nil {
+		return err
+	}
 
 	for _, category := range backup.Categories {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO categories(id,title,created_at,updated_at) VALUES (?,?,?,?)`, category.ID, category.Title, category.CreatedAt, category.UpdatedAt); err != nil {
 			return err
 		}
+	}
+	if err := canvasnotequery.RestoreNotesTx(ctx, tx, backup.Notes); err != nil {
+		return err
 	}
 	for _, envelope := range backup.Workspaces {
 		if err := restoreWorkspaceTx(ctx, tx, envelope, envelope.Project.CategoryID); err != nil {
@@ -316,7 +327,10 @@ func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope backupquery.Wo
 	if err := planningquery.RestorePlanTx(ctx, tx, envelope.Plan, workspace.ID); err != nil {
 		return err
 	}
-	return assetsquery.Restore(ctx, tx, workspace.ID, envelope.Assets)
+	if err := assetsquery.Restore(ctx, tx, workspace.ID, envelope.Assets); err != nil {
+		return err
+	}
+	return canvasnotequery.RestoreInstancesTx(ctx, tx, workspace.ID, envelope.NoteInstances)
 }
 
 func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (backupquery.WorkspaceEnvelope, error) {
@@ -332,7 +346,11 @@ func snapshotWorkspaceTx(ctx context.Context, tx *sql.Tx, id string) (backupquer
 	if err != nil {
 		return backupquery.WorkspaceEnvelope{}, err
 	}
-	return backupquery.WorkspaceEnvelope{Project: workspace, Plan: plan, History: history, Assets: assets}, nil
+	noteInstances, err := canvasnotequery.SnapshotInstancesTx(ctx, tx, id)
+	if err != nil {
+		return backupquery.WorkspaceEnvelope{}, err
+	}
+	return backupquery.WorkspaceEnvelope{Project: workspace, Plan: plan, History: history, Assets: assets, NoteInstances: noteInstances}, nil
 }
 
 func (s *Store) ListTrash(ctx context.Context) ([]library.TrashItem, error) {

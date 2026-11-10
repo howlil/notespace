@@ -9,11 +9,12 @@ import type { Workspace } from "../../../domain/workspace/workspace";
 import { registerDesktopFlush } from "../../../adapters/desktop/desktop-lifecycle";
 import { subscribeWorkspaceConflict } from "../../../adapters/browser/workspace-conflict-events";
 import { CanvasConflictRecovery } from "./CanvasConflictRecovery";
+import { createNoteInstance, deleteNoteInstance, updateNote } from "../../../adapters/http/note-api";
 
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
 
 
-export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
+export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: Workspace; focusNoteId?: string }) {
   const { dark } = useTheme();
   const { showToast, dismissToast } = useToast();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -23,7 +24,18 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
     canvasVersion: workspace.canvasVersion,
     initial: normalized.content,
   });
-  const { current, status, dirty, flushAll, updateCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const { current, canvasVersion, status, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+
+  const createCanvasNote = useCallback(async (request: Parameters<typeof createNoteInstance>[1]) => {
+    const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: canvasVersion });
+    acknowledgeCanvas(result.canvas);
+    return result;
+  }, [acknowledgeCanvas, canvasVersion, workspace.id]);
+  const deleteCanvasNote = useCallback(async (workspaceId: string, instanceId: string, canvas: Parameters<typeof deleteNoteInstance>[2], expectedCanvasVersion: number) => {
+    const result = await deleteNoteInstance(workspaceId, instanceId, canvas, expectedCanvasVersion);
+    acknowledgeCanvas(result);
+    return result;
+  }, [acknowledgeCanvas]);
 
   useEffect(() => subscribeWorkspaceConflict((draft) => {
     if (draft.workspaceId === workspace.id && draft.kind === "canvas") setRecoveryOpen(true);
@@ -127,8 +139,13 @@ export function useWorkspaceAuthoring({ workspace }: { workspace: Workspace }) {
       <Suspense fallback={<div className="grid h-full place-items-center text-xs text-muted" role="status">Opening Canvas…</div>}>
         <CanvasEditor
           workspaceId={workspace.id}
+          focusNoteId={focusNoteId}
+          canvasVersion={canvasVersion}
           initial={current.current.canvas}
           onChange={updateCanvas}
+          onCreateNote={createCanvasNote}
+          onUpdateNote={updateNote}
+          onDeleteNoteInstance={deleteCanvasNote}
           onRegisterAuthoringFlush={(flush) => registerAuthoringFlush("canvas-assets", flush)}
           onRegisterCanvasExport={session.registerCanvasExport}
           dark={dark}

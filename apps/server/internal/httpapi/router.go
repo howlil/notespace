@@ -8,6 +8,7 @@ import (
 	iconshttp "github.com/howlil/notespace/apps/server/internal/httpapi/icons"
 	"github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
 	libraryhttp "github.com/howlil/notespace/apps/server/internal/httpapi/library"
+	noteshttp "github.com/howlil/notespace/apps/server/internal/httpapi/notes"
 	planninghttp "github.com/howlil/notespace/apps/server/internal/httpapi/planning"
 	workspacehttp "github.com/howlil/notespace/apps/server/internal/httpapi/workspace"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/capture"
 	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -28,6 +30,7 @@ type Dependencies struct {
 	Capture   *capture.Service
 	Assets    *asset.Service
 	Library   *library.Service
+	Notes     *note.Service
 	Icons     icon.Source
 	Health    func(context.Context) error
 }
@@ -51,6 +54,9 @@ func New(deps Dependencies) http.Handler {
 	if deps.Library == nil {
 		panic("httpapi: library service is required")
 	}
+	if deps.Notes == nil {
+		panic("httpapi: note service is required")
+	}
 	if deps.Icons == nil {
 		panic("httpapi: icon source is required")
 	}
@@ -59,6 +65,7 @@ func New(deps Dependencies) http.Handler {
 	}
 	workspaceHandler := workspacehttp.New(deps.Library, deps.Workspace)
 	libraryHandler := libraryhttp.New(deps.Library)
+	noteHandler := noteshttp.New(deps.Notes)
 	planningHandler := planninghttp.New(deps.Planning)
 	activityHandler := activityhttp.New(deps.Activity)
 	captureHandler := capturehttp.New(deps.Capture)
@@ -88,6 +95,10 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("PATCH /api/workspaces/{id}", workspaceHandler.Update)
 	mux.HandleFunc("GET /api/workspaces/{id}/canvas", workspaceHandler.GetCanvas)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/canvas", workspaceHandler.UpdateCanvas)
+	mux.HandleFunc("POST /api/workspaces/{id}/note-instances", noteHandler.CreateInstance)
+	mux.HandleFunc("DELETE /api/workspaces/{id}/note-instances/{instanceId}", noteHandler.DeleteInstance)
+	mux.HandleFunc("GET /api/notes/{id}", noteHandler.Get)
+	mux.HandleFunc("PUT /api/notes/{id}", noteHandler.Update)
 	mux.HandleFunc("GET /api/workspaces/{id}/plan", planningHandler.WorkspacePlan)
 	mux.HandleFunc("POST /api/workspaces/{id}/milestones", planningHandler.CreateMilestone)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/milestones/{milestoneId}", planningHandler.UpdateMilestone)

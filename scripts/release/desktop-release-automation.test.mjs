@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
 import { assertDesktopReleaseChecks } from "./assert-desktop-release-ci.mjs";
 
 const sha = "a".repeat(40);
-const run = (name, conclusion = "success", overrides = {}) => ({
-  name, head_sha: sha, id: name === "Verify" ? 8 : 9, event: "push",
-  status: "completed", conclusion, ...overrides,
+const repository = "howlil/notespace";
+const run = (name = "ci", conclusion = "success", overrides = {}) => ({
+  name, head_sha: sha, head_branch: "master", id: 8, run_attempt: 1, event: "push",
+  path: ".github/workflows/ci.yml", repository: { full_name: repository },
+  head_repository: { full_name: repository }, status: "completed", conclusion, ...overrides,
+});
+const proof = (runs = [run()]) => ({
+  master_sha: sha, workflow_runs: runs,
+  jobs: { total_count: 1, jobs: [{ name: "ci / gate", run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success" }] },
 });
 
 test("first stable release is deterministic, not an arbitrary build number", () => {
@@ -37,18 +47,65 @@ test("explicit version must advance stable SemVer and cannot inject shell syntax
   assert.throws(() => resolveDesktopVersion(releases, { bump: "skip" }));
 });
 
-test("only successful push CI on the exact master SHA permits release", () => {
-  assert.doesNotThrow(() => assertDesktopReleaseChecks({ workflow_runs: [run("Verify"), run("Verify Desktop")] }, sha));
-  for (const payload of [
-    { workflow_runs: [run("Verify")] },
-    { workflow_runs: [run("Verify"), run("Verify Desktop", "failure")] },
-    { workflow_runs: [run("Verify"), run("Verify Desktop", null, { status: "in_progress" })] },
-    { workflow_runs: [run("Verify"), run("Verify Desktop", "success", { event: "pull_request" })] },
-    { workflow_runs: [run("Verify"), run("Verify Desktop", "success", { head_sha: "b".repeat(40) })] },
-    { workflow_runs: [run("Verify"), run("Verify Desktop"), run("Verify Desktop", "failure", { id: 14 })] },
+test("publication requires the latest exact-master push ci, never legacy or full regression", () => {
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(proof(), sha, repository));
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(proof([run(), run("ci", "failure", { id: 14, event: "workflow_dispatch" })]), sha, repository));
+  const rerun = proof([run("ci", "success", { run_attempt: 2 })]);
+  rerun.jobs.jobs[0].run_attempt = 2;
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(rerun, sha, repository));
+  for (const runs of [
+    [], [run("Verify"), run("Verify Desktop")],
+    [run("ci", "failure")], [run("ci", "cancelled")], [run("ci", "skipped")],
+    [run("ci", null, { status: "in_progress" })],
+    [run("ci", "success", { event: "pull_request" })],
+    [run("ci", "success", { event: "workflow_dispatch" })],
+    [run("ci", "success", { event: "schedule" })],
+    [run("ci", "success", { head_sha: "b".repeat(40) })],
+    [run("ci", "success", { head_branch: "other" })],
+    [run("ci", "success", { path: ".github/workflows/other.yml" })],
+    [run("ci", "success", { repository: { full_name: "other/repo" } })],
+    [run("ci", "success", { head_repository: { full_name: "other/repo" } })],
+    [run(), run()], [run("ci", "success", { id: 0 })],
+    [run(), run("ci", "failure", { id: 14 })],
+    [run(), run("ci", null, { id: 14, status: "queued" })],
+  ]) assert.throws(() => assertDesktopReleaseChecks(proof(runs), sha, repository), JSON.stringify(runs));
+});
+
+test("successful run cannot hide a missing, skipped, duplicate or stale-attempt gate", () => {
+  for (const change of [
+    (p) => { delete p.master_sha; },
+    (p) => { p.master_sha = "b".repeat(40); },
+    (p) => { p.jobs.jobs = []; p.jobs.total_count = 0; },
+    (p) => { p.jobs.total_count = 2; },
+    (p) => { p.jobs.jobs.push({ ...p.jobs.jobs[0] }); p.jobs.total_count = 2; },
+    ...["failure", "cancelled", "skipped", null].map((conclusion) => (p) => { p.jobs.jobs[0].conclusion = conclusion; }),
+    (p) => { p.jobs.jobs[0].status = "in_progress"; },
+    (p) => { p.jobs.jobs[0].name = "regression / gate"; },
+    (p) => { p.jobs.jobs[0].run_id = 7; },
+    (p) => { p.jobs.jobs[0].head_sha = "b".repeat(40); },
+    (p) => { p.workflow_runs[0].run_attempt = 2; },
+    (p) => { p.workflow_runs = [run("ci", "success", { id: 9 })]; },
   ]) {
-    assert.throws(() => assertDesktopReleaseChecks(payload, sha));
+    const payload = proof(); change(payload);
+    assert.throws(() => assertDesktopReleaseChecks(payload, sha, repository), change.toString());
   }
+});
+
+test("real cross-platform CLI executes the gate and propagates refusal, not a silent no-op", () => {
+  const root = mkdtempSync(join(tmpdir(), "release preflight "));
+  const file = join(root, "evidence.json");
+  const script = fileURLToPath(new URL("./assert-desktop-release-ci.mjs", import.meta.url));
+  try {
+    writeFileSync(file, JSON.stringify(proof()));
+    const invoke = (expected) => spawnSync(process.execPath, [script, file, expected], { env: { ...process.env, GITHUB_REPOSITORY: repository }, encoding: "utf8" });
+    const good = invoke(sha);
+    assert.equal(good.status, 0, good.stderr);
+    assert.match(good.stdout, /exact-attempt ci \/ gate passed/);
+    assert.notEqual(invoke("b".repeat(40)).status, 0);
+    assert.notEqual(invoke("invalid").status, 0);
+    writeFileSync(file, JSON.stringify(proof([])));
+    assert.notEqual(invoke(sha).status, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("release automation cannot silently publish on every push or skip signing/CI", () => {
@@ -58,12 +115,13 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.doesNotMatch(workflow, /\bpush:\s*\n\s*branches:/);
   assert.match(workflow, /actions: write/);
   assert.match(workflow, /contents: write/);
-  assert.match(workflow, /Require successful Verify and Verify Desktop on this master commit/);
+  assert.match(workflow, /Require successful master push ci and exact-attempt ci \/ gate/);
+  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$GITHUB_SHA"/);
   assert.match(workflow, /scripts\/release\/assert-desktop-release-ci\.mjs/);
   assert.match(workflow, /Require production updater and Windows publisher signing configuration/);
   assert.match(workflow, /git tag -a/);
   assert.match(workflow, /gh workflow run release-desktop\.yml --ref master --field/);
-  assert.ok(workflow.indexOf("Require successful Verify") < workflow.indexOf("git tag -a"));
+  assert.ok(workflow.indexOf("Require successful master push ci") < workflow.indexOf("git tag -a"));
   assert.ok(workflow.indexOf("Require production updater") < workflow.indexOf("git tag -a"));
   assert.match(release, /Gate release on real MSI upgrade and user-data preservation/);
   assert.match(release, /Verify Windows publisher signature on installer/);
@@ -74,7 +132,9 @@ test("release automation cannot silently publish on every push or skip signing/C
 test("auto desktop beta is first-release only unless master explicitly opts in after green CI", () => {
   const workflow = readFileSync(new URL("../../.github/workflows/auto-desktop-beta.yml", import.meta.url), "utf8");
   assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows:\s*\n\s*- Verify\s*\n\s*- Verify Desktop/);
+  assert.match(workflow, /workflows:\s*\n\s*- ci\s*\n/);
+  assert.doesNotMatch(workflow, /- Verify/);
+  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$master_sha"/);
   assert.match(workflow, /types:\s*\[completed\]/);
   assert.match(workflow, /workflow_run\.event == 'push'/);
   assert.match(workflow, /workflow_run\.head_branch == 'master'/);

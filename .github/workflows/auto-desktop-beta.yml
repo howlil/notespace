@@ -3,12 +3,11 @@ name: Auto Desktop Beta
 # Publish the first unsigned beta automatically, or a later beta only when
 # an explicitly requested master commit subject contains [desktop-beta].
 # Never publish every push, bypass CI, or replace an immutable release.
-# Runs when master push checks complete; the first completion waits for both.
+# Runs only when the authoritative master push ci completes.
 on:
   workflow_run:
     workflows:
-      - Verify
-      - Verify Desktop
+      - ci
     types: [completed]
     branches: [master]
   workflow_dispatch:
@@ -50,9 +49,8 @@ jobs:
             echo "Trigger refers to superseded master commit; skip"
             exit 0
           fi
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$master_sha&event=push&per_page=100" > "$RUNNER_TEMP/master-ci.json"
-          if ! node scripts/release/assert-desktop-release-ci.mjs "$RUNNER_TEMP/master-ci.json" "$master_sha"; then
-            echo "Both master verification suites have not passed; the other completion will retrigger"
+          if ! node scripts/release/assert-desktop-release-ci.mjs --collect "$master_sha"; then
+            echo "Authoritative master push ci or its exact-attempt gate is not green; skip"
             exit 0
           fi
 

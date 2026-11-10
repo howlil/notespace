@@ -1,7 +1,7 @@
 name: ci
 
-# Transitional PR/master/regression gate. Legacy Verify/Verify Desktop remain publisher authority
-# until the separate #200 M5a exact-SHA/branch-protection cutover.
+# Authoritative PR/master gate and separately named full regression.
+# ci / gate is required on master; publishers require its exact master push run/attempt.
 on:
   pull_request:
   push:

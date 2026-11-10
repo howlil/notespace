@@ -56,14 +56,13 @@ jobs:
             exit 1
           fi
 
-      - name: Require successful Verify and Verify Desktop on this master commit
+      - name: Require successful master push ci and exact-attempt ci / gate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" > "$RUNNER_TEMP/desktop-ci.json"
-          node scripts/release/assert-desktop-release-ci.mjs "$RUNNER_TEMP/desktop-ci.json" "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
 
       - name: Require production updater and Windows publisher signing configuration
         shell: bash

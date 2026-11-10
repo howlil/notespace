@@ -4,6 +4,29 @@ name: Publish Desktop Stable (signed)
 # Creating a tag with GITHUB_TOKEN does NOT trigger push workflows. Dispatch
 # release-desktop.yml explicitly in this same workflow, using actions:write.
 on:
+  workflow_call:
+    inputs:
+      bump:
+        type: string
+        default: patch
+      version:
+        type: string
+        default: ""
+      prepare_only:
+        type: boolean
+        default: false
+    outputs:
+      release_tag:
+        value: ${{ jobs.prepare-and-dispatch.outputs.release_tag }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
   workflow_dispatch:
     inputs:
       bump:
@@ -31,6 +54,8 @@ concurrency:
 
 jobs:
   prepare-and-dispatch:
+    outputs:
+      release_tag: ${{ steps.version.outputs.tag }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -131,6 +156,7 @@ jobs:
           echo "Created $RELEASE_TAG at $GITHUB_SHA"
 
       - name: Dispatch signed MSI release workflow
+        if: ${{ !inputs.prepare_only }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

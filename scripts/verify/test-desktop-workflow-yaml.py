@@ -91,6 +91,40 @@ def check_native_verification(doc):
         assert saved["with"]["key"] == f"${{{{ steps.{restore_id}.outputs.cache-primary-key }}}}"
 
 
+def check_release_orchestration(doc):
+    mode_input = doc["on"]["workflow_dispatch"]["inputs"]["mode"]
+    assert mode_input["default"] == "preflight" and set(mode_input["options"]) == {"preflight", "desktop-beta", "desktop-stable", "image", "cloudflare"}
+    assert doc["permissions"] == {"contents": "read", "actions": "read"}
+    jobs = doc["jobs"]
+    assert set(jobs) == {"preflight", "beta", "stable-prepare", "stable", "image", "cloudflare"}
+    routes = {"beta": "desktop-beta", "stable-prepare": "desktop-stable", "stable": "desktop-stable", "image": "image", "cloudflare": "cloudflare"}
+    owners = {"beta": "publish-desktop-beta.yml", "stable-prepare": "publish-desktop.yml", "stable": "release-desktop.yml", "cloudflare": "deploy-cloudflare.yml"}
+    for name, mode in routes.items():
+        job = jobs[name]
+        assert job["if"] == f"needs.preflight.outputs.mode == '{mode}'", f"{name}: explicit validated destination required"
+        expected = ["preflight", "stable-prepare"] if name == "stable" else "preflight"
+        assert job["needs"] == expected, f"{name}: must await admission (and immutable tag for stable)"
+        assert job.get("secrets") != "inherit", "Do not pass unrelated secrets across release lanes"
+        if "uses" in job:
+            assert job["uses"] == f"./.github/workflows/{owners[name]}", f"{name}: wrong artifact owner"
+            callee = check_workflow(WORKFLOWS / Path(job["uses"]).name)
+            assert set(job["secrets"]) == set(callee["on"]["workflow_call"]["secrets"])
+    assert jobs["stable-prepare"]["with"]["prepare_only"] == "true", "Canonical stable route must not also dispatch a second publisher"
+    assert jobs["stable"]["with"]["release_tag"] == "${{ needs.stable-prepare.outputs.release_tag }}"
+    prepare = check_workflow(WORKFLOWS / "publish-desktop.yml")
+    assert prepare["on"]["workflow_call"]["outputs"]["release_tag"]["value"] == "${{ jobs.prepare-and-dispatch.outputs.release_tag }}"
+    dispatch = next(s for s in prepare["jobs"]["prepare-and-dispatch"]["steps"] if s.get("name") == "Dispatch signed MSI release workflow")
+    assert dispatch["if"] == "${{ !inputs.prepare_only }}", "Legacy fallback only; reusable orchestration cannot fan out"
+    steps = jobs["preflight"]["steps"]
+    request = next(s for s in steps if s.get("id") == "request")
+    assert request["run"] == "node scripts/release/release-request.mjs" and "if" not in request
+    assert jobs["preflight"]["outputs"]["mode"] == "${{ steps.request.outputs.mode }}"
+    collector = next(s for s in steps if "assert-desktop-release-ci.mjs --collect " in s.get("run", ""))
+    assert "if" not in collector and steps.index(collector) > steps.index(request)
+    assert all("write" not in str(s) and "secrets." not in str(s) for s in steps), "Preflight cannot publish or read publisher secrets"
+    assert doc["concurrency"]["cancel-in-progress"] == "false" and "desktop-" in doc["concurrency"]["group"]
+
+
 def main():
     paths = sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml"))
     assert paths, "No GitHub workflow files found"
@@ -139,7 +173,8 @@ def main():
     auto = check_workflow(WORKFLOWS / "auto-desktop-beta.yml")
     assert list(auto["on"]) == ["workflow_dispatch"] and auto["permissions"] == {"contents": "read", "actions": "read"}
     for filename in ["auto-desktop-beta.yml", "publish-desktop.yml", "publish-desktop-beta.yml", "release-desktop.yml", "release.yml", "deploy-cloudflare.yml"]:
-        assert list(check_workflow(WORKFLOWS / filename)["on"]) == ["workflow_dispatch"], f"{filename}: push/tag/completion must never publish or dispatch"
+        events = set(check_workflow(WORKFLOWS / filename)["on"])
+        assert "workflow_dispatch" in events and events <= {"workflow_dispatch", "workflow_call"}, f"{filename}: push/tag/completion must never publish or dispatch"
     for filename, job_name in [("auto-desktop-beta.yml", "preflight"), ("publish-desktop.yml", "prepare-and-dispatch"), ("publish-desktop-beta.yml", "windows-msi-beta"), ("release-desktop.yml", "release-credentials-preflight"), ("release.yml", "image"), ("deploy-cloudflare.yml", "deploy")]:
         workflow = check_workflow(WORKFLOWS / filename)
         gates = [s for s in workflow["jobs"][job_name]["steps"] if "assert-desktop-release-ci.mjs" in s.get("run", "")]
@@ -148,6 +183,7 @@ def main():
         assert gates[0]["env"]["GH_TOKEN"] == "${{ github.token }}"
 
     image = check_workflow(WORKFLOWS / "release.yml")
+    check_release_orchestration(image)
     image_steps = image["jobs"]["image"]["steps"]
     meta = next(s for s in image_steps if s.get("id") == "meta")
     binding = next(s for s in image_steps if s.get("name") == "Bind image version to immutable source tag")
@@ -162,7 +198,7 @@ def main():
         assert gate_index < effect_index, f"{filename}: preflight must precede mutation/credentials"
 
     beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
-    assert list(beta["on"]) == ["workflow_dispatch"], "Free beta must be manually launched"
+    assert set(beta["on"]) == {"workflow_dispatch", "workflow_call"}, "Free beta must be manual or explicitly orchestrated"
     assert len(beta["jobs"]) == 1, "Free beta must remain a single Windows job"
     steps = beta["jobs"]["windows-msi-beta"]["steps"]
     scripts = "\n".join(str(s.get("run", "")) for s in steps if isinstance(s, dict))

@@ -4,6 +4,12 @@ name: Publish Desktop Beta (free)
 # No Azure account or paid Windows publisher certificate. Fail closed on missing
 # signing configuration; do not ship updater builds that cannot verify signatures.
 on:
+  workflow_call:
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
   workflow_dispatch:
 
 permissions:

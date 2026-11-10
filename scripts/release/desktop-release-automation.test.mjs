@@ -129,29 +129,67 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.match(release, /Publish GitHub Release/);
 });
 
-test("auto desktop beta is first-release only unless master explicitly opts in after green CI", () => {
+test("former auto beta is now read-only manual preflight, never publication or fan-out", () => {
   const workflow = readFileSync(new URL("../../.github/workflows/auto-desktop-beta.yml", import.meta.url), "utf8");
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows:\s*\n\s*- ci\s*\n/);
-  assert.doesNotMatch(workflow, /- Verify/);
-  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$master_sha"/);
-  assert.match(workflow, /types:\s*\[completed\]/);
-  assert.match(workflow, /workflow_run\.event == 'push'/);
-  assert.match(workflow, /workflow_run\.head_branch == 'master'/);
-  assert.match(workflow, /workflow_run\.head_repository\.full_name == github\.repository/);
-  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /scripts\/release\/assert-desktop-release-ci\.mjs/);
-  assert.match(workflow, /master_sha.*TRIGGER_SHA/);
-  assert.match(workflow, /gh release list.*tagName,isDraft/);
-  assert.match(workflow, /gh run list --workflow publish-desktop-beta\.yml/);
-  assert.match(workflow, /gh workflow run publish-desktop-beta\.yml --ref master/);
-  assert.match(workflow, /\[desktop-beta\]/);
-  assert.match(workflow, /git\/commits\/\$master_sha/);
-  assert.match(workflow, /headSha,status,conclusion/);
-  assert.match(workflow, /x\.headSha === sha && x\.status === "completed"/);
-  assert.match(workflow, /\$explicit.*!= "true"/);
-  assert.doesNotMatch(workflow, /git tag -a|gh release create/);
-  assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+(workflow_run|push|schedule):/m);
+  assert.match(workflow, /actions: read/);
+  assert.match(workflow, /contents: read/);
+  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$GITHUB_SHA"/);
+  assert.doesNotMatch(workflow, /gh workflow run|git tag -a|gh release create|continue-on-error:\s*true/);
+});
+
+function stepScript(filename, step) {
+  const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
+  const section = workflow.split(`- name: ${step}`)[1].split(/\r?\n {6}- /)[0];
+  return section.split(/run: \|\r?\n/)[1].split(/\r?\n/).map((line) => line.slice(10)).join("\n");
+}
+
+function admissionScript(filename, step) {
+  const script = stepScript(filename, step);
+  const command = 'node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"';
+  assert.equal(script.split(command).length, 2, "Admission must call exactly one real preflight");
+  return script.replace(command, 'echo GATE_REACHED');
+}
+
+test("actual Bash admission rejects beta/malformed tags and non-master before the CI gate", () => {
+  for (const [filename, step, key, acceptsBlank] of [
+    ["release.yml", "Require verified master and explicit stable image version", "IMAGE_VERSION", true],
+    ["release-desktop.yml", "Require verified master and explicit stable tag", "RELEASE_TAG_INPUT", false],
+  ]) {
+    const script = admissionScript(filename, step);
+    const invoke = (value, ref = "refs/heads/master") => spawnSync("bash", ["-c", script], { env: { ...process.env, GITHUB_REF: ref, [key]: value }, encoding: "utf8" });
+    assert.match(invoke("v1.2.3").stdout, /GATE_REACHED/);
+    assert.equal(invoke("").status === 0, acceptsBlank);
+    for (const value of ["v1.2.3-beta.1", "v01.2.3", "1.2.3", "v1.2.3; echo unsafe", "v1.2.3\nv2.3.4"]) {
+      const denied = invoke(value);
+      assert.notEqual(denied.status, 0, value);
+      assert.doesNotMatch(denied.stdout, /GATE_REACHED/);
+    }
+    for (const ref of ["refs/tags/v1.2.3", "refs/heads/feature"]) assert.notEqual(invoke("v1.2.3", ref).status, 0);
+  }
+});
+
+test("actual image tag binding rejects missing tags and reusing a version for different source", () => {
+  const root = mkdtempSync(join(tmpdir(), "image tag proof "));
+  const script = stepScript("release.yml", "Bind image version to immutable source tag");
+  const git = (...args) => {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    git("init");
+    git("-c", "user.name=CI", "-c", "user.email=ci@example.test", "commit", "--allow-empty", "-m", "source");
+    const source = git("rev-parse", "HEAD");
+    git("tag", "v1.2.3");
+    git("clone", "--bare", ".", join(root, "origin.git"));
+    git("remote", "add", "origin", join(root, "origin.git"));
+    const invoke = (version, sha) => spawnSync("bash", ["-c", script], { cwd: root, env: { ...process.env, IMAGE_VERSION: version, GITHUB_SHA: sha }, encoding: "utf8" });
+    assert.equal(invoke("v1.2.3", source).status, 0);
+    assert.notEqual(invoke("v9.9.9", source).status, 0);
+    assert.notEqual(invoke("v1.2.3", "b".repeat(40)).status, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("release and native CI reuse caches and never compile the Tauri CLI from source", () => {
@@ -215,7 +253,7 @@ test("explicit desktop-beta release notes trigger both PR and master desktop ver
   const workflow = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
   const releaseNotePath = '"docs/DESKTOP_BETA_RELEASE_*.md"';
   const workflowPath = '".github/workflows/verify-desktop.yml"';
-  const [prTrigger, pushTrigger] = workflow.split(/^  push:\s*$/m);
+  const [prTrigger, pushTrigger] = workflow.split(/^ {2}push:\s*$/m);
   assert.ok(prTrigger && pushTrigger, "Desktop CI must include separate PR and master push triggers");
   for (const [trigger, fragment] of [["pull_request", prTrigger], ["push", pushTrigger]]) {
     assert.ok(fragment.includes("paths:"), `${trigger} must declare path filters`);

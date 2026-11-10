@@ -1,104 +1,38 @@
-name: Auto Desktop Beta
+name: Desktop release preflight (manual)
 
-# Publish the first unsigned beta automatically, or a later beta only when
-# an explicitly requested master commit subject contains [desktop-beta].
-# Never publish every push, bypass CI, or replace an immutable release.
-# Runs only when the authoritative master push ci completes.
+# Retained for read-only acceptance until #200 M5b publication/retirement gates.
+# No workflow_run, push, tag, release creation or publisher dispatch.
 on:
-  workflow_run:
-    workflows:
-      - ci
-    types: [completed]
-    branches: [master]
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 concurrency:
-  group: notespace-auto-desktop-beta
+  group: notespace-desktop-release-preflight
   cancel-in-progress: false
 
 jobs:
-  dispatch-if-green:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'master' &&
-       github.event.workflow_run.head_repository.full_name == github.repository &&
-       github.event.workflow_run.conclusion == 'success')
+  preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Dispatch first free beta only when master is verified
+      - name: Verify current master without publishing
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          master_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" && "$master_sha" != "$TRIGGER_SHA" ]]; then
-            echo "Trigger refers to superseded master commit; skip"
-            exit 0
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Run release preflight from master."
+            exit 1
           fi
-          if ! node scripts/release/assert-desktop-release-ci.mjs --collect "$master_sha"; then
-            echo "Authoritative master push ci or its exact-attempt gate is not green; skip"
-            exit 0
-          fi
-
-          # The first beta is automatic. Every subsequent beta requires an
-          # explicit opt-in marker in the first line of the verified master
-          # commit subject. That marker is passed only by an intentional merge.
-          subject=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$master_sha" --jq '.message' | head -n 1)
-          explicit=false
-          if [[ "$subject" == *"[desktop-beta]"* ]]; then
-            explicit=true
-          fi
-
-          gh release list --limit 100 --json tagName,isDraft > "$RUNNER_TEMP/desktop-releases.json"
-          if node -e '
-            const fs = require("node:fs");
-            const releases = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            process.exit(releases.some(x => !x.isDraft && /^v0\.1\.0-beta\.[1-9]\d*$/.test(x.tagName)) ? 0 : 1);
-          ' "$RUNNER_TEMP/desktop-releases.json"; then
-            if [[ "$explicit" != "true" ]]; then
-              echo "A beta has already been published and this commit did not request [desktop-beta]; skip"
-              exit 0
-            fi
-          fi
-
-          # Avoid republishing the same master commit if its checks are rerun.
-          # This is independent of tag/version numbering and of queued runs.
-          gh run list --workflow publish-desktop-beta.yml --limit 100 --json headSha,status,conclusion > "$RUNNER_TEMP/beta-runs.json"
-          if node -e '
-            const fs = require("node:fs");
-            const runs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const sha = process.argv[2];
-            process.exit(runs.some(x => x.headSha === sha && x.status === "completed" && x.conclusion === "success") ? 0 : 1);
-          ' "$RUNNER_TEMP/beta-runs.json" "$master_sha"; then
-            echo "Desktop beta for this verified master commit already completed; skip"
-            exit 0
-          fi
-
-          queued=$(node -e '
-            const fs = require("node:fs");
-            const runs = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const active = ["queued", "in_progress", "waiting", "pending", "requested"];
-            process.stdout.write(String(runs.filter(x => active.includes(x.status)).length));
-          ' "$RUNNER_TEMP/beta-runs.json")
-          if [[ "$queued" != "0" ]]; then
-            echo "A desktop beta release is already building; skip"
-            exit 0
-          fi
-
-          gh workflow run publish-desktop-beta.yml --ref master
-          echo "Dispatched free Windows MSI beta for master $master_sha" >> "$GITHUB_STEP_SUMMARY"
-          echo "Workflow: https://github.com/$GITHUB_REPOSITORY/actions/workflows/publish-desktop-beta.yml" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          echo "Read-only preflight passed; no publisher was dispatched." >> "$GITHUB_STEP_SUMMARY"

@@ -137,13 +137,29 @@ def main():
     check_native_verification(check_workflow(WORKFLOWS / "verify-desktop.yml"))
 
     auto = check_workflow(WORKFLOWS / "auto-desktop-beta.yml")
-    assert auto["on"]["workflow_run"]["workflows"] == ["ci"], "Only authoritative ci may trigger beta preflight"
-    for filename, job_name in [("auto-desktop-beta.yml", "dispatch-if-green"), ("publish-desktop.yml", "prepare-and-dispatch"), ("publish-desktop-beta.yml", "windows-msi-beta")]:
+    assert list(auto["on"]) == ["workflow_dispatch"] and auto["permissions"] == {"contents": "read", "actions": "read"}
+    for filename in ["auto-desktop-beta.yml", "publish-desktop.yml", "publish-desktop-beta.yml", "release-desktop.yml", "release.yml", "deploy-cloudflare.yml"]:
+        assert list(check_workflow(WORKFLOWS / filename)["on"]) == ["workflow_dispatch"], f"{filename}: push/tag/completion must never publish or dispatch"
+    for filename, job_name in [("auto-desktop-beta.yml", "preflight"), ("publish-desktop.yml", "prepare-and-dispatch"), ("publish-desktop-beta.yml", "windows-msi-beta"), ("release-desktop.yml", "release-credentials-preflight"), ("release.yml", "image"), ("deploy-cloudflare.yml", "deploy")]:
         workflow = check_workflow(WORKFLOWS / filename)
         gates = [s for s in workflow["jobs"][job_name]["steps"] if "assert-desktop-release-ci.mjs" in s.get("run", "")]
         assert len(gates) == 1 and "if" not in gates[0], f"{filename}: publisher cannot skip exact-master preflight"
         assert "assert-desktop-release-ci.mjs --collect " in gates[0]["run"], "Never trust a name-only or stale offline CI record for publication"
         assert gates[0]["env"]["GH_TOKEN"] == "${{ github.token }}"
+
+    image = check_workflow(WORKFLOWS / "release.yml")
+    image_steps = image["jobs"]["image"]["steps"]
+    meta = next(s for s in image_steps if s.get("id") == "meta")
+    binding = next(s for s in image_steps if s.get("name") == "Bind image version to immutable source tag")
+    assert binding["if"] == "inputs.version != ''" and image_steps.index(binding) < image_steps.index(meta)
+    assert 'git rev-parse "refs/tags/$IMAGE_VERSION^{commit}"' in binding["run"]
+    assert "value=${{ inputs.version }}" in meta["with"]["tags"]
+    assert "enable=${{ inputs.version != '' }}" in meta["with"]["tags"], "Blank image version cannot update latest"
+    for filename, job_name, effect in [("release.yml", "image", "docker/login-action@v3"), ("release-desktop.yml", "release-credentials-preflight", "Require all production signing configuration"), ("deploy-cloudflare.yml", "deploy", "cloudflare/wrangler-action@v4")]:
+        steps = check_workflow(WORKFLOWS / filename)["jobs"][job_name]["steps"]
+        gate_index = next(i for i, s in enumerate(steps) if "assert-desktop-release-ci.mjs --collect " in s.get("run", ""))
+        effect_index = next(i for i, s in enumerate(steps) if effect in (s.get("uses"), s.get("name")))
+        assert gate_index < effect_index, f"{filename}: preflight must precede mutation/credentials"
 
     beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
     assert list(beta["on"]) == ["workflow_dispatch"], "Free beta must be manually launched"

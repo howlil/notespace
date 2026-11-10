@@ -4,14 +4,14 @@ This file is the thin repository entrypoint for SWE agents. Keep detailed engine
 
 ## Canonical local guidance
 
-For implementation, refactoring, architecture, file structure, module ownership, dependency direction, or code organization:
+Start with the diff and owning code/tests, then read the relevant contract sections—not every document in full:
 
-- read `.agents/engineering.md` first;
-- treat it as the canonical repository-local engineering contract.
+- `.agents/engineering.md` is the first engineering contract: responsibilities, state/structure, contracts and fitness rules for the affected owner. Expand to flows, guarantees and challenge when the change crosses those boundaries.
+- For user-facing UI/interaction, also read the relevant `DESIGN.md` interaction, token and quality rules. `.agents/DESIGN.md` is a compact supplement, not an override.
+- Use the relevant `docs/ARCHITECTURE.md` section when ownership, callers or dependency direction is unclear; it is an implementation map, not another policy source.
+- Use the owning test section and focused commands in `docs/TESTING.md`; read CI/release sections when those boundaries change.
 
-For user-facing UI and interaction work, also read `DESIGN.md`.
-
-For the current implementation map, read `docs/ARCHITECTURE.md`. For test ownership, CI lanes, and focused verification commands, read `docs/TESTING.md`.
+Reuse unchanged contracts already read in the session. Narrow reading is not permission to ignore an applicable rule; expand when evidence reveals a wider impact.
 
 Inspect the current code and tests before implementation. Repository evidence is implementation truth unless an explicit current rule or decision supersedes it.
 
@@ -52,6 +52,16 @@ Avoid unrelated refactors, speculative abstractions, dependency churn, and gener
 - Keep SQL connections and transaction lifetime in the SQLite Store facade. Private query packages borrow SQL access.
 - Move callers, colocated tests, source-contract paths, discovery, and script references together.
 - Extend the existing architecture checks when a boundary changes; do not add generic catch-all folders or forwarding files for obsolete paths.
+
+## Working loop
+
+Inspect diff → identify owner/risk → load relevant contract sections → smallest coherent change → nearest faithful proof → review actual diff → exact-head CI → stop.
+
+- Keep one coherent slice and one active implementation PR. A docs-only edit does not justify a local app build, full suite or manual regression dispatch.
+- Start local proof at the changed boundary; expand only for actual risk. Do not rerun full CI locally after unrelated edits or dispatch duplicate verification just to obtain more green runs.
+- After push, inspect exact-head check results and failing steps first. Fix the cause; rerun affected proof, never hide failure with retries or weakened assertions.
+- Keep durable decisions in their existing canonical owner; task reasoning, proof links and temporary probes belong in the PR, not new repository reports.
+- Report concisely: behavior, commands/results, exact CI SHA, blocker and next action. Merge is not release; publication, deployment, release-tag creation or destructive restore needs explicit authorization. CI must not invoke a model or require an AI API key.
 
 ## Verification rule
 

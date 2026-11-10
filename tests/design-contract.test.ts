@@ -29,7 +29,8 @@ const DOCUMENT_EDITOR = join(WEB_SRC, "features", "workspace-authoring", "docume
 const DOCUMENT_SLASH_COMMANDS = join(WEB_SRC, "features", "workspace-authoring", "document", "document-slash-commands.ts");
 const CANVAS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "CanvasEditor.tsx");
 const CANVAS_SCENE_STATE = join(WEB_SRC, "features", "workspace-authoring", "canvas", "state", "canvas-scene-state.ts");
-const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "chrome", "CanvasChrome.tsx");
+const CANVAS_CHROME = ["CanvasToolRail.tsx", "CanvasViewControls.tsx", "CanvasBottomChrome.tsx", "canvas-tool-catalog.tsx", "CanvasChromeMenu.tsx"]
+  .map((file) => join(WEB_SRC, "features/workspace-authoring/canvas/chrome", file));
 const CANVAS_NATIVE_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "native", "CanvasNativeActions.ts");
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "selection", "CanvasSelectionActions.tsx");
 const ANCHORED_PANEL = join(WEB_SRC, "shared", "ui", "overlays", "anchored-panel.ts");
@@ -71,7 +72,7 @@ function collectFiles(dir: string, extensions: string[]): string[] {
   }
   return files;
 }
-function source(path: string) { return readFileSync(path, "utf8"); }
+function source(path: string | readonly string[]): string { return typeof path === "string" ? readFileSync(path, "utf8") : path.map(source).join("\n"); }
 
 test("design token contract: DESIGN.md documents the runtime semantic tokens", () => {
   const design = source(DESIGN); const globals = source(GLOBALS);

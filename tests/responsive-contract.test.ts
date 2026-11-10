@@ -15,10 +15,11 @@ const RETIRED_ACTIVITY_DASHBOARD = join(WEB_SRC, "features", "activity", "Activi
 const RETIRED_SHELL_RAIL = join(WEB_SRC, "pages", "_shared", "ShellRail.tsx");
 const DIALOG = join(WEB_SRC, "shared", "ui", "overlays", "dialog.tsx");
 const AUTHORING_STYLES = join(WEB_SRC, "features", "workspace-authoring", "workspace-authoring.css");
-const CANVAS_CHROME = join(WEB_SRC, "features", "workspace-authoring", "canvas", "chrome", "CanvasChrome.tsx");
+const CANVAS_CHROME = ["CanvasToolRail.tsx", "CanvasViewControls.tsx", "CanvasBottomChrome.tsx", "canvas-tool-catalog.tsx", "CanvasChromeMenu.tsx"]
+  .map((file) => join(WEB_SRC, "features/workspace-authoring/canvas/chrome", file));
 const CANVAS_SELECTION_ACTIONS = join(WEB_SRC, "features", "workspace-authoring", "canvas", "selection", "CanvasSelectionActions.tsx");
 
-function source(path: string) { return readFileSync(path, "utf8"); }
+function source(path: string | readonly string[]): string { return typeof path === "string" ? readFileSync(path, "utf8") : path.map(source).join("\n"); }
 
 test("responsive contract: Welcome and Canvas share a toggleable Explorer", () => {
   const workspace = source(WORKSPACE);

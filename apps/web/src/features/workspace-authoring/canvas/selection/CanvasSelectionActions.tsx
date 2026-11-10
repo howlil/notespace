@@ -36,7 +36,8 @@ import {
 } from "../native/CanvasNativeIcons";
 import type { CanvasActionName } from "../native/CanvasToolbar";
 import { analyzeCanvasSelection, canvasStylePatchForElement, sharedCanvasValue, supportsCanvasStyle, type CanvasStyleProperty } from "./canvas-selection-capabilities";
-import { canvasToolName, type CanvasContextualAnchor } from "../chrome/CanvasChrome";
+import { canvasToolName } from "../chrome/canvas-tool-catalog";
+import type { CanvasContextualAnchor } from "../chrome/CanvasBottomChrome";
 import { Choice, Section, OptionGrid, OpacityControl, CompactButton, ColorTrigger, ColorSwatches } from "./CanvasSelectionControls";
 import { selectionPanelPosition, type PanelLayout } from "./canvas-selection-position";
 

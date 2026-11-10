@@ -30,7 +30,9 @@ import { CanvasCodeBlockLayer, defaultCodeBlockView, type CodeBlockViewOptions }
 import { copyCanvasImage, downloadCanvasImage } from "./code/canvas-code-block-export-actions";
 import { defaultCanvasCodeBlock, effectiveCanvasCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./code/canvas-code-block-layout";
-import { CanvasBottomChrome, CanvasToolRail, CanvasViewControls, type CanvasContextualAnchor } from "./chrome/CanvasChrome";
+import { CanvasBottomChrome, type CanvasContextualAnchor } from "./chrome/CanvasBottomChrome";
+import { CanvasToolRail } from "./chrome/CanvasToolRail";
+import { CanvasViewControls } from "./chrome/CanvasViewControls";
 import { CanvasFlowchartHandles } from "./flowchart/CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./selection/CanvasSelectionActions";
 import {

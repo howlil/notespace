@@ -271,30 +271,35 @@ Separate, explicit publication workflows protect actual MSI signing, installed-u
 
 ## Local verification ladder
 
-Start narrow.
+The operating loop lives in `AGENTS.md`; this section owns command selection.
+Start with the nearest existing proof that can observe the risk. These are escalation
+options, not a mandatory sequence of every test layer:
 
-```text
-changed behavior
-  ↓
-nearest focused test
-  ↓
-affected package/module checks
-  ↓
-static checks
-  ↓
-affected browser/integration boundary
-  ↓
-full verification when release confidence is required
-```
+| Change boundary | First faithful proof | Escalate when |
+| --- | --- | --- |
+| Documentation/instructions only | Inspect changed text, links, referenced paths/commands and applicable existing contracts | A documented executable boundary also changes; no local product build/full suite just for prose |
+| Web pure rule/orchestration | Existing colocated Node test; relevant type/lint/architecture check | DOM/focus/rendered geometry or real transport/persistence cannot be proved there: use the affected existing browser journey |
+| Go capability/validation | Existing package test | SQL/transaction/restore changes need real SQLite; concurrency needs race proof; process durability needs restart/readback |
+| Rust readiness/runtime rule | Filter the existing Rust tests for that module | Host/process/close/flush/security behavior requires matching runtime/PE/lifecycle and actual Windows native acceptance; a unit test is not that proof |
+| CI/release policy | Existing classifier/request/CLI and parsed workflow policy tests | Trigger/SHA/skip/permission/concurrency changes require real GitHub behavior; publication still needs separate authorization |
 
-Useful commands:
+Unrelated edits do not invalidate already observed proof. Rerun what the diff affects;
+keep the authoritative required CI gates and conservative unknown-impact fallback.
+Full/manual regression and release-artifact acceptance are separate stages, not
+per-iteration defaults. Do not add tests that lint Issues or documentation formatting.
+
+Useful commands (run from repository root unless shown otherwise):
 
 ```sh
 # one frontend test file
-task test:web TEST=apps/web/src/features/library/save-workspace.test.ts
+task test:web TEST=apps/web/src/features/workspace-authoring/canvas/code/canvas-code-block-layout.test.ts
 
-# one Go package
+# one Go package (task includes race; plain package test is also available)
 task test:server PACKAGE=./internal/activity
+(cd apps/server && go test ./internal/activity)
+
+# one Rust module's existing tests; does not launch the app/native journey
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked runtime::readiness::tests
 
 # all frontend/backend static + unit/integration checks
 task check
@@ -306,7 +311,7 @@ task build
 task verify
 ```
 
-`task verify` builds production artifacts, runs frontend/server checks, and runs the critical WebdriverIO browser journeys.
+`task verify` builds production artifacts, runs frontend/server checks, and runs the critical WebdriverIO browser journeys. It does not authorize publication or replace signed MSI/installed-upgrade/release-binary native acceptance.
 
 ## Docker persistence smoke
 

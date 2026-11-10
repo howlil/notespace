@@ -9,10 +9,15 @@ components: {settings: "compact dialog with task-oriented sections"}
 
 ## Direction
 
+This is compact UI memory and a Settings/recovery ownership supplement.
+[`DESIGN.md`](../DESIGN.md) is the canonical interaction/visual contract;
+runtime semantic tokens in `apps/web/src/shared/styles/globals.css` are authoritative.
+The metadata and summaries here do not override either source.
+
 Notespace is a quiet, compact spatial workspace: the interface should feel like
 focused tools around authored Canvas content, not a dashboard of cards.
-Use cobalt only for selected and primary states; keep surfaces flat and let
-spacing, grouping, and clear verbs carry hierarchy.
+Follow `DESIGN.md` → Color ownership and component rules for primary/selected
+states; keep surfaces flat and let spacing, grouping, and clear verbs carry hierarchy.
 Settings should read like a short control panel: one decision per row, one
 purpose per section, and no explanatory copy that does not change the next move.
 

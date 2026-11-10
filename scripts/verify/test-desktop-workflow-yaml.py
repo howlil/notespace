@@ -91,6 +91,38 @@ def check_native_verification(doc):
         assert saved["with"]["key"] == f"${{{{ steps.{restore_id}.outputs.cache-primary-key }}}}"
 
 
+def check_frontend_proof(doc):
+    web, browser = (doc["jobs"][name] for name in ("web", "browser"))
+    build = "bun run --filter @notespace/web build"
+    assert browser["needs"] == "classify", "Browser preparation must overlap web checks, not await their runner"
+    assert web["needs"] == "classify"
+    assert browser["if"] == "needs.classify.outputs.browser == 'true'"
+    for job in (web, browser):
+        check_frontend_setup(job)
+    checks = next(s for s in web["steps"] if s.get("run") == "bun run typecheck && bun run lint && bun run test")
+    assert "if" not in checks, "Web checks remain mandatory alongside browser proof"
+    check_frontend_builds(web, browser, build)
+
+
+def check_frontend_setup(job):
+    assert "continue-on-error" not in job
+    assert all("continue-on-error" not in s for s in job["steps"])
+    install = next(s for s in job["steps"] if s.get("run") == "bun install --frozen-lockfile")
+    assert "if" not in install
+    transfers = [s for s in job["steps"] if s.get("uses", "").startswith(("actions/download-artifact@", "actions/upload-artifact@"))]
+    assert all(s.get("if") == "failure()" for s in transfers), "No cross-run build handoff or duplicate artifact transport"
+
+
+def check_frontend_builds(web, browser, build):
+    web_builds = [s for s in web["steps"] if s.get("run") == build]
+    browser_builds = [s for s in browser["steps"] if s.get("run") == build]
+    assert len(web_builds) == len(browser_builds) == 1, "Exactly one build owner per selection"
+    assert web_builds[0]["if"] == "needs.classify.outputs.browser != 'true'", "Web-only PRs must build; browser PRs must not build twice"
+    assert "if" not in browser_builds[0], "A selected browser job must build its own exact checkout"
+    proof = next(s for s in browser["steps"] if "ci.mjs browser-mode" in s.get("run", ""))
+    assert "if" not in proof and browser["steps"].index(browser_builds[0]) < browser["steps"].index(proof)
+
+
 def check_release_orchestration(doc):
     mode_input = doc["on"]["workflow_dispatch"]["inputs"]["mode"]
     assert mode_input["default"] == "preflight" and set(mode_input["options"]) == {"preflight", "desktop-beta", "desktop-stable", "image", "cloudflare"}
@@ -148,6 +180,7 @@ def main():
     assert ci["jobs"]["desktop"]["with"]["profile"] == "${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression' || 'native' }}"
     browser_script = next(s["run"] for s in ci["jobs"]["browser"]["steps"] if "ci.mjs browser-mode" in s.get("run", ""))
     assert 'browser-e2e.mjs --mode "$MODE"' in browser_script and "ci.mjs paths" in browser_script
+    check_frontend_proof(ci)
     compose_steps = ci["jobs"]["compose"]["steps"]
     assert any(s.get("run") == "python3 scripts/verify/smoke-persistence.py --compose-restart" and "if" not in s for s in compose_steps)
     assert any(s.get("if") == "always()" and "down" in s.get("run", "") for s in compose_steps)

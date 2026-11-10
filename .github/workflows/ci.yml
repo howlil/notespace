@@ -77,14 +77,9 @@ jobs:
           key: ${{ runner.os }}-bun-1.3.14-${{ hashFiles('bun.lock') }}
       - run: bun install --frozen-lockfile
       - run: bun run typecheck && bun run lint && bun run test
+      # Exactly one web build: browser owns it when selected, otherwise web does.
       - run: bun run --filter @notespace/web build
-      - uses: actions/upload-artifact@v4
-        if: needs.classify.outputs.browser == 'true'
-        with:
-          name: ci-web-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/web/dist/client
-          if-no-files-found: error
-          retention-days: 1
+        if: needs.classify.outputs.browser != 'true'
 
   server:
     needs: classify
@@ -143,7 +138,8 @@ jobs:
         run: node --test tests/hero.test.mjs tests/workers-root.test.mjs tests/windows-release.test.mjs
 
   browser:
-    needs: [classify, web]
+    # Prepare/build independently of static checks; the gate still requires both.
+    needs: classify
     if: needs.classify.outputs.browser == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -173,10 +169,8 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.3.14-${{ hashFiles('bun.lock') }}
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v4
-        with:
-          name: ci-web-${{ github.run_id }}-${{ github.run_attempt }}
-          path: apps/web/dist/client
+      # Fresh production build in the same checkout/process environment as proof.
+      - run: bun run --filter @notespace/web build
       - name: Run fresh stage proof (PR affected, master critical plus P0, regression full)
         env:
           EXPECTED_SHA: ${{ github.sha }}

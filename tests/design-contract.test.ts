@@ -133,6 +133,18 @@ test("frontend styling contract: globals owns tokens and document defaults, not 
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(globals, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
+test("canvas contract: independent IO, geometry and wheel lifetime belong to capability leaves", () => {
+  const canvas = source(CANVAS);
+  const pinch = source(join(WEB_SRC, "features/workspace-authoring/canvas/viewport/use-canvas-pinch.ts"));
+  assert.match(canvas, /useCanvasPinch\(surfaceRef, api\)/);
+  assert.match(canvas, /writeStoredLibraryItems\(items\)/);
+  assert.doesNotMatch(canvas, /EXCALIDRAW_LIBRARY_STORAGE_KEY|function codeElementContainsClientPoint|addEventListener\("wheel"/);
+  assert.match(pinch, /capture: true, passive: false/);
+  assert.match(pinch, /return \(\) => surface\.removeEventListener\("wheel", handlePinch, true\)/);
+  assert.match(pinch, /\[api, surfaceRef\]/);
+  assert.match(pinch, /CaptureUpdateAction\.NEVER/);
+});
+
 test("canvas contract: tool, contextual, and viewport chrome have distinct ownership", () => {
   const authoringStyles = source(AUTHORING_STYLES), canvas = source(CANVAS), chrome = source(CANVAS_CHROME), nativeActions = source(CANVAS_NATIVE_ACTIONS), selection = source(CANVAS_SELECTION_ACTIONS), peerChannel = source(CANVAS_PEER_CHANNEL);
   assert.match(authoringStyles, /\.notespace-canvas-surface \.excalidraw\s*\{/);

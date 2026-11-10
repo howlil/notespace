@@ -13,6 +13,10 @@ export function sameStructuredDiagrams(left: readonly StructuredDiagram[], right
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly StructuredDiagram[]) {
+  return mergeById(local, remote);
+}
+
 function mergeById<T extends { id: string }>(history: readonly T[], current: readonly T[]) {
   const merged = new Map(history.map((item) => [item.id, item]));
   for (const item of current) merged.set(item.id, item);

@@ -33,14 +33,15 @@ backup: losing or replacing the signing private key prevents previously
 installed builds from trusting the next update. The public key is pinned
 inside each signed beta installer at build time.
 
-### Publishing an opted-in beta
+### Publishing a manually authorized beta
 
-1. Merge to `master` and wait for **Verify** and **Verify Desktop** green on
-   that exact push SHA.
-2. On subsequent releases, include `[desktop-beta]` in the squash merge
-   commit subject to opt into Auto Desktop Beta; alternatively manually run
+1. Merge to `master` and wait for **ci / gate** green on that exact master
+   push SHA. PR success and manual/scheduled regression are not release authority.
+2. Explicitly run
    [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml)
-   on `master`.
+   on `master` after publication is authorized. Pushes, tags and `[desktop-beta]`
+   commit markers never publish or dispatch a beta. The former auto-beta workflow
+   is now read-only manual preflight, not a publisher.
 3. The beta publisher selects the next immutable `v0.1.0-beta.N`, syncs app
    SemVer and monotonically increasing numeric MSI/WiX version `0.1.N`.
 4. GitHub Actions requires updater signing credentials, builds the Authenticode-
@@ -125,22 +126,23 @@ Upstream references:
 
 ## Gate 2 — test current master, including native Windows
 
-Ensure the `Verify` and `Verify Desktop` jobs for the **current master HEAD**
-pass. Windows Server 2022 runs real Tauri/WebView2/EdgeDriver native acceptance,
-and `windows-latest` compiles and tests Rust separately. Do not mark native UI
-acceptance optional to make a release appear green.
+Ensure the authoritative push `ci` and its `ci / gate` for the **current
+master HEAD** pass. Windows Server 2022 runs real Tauri/WebView2/EdgeDriver
+native acceptance; wider platform checks are available in full regression.
+Do not mark native UI acceptance optional to make a release appear green.
 
-The `release-credentials-preflight` job checks only that required variable and
-secret **names resolve to nonempty values**; later build/signature steps
-validate the actual credentials, certificate and generated artifacts. Failure
+The `release-credentials-preflight` job first requires a manual master request,
+a strict stable tag and exact-master CI, then checks that required variable and
+secret **names resolve to nonempty values**. Later build/signature steps
+validate actual credentials, certificate and generated artifacts. Failure
 does not publish any MSI.
 
 ## Gate 3 — One-click GitHub release automation
 
 The normal release route **does not require a local Git tag or terminal**.
 
-1. After all secrets and variables in Gate 1 are configured, ensure `Verify`
-   and `Verify Desktop` completed successfully for the latest `master` push.
+1. After all secrets and variables in Gate 1 are configured, ensure push `ci`
+   and `ci / gate` completed successfully for the latest `master` SHA.
 2. Open [Actions → Publish Desktop (one click)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml).
 3. Select **Run workflow** and choose branch **master**.
 4. Use **patch** to increment the patch version automatically; choose **minor**
@@ -177,13 +179,15 @@ must finish successfully before `gh release create` publishes any MSI.
   can retry as long as the tag still points at the current `master` HEAD.
 - Signed GitHub Releases are immutable: don't overwrite MSI assets after
   publishing. Produce a new version for any correction.
-- `GITHUB_TOKEN` tag pushes will **not** trigger independent `push.tags`
-  workflows, including any container-image pipeline. The one-click flow
-  explicitly publishes the **desktop MSI**, not container images.
+- No release workflow listens to `push.tags`. A tag alone, whether pushed by
+  a maintainer or `GITHUB_TOKEN`, never publishes desktop or container artifacts.
+  The one-click stable launcher explicitly dispatches the **desktop MSI** flow;
+  container publication is a separate manual action from verified master.
 
 ### Advanced manual fallback
 
-You can still create a tag manually to trigger the existing release workflow:
+You can still create an unused tag manually, then explicitly dispatch the
+existing release workflow. Pushing the tag does **not** start publication:
 
 ```bash
 git fetch origin
@@ -191,6 +195,7 @@ git checkout master
 git pull --ff-only origin master
 git tag -a v1.0.0 -m "Notespace Desktop v1.0.0"
 git push origin v1.0.0
+gh workflow run release-desktop.yml --ref master --field release_tag=v1.0.0
 ```
 
 Use an appropriate unused version and ensure the tag is at current

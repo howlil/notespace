@@ -1,9 +1,6 @@
 name: Release desktop
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       release_tag:
@@ -12,6 +9,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
   id-token: write
   attestations: write
@@ -24,6 +22,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Require verified master and explicit stable tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          stable='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          if [[ "$GITHUB_REF" != "refs/heads/master" || ! "$RELEASE_TAG_INPUT" =~ $stable ]]; then
+            echo "::error::Dispatch from master with an explicit stable release tag; beta tags are not production releases."
+            exit 1
+          fi
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
       - name: Require all production signing configuration
         shell: bash
         env:

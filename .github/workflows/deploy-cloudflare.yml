@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: cloudflare-notespace-production
@@ -33,6 +34,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Require exact-master CI before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
       - run: bun install --frozen-lockfile
         working-directory: landing
       - run: bun run build

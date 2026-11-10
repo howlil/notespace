@@ -28,6 +28,11 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.match(read("../search/QuickOpen.tsx"), /notespace:open-settings/);
   assert.doesNotMatch(workspace, /<SettingsTrigger/);
   assert.match(settings, /OPEN_NOTESPACE_SETTINGS/);
+  assert.match(settings, /adapters\/desktop\/desktop-updater/);
+  assert.match(settings, /isDesktopUpdaterEnabled\(\)/);
+  assert.match(settings, /catch\(\(\) => setUpdaterEnabled\(false\)\)/);
+  assert.match(settings, /window.dispatchEvent\(new Event\(REQUEST_DESKTOP_UPDATE_CHECK\)\)/);
+  assert.doesNotMatch(settings, /@tauri-apps|desktop_updater_enabled/);
   assert.match(settings, /Data &amp; backup/);
   assert.match(settings, /Library storage/);
   assert.match(portable, /Portable library backup/);

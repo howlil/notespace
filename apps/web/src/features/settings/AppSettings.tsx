@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { invoke } from "@tauri-apps/api/core";
+import { isDesktopUpdaterEnabled } from "../../adapters/desktop/desktop-updater";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
 import { DatabaseBackup, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
 import {
@@ -62,7 +62,7 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
     const nativeRuntime = isTauriRuntime();
     setNative(nativeRuntime);
     if (nativeRuntime) {
-      void invoke<boolean>("desktop_updater_enabled")
+      void isDesktopUpdaterEnabled()
         .then(setUpdaterEnabled)
         .catch(() => setUpdaterEnabled(false));
     }

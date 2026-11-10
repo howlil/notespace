@@ -66,6 +66,10 @@ func TestRestoreRollsBackAfterBorrowedAssetQueryFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	archive, err := store.ExportBackupArchive(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	current, err := service.Create(ctx, "Keep current workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -75,17 +79,27 @@ func TestRestoreRollsBackAfterBorrowedAssetQueryFails(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `CREATE TRIGGER reject_restore_asset BEFORE INSERT ON workspace_assets BEGIN SELECT RAISE(ABORT, 'injected asset restore failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RestoreBackupJSON(ctx, backup); err == nil || !strings.Contains(err.Error(), "injected asset restore failure") {
-		t.Fatalf("restore error = %v; want the injected mid-write failure", err)
-	}
-	for _, expected := range []workspace.Workspace{saved, current} {
-		got, err := store.Get(ctx, expected.ID)
-		if err != nil || got.Title != expected.Title || got.Version != expected.Version {
-			t.Fatalf("workspace after rollback = %+v, %v; want %+v", got, err, expected)
-		}
-	}
-	got, err := store.GetAsset(ctx, saved.ID, "image")
-	if err != nil || string(got.Data) != "png" {
-		t.Fatalf("asset after rollback = %+v, %v", got, err)
+	for _, attempt := range []struct {
+		name    string
+		restore func() error
+	}{
+		{"JSON", func() error { return store.RestoreBackupJSON(ctx, backup) }},
+		{"ZIP", func() error { return store.RestoreBackupArchive(ctx, archive) }},
+	} {
+		t.Run(attempt.name, func(t *testing.T) {
+			if err := attempt.restore(); err == nil || !strings.Contains(err.Error(), "injected asset restore failure") {
+				t.Fatalf("restore error = %v; want the injected mid-write failure", err)
+			}
+			for _, expected := range []workspace.Workspace{saved, current} {
+				got, err := store.Get(ctx, expected.ID)
+				if err != nil || got.Title != expected.Title || got.Version != expected.Version {
+					t.Fatalf("workspace after rollback = %+v, %v; want %+v", got, err, expected)
+				}
+			}
+			got, err := store.GetAsset(ctx, saved.ID, "image")
+			if err != nil || string(got.Data) != "png" {
+				t.Fatalf("asset after rollback = %+v, %v", got, err)
+			}
+		})
 	}
 }

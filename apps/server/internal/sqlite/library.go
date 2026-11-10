@@ -1,15 +1,11 @@
 package sqlite
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/library"
@@ -28,135 +24,12 @@ func (s *Store) ExportBackupArchive(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blobs := map[string][]byte{}
-	catalog := map[string]backupquery.ArchiveBlob{}
-	manifest := backupquery.LibraryArchiveManifest{
-		Format: backupquery.LibraryBackupFormat, Version: backupquery.LibraryArchiveVersion, SchemaVersion: backupquery.LibraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Activity: backup.Activity, DeletedActivitySessionIDs: backup.DeletedActivitySessionIDs, Tasks: backup.Tasks, Captures: backup.Captures,
-		Workspaces: make([]backupquery.ArchiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
-		Trash:      make([]backupquery.ArchiveTrashRecord, 0, len(backup.Trash)),
-	}
-	for _, workspace := range backup.Workspaces {
-		manifest.Workspaces = append(manifest.Workspaces, backupquery.ArchiveEnvelope(workspace, blobs, catalog))
-	}
-	for _, record := range backup.Trash {
-		manifest.Trash = append(manifest.Trash, backupquery.ArchiveTrashRecord{
-			ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt,
-			Payload: backupquery.ArchiveEnvelope(record.Payload, blobs, catalog),
-		})
-	}
-	for _, entry := range catalog {
-		manifest.Blobs = append(manifest.Blobs, entry)
-	}
-	sort.Slice(manifest.Blobs, func(i, j int) bool { return manifest.Blobs[i].Path < manifest.Blobs[j].Path })
-
-	manifestJSON, err := json.Marshal(manifest)
-	if err != nil {
-		return nil, err
-	}
-	var output bytes.Buffer
-	writer := zip.NewWriter(&output)
-	manifestWriter, err := writer.Create(backupquery.ArchiveManifestPath)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := manifestWriter.Write(manifestJSON); err != nil {
-		return nil, err
-	}
-	for _, entry := range manifest.Blobs {
-		header := &zip.FileHeader{Name: entry.Path, Method: zip.Store}
-		blobWriter, err := writer.CreateHeader(header)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := blobWriter.Write(blobs[entry.Path]); err != nil {
-			return nil, err
-		}
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return output.Bytes(), nil
+	return backupquery.EncodeArchive(backup)
 }
 func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
-	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return backupquery.InvalidArchive("invalid ZIP backup")
-	}
-	entries := map[string]*zip.File{}
-	for _, file := range reader.File {
-		if file.Name == "" || strings.Contains(file.Name, "\\") || strings.HasPrefix(file.Name, "/") || strings.Contains(file.Name, "../") {
-			return backupquery.InvalidArchive("unsafe backup entry")
-		}
-		if _, exists := entries[file.Name]; exists {
-			return backupquery.InvalidArchive("duplicate backup entry")
-		}
-		entries[file.Name] = file
-	}
-	manifestFile := entries[backupquery.ArchiveManifestPath]
-	if manifestFile == nil {
-		return backupquery.InvalidArchive("backup manifest missing")
-	}
-	manifestJSON, err := backupquery.ReadArchiveEntry(manifestFile, backupquery.MaxArchiveManifestBytes)
+	backup, err := backupquery.DecodeArchive(data)
 	if err != nil {
 		return err
-	}
-	var manifest backupquery.LibraryArchiveManifest
-	if err := json.Unmarshal(manifestJSON, &manifest); err != nil {
-		return backupquery.InvalidArchive("invalid backup manifest")
-	}
-	if manifest.Format != backupquery.LibraryBackupFormat || (manifest.Version != 2 && manifest.Version != backupquery.LibraryArchiveVersion) || manifest.SchemaVersion > backupquery.LibraryArchiveSchemaVersion {
-		return backupquery.InvalidArchive("unsupported backup format")
-	}
-
-	blobData := map[string][]byte{}
-	seenBlobs := map[string]bool{}
-	var expanded uint64
-	for _, blob := range manifest.Blobs {
-		if blob.Path != "blobs/"+blob.SHA256 || len(blob.SHA256) != 64 || blob.Size < 0 || seenBlobs[blob.Path] {
-			return backupquery.InvalidArchive("invalid blob manifest")
-		}
-		file := entries[blob.Path]
-		if file == nil || file.Method != zip.Store || file.UncompressedSize64 != uint64(blob.Size) {
-			return backupquery.InvalidArchive("blob entry mismatch")
-		}
-		expanded += file.UncompressedSize64
-		if expanded > uint64(len(data)) {
-
-			// Exported blobs use zip.Store, so a valid Notespace archive cannot
-			// expand beyond its archive size. This rejects decompression bombs.
-			return backupquery.InvalidArchive("backup expands beyond round-trip bound")
-		}
-		body, err := backupquery.ReadArchiveEntry(file, file.UncompressedSize64)
-		if err != nil {
-			return err
-		}
-		if backupquery.ArchiveHash(body) != blob.SHA256 {
-			return backupquery.InvalidArchive("blob checksum mismatch")
-		}
-		seenBlobs[blob.Path] = true
-		blobData[blob.Path] = body
-	}
-
-	backup := backupquery.LibraryBackup{
-		Format: backupquery.LibraryBackupFormat, Version: manifest.Version, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Activity: manifest.Activity, DeletedActivitySessionIDs: manifest.DeletedActivitySessionIDs, Tasks: manifest.Tasks, Captures: manifest.Captures,
-		Workspaces: make([]backupquery.WorkspaceEnvelope, 0, len(manifest.Workspaces)),
-		Trash:      make([]backupquery.TrashRecord, 0, len(manifest.Trash)),
-	}
-	for _, workspace := range manifest.Workspaces {
-		envelope, err := backupquery.RestoreArchiveEnvelope(workspace, blobData)
-		if err != nil {
-			return err
-		}
-		backup.Workspaces = append(backup.Workspaces, envelope)
-	}
-	for _, record := range manifest.Trash {
-		envelope, err := backupquery.RestoreArchiveEnvelope(record.Payload, blobData)
-		if err != nil {
-			return err
-		}
-		backup.Trash = append(backup.Trash, backupquery.TrashRecord{ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt, Payload: envelope})
 	}
 	return s.restoreLibraryBackup(ctx, backup)
 }

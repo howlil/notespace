@@ -55,10 +55,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $master -ne $env:GITHUB_SHA) {
             throw "master advanced; retry on its latest verified commit"
           }
-          $checks = Join-Path $env:RUNNER_TEMP 'notespace-beta-master-ci.json'
-          gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$env:GITHUB_SHA&event=push&per_page=100" | Out-File -FilePath $checks -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw "Could not retrieve master CI" }
-          node scripts/release/assert-desktop-release-ci.mjs $checks $env:GITHUB_SHA
+          node scripts/release/assert-desktop-release-ci.mjs --collect $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "Master CI gate failed" }
 
       - name: Select next public signed-updater beta version

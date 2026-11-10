@@ -19,7 +19,6 @@ function verdicts(diff = evidence(["unknown/file"])) {
 }
 
 test("CI owner matrix selects only required PR lanes and preserves native persistence/security", () => {
-  assert.fail("M5a temporary negative proof: required CI gate must block this unmergeable revision");
   for (const [path, expected] of [
     ["apps/web/src/features/library/collection/WorkspaceLibrary.tsx", ["web", "browser"]],
     ["apps/web/src/styles.css", ["web", "browser"]],

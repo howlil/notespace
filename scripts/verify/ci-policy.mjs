@@ -63,7 +63,7 @@ function webOwners(path) {
     /^apps\/web\/(vite\.config\.|src\/routes\/__root)/,
     /^apps\/web\/src\/(features\/desktop|adapters\/(desktop|assets|http)|domain\/workspace)\//,
     /^apps\/web\/src\/features\/workspace-authoring\/(session\/|canvas\/(assets|state|sync)\/)/,
-    /^apps\/web\/src\/features\/workspace-authoring\/canvas\/code\/(execution\/|use-canvas-code-runner\.ts$)/,
+    /^apps\/web\/src\/features\/workspace-authoring\/canvas\/code\/execution\//,
   ].some((owner) => owner.test(path));
   return native ? ["web", "browser", "desktop"] : ["web", "browser"];
 }

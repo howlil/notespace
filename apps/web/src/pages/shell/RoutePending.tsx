@@ -1,4 +1,4 @@
-import { NotespaceLogo } from "./NotespaceLogo";
+import { NotespaceLogo } from "../../shared/ui/brand/NotespaceLogo";
 
 export function RoutePending() {
   return (

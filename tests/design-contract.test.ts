@@ -40,7 +40,6 @@ const CANVAS_CODE_BLOCK_ACTIONS = join(WEB_SRC, "features", "workspace-authoring
 const CANVAS_CODE_BLOCK_MEASURE = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "CanvasCodeBlockMeasure.tsx");
 const CANVAS_CODE_BLOCK_LAYOUT = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "canvas-code-block-layout.ts");
 const CANVAS_CODE_RUNNER = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "canvas-code-runner.ts");
-const CANVAS_CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "use-canvas-code-runner.ts");
 const CODE_LANGUAGE = join(WEB_SRC, "domain", "code", "code-language.ts");
 const CODE_RUNNER = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "execution", "code-runner.ts");
 const CODE_RUNNER_HOOK = join(WEB_SRC, "features", "workspace-authoring", "canvas", "code", "execution", "use-code-runner.ts");
@@ -165,7 +164,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.doesNotMatch(canvas, /<MainMenu/);
   assert.match(canvas, /useCanvasPeerChannel\(workspaceId, handlePeerSnapshot\)/);
   assert.match(peerChannel, /new BroadcastChannel\(`notespace\.canvas:\$\{workspaceId\}`\)/);
-  const codeBlock = source(CANVAS_CODE_BLOCK), codeLayer = source(CANVAS_CODE_BLOCK_LAYER), codeActions = source(CANVAS_CODE_BLOCK_ACTIONS), codeMeasure = source(CANVAS_CODE_BLOCK_MEASURE), codeLayout = source(CANVAS_CODE_BLOCK_LAYOUT), canvasRunnerHook = source(CANVAS_CODE_RUNNER_HOOK), codeLanguage = source(CODE_LANGUAGE), codeRunnerHook = source(CODE_RUNNER_HOOK);
+  const codeBlock = source(CANVAS_CODE_BLOCK), codeLayer = source(CANVAS_CODE_BLOCK_LAYER), codeActions = source(CANVAS_CODE_BLOCK_ACTIONS), codeMeasure = source(CANVAS_CODE_BLOCK_MEASURE), codeLayout = source(CANVAS_CODE_BLOCK_LAYOUT), codeLanguage = source(CODE_LANGUAGE), codeRunnerHook = source(CODE_RUNNER_HOOK);
   assert.match(codeBlock, /CODE_BLOCK_DATA_KEY = "notespaceCodeBlock"/);
   assert.match(codeBlock, /domain\/code\/code-language/);
   assert.match(codeLanguage, /createLowlight\(common\)/);
@@ -207,7 +206,8 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.doesNotMatch(codeLayer, /localStorage|fetch\(|WebSocket|new Worker/);
   const canvasRunner = source(CANVAS_CODE_RUNNER), codeRunner = source(CODE_RUNNER);
   assert.match(canvasRunner, /canRunCanvasCode = canRunCode/);
-  assert.match(canvasRunnerHook, /useCodeRunner/);
+  assert.match(canvas, /from "\.\/code\/execution\/use-code-runner"/);
+  assert.match(canvas, /useCodeRunner\(liveCodeBlocks\)/);
   assert.match(codeRunnerHook, /startJavaScriptRun/);
   assert.match(codeRunner, /new Worker/);
   assert.match(codeRunner, /DEFAULT_CODE_RUN_TIMEOUT_MS = 2_000/);

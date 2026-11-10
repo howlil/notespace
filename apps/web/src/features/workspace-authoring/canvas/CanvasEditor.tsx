@@ -43,7 +43,7 @@ import { useCanvasPeerChannel } from "./sync/use-canvas-peer-channel";
 import { useCanvasAssets } from "./assets/use-canvas-assets";
 import { useCanvasFlowchart } from "./flowchart/use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./diagram/use-canvas-diagram-commands";
-import { useCanvasCodeRunner } from "./code/use-canvas-code-runner";
+import { useCodeRunner } from "./code/execution/use-code-runner";
 import { canvasPinchViewport } from "./viewport/canvas-pinch-zoom";
 import {
   canvasBackgroundColor,
@@ -258,7 +258,7 @@ export default function CanvasEditor({
     [overlayElements],
   );
   const liveCodeElementIds = useMemo(() => liveCodeBlocks.map(({ id }) => id), [liveCodeBlocks]);
-  const { runs: codeRuns, runBlock: executeCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCanvasCodeRunner(liveCodeBlocks);
+  const { runs: codeRuns, runBlock: executeCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCodeRunner(liveCodeBlocks);
   const runCodeBlock = useCallback((id: string, block: CanvasCodeBlockData) => {
     updateCodeView(id, { showOutput: true });
     executeCodeBlock(id, { ...block, language: effectiveCanvasCodeLanguage(block) });

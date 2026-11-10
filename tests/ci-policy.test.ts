@@ -34,7 +34,7 @@ test("CI owner matrix selects only required PR lanes and preserves native persis
     ["apps/server/migrations/099.sql", ["web", "server", "browser", "desktop"]],
     ["apps/server/cmd/notespace/desktop_boundary.go", ["web", "server", "browser", "desktop"]],
     ["apps/server/internal/httpapi/middleware.go", ["web", "server", "browser", "desktop"]],
-    ["apps/web/src/features/workspace-authoring/canvas/code/use-canvas-code-runner.ts", ["web", "browser", "desktop"]],
+    ["apps/web/src/features/workspace-authoring/canvas/code/execution/use-code-runner.ts", ["web", "browser", "desktop"]],
     ["apps/web/src/features/workspace-authoring/session/WorkspaceAuthoring.tsx", ["web", "browser", "desktop"]],
     ["apps/web/src/features/workspace-authoring/canvas/code/execution/code-runner.ts", ["web", "browser", "desktop"]],
     ["apps/desktop/src-tauri/src/runtime/shutdown.rs", ["desktop", "release-policy"]],

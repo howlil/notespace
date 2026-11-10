@@ -11,7 +11,7 @@ import {
 } from "./canvas-code-block-layout";
 import { CanvasCodeBlockMeasure } from "./CanvasCodeBlockMeasure";
 import { canRunCanvasCode } from "./canvas-code-runner";
-import type { CodeRunView } from "./use-canvas-code-runner";
+import type { CodeRunView } from "./execution/use-code-runner";
 
 export type CodeBlockViewOptions = { showOutput: boolean; wordWrap: boolean; fitRevision?: number };
 export const defaultCodeBlockView: CodeBlockViewOptions = { showOutput: false, wordWrap: true };

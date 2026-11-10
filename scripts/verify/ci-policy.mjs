@@ -1,4 +1,5 @@
 // #200 A1: the classifier and gate share one owner/risk contract, never a permissive default.
+// #200 M7 non-merging measurement probe: unchanged executable behavior.
 export const CI_JOBS = ["web", "server", "landing", "browser", "desktop", "release-policy", "compose"];
 const shaPattern = /^[a-f0-9]{40}$/;
 export const validSha = (value) => typeof value === "string" && shaPattern.test(value);

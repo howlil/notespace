@@ -322,8 +322,10 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(selection, /type Panel = "color" \| "properties"/);
   assert.match(selection, /properties: "w-max max-w-\[calc\(100vw-24px\)\]"/);
   assert.match(selection, /\[scrollbar-width:none\]/);
-  assert.match(selection, /function OpacityControl/);
-  assert.match(selection, /w-\[104px\]/);
+  const selectionControls = source(join(WEB_SRC, "features/workspace-authoring/canvas/selection/CanvasSelectionControls.tsx"));
+  assert.match(selection, /from "\.\/CanvasSelectionControls"/);
+  assert.match(selectionControls, /function OpacityControl/);
+  assert.match(selectionControls, /w-\[104px\]/);
   assert.match(selection, /strokeColorOptions/); assert.match(selection, /fillColorOptions/);
   assert.match(selection, /Line feel/); assert.match(selection, /Clean/); assert.match(selection, /Hand-drawn/); assert.match(selection, /Rough/);
   assert.doesNotMatch(selection, /type Panel = "stroke"|type Panel = "fill"|min-\[561px\]:size-10/);

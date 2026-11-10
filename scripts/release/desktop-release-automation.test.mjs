@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
 import { assertDesktopReleaseChecks } from "./assert-desktop-release-ci.mjs";
+import { releaseRequest } from "./release-request.mjs";
 
 const sha = "a".repeat(40);
 const repository = "howlil/notespace";
@@ -18,6 +19,35 @@ const run = (name = "ci", conclusion = "success", overrides = {}) => ({
 const proof = (runs = [run()]) => ({
   master_sha: sha, workflow_runs: runs,
   jobs: { total_count: 1, jobs: [{ name: "ci / gate", run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success" }] },
+});
+
+test("release mode admission defaults read-only and rejects ambiguous or malformed destinations", () => {
+  const source = { ref: "refs/heads/master", sha };
+  assert.equal(releaseRequest(source), "preflight");
+  for (const mode of ["preflight", "desktop-beta", "desktop-stable", "image", "cloudflare"]) assert.equal(releaseRequest({ ...source, mode }), mode);
+  assert.equal(releaseRequest({ ...source, mode: "desktop-stable", version: "1.2.3", bump: "minor" }), "desktop-stable");
+  assert.equal(releaseRequest({ ...source, mode: "image", version: "v1.2.3" }), "image");
+  for (const invalid of [
+    { mode: "unknown" }, { mode: "desktop-beta\nimage" }, { mode: "" },
+    { ref: "refs/tags/v1.2.3" }, { ref: "refs/heads/feature" }, { sha: "short" },
+    { mode: "desktop-beta", version: "v1.2.3" }, { version: "v1.2.3" },
+    { mode: "cloudflare", bump: "minor" }, { mode: "desktop-stable", bump: "skip" },
+    { mode: "desktop-stable", version: "1.2.3; echo unsafe" },
+    ...["v1.2.3-beta.1", "v01.2.3", "1.2.3", "v1.2.3\n"].map((version) => ({ mode: "image", version })),
+  ]) assert.throws(() => releaseRequest({ ...source, ...invalid }), JSON.stringify(invalid));
+});
+
+test("real request CLI emits only a validated mode and fails before routing bad input", () => {
+  const root = mkdtempSync(join(tmpdir(), "release request "));
+  const output = join(root, "output");
+  const script = fileURLToPath(new URL("./release-request.mjs", import.meta.url));
+  const invoke = (mode) => spawnSync(process.execPath, [script], { env: { ...process.env, GITHUB_REF: "refs/heads/master", GITHUB_SHA: sha, GITHUB_OUTPUT: output, MODE: mode, RELEASE_BUMP: "patch", RELEASE_VERSION: "" }, encoding: "utf8" });
+  try {
+    assert.equal(invoke("preflight").status, 0);
+    assert.equal(readFileSync(output, "utf8"), "mode=preflight\n");
+    assert.notEqual(invoke("unknown").status, 0);
+    assert.equal(readFileSync(output, "utf8"), "mode=preflight\n", "No failed request output may select a publisher");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("first stable release is deterministic, not an arbitrary build number", () => {

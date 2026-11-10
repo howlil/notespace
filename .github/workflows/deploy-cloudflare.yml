@@ -1,6 +1,12 @@
 name: Deploy notespace to Cloudflare (manual)
 
 on:
+  workflow_call:
+    secrets:
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+      CLOUDFLARE_API_TOKEN:
+        required: false
   workflow_dispatch:
 
 permissions:

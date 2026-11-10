@@ -1,25 +1,123 @@
-name: Release image
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Explicit destination; preflight performs no publication or deployment"
+        type: choice
+        required: true
+        default: preflight
+        options: [preflight, desktop-beta, desktop-stable, image, cloudflare]
       version:
-        description: "Existing stable tag at master (v1.2.3). Blank publishes SHA tag only; never starts desktop release."
+        description: "Stable desktop override, or existing stable image source tag; blank selects the lane default"
         type: string
         required: false
         default: ""
+      bump:
+        description: "Desktop stable increment only (ignored when stable version is supplied)"
+        type: choice
+        default: patch
+        options: [patch, minor, major]
 
 permissions:
   contents: read
   actions: read
-  packages: write
 
 concurrency:
-  group: notespace-container-release
+  group: notespace-release-${{ startsWith(inputs.mode, 'desktop-') && 'desktop' || inputs.mode }}
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.request.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Validate explicit release request
+        id: request
+        env:
+          MODE: ${{ inputs.mode }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_BUMP: ${{ inputs.bump }}
+        run: node scripts/release/release-request.mjs
+      - name: Require current master push CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+
+  beta:
+    needs: preflight
+    if: needs.preflight.outputs.mode == 'desktop-beta'
+    uses: ./.github/workflows/publish-desktop-beta.yml
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  stable-prepare:
+    needs: preflight
+    if: needs.preflight.outputs.mode == 'desktop-stable'
+    uses: ./.github/workflows/publish-desktop.yml
+    with:
+      bump: ${{ inputs.bump }}
+      version: ${{ inputs.version }}
+      prepare_only: true
+    permissions:
+      contents: write
+      actions: write
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+  stable:
+    needs: [preflight, stable-prepare]
+    if: needs.preflight.outputs.mode == 'desktop-stable'
+    uses: ./.github/workflows/release-desktop.yml
+    with:
+      release_tag: ${{ needs.stable-prepare.outputs.release_tag }}
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+  cloudflare:
+    needs: preflight
+    if: needs.preflight.outputs.mode == 'cloudflare'
+    uses: ./.github/workflows/deploy-cloudflare.yml
+    secrets:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
   image:
+    needs: preflight
+    if: needs.preflight.outputs.mode == 'image'
+    permissions:
+      contents: read
+      actions: read
+      packages: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

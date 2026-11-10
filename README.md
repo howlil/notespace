@@ -32,7 +32,7 @@ Historical Capture, Task, Milestone and Activity records and HTTP contracts rema
 
 Windows desktop downloads are distributed through [GitHub Releases](https://github.com/howlil/notespace/releases). A green PR or CI debug executable is **not** a published installer.
 
-Maintainers can explicitly launch [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml) after exact-master CI and native persistence verification. Beta publication is manual only; ordinary pushes, tags, and `[desktop-beta]` commit markers never dispatch releases. The former auto-beta entry is now a read-only manual release preflight. The MSI has no Authenticode publisher certificate, so Windows may display **Unknown Publisher**.
+Maintainers use [Release](https://github.com/howlil/notespace/actions/workflows/release.yml) on `master`: the default **preflight** is read-only; explicitly selecting **desktop-beta** or **desktop-stable** requests the corresponding publication after exact-master CI and native persistence verification. Existing per-lane workflows remain manual fallbacks until publication acceptance. Beta publication is manual only; ordinary pushes, tags, and `[desktop-beta]` commit markers never dispatch releases. The former auto-beta entry is now a read-only manual release preflight. The MSI has no Authenticode publisher certificate, so Windows may display **Unknown Publisher**.
 
 Starting with `v0.1.0-beta.3`, the beta channel supports **Tauri-signature-verified in-app updates**. This requires the existing Tauri updater signing configuration; it does not require paid Windows publisher signing. Earlier betas require a one-time manual upgrade. Stable publisher-signed releases have a separate workflow and credential requirements.
 
@@ -56,7 +56,7 @@ Do not use `docker compose down -v` unless you intentionally want to remove the 
 
 ### Versioned container images
 
-Maintainers explicitly run **Release image** from verified `master` to publish to GitHub Container Registry. An optional stable `version` input (for example an existing `v1.2.3` tag pointing at current master) publishes versioned aliases and `latest`; leaving it blank publishes only the SHA tag. Desktop tags, including beta tags, never trigger image publication:
+Maintainers explicitly run **Release** with mode **image** from verified `master` to publish to GitHub Container Registry. An optional stable `version` input (for example an existing `v1.2.3` tag pointing at current master) publishes versioned aliases and `latest`; leaving it blank publishes only the SHA tag. Desktop tags, including beta tags, never trigger image publication:
 
 ```text
 ghcr.io/howlil/notespace:<version>

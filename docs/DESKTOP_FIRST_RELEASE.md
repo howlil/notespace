@@ -37,9 +37,10 @@ inside each signed beta installer at build time.
 
 1. Merge to `master` and wait for **ci / gate** green on that exact master
    push SHA. PR success and manual/scheduled regression are not release authority.
-2. Explicitly run
-   [Publish Desktop Beta (free)](https://github.com/howlil/notespace/actions/workflows/publish-desktop-beta.yml)
-   on `master` after publication is authorized. Pushes, tags and `[desktop-beta]`
+2. After publication is authorized, run
+   [Release](https://github.com/howlil/notespace/actions/workflows/release.yml)
+   on `master` with mode **desktop-beta**. Default **preflight** is read-only.
+   The old Publish Desktop Beta entry remains a manual fallback until acceptance. Pushes, tags and `[desktop-beta]`
    commit markers never publish or dispatch a beta. The former auto-beta workflow
    is now read-only manual preflight, not a publisher.
 3. The beta publisher selects the next immutable `v0.1.0-beta.N`, syncs app
@@ -143,8 +144,9 @@ The normal release route **does not require a local Git tag or terminal**.
 
 1. After all secrets and variables in Gate 1 are configured, ensure push `ci`
    and `ci / gate` completed successfully for the latest `master` SHA.
-2. Open [Actions → Publish Desktop (one click)](https://github.com/howlil/notespace/actions/workflows/publish-desktop.yml).
-3. Select **Run workflow** and choose branch **master**.
+2. Open [Actions → Release](https://github.com/howlil/notespace/actions/workflows/release.yml).
+3. Select **Run workflow**, branch **master**, mode **desktop-stable**.
+   Default **preflight** only checks eligibility; it never creates a tag.
 4. Use **patch** to increment the patch version automatically; choose **minor**
    or **major** for larger releases. The first release defaults to `v1.0.0`.
    Optionally enter an exact higher stable `version`, such as `1.2.0`.
@@ -154,11 +156,14 @@ The normal release route **does not require a local Git tag or terminal**.
    - calculate the next stable version from already-published GitHub Releases;
    - reject a tag collision, or a version older than the latest stable;
    - re-check the exact master HEAD, create an annotated tag, and push it;
-   - **explicitly dispatch** `release-desktop.yml` for this tag.
+   - pass the immutable tag to the existing `release-desktop.yml` artifact owner
+     in the same run, whose native/signing/MSI gates determine overall success.
+     Canonical orchestration suppresses the old separate dispatch; the legacy
+     Publish Desktop fallback retains explicit dispatch for GITHUB_TOKEN tags.
 
-Why explicit dispatch? Tags pushed with the Actions `GITHUB_TOKEN` do **not**
+Why explicit handoff? Tags pushed with the Actions `GITHUB_TOKEN` do **not**
 fire another workflow's `push` trigger. An authenticated
-`workflow_dispatch` is explicitly allowed, so this automation needs no PAT
+Canonical `workflow_call` (or legacy `workflow_dispatch`) is explicit, so neither needs a PAT
 or custom GitHub App token. The launcher requires `actions: write` and
 `contents: write` permissions.
 
@@ -181,7 +186,7 @@ must finish successfully before `gh release create` publishes any MSI.
   publishing. Produce a new version for any correction.
 - No release workflow listens to `push.tags`. A tag alone, whether pushed by
   a maintainer or `GITHUB_TOKEN`, never publishes desktop or container artifacts.
-  The one-click stable launcher explicitly dispatches the **desktop MSI** flow;
+  The canonical stable route explicitly calls the **desktop MSI** owner;
   container publication is a separate manual action from verified master.
 
 ### Advanced manual fallback

@@ -19,6 +19,31 @@ export function codeBlockContentWidth(width: number, lineNumbers: boolean) {
   );
 }
 
+export function codeElementContainsClientPoint(
+  element: { x: number; y: number; width: number; height: number; angle: number },
+  viewport: { zoom: number; scrollX: number; scrollY: number },
+  surfaceRect: { left: number; top: number },
+  clientX: number,
+  clientY: number,
+) {
+  const zoom = viewport.zoom;
+  const left = (element.x + viewport.scrollX) * zoom;
+  const top = (element.y + viewport.scrollY) * zoom;
+  const width = element.width * zoom;
+  const height = element.height * zoom;
+  const pointX = clientX - surfaceRect.left;
+  const pointY = clientY - surfaceRect.top;
+  const centerX = left + width / 2;
+  const centerY = top + height / 2;
+  const dx = pointX - centerX;
+  const dy = pointY - centerY;
+  const cos = Math.cos(-element.angle);
+  const sin = Math.sin(-element.angle);
+  const localX = dx * cos - dy * sin + width / 2;
+  const localY = dx * sin + dy * cos + height / 2;
+  return localX >= 0 && localX <= width && localY >= 0 && localY <= height;
+}
+
 export function codeBlockIntersectsViewport({
   x,
   y,

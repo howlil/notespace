@@ -7,12 +7,32 @@ import {
   CODE_BLOCK_LINE_HEIGHT,
   CODE_BLOCK_LINE_NUMBER_WIDTH,
   codeBlockContentWidth,
+  codeElementContainsClientPoint,
   codeBlockOutputLayout,
   codeBlockHeightChanged,
   codeBlockIntersectsViewport,
   codeBlockMinimumHeight,
   shouldSwitchCodeBlockToManualHeight,
 } from "./canvas-code-block-layout.ts";
+
+test("code hit testing uses scrolled/zoomed surface coordinates and inclusive edges", () => {
+  const element = { x: 100, y: 50, width: 100, height: 50, angle: 0 };
+  const viewport = { zoom: 2, scrollX: 10, scrollY: -5 };
+  const surface = { left: 20, top: 30 };
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 240, 120), true);
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 440, 220), true);
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 239, 120), false);
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 440, 221), false);
+});
+
+test("code hit testing unrotates around the rendered center rather than the bounding box", () => {
+  const element = { x: 0, y: 0, width: 100, height: 40, angle: Math.PI / 2 };
+  const viewport = { zoom: 1, scrollX: 0, scrollY: 0 };
+  const surface = { left: 0, top: 0 };
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 50, -20), true);
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 10, 20), false);
+  assert.equal(codeElementContainsClientPoint(element, viewport, surface, 50, 71), false);
+});
 
 test("one-line code blocks start compact and line numbers reserve body width", () => {
   const minimum = codeBlockMinimumHeight();

@@ -10,7 +10,7 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/element/t
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
-import { readLocalStorage, writeLocalStorage } from "../../../shared/browser/local-storage";
+import { readStoredLibraryItems, writeStoredLibraryItems } from "./assets/canvas-library";
 import type { Snapshot } from "../../../domain/workspace/workspace";
 import { DiagramPalette } from "./diagram/palette/DiagramPalette";
 import {
@@ -23,13 +23,13 @@ import {
   type StructuredDiagram,
 } from "../../../domain/diagram/diagram";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
-import { mergeDiagramHistory, sameDiagramSelection, sameStructuredDiagrams } from "./state/canvas-state";
+import { mergeDiagramHistory, mergeDiagramSets, sameDiagramSelection, sameStructuredDiagrams } from "./state/canvas-state";
 import { directionFromKey } from "./flowchart/CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./code/CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer, defaultCodeBlockView, type CodeBlockViewOptions } from "./code/CanvasCodeBlockLayer";
 import { copyCanvasImage, downloadCanvasImage } from "./code/canvas-code-block-export-actions";
 import { defaultCanvasCodeBlock, effectiveCanvasCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
-import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight } from "./code/canvas-code-block-layout";
+import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, codeElementContainsClientPoint } from "./code/canvas-code-block-layout";
 import { CanvasBottomChrome, type CanvasContextualAnchor } from "./chrome/CanvasBottomChrome";
 import { CanvasToolRail } from "./chrome/CanvasToolRail";
 import { CanvasViewControls } from "./chrome/CanvasViewControls";
@@ -46,7 +46,7 @@ import { useCanvasAssets } from "./assets/use-canvas-assets";
 import { useCanvasFlowchart } from "./flowchart/use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./diagram/use-canvas-diagram-commands";
 import { useCodeRunner } from "./code/execution/use-code-runner";
-import { canvasPinchViewport } from "./viewport/canvas-pinch-zoom";
+import { useCanvasPinch } from "./viewport/use-canvas-pinch";
 import {
   canvasBackgroundColor,
   codeGeometryMap,
@@ -111,51 +111,8 @@ const canvasUIOptions = {
   tools: { image: true },
 };
 
-const EXCALIDRAW_LIBRARY_STORAGE_KEY = "notespace.excalidraw.library.v1";
-
 declare global {
   interface Window { EXCALIDRAW_ASSET_PATH: string; }
-}
-function readStoredLibraryItems(): LibraryItems {
-  try {
-    const raw = readLocalStorage(EXCALIDRAW_LIBRARY_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed as LibraryItems : [];
-  } catch {
-    return [];
-  }
-}
-
-function mergeDiagramSets(local: readonly StructuredDiagram[], remote: readonly StructuredDiagram[]) {
-  const merged = new Map(local.map((diagram) => [diagram.id, diagram]));
-  for (const diagram of remote) merged.set(diagram.id, diagram);
-  return [...merged.values()];
-}
-
-function codeElementContainsClientPoint(
-  element: OrderedExcalidrawElement,
-  viewport: { zoom: number; scrollX: number; scrollY: number },
-  surfaceRect: DOMRect,
-  clientX: number,
-  clientY: number,
-) {
-  const zoom = viewport.zoom;
-  const left = (element.x + viewport.scrollX) * zoom;
-  const top = (element.y + viewport.scrollY) * zoom;
-  const width = element.width * zoom;
-  const height = element.height * zoom;
-  const pointX = clientX - surfaceRect.left;
-  const pointY = clientY - surfaceRect.top;
-  const centerX = left + width / 2;
-  const centerY = top + height / 2;
-  const dx = pointX - centerX;
-  const dy = pointY - centerY;
-  const cos = Math.cos(-element.angle);
-  const sin = Math.sin(-element.angle);
-  const localX = dx * cos - dy * sin + width / 2;
-  const localY = dx * sin + dy * cos + height / 2;
-  return localX >= 0 && localX <= width && localY >= 0 && localY <= height;
 }
 
 type CanvasEditorProps = {
@@ -405,7 +362,7 @@ export default function CanvasEditor({
   }, []);
 
   const persistLibraryItems = useCallback((items: LibraryItems) => {
-    if (!writeLocalStorage(EXCALIDRAW_LIBRARY_STORAGE_KEY, JSON.stringify(items))) {
+    if (!writeStoredLibraryItems(items)) {
       showToast({ kind: "error", message: "Could not persist the Excalidraw library in this browser." });
     }
   }, [showToast]);
@@ -806,45 +763,7 @@ export default function CanvasEditor({
     });
   }, [editingCodeBlockId, liveCodeElementIds, selectedElementCount, selectedElementId]);
 
-  useEffect(() => {
-    // Excalidraw's wheel handler accepts only select DOM targets. The authoring
-    // overlays can therefore swallow a trackpad pinch, especially in WebView2.
-    // Capture modified wheel before the Excalidraw handler; normal two-finger
-    // scrolling still reaches Excalidraw as pan, with no double zoom.
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    const handlePinch = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!target.closest(".excalidraw__canvas, [data-canvas-code-block]")) return;
-      if (target.closest('input, textarea, select, button, [contenteditable="true"], [role="toolbar"], iframe')) return;
-
-      const editor = api.current;
-      if (!editor) return;
-      const state = editor.getAppState();
-      const next = canvasPinchViewport({
-        zoom: state.zoom.value,
-        scrollX: state.scrollX,
-        scrollY: state.scrollY,
-      }, event, surface.getBoundingClientRect());
-      if (!next) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      editor.updateScene({
-        appState: {
-          zoom: { value: next.zoom as AppState["zoom"]["value"] },
-          scrollX: next.scrollX,
-          scrollY: next.scrollY,
-        },
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-    };
-    surface.addEventListener("wheel", handlePinch, { capture: true, passive: false });
-    return () => surface.removeEventListener("wheel", handlePinch, true);
-  }, []);
+  useCanvasPinch(surfaceRef, api);
 
   useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);

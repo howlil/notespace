@@ -6,7 +6,8 @@ import { join } from "node:path";
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 const ws = read("apps/web/src/pages/workspace/WorkspacePage.tsx");
 const authoring = read("apps/web/src/features/workspace-authoring/session/WorkspaceAuthoring.tsx");
-const canvas = read("apps/web/src/features/workspace-authoring/canvas/chrome/CanvasChrome.tsx");
+const canvas = ["CanvasToolRail.tsx", "CanvasViewControls.tsx", "CanvasBottomChrome.tsx"]
+  .map((file) => read(`apps/web/src/features/workspace-authoring/canvas/chrome/${file}`)).join("\n");
 const navigation = read("apps/web/src/features/library/explorer/use-library-navigation.ts");
 const assets = read("apps/web/src/features/workspace-authoring/canvas/assets/use-canvas-assets.ts");
 const stylesheet = read("apps/web/src/features/workspace-authoring/workspace-authoring.css");

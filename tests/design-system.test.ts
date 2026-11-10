@@ -65,7 +65,8 @@ test("shared transient surfaces keep tokenized elevation while Workspace chrome 
     assert.ok(read(path).includes("[box-shadow:var(--shadow-popup)]"), path);
   }
   for (const path of [
-    "apps/web/src/features/workspace-authoring/canvas/chrome/CanvasChrome.tsx",
+    "apps/web/src/features/workspace-authoring/canvas/chrome/CanvasToolRail.tsx",
+    "apps/web/src/features/workspace-authoring/canvas/chrome/CanvasViewControls.tsx",
   ]) {
     const workspaceChrome = read(path);
     assert.ok(workspaceChrome.includes("shadow-none"), path);

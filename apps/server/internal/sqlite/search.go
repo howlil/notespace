@@ -58,44 +58,8 @@ func (s *Store) syncSearchIndex(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.version
-FROM projects p LEFT JOIN workspace_search_meta m ON m.workspace_id=p.id
-WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title`)
-	if err != nil {
+	if err := searchquery.SyncIndexTx(ctx, tx); err != nil {
 		return err
-	}
-	stale := []searchquery.StaleSearchWorkspace{}
-	for rows.Next() {
-		var value searchquery.StaleSearchWorkspace
-		if err := rows.Scan(&value.ID, &value.CategoryID, &value.Title, &value.Version); err != nil {
-			rows.Close()
-			return err
-		}
-		stale = append(stale, value)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search_meta WHERE workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
-		return err
-	}
-	for _, value := range stale {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id=?`, value.ID); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, "", "", "", value.Title, ""); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
-ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.ID, value.Version, value.CategoryID, value.Title); err != nil {
-			return err
-		}
 	}
 	return tx.Commit()
 }
@@ -160,18 +124,11 @@ func (s *Store) refreshWorkspaceSearch(ctx context.Context, workspaceID string) 
 	// Read the authored workspace from the same transaction that advances the
 	// projection. Otherwise an autosave could land after Get and before BeginTx,
 	// causing an older version to overwrite newer search metadata.
-	value, err := workspacequery.ReadProject(tx.QueryRowContext(ctx, `SELECT `+workspacequery.Columns+` FROM projects WHERE id=?`, workspaceID))
+	value, err := workspacequery.GetWorkspaceRecord(tx, ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id=?`, value.ID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, "", "", "", value.Title, ""); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
-ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.ID, value.Version, value.CategoryID, value.Title); err != nil {
+	if err := searchquery.ReplaceWorkspaceTx(ctx, tx, searchquery.StaleSearchWorkspace{ID: value.ID, CategoryID: value.CategoryID, Title: value.Title, Version: value.Version}); err != nil {
 		return err
 	}
 	return tx.Commit()

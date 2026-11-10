@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"time"
 
+	searchquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/search"
 	workspacequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/workspace"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -55,45 +55,11 @@ func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update wor
 	}
 	defer tx.Rollback()
 
-	var state workspacepkg.CanvasState
-	var stored string
-	err = tx.QueryRowContext(ctx, `UPDATE workspace_canvas
-SET canvas_state=?,updated_at=?,version=version+1,element_count=?
-WHERE workspace_id=? AND version=?
-RETURNING canvas_state,version,updated_at`,
-		encoded, now, elementCount, workspaceID, update.Version,
-	).Scan(&stored, &state.Version, &state.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		var count int
-		if countErr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id=?`, workspaceID).Scan(&count); countErr != nil {
-			return workspacepkg.CanvasState{}, countErr
-		}
-		if count == 0 {
-			return workspacepkg.CanvasState{}, workspacepkg.ErrNotFound
-		}
-		return workspacepkg.CanvasState{}, workspacepkg.ErrConflict
-	}
+	state, err := workspacequery.UpdateCanvasTx(ctx, tx, workspaceID, update.Version, encoded, elementCount, now)
 	if err != nil {
 		return workspacepkg.CanvasState{}, err
 	}
-	if err := json.Unmarshal([]byte(stored), &state.Canvas); err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-
-	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1 WHERE id=?`, now, workspaceID)
-	if err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		return workspacepkg.CanvasState{}, workspacepkg.ErrNotFound
-	}
-
-	// Canvas content is not searchable, so advance only the aggregate revision
-	// recorded by an existing FTS projection. Title/category mismatches still
-	// force the normal lazy rebuild.
-	if _, err := tx.ExecContext(ctx, `UPDATE workspace_search_meta
-SET version=(SELECT version FROM projects WHERE id=?)
-WHERE workspace_id=?`, workspaceID, workspaceID); err != nil {
+	if err := searchquery.AdvanceCanvasRevisionTx(ctx, tx, workspaceID); err != nil {
 		return workspacepkg.CanvasState{}, err
 	}
 	if err := tx.Commit(); err != nil {

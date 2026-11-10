@@ -32,6 +32,43 @@ func GetCanvasState(db dbtx.DBTX, ctx context.Context, workspaceID string) (work
 	))
 }
 
+// UpdateCanvasTx borrows the facade's transaction; Canvas and aggregate revision
+// change together. Encoding and element counting happen before Store begins it.
+func UpdateCanvasTx(ctx context.Context, tx dbtx.DBTX, workspaceID string, expectedVersion int, encoded []byte, elementCount int, now string) (workspacepkg.CanvasState, error) {
+	var state workspacepkg.CanvasState
+	var stored string
+	err := tx.QueryRowContext(ctx, `UPDATE workspace_canvas
+SET canvas_state=?,updated_at=?,version=version+1,element_count=?
+WHERE workspace_id=? AND version=?
+RETURNING canvas_state,version,updated_at`,
+		encoded, now, elementCount, workspaceID, expectedVersion,
+	).Scan(&stored, &state.Version, &state.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		var count int
+		if countErr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id=?`, workspaceID).Scan(&count); countErr != nil {
+			return workspacepkg.CanvasState{}, countErr
+		}
+		if count == 0 {
+			return workspacepkg.CanvasState{}, workspacepkg.ErrNotFound
+		}
+		return workspacepkg.CanvasState{}, workspacepkg.ErrConflict
+	}
+	if err != nil {
+		return workspacepkg.CanvasState{}, err
+	}
+	if err := json.Unmarshal([]byte(stored), &state.Canvas); err != nil {
+		return workspacepkg.CanvasState{}, err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE projects SET updated_at=?,version=version+1 WHERE id=?`, now, workspaceID)
+	if err != nil {
+		return workspacepkg.CanvasState{}, err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return workspacepkg.CanvasState{}, workspacepkg.ErrNotFound
+	}
+	return state, nil
+}
+
 func CanvasElementCount(canvas workspacepkg.Snapshot) (int, error) {
 	var scene struct {
 		Elements []struct {

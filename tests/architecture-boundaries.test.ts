@@ -76,14 +76,49 @@ test("feature consumers use public entries and Canvas keeps its lazy boundary", 
   assert.doesNotMatch(source("features/workspace-authoring/index.ts"), /CanvasEditor/);
 });
 
-test("large feature roots contain only explicit capability entries", () => {
-  const roots: Record<string, string[]> = {
-    library: ["backup", "collection", "explorer", "index.ts", "use-library-revision.ts"],
-    "workspace-authoring": ["canvas", "index.ts", "session", "workspace-authoring.css"],
-    desktop: ["chrome", "index.ts", "lifecycle", "recovery", "updates"],
-  };
-  for (const [owner, entries] of Object.entries(roots)) {
-    assert.deepEqual(readdirSync(join(WEB_SRC, "features", owner)).sort(), entries.sort(), `${owner}: place files in their owning capability`);
+function modularRootViolation(file: string, consumers: readonly string[]) {
+  if (file === "index.ts") return;
+  const owners = new Set(consumers.filter((consumer) => consumer.includes("/")).map((consumer) => consumer.split("/")[0]));
+  return owners.size >= 2 ? undefined : "root runtime modules must serve multiple capability owners; otherwise colocate with their owner";
+}
+
+test("modular-root guard distinguishes public entries, actual shared ownership and scattered leaves", () => {
+  assert.equal(modularRootViolation("index.ts", []), undefined);
+  assert.equal(modularRootViolation("revision.ts", ["collection/List.tsx", "explorer/Tree.tsx"]), undefined);
+  assert.equal(modularRootViolation("future-shared.ts", ["unseen-one/One.ts", "unseen-two/Two.ts"]), undefined);
+  assert.ok(modularRootViolation("Stray.tsx", []));
+  assert.ok(modularRootViolation("Stray.tsx", ["index.ts", "collection/List.tsx", "collection/dialogs/Rename.tsx"]));
+});
+
+test("modular feature roots prove cross-capability reuse instead of whitelisting filenames", () => {
+  const featureRoot = join(WEB_SRC, "features");
+  const moduleId = (path: string) => path.replace(/\.tsx?$/, "");
+  for (const feature of readdirSync(featureRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
+    const root = join(featureRoot, feature.name);
+    const files = collect(root);
+    const nested = files.filter((file) => dirname(file) !== root);
+    if (nested.length === 0) continue; // Small cohesive capabilities can remain flat.
+    const consumers = new Map<string, string[]>();
+    for (const file of nested) {
+      for (const dependency of localImports(file)) {
+        const key = moduleId(dependency);
+        consumers.set(key, [...(consumers.get(key) ?? []), relative(root, file).replaceAll("\\", "/")]);
+      }
+    }
+    for (const file of files.filter((file) => dirname(file) === root)) {
+      assert.equal(modularRootViolation(relative(root, file), consumers.get(moduleId(file)) ?? []), undefined, `${feature.name}/${relative(root, file)}: colocate with its actual owner`);
+    }
+  }
+});
+
+test("new capability names are allowed, generic root dumps are not", () => {
+  const generic = new Set(["components", "hooks", "services", "utils", "providers", "repositories"]);
+  const featureRoots = readdirSync(join(WEB_SRC, "features"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory()).map((entry) => join(WEB_SRC, "features", entry.name));
+  for (const root of [WEB_SRC, ...featureRoots]) {
+    for (const entry of readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
+      assert.ok(!generic.has(entry.name), `${relative(WEB_SRC, root)}/${entry.name}: use the owning capability, not a generic dump`);
+    }
   }
 });
 

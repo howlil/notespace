@@ -111,6 +111,21 @@ K6 Migration: migrations are append-only and must validate existing data, retain
 
 K7 Note retirement: the runtime is Canvas-only, but the current code still has compatibility DTO fields (`Note`, document, references) and historical schema names. New behavior must not create Note state. Removing those fields or legacy routes is a separate contract change and requires migration/backup evidence.
 
+Compatibility classification (#201 S8; router + capability handlers/models are implementation truth):
+
+| Surface / DTO owner | Classification and traced consumers |
+| --- | --- |
+| Workspace/Canvas/category/search/assets/Trash/backup routes; Summary, WorkspacePage, CategorySummary, CanvasState/CanvasUpdate, SearchResult, Trash records | Active product: adapters/http/workspace-api, adapters/assets/image-api, Library/session/Canvas; Web and desktop share this HTTP client. |
+| GET/POST /api/projects; GET/PATCH/DELETE /api/projects/{id}; PATCH .../{id}/title and .../{id}/category | External compatibility aliases (7 method/path pairs); same workspace handlers; successor/deprecation headers and legacy Location retained. workspace_http_test covers aliases/restart. No current Web/desktop production caller found; this is NOT proof of no external clients. |
+| PATCH /api/workspaces/{id} complete snapshot; Workspace, Update, Note, Reference, HistoryEntry/HistorySnapshot document/notes/references/splitRatio fields | External DTO compatibility + backup/migration requirement; current UI writes Canvas through /canvas instead. Empty retired shapes remain in Web/domain and Go/workspace; old documents/notes are normalized/scrubbed, not restored as authoring UI. |
+| GET workspace/{id}/plan; POST milestones/tasks; PATCH/DELETE milestone/task IDs (all under /api/workspaces/{id}) | External compatibility + backup: planning Plan/Milestone/Task and MilestonePatch/TaskPatch; planning handlers, Store invariants, HTTP/idempotency/concurrency and restore tests. |
+| GET /api/tasks/{today,inbox,unassigned}; GET/PATCH/DELETE /api/tasks/{taskId}; POST /api/tasks; POST /api/tasks/{taskId}/assign-workspace | External compatibility + backup: planning Today/TodayTask/Inbox/Task; historical standalone/assigned task identity and attribution remain. No current production Web/desktop caller found. |
+| GET/POST /api/captures; GET/PATCH/DELETE /api/captures/{captureId}; POST .../{captureId}/organize | External compatibility + backup: capture Item/Organize, CRUD content/version bodies and receipt fields; only task organization is accepted, legacy document input remains rejected. Capture HTTP/retry/backup tests and normalization are consumers. |
+| GET /api/activity/sessions; PUT/DELETE .../sessions/{sessionId}; GET /api/activity/stats; GET /api/activity/{date}; GET /api/activity | External compatibility + durable backup/migration ledger: Session, Heartbeat/ActivityHeartbeat, WorkspaceStats, Activity/DayActivity, DayDetail/WorkspaceBreakdown. Activity HTTP/revision/deletion/restart tests and studySessions/deleted-ID backup fields remain. TaskRef/WorkspaceRef are internal lookup ports, not wire DTOs. |
+| LibraryBackup/WorkspaceEnvelope/TrashRecord; archive manifest/workspace/trash/blob/asset shapes; JSON v1–3, ZIP v2–3 and historical Trash gob fields | Active recovery + backup/migration requirement: library handlers, desktop's shared Web backup tools, prior-format and actual SQLite rollback tests. Native manual/pre-upgrade SQLite snapshots are a separate connection-lifetime path. Schema names projects/study_sessions and legacy FTS note columns stay; current search returns only category/workspace. |
+
+The current Web route map exposes only Home and Workspace; no retired authoring route was reintroduced. No exposed legacy surface is classified safe-to-delete. No retirement is proposed here. Future removal needs explicit product approval, a separate expand→migrate→contract change, recovery and supported N-1 proof; a missing frontend route or caller never authorizes deletion.
+
 DEP1 SQLite/modernc: local durable store; failure blocks writes and startup, recovery is through validation and backup paths; no remote availability target is assumed.
 DEP2 Tauri/WebView2: desktop host boundary; failure is surfaced as recoverable startup/native verification failure, not hidden in web product code.
 DEP3 Excalidraw: editor implementation dependencies; failures are contained by Workspace-authoring adapters and persisted snapshots.
@@ -170,8 +185,8 @@ F4: Server packages keep `httpapi → capability → sqlite` direction through c
 F5: No new Note authoring surface or legacy UI route | source/route contract tests | CI | pass when retirement tests remain green; compatibility fields are allowed only at K7.
 F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.
 
-F7: Feature outsiders use its public entry; no self-barrel, eager Canvas export or scattered large-feature roots | web architecture tests with negative entry cases | `bun run test`.
-F8: Handler/query children cannot import root facades; query packages cannot open connections or own Begin/Commit/Rollback | Go AST/import checks, negative dependency cases; real mid-write restore rollback proof | `go test -race ./...`.
+F7: Feature outsiders use its public entry; no self-barrel or eager Canvas export. Modular feature roots hold entries or runtime modules with actual consumers in >=2 child capabilities; single-owner leaves colocate, small cohesive features may stay flat. New capability names need no filename-list update; generic root dumps are rejected | web import/ownership checks with negative cases | `bun run test`.
+F8: Handler/query children cannot import root facades; query packages cannot open connections or own Begin/Commit/Rollback. Root roles, not filenames, identify HTTP routing/middleware and Store-signature/connection-lifetime files; capability decoding and ZIP codecs stay in their owners. Only Open constructs the writable Store pool; recovery handles are explicitly read-only | Go AST/import and negative role/dependency cases; real mid-write rollback proof | `go test -race ./...`.
 F9: Nested browser suites remain discovered exactly once; configured script entries exist in dev/verify/release/assets | `tests/browser-discovery.test.ts`, recursive all/critical/file selection | `bun run test`; script-specific suites retain existing CI owners.
 
 ## Debt and risks

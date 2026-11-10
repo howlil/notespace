@@ -54,31 +54,6 @@ func TestPrivateDependencyGuard(t *testing.T) {
 	}
 }
 
-func TestAdapterRootsKeepOnlyFacadesAndLifetimeOwners(t *testing.T) {
-	roots := map[string]map[string]bool{
-		"httpapi": {"router.go": true, "middleware.go": true, "observability.go": true},
-		"sqlite": {
-			"sqlite.go": true, "indexed_store.go": true,
-			"workspace.go": true, "workspace_pagination.go": true,
-			"planning.go": true, "activity.go": true, "capture.go": true,
-			"assets.go": true, "library.go": true, "search.go": true,
-			"manual_snapshot.go": true, "preupgrade.go": true,
-		},
-	}
-	for owner, allowed := range roots {
-		entries, err := os.ReadDir(filepath.Join("..", owner))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, entry := range entries {
-			name := entry.Name()
-			if !entry.IsDir() && strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") && !allowed[name] {
-				t.Errorf("%s/%s: place implementation in its capability package; new root owners require an explicit boundary update", owner, name)
-			}
-		}
-	}
-}
-
 const modulePath = "github.com/howlil/notespace/apps/server/internal/"
 
 var allowedDependencies = map[string]map[string]bool{

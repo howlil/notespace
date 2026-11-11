@@ -51,3 +51,9 @@ test("Quick Open category destinations carry the category route identity", () =>
   assert.equal(destination.categoryId, "category/a");
   assert.equal(destination.workspaceId, "workspace/a");
 });
+
+test("Quick Open keeps unplaced Note search results on a safe route", () => {
+  const note = result({ type: "note", noteId: "note-1", workspaceId: "", workspaceTitle: "" });
+  assert.equal(searchResultHref(note), "/");
+  assert.equal(destinationFromSearchResult(note).context, "Unplaced Canvas Note");
+});

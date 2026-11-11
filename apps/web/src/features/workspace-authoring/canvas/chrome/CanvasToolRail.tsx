@@ -174,7 +174,7 @@ export function CanvasToolRail(props: {
       <div className="flex min-h-0 flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} toolType={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
         <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
-        <ToolButton icon={<StickyNote className={controlGlyphClass} strokeWidth={1.5} />} label="Note" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertNote(); }} />
+        <ToolButton icon={<StickyNote className={controlGlyphClass} strokeWidth={1.5} />} label="Note" shortcut="N" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertNote(); }} />
       </div>
       <span className="my-0.5 h-px w-5 shrink-0 bg-line" aria-hidden="true" />
       <div ref={diagramAnchorRef} data-canvas-menu-trigger="true" className="group relative flex shrink-0">

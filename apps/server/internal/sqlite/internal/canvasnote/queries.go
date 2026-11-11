@@ -31,6 +31,35 @@ func GetNote(db dbtx.DBTX, ctx context.Context, id string) (note.Note, error) {
 		FROM canvas_notes WHERE id=?`, id))
 }
 
+func ListBacklinks(db dbtx.DBTX, ctx context.Context, targetID string) ([]note.Backlink, error) {
+	rows, err := db.QueryContext(ctx, `
+SELECT source.id,COALESCE(instance.id,''),COALESCE(instance.element_id,''),COALESCE(instance.workspace_id,''),COALESCE(project.title,''),source.document_state
+FROM canvas_notes source
+LEFT JOIN canvas_note_instances instance ON instance.note_id=source.id
+LEFT JOIN projects project ON project.id=instance.workspace_id
+WHERE source.id<>?
+  AND EXISTS (
+    SELECT 1
+    FROM json_tree(source.document_state) reference
+    WHERE (reference.key='noteId' AND CAST(reference.value AS TEXT)=?)
+       OR (reference.key='href' AND CAST(reference.value AS TEXT) LIKE '%?noteId=' || ? || '%')
+  )
+ORDER BY source.updated_at DESC,instance.id`, targetID, targetID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	backlinks := []note.Backlink{}
+	for rows.Next() {
+		var value note.Backlink
+		if err := rows.Scan(&value.NoteID, &value.InstanceID, &value.ElementID, &value.WorkspaceID, &value.WorkspaceTitle, &value.Excerpt); err != nil {
+			return nil, err
+		}
+		backlinks = append(backlinks, value)
+	}
+	return backlinks, rows.Err()
+}
+
 func InsertNoteTx(ctx context.Context, tx dbtx.DBTX, value note.Note) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO canvas_notes(id,schema_version,document_state,revision,created_at,updated_at) VALUES (?,?,?,?,?,?)`,
 		value.ID, value.SchemaVersion, string(value.Document), value.Revision, value.CreatedAt, value.UpdatedAt)
@@ -135,6 +164,7 @@ func SyncGeometryTx(ctx context.Context, tx dbtx.DBTX, workspaceID string, canva
 				Reference struct {
 					NoteID     string `json:"noteId"`
 					InstanceID string `json:"instanceId"`
+					Compact    *bool  `json:"compact"`
 				} `json:"notespaceNote"`
 			} `json:"customData"`
 		} `json:"elements"`
@@ -148,6 +178,11 @@ func SyncGeometryTx(ctx context.Context, tx dbtx.DBTX, workspaceID string, canva
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE canvas_note_instances SET element_id=?,x=?,y=?,width=?,height=?,updated_at=? WHERE workspace_id=? AND id=? AND note_id=?`, element.ID, element.X, element.Y, element.Width, element.Height, updatedAt, workspaceID, element.CustomData.Reference.InstanceID, element.CustomData.Reference.NoteID); err != nil {
 			return err
+		}
+		if element.CustomData.Reference.Compact != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE canvas_note_instances SET compact=?,updated_at=? WHERE workspace_id=? AND id=? AND note_id=?`, boolInt(*element.CustomData.Reference.Compact), updatedAt, workspaceID, element.CustomData.Reference.InstanceID, element.CustomData.Reference.NoteID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

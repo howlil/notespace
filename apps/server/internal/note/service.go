@@ -24,6 +24,17 @@ func (s Service) Get(ctx context.Context, id string) (Note, error) {
 	return s.store.GetNote(ctx, id)
 }
 
+func (s Service) Backlinks(ctx context.Context, id string) ([]Backlink, error) {
+	id = strings.TrimSpace(id)
+	if !ValidateID(id, MaxNoteIDLength) {
+		return nil, ErrInvalid
+	}
+	if _, err := s.store.GetNote(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.store.ListBacklinks(ctx, id)
+}
+
 func (s Service) Update(ctx context.Context, id string, request UpdateRequest) (Note, error) {
 	id = strings.TrimSpace(id)
 	if !ValidateID(id, MaxNoteIDLength) || ValidateUpdateRequest(request) != nil {

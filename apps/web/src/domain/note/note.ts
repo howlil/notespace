@@ -10,7 +10,7 @@ export type NoteNode = {
 
 export type NoteDocument = { type: "doc"; content: NoteNode[] };
 
-export type CanvasNoteReference = { noteId: string; instanceId: string };
+export type CanvasNoteReference = { noteId: string; instanceId: string; compact?: boolean };
 
 export const CANVAS_NOTE_DATA_KEY = "notespaceNote";
 
@@ -26,7 +26,7 @@ export function readCanvasNoteReference(element: { customData?: unknown; isDelet
   if (!reference || typeof reference !== "object") return null;
   const { noteId, instanceId } = reference as Record<string, unknown>;
   return typeof noteId === "string" && noteId.length > 0 && typeof instanceId === "string" && instanceId.length > 0
-    ? { noteId, instanceId }
+    ? { noteId, instanceId, ...(typeof (reference as Record<string, unknown>).compact === "boolean" ? { compact: (reference as Record<string, unknown>).compact as boolean } : {}) }
     : null;
 }
 

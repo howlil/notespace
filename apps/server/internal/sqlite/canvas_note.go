@@ -18,6 +18,10 @@ func (s *Store) GetNote(ctx context.Context, id string) (note.Note, error) {
 	return canvasnotequery.GetNote(s.db, ctx, id)
 }
 
+func (s *Store) ListBacklinks(ctx context.Context, id string) ([]note.Backlink, error) {
+	return canvasnotequery.ListBacklinks(s.db, ctx, id)
+}
+
 func (s *Store) UpdateNote(ctx context.Context, id string, request note.UpdateRequest) (note.Note, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

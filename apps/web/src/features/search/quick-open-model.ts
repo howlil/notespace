@@ -19,6 +19,7 @@ export function searchResultHref(result: SearchResult) {
     return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
   }
   if (result.type === "note" && result.noteId) {
+    if (!result.workspaceId) return "/";
     return `/workspaces/${encodeURIComponent(result.workspaceId)}?noteId=${encodeURIComponent(result.noteId)}`;
   }
   return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
@@ -32,7 +33,7 @@ export function destinationFromSearchResult(result: SearchResult): QuickOpenDest
       : result.type === "note" ? "Canvas Note" : result.workspaceTitle,
     context: result.type === "category"
       ? "Category"
-      : result.type === "note" ? result.workspaceTitle : result.categoryTitle || "Workspace",
+      : result.type === "note" ? result.workspaceTitle || "Unplaced Canvas Note" : result.categoryTitle || "Workspace",
     href: searchResultHref(result),
     kind: result.type,
     categoryId: result.type === "category" ? result.categoryId : undefined,

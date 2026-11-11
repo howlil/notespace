@@ -122,7 +122,7 @@ func (s *Store) SearchIndexed(ctx context.Context, query string) ([]workspacepkg
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT s.type,s.category_id,COALESCE(c.title,''),s.workspace_id,s.workspace_title,s.note_id,s.note_title,s.block_id,s.title,s.content
 FROM workspace_search s LEFT JOIN categories c ON c.id=s.category_id
-WHERE s.type='workspace' AND workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match)
+WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,12 @@ WHERE s.type='workspace' AND workspace_search MATCH ? ORDER BY bm25(workspace_se
 		if err := rows.Scan(&kind, &categoryID, &categoryTitle, &workspaceID, &workspaceTitle, &noteID, &noteTitle, &blockID, &title, &content); err != nil {
 			return nil, err
 		}
-		results = append(results, workspacepkg.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, Excerpt: title})
+		result := workspacepkg.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, Excerpt: title}
+		if kind == "note" {
+			result.InstanceID = blockID
+			result.Excerpt = content
+		}
+		results = append(results, result)
 	}
 	return results, rows.Err()
 }

@@ -26,6 +26,7 @@ export type NoteInstance = {
 };
 
 export type NoteCanvasState = { canvas: Snapshot; version: number; updatedAt: string };
+export type NoteBacklink = { noteId: string; workspaceId?: string; workspaceTitle?: string; instanceId?: string; elementId?: string; excerpt: string };
 
 export type CreateNoteInstanceRequest = {
   clientRequestId: string;
@@ -47,6 +48,7 @@ export type CreateNoteInstanceResult = { note: Note; instance: NoteInstance; can
 
 export interface NoteHttpClient {
   getNote(noteId: string): Promise<Note>;
+  listBacklinks(noteId: string): Promise<NoteBacklink[]>;
   updateNote(noteId: string, document: NoteDocument, expectedRevision: number): Promise<Note>;
   createNoteInstance(workspaceId: string, request: CreateNoteInstanceRequest): Promise<CreateNoteInstanceResult>;
   deleteNoteInstance(workspaceId: string, instanceId: string, canvas: Snapshot, expectedCanvasVersion: number): Promise<NoteCanvasState>;
@@ -55,6 +57,7 @@ export interface NoteHttpClient {
 export function createNoteHttpClient(transport: HttpTransport = fetchTransport): NoteHttpClient {
   return {
     getNote: (noteId) => request<Note>(`/api/notes/${encodeURIComponent(noteId)}`, undefined, transport),
+    listBacklinks: (noteId) => request<NoteBacklink[]>(`/api/notes/${encodeURIComponent(noteId)}/backlinks`, undefined, transport),
     updateNote: (noteId, document, expectedRevision) => request<Note>(`/api/notes/${encodeURIComponent(noteId)}`, {
       method: "PUT",
       ...json({ document, expectedRevision }),
@@ -72,6 +75,7 @@ export function createNoteHttpClient(transport: HttpTransport = fetchTransport):
 
 const defaultClient = createNoteHttpClient();
 export const getNote = defaultClient.getNote;
+export const listNoteBacklinks = defaultClient.listBacklinks;
 export const updateNote = defaultClient.updateNote;
 export const createNoteInstance = defaultClient.createNoteInstance;
 export const deleteNoteInstance = defaultClient.deleteNoteInstance;

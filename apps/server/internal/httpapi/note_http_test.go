@@ -104,6 +104,28 @@ func TestCanvasNoteCreateUpdateConflictRetryAndRemove(t *testing.T) {
 	if shared.Note.ID != created.Note.ID || shared.Instance.ID != sharedInstance.ClientInstanceID {
 		t.Fatalf("linked instance changed canonical identity: %+v", shared)
 	}
+	backlinkWorkspace := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Backlink source"}))
+	backlinkDocument := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"See target","marks":[{"type":"link","attrs":{"href":"/workspaces/` + workspace.ID + `?noteId=` + created.Note.ID + `"}}]}]}]}`)
+	backlinkCreated := call(t, api, http.MethodPost, "/api/workspaces/"+backlinkWorkspace.ID+"/note-instances", note.CreateInstanceRequest{
+		ClientRequestID:       "request-backlink",
+		ClientNoteID:          "backlink-note",
+		ClientInstanceID:      "backlink-instance",
+		ElementID:             "backlink-element",
+		ExpectedCanvasVersion: backlinkWorkspace.CanvasVersion,
+		Document:              backlinkDocument,
+		Canvas:                testNoteCanvas("backlink-element", "backlink-note", "backlink-instance", false),
+		X:                     40, Y: 64, Width: 320, Height: 180,
+	})
+	expect(t, backlinkCreated, http.StatusOK)
+	backlinksResponse := call(t, api, http.MethodGet, "/api/notes/"+created.Note.ID+"/backlinks", nil)
+	expect(t, backlinksResponse, http.StatusOK)
+	var backlinks []note.Backlink
+	if err := json.Unmarshal(backlinksResponse.Body.Bytes(), &backlinks); err != nil {
+		t.Fatal(err)
+	}
+	if len(backlinks) != 1 || backlinks[0].NoteID != "backlink-note" || backlinks[0].WorkspaceID != backlinkWorkspace.ID {
+		t.Fatalf("backlinks = %+v", backlinks)
+	}
 	expect(t, call(t, api, http.MethodPut, "/api/notes/"+created.Note.ID, note.UpdateRequest{Document: updatedDocument, ExpectedRevision: created.Note.Revision}), http.StatusConflict)
 
 	removedCanvas := testNoteCanvas("element-1", created.Note.ID, created.Instance.ID, true)

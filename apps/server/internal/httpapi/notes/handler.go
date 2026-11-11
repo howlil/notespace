@@ -20,6 +20,15 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 	transport.Send(w, http.StatusOK, value)
 }
 
+func (h Handler) Backlinks(w http.ResponseWriter, r *http.Request) {
+	value, err := h.notes.Backlinks(r.Context(), r.PathValue("id"))
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusOK, value)
+}
+
 func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var request note.UpdateRequest
 	if !transport.Decode(w, r, &request) {

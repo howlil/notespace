@@ -10,6 +10,8 @@ import { registerDesktopFlush } from "../../../adapters/desktop/desktop-lifecycl
 import { subscribeWorkspaceConflict } from "../../../adapters/browser/workspace-conflict-events";
 import { CanvasConflictRecovery } from "./CanvasConflictRecovery";
 import { createNoteInstance, deleteNoteInstance, updateNote } from "../../../adapters/http/note-api";
+import type { SaveStatus } from "../../../domain/workspace/autosave";
+import type { NoteSaveStatus } from "../canvas/note/CanvasNoteCardLayer";
 
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
 
@@ -18,13 +20,22 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
   const { dark } = useTheme();
   const { showToast, dismissToast } = useToast();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>({ state: "saved" });
   const normalized = useMemo(() => normalizeWorkspaceContent(workspaceContentOf(workspace)), [workspace]);
   const session = useWorkspaceSession({
     workspaceId: workspace.id,
     canvasVersion: workspace.canvasVersion,
     initial: normalized.content,
   });
-  const { current, canvasVersion, status, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const { current, canvasVersion, status: canvasStatus, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const status = useMemo<SaveStatus>(() => noteSaveStatus.state === "conflict"
+    ? { state: "conflict", message: noteSaveStatus.message ?? "Note save conflict. Your draft remains available for recovery." }
+    : noteSaveStatus.state === "error"
+      ? { state: "error", message: noteSaveStatus.message ?? "Could not save this Note." }
+      : noteSaveStatus.state === "saving" ? { state: "saving" }
+        : noteSaveStatus.state === "pending" ? { state: "pending" }
+          : canvasStatus, [canvasStatus, noteSaveStatus]);
+  const authoringDirty = dirty || noteSaveStatus.state !== "saved";
 
   const createCanvasNote = useCallback(async (request: Parameters<typeof createNoteInstance>[1]) => {
     const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: canvasVersion });
@@ -58,14 +69,17 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
   }, [normalized.content, reconcileWorkspace, showToast, workspace.canvasVersion, workspace.id]);
 
   const retrySave = useCallback(() => {
-    void flushAll().catch((error: unknown) => {
+    const operation = noteSaveStatus.state === "conflict" && noteSaveStatus.recover
+      ? noteSaveStatus.recover()
+      : flushAll();
+    void operation.catch((error: unknown) => {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Save failed. Try again." });
     });
-  }, [flushAll, showToast]);
+  }, [flushAll, noteSaveStatus, showToast]);
 
   const prepareForDestructiveAction = useCallback(async () => {
     if (status.state === "conflict") {
-      showToast({ kind: "error", message: "Resolve the Canvas conflict before deleting this Workspace." });
+      showToast({ kind: "error", message: noteSaveStatus.state === "conflict" ? "Recover the Note draft before deleting this Workspace." : "Resolve the Canvas conflict before deleting this Workspace." });
       return false;
     }
     try {
@@ -79,7 +93,7 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
       });
       return false;
     }
-  }, [flushAll, retrySave, showToast, status.state]);
+  }, [flushAll, noteSaveStatus.state, retrySave, showToast, status.state]);
 
   useEffect(() => {
     if (status.state === "error") {
@@ -90,19 +104,30 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
         action: { label: "Retry save", onClick: retrySave, dismissOnClick: false },
       });
     } else if (status.state === "conflict") {
-      setRecoveryOpen(true);
-      showToast({
-        id: `workspace-conflict-${workspace.id}`,
-        kind: "error",
-        message: status.message ?? "Save conflict. Preserve your local draft before reloading.",
-        duration: Infinity,
-        action: { label: "Recover changes", onClick: () => setRecoveryOpen(true), dismissOnClick: false },
-      });
+      if (noteSaveStatus.state === "conflict") {
+        showToast({
+          id: `workspace-note-conflict-${workspace.id}`,
+          kind: "error",
+          message: status.message ?? "This Note changed elsewhere. Your draft is preserved.",
+          duration: Infinity,
+          action: { label: "Recover Note", onClick: retrySave, dismissOnClick: false },
+        });
+      } else {
+        setRecoveryOpen(true);
+        showToast({
+          id: `workspace-conflict-${workspace.id}`,
+          kind: "error",
+          message: status.message ?? "Save conflict. Preserve your local draft before reloading.",
+          duration: Infinity,
+          action: { label: "Recover changes", onClick: () => setRecoveryOpen(true), dismissOnClick: false },
+        });
+      }
     } else if (status.state === "saved") {
       dismissToast(`workspace-conflict-${workspace.id}`);
+      dismissToast(`workspace-note-conflict-${workspace.id}`);
       dismissToast(`workspace-save-${workspace.id}`);
     }
-  }, [status, retrySave, showToast, dismissToast, workspace.id]);
+  }, [status, noteSaveStatus.state, retrySave, showToast, dismissToast, workspace.id]);
 
   useBlocker({
     shouldBlockFn: async () => {
@@ -119,7 +144,7 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
         return true;
       }
     },
-    enableBeforeUnload: () => dirty,
+    enableBeforeUnload: () => authoringDirty,
   });
 
   useEffect(() => registerDesktopFlush(flushAll), [flushAll]);
@@ -146,6 +171,7 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
           onCreateNote={createCanvasNote}
           onUpdateNote={updateNote}
           onDeleteNoteInstance={deleteCanvasNote}
+          onNoteSaveState={setNoteSaveStatus}
           onRegisterAuthoringFlush={(flush) => registerAuthoringFlush("canvas-assets", flush)}
           onRegisterCanvasExport={session.registerCanvasExport}
           dark={dark}

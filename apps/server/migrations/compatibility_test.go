@@ -179,6 +179,9 @@ func TestKnownLocalNoteRetirementChecksumAllowsFollowupMigration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, followupMigration); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0028_canvas_note_assets.sql"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, "0027_canvas_notes.sql"); err != nil {
 		t.Fatal(err)
 	}

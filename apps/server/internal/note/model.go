@@ -51,6 +51,15 @@ type Note struct {
 	UpdatedAt     string          `json:"updatedAt"`
 }
 
+type Backlink struct {
+	NoteID         string `json:"noteId"`
+	WorkspaceID    string `json:"workspaceId,omitempty"`
+	WorkspaceTitle string `json:"workspaceTitle,omitempty"`
+	InstanceID     string `json:"instanceId,omitempty"`
+	ElementID      string `json:"elementId,omitempty"`
+	Excerpt        string `json:"excerpt"`
+}
+
 type Instance struct {
 	ID          string  `json:"id"`
 	NoteID      string  `json:"noteId"`
@@ -99,6 +108,7 @@ type DeleteInstanceRequest struct {
 
 type Store interface {
 	GetNote(context.Context, string) (Note, error)
+	ListBacklinks(context.Context, string) ([]Backlink, error)
 	UpdateNote(context.Context, string, UpdateRequest) (Note, error)
 	CreateNoteInstance(context.Context, string, CreateInstanceRequest) (CreateInstanceResult, error)
 	DeleteNoteInstance(context.Context, string, string, DeleteInstanceRequest) (CanvasState, error)
@@ -156,6 +166,9 @@ func validateNodes(nodes []any, depth int, count *int) bool {
 		if !ok || strings.TrimSpace(nodeType) == "" || utf8.RuneCountInString(nodeType) > 64 {
 			return false
 		}
+		if !validateNodeAttrs(nodeType, node["attrs"]) {
+			return false
+		}
 		if text, exists := node["text"]; exists {
 			if value, ok := text.(string); !ok || !utf8.ValidString(value) {
 				return false
@@ -175,6 +188,83 @@ func validateNodes(nodes []any, depth int, count *int) bool {
 		}
 	}
 	return true
+}
+
+func validateNodeAttrs(nodeType string, raw any) bool {
+	attrs, hasAttrs := raw.(map[string]any)
+	if nodeType == "noteImage" || nodeType == "noteEmbed" || nodeType == "noteBlockReference" {
+		if !hasAttrs {
+			return false
+		}
+	}
+	if !hasAttrs {
+		return true
+	}
+	if blockID, exists := attrs["blockId"]; exists {
+		value, ok := blockID.(string)
+		if !ok || !ValidateID(value, MaxInstanceIDLength) {
+			return false
+		}
+	}
+	switch nodeType {
+	case "noteImage":
+		if src, exists := attrs["src"]; exists {
+			value, ok := src.(string)
+			if !ok || !safeAssetSource(value) {
+				return false
+			}
+		}
+		if assetID, exists := attrs["assetId"]; exists {
+			value, ok := assetID.(string)
+			if !ok || !ValidateID(value, MaxInstanceIDLength) {
+				return false
+			}
+		}
+		if alt, exists := attrs["alt"]; exists {
+			value, ok := alt.(string)
+			if !ok || !utf8.ValidString(value) || utf8.RuneCountInString(value) > 512 {
+				return false
+			}
+		}
+	case "noteEmbed":
+		if !validateReferenceAttrs(attrs, false) {
+			return false
+		}
+	case "noteBlockReference":
+		if !validateReferenceAttrs(attrs, true) {
+			return false
+		}
+	}
+	return true
+}
+
+func validateReferenceAttrs(attrs map[string]any, requireBlock bool) bool {
+	noteID, ok := attrs["noteId"].(string)
+	if !ok || !ValidateID(noteID, MaxNoteIDLength) {
+		return false
+	}
+	if workspaceID, exists := attrs["workspaceId"]; exists {
+		value, ok := workspaceID.(string)
+		if !ok || (value != "" && !ValidateID(value, MaxNoteIDLength)) {
+			return false
+		}
+	}
+	if requireBlock {
+		blockID, ok := attrs["blockId"].(string)
+		if !ok || !ValidateID(blockID, MaxInstanceIDLength) {
+			return false
+		}
+	}
+	return true
+}
+
+func safeAssetSource(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.ContainsAny(value, "\r\n") || strings.HasPrefix(value, "//") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	return err == nil && parsed.Scheme == "" && parsed.Host == "" && strings.HasPrefix(parsed.Path, "/api/workspaces/")
 }
 
 func validateMarks(marks []any) bool {
@@ -200,13 +290,21 @@ func validateMarks(marks []any) bool {
 }
 
 func safeLink(value string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(value))
+	value = strings.TrimSpace(value)
+	if strings.ContainsAny(value, "\r\n") {
+		return false
+	}
+	if strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "//") {
+		parsed, err := url.Parse(value)
+		return err == nil && parsed.Scheme == "" && parsed.Host == "" && strings.HasPrefix(parsed.Path, "/workspaces/") && strings.TrimPrefix(parsed.Path, "/workspaces/") != ""
+	}
+	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" && parsed.Scheme != "mailto" {
 		return false
 	}
 	switch strings.ToLower(parsed.Scheme) {
 	case "http", "https", "mailto":
-		return !strings.ContainsAny(value, "\r\n")
+		return true
 	default:
 		return false
 	}

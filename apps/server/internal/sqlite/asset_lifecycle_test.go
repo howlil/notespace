@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"path/filepath"
 	"testing"
@@ -27,6 +28,41 @@ func TestPutAssetRejectsNonImageMimeAtStorageBoundary(t *testing.T) {
 	}
 	if _, err := store.PutAsset(ctx, asset.Stored{ID: "svg", WorkspaceID: workspace.ID, MimeType: "image/svg+xml", Data: []byte("<svg/>")}); err != nil {
 		t.Fatalf("image MIME storage error = %v", err)
+	}
+}
+
+func TestCanvasNoteImageAssetFollowsCanonicalDocument(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-note-asset.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Canvas note image")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutAsset(ctx, asset.Stored{ID: "note-image", WorkspaceID: workspace.ID, MimeType: "image/png", Data: []byte("png")}); err != nil {
+		t.Fatal(err)
+	}
+	canvasData := json.RawMessage(`{"elements":[{"id":"note-image-element","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-image-doc","instanceId":"note-image-instance"}}}],"appState":{},"files":{}}`)
+	document := json.RawMessage(`{"type":"doc","content":[{"type":"noteImage","attrs":{"src":"/api/workspaces/` + workspace.ID + `/assets/note-image","assetId":"note-image","alt":"photo"}}]}`)
+	created, err := store.CreateNoteInstance(ctx, workspace.ID, note.CreateInstanceRequest{
+		ClientRequestID: "note-image-request", ClientNoteID: "note-image-doc", ClientInstanceID: "note-image-instance", ElementID: "note-image-element",
+		ExpectedCanvasVersion: workspace.CanvasVersion, Document: document,
+		Canvas: note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData}, X: 0, Y: 0, Width: 320, Height: 180,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); err != nil {
+		t.Fatalf("note image asset was not retained after create: %v", err)
+	}
+	if _, err := store.UpdateNote(ctx, created.Note.ID, note.UpdateRequest{Document: json.RawMessage(`{"type":"doc","content":[]}`), ExpectedRevision: created.Note.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); !errors.Is(err, asset.ErrNotFound) {
+		t.Fatalf("removed note image asset still exists: %v", err)
 	}
 }
 

@@ -1,4 +1,5 @@
 import { EditorContent, useEditor } from "@tiptap/react";
+import type { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import TaskItem from "@tiptap/extension-task-item";
@@ -15,7 +16,7 @@ import { getNote, listNoteBacklinks, type Note } from "../../../../adapters/http
 import { searchNotespace, type SearchResult } from "../../../../adapters/http/workspace-api";
 import { APIError } from "../../../../adapters/http/client";
 import { storeImageAsset } from "../../../../adapters/assets/image-store";
-import { ensureNoteBlockIds, NoteBlockIdentity, NoteBlockReference, NoteEmbed, NoteImage } from "./note-extensions";
+import { ensureNoteBlockIds, NoteBlockIdentity, NoteBlockReference, NoteCallout, NoteEmbed, NoteImage } from "./note-extensions";
 import { sanitizePastedHTML } from "./note-sanitize";
 import { readCanvasNoteReference, type NoteDocument } from "../../../../domain/note/note";
 
@@ -129,12 +130,28 @@ function NoteEditor(props: {
   const appliedRevisionRef = useRef(note.revision);
   const referenceResultsRef = useRef<SearchResult[]>([]);
   const referencePickRef = useRef<(() => void) | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const insertImageFile = useCallback(async (file: File) => {
+    const value = editorRef.current;
+    if (!file.type.startsWith("image/") || !value) return false;
+    try {
+      const assetId = crypto.randomUUID();
+      await storeImageAsset(workspaceId, assetId, file);
+      const src = "/api/workspaces/" + encodeURIComponent(workspaceId) + "/assets/" + encodeURIComponent(assetId);
+      value.chain().focus().insertContent({ type: "noteImage", attrs: { src, assetId, alt: file.name } }).run();
+      return true;
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Could not add this image to the Note.");
+      return false;
+    }
+  }, [onError, workspaceId]);
   const editor = useEditor({
     extensions: [
       StarterKit,
       NoteImage,
       NoteEmbed,
       NoteBlockReference,
+      NoteCallout,
       NoteBlockIdentity,
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["http", "https"], isAllowedUri: (url, context) => isSafeNoteLink(url) && (url.startsWith("/") || context.defaultValidate(url)) }),
       Underline,
@@ -152,6 +169,21 @@ function NoteEditor(props: {
     editorProps: {
       attributes: { class: "min-h-[116px] px-3 py-2 text-[13px] leading-5 text-ink outline-none", "aria-label": "Note content" },
       transformPastedHTML: sanitizePastedHTML,
+      handlePaste: (_view, event) => {
+        const file = [...(event.clipboardData?.files ?? [])].find((value) => value.type.startsWith("image/"));
+        if (!file) return false;
+        event.preventDefault();
+        void insertImageFile(file);
+        return true;
+      },
+      handleDrop: (_view, event, _slice, moved) => {
+        if (moved) return false;
+        const file = [...(event.dataTransfer?.files ?? [])].find((value) => value.type.startsWith("image/"));
+        if (!file) return false;
+        event.preventDefault();
+        void insertImageFile(file);
+        return true;
+      },
       handleKeyDown: (_view, event) => {
         if (event.key === "/" && !event.shiftKey) {
           setSlashOpen(true); setSlashQuery(""); setSlashIndex(0);
@@ -201,6 +233,7 @@ function NoteEditor(props: {
         if (typeof window !== "undefined") window.requestAnimationFrame(() => value.commands.focus("end"));
       },
   });
+  editorRef.current = editor;
 
   useEffect(() => {
     referenceResultsRef.current = referenceResults;
@@ -299,6 +332,7 @@ function NoteEditor(props: {
     ["Checklist", () => editor.chain().focus().toggleTaskList().run()],
     ["Code block", () => editor.chain().focus().toggleCodeBlock().run()],
     ["Quote", () => editor.chain().focus().toggleBlockquote().run()],
+    ["Callout", () => editor.chain().focus().wrapIn("noteCallout", { tone: "note" }).run()],
     ["Block reference", () => {
       const parent = editor.state.selection.$from.parent;
       const blockId = typeof parent.attrs.blockId === "string" && parent.attrs.blockId ? parent.attrs.blockId : crypto.randomUUID();
@@ -338,13 +372,7 @@ function NoteEditor(props: {
   };
   const importImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = "";
-    if (!file || !file.type.startsWith("image/")) return;
-    try {
-      const assetId = crypto.randomUUID();
-      await storeImageAsset(workspaceId, assetId, file);
-      const src = "/api/workspaces/" + encodeURIComponent(workspaceId) + "/assets/" + encodeURIComponent(assetId);
-      editor.chain().focus().insertContent({ type: "noteImage", attrs: { src, assetId, alt: file.name } }).run();
-    } catch (error) { onError(error instanceof Error ? error.message : "Could not add this image to the Note."); }
+    if (file) await insertImageFile(file);
   };
   const setLink = () => { const href = linkURL.trim(); if (href) editor.chain().focus().setLink({ href }).run(); setLinkURL(""); };
   const confirmMarkdown = () => {
@@ -398,6 +426,7 @@ function NoteEditor(props: {
           ["Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList")],
           ["Heading", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 })],
           ["Quote", () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote")],
+          ["Callout", () => editor.chain().focus().wrapIn("noteCallout", { tone: "note" }).run(), editor.isActive("noteCallout")],
           ["Table", () => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run(), false],
           ["Math", () => editor.chain().focus().insertInlineMath({ latex: "x^2" }).run(), false],
           ["Export .md", exportMarkdown, false],

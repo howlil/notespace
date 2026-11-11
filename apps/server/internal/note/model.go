@@ -207,6 +207,13 @@ func validateNodeAttrs(nodeType string, raw any) bool {
 		}
 	}
 	switch nodeType {
+	case "noteCallout":
+		if tone, exists := attrs["tone"]; exists {
+			value, ok := tone.(string)
+			if !ok || !validCalloutTone(value) {
+				return false
+			}
+		}
 	case "noteImage":
 		if src, exists := attrs["src"]; exists {
 			value, ok := src.(string)
@@ -236,6 +243,15 @@ func validateNodeAttrs(nodeType string, raw any) bool {
 		}
 	}
 	return true
+}
+
+func validCalloutTone(value string) bool {
+	switch value {
+	case "note", "info", "tip", "warning", "danger":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateReferenceAttrs(attrs map[string]any, requireBlock bool) bool {

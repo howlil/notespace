@@ -1,10 +1,10 @@
-import { Extension, Node, mergeAttributes } from "@tiptap/core";
+import { Extension, Node, mergeAttributes, type JSONContent, type MarkdownRendererHelpers } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useState } from "react";
 import { getNote, type Note } from "../../../../adapters/http/note-api";
 import type { NoteDocument, NoteNode } from "../../../../domain/note/note";
 
-const blockNodeTypes = new Set(["paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList", "taskList", "table", "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference"]);
+const blockNodeTypes = new Set(["paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList", "taskList", "table", "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference", "noteCallout"]);
 
 function createBlockId() {
   return globalThis.crypto?.randomUUID?.() ?? `block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -223,5 +223,45 @@ export const NoteBlockReference = Node.create({
     const workspaceId = typeof node.attrs?.workspaceId === "string" ? node.attrs.workspaceId : "";
     const blockId = typeof node.attrs?.blockId === "string" ? node.attrs.blockId : "";
     return noteId && blockId && workspaceId ? `[Block reference](/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(noteId)}&blockId=${encodeURIComponent(blockId)})` : `[Block reference: ${blockId || "unavailable"}]`;
+  },
+});
+
+const calloutTones = new Set(["note", "info", "tip", "warning", "danger"]);
+
+function calloutTone(value: unknown) {
+  return typeof value === "string" && calloutTones.has(value) ? value : "note";
+}
+
+export const NoteCallout = Node.create({
+  name: "noteCallout",
+  group: "block",
+  content: "block+",
+  defining: true,
+  isolating: true,
+
+  addAttributes() {
+    return {
+      tone: { default: "note" },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "aside[data-note-callout]" }];
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const tone = calloutTone(node.attrs.tone);
+    return ["aside", mergeAttributes(HTMLAttributes, {
+      "data-note-callout": tone,
+      "data-callout-tone": tone,
+      class: `notespace-note-callout notespace-note-callout-${tone}`,
+    }), 0];
+  },
+
+  renderMarkdown: (node: JSONContent, helpers: MarkdownRendererHelpers) => {
+    const tone = calloutTone(node.attrs?.tone).toUpperCase();
+    const content = helpers.renderChildren(node.content ?? [], "\n\n").trim();
+    const quoted = content.split("\n").map((line) => `> ${line}`.trimEnd()).join("\n");
+    return `> [!${tone}]${quoted ? `\n${quoted}` : ""}`;
   },
 });

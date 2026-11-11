@@ -2,6 +2,7 @@ package note
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -35,5 +36,16 @@ func TestValidateDocumentAcceptsManagedNoteNodesAndRejectsUnsafeAttrs(t *testing
 		if err := ValidateDocument(json.RawMessage(document)); err != ErrInvalid {
 			t.Fatalf("unsafe managed node document error = %v", err)
 		}
+	}
+}
+
+func TestValidateDocumentAcceptsCalloutsAndRejectsUnknownTone(t *testing.T) {
+	valid := json.RawMessage(`{"type":"doc","content":[{"type":"noteCallout","attrs":{"tone":"warning"},"content":[{"type":"paragraph","content":[{"type":"text","text":"Check this"}]}]}]}`)
+	if err := ValidateDocument(valid); err != nil {
+		t.Fatalf("valid callout rejected: %v", err)
+	}
+	invalid := json.RawMessage(`{"type":"doc","content":[{"type":"noteCallout","attrs":{"tone":"javascript"},"content":[{"type":"paragraph"}]}]}`)
+	if err := ValidateDocument(invalid); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unknown callout tone accepted: %v", err)
 	}
 }

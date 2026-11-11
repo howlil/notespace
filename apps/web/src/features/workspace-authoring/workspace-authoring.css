@@ -363,6 +363,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+.notespace-note-callout {
+  margin: .5rem 0;
+  border-left: 3px solid var(--accent);
+  border-radius: .5rem;
+  background: color-mix(in srgb, var(--tint) 72%, var(--surface));
+  padding: .5rem .625rem;
+}
+
+.notespace-note-callout-info,
+.notespace-note-callout-tip {
+  border-left-color: var(--accent);
+}
+
+.notespace-note-callout-warning {
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+
+.notespace-note-callout-danger {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
 /* Explorer can make the Canvas narrower than the browser viewport. */
 .notespace-canvas-surface {
   container: notespace-canvas / inline-size;

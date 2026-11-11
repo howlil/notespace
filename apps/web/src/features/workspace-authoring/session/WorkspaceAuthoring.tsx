@@ -28,6 +28,10 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
     initial: normalized.content,
   });
   const { current, canvasVersion, status: canvasStatus, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const registerCanvasAuthoringFlush = useCallback(
+    (flush: () => Promise<void>) => registerAuthoringFlush("canvas-assets", flush),
+    [registerAuthoringFlush],
+  );
   const status = useMemo<SaveStatus>(() => noteSaveStatus.state === "conflict"
     ? { state: "conflict", message: noteSaveStatus.message ?? "Note save conflict. Your draft remains available for recovery." }
     : noteSaveStatus.state === "error"
@@ -172,7 +176,7 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
           onUpdateNote={updateNote}
           onDeleteNoteInstance={deleteCanvasNote}
           onNoteSaveState={setNoteSaveStatus}
-          onRegisterAuthoringFlush={(flush) => registerAuthoringFlush("canvas-assets", flush)}
+          onRegisterAuthoringFlush={registerCanvasAuthoringFlush}
           onRegisterCanvasExport={session.registerCanvasExport}
           dark={dark}
         />

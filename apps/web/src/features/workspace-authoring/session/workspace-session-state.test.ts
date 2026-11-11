@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorkspaceContent, Snapshot } from "../../../domain/workspace/workspace";
-import { acknowledgeCanvasSnapshot, applyCanvasSnapshot } from "./workspace-session-state.ts";
+import { acknowledgeCanvasSnapshot, applyCanvasSnapshot, isStaleWorkspaceCanvasVersion } from "./workspace-session-state.ts";
 import { Autosave } from "../../../domain/workspace/autosave.ts";
 import { APIError } from "../../../adapters/http/client.ts";
 import { saveWorkspaceCanvasWith } from "./granular-save-core.ts";
@@ -25,6 +25,12 @@ test("canvas transition changes only the authored canvas", () => {
   const after = applyCanvasSnapshot(before, canvasB);
   assert.deepEqual(after.canvas, canvasB);
   assert.equal(after.notes, before.notes);
+});
+
+test("stale Workspace payloads cannot replace a newer Canvas acknowledgement", () => {
+  assert.equal(isStaleWorkspaceCanvasVersion(3, 2), true);
+  assert.equal(isStaleWorkspaceCanvasVersion(3, 3), false);
+  assert.equal(isStaleWorkspaceCanvasVersion(3, 4), false);
 });
 
 test("acknowledgement preserves newer local edits and adopts remote elements", () => {

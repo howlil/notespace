@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { WorkspaceContent, Snapshot } from "../../../domain/workspace/workspace";
-import { acknowledgeCanvasSnapshot, applyCanvasSnapshot } from "./workspace-session-state";
+import { acknowledgeCanvasSnapshot, applyCanvasSnapshot, isStaleWorkspaceCanvasVersion } from "./workspace-session-state";
 import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 import { getWorkspaceCanvas, type CanvasState } from "../../../adapters/http/workspace-api";
 
@@ -103,6 +103,17 @@ export function useWorkspaceSession({
       identity.current = { workspaceId: next.workspaceId, canvasVersion: next.canvasVersion };
       touch();
       return "rehydrated" as const;
+    }
+
+    // Router invalidation can deliver a Workspace payload that was fetched
+    // before the latest granular Canvas acknowledgement. Never rebase a newer
+    // in-memory/durable Canvas back to that stale payload.
+    if (isStaleWorkspaceCanvasVersion(identity.current.canvasVersion, next.canvasVersion)) {
+      if (current.current.title !== next.content.title) {
+        current.current = { ...current.current, title: next.content.title };
+        touch();
+      }
+      return "metadata-updated" as const;
     }
 
     if (next.canvasVersion === identity.current.canvasVersion) {

@@ -85,25 +85,11 @@ tasks:
     cmds:
       - bun run test:e2e
 
-  e2e:critical:
-    desc: Build the web app and run only critical cross-system journeys
-    cmds:
-      - bun run --filter @notespace/web build
-      - bun run test:e2e:critical
-
   e2e:smoke:
     desc: Build the web app and run risk-based durability/security smoke
     cmds:
       - bun run --filter @notespace/web build
       - bun run test:e2e:smoke
-
-  e2e:affected:
-    desc: Build and run affected owners plus smoke (CHANGED_FILES=repository-relative-paths.json)
-    requires:
-      vars: [CHANGED_FILES]
-    cmds:
-      - bun run --filter @notespace/web build
-      - bun run test:e2e:affected --changed-files "{{.CHANGED_FILES}}"
 
   e2e:target:
     desc: Run one focused WebdriverIO journey file (SPEC=path/to/file.e2e.mjs)
@@ -114,11 +100,11 @@ tasks:
       - node scripts/verify/browser-e2e.mjs --file "{{.SPEC}}"
 
   verify:
-    desc: Run the full local release verification suite
+    desc: Build, run static/unit/Go checks, then the same browser smoke set the PR gate runs
     cmds:
       - task: build
       - task: check
-      - bun run test:e2e:critical
+      - bun run test:e2e:smoke
 
   perf:evidence:
     desc: Run repeatable performance evidence checks

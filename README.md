@@ -186,7 +186,7 @@ Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/
 
 ## Verification
 
-`task check` runs local static and unit/integration checks; `task verify` adds production builds and the critical WebdriverIO browser journeys.
+`task check` runs local static and unit/integration checks; `task verify` adds production builds and the PR browser smoke set (the same set the `ci` gate runs).
 
 The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. Pull requests run the critical journeys, pushes to `master` run the same critical gate plus Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
 

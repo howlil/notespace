@@ -49,13 +49,9 @@ def check_workflow(path):
 
 
 def check_native_verification(doc):
-    selector = doc["jobs"]["classify-native"]
-    assert "if" not in selector, "Policy preflight must run before both PR and master native proof"
-    assert selector["steps"][0]["with"]["fetch-depth"] == "0"
-    assert any(step.get("run") == "node --experimental-strip-types --test tests/ci-policy.test.ts" and "if" not in step for step in selector["steps"])
+    # ci.yml's lane planner decides whether this reusable workflow is called at all.
     job = doc["jobs"]["check-desktop-windows"]
-    assert job["needs"] == "classify-native"
-    assert job["if"] == "github.event_name == 'push' || needs.classify-native.outputs.desktop == 'true'"
+    assert "needs" not in job and "if" not in job, "Native proof runs whenever ci.yml selects the desktop lane"
     assert job["runs-on"] == "windows-2022"
     assert "continue-on-error" not in job
     assert job["env"]["TAURI_DRIVER_VERSION"] == "2.1.0"
@@ -119,7 +115,7 @@ def check_frontend_builds(web, browser, build):
     assert len(web_builds) == len(browser_builds) == 1, "Exactly one build owner per selection"
     assert web_builds[0]["if"] == "needs.classify.outputs.browser != 'true'", "Web-only PRs must build; browser PRs must not build twice"
     assert "if" not in browser_builds[0], "A selected browser job must build its own exact checkout"
-    proof = next(s for s in browser["steps"] if "ci.mjs browser-mode" in s.get("run", ""))
+    proof = next(s for s in browser["steps"] if "ci-plan.mjs mode" in s.get("run", ""))
     assert "if" not in proof and browser["steps"].index(browser_builds[0]) < browser["steps"].index(proof)
 
 
@@ -178,8 +174,8 @@ def main():
     assert ci["permissions"] == {"contents": "read"}, "Untrusted PRs cannot receive write authority"
     assert ci["jobs"]["desktop"]["uses"] == "./.github/workflows/verify-desktop.yml"
     assert ci["jobs"]["desktop"]["with"]["profile"] == "${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression' || 'native' }}"
-    browser_script = next(s["run"] for s in ci["jobs"]["browser"]["steps"] if "ci.mjs browser-mode" in s.get("run", ""))
-    assert 'browser-e2e.mjs --mode "$MODE"' in browser_script and "ci.mjs paths" in browser_script
+    browser_script = next(s["run"] for s in ci["jobs"]["browser"]["steps"] if "ci-plan.mjs mode" in s.get("run", ""))
+    assert 'browser-e2e.mjs --mode "$MODE"' in browser_script and "--mode affected --changed-files" in browser_script
     check_frontend_proof(ci)
     compose_steps = ci["jobs"]["compose"]["steps"]
     assert any(s.get("run") == "python3 scripts/verify/smoke-persistence.py --compose-restart" and "if" not in s for s in compose_steps)
@@ -191,15 +187,9 @@ def main():
     assert desktop["on"]["workflow_call"]["inputs"]["profile"]["default"] == "legacy"
     assert any(s.get("run") == "cargo test --locked" and s.get("if") == "env.EXTENDED_DESKTOP == 'true'" for s in desktop["jobs"]["check-desktop"]["steps"])
     classify_steps = ci["jobs"]["classify"]["steps"]
-    preflight = next(step for step in classify_steps if step.get("run") == "node --experimental-strip-types --test tests/ci-policy.test.ts")
+    preflight = next(step for step in classify_steps if step.get("run") == "node --test scripts/verify/ci-plan.test.mjs")
     planner = next(step for step in classify_steps if step.get("id") == "plan")
-    assert "if" not in preflight and classify_steps.index(preflight) < classify_steps.index(planner), "Classifier cannot skip its own proof"
-    for name in expected - {"classify", "desktop"}:
-        job = ci["jobs"][name]
-        assert job["outputs"].get("sha") == "${{ steps.identity.outputs.sha }}", f"{name}: missing SHA binding"
-        identity = next(step for step in job["steps"] if step.get("id") == "identity")
-        assert identity["env"]["EXPECTED_SHA"] == "${{ github.sha }}"
-        assert identity["run"] == "node scripts/verify/ci.mjs identity"
+    assert "if" not in preflight and classify_steps.index(preflight) < classify_steps.index(planner), "Lane planner cannot skip its own proof"
 
     check_native_verification(check_workflow(WORKFLOWS / "verify-desktop.yml"))
 

@@ -179,9 +179,8 @@ bun run test:e2e            # build the web app, then every browser journey
 bun run test:e2e:critical   # existing build required; legacy `critical:` set
 bun run test:e2e:smoke      # existing build required; P0 + core create/navigation/search
 bun run test:e2e:affected --changed-files paths.json  # JSON array of repo-relative old/new paths
-task e2e:critical           # builds first, then legacy critical
-task e2e:smoke              # builds first, then risk smoke
-task e2e:affected CHANGED_FILES=paths.json            # builds first, then affected + smoke
+task e2e:smoke              # builds first, then risk smoke (same set as the PR gate)
+task e2e:target SPEC=tests/e2e/library/search.e2e.mjs # builds first, then one journey file
 node scripts/verify/browser-e2e.mjs --mode smoke --list # inspect without starting fixtures
 node scripts/verify/browser-e2e.mjs --file tests/e2e/library/search.e2e.mjs   # one journey file
 ```
@@ -251,23 +250,25 @@ cargo tauri build -- --locked
 
 ### Pull requests and `master`
 
-`ci.yml` is the authoritative, unfiltered PR/master verification lane; legacy workflows remain temporarily redundant. PRs classify the complete merge-base diff into web/server/landing/browser/desktop/release-policy/compose. Unknown paths, tracked generated output, invalid status or unavailable history select all owners; rename/copy paths include both old/new owners. Web checks and browser prepare/build/proof run independently after classification. Exactly one production web build runs: the browser job builds its own exact checkout when selected; otherwise the web job builds. The gate still requires both selected job results at the same SHA; failed static checks or missing/failed browser proof cannot be hidden by the other job. Desktop delegates to the existing real Windows owner; no mocks or publication permissions are introduced.
+`ci.yml` is the only PR/master workflow. Its `classify` job selects lanes from the changed paths with `scripts/verify/ci-plan.mjs`:
 
-`ci / gate` runs with `always()`, independently recollects the diff and rejects a mismatched plan, failed classifier, missing/failed/canceled required result, required skip or stale/missing job SHA. Docs-only PRs explicitly skip unnecessary jobs but still complete the gate. PR identity is GitHub's checked-out merge SHA, not a substituted branch head. Master branch protection requires only GitHub Actions `ci / gate`, strict/up-to-date and admin-enforced. Publishers require current-master push `ci` plus its exact-run/attempt successful gate; neither regression nor legacy names are authority. Exercise the read-only preflight without publishing: `GITHUB_REPOSITORY=howlil/notespace node scripts/release/assert-desktop-release-ci.mjs --collect <full-current-master-SHA>`.
+- docs-only changes select no lanes;
+- landing-only changes select the `landing` lane;
+- any other PR change selects `web`, `server`, `browser` (affected proof), and `compose`;
+- native-relevant paths (desktop, release, workflows, Taskfile, `package.json`, the lockfile, and `docs/DESKTOP_BETA_RELEASE_*.md`) also select `desktop` and `release-policy`;
+- an unreadable or empty PR diff, and every master, scheduled, or manual run, selects every lane.
 
-Master pushes force all owners even for docs-only changes: full Node/web, Go unit/integration/race (including real SQLite migration/restore), landing, native Windows 2022 and actual Compose restart/readback. Browser master proof is the exact union of legacy critical and P0 smoke (**31 cases**), retaining existing protections without running every cosmetic/compatibility case on every push. Stage/mode is recollected independently by the runner and aggregate, not trusted from classifier outputs.
+`ci / gate` runs with `always()` and fails when any selected lane did not succeed, or when an unselected lane failed. Master branch protection requires only `ci / gate`. Publishers require the current-master push `ci` run and its exact-attempt successful gate; neither regression nor legacy names are authority. Exercise the read-only preflight without publishing: `GITHUB_REPOSITORY=howlil/notespace node scripts/release/assert-desktop-release-ci.mjs --collect <full-current-master-SHA>`.
 
-`ci.yml` also supports `workflow_dispatch` and daily scheduled full regression (03:17 UTC). Trigger manually with `gh workflow run ci.yml --ref master`; this performs verification only, never publication. It runs the full browser inventory plus extended desktop Linux/current-Windows compile/runtime checks. These report `regression / gate`, distinct from required `ci / gate`, and have event-isolated concurrency so scheduled/manual runs cannot cancel master proof. New ordinary native calls use profile `native`; regression uses `regression`. Standalone legacy master still retains redundant full checks pending safe file retirement; it is no longer required-check or publisher authority. Failure screenshots only; no cross-job web artifact handoff. Browser proof uses its own fresh production build for that exact checkout.
+Master pushes run every lane: full Node/web, Go unit/integration/race (including real SQLite migration/restore), landing, native Windows 2022, and Compose restart/readback. Browser master proof is the exact union of legacy critical and P0 smoke (**31 cases**). Browser PR proof runs the affected suites plus the P0 smoke floor; an unknown changed path falls back to the full inventory.
 
-Focused policy proof: `node --experimental-strip-types --test tests/ci-policy.test.ts` (decision matrices + isolated real Git CLI). Parsed DAG/permission proof: `python scripts/verify/test-desktop-workflow-yaml.py` with the existing pinned PyYAML tooling.
+Scheduled and manual runs (`workflow_dispatch`, daily 03:17 UTC) run the full browser inventory and extended desktop checks. They report `regression / gate`, separate from required `ci / gate`, and have event-isolated concurrency so they cannot cancel master proof. Trigger manually with `gh workflow run ci.yml --ref master`; this performs verification only, never publication.
 
-For PRs, `Verify` runs the web production build, typecheck, lint, Node and Go tests (`go test -race`), and the **critical WebdriverIO** suite. On `master`, it runs the full web + landing build, the **critical WebdriverIO** suite, and Docker Compose restart/persistence smoke. The full browser suite (all journey files) runs locally and on demand through `bun run test:e2e`.
+`verify-desktop.yml` is a reusable workflow called by `ci.yml` only. It has no triggers of its own. Its `check-desktop` job runs the deterministic policy and YAML checks on Linux. `check-desktop-windows` runs one critical native navigation, pending-save close, and SQLite shutdown/relaunch journey on Windows Server 2022. Extended Windows-latest builds run only for regression and master. Windows native caches restore on PRs and save only after a successful master proof.
 
-`Verify Desktop` runs deterministic policy/YAML checks on Linux and the unconditional shared selection preflight. Relevant PRs run Windows Server 2022 **one critical native** navigation, pending-save close, and SQLite shutdown/relaunch journey; master always requires it. Colocated web `.test.ts(x)` / Go `_test.go` changes select their unit owner, not browser/native, unless a runtime path is also changed. Generic web CSS excludes native; native titlebar CSS remains host-specific. The authoritative `ci` lane calls this workflow with native-only profile for PR/master and extended profile for manual/scheduled regression. Standalone legacy master still runs redundant Linux native build/smoke and Windows-latest checks, but those legacy names no longer authorize publication or appear in required statuses. Retirement is separate from the M5a authority cutover; temporary overlap is not a performance improvement claim.
+Focused policy proof: `node --test scripts/verify/ci-plan.test.mjs` (lane matrices and gate rules). Parsed workflow contract: `python scripts/verify/test-desktop-workflow-yaml.py` with the pinned PyYAML tooling.
 
-Windows native package-download/driver caches restore on PRs but save only after successful master proof. Bun's isolated `BUN_INSTALL_CACHE_DIR` is keyed by Windows image/arch, Bun/Node versions, lock and manifests. Never archive installed Windows `node_modules`: real warm verification lost nested dependency links, and frozen install incorrectly reported no changes. Instead frozen install recreates all project links from cached package downloads on every run. Pinned tauri-driver 2.1.0 has an isolated tool root and executable/Cargo-metadata validation. Cache roots exclude app/profile data; package snapshots strip lookup alias/junction entries without following/deleting targets, including broken aliases. Windows alias metadata raised EPERM after a real warm restore, so v2 snapshots contain regular files/directories only; linked roots or normalization errors fail rather than weaken the gate. Rust tests, PE/icon/lifecycle and native close/readback remain unconditional on a selected job. Cold and warm measurements belong to PR evidence; cache hit alone is not proof or a performance claim.
-
-Separate, explicit publication workflows protect actual MSI signing, installed-upgrade and provenance contracts. Windows 11 physical visual acceptance is manual and never claimed to be performed by CI.
+The retired `verify.yml` and `verify-landing-build.yml` workflows are gone; `ci.yml` covers their checks.
 
 ## Local verification ladder
 
@@ -311,7 +312,7 @@ task build
 task verify
 ```
 
-`task verify` builds production artifacts, runs frontend/server checks, and runs the critical WebdriverIO browser journeys. It does not authorize publication or replace signed MSI/installed-upgrade/release-binary native acceptance.
+`task verify` builds production artifacts, runs frontend/server checks, and runs the PR browser smoke set. It does not authorize publication or replace signed MSI/installed-upgrade/release-binary native acceptance.
 
 ## Docker persistence smoke
 

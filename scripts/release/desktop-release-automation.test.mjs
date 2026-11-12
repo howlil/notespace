@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
 import { assertDesktopReleaseChecks } from "./assert-desktop-release-ci.mjs";
+import { selectLanes } from "../verify/ci-plan.mjs";
 import { releaseRequest } from "./release-request.mjs";
 
 const sha = "a".repeat(40);
@@ -243,21 +244,12 @@ test("release and native CI reuse caches and never compile the Tauri CLI from so
 });
 
 test("only obsolete PR checks are canceled, never master CI or a release", () => {
-  const basic = readFileSync(new URL("../../.github/workflows/verify.yml", import.meta.url), "utf8");
   const desktop = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
   const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
-  assert.match(basic, /group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}/);
   // Reusable native CI must not cancel its caller (github.workflow is inherited).
   assert.match(desktop, /group: desktop-\$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name \}\}-\$\{\{ github\.ref \}\}/);
-  for (const workflow of [basic, desktop]) {
-    assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
-  }
+  assert.match(desktop, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
   assert.match(beta, /cancel-in-progress: false/);
-  // Browser proof remains required on both PR and master without an extra Chromium download.
-  assert.match(basic, /name: Run critical browser suite on PR[\s\S]*?if: github\.event_name == 'pull_request'\s+run: bun run test:e2e:critical/);
-  assert.match(basic, /name: Run critical WebdriverIO suite on master[\s\S]*?if: github\.event_name == 'push'\s+run: bun run test:e2e:critical/);
-  assert.doesNotMatch(basic, /playwright install --with-deps/);
-  assert.match(basic, /docker compose -f compose\.yaml -f compose\.ci\.yaml up --build -d --wait\s+if: github\.event_name == 'push'/);
   assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: inputs\.profile == 'regression' \|\| \(github\.event_name == 'push' && inputs\.profile != 'native'\)\s+runs-on: windows-latest/);
 });
 
@@ -279,15 +271,10 @@ test("free beta produces signed Tauri updater artifacts without Azure publisher 
   assert.match(manifest, /windows-x86_64/);
 });
 
-test("explicit desktop-beta release notes trigger both PR and master desktop verification", () => {
-  const workflow = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
-  const releaseNotePath = '"docs/DESKTOP_BETA_RELEASE_*.md"';
-  const workflowPath = '".github/workflows/verify-desktop.yml"';
-  const [prTrigger, pushTrigger] = workflow.split(/^ {2}push:\s*$/m);
-  assert.ok(prTrigger && pushTrigger, "Desktop CI must include separate PR and master push triggers");
-  for (const [trigger, fragment] of [["pull_request", prTrigger], ["push", pushTrigger]]) {
-    assert.ok(fragment.includes("paths:"), `${trigger} must declare path filters`);
-    assert.ok(fragment.includes(releaseNotePath), `${trigger} must check explicit release-note commits`);
-    assert.ok(fragment.includes(workflowPath), `${trigger} must verify its own workflow changes`);
-  }
+test("explicit desktop-beta release notes select native proof on PR and on every master push", () => {
+  const releaseNote = ["docs/DESKTOP_BETA_RELEASE_0.1.0.md"];
+  assert.equal(selectLanes("pull_request", releaseNote).desktop, true);
+  // Master pushes select every lane, so the exact release-note SHA is always verified.
+  assert.equal(selectLanes("push", releaseNote).desktop, true);
+  assert.equal(selectLanes("push", releaseNote)["release-policy"], true);
 });

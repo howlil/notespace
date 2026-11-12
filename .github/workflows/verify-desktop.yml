@@ -4,129 +4,9 @@ on:
   workflow_call:
     inputs:
       profile:
-        description: Native gate or extended regression (standalone legacy master unchanged)
+        description: Native gate (PR and master) or extended regression (scheduled and manual)
         type: string
         default: legacy
-    outputs:
-      sha:
-        description: Exact source verified by required real Windows native proof
-        value: ${{ jobs.check-desktop-windows.outputs.sha }}
-  pull_request:
-    paths:
-      # Release-note-only opt-in commits must still validate this exact master SHA.
-      - "docs/DESKTOP_BETA_RELEASE_*.md"
-      - ".github/workflows/verify-desktop.yml"
-      - ".github/workflows/ci.yml"
-      - "scripts/verify/ci.mjs"
-      - "scripts/verify/ci-policy.mjs"
-      - "scripts/verify/prepare-native-package-cache.mjs"
-      - ".agents/engineering.md"
-      - "apps/desktop/**"
-      - "apps/server/cmd/notespace/**"
-      - "apps/server/internal/sqlite/**"
-      - "apps/server/migrations/**"
-      - "apps/web/**"
-      - "package.json"
-      - "tests/**"
-      - "scripts/verify/desktop-webdriver-smoke.mjs"
-      - "scripts/verify/native-close-session.mjs"
-      - "scripts/verify/native-close-session.test.mjs"
-      - "scripts/dev/diagnose-desktop-webdriver.ps1"
-      - "scripts/dev/install-webview2-edgedriver.ps1"
-      - "scripts/verify/check-desktop-webdriver-policy.test.mjs"
-      - "scripts/release/assert-desktop-release-ci.mjs"
-      - "scripts/release/resolve-desktop-release-version.mjs"
-      - "scripts/release/desktop-release-automation.test.mjs"
-      - ".github/workflows/publish-desktop.yml"
-      - "scripts/release/desktop-upgrade-inventory.py"
-      - "scripts/verify/test-desktop-upgrade-inventory.py"
-      - "scripts/release/verify-desktop-msi-upgrade.ps1"
-      - "scripts/release/create-desktop-update-manifest.mjs"
-      - "scripts/release/create-desktop-update-manifest.test.mjs"
-      - "scripts/release/create-desktop-beta-manifest.mjs"
-      - "scripts/release/create-desktop-beta-manifest.test.mjs"
-      - "scripts/release/prepare-desktop-updater-config.mjs"
-      - "scripts/release/prepare-desktop-updater-config.test.mjs"
-      - "scripts/release/prepare-desktop-windows-sign-config.mjs"
-      - "scripts/release/prepare-desktop-windows-sign-config.test.mjs"
-      - "scripts/release/check-desktop-release-security.test.mjs"
-      - ".github/workflows/release-desktop.yml"
-      - ".github/workflows/publish-desktop-beta.yml"
-      - ".github/workflows/auto-desktop-beta.yml"
-      - "scripts/release/resolve-desktop-beta-version.mjs"
-      - "scripts/release/resolve-desktop-beta-version.test.mjs"
-      - "scripts/verify/test-desktop-workflow-yaml.py"
-      - "apps/server/cmd/notespace/desktop_boundary.go"
-      - "apps/server/cmd/notespace/desktop_boundary_test.go"
-      - "scripts/dev/prepare-desktop-sidecar.mjs"
-      - "scripts/assets/prepare-desktop-icons.mjs"
-      - "scripts/assets/assert-desktop-icon.ps1"
-      - "scripts/assets/desktop-icon-contract.test.mjs"
-      - "apps/web/public/brand/notespace-fox-full.svg"
-      - "scripts/verify/assert-windows-pe-subsystem.mjs"
-      - "scripts/verify/assert-windows-pe-subsystem.test.mjs"
-      - "scripts/verify/smoke-desktop-sidecar-lifecycle.mjs"
-      - "scripts/verify/smoke-desktop-runtime.mjs"
-      - "Taskfile.yml"
-      - "bun.lock"
-  push:
-    branches: [master]
-    paths:
-      # Release-note-only opt-in commits must still validate this exact master SHA.
-      - "docs/DESKTOP_BETA_RELEASE_*.md"
-      - ".github/workflows/verify-desktop.yml"
-      - ".github/workflows/ci.yml"
-      - "scripts/verify/ci.mjs"
-      - "scripts/verify/ci-policy.mjs"
-      - "scripts/verify/prepare-native-package-cache.mjs"
-      - "apps/desktop/**"
-      - "apps/server/cmd/notespace/**"
-      - "apps/server/internal/sqlite/**"
-      - "apps/server/migrations/**"
-      - "apps/web/**"
-      - "package.json"
-      - "tests/**"
-      - "scripts/verify/desktop-webdriver-smoke.mjs"
-      - "scripts/verify/native-close-session.mjs"
-      - "scripts/verify/native-close-session.test.mjs"
-      - "scripts/dev/diagnose-desktop-webdriver.ps1"
-      - "scripts/dev/install-webview2-edgedriver.ps1"
-      - "scripts/verify/check-desktop-webdriver-policy.test.mjs"
-      - "scripts/release/assert-desktop-release-ci.mjs"
-      - "scripts/release/resolve-desktop-release-version.mjs"
-      - "scripts/release/desktop-release-automation.test.mjs"
-      - ".github/workflows/publish-desktop.yml"
-      - "scripts/release/desktop-upgrade-inventory.py"
-      - "scripts/verify/test-desktop-upgrade-inventory.py"
-      - "scripts/release/verify-desktop-msi-upgrade.ps1"
-      - "scripts/release/create-desktop-update-manifest.mjs"
-      - "scripts/release/create-desktop-update-manifest.test.mjs"
-      - "scripts/release/create-desktop-beta-manifest.mjs"
-      - "scripts/release/create-desktop-beta-manifest.test.mjs"
-      - "scripts/release/prepare-desktop-updater-config.mjs"
-      - "scripts/release/prepare-desktop-updater-config.test.mjs"
-      - "scripts/release/prepare-desktop-windows-sign-config.mjs"
-      - "scripts/release/prepare-desktop-windows-sign-config.test.mjs"
-      - "scripts/release/check-desktop-release-security.test.mjs"
-      - ".github/workflows/release-desktop.yml"
-      - ".github/workflows/publish-desktop-beta.yml"
-      - ".github/workflows/auto-desktop-beta.yml"
-      - "scripts/release/resolve-desktop-beta-version.mjs"
-      - "scripts/release/resolve-desktop-beta-version.test.mjs"
-      - "scripts/verify/test-desktop-workflow-yaml.py"
-      - "apps/server/cmd/notespace/desktop_boundary.go"
-      - "apps/server/cmd/notespace/desktop_boundary_test.go"
-      - "scripts/dev/prepare-desktop-sidecar.mjs"
-      - "scripts/assets/prepare-desktop-icons.mjs"
-      - "scripts/assets/assert-desktop-icon.ps1"
-      - "scripts/assets/desktop-icon-contract.test.mjs"
-      - "apps/web/public/brand/notespace-fox-full.svg"
-      - "scripts/verify/assert-windows-pe-subsystem.mjs"
-      - "scripts/verify/assert-windows-pe-subsystem.test.mjs"
-      - "scripts/verify/smoke-desktop-sidecar-lifecycle.mjs"
-      - "scripts/verify/smoke-desktop-runtime.mjs"
-      - "Taskfile.yml"
-      - "bun.lock"
 
 env:
   EXTENDED_DESKTOP: ${{ inputs.profile == 'regression' || (github.event_name == 'push' && inputs.profile != 'native') }}
@@ -231,43 +111,16 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: bunx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked
 
-  classify-native:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    outputs:
-      desktop: ${{ steps.plan.outputs.desktop }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - name: Prove native selection policy
-        run: node --experimental-strip-types --test tests/ci-policy.test.ts
-      - id: plan
-        env:
-          EXPECTED_SHA: ${{ github.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/verify/ci.mjs classify
-
   # WebView2 + EdgeDriver regression on Windows Server 2025:
   # https://github.com/actions/runner-images/issues/14738
   # Keep genuine native WebView2 acceptance on 2022; do NOT mark it skipped.
   check-desktop-windows:
-    needs: classify-native
-    # Master always keeps native after the unconditional policy preflight;
-    # PRs use the shared required map. A failed selector fails the workflow.
-    if: github.event_name == 'push' || needs.classify-native.outputs.desktop == 'true'
     runs-on: windows-2022
     timeout-minutes: 45
     env:
       BUN_VERSION: "1.3.14"
       NODE_VERSION: "24"
       TAURI_DRIVER_VERSION: "2.1.0"
-    outputs:
-      sha: ${{ steps.ci-identity.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -285,11 +138,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - id: ci-identity
-        name: Bind native proof to exact checkout SHA
-        env:
-          EXPECTED_SHA: ${{ github.sha }}
-        run: node scripts/verify/ci.mjs identity
       # Deterministic YAML/release policy tests run once in the Linux job.
       # Keep only Windows-specific assertions and real native WebView2 here.
       - uses: dtolnay/rust-toolchain@stable

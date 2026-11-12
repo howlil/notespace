@@ -2,12 +2,33 @@
 import { after, before, test } from "node:test";
 import {
   api, assert, box, cleanupWorkspace, click, createWorkspace, doubleClick,
-  containsText, expectFocused, expectCount, fill, openWorkspace, press, start, stop, visible,
+  containsText, expectFocused, expectCount, fill, openWorkspace, press, start, stop, textOf, visible,
   waitSaved,
 } from "../support/harness.mjs";
 
 before(start);
 after(stop);
+
+test("critical: blank Canvas Note stays blank after exiting edit", { timeout: 180_000 }, async () => {
+  const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
+  try {
+    await openWorkspace(workspace.id);
+    const noteTool = '[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]';
+    await visible(noteTool);
+    await click(noteTool);
+
+    const card = "[data-note-element]";
+    const editor = `${card} .ProseMirror`;
+    await visible(card);
+    await visible(editor);
+    await expectFocused(editor);
+    await press("Escape");
+    await expectCount(editor, 0);
+    assert.equal((await textOf(card)).trim(), "", "A new blank Note must not gain placeholder body text after editing exits");
+  } finally {
+    await cleanupWorkspace(workspace.id);
+  }
+});
 
 test("critical: Note creates one focused pure card and survives reload", { timeout: 180_000 }, async () => {
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
@@ -27,9 +48,9 @@ test("critical: Note creates one focused pure card and survives reload", { timeo
     await waitSaved();
 
     const stored = await api(`/api/workspaces/${workspace.id}`);
-    const element = (stored.canvas.data.elements ?? []).find((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
-    assert.ok(element, "Canvas stores exactly one live Note reference");
-    const noteId = element.customData.notespaceNote.noteId;
+    const noteElement = (stored.canvas.data.elements ?? []).find((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
+    assert.ok(noteElement, "Canvas stores exactly one live Note reference");
+    const noteId = noteElement.customData.notespaceNote.noteId;
     const current = await api(`/api/notes/${noteId}`);
     assert.match(JSON.stringify(current.document), new RegExp(authoredText));
 

@@ -149,10 +149,18 @@ J3: While working on a spatial Canvas, capture and reuse written knowledge witho
 
 - B9: Activating Note creates one blank, visible Canvas card and focuses writing immediately. A single click selects; double-click edits; Escape exits editing; drag/resize changes only instance geometry.
 - B10: Note content is shared by stable identity across Canvas instances; removing an instance preserves the Note. Content changes save independently from Canvas geometry and remain recoverable across reload/close.
+- B11: While editing a Note, the user can progressively format its semantic document, insert supported safe content, and use contextual commands without a permanent card toolbar or Canvas shortcut interference.
+- B12: A user can find a Note, link or place its existing identity in another Canvas, and follow an internal reference or backlink to its reachable instance without a standalone Note route.
+- B13: Rich input and interchange preserve authored content: managed images, tables, callouts, clipboard content, and Markdown import/export either round-trip through supported semantic content or state a recoverable loss before replacement.
+- B14: Math and writing assistance never execute untrusted content or invent a result. An unavailable writing provider reports that state and leaves the Note unchanged.
 - X3: A stale content revision or failed save preserves the local draft and exposes retry/recovery; failed create+place leaves neither an orphan Note nor an unreferenced Canvas instance.
+- X4: Invalid/sanitized rich input, a missing reference, an unsupported import/export construct, or a failed asset operation keeps the current Note usable and exposes the affected recovery or loss state.
 - C2: Canvas remains the only authoring surface. The card has no title field, icon, cover, header/footer, or persistent toolbar. Historical Note DTOs/migrations remain compatibility data and are not reused as canonical storage.
 - P6 (B9-B10): Create, type, close/reload, move/resize, duplicate/remove instance and undo preserve the expected content/geometry and focus behavior.
 - P7 (X3): Conflicting and failed writes retain the draft; retry is safe and atomic; backup/restore round-trips Notes and typed Canvas references.
+- P8 (B11,X4): Formatting, composition, selection toolbar, slash/keyboard commands and safe pasted input preserve caret/focus, do not trigger Canvas commands, and recover from rejected input.
+- P9 (B12): Linked instances, search, Quick Open, references and backlinks retain stable identity and navigate to an available instance or visible missing state.
+- P10 (B13-B14,X4): Assets, tables, callouts, Markdown and math preserve their supported source or explain loss/error; unavailable AI never changes the document.
 
 ## Canvas Code Module (#199)
 

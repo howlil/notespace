@@ -188,7 +188,7 @@ Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/
 
 `task check` runs local static and unit/integration checks; `task verify` adds production builds and the PR browser smoke set (the same set the `ci` gate runs).
 
-The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. Pull requests run the critical journeys, pushes to `master` run the same critical gate plus Go formatting/vet/race/build, Docker persistence restart smoke, and relevant desktop gates. The Windows Server 2022 native WebView2 critical journey covers UI routing and close/relaunch durability. Target-device visual acceptance is separate and is not inferred from CI.
+The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. The single `ci` workflow selects lanes from the changed paths. Pull requests run web checks, Go tests, the browser journeys affected by the change plus the P0 smoke set, the landing lane when landing changes, and the native Windows lane when native paths change. Docs-only changes select no app lanes. Pushes to `master` run every lane, including the critical browser set, Docker persistence restart smoke, and the Windows Server 2022 native WebView2 journey, which covers UI routing and close/relaunch durability. See `docs/TESTING.md` for the lane rules. Target-device visual acceptance is separate and is not inferred from CI.
 
 For ownership and focused commands, read [testing and CI](docs/TESTING.md).
 

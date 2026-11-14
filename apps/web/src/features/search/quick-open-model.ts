@@ -25,12 +25,24 @@ export function searchResultHref(result: SearchResult) {
   return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
 }
 
+function noteTitleFromExcerpt(excerpt: string): string {
+  const firstLine = excerpt
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return "Canvas Note";
+  return firstLine.length > 120 ? `${firstLine.slice(0, 117)}...` : firstLine;
+}
+
 export function destinationFromSearchResult(result: SearchResult): QuickOpenDestination {
+  const key = result.type === "note"
+    ? `note-${result.workspaceId}-${result.noteId ?? ""}-${result.instanceId ?? ""}`
+    : `${result.type}-${result.categoryId ?? ""}-${result.workspaceId}`;
   return {
-    key: `${result.type}-${result.categoryId ?? ""}-${result.workspaceId}`,
+    key,
     title: result.type === "category"
       ? result.categoryTitle || "Category"
-      : result.type === "note" ? "Canvas Note" : result.workspaceTitle,
+      : result.type === "note" ? noteTitleFromExcerpt(result.excerpt) : result.workspaceTitle,
     context: result.type === "category"
       ? "Category"
       : result.type === "note" ? result.workspaceTitle || "Unplaced Canvas Note" : result.categoryTitle || "Workspace",

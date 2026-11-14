@@ -48,7 +48,7 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
   const createCanvasNote = useCallback(async (request: Parameters<typeof createNoteInstance>[1]) => {
     const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: Math.max(request.expectedCanvasVersion, canvasVersion) });
     acknowledgeCanvas(result.canvas);
-    createdNoteIds.current.add(result.note.id);
+    if (!request.existingNoteId) createdNoteIds.current.add(result.note.id);
     return result;
   }, [acknowledgeCanvas, canvasVersion, workspace.id]);
   const deleteCanvasNote = useCallback(async (workspaceId: string, instanceId: string, canvas: Parameters<typeof deleteNoteInstance>[2], expectedCanvasVersion: number) => {

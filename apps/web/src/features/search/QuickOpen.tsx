@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Folder, Search, Settings2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import {
+  canPlaceNoteOnCanvas,
+  requestPlaceNoteOnCanvas,
+  subscribeCanvasNotePlacerAvailability,
+} from "../../adapters/browser/canvas-note-placement-events";
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, cn } from "../../shared/ui";
 import type { CategorySummary, WorkspaceSummary } from "../../domain/workspace/workspace";
 import { listCategories, listRecentWorkspaces, searchNotespace } from "../../adapters/http/workspace-api";
@@ -16,6 +21,11 @@ import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
 export function QuickOpen() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const canPlaceOnCanvas = useSyncExternalStore(
+    subscribeCanvasNotePlacerAvailability,
+    canPlaceNoteOnCanvas,
+    () => false,
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<WorkspaceSummary[]>([]);
@@ -131,6 +141,12 @@ export function QuickOpen() {
     }
   }
 
+  function placeNoteDestination(noteId: string | undefined) {
+    if (!noteId) return;
+    setOpen(false);
+    requestPlaceNoteOnCanvas(noteId);
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -173,18 +189,34 @@ export function QuickOpen() {
                 }}>Retry</Button>
               </div>
             ) : destinations.length ? destinations.map((destination, index) => (
-              <Button
-                variant="ghost"
-                size="sm"
+              <div
                 key={destination.key}
-                className={cn("!min-h-0 w-full justify-start gap-2.5 rounded-md border-0 px-2.5 py-2 text-left", index === selected && "bg-tint")}
+                className={cn("flex items-center gap-1 rounded-md", index === selected && "bg-tint")}
                 onMouseEnter={() => setSelected(index)}
-                onClick={() => openDestination(destination)}
               >
-                <Folder size={15} className="shrink-0 text-accent" />
-                <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{destination.context}</span></span>
-                <span className="text-[10px] text-muted">↵</span>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="!min-h-0 min-w-0 flex-1 justify-start gap-2.5 rounded-md border-0 px-2.5 py-2 text-left"
+                  onClick={() => openDestination(destination)}
+                >
+                  <Folder size={15} className="shrink-0 text-accent" />
+                  <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{destination.context}</span></span>
+                  <span className="text-[10px] text-muted">↵</span>
+                </Button>
+                {canPlaceOnCanvas && destination.kind === "note" && destination.noteId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    title={`Place "${destination.title}" on this canvas`}
+                    className="!min-h-0 mr-1.5 shrink-0 px-2 py-1 text-[10px]"
+                    onClick={() => placeNoteDestination(destination.noteId)}
+                  >
+                    Place
+                  </Button>
+                )}
+              </div>
             )) : <p className="m-0 px-2.5 py-5 text-[10px] text-muted">{query.trim().length >= 2 ? "No matching knowledge." : "No recent workspaces."}</p>}
           </div>
         </DialogContent>

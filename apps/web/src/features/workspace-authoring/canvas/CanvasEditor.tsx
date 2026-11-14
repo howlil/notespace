@@ -37,6 +37,7 @@ import { CanvasToolRail } from "./chrome/CanvasToolRail";
 import { CanvasNoteActions, CanvasNoteCardLayer } from "./note/CanvasNoteCardLayer";
 import type { NoteSaveStatus } from "./note/canvas-note-store";
 import { useCanvasNotes } from "./note/use-canvas-notes";
+import { registerCanvasNotePlacer } from "../../../adapters/browser/canvas-note-placement-events";
 import { CanvasViewControls } from "./chrome/CanvasViewControls";
 import { CanvasFlowchartHandles } from "./flowchart/CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./selection/CanvasSelectionActions";
@@ -477,6 +478,9 @@ export default function CanvasEditor({
     if (!focusNoteId || !canvasApi) return;
     const element = canvasApi.getSceneElements().find((candidate) => readCanvasNoteReference(candidate)?.noteId === focusNoteId && !candidate.isDeleted);
     if (!element) return;
+    setEditingNoteElementId(null);
+    setSelectedElementCount(1);
+    setSelectedElementId(element.id);
     canvasApi.updateScene({ appState: { selectedElementIds: { [element.id]: true } } });
     canvasApi.setViewport({ target: element, fit: "scale-down", animation: { duration: 250 } });
   }, [canvasApi, focusNoteId]);
@@ -851,6 +855,11 @@ export default function CanvasEditor({
   }, [editingCodeBlockId, liveCodeElementIds, selectedElementCount, selectedElementId]);
 
   useCanvasPinch(surfaceRef, api);
+
+  useEffect(() => {
+    if (viewModeEnabled || !onCreateNote) return;
+    return registerCanvasNotePlacer((noteId) => placeLinkedNote(noteId));
+  }, [onCreateNote, placeLinkedNote, viewModeEnabled]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleDirectionalSpawnKeyDown, true);

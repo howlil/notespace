@@ -2,7 +2,7 @@ import { renderToReactElement } from "@tiptap/static-renderer/pm/react";
 import type { Mark as PMMark, Node as PMNode } from "@tiptap/pm/model";
 import { useMemo, type ReactNode } from "react";
 import type { NoteDocument } from "../../../../domain/note/note";
-import { createNoteExtensions, isSafeNoteLink, NoteBlockReferenceCard, NoteEmbedCard } from "./note-extensions";
+import { createNoteExtensions, InternalNoteLink, isSafeNoteLink, NoteBlockReferenceCard, NoteEmbedCard } from "./note-extensions";
 import { renderNoteLatex } from "./note-math";
 
 const extensions = createNoteExtensions();
@@ -39,7 +39,9 @@ const markMapping = {
   link: ({ mark, children }: MarkProps) => {
     const href = typeof mark.attrs.href === "string" ? mark.attrs.href : "";
     if (!isSafeNoteLink(href)) return <span>{children}</span>;
-    return href.startsWith("/") ? <a href={href}>{children}</a> : <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
+    return href.startsWith("/")
+      ? <InternalNoteLink href={href}>{children}</InternalNoteLink>
+      : <a className="pointer-events-auto" href={href} target="_blank" rel="noopener noreferrer" onPointerDown={(event) => event.stopPropagation()}>{children}</a>;
   },
 };
 

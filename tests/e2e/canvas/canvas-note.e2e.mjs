@@ -2,8 +2,8 @@
 import { after, before, test } from "node:test";
 import {
   api, apiResponse, assert, cleanupWorkspace, clearFault, click, count, createWorkspace, doubleClick, drag, execute,
-  containsText, expectFocused, expectCount, fill, injectFault, openWorkspace, press, role, start, stop, textOf, visible,
-  requestLog, typeText, waitFor, waitSaved as harnessWaitSaved, waitUrl,
+  containsText, expectFocused, expectCount, fill, injectFault, openWorkspace, placeholder, press, role, start, stop, textOf, visible,
+  requestLog, typeText, uploadFile, waitFor, waitSaved as harnessWaitSaved, waitUrl,
 } from "../support/harness.mjs";
 
 /**
@@ -503,6 +503,183 @@ test("critical: native Ctrl+D copy of a Note card gets its own Note and never sh
     assert.ok(refs.some((ref) => ref.noteId === sourceId), "The original keeps its Note");
     const copy = refs.find((ref) => ref.noteId !== sourceId);
     await waitFor(async () => JSON.stringify((await api(`/api/notes/${copy.noteId}`)).document).includes(text), "The copy carries the source content");
+  } finally {
+    await cleanupWorkspace(workspace.id);
+  }
+});
+
+test("cross-workspace linked Note instances share canonical content and keep instance removal isolated", { timeout: 180_000 }, async () => {
+  const token = `Linked${Date.now()}`;
+  const workspaceA = await createWorkspace(`Note Link A ${token}`);
+  const workspaceB = await createWorkspace(`Note Link B ${token}`);
+  try {
+    await openWorkspace(workspaceA.id);
+    const noteId = await createNoteOnCanvas(workspaceA.id);
+    const editor = "[data-note-element] .ProseMirror";
+    const initialHeadline = `${token} alpha headline`;
+    await fill(editor, initialHeadline);
+    await waitSaved();
+    await press("Escape");
+    await expectCount(editor, 0);
+
+    await openWorkspace(workspaceB.id);
+    await expectCount("[data-note-element]", 0);
+    await click(role("button", "Search Notespace", { exact: true }));
+    await fill(placeholder("Open workspace or category…"), initialHeadline);
+    const dialog = role("dialog", "Quick Open");
+    await visible(role("button", new RegExp(initialHeadline), { scope: dialog }));
+    await click(role("button", "Place", { scope: dialog, exact: true }));
+    await visible("[data-note-element]");
+    await containsText("[data-note-element]", initialHeadline);
+    await waitFor(async () => (await canvasNoteIds(workspaceB.id)).includes(noteId), "Workspace B persists the linked Note instance");
+
+    await openWorkspace(workspaceA.id);
+    await doubleClick("[data-note-element]");
+    await visible(editor);
+    const updatedHeadline = `${token} synced revision`;
+    await fill(editor, updatedHeadline);
+    await waitSaved();
+
+    await openWorkspace(workspaceB.id);
+    await containsText("[data-note-element]", updatedHeadline);
+
+    await doubleClick("[data-note-element]");
+    await press("Escape");
+    await expectCount(editor, 0);
+    await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
+    await click(role("button", "Remove instance"));
+    await waitFor(async () => (await canvasNoteIds(workspaceB.id)).length === 0, "Workspace B removes only its linked instance");
+
+    const note = await api(`/api/notes/${noteId}`);
+    assert.match(JSON.stringify(note.document), new RegExp(updatedHeadline), "Canonical Note survives linked instance removal");
+    assert.deepEqual(await canvasNoteIds(workspaceA.id), [noteId], "Workspace A still holds its linked Note instance");
+  } finally {
+    await cleanupWorkspace(workspaceA.id);
+    await cleanupWorkspace(workspaceB.id);
+  }
+});
+
+test("embedded Note opens target via SPA navigation in edit and read views and renders missing targets", { timeout: 180_000 }, async () => {
+  const token = `Embed${Date.now()}`;
+  const workspaceA = await createWorkspace(`Embed Target ${token}`);
+  const workspaceB = await createWorkspace(`Embed Host ${token}`);
+  try {
+    await openWorkspace(workspaceA.id);
+    const targetId = await createNoteOnCanvas(workspaceA.id);
+    const editor = "[data-note-element] .ProseMirror";
+    const targetTitle = `${token} target architecture`;
+    await fill(editor, targetTitle);
+    await waitSaved();
+    await press("Escape");
+    await expectCount(editor, 0);
+
+    await openWorkspace(workspaceB.id);
+    const hostId = await createNoteOnCanvas(workspaceB.id);
+    await expectFocused(editor);
+    await typeText("/embed");
+    await press("Enter");
+    const embedSearch = 'input[aria-label="Search Note to embed"]';
+    await visible(embedSearch);
+    await fill(embedSearch, targetTitle);
+    await click(role("button", new RegExp(targetTitle), { scope: role("listbox", "Canvas Note references") }));
+    await visible(`[data-note-embed="${targetId}"]`);
+    await waitSaved();
+
+    const unsavedTrail = `flush before leaving ${token}`;
+    await expectFocused(editor);
+    await press("Enter");
+    await typeText(unsavedTrail);
+    await click(`[data-note-embed="${targetId}"] a`);
+    await waitUrl(new RegExp(`/workspaces/${workspaceA.id}\\?noteId=${targetId}$`));
+    await visible("[data-note-element]");
+    await expectCount(editor, 0);
+    assert.match(JSON.stringify((await api(`/api/notes/${hostId}`)).document), new RegExp(unsavedTrail), "SPA navigation from Edit view flushes unsaved edits");
+
+    await openWorkspace(workspaceB.id);
+    await expectCount(editor, 0);
+    await visible(`[data-note-element] [data-note-read-view] [data-note-embed="${targetId}"] a`);
+    await click(`[data-note-element] [data-note-read-view] [data-note-embed="${targetId}"] a`);
+    await waitUrl(new RegExp(`/workspaces/${workspaceA.id}\\?noteId=${targetId}$`));
+    await visible("[data-note-element]");
+
+    const currentHost = await api(`/api/notes/${hostId}`);
+    const missingId = `missing-note-${Date.now()}`;
+    await api(`/api/notes/${hostId}`, {
+      method: "PUT",
+      body: {
+        expectedRevision: currentHost.revision,
+        document: {
+          type: "doc",
+          content: [
+            ...(currentHost.document?.content ?? []),
+            { type: "noteEmbed", attrs: { noteId: missingId, workspaceId: workspaceA.id, label: "Missing reference" } },
+          ],
+        },
+      },
+    });
+    await openWorkspace(workspaceB.id);
+    await containsText(`[data-note-embed="${missingId}"]`, `Missing Note: ${missingId}`);
+  } finally {
+    await cleanupWorkspace(workspaceA.id);
+    await cleanupWorkspace(workspaceB.id);
+  }
+});
+
+test("advanced rich content supports image upload, math validation recovery, tables, and callouts", { timeout: 180_000 }, async () => {
+  const workspace = await createWorkspace(`Canvas Note Rich ${Date.now()}`);
+  const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", "base64");
+  try {
+    await openWorkspace(workspace.id);
+    const noteId = await createNoteOnCanvas(workspace.id);
+    const editor = "[data-note-element] .ProseMirror";
+
+    await uploadFile('input[aria-label="Insert image"]', {
+      name: "diagram.png",
+      mimeType: "image/png",
+      buffer: tinyPng,
+    });
+    await visible('[data-note-element] img[src*="/assets/"]');
+
+    await expectFocused(editor);
+    await press("Enter");
+    await typeText("/math");
+    await press("Enter");
+    const mathDialog = role("dialog", "Insert Math formula");
+    await visible(mathDialog);
+    await fill('input[aria-label="LaTeX formula"]', "\\frac{1");
+    await click(role("button", "Insert", { scope: mathDialog }));
+    await visible('[role="dialog"][aria-label="Insert Math formula"] [role="alert"]');
+    assert.ok(!JSON.stringify((await api(`/api/notes/${noteId}`)).document).includes("frac"), "Invalid LaTeX error leaves stored Note unchanged");
+
+    await fill('input[aria-label="LaTeX formula"]', "a^2 + b^2 = c^2");
+    await click(role("button", "Block", { scope: mathDialog }));
+    await click(role("button", "Insert", { scope: mathDialog }));
+    await waitFor(async () => JSON.stringify((await api(`/api/notes/${noteId}`)).document).includes("a^2 + b^2 = c^2"), "Valid math block saves to Note");
+
+    await expectFocused(editor);
+    await press("Enter");
+    await typeText("/table");
+    await press("Enter");
+    await visible("[data-note-element] table");
+    await typeText("Header 1");
+    await waitSaved();
+    await press("Escape");
+    await expectCount(editor, 0);
+
+    await click('[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]');
+    await visible(editor);
+    await typeText("/callout");
+    await press("Enter");
+    await typeText("Important callout reminder");
+    await waitSaved();
+    await press("Escape");
+    await expectCount(editor, 0);
+
+    await openWorkspace(workspace.id);
+    await visible('[data-note-element] [data-note-read-view] img[src*="/assets/"]');
+    await visible('[data-note-element] [data-note-read-view] .notespace-note-math[data-latex="a^2 + b^2 = c^2"] .katex');
+    await containsText("[data-note-element] [data-note-read-view] table", "Header 1");
+    await containsText('[data-note-element] [data-note-read-view] aside[data-note-callout="note"]', "Important callout reminder");
   } finally {
     await cleanupWorkspace(workspace.id);
   }

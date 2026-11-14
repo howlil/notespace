@@ -29,6 +29,7 @@
     "@tiptap/pm": "3.30.3",
     "@tiptap/react": "3.30.3",
     "@tiptap/starter-kit": "3.30.3",
+    "@tiptap/static-renderer": "3.30.3",
     "katex": "0.16.47",
     "lowlight": "3.3.0",
     "lucide-react": "^1.41.0",

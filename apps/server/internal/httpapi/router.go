@@ -100,6 +100,7 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/notes/{id}", noteHandler.Get)
 	mux.HandleFunc("GET /api/notes/{id}/backlinks", noteHandler.Backlinks)
 	mux.HandleFunc("PUT /api/notes/{id}", noteHandler.Update)
+	mux.HandleFunc("DELETE /api/notes/{id}", noteHandler.Delete)
 	mux.HandleFunc("GET /api/workspaces/{id}/plan", planningHandler.WorkspacePlan)
 	mux.HandleFunc("POST /api/workspaces/{id}/milestones", planningHandler.CreateMilestone)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/milestones/{milestoneId}", planningHandler.UpdateMilestone)

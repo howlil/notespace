@@ -57,6 +57,16 @@ func (s Service) DeleteInstance(ctx context.Context, workspaceID, instanceID str
 	return s.store.DeleteNoteInstance(ctx, workspaceID, instanceID, request)
 }
 
+// DeleteEmpty removes a canonical Note only when it is empty and no live Canvas
+// element places it. Removing a placement never reaches this path (K8).
+func (s Service) DeleteEmpty(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if !ValidateID(id, MaxNoteIDLength) {
+		return ErrInvalid
+	}
+	return s.store.DeleteEmptyNote(ctx, id)
+}
+
 func NewID() string { return rand.Text() }
 
 func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }

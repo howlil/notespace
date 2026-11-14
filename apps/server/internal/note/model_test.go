@@ -49,3 +49,26 @@ func TestValidateDocumentAcceptsCalloutsAndRejectsUnknownTone(t *testing.T) {
 		t.Fatalf("unknown callout tone accepted: %v", err)
 	}
 }
+
+func TestIsEmptyDocumentOnlyAcceptsBlankParagraphs(t *testing.T) {
+	for _, document := range []string{
+		`{"type":"doc","content":[]}`,
+		`{"type":"doc","content":[{"type":"paragraph"}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"   "}]}]}`,
+	} {
+		if !IsEmptyDocument(json.RawMessage(document)) {
+			t.Fatalf("blank document %s was not treated as empty", document)
+		}
+	}
+	for _, document := range []string{
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"kept"}]}]}`,
+		`{"type":"doc","content":[{"type":"heading","attrs":{"level":1}}]}`,
+		`{"type":"doc","content":[{"type":"noteImage","attrs":{"assetId":"image-1"}}]}`,
+		`{"type":"paragraph","content":[]}`,
+		`not json`,
+	} {
+		if IsEmptyDocument(json.RawMessage(document)) {
+			t.Fatalf("document %s with content or invalid shape was treated as empty", document)
+		}
+	}
+}

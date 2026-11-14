@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import { useTheme } from "../../../shared/ui/theme/theme-provider";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
@@ -9,9 +9,9 @@ import type { Workspace } from "../../../domain/workspace/workspace";
 import { registerDesktopFlush } from "../../../adapters/desktop/desktop-lifecycle";
 import { subscribeWorkspaceConflict } from "../../../adapters/browser/workspace-conflict-events";
 import { CanvasConflictRecovery } from "./CanvasConflictRecovery";
-import { createNoteInstance, deleteNoteInstance, updateNote } from "../../../adapters/http/note-api";
+import { createNoteInstance, deleteNote, deleteNoteInstance, updateNote } from "../../../adapters/http/note-api";
 import type { SaveStatus } from "../../../domain/workspace/autosave";
-import type { NoteSaveStatus } from "../canvas/note/CanvasNoteCardLayer";
+import type { NoteSaveStatus } from "../canvas/note/canvas-note-store";
 
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
 
@@ -41,9 +41,13 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
           : canvasStatus, [canvasStatus, noteSaveStatus]);
   const authoringDirty = dirty || noteSaveStatus.state !== "saved";
 
+  // Notes this session created. Leaving the workspace removes the ones left empty and unplaced.
+  const createdNoteIds = useRef(new Set<string>());
+  const flushOnLeave = useRef(flushAll);
   const createCanvasNote = useCallback(async (request: Parameters<typeof createNoteInstance>[1]) => {
     const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: canvasVersion });
     acknowledgeCanvas(result.canvas);
+    createdNoteIds.current.add(result.note.id);
     return result;
   }, [acknowledgeCanvas, canvasVersion, workspace.id]);
   const deleteCanvasNote = useCallback(async (workspaceId: string, instanceId: string, canvas: Parameters<typeof deleteNoteInstance>[2], expectedCanvasVersion: number) => {
@@ -162,6 +166,21 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
       void flushAll().catch(() => {});
     };
   }, [flushAll]);
+
+  useEffect(() => { flushOnLeave.current = flushAll; }, [flushAll]);
+  useEffect(() => {
+    const created = createdNoteIds.current;
+    return () => {
+      // Runs only when the workspace is left, never on ordinary re-renders, so Redo
+      // within the session still finds the Note. The server refuses any Note that is
+      // non-empty or still placed, so this sweep never removes authored content.
+      const noteIds = [...created];
+      created.clear();
+      void flushOnLeave.current()
+        .catch(() => undefined)
+        .then(() => Promise.allSettled(noteIds.map((noteId) => deleteNote(noteId))));
+    };
+  }, [workspace.id]);
 
   const authoringVisible = (
     <div className="relative h-full min-h-0 min-w-0 w-full overflow-hidden bg-canvas">

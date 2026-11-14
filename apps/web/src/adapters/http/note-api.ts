@@ -52,6 +52,7 @@ export interface NoteHttpClient {
   updateNote(noteId: string, document: NoteDocument, expectedRevision: number): Promise<Note>;
   createNoteInstance(workspaceId: string, request: CreateNoteInstanceRequest): Promise<CreateNoteInstanceResult>;
   deleteNoteInstance(workspaceId: string, instanceId: string, canvas: Snapshot, expectedCanvasVersion: number): Promise<NoteCanvasState>;
+  deleteNote(noteId: string): Promise<void>;
 }
 
 export function createNoteHttpClient(transport: HttpTransport = fetchTransport): NoteHttpClient {
@@ -70,6 +71,7 @@ export function createNoteHttpClient(transport: HttpTransport = fetchTransport):
       method: "DELETE",
       ...json({ canvas, expectedCanvasVersion }),
     }, transport),
+    deleteNote: (noteId) => request<void>(`/api/notes/${encodeURIComponent(noteId)}`, { method: "DELETE" }, transport),
   };
 }
 
@@ -79,3 +81,4 @@ export const listNoteBacklinks = defaultClient.listBacklinks;
 export const updateNote = defaultClient.updateNote;
 export const createNoteInstance = defaultClient.createNoteInstance;
 export const deleteNoteInstance = defaultClient.deleteNoteInstance;
+export const deleteNote = defaultClient.deleteNote;

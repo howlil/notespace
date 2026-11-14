@@ -1,49 +1,54 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
-import TaskItem from "@tiptap/extension-task-item";
-import TaskList from "@tiptap/extension-task-list";
-import Underline from "@tiptap/extension-underline";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import Mathematics from "@tiptap/extension-mathematics";
-import { Markdown } from "@tiptap/markdown";
 import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, CSSProperties, ReactNode } from "react";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { getNote, listNoteBacklinks, type Note } from "../../../../adapters/http/note-api";
+import { listNoteBacklinks, type Note } from "../../../../adapters/http/note-api";
 import { searchNotespace, type SearchResult } from "../../../../adapters/http/workspace-api";
-import { APIError } from "../../../../adapters/http/client";
 import { storeImageAsset } from "../../../../adapters/assets/image-store";
-import { ensureNoteBlockIds, NoteBlockIdentity, NoteBlockReference, NoteCallout, NoteEmbed, NoteImage } from "./note-extensions";
+import { createNoteExtensions, ensureNoteBlockIds } from "./note-extensions";
 import { sanitizePastedHTML } from "./note-sanitize";
-import { readCanvasNoteReference, type NoteDocument } from "../../../../domain/note/note";
+import { noteFirstLine, readCanvasNoteReference, type CanvasNoteReference, type NoteDocument } from "../../../../domain/note/note";
+import type { CanvasNoteEntry, NoteSaveState, NoteSaveStatus } from "./canvas-note-store";
+import { noteCardDetail, noteCardFrame, noteCardLabelFontSize, noteCardUiScale, type NoteCardDetail } from "./note-card-layout";
+import { noteSlashQuery } from "./note-slash";
+import { NoteReadView } from "./NoteReadView";
+import { CanvasNoteStoreProvider, useCanvasNoteSnapshot, useCanvasNoteStore } from "./use-canvas-note-store";
 
 type CanvasViewport = { zoom: number; scrollX: number; scrollY: number };
-export type NoteSaveState = "saved" | "pending" | "saving" | "error" | "conflict";
-export type NoteSaveStatus = { state: NoteSaveState; message?: string; recover?: () => Promise<void> };
 
-export function CanvasNoteActions({ compact, onEdit, onToggleCompact, onDuplicate, onDelete }: {
-  compact: boolean;
+/** Document-level commands; they live under the card's More menu, never in the selection bubble (B11). */
+export type NoteDocumentTool = "find" | "backlinks" | "import" | "export" | "ai";
+const documentTools: ReadonlyArray<[NoteDocumentTool, string]> = [
+  ["find", "Find in note"],
+  ["backlinks", "Backlinks"],
+  ["import", "Import .md"],
+  ["export", "Export .md"],
+  ["ai", "AI writing"],
+];
+
+export function CanvasNoteActions({ folded, onEdit, onToggleFold, onDocumentTool, onDuplicate, onDelete }: {
+  folded: boolean;
   onEdit: () => void;
-  onToggleCompact: () => void;
+  onToggleFold: () => void;
+  onDocumentTool: (tool: NoteDocumentTool) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const [more, setMore] = useState(false);
   return <div className="notespace-note-actions pointer-events-auto relative z-[1] flex w-fit items-center gap-0.5 rounded-lg border border-line bg-surface p-1" role="toolbar" aria-label="Canvas Note actions">
     <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-accent" onClick={onEdit}>Edit</button>
-    <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-accent" onClick={onToggleCompact}>{compact ? "Expand" : "Compact"}</button>
+    <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-accent" onClick={onToggleFold}>{folded ? "Unfold" : "Fold"}</button>
     <button type="button" className="rounded px-2 py-1 text-[10px] text-muted hover:bg-tint hover:text-accent" aria-expanded={more} onClick={() => setMore((value) => !value)}>More</button>
-    {more && <div className="absolute right-0 top-full mt-1 grid min-w-28 gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-[0_8px_20px_rgba(15,23,42,0.14)]">
+    {more && <div className="absolute right-0 top-full mt-1 grid min-w-40 gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-[0_8px_20px_rgba(15,23,42,0.14)]">
+      {documentTools.map(([tool, label]) => <button key={tool} type="button" className="rounded px-2 py-1 text-left text-[10px] text-ink hover:bg-tint" onClick={() => { setMore(false); onDocumentTool(tool); }}>{label}</button>)}
+      <span className="my-0.5 h-px bg-line" aria-hidden="true" />
       <button type="button" className="rounded px-2 py-1 text-left text-[10px] text-ink hover:bg-tint" onClick={onDuplicate}>Duplicate</button>
       <button type="button" className="rounded px-2 py-1 text-left text-[10px] text-danger hover:bg-tint" onClick={onDelete}>Remove instance</button>
     </div>}
   </div>;
 }
-
-const isSafeNoteLink = (url: string) => /^\/workspaces\/[^/]+(?:[?#/].*)?$/i.test(url) || /^https?:\/\//i.test(url);
 
 function previewText(document: NoteDocument) {
   const walk = (nodes: NoteDocument["content"]): string[] => nodes.flatMap((node) => [
@@ -65,6 +70,20 @@ function backlinkExcerpt(value: string) {
 }
 
 type MarkdownPrompt = { kind: "import" | "export"; markdown: string; losses: string[] };
+type CaretPosition = { left: number; top: number };
+
+const FALLBACK_POSITION: CaretPosition = { left: 8, top: 36 };
+
+/** Anchors a popup just below the caret, inside the card, so it opens where the user is typing (B11). */
+function caretPosition(value: Editor, host: HTMLElement | null): CaretPosition {
+  const box = host?.getBoundingClientRect();
+  if (!box) return FALLBACK_POSITION;
+  const coords = value.view.coordsAtPos(value.state.selection.from);
+  return {
+    left: Math.min(Math.max(8, coords.left - box.left), Math.max(8, box.width - 200)),
+    top: coords.bottom - box.top + 4,
+  };
+}
 
 const markdownNodeTypes = new Set([
   "doc", "paragraph", "text", "heading", "bulletList", "orderedList", "listItem", "taskList", "taskItem",
@@ -102,16 +121,19 @@ function NoteEditor(props: {
   note: Note;
   elementId: string;
   workspaceId: string;
+  documentTool: NoteDocumentTool | null;
+  onDocumentToolHandled: () => void;
   onDocumentChange: (document: NoteDocument) => void;
   onAutoResize: (elementId: string, height: number) => void;
   onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
   onError: (message: string) => void;
   onEscape: () => void;
 }) {
-  const { note, elementId, workspaceId, onDocumentChange, onAutoResize, onPlaceLinkedNote, onError, onEscape } = props;
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashQuery, setSlashQuery] = useState("");
-  const [slashIndex, setSlashIndex] = useState(0);
+  const { note, elementId, workspaceId, documentTool, onDocumentToolHandled, onDocumentChange, onAutoResize, onPlaceLinkedNote, onError, onEscape } = props;
+  // A slash command is open only while the text before the caret ends in "/query" (see noteSlashQuery).
+  const [slash, setSlash] = useState<{ query: string; index: number } | null>(null);
+  const [slashPosition, setSlashPosition] = useState<CaretPosition>(FALLBACK_POSITION);
+  const [referencePosition, setReferencePosition] = useState<CaretPosition>(FALLBACK_POSITION);
   const [linkURL, setLinkURL] = useState("");
   const [hasTextSelection, setHasTextSelection] = useState(false);
   const [markdownPrompt, setMarkdownPrompt] = useState<MarkdownPrompt | null>(null);
@@ -131,6 +153,13 @@ function NoteEditor(props: {
   const referenceResultsRef = useRef<SearchResult[]>([]);
   const referencePickRef = useRef<(() => void) | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Keyboard and tool handlers are read through refs so they always see the current menu state.
+  const keyHandlerRef = useRef<(event: KeyboardEvent) => boolean>(() => false);
+  const documentToolRef = useRef<(tool: NoteDocumentTool) => void>(() => {});
+  const handledRef = useRef(onDocumentToolHandled);
+  handledRef.current = onDocumentToolHandled;
+  const [extensions] = useState(createNoteExtensions);
   const insertImageFile = useCallback(async (file: File) => {
     const value = editorRef.current;
     if (!file.type.startsWith("image/") || !value) return false;
@@ -145,29 +174,28 @@ function NoteEditor(props: {
       return false;
     }
   }, [onError, workspaceId]);
+  const syncTriggers = (value: Editor) => {
+    const beforeCaret = value.state.doc.textBetween(0, value.state.selection.from, "\n");
+    const reference = beforeCaret.match(/\[\[([^\]]*)$/);
+    setReferenceQuery(reference ? reference[1] ?? "" : null);
+    if (reference) {
+      setReferenceIndex(0);
+      setReferencePosition(caretPosition(value, containerRef.current));
+    }
+    const query = noteSlashQuery(beforeCaret);
+    if (query === null) {
+      setSlash(null);
+      return;
+    }
+    setSlashPosition(caretPosition(value, containerRef.current));
+    setSlash((previous) => ({ query, index: previous?.query === query ? previous.index : 0 }));
+  };
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      NoteImage,
-      NoteEmbed,
-      NoteBlockReference,
-      NoteCallout,
-      NoteBlockIdentity,
-      Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["http", "https"], isAllowedUri: (url, context) => isSafeNoteLink(url) && (url.startsWith("/") || context.defaultValidate(url)) }),
-      Underline,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Table.configure({ resizable: true }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      Mathematics.configure({ katexOptions: { throwOnError: false, strict: false } }),
-      Markdown,
-    ],
+    extensions,
     content: note.document,
     immediatelyRender: false,
     editorProps: {
-      attributes: { class: "min-h-[116px] px-3 py-2 text-[13px] leading-5 text-ink outline-none", "aria-label": "Note content" },
+      attributes: { class: "notespace-note-content outline-none", "aria-label": "Note content" },
       transformPastedHTML: sanitizePastedHTML,
       handlePaste: (_view, event) => {
         const file = [...(event.clipboardData?.files ?? [])].find((value) => value.type.startsWith("image/"));
@@ -184,54 +212,24 @@ function NoteEditor(props: {
         void insertImageFile(file);
         return true;
       },
-      handleKeyDown: (_view, event) => {
-        if (event.key === "/" && !event.shiftKey) {
-          setSlashOpen(true); setSlashQuery(""); setSlashIndex(0);
-        } else if (slashOpen && event.key === "ArrowDown") {
-          event.preventDefault(); setSlashIndex((value) => value + 1); return true;
-        } else if (slashOpen && event.key === "ArrowUp") {
-          event.preventDefault(); setSlashIndex((value) => Math.max(0, value - 1)); return true;
-        } else if (slashOpen && event.key === "Backspace") {
-          setSlashQuery((value) => value.slice(0, -1));
-        } else if (slashOpen && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          setSlashQuery((value) => value + event.key); setSlashIndex(0);
-        }
-        if (referenceQuery !== null && event.key === "ArrowDown") {
-          event.preventDefault(); setReferenceIndex((value) => value + 1); return true;
-        }
-        if (referenceQuery !== null && event.key === "ArrowUp") {
-          event.preventDefault(); setReferenceIndex((value) => Math.max(0, value - 1)); return true;
-        }
-        if (referenceQuery !== null && event.key === "Enter") {
-          const result = referenceResultsRef.current[referenceIndex % Math.max(1, referenceResultsRef.current.length)];
-          if (result) { event.preventDefault(); referencePickRef.current?.(); return true; }
-        }
-        if (referenceQuery !== null && event.key === "Escape") {
-          event.preventDefault(); setReferenceQuery(null); return true;
-        }
-        if (event.key !== "Escape") return false;
-        event.preventDefault();
-        if (slashOpen) { setSlashOpen(false); setSlashQuery(""); return true; }
-        onEscape();
-        return true;
-      },
+      handleKeyDown: (_view, event) => keyHandlerRef.current(event),
     },
     onUpdate: ({ editor: value }) => {
       onDocumentChange(value.getJSON() as NoteDocument);
-      const beforeCaret = value.state.doc.textBetween(0, value.state.selection.from, "\n");
-      const match = beforeCaret.match(/\[\[([^\]]*)$/);
-      setReferenceQuery(match ? match[1] ?? "" : null);
-      if (match) setReferenceIndex(0);
+      syncTriggers(value);
     },
-    onSelectionUpdate: ({ editor: value }) => setHasTextSelection(!value.state.selection.empty),
-      onCreate: ({ editor: value }) => {
-        const normalized = ensureNoteBlockIds(value.getJSON() as NoteDocument);
-        if (JSON.stringify(normalized) !== JSON.stringify(value.getJSON())) {
-          value.commands.setContent(normalized, { emitUpdate: false });
-          onDocumentChange(normalized);
-        }
-        if (typeof window !== "undefined") window.requestAnimationFrame(() => value.commands.focus("end"));
-      },
+    onSelectionUpdate: ({ editor: value }) => {
+      setHasTextSelection(!value.state.selection.empty);
+      syncTriggers(value);
+    },
+    onCreate: ({ editor: value }) => {
+      const normalized = ensureNoteBlockIds(value.getJSON() as NoteDocument);
+      if (JSON.stringify(normalized) !== JSON.stringify(value.getJSON())) {
+        value.commands.setContent(normalized, { emitUpdate: false });
+        onDocumentChange(normalized);
+      }
+      if (typeof window !== "undefined") window.requestAnimationFrame(() => value.commands.focus("end"));
+    },
   });
   editorRef.current = editor;
 
@@ -298,6 +296,13 @@ function NoteEditor(props: {
     }
   }, [editor, note.id, note.revision, note.document]);
 
+  // A More-menu command runs once the editor is mounted, then the request is released.
+  useEffect(() => {
+    if (!documentTool || !editor) return;
+    documentToolRef.current(documentTool);
+    handledRef.current();
+  }, [documentTool, editor]);
+
   const applyReference = useCallback((result: SearchResult, mode: "link" | "embed" = "link") => {
     if (!editor || !result.noteId) return;
     const beforeCaret = editor.state.doc.textBetween(0, editor.state.selection.from, "\n");
@@ -333,6 +338,9 @@ function NoteEditor(props: {
     ["Code block", () => editor.chain().focus().toggleCodeBlock().run()],
     ["Quote", () => editor.chain().focus().toggleBlockquote().run()],
     ["Callout", () => editor.chain().focus().wrapIn("noteCallout", { tone: "note" }).run()],
+    ["Table", () => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()],
+    ["Image", () => imageInputRef.current?.click()],
+    ["Math", () => editor.chain().focus().insertInlineMath({ latex: "x^2" }).run()],
     ["Block reference", () => {
       const parent = editor.state.selection.$from.parent;
       const blockId = typeof parent.attrs.blockId === "string" && parent.attrs.blockId ? parent.attrs.blockId : crypto.randomUUID();
@@ -345,11 +353,13 @@ function NoteEditor(props: {
       editor.chain().focus().insertContent({ type: "noteBlockReference", attrs: { noteId: note.id, workspaceId, blockId } }).run();
     }],
   ] as const;
-  const visibleCommands = commands.filter(([label]) => label.toLowerCase().includes(slashQuery.toLowerCase()));
+  const visibleCommands = slash ? commands.filter(([label]) => label.toLowerCase().includes(slash.query.toLowerCase())) : [];
   const runSlashCommand = (command: () => void) => {
     const position = editor.state.selection.from;
-    editor.chain().focus().deleteRange({ from: Math.max(1, position - slashQuery.length - 1), to: position }).run();
-    command(); setSlashOpen(false); setSlashQuery("");
+    const length = (slash?.query.length ?? 0) + 1;
+    editor.chain().focus().deleteRange({ from: Math.max(1, position - length), to: position }).run();
+    setSlash(null);
+    command();
   };
   const exportMarkdown = () => {
     const markdown = editor.getMarkdown();
@@ -404,8 +414,46 @@ function NoteEditor(props: {
     setFindIndex(next);
     editor.chain().focus().setTextSelection(match).scrollIntoView().run();
   };
+  const runDocumentTool = (tool: NoteDocumentTool) => {
+    if (tool === "find") { setFindOpen(true); setFindIndex(0); }
+    if (tool === "backlinks") setBacklinksOpen(true);
+    if (tool === "import") importInputRef.current?.click();
+    if (tool === "export") exportMarkdown();
+    if (tool === "ai") setAiUnavailable(true);
+  };
+  documentToolRef.current = runDocumentTool;
+  const handleEditorKey = (event: KeyboardEvent): boolean => {
+    if (slash && visibleCommands.length > 0) {
+      if (event.key === "ArrowDown") { event.preventDefault(); setSlash({ ...slash, index: slash.index + 1 }); return true; }
+      if (event.key === "ArrowUp") { event.preventDefault(); setSlash({ ...slash, index: Math.max(0, slash.index - 1) }); return true; }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runSlashCommand(visibleCommands[slash.index % visibleCommands.length][1]);
+        return true;
+      }
+    }
+    if (referenceQuery !== null && event.key === "ArrowDown") {
+      event.preventDefault(); setReferenceIndex((value) => value + 1); return true;
+    }
+    if (referenceQuery !== null && event.key === "ArrowUp") {
+      event.preventDefault(); setReferenceIndex((value) => Math.max(0, value - 1)); return true;
+    }
+    if (referenceQuery !== null && event.key === "Enter") {
+      const result = referenceResultsRef.current[referenceIndex % Math.max(1, referenceResultsRef.current.length)];
+      if (result) { event.preventDefault(); referencePickRef.current?.(); return true; }
+    }
+    if (referenceQuery !== null && event.key === "Escape") {
+      event.preventDefault(); setReferenceQuery(null); return true;
+    }
+    if (event.key !== "Escape") return false;
+    event.preventDefault();
+    if (slash) { setSlash(null); return true; }
+    onEscape();
+    return true;
+  };
+  keyHandlerRef.current = handleEditorKey;
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <input ref={importInputRef} type="file" accept=".md,text/markdown" className="hidden" onChange={(event) => { void importMarkdown(event); }} aria-label="Import Markdown" />
       <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { void importImage(event); }} aria-label="Insert image" />
       {markdownPrompt && <div className="mb-2 rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-[10px] text-ink" role="alert" aria-label="Markdown import export review">
@@ -416,26 +464,12 @@ function NoteEditor(props: {
           <button type="button" className="rounded border border-line px-1.5 py-1 text-muted" onClick={() => setMarkdownPrompt(null)}>Cancel</button>
         </div>
       </div>}
-      {hasTextSelection && <div className="absolute bottom-full left-1/2 z-20 mb-1 flex w-max max-w-[calc(100vw-24px)] -translate-x-1/2 flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface px-2 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="toolbar" aria-label="Note formatting">
+      {hasTextSelection && <div className="notespace-note-ui absolute bottom-full left-1/2 z-20 mb-1 flex w-max max-w-[calc(100vw-24px)] -translate-x-1/2 flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface px-2 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="toolbar" aria-label="Note formatting">
         {[
           ["Bold", () => editor.chain().focus().toggleBold().run(), editor.isActive("bold")],
           ["Italic", () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic")],
-          ["Code", () => editor.chain().focus().toggleCode().run(), editor.isActive("code")],
           ["Underline", () => editor.chain().focus().toggleUnderline().run(), editor.isActive("underline")],
-          ["Bulleted list", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList")],
-          ["Checklist", () => editor.chain().focus().toggleTaskList().run(), editor.isActive("taskList")],
-          ["Heading", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 })],
-          ["Quote", () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote")],
-          ["Callout", () => editor.chain().focus().wrapIn("noteCallout", { tone: "note" }).run(), editor.isActive("noteCallout")],
-          ["Table", () => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run(), false],
-          ["Math", () => editor.chain().focus().insertInlineMath({ latex: "x^2" }).run(), false],
-          ["Export .md", exportMarkdown, false],
-          ["Import .md", () => importInputRef.current?.click(), false],
-          ["Image", () => imageInputRef.current?.click(), false],
-          ["Find", () => { setFindOpen((value) => !value); setFindIndex(0); }, false],
-          ["Backlinks", () => setBacklinksOpen((value) => !value), false],
-          ["Undo", () => editor.chain().focus().undo().run(), false],
-          ["Redo", () => editor.chain().focus().redo().run(), false],
+          ["Code", () => editor.chain().focus().toggleCode().run(), editor.isActive("code")],
         ].map(([label, command, active]) => <button key={String(label)} type="button" className={"rounded px-1.5 py-1 text-[10px] " + (active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink")} aria-label={String(label)} aria-pressed={Boolean(active)} onMouseDown={(event) => event.preventDefault()} onClick={() => (command as () => void)()}>{String(label)}</button>)}
         {editor.isActive("table") && <>
           <button type="button" className="rounded px-1.5 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" aria-label="Add table row" onMouseDown={(event) => event.preventDefault()} onClick={() => editor.chain().focus().addRowAfter().run()}>Row +</button>
@@ -443,39 +477,138 @@ function NoteEditor(props: {
           <button type="button" className="rounded px-1.5 py-1 text-[10px] text-danger hover:bg-tint" aria-label="Delete table" onMouseDown={(event) => event.preventDefault()} onClick={() => editor.chain().focus().deleteTable().run()}>Delete table</button>
         </>}
         <input className="ml-1 h-6 min-w-0 flex-1 rounded border border-line bg-canvas px-1.5 text-[10px] text-ink outline-none focus:border-accent" value={linkURL} onChange={(event) => setLinkURL(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setLink(); } }} placeholder="Link URL or /workspaces/id?noteId=..." aria-label="Link URL" />
-        <button type="button" className="rounded px-1.5 py-1 text-[10px] text-muted hover:bg-tint hover:text-ink" aria-label="AI writing actions unavailable" title="AI writing actions are unavailable until a configured provider is enabled" onMouseDown={(event) => event.preventDefault()} onClick={() => setAiUnavailable(true)}>AI</button>
       </div>}
-      {findOpen && <div className="absolute bottom-full left-1/2 z-20 mb-10 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1" role="search" aria-label="Find in Note">
+      {findOpen && <div className="notespace-note-ui absolute bottom-full left-1/2 z-20 mb-10 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1" role="search" aria-label="Find in Note">
         <input autoFocus className="h-6 w-32 rounded border border-line bg-canvas px-1.5 text-[10px] text-ink outline-none focus:border-accent" value={findQuery} onChange={(event) => { setFindQuery(event.target.value); setFindIndex(0); }} placeholder="Find in Note" aria-label="Find in Note query" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); findInNote(event.shiftKey ? -1 : 1); } }} />
         <button type="button" className="rounded px-1 py-1 text-[10px] text-muted hover:bg-tint" onClick={() => findInNote(-1)} aria-label="Previous match">Prev</button>
         <button type="button" className="rounded px-1 py-1 text-[10px] text-muted hover:bg-tint" onClick={() => findInNote(1)} aria-label="Next match">Next</button>
         <span className="text-[10px] text-muted" aria-live="polite">{findQuery.trim() ? `${findMatches(findQuery).length ? findIndex + 1 : 0} match${findMatches(findQuery).length === 1 ? "" : "es"}` : "Type to search"}</span>
       </div>}
-      {aiUnavailable && <div className="absolute bottom-full left-1/2 z-20 mb-1 max-w-64 -translate-x-1/2 rounded-lg border border-warning/40 bg-warning/10 px-2 py-1.5 text-[10px] text-ink" role="status">
+      {aiUnavailable && <div className="notespace-note-ui absolute bottom-full left-1/2 z-20 mb-1 max-w-64 -translate-x-1/2 rounded-lg border border-warning/40 bg-warning/10 px-2 py-1.5 text-[10px] text-ink" role="status">
         AI writing actions are unavailable because no approved provider is configured. No document change was made.
         <button type="button" className="ml-1 text-accent underline" onClick={() => setAiUnavailable(false)}>Dismiss</button>
       </div>}
-      {referenceQuery !== null && <div className="absolute left-2 top-9 z-10 grid min-w-48 gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-[0_8px_20px_rgba(15,23,42,0.14)]" role="listbox" aria-label="Canvas Note references">
+      {referenceQuery !== null && <div className="notespace-note-ui absolute z-10 grid min-w-48 gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-[0_8px_20px_rgba(15,23,42,0.14)]" style={{ left: referencePosition.left, top: referencePosition.top }} role="listbox" aria-label="Canvas Note references">
         {referenceResults.length > 0 ? referenceResults.map((result, index) => <div key={`${result.noteId}-${result.workspaceId}`} className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] ${index === referenceIndex % referenceResults.length ? "bg-tint" : ""}`}>
           <button type="button" className="min-w-0 flex-1 truncate px-1 text-left text-ink hover:text-accent" onMouseDown={(event) => event.preventDefault()} onClick={() => applyReference(result)}>{result.excerpt.trim() || "Canvas Note"}</button>
           <button type="button" className="rounded px-1 text-muted hover:bg-surface hover:text-accent" onMouseDown={(event) => event.preventDefault()} onClick={() => applyReference(result, "embed")}>Embed</button>
           {onPlaceLinkedNote && result.noteId && <button type="button" className="rounded px-1 text-muted hover:bg-surface hover:text-accent" onMouseDown={(event) => event.preventDefault()} onClick={() => { void onPlaceLinkedNote(result.noteId!); }}>Place</button>}
         </div>) : <span className="px-2 py-1 text-[10px] text-muted">Type a Note title or ID…</span>}
       </div>}
-      {backlinksOpen && <div className="absolute left-2 top-9 z-10 grid min-w-52 max-w-72 gap-1 rounded-lg border border-line bg-surface p-2 shadow-[0_8px_20px_rgba(15,23,42,0.14)]" role="region" aria-label="Note backlinks">
+      {backlinksOpen && <div className="notespace-note-ui absolute left-2 top-9 z-10 grid min-w-52 max-w-72 gap-1 rounded-lg border border-line bg-surface p-2 shadow-[0_8px_20px_rgba(15,23,42,0.14)]" role="region" aria-label="Note backlinks">
         <strong className="text-[10px] text-ink">Backlinks</strong>
         {backlinks.length ? backlinks.map((result) => <a key={`${result.noteId}-${result.workspaceId}`} className="truncate text-[10px] text-accent hover:underline" href={result.workspaceId && result.noteId ? `/workspaces/${encodeURIComponent(result.workspaceId)}?noteId=${encodeURIComponent(result.noteId)}` : undefined}>{result.excerpt.trim() || "Canvas Note"}</a>) : <span className="text-[10px] text-muted">No incoming Note links found.</span>}
       </div>}
-      {slashOpen && visibleCommands.length > 0 && <div className="absolute left-2 top-9 z-10 grid min-w-36 gap-0.5 rounded-lg border border-line bg-surface p-1" role="menu" aria-label="Note slash commands">
-        {visibleCommands.map(([label, command], index) => <button key={label} type="button" className={"rounded px-2 py-1 text-left text-[10px] text-ink hover:bg-tint " + (index === slashIndex % visibleCommands.length ? "bg-tint text-accent" : "")} onMouseDown={(event) => event.preventDefault()} onClick={() => runSlashCommand(command)}>{label}</button>)}
+      {slash && visibleCommands.length > 0 && <div className="notespace-note-ui absolute z-10 grid min-w-36 gap-0.5 rounded-lg border border-line bg-surface p-1" style={{ left: slashPosition.left, top: slashPosition.top }} role="menu" aria-label="Note slash commands">
+        {visibleCommands.map(([label, command], index) => <button key={label} type="button" className={"rounded px-2 py-1 text-left text-[10px] text-ink hover:bg-tint " + (index === slash.index % visibleCommands.length ? "bg-tint text-accent" : "")} onMouseDown={(event) => event.preventDefault()} onClick={() => runSlashCommand(command)}>{label}</button>)}
       </div>}
       <EditorContent editor={editor} />
     </div>
   );
 }
 
+function NoteCardStatus({ entry, onRetry }: { entry: Exclude<CanvasNoteEntry, { status: "ready" }>; onRetry: () => void }) {
+  if (entry.status === "loading") {
+    return <div className="grid content-start gap-2 px-3.5 py-3" aria-busy="true" aria-label="Loading Note">
+      <span className="h-2.5 w-3/5 rounded bg-tint" />
+      <span className="h-2.5 w-4/5 rounded bg-tint" />
+      <span className="h-2.5 w-2/5 rounded bg-tint" />
+    </div>;
+  }
+  if (entry.status === "missing") {
+    return <p className="m-0 px-3.5 py-2.5 text-[13px] leading-5 text-muted" role="status">This Note is no longer available. Select the card and press Delete to remove it from the Canvas.</p>;
+  }
+  return <div className="flex flex-col items-start gap-1.5 px-3.5 py-2.5 text-[13px] leading-5 text-muted" role="alert">
+    <span>{entry.message}</span>
+    <button type="button" className="pointer-events-auto rounded-md border border-line px-2 py-0.5 text-[12px] text-accent hover:bg-tint" onClick={onRetry}>Retry</button>
+  </div>;
+}
+
+const saveIndicatorLabel: Partial<Record<NoteSaveState, string>> = {
+  pending: "Unsaved changes",
+  saving: "Saving",
+  error: "Save failed",
+  conflict: "Save conflict",
+};
+
+function NoteSaveIndicator({ state }: { state: NoteSaveState | undefined }) {
+  const label = state ? saveIndicatorLabel[state] : undefined;
+  if (!state || !label) return null;
+  const failed = state === "error" || state === "conflict";
+  // Routine progress stays decorative; recovery actions live in the session save status.
+  return <span className={"notespace-note-ui pointer-events-none absolute right-2 top-2 size-1.5 rounded-full " + (failed ? "bg-danger" : "bg-muted/50")} data-note-save={state} title={label} {...(failed ? { role: "img", "aria-label": label } : { "aria-hidden": true })} />;
+}
+
+function NoteLabel({ document, zoom, lines }: { document: NoteDocument; zoom: number; lines: 1 | 2 }) {
+  const label = noteFirstLine(document);
+  return <p className={"m-0 px-3.5 py-2.5 font-semibold leading-tight text-ink " + (lines === 1 ? "truncate" : "line-clamp-2")} style={{ fontSize: noteCardLabelFontSize(zoom) }} data-note-label="">{label}</p>;
+}
+
+type CanvasNoteCardProps = {
+  element: OrderedExcalidrawElement;
+  reference: CanvasNoteReference;
+  entry: CanvasNoteEntry;
+  saveState: NoteSaveState | undefined;
+  workspaceId: string;
+  viewport: CanvasViewport;
+  selected: boolean;
+  editing: boolean;
+  documentTool: NoteDocumentTool | null;
+  onEditingChange: (elementId: string | null) => void;
+  onDocumentChange: (noteId: string, document: NoteDocument) => void;
+  onDocumentToolHandled: () => void;
+  onRetry: (noteId: string) => void;
+  onAutoResize: (elementId: string, height: number) => void;
+  onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
+  onError: (message: string) => void;
+};
+
+function NoteCardBody({ entry, editable, folded, detail, zoom, onRetry, renderEditor }: {
+  entry: CanvasNoteEntry;
+  editable: boolean;
+  folded: boolean;
+  detail: NoteCardDetail;
+  zoom: number;
+  onRetry: () => void;
+  renderEditor: (note: Note) => ReactNode;
+}) {
+  if (entry.status !== "ready") return <NoteCardStatus entry={entry} onRetry={onRetry} />;
+  if (editable) return renderEditor(entry.note);
+  if (folded) return <NoteLabel document={entry.note.document} zoom={zoom} lines={1} />;
+  if (detail === "label") return <NoteLabel document={entry.note.document} zoom={zoom} lines={2} />;
+  return <NoteReadView document={entry.note.document} />;
+}
+
+function CanvasNoteCard({ element, reference, entry, saveState, workspaceId, viewport, selected, editing, documentTool, onEditingChange, onDocumentChange, onDocumentToolHandled, onRetry, onAutoResize, onPlaceLinkedNote, onError }: CanvasNoteCardProps) {
+  // `compact` is the persisted instance flag; the user-facing command is Fold.
+  const folded = reference.compact === true;
+  const editable = editing && entry.status === "ready";
+  const collapsed = folded && !editable;
+  const frame = noteCardFrame(element, viewport, collapsed);
+  const style = { ...frame, "--note-ui-scale": noteCardUiScale(viewport.zoom) } as CSSProperties;
+  const frameClass = "absolute rounded-lg border bg-surface text-ink "
+    + (collapsed ? "overflow-hidden " : "overflow-visible ")
+    + (selected || editable ? "border-accent/70 ring-2 ring-accent/15" : "border-line")
+    + (editable ? " pointer-events-auto" : " pointer-events-none");
+  return <article className={frameClass} style={style} data-note-element={element.id} data-note-compact={folded || undefined} data-note-state={entry.status} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onEditingChange(null); }}>
+    <NoteCardBody
+      entry={entry}
+      editable={editable}
+      folded={collapsed}
+      detail={noteCardDetail(viewport.zoom, editable)}
+      zoom={viewport.zoom}
+      onRetry={() => onRetry(reference.noteId)}
+      renderEditor={(note) => <NoteEditor note={note} elementId={element.id} workspaceId={workspaceId} documentTool={documentTool} onDocumentToolHandled={onDocumentToolHandled} onDocumentChange={(document) => onDocumentChange(note.id, document)} onAutoResize={onAutoResize} onPlaceLinkedNote={onPlaceLinkedNote} onError={onError} onEscape={() => onEditingChange(null)} />}
+    />
+    <NoteSaveIndicator state={saveState} />
+  </article>;
+}
+
+const ignoreAutoResize = () => {};
+const ignoreDocumentToolHandled = () => {};
+
 export function CanvasNoteCardLayer({
-  elements, workspaceId, viewport, selectedElementId, editingElementId, onEditingChange, onRegisterFlush, onUpdateNote, onSaveState, onAutoResize, onPlaceLinkedNote, onError,
+  elements, workspaceId, viewport, selectedElementId, editingElementId, onEditingChange, onRegisterFlush, onUpdateNote, onSaveState, onAutoResize, onPlaceLinkedNote, documentRequest, onDocumentRequestHandled, onError,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   workspaceId: string;
@@ -488,115 +621,44 @@ export function CanvasNoteCardLayer({
   onSaveState?: (status: NoteSaveStatus) => void;
   onAutoResize?: (elementId: string, height: number) => void;
   onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
+  documentRequest?: { elementId: string; tool: NoteDocumentTool } | null;
+  onDocumentRequestHandled?: () => void;
   onError: (message: string) => void;
 }) {
-  const [notes, setNotes] = useState<Record<string, Note>>({});
-  const pending = useRef(new Map<string, { document?: NoteDocument; revision: number; timer?: number; inFlight?: Promise<void> }>());
-  const saveStates = useRef(new Map<string, NoteSaveStatus>());
-  const reportSaveState = useCallback((noteId: string, status: NoteSaveStatus) => {
-    saveStates.current.set(noteId, status);
-    const statuses = [...saveStates.current.values()];
-    onSaveState?.(statuses.find((value) => value.state === "conflict") ?? statuses.find((value) => value.state === "error") ?? statuses.find((value) => value.state === "saving") ?? statuses.find((value) => value.state === "pending") ?? { state: "saved" });
-  }, [onSaveState]);
+  const store = useCanvasNoteStore({ updateNote: onUpdateNote });
+  const snapshot = useCanvasNoteSnapshot(store);
   const noteElements = useMemo(() => elements.flatMap((element) => {
     const reference = readCanvasNoteReference(element);
     return reference ? [{ element, reference }] : [];
   }), [elements]);
 
   useEffect(() => {
-    let cancelled = false;
-    const missing = noteElements.map(({ reference }) => reference.noteId).filter((id, index, all) => !notes[id] && all.indexOf(id) === index);
-    if (!missing.length) return undefined;
-    void Promise.all(missing.map(async (id) => {
-      try { return await getNote(id); }
-      catch (error) { onError(error instanceof Error ? error.message : "Could not load this Note."); return null; }
-    })).then((values) => {
-      if (!cancelled) setNotes((current) => Object.fromEntries([...Object.entries(current), ...values.filter((value): value is Note => Boolean(value)).map((value) => [value.id, value])]));
-    });
-    return () => { cancelled = true; };
-  }, [noteElements, notes, onError]);
+    store.ensure(noteElements.map(({ reference }) => reference.noteId));
+  }, [noteElements, store]);
+  useEffect(() => { onSaveState?.(snapshot.save); }, [onSaveState, snapshot.save]);
+  useEffect(() => onRegisterFlush?.(() => store.flushAll()), [onRegisterFlush, store]);
 
-  const recoverNote = useCallback(async (noteId: string) => {
-    const entry = pending.current.get(noteId);
-    if (!entry?.document) return;
-    reportSaveState(noteId, { state: "saving" });
-    try {
-      const latest = await getNote(noteId);
-      const saved = await onUpdateNote(noteId, entry.document, latest.revision);
-      entry.revision = saved.revision;
-      entry.document = undefined;
-      pending.current.delete(noteId);
-      setNotes((current) => ({ ...current, [noteId]: saved }));
-      reportSaveState(noteId, { state: "saved" });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not recover this Note.";
-      reportSaveState(noteId, {
-        state: error instanceof APIError && error.status === 409 ? "conflict" : "error",
-        message,
-        recover: () => recoverNote(noteId),
-      });
-      throw error;
-    }
-  }, [onUpdateNote, reportSaveState]);
-
-  const flushNote = useCallback(async (noteId: string) => {
-    const entry = pending.current.get(noteId);
-    if (!entry) return;
-    if (entry.timer !== undefined) window.clearTimeout(entry.timer);
-    if (entry.inFlight) return entry.inFlight;
-    entry.inFlight = (async () => {
-      reportSaveState(noteId, { state: "saving" });
-      while (entry.document) {
-        const document = entry.document; entry.document = undefined;
-        try {
-          const saved = await onUpdateNote(noteId, document, entry.revision);
-          entry.revision = saved.revision;
-          setNotes((current) => ({ ...current, [noteId]: saved }));
-        } catch (error) { entry.document = document; throw error; }
-      }
-      pending.current.delete(noteId);
-      reportSaveState(noteId, { state: "saved" });
-    })().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Could not save this Note.";
-      reportSaveState(noteId, {
-        state: error instanceof APIError && error.status === 409 ? "conflict" : "error",
-        message,
-        ...(error instanceof APIError && error.status === 409 ? { recover: () => recoverNote(noteId) } : {}),
-      });
-      throw error;
-    }).finally(() => {
-      const current = pending.current.get(noteId);
-      if (current) current.inFlight = undefined;
-    });
-    return entry.inFlight;
-  }, [onUpdateNote, recoverNote, reportSaveState]);
-
-  const queueNoteUpdate = useCallback((noteId: string, document: NoteDocument) => {
-    const current = notes[noteId];
-    if (!current) return;
-    const entry = pending.current.get(noteId) ?? { revision: current.revision };
-    entry.document = document; entry.revision = entry.revision || current.revision;
-    if (entry.timer !== undefined) window.clearTimeout(entry.timer);
-    entry.timer = window.setTimeout(() => { void flushNote(noteId).catch((error: unknown) => onError(error instanceof Error ? error.message : "Could not save this Note.")); }, 350);
-    pending.current.set(noteId, entry);
-    reportSaveState(noteId, { state: "pending" });
-    setNotes((value) => ({ ...value, [noteId]: { ...value[noteId], document } }));
-  }, [flushNote, notes, onError, reportSaveState]);
-
-  useEffect(() => onRegisterFlush?.(async () => {
-    await Promise.all([...pending.current.keys()].map((id) => flushNote(id)));
-  }), [flushNote, onRegisterFlush]);
-
-  return <div className="pointer-events-none absolute inset-0 z-[5] overflow-visible" aria-label="Canvas notes">
-    {noteElements.map(({ element, reference }) => {
-      const note = notes[reference.noteId];
-      if (!note) return null;
-      const editing = editingElementId === element.id;
-      const selected = selectedElementId === element.id;
-      const compact = reference.compact === true;
-      return <article key={element.id} className={"absolute overflow-visible rounded-xl border bg-surface/95 shadow-[0_10px_28px_rgba(15,23,42,0.12)] " + (selected ? "border-accent/60 ring-2 ring-accent/15" : "border-line") + (editing ? " pointer-events-auto" : " pointer-events-none")} style={{ left: (element.x + viewport.scrollX) * viewport.zoom, top: (element.y + viewport.scrollY) * viewport.zoom, width: element.width * viewport.zoom, height: compact && !editing ? 180 * viewport.zoom : undefined, minHeight: compact && !editing ? 0 : element.height * viewport.zoom }} data-note-element={element.id} data-note-compact={compact || undefined} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onEditingChange(null); }}>
-        {editing ? <NoteEditor note={note} elementId={element.id} workspaceId={workspaceId} onDocumentChange={(document) => queueNoteUpdate(note.id, document)} onAutoResize={onAutoResize ?? (() => {})} onPlaceLinkedNote={onPlaceLinkedNote} onError={onError} onEscape={() => onEditingChange(null)} /> : <p className={"min-h-[116px] whitespace-pre-wrap px-3 py-2 text-[13px] leading-5 text-ink/85 " + (compact ? "max-h-[180px] overflow-hidden" : "")}>{previewText(note.document)}</p>}
-      </article>;
-    })}
-  </div>;
+  return <CanvasNoteStoreProvider value={store}>
+    <div className="pointer-events-none absolute inset-0 z-[5] overflow-visible" aria-label="Canvas notes">
+      {noteElements.map(({ element, reference }) => <CanvasNoteCard
+        key={element.id}
+        element={element}
+        reference={reference}
+        entry={snapshot.entries[reference.noteId] ?? { status: "loading" }}
+        saveState={snapshot.saves[reference.noteId]}
+        workspaceId={workspaceId}
+        viewport={viewport}
+        selected={selectedElementId === element.id}
+        editing={editingElementId === element.id}
+        documentTool={documentRequest?.elementId === element.id ? documentRequest.tool : null}
+        onEditingChange={onEditingChange}
+        onDocumentChange={store.queue}
+        onDocumentToolHandled={onDocumentRequestHandled ?? ignoreDocumentToolHandled}
+        onRetry={store.retry}
+        onAutoResize={onAutoResize ?? ignoreAutoResize}
+        onPlaceLinkedNote={onPlaceLinkedNote}
+        onError={onError}
+      />)}
+    </div>
+  </CanvasNoteStoreProvider>;
 }

@@ -1,10 +1,18 @@
-import { Extension, Node, mergeAttributes, type JSONContent, type MarkdownRendererHelpers } from "@tiptap/core";
+import { Extension, Node, mergeAttributes, type Extensions, type JSONContent, type MarkdownRendererHelpers } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { useEffect, useState } from "react";
-import { getNote, type Note } from "../../../../adapters/http/note-api";
-import type { NoteDocument, NoteNode } from "../../../../domain/note/note";
+import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import TaskItem from "@tiptap/extension-task-item";
+import TaskList from "@tiptap/extension-task-list";
+import Underline from "@tiptap/extension-underline";
+import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import Mathematics from "@tiptap/extension-mathematics";
+import { Markdown } from "@tiptap/markdown";
+import { useReferencedCanvasNote } from "./use-canvas-note-store";
+import { isValidNoteBlockId, NOTE_BLOCK_NODE_TYPES, noteBlockIdRepairs, type NoteDocument, type NoteNode } from "../../../../domain/note/note";
 
-const blockNodeTypes = new Set(["paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList", "taskList", "table", "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference", "noteCallout"]);
+const blockNodeTypes = NOTE_BLOCK_NODE_TYPES;
 
 function createBlockId() {
   return globalThis.crypto?.randomUUID?.() ?? `block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -12,13 +20,19 @@ function createBlockId() {
 
 export function ensureNoteBlockIds(document: NoteDocument): NoteDocument {
   let changed = false;
+  const seen = new Set<string>();
+  const needsId = (node: NoteNode) => {
+    if (!blockNodeTypes.has(node.type)) return false;
+    const blockId = node.attrs?.blockId;
+    if (!isValidNoteBlockId(blockId) || seen.has(blockId)) return true;
+    seen.add(blockId);
+    return false;
+  };
   const visit = (nodes: NoteNode[]): NoteNode[] => {
     let next: NoteNode[] | null = null;
     nodes.forEach((node, index) => {
+      const attrs = needsId(node) ? { ...(node.attrs ?? {}), blockId: createBlockId() } : node.attrs;
       const content = node.content ? visit(node.content) : undefined;
-      const attrs = blockNodeTypes.has(node.type) && !node.attrs?.blockId
-        ? { ...(node.attrs ?? {}), blockId: createBlockId() }
-        : node.attrs;
       if (attrs === node.attrs && content === node.content) return;
       changed = true;
       next ??= nodes.slice();
@@ -39,11 +53,35 @@ export const NoteBlockIdentity = Extension.create({
       attributes: {
         blockId: {
           default: null,
+          // A split block is a new block: it must not inherit the original identity.
+          keepOnSplit: false,
           parseHTML: (element: HTMLElement) => element.getAttribute("data-note-block-id"),
           renderHTML: (attributes: { blockId?: string | null }) => attributes.blockId ? { "data-note-block-id": attributes.blockId } : {},
         },
       },
     }];
+  },
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: new PluginKey("noteBlockIdentity"),
+      // New, split, pasted or converted blocks get a fresh id in the same transaction group,
+      // so a saved document always satisfies the server's present/valid/unique contract.
+      appendTransaction: (transactions, _oldState, newState) => {
+        if (!transactions.some((transaction) => transaction.docChanged)) return null;
+        const blocks: Array<{ key: number; type: string; blockId: unknown }> = [];
+        newState.doc.descendants((node, pos) => {
+          blocks.push({ key: pos, type: node.type.name, blockId: node.attrs.blockId });
+        });
+        const repairs = noteBlockIdRepairs(blocks);
+        if (!repairs.length) return null;
+        const tr = newState.tr;
+        for (const pos of repairs) {
+          const node = tr.doc.nodeAt(pos);
+          if (node) tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: createBlockId() });
+        }
+        return tr;
+      },
+    })];
   },
 });
 
@@ -57,22 +95,8 @@ function documentPreview(document: NoteDocument): string {
 
 function useReferencedNote(noteId: unknown) {
   const id = typeof noteId === "string" ? noteId : "";
-  const [note, setNote] = useState<Note | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "missing">(id ? "loading" : "missing");
-  useEffect(() => {
-    let active = true;
-    if (!id) return () => { active = false; };
-    setState("loading");
-    void getNote(id).then((value) => {
-      if (!active) return;
-      setNote(value);
-      setState("ready");
-    }).catch(() => {
-      if (active) setState("missing");
-    });
-    return () => { active = false; };
-  }, [id]);
-  return { id, note, state };
+  const entry = useReferencedCanvasNote(id);
+  return { id, note: entry.status === "ready" ? entry.note : null, state: entry.status === "ready" ? "ready" : entry.status === "loading" ? "loading" : "missing" } as const;
 }
 
 function targetHref(workspaceId: unknown, noteId: string) {
@@ -80,18 +104,27 @@ function targetHref(workspaceId: unknown, noteId: string) {
   return `/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(noteId)}`;
 }
 
-function NoteEmbedView({ node }: NodeViewProps) {
-  const { id, note, state } = useReferencedNote(node.attrs.noteId);
-  const href = targetHref(node.attrs.workspaceId, id);
-  const label = typeof node.attrs.label === "string" && node.attrs.label.trim() ? node.attrs.label : "Embedded Note";
-  return <NodeViewWrapper className="my-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-[11px] text-ink" contentEditable={false} data-note-embed={id}>
+type NoteEmbedCardProps = { noteId: unknown; workspaceId: unknown; label: unknown };
+
+/** Read-only embed preview shared by the editor node view and the static read view. */
+export function NoteEmbedCard({ noteId, workspaceId, label }: NoteEmbedCardProps) {
+  const { id, note, state } = useReferencedNote(noteId);
+  const href = targetHref(workspaceId, id);
+  const title = typeof label === "string" && label.trim() ? label : "Embedded Note";
+  return <div className="my-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-[12px] text-ink" data-note-embed={id}>
     <div className="flex items-center justify-between gap-2">
-      <strong>{label}</strong>
+      <strong className="font-semibold">{title}</strong>
       {href && <a className="text-accent hover:underline" href={href}>Open</a>}
     </div>
     <p className="m-0 mt-1 text-muted">
       {state === "loading" ? "Loading embedded Note…" : state === "missing" ? `Missing Note: ${id || "unknown"}` : documentPreview(note?.document ?? { type: "doc", content: [] }) || "Empty Note"}
     </p>
+  </div>;
+}
+
+function NoteEmbedView({ node }: NodeViewProps) {
+  return <NodeViewWrapper contentEditable={false}>
+    <NoteEmbedCard noteId={node.attrs.noteId} workspaceId={node.attrs.workspaceId} label={node.attrs.label} />
   </NodeViewWrapper>;
 }
 
@@ -108,16 +141,24 @@ function findBlockPreview(document: NoteDocument | null, blockId: string): strin
   return visit(document.content);
 }
 
-function BlockReferenceView({ node }: NodeViewProps) {
-  const { id, note, state } = useReferencedNote(node.attrs.noteId);
-  const blockId = typeof node.attrs.blockId === "string" ? node.attrs.blockId : "";
+type NoteBlockReferenceCardProps = { noteId: unknown; workspaceId: unknown; blockId: unknown };
+
+export function NoteBlockReferenceCard({ noteId, workspaceId, blockId: rawBlockId }: NoteBlockReferenceCardProps) {
+  const { id, note, state } = useReferencedNote(noteId);
+  const blockId = typeof rawBlockId === "string" ? rawBlockId : "";
   const preview = findBlockPreview(note?.document ?? null, blockId);
-  const href = targetHref(node.attrs.workspaceId, id);
-  return <NodeViewWrapper className="my-1 rounded border-l-2 border-accent/50 bg-tint/40 px-2 py-1 text-[11px] text-ink" contentEditable={false} data-note-block-ref={`${id}#${blockId}`}>
+  const href = targetHref(workspaceId, id);
+  return <div className="my-1 rounded border-l-2 border-accent/50 bg-tint/40 px-2 py-1 text-[12px] text-ink" data-note-block-ref={`${id}#${blockId}`}>
     <div className="flex items-center justify-between gap-2">
       <span>{state === "loading" ? "Loading block reference…" : preview ?? `Missing block: ${blockId || "unknown"}`}</span>
       {href && <a className="shrink-0 text-accent hover:underline" href={href}>Open</a>}
     </div>
+  </div>;
+}
+
+function BlockReferenceView({ node }: NodeViewProps) {
+  return <NodeViewWrapper contentEditable={false}>
+    <NoteBlockReferenceCard noteId={node.attrs.noteId} workspaceId={node.attrs.workspaceId} blockId={node.attrs.blockId} />
   </NodeViewWrapper>;
 }
 
@@ -265,3 +306,30 @@ export const NoteCallout = Node.create({
     return `> [!${tone}]${quoted ? `\n${quoted}` : ""}`;
   },
 });
+
+export const isSafeNoteLink = (url: string) => /^\/workspaces\/[^/]+(?:[?#/].*)?$/i.test(url) || /^https?:\/\//i.test(url);
+
+/**
+ * One schema for the editor and the read-only renderer. StarterKit's own Link/Underline are
+ * disabled so the configured safe-link policy below is the only Link implementation.
+ */
+export function createNoteExtensions(): Extensions {
+  return [
+    StarterKit.configure({ link: false, underline: false }),
+    NoteImage,
+    NoteEmbed,
+    NoteBlockReference,
+    NoteCallout,
+    NoteBlockIdentity,
+    Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["http", "https"], isAllowedUri: (url, context) => isSafeNoteLink(url) && (url.startsWith("/") || context.defaultValidate(url)) }),
+    Underline,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    Mathematics.configure({ katexOptions: { throwOnError: false, strict: false } }),
+    Markdown,
+  ];
+}

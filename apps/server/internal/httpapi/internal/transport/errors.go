@@ -29,6 +29,10 @@ func Fail(w http.ResponseWriter, err error) {
 		Send(w, 400, map[string]string{"error": "Invalid note document, Canvas reference, geometry, or version"})
 	case errors.Is(err, note.ErrConflict):
 		Send(w, 409, map[string]string{"error": "This note or Canvas changed in another session. Your draft remains available for recovery.", "code": "note_conflict"})
+	case errors.Is(err, note.ErrNotEmpty):
+		Send(w, 409, map[string]string{"error": "This Note has content and cannot be deleted here.", "code": "note_not_empty"})
+	case errors.Is(err, note.ErrNoteInUse):
+		Send(w, 409, map[string]string{"error": "This Note is still placed on a Canvas.", "code": "note_in_use"})
 	case errors.Is(err, capture.ErrNotFound):
 		Send(w, 404, map[string]string{"error": "Capture or destination workspace not found"})
 	case errors.Is(err, capture.ErrInvalid):

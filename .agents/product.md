@@ -147,20 +147,24 @@ J2: Draw and edit Canvas objects while understanding what each control changes.
 
 J3: While working on a spatial Canvas, capture and reuse written knowledge without leaving the Canvas.
 
-- B9: Activating Note creates one blank, visible Canvas card and focuses writing immediately. A single click selects; double-click edits; Escape exits editing; drag/resize changes only instance geometry.
+- B9: Activating Note creates one blank, visible Canvas card and focuses writing immediately (tool click/drag places it at the pointer; the shortcut places it at the viewport center). A single click selects; Enter or double-click edits with the caret at the activation point; clicking outside or Escape exits editing and keeps the selection; a second Escape deselects. Drag/resize changes only instance geometry.
+- B9a (card surface): each instance is one card surface drawn with semantic tokens over its scene geometry, so theme changes never leave stale card colors. Content renders at Canvas scale, so wrapping is identical at every zoom. A card that is not being edited shows its read-only rich semantic content; only the edited card mounts an editor. At very low zoom a card may show only its first line.
+- B9b (size and fold): width is user-set. Height is auto (grows with content up to a cap, then scrolls inside the card) or fixed after a manual vertical resize; Fit content returns it to auto. Automatic height fitting never adds an Undo step. Fold collapses one instance to its first line and replaces the former Compact mode; it is instance state and persists with the Canvas.
+- B9c (card states): loading, missing (with Remove from canvas), and pending/failed/conflicting save are visible on the card; routine saved state is not. Removing an instance offers Undo and says the Note itself remains. Duplicate creates a new Note with copied content; Place linked creates another instance of the same Note.
 - B10: Note content is shared by stable identity across Canvas instances; removing an instance preserves the Note. Content changes save independently from Canvas geometry and remain recoverable across reload/close.
-- B11: While editing a Note, the user can progressively format its semantic document, insert supported safe content, and use contextual commands without a permanent card toolbar or Canvas shortcut interference.
-- B12: A user can find a Note, link or place its existing identity in another Canvas, and follow an internal reference or backlink to its reachable instance without a standalone Note route.
-- B13: Rich input and interchange preserve authored content: managed images, tables, callouts, clipboard content, and Markdown import/export either round-trip through supported semantic content or state a recoverable loss before replacement.
-- B14: Math and writing assistance never execute untrusted content or invent a result. An unavailable writing provider reports that state and leaves the Note unchanged.
+- B11: While editing a Note, the user can progressively format its semantic document and insert supported safe content (checklists, code, tables, callouts, math, images, embeds) without a permanent card toolbar or Canvas shortcut interference. The text-selection menu holds inline formatting only; the slash menu opens at the caret; the selected-card toolbar shows at most Edit, Fold and More, and More holds Duplicate and Remove instance.
+- B12: A user can place an existing Note identity in another Canvas and embed a Note; a missing embedded target shows a visible missing state, without a standalone Note route.
+- B13: Rich input preserves authored content: managed images, tables, callouts and sanitized pasted content keep their supported semantic form; unsafe or unsupported input is rejected or reported without executing.
+- B14: Math never executes untrusted content or invents a result; an invalid formula shows a recoverable error and leaves the Note unchanged.
 - X3: A stale content revision or failed save preserves the local draft and exposes retry/recovery; failed create+place leaves neither an orphan Note nor an unreferenced Canvas instance.
-- X4: Invalid/sanitized rich input, a missing reference, an unsupported import/export construct, or a failed asset operation keeps the current Note usable and exposes the affected recovery or loss state.
-- C2: Canvas remains the only authoring surface. The card has no title field, icon, cover, header/footer, or persistent toolbar. Historical Note DTOs/migrations remain compatibility data and are not reused as canonical storage.
+- X4: Invalid/sanitized rich input, a missing reference, or a failed asset operation keeps the current Note usable and exposes the affected recovery or loss state.
+- C2: Canvas remains the only authoring surface. The card has no title field, icon, cover, header/footer, or persistent toolbar; its first line may serve as a derived label (fold, references, search), never as a separate field. Historical Note DTOs/migrations remain compatibility data and are not reused as canonical storage.
 - P6 (B9-B10): Create, type, close/reload, move/resize, duplicate/remove instance and undo preserve the expected content/geometry and focus behavior.
+- P6a (B9a-B9c): Rich read view after reload, zoom-independent wrapping, theme-correct surface, auto/fixed height with internal scroll, fold persistence, Undo history untouched by auto-fit, and visible loading/missing/save-failure states.
 - P7 (X3): Conflicting and failed writes retain the draft; retry is safe and atomic; backup/restore round-trips Notes and typed Canvas references.
 - P8 (B11,X4): Formatting, composition, selection toolbar, slash/keyboard commands and safe pasted input preserve caret/focus, do not trigger Canvas commands, and recover from rejected input.
-- P9 (B12): Linked instances, search, Quick Open, references and backlinks retain stable identity and navigate to an available instance or visible missing state.
-- P10 (B13-B14,X4): Assets, tables, callouts, Markdown and math preserve their supported source or explain loss/error; unavailable AI never changes the document.
+- P9 (B12): Linked instances and embeds retain stable identity and show a visible missing state for unavailable targets.
+- P10 (B13-B14,X4): Assets, tables, callouts and math preserve their supported source or explain loss/error; an invalid formula never changes the document.
 
 ## Canvas Code Module (#199)
 

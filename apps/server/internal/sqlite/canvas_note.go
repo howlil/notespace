@@ -114,6 +114,48 @@ func (s *Store) DeleteNoteInstance(ctx context.Context, workspaceID, instanceID 
 	return canvasState(state), nil
 }
 
+// DeleteEmptyNote deletes a Note only when it is empty and no live Canvas element
+// places it. Orphan instance rows left by undo are cleared in the same transaction.
+func (s *Store) DeleteEmptyNote(ctx context.Context, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	value, err := canvasnotequery.GetNote(tx, ctx, id)
+	if err != nil {
+		return err
+	}
+	if !note.IsEmptyDocument(value.Document) {
+		return note.ErrNotEmpty
+	}
+	placements, err := canvasnotequery.ListPlacementsTx(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	liveByWorkspace := map[string]map[string]bool{}
+	for _, placement := range placements {
+		live, seen := liveByWorkspace[placement.WorkspaceID]
+		if !seen {
+			canvas, err := workspacequery.GetCanvasState(tx, ctx, placement.WorkspaceID)
+			if err != nil {
+				return err
+			}
+			if live, err = canvasnotequery.LiveInstanceIDs(canvas.Canvas.Data, id); err != nil {
+				return err
+			}
+			liveByWorkspace[placement.WorkspaceID] = live
+		}
+		if live[placement.ID] {
+			return note.ErrNoteInUse
+		}
+	}
+	if err := canvasnotequery.DeleteNoteTx(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func updateCanvasInTx(ctx context.Context, tx *sql.Tx, workspaceID string, version int, canvas note.CanvasSnapshot) (workspacepkg.CanvasState, error) {
 	encoded, err := json.Marshal(canvas)
 	if err != nil {

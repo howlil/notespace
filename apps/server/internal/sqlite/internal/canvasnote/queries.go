@@ -125,6 +125,70 @@ func DeleteInstanceTx(ctx context.Context, tx dbtx.DBTX, workspaceID, instanceID
 	return nil
 }
 
+// ListPlacementsTx returns every instance row that still points at a Note.
+func ListPlacementsTx(ctx context.Context, tx dbtx.DBTX, noteID string) ([]note.Instance, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id,workspace_id FROM canvas_note_instances WHERE note_id=?`, noteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var placements []note.Instance
+	for rows.Next() {
+		var value note.Instance
+		if err := rows.Scan(&value.ID, &value.WorkspaceID); err != nil {
+			return nil, err
+		}
+		placements = append(placements, value)
+	}
+	return placements, rows.Err()
+}
+
+// LiveInstanceIDs returns the instance IDs of a Canvas scene that still show a
+// non-deleted element for the Note. Malformed scenes fail closed.
+func LiveInstanceIDs(canvasData json.RawMessage, noteID string) (map[string]bool, error) {
+	var scene struct {
+		Elements []struct {
+			IsDeleted  bool `json:"isDeleted"`
+			CustomData struct {
+				Reference struct {
+					NoteID     string `json:"noteId"`
+					InstanceID string `json:"instanceId"`
+				} `json:"notespaceNote"`
+			} `json:"customData"`
+		} `json:"elements"`
+	}
+	if err := json.Unmarshal(canvasData, &scene); err != nil {
+		return nil, note.ErrInvalid
+	}
+	live := map[string]bool{}
+	for _, element := range scene.Elements {
+		reference := element.CustomData.Reference
+		if !element.IsDeleted && reference.NoteID == noteID && reference.InstanceID != "" {
+			live[reference.InstanceID] = true
+		}
+	}
+	return live, nil
+}
+
+// DeleteNoteTx removes the canonical Note and its unplaced instance rows.
+func DeleteNoteTx(ctx context.Context, tx dbtx.DBTX, noteID string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM canvas_note_instances WHERE note_id=?`, noteID); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM canvas_notes WHERE id=?`, noteID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return note.ErrNotFound
+	}
+	return nil
+}
+
 func GetCreateRequestTx(ctx context.Context, tx dbtx.DBTX, workspaceID, requestID string) (note.CreateInstanceResult, bool, error) {
 	var noteID, instanceID string
 	var canvasVersion int

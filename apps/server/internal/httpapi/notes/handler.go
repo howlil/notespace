@@ -55,6 +55,15 @@ func (h Handler) CreateInstance(w http.ResponseWriter, r *http.Request) {
 	transport.Send(w, http.StatusOK, value)
 }
 
+// Delete removes an empty Note that no Canvas places. It is not an instance-delete alias (K8).
+func (h Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.notes.DeleteEmpty(r.Context(), r.PathValue("id")); err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h Handler) DeleteInstance(w http.ResponseWriter, r *http.Request) {
 	var request note.DeleteInstanceRequest
 	if !transport.Decode(w, r, &request) {

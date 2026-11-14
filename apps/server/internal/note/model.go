@@ -25,6 +25,10 @@ var (
 	ErrNotFound = errors.New("note not found")
 	ErrConflict = errors.New("note changed in another session")
 	ErrInvalid  = errors.New("invalid note input")
+	// ErrNotEmpty rejects deleting a Note that already holds authored content.
+	ErrNotEmpty = errors.New("note has content")
+	// ErrNoteInUse rejects deleting a Note that a live Canvas element still places.
+	ErrNoteInUse = errors.New("note is placed on a Canvas")
 )
 
 // CanvasSnapshot is intentionally transport-neutral. The Canvas owns the
@@ -112,6 +116,38 @@ type Store interface {
 	UpdateNote(context.Context, string, UpdateRequest) (Note, error)
 	CreateNoteInstance(context.Context, string, CreateInstanceRequest) (CreateInstanceResult, error)
 	DeleteNoteInstance(context.Context, string, string, DeleteInstanceRequest) (CanvasState, error)
+	DeleteEmptyNote(context.Context, string) error
+}
+
+// IsEmptyDocument reports whether a document holds no authored text or
+// non-paragraph content. Only such Notes may be deleted without losing data.
+func IsEmptyDocument(document json.RawMessage) bool {
+	var root emptyNode
+	if err := json.Unmarshal(document, &root); err != nil || root.Type != "doc" {
+		return false
+	}
+	return emptyContent(root.Content)
+}
+
+type emptyNode struct {
+	Type    string      `json:"type"`
+	Text    *string     `json:"text"`
+	Content []emptyNode `json:"content"`
+}
+
+func emptyContent(nodes []emptyNode) bool {
+	for _, node := range nodes {
+		if node.Type != "paragraph" && node.Type != "text" {
+			return false
+		}
+		if node.Text != nil && strings.TrimSpace(*node.Text) != "" {
+			return false
+		}
+		if !emptyContent(node.Content) {
+			return false
+		}
+	}
+	return true
 }
 
 func ValidateNote(value Note) error {

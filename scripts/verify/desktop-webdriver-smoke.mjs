@@ -265,6 +265,7 @@ async function runProductPersistenceJourney(session) {
   }
   await waitForUrl(session, /\/workspaces\//);
   const workspaceId = decodeURIComponent(new URL(await session.getCurrentUrl()).pathname.split("/").pop());
+  let canvasNote = null;
   if (!upgradeSeed) {
     await assertDesktopChrome(session, true);
     await waitForWorkspaceSaved(session);
@@ -279,8 +280,34 @@ async function runProductPersistenceJourney(session) {
     await waitForUrl(session, /[/]workspaces[/]/);
     await assertDesktopChrome(session, true);
     await assertCodeModule(session);
+    canvasNote = await assertCanvasNoteModule(session, workspaceId);
   }
-  return { workspaceTitle, workspaceId };
+  return { workspaceTitle, workspaceId, canvasNote };
+}
+
+async function assertCanvasNoteModule(session, workspaceId) {
+  await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Note"]'))).click();
+  const editor = await visibleElement(session, By.css("[data-note-element] .ProseMirror"));
+  const text = `desktop-note-module-${Date.now()}`;
+  await editor.sendKeys(text);
+  await waitForWorkspaceSaved(session);
+  let noteId = null;
+  await session.wait(async () => {
+    const stored = await requestLocal(`/api/workspaces/${encodeURIComponent(workspaceId)}`);
+    const elements = Array.isArray(stored.canvas?.data?.elements) ? stored.canvas.data.elements : [];
+    const candidate = elements.find((element) => !element.isDeleted && element.customData?.notespaceNote?.noteId)?.customData?.notespaceNote?.noteId;
+    if (!candidate) return false;
+    const note = await requestLocal(`/api/notes/${encodeURIComponent(candidate)}`).catch(() => null);
+    if (!note || !JSON.stringify(note.document ?? {}).includes(text)) return false;
+    noteId = candidate;
+    return true;
+  }, 15_000, "Native Canvas Note instance and canonical document must persist");
+  await editor.sendKeys(Key.ESCAPE);
+  const readView = await visibleElement(session, By.css("[data-note-element] [data-note-read-view]"));
+  await session.wait(async () => (await readView.getText()).includes(text), 10_000, "Native Canvas Note switches to read view with persisted content");
+  await waitForWorkspaceSaved(session);
+  console.log("native Canvas Note proof passed: WebView2 Tiptap creation, persistence and read view");
+  return { noteId, text };
 }
 
 async function assertCodeModule(session) {
@@ -314,6 +341,12 @@ async function assertProductPersistence(session, marker) {
   const stored = await requestLocal(`/api/workspaces/${encodeURIComponent(marker.workspaceId)}/canvas`);
   const elements = (stored.canvas?.data?.elements ?? []).filter((element) => !element.isDeleted);
   assert.ok(elements.length >= 1, "canvas elements must survive desktop relaunch");
+  if (marker.canvasNote) {
+    const readView = await visibleElement(session, By.css("[data-note-element] [data-note-read-view]"));
+    await session.wait(async () => (await readView.getText()).includes(marker.canvasNote.text), 10_000, "Canvas Note read view must survive desktop relaunch");
+    const note = await requestLocal(`/api/notes/${encodeURIComponent(marker.canvasNote.noteId)}`);
+    assert.match(JSON.stringify(note.document), new RegExp(marker.canvasNote.text), "Canonical Canvas Note must survive desktop relaunch");
+  }
 }
 
 async function waitForLocalServerExit() {

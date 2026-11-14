@@ -53,7 +53,30 @@ test("Quick Open category destinations carry the category route identity", () =>
 });
 
 test("Quick Open keeps unplaced Note search results on a safe route", () => {
-  const note = result({ type: "note", noteId: "note-1", workspaceId: "", workspaceTitle: "" });
+  const note = result({ type: "note", noteId: "note-1", workspaceId: "", workspaceTitle: "", excerpt: "  First line title\nSecond line" });
+  const destination = destinationFromSearchResult(note);
   assert.equal(searchResultHref(note), "/");
-  assert.equal(destinationFromSearchResult(note).context, "Unplaced Canvas Note");
+  assert.equal(destination.context, "Unplaced Canvas Note");
+  assert.equal(destination.title, "First line title");
+});
+
+test("Quick Open distinguishes multiple Note instances and defaults empty excerpt titles", () => {
+  const first = destinationFromSearchResult(result({
+    type: "note",
+    noteId: "note-1",
+    instanceId: "inst-1",
+    workspaceId: "workspace-a",
+    excerpt: "",
+  }));
+  const second = destinationFromSearchResult(result({
+    type: "note",
+    noteId: "note-2",
+    instanceId: "inst-2",
+    workspaceId: "workspace-a",
+    excerpt: "\n  Second Note Headline  ",
+  }));
+
+  assert.equal(first.title, "Canvas Note");
+  assert.equal(second.title, "Second Note Headline");
+  assert.notEqual(first.key, second.key);
 });

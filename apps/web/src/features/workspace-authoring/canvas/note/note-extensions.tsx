@@ -1,3 +1,5 @@
+import { type MouseEvent, type ReactNode } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { Extension, Node, mergeAttributes, type Extensions, type JSONContent, type MarkdownRendererHelpers } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
@@ -106,6 +108,39 @@ function targetHref(workspaceId: unknown, noteId: string) {
   return `/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(noteId)}`;
 }
 
+function isUnmodifiedPrimaryClick(event: MouseEvent<HTMLAnchorElement>) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+/** Internal link using SPA navigation when inside TanStack Router so unsaved drafts flush cleanly. */
+export function InternalNoteLink({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const router = useRouter({ warn: false });
+  const classes = className ? `pointer-events-auto ${className}` : "pointer-events-auto";
+  return (
+    <a
+      href={href}
+      className={classes}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        if (!router || event.defaultPrevented || !isUnmodifiedPrimaryClick(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void router.navigate({ href });
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 type NoteEmbedCardProps = { noteId: unknown; workspaceId: unknown; label: unknown };
 
 /** Read-only embed preview shared by the editor node view and the static read view. */
@@ -116,7 +151,7 @@ export function NoteEmbedCard({ noteId, workspaceId, label }: NoteEmbedCardProps
   return <div className="my-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-[12px] text-ink" data-note-embed={id}>
     <div className="flex items-center justify-between gap-2">
       <strong className="font-semibold">{title}</strong>
-      {href && <a className="text-accent hover:underline" href={href}>Open</a>}
+      {href && <InternalNoteLink className="text-accent hover:underline" href={href}>Open</InternalNoteLink>}
     </div>
     <p className="m-0 mt-1 text-muted">
       {state === "loading" ? "Loading embedded Note…" : state === "missing" ? `Missing Note: ${id || "unknown"}` : documentPreview(note?.document ?? { type: "doc", content: [] }) || "Empty Note"}
@@ -153,7 +188,7 @@ export function NoteBlockReferenceCard({ noteId, workspaceId, blockId: rawBlockI
   return <div className="my-1 rounded border-l-2 border-accent/50 bg-tint/40 px-2 py-1 text-[12px] text-ink" data-note-block-ref={`${id}#${blockId}`}>
     <div className="flex items-center justify-between gap-2">
       <span>{state === "loading" ? "Loading block reference…" : preview ?? `Missing block: ${blockId || "unknown"}`}</span>
-      {href && <a className="shrink-0 text-accent hover:underline" href={href}>Open</a>}
+      {href && <InternalNoteLink className="shrink-0 text-accent hover:underline" href={href}>Open</InternalNoteLink>}
     </div>
   </div>;
 }

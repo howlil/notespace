@@ -5,7 +5,11 @@ use super::{
     },
     RuntimeProcess,
 };
-use crate::{diagnostics, recovery::show_runtime_failure};
+use crate::{
+    diagnostics,
+    preview_isolation::set_allowed_loopback_origin,
+    recovery::show_runtime_failure,
+};
 use std::{fs, sync::atomic::Ordering, time::Duration};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
@@ -139,6 +143,7 @@ pub(crate) async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Re
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
+    set_allowed_loopback_origin(app, &ready_url);
     window
         .navigate(ready_url)
         .map_err(|error| format!("open Notespace runtime: {error}"))?;

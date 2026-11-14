@@ -1,5 +1,6 @@
 use tauri::{Manager, RunEvent, WindowEvent};
 mod diagnostics;
+mod preview_isolation;
 mod recovery;
 mod runtime;
 mod updates;
@@ -40,10 +41,13 @@ pub fn run() {
 
     let app = builder
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
+        .plugin(preview_isolation::isolation_plugin())
         .manage(RuntimeProcess::default())
         .manage(DesktopUpdateState::default())
         .setup(|app| {
+            preview_isolation::install_webview_isolation(app.handle())
+                .map_err(std::io::Error::other)?;
             launch_runtime(app.handle()).map_err(std::io::Error::other)?;
             Ok(())
         })

@@ -12,13 +12,17 @@ import {
 import { CanvasCodeBlockMeasure } from "./CanvasCodeBlockMeasure";
 import { canRunCanvasCode } from "./canvas-code-runner";
 import type { CodeRunView } from "./execution/use-code-runner";
+import { canPreviewHtml, HtmlPreviewFrame } from "./preview/HtmlPreviewFrame";
 
-export type CodeBlockViewOptions = { showOutput: boolean; wordWrap: boolean; fitRevision?: number };
-export const defaultCodeBlockView: CodeBlockViewOptions = { showOutput: false, wordWrap: true };
+export type CodeBlockViewOptions = { showOutput: boolean; previewHtml?: boolean; wordWrap: boolean; fitRevision?: number };
+export const defaultCodeBlockView: CodeBlockViewOptions = { showOutput: false, previewHtml: false, wordWrap: true };
 type CanvasViewport = { zoom: number; scrollX: number; scrollY: number };
 
-function codeOutputMessage(run: CodeRunView | undefined, runnable: boolean) {
-  if (!run) return runnable ? "Run JavaScript to see output" : "Source only; execution is available for JavaScript";
+function codeOutputMessage(run: CodeRunView | undefined, runnable: boolean, previewable: boolean) {
+  if (!run) {
+    if (previewable) return "Preview HTML to render isolated output";
+    return runnable ? "Run JavaScript to see output" : "Source only; execution is available for JavaScript";
+  }
   const messages = {
     running: "Running…",
     timeout: "Execution timed out. Run again to retry.",
@@ -37,8 +41,8 @@ function containPaneNavigation(event: KeyboardEvent) {
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) event.stopPropagation();
 }
 
-function CodeOutput({ run, runnable, compact }: { run?: CodeRunView; runnable: boolean; compact: boolean }) {
-  const message = codeOutputMessage(run, runnable);
+function CodeOutput({ run, runnable, previewable, compact }: { run?: CodeRunView; runnable: boolean; previewable: boolean; compact: boolean }) {
+  const message = codeOutputMessage(run, runnable, previewable);
   return (
     <div className={`h-full min-h-0 min-w-0 overflow-auto overscroll-contain whitespace-pre-wrap ${compact ? "px-1" : "p-2"} [overflow-wrap:anywhere] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent`} role="region" tabIndex={0} aria-label="Code output" onWheel={containPaneWheel} onKeyDown={containPaneNavigation}>
       {message && <div role="status" aria-live="polite" className="text-muted">{message}</div>}
@@ -148,6 +152,8 @@ function CodeCard(props: CodeCardProps) {
   const resolvedTheme = resolveCodeTheme(block.theme, appDark);
   const palette = codeThemeSurface(resolvedTheme);
   const language = effectiveCanvasCodeLanguage(block);
+  const previewable = canPreviewHtml(language);
+  const previewActive = Boolean(view.showOutput && view.previewHtml && previewable);
   const metrics = codeCardMetrics(element, viewport, view);
   const { width, height, fontSize, lineHeight, layout } = metrics;
   return (
@@ -162,7 +168,9 @@ function CodeCard(props: CodeCardProps) {
         onUpdate={props.onUpdate} onFinishEditing={() => props.onEditingChange(null)} onRun={props.onRun} />
       {view.showOutput && <div className={selected ? "pointer-events-auto min-h-0 min-w-0" : "min-h-0 min-w-0"}
         style={{ borderLeft: layout === "split" ? `1px solid ${palette.border}` : undefined, borderTop: layout === "stack" ? `1px solid ${palette.border}` : undefined }}
-        onPointerDown={(event) => event.stopPropagation()}><CodeOutput run={run} runnable={canRunCanvasCode(language)} compact={metrics.compactOutput} /></div>}
+        onPointerDown={(event) => event.stopPropagation()}>
+        {previewActive ? <HtmlPreviewFrame code={block.code} /> : <CodeOutput run={run} runnable={canRunCanvasCode(language)} previewable={previewable} compact={metrics.compactOutput} />}
+      </div>}
     </section>
   );
 }
@@ -216,7 +224,7 @@ function CodeSource({ block, language, resolvedTheme, metrics, selected, editing
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") { event.preventDefault(); onFinishEditing(); }
-        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); if (canRunCanvasCode(language)) onRun(); }
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); if (canRunCanvasCode(language) || canPreviewHtml(language)) onRun(); }
         if (event.key === "Tab") {
           event.preventDefault();
           const target = event.currentTarget, start = target.selectionStart, end = target.selectionEnd;

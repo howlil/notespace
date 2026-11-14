@@ -10,7 +10,32 @@ import (
 	"strings"
 )
 
-const codeRunnerWorkerCSP = "frame-ancestors 'none'; default-src 'none'; script-src 'unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+const (
+	codeRunnerWorkerCSP = "frame-ancestors 'none'; default-src 'none'; script-src 'unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'"
+	defaultWebCSP       = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+)
+
+func setHeaderIfEmpty(h http.Header, key, value string) {
+	if h.Get(key) == "" {
+		h.Set(key, value)
+	}
+}
+
+func withWebSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Sec-Fetch-Mode") == "navigate" &&
+			r.Header.Get("Sec-Fetch-Dest") != "" &&
+			r.Header.Get("Sec-Fetch-Dest") != "document" {
+			http.Error(w, "Cross-frame navigation rejected", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		setHeaderIfEmpty(w.Header(), "Referrer-Policy", "same-origin")
+		setHeaderIfEmpty(w.Header(), "Content-Security-Policy", defaultWebCSP)
+		next.ServeHTTP(w, r)
+	})
+}
 
 func newDevelopmentWebProxy(rawTarget string) (http.Handler, error) {
 	target, err := url.Parse(rawTarget)
@@ -53,8 +78,6 @@ func routesWithDevelopmentProxy(api http.Handler, webDir string, developmentProx
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "same-origin")
 		if path.Clean("/"+r.URL.Path) == "/code-runner-worker.js" {
 			destination := r.Header.Get("Sec-Fetch-Dest")
 			if destination != "" && destination != "worker" {
@@ -86,5 +109,5 @@ func routesWithDevelopmentProxy(api http.Handler, webDir string, developmentProx
 		}
 		http.FileServer(http.Dir(webDir)).ServeHTTP(w, r)
 	})
-	return mux
+	return withWebSecurityHeaders(mux)
 }

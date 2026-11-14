@@ -364,17 +364,9 @@ async function assertCodeModule(session) {
   await new Promise((resolve) => trapServer.listen(0, "127.0.0.1", resolve));
   const trapOrigin = `http://127.0.0.1:${trapServer.address().port}`;
   try {
-    const htmlPayload = [
-      '<button id="counter">Count <span id="count">0</span></button><pre id="probe">pending</pre>',
-      `<iframe id="nested-trap" src="${trapOrigin}/leak-iframe"></iframe><script>`,
-      'document.querySelector("#counter").onclick=()=>{const c=document.querySelector("#count");c.textContent=String(Number(c.textContent)+1)};',
-      '(async()=>{const b=async f=>{try{await f();return"LEAKED"}catch{return"blocked"}};',
-      'const i=async(c,p)=>{if(!window.__TAURI_INTERNALS__?.invoke)return"blocked";try{return await Promise.race([Promise.resolve(window.__TAURI_INTERNALS__.invoke(c,p)).then(()=>"LEAKED",()=>"blocked"),new Promise(r=>setTimeout(()=>r("blocked-unsettled"),400))])}catch{return"blocked"}};',
-      `const r={origin:window.origin,hasChromeWebview:Boolean(window.chrome?.webview),tauriPlugins:Object.keys(window.__TAURI_INTERNALS__?.plugins??{}),parentDoc:await b(()=>void parent.document.title),topDoc:await b(()=>void top.document.title),storage:await b(()=>localStorage.setItem("x","1")),fetchApi:await b(()=>fetch("/api/health")),fetchOrigin:await b(()=>fetch(${JSON.stringify(`${origin}/api/health`)})),fetchTrap:await b(()=>fetch(${JSON.stringify(`${trapOrigin}/leak-fetch`)})),fetchIpc:await b(()=>fetch("http://ipc.localhost/desktop_recovery_diagnostics")),tauriDiag:await i("desktop_recovery_diagnostics"),tauriOpener:await i("plugin:opener|open_url",{url:"https://example.com/"}),ipcPost:await b(()=>{if(!window.ipc?.postMessage)throw 1;window.ipc.postMessage(\'{"cmd":"desktop_recovery_diagnostics"}\')})};`,
-      'const p=document.querySelector("#probe");p.textContent=JSON.stringify(r);p.dataset.ready="1";})();</script>',
-    ].join("\n");
-
-    await replaceEditorCode(htmlPayload, { commit: true });
+    // Keep the initial interactive snippet compact so the preview button fits within smaller CI WebView2 viewports.
+    const interactiveHtml = '<button id="counter">Count <span id="count">0</span></button><script>document.querySelector("#counter").onclick=()=>{const c=document.querySelector("#count");c.textContent=String(Number(c.textContent)+1)};</script>';
+    await replaceEditorCode(interactiveHtml, { commit: true });
 
     // Lazy execution: preview iframe must stay unmounted until user opts in.
     assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
@@ -384,6 +376,31 @@ async function assertCodeModule(session) {
     await session.switchTo().frame(hostFrame);
     const contentFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
     await session.switchTo().frame(contentFrame);
+    try {
+      await (await visibleElement(session, By.css("#counter"))).click();
+      assert.equal((await (await visibleElement(session, By.css("#count"))).getText()).trim(), "1");
+    } finally {
+      await session.switchTo().defaultContent();
+    }
+
+    const htmlPayload = [
+      `<pre id="probe">pending</pre><iframe id="nested-trap" src="${trapOrigin}/leak-iframe"></iframe><script>`,
+      '(async()=>{const b=async f=>{try{await f();return"LEAKED"}catch{return"blocked"}};',
+      'const i=async(c,p)=>{if(!window.__TAURI_INTERNALS__?.invoke)return"blocked";try{return await Promise.race([Promise.resolve(window.__TAURI_INTERNALS__.invoke(c,p)).then(()=>"LEAKED",()=>"blocked"),new Promise(r=>setTimeout(()=>r("blocked-unsettled"),400))])}catch{return"blocked"}};',
+      `const r={origin:window.origin,hasChromeWebview:Boolean(window.chrome?.webview),tauriPlugins:Object.keys(window.__TAURI_INTERNALS__?.plugins??{}),parentDoc:await b(()=>void parent.document.title),topDoc:await b(()=>void top.document.title),storage:await b(()=>localStorage.setItem("x","1")),fetchApi:await b(()=>fetch("/api/health")),fetchOrigin:await b(()=>fetch(${JSON.stringify(`${origin}/api/health`)})),fetchTrap:await b(()=>fetch(${JSON.stringify(`${trapOrigin}/leak-fetch`)})),fetchIpc:await b(()=>fetch("http://ipc.localhost/desktop_recovery_diagnostics")),tauriDiag:await i("desktop_recovery_diagnostics"),tauriOpener:await i("plugin:opener|open_url",{url:"https://example.com/"}),ipcPost:await b(()=>{if(!window.ipc?.postMessage)throw 1;window.ipc.postMessage(\'{"cmd":"desktop_recovery_diagnostics"}\')})};`,
+      'const p=document.querySelector("#probe");p.textContent=JSON.stringify(r);p.dataset.ready="1";})();</script>',
+    ].join("\n");
+
+    await replaceEditorCode(htmlPayload, { commit: true });
+
+    await session.wait(async () => session.executeScript(() => {
+      const host = document.querySelector('iframe[name="notespace-html-preview-host"]');
+      return Boolean(host?.getAttribute('srcdoc')?.includes('probe'));
+    }), 10_000, "Host preview iframe srcdoc updates to isolation probe");
+    const probeHostFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview-host"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(probeHostFrame);
+    const probeContentFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(probeContentFrame);
     try {
       await session.wait(async () => {
         const nodes = await session.findElements(By.css('#probe[data-ready="1"]'));
@@ -403,9 +420,6 @@ async function assertCodeModule(session) {
       assert.ok(report.tauriDiag === "blocked" || report.tauriDiag === "blocked-unsettled", `expected blocked tauriDiag, got ${report.tauriDiag}`);
       assert.equal(report.tauriOpener, "blocked");
       assert.equal(report.ipcPost, "blocked");
-
-      await (await visibleElement(session, By.css("#counter"))).click();
-      assert.equal((await (await visibleElement(session, By.css("#count"))).getText()).trim(), "1");
     } finally {
       await session.switchTo().defaultContent();
     }

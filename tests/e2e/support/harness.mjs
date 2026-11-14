@@ -364,7 +364,7 @@ export async function setViewport(width, height) {
 /* ------------------------------------------------------------- interactions */
 
 async function findEventually(target, timeout = DEFAULT_TIMEOUT, { displayed = false } = {}) {
-  const { browser } = current();
+  const browser = driver();
   const deadline = Date.now() + timeout;
   let lastError = new Error(`No element matches ${describe(target)}`);
   for (;;) {

@@ -6,6 +6,7 @@ use tauri_plugin_shell::process::CommandChild;
 
 pub(crate) struct RuntimeProcess {
     pub(crate) child: Mutex<Option<CommandChild>>,
+    pub(crate) allowed_origin: Mutex<Option<(String, u16)>>,
     pub(crate) close_requested: AtomicBool,
     pub(crate) startup_in_flight: AtomicBool,
     pub(crate) backup_in_flight: AtomicBool,
@@ -19,6 +20,7 @@ impl Default for RuntimeProcess {
     fn default() -> Self {
         Self {
             child: Mutex::new(None),
+            allowed_origin: Mutex::new(None),
             close_requested: AtomicBool::new(false),
             startup_in_flight: AtomicBool::new(false),
             backup_in_flight: AtomicBool::new(false),

@@ -1,4 +1,5 @@
 use super::RuntimeProcess;
+use crate::preview_isolation::clear_allowed_loopback_origin;
 use std::{
     sync::{atomic::Ordering, Arc, Condvar, Mutex},
     time::Duration,
@@ -26,6 +27,7 @@ pub(crate) fn clear_runtime(app: &tauri::AppHandle, generation: u64) -> bool {
         Err(_) => false,
     };
     mark_sidecar_exited(&process.sidecar_exited);
+    clear_allowed_loopback_origin(app);
     process.stopping.store(false, Ordering::Release);
     claimed
 }

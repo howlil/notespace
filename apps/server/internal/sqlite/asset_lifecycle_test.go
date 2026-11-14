@@ -58,6 +58,16 @@ func TestCanvasNoteImageAssetFollowsCanonicalDocument(t *testing.T) {
 	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); err != nil {
 		t.Fatalf("note image asset was not retained after create: %v", err)
 	}
+	emptyCanvas := note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}
+	if _, err := store.DeleteNoteInstance(ctx, workspace.ID, created.Instance.ID, note.DeleteInstanceRequest{
+		ExpectedCanvasVersion: created.Canvas.Version,
+		Canvas:                emptyCanvas,
+	}); err != nil {
+		t.Fatalf("delete note instance: %v", err)
+	}
+	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); err != nil {
+		t.Fatalf("note image asset was deleted when removing an instance even though the canonical Note still references it: %v", err)
+	}
 	if _, err := store.UpdateNote(ctx, created.Note.ID, note.UpdateRequest{Document: json.RawMessage(`{"type":"doc","content":[]}`), ExpectedRevision: created.Note.Revision}); err != nil {
 		t.Fatal(err)
 	}

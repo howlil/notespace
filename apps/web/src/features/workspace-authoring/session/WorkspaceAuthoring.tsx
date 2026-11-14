@@ -12,6 +12,7 @@ import { CanvasConflictRecovery } from "./CanvasConflictRecovery";
 import { createNoteInstance, deleteNote, deleteNoteInstance, updateNote } from "../../../adapters/http/note-api";
 import type { SaveStatus } from "../../../domain/workspace/autosave";
 import type { NoteSaveStatus } from "../canvas/note/canvas-note-store";
+import { settleDetachedNoteFlushes } from "../canvas/note/detached-note-flushes";
 
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
 
@@ -45,16 +46,16 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
   const createdNoteIds = useRef(new Set<string>());
   const flushOnLeave = useRef(flushAll);
   const createCanvasNote = useCallback(async (request: Parameters<typeof createNoteInstance>[1]) => {
-    const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: canvasVersion });
+    const result = await createNoteInstance(workspace.id, { ...request, expectedCanvasVersion: Math.max(request.expectedCanvasVersion, canvasVersion) });
     acknowledgeCanvas(result.canvas);
     createdNoteIds.current.add(result.note.id);
     return result;
   }, [acknowledgeCanvas, canvasVersion, workspace.id]);
   const deleteCanvasNote = useCallback(async (workspaceId: string, instanceId: string, canvas: Parameters<typeof deleteNoteInstance>[2], expectedCanvasVersion: number) => {
-    const result = await deleteNoteInstance(workspaceId, instanceId, canvas, expectedCanvasVersion);
+    const result = await deleteNoteInstance(workspaceId, instanceId, canvas, Math.max(expectedCanvasVersion, canvasVersion));
     acknowledgeCanvas(result);
     return result;
-  }, [acknowledgeCanvas]);
+  }, [acknowledgeCanvas, canvasVersion]);
 
   useEffect(() => subscribeWorkspaceConflict((draft) => {
     if (draft.workspaceId === workspace.id && draft.kind === "canvas") setRecoveryOpen(true);
@@ -176,9 +177,16 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
       // non-empty or still placed, so this sweep never removes authored content.
       const noteIds = [...created];
       created.clear();
-      void flushOnLeave.current()
-        .catch(() => undefined)
-        .then(() => Promise.allSettled(noteIds.map((noteId) => deleteNote(noteId))));
+      void (async () => {
+        await flushOnLeave.current().catch(() => undefined);
+        // The Canvas unmounts in this same synchronous pass and registers its Note drafts as
+        // detached flushes; yield once so they are tracked before the sweep judges Notes empty.
+        await Promise.resolve();
+        // A draft that failed to save may leave its Note looking empty on the server. Keep it
+        // rather than deleting a Note whose latest text is not yet known to be saved.
+        if (!(await settleDetachedNoteFlushes())) return;
+        await Promise.allSettled(noteIds.map((noteId) => deleteNote(noteId)));
+      })();
     };
   }, [workspace.id]);
 

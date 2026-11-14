@@ -10,7 +10,14 @@ export type NoteNode = {
 
 export type NoteDocument = { type: "doc"; content: NoteNode[] };
 
-export type CanvasNoteReference = { noteId: string; instanceId: string; compact?: boolean };
+export type CanvasNoteHeightMode = "auto" | "fixed";
+
+export type CanvasNoteReference = {
+  noteId: string;
+  instanceId: string;
+  compact?: boolean;
+  heightMode?: CanvasNoteHeightMode;
+};
 
 export const CANVAS_NOTE_DATA_KEY = "notespaceNote";
 
@@ -24,10 +31,16 @@ export function readCanvasNoteReference(element: { customData?: unknown; isDelet
   if (!customData || typeof customData !== "object") return null;
   const reference = (customData as Record<string, unknown>)[CANVAS_NOTE_DATA_KEY];
   if (!reference || typeof reference !== "object") return null;
-  const { noteId, instanceId } = reference as Record<string, unknown>;
-  return typeof noteId === "string" && noteId.length > 0 && typeof instanceId === "string" && instanceId.length > 0
-    ? { noteId, instanceId, ...(typeof (reference as Record<string, unknown>).compact === "boolean" ? { compact: (reference as Record<string, unknown>).compact as boolean } : {}) }
-    : null;
+  const { noteId, instanceId, compact, heightMode } = reference as Record<string, unknown>;
+  if (typeof noteId !== "string" || noteId.length === 0 || typeof instanceId !== "string" || instanceId.length === 0) {
+    return null;
+  }
+  return {
+    noteId,
+    instanceId,
+    ...(typeof compact === "boolean" ? { compact } : {}),
+    ...(heightMode === "auto" || heightMode === "fixed" ? { heightMode } : {}),
+  };
 }
 
 export function withCanvasNoteReference(customData: unknown, reference: CanvasNoteReference): Record<string, unknown> {
@@ -108,6 +121,12 @@ const NOTE_BLOCK_ID_MAX_LENGTH = 128;
 export function isValidNoteBlockId(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= NOTE_BLOCK_ID_MAX_LENGTH
     && value.trim() === value && !value.includes("/") && !value.includes("\\");
+}
+
+export function isSafeNoteLink(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith("//")) return false;
+  return /^\/workspaces\/[^/]+(?:[?#/].*)?$/i.test(trimmed) || /^(?:https?:\/\/|mailto:[^\s/]+)/i.test(trimmed);
 }
 
 /**

@@ -10,7 +10,9 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import Mathematics from "@tiptap/extension-mathematics";
 import { Markdown } from "@tiptap/markdown";
 import { useReferencedCanvasNote } from "./use-canvas-note-store";
-import { isValidNoteBlockId, NOTE_BLOCK_NODE_TYPES, noteBlockIdRepairs, type NoteDocument, type NoteNode } from "../../../../domain/note/note";
+import { isSafeNoteLink, isValidNoteBlockId, NOTE_BLOCK_NODE_TYPES, noteBlockIdRepairs, type NoteDocument, type NoteNode } from "../../../../domain/note/note";
+
+export { isSafeNoteLink };
 
 const blockNodeTypes = NOTE_BLOCK_NODE_TYPES;
 
@@ -307,8 +309,6 @@ export const NoteCallout = Node.create({
   },
 });
 
-export const isSafeNoteLink = (url: string) => /^\/workspaces\/[^/]+(?:[?#/].*)?$/i.test(url) || /^https?:\/\//i.test(url);
-
 /**
  * One schema for the editor and the read-only renderer. StarterKit's own Link/Underline are
  * disabled so the configured safe-link policy below is the only Link implementation.
@@ -321,7 +321,7 @@ export function createNoteExtensions(): Extensions {
     NoteBlockReference,
     NoteCallout,
     NoteBlockIdentity,
-    Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["http", "https"], isAllowedUri: (url, context) => isSafeNoteLink(url) && (url.startsWith("/") || context.defaultValidate(url)) }),
+    Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["http", "https", "mailto"], isAllowedUri: (url, context) => isSafeNoteLink(url) && (url.startsWith("/") || context.defaultValidate(url)) }),
     Underline,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -329,7 +329,7 @@ export function createNoteExtensions(): Extensions {
     TableRow,
     TableHeader,
     TableCell,
-    Mathematics.configure({ katexOptions: { throwOnError: false, strict: false } }),
+    Mathematics.configure({ katexOptions: { throwOnError: false, strict: false, trust: false } }),
     Markdown,
   ];
 }

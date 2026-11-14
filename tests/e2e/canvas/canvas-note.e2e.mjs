@@ -450,7 +450,14 @@ test("critical: duplicating a Note creates a new Note with the same content", { 
     await waitSaved();
     await press("Escape");
     await expectCount("[data-note-element] .ProseMirror", 0);
+    await press("Enter");
+    await visible("[data-note-element] .ProseMirror");
+    await expectCount(role("toolbar", "Canvas Note actions"), 0);
+    await press("Escape");
+    await expectCount("[data-note-element] .ProseMirror", 0);
     await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
+    await expectCount(role("button", "AI writing"), 0);
+    await expectCount(role("button", "Import .md"), 0);
     await click(role("button", "Duplicate"));
     await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 2, "Duplicate adds a second Canvas instance");
     const ids = await canvasNoteIds(workspace.id);
@@ -460,6 +467,13 @@ test("critical: duplicating a Note creates a new Note with the same content", { 
     await waitFor(async () => JSON.stringify((await api(`/api/notes/${copyId}`)).document).includes(text), "The new Note carries the copied content");
     const source = await api(`/api/notes/${sourceId}`);
     assert.match(JSON.stringify(source.document), new RegExp(text), "Editing the copy later must not change the source; the source still has its text");
+
+    await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
+    await click(role("button", "Remove instance"));
+    await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 1, "Remove instance removes the selected card from Canvas");
+    await containsText('[aria-label="Notifications"]', "Note removed from Canvas. The Note itself remains.");
+    await click(role("button", "Undo", { scope: role("region", "Notifications") }));
+    await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 2, "Undo restores the removed Note instance");
   } finally {
     await cleanupWorkspace(workspace.id);
   }

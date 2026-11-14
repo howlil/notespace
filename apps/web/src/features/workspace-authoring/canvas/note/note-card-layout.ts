@@ -3,8 +3,45 @@ export type NoteCardGeometry = { x: number; y: number; width: number; height: nu
 
 /** Below this zoom a card shows only its derived first line (B9a level of detail). */
 export const NOTE_CARD_LABEL_ZOOM = 0.35;
+export const NOTE_CARD_MIN_HEIGHT = 180;
+export const NOTE_CARD_MAX_AUTO_HEIGHT = 560;
 const NOTE_CARD_BODY_FONT_SIZE = 14;
 const NOTE_CARD_MAX_LABEL_FONT_SIZE = 48;
+
+export function clampNoteAutoHeight(height: number): number {
+  if (!Number.isFinite(height)) return NOTE_CARD_MIN_HEIGHT;
+  return Math.min(NOTE_CARD_MAX_AUTO_HEIGHT, Math.max(NOTE_CARD_MIN_HEIGHT, Math.ceil(height)));
+}
+
+export function noteHeightChanged(previous: number, current: number): boolean {
+  return Math.abs(previous - current) >= 4;
+}
+
+export function shouldSwitchNoteToFixedHeight({
+  heightMode = "auto",
+  previousHeight,
+  currentHeight,
+  expectedAutoFitHeight,
+}: {
+  heightMode?: "auto" | "fixed";
+  previousHeight: number | undefined;
+  currentHeight: number;
+  expectedAutoFitHeight: number | undefined;
+}): boolean {
+  if (heightMode === "fixed" || previousHeight === undefined) return false;
+  if (expectedAutoFitHeight !== undefined && !noteHeightChanged(expectedAutoFitHeight, currentHeight)) return false;
+  return noteHeightChanged(previousHeight, currentHeight);
+}
+
+export function noteCardBodyMaxHeight(
+  height: number,
+  collapsed: boolean,
+  heightMode: "auto" | "fixed" = "auto",
+): number | undefined {
+  if (collapsed) return undefined;
+  if (heightMode === "fixed") return Math.max(80, height);
+  return Math.max(height, NOTE_CARD_MAX_AUTO_HEIGHT);
+}
 
 export type NoteCardFrame = {
   left: number;

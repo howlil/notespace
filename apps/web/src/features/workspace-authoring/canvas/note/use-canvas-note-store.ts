@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getNote } from "../../../../adapters/http/note-api";
 import { createCanvasNoteStore, type CanvasNoteEntry, type CanvasNoteStore, type CanvasNoteStoreDeps, type CanvasNoteStoreSnapshot } from "./canvas-note-store";
+import { trackDetachedNoteFlush } from "./detached-note-flushes";
 
 const CanvasNoteStoreContext = createContext<CanvasNoteStore | null>(null);
 export const CanvasNoteStoreProvider = CanvasNoteStoreContext.Provider;
@@ -13,7 +14,12 @@ export function useCanvasNoteStore(deps: Omit<CanvasNoteStoreDeps, "getNote">): 
     updateNote: (noteId, document, expectedRevision) => latest.current.updateNote(noteId, document, expectedRevision),
   }));
   // Leaving the Canvas must not drop a debounced draft; the session flush barrier normally ran already.
-  useEffect(() => () => { void store.flushAll().catch(() => undefined); }, [store]);
+  // The flush is tracked so the workspace sweep can wait for it before judging Notes empty.
+  useEffect(() => () => {
+    const flush = store.flushAll();
+    flush.catch(() => undefined);
+    trackDetachedNoteFlush(flush);
+  }, [store]);
   return store;
 }
 

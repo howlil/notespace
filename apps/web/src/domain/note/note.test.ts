@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { duplicatedNoteInstanceIds, emptyNoteDocument, isValidNoteBlockId, noteBlockIdRepairs, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference } from "./note.ts";
+import { duplicatedNoteInstanceIds, emptyNoteDocument, isSafeNoteLink, isValidNoteBlockId, noteBlockIdRepairs, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference } from "./note.ts";
 
 test("Canvas Note starts with a valid empty document", () => {
     assert.deepEqual(emptyNoteDocument(), { type: "doc", content: [] });
@@ -10,6 +10,8 @@ test("Canvas Note keeps references without replacing other metadata", () => {
     const customData = withCanvasNoteReference({ source: "canvas" }, { noteId: "note-1", instanceId: "instance-1" });
     assert.equal(customData.source, "canvas");
     assert.deepEqual(readCanvasNoteReference({ customData }), { noteId: "note-1", instanceId: "instance-1" });
+    const withModes = withCanvasNoteReference(customData, { noteId: "note-1", instanceId: "instance-1", compact: true, heightMode: "fixed" });
+    assert.deepEqual(readCanvasNoteReference({ customData: withModes }), { noteId: "note-1", instanceId: "instance-1", compact: true, heightMode: "fixed" });
     assert.equal(readCanvasNoteReference({ customData, isDeleted: true }), null);
   });
 
@@ -88,4 +90,14 @@ test("native duplicates of a Note instance are found; the first live instance ke
     { id: "z", customData: ref("i1") },
   ]), ["y", "z"]);
   assert.deepEqual(duplicatedNoteInstanceIds([]), []);
+});
+
+test("safe Note links allow internal workspace links, http/https, and mailto while rejecting unsafe schemes", () => {
+  assert.equal(isSafeNoteLink("/workspaces/ws-1?noteId=note-2"), true);
+  assert.equal(isSafeNoteLink("https://example.com/docs"), true);
+  assert.equal(isSafeNoteLink("http://example.com"), true);
+  assert.equal(isSafeNoteLink("mailto:team@example.com"), true);
+  assert.equal(isSafeNoteLink("javascript:alert(1)"), false);
+  assert.equal(isSafeNoteLink("data:text/html,<script>alert(1)</script>"), false);
+  assert.equal(isSafeNoteLink("//evil.example.com"), false);
 });

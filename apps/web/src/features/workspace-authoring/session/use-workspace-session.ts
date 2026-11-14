@@ -47,12 +47,12 @@ export function useWorkspaceSession({
     const next = acknowledgeCanvasSnapshot(current.current, saved.canvas);
     if (JSON.stringify(next.canvas) !== JSON.stringify(current.current.canvas)) {
       current.current = next;
-      touch();
     }
+    touch();
     return current.current.canvas;
   }, [touch]);
 
-  const acknowledgeCanvas = useCallback((saved: CanvasState) => onCanvasSaved(saved), [onCanvasSaved]);
+  // External note/instance endpoints advance the canvas version alongside their own write.
 
   const {
     status,
@@ -67,6 +67,15 @@ export function useWorkspaceSession({
     onCanvasSaved,
     beforePersist: flushRegisteredAuthoring,
   });
+
+  const acknowledgeCanvas = useCallback((saved: CanvasState) => {
+    identity.current.canvasVersion = saved.version;
+    if (!rebaseVersion(saved.version)) {
+      void recoverCanvas(saved.version).catch(() => {});
+    }
+    current.current = acknowledgeCanvasSnapshot(current.current, saved.canvas);
+    return current.current.canvas;
+  }, [rebaseVersion, recoverCanvas]);
 
   const flushAll = useCallback(async () => {
     await flushRegisteredAuthoring();

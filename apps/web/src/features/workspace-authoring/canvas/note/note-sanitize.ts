@@ -1,13 +1,4 @@
-function safeHref(value: string) {
-  const trimmed = value.trim();
-  if (trimmed.startsWith("/workspaces/") && !trimmed.startsWith("//")) return true;
-  try {
-    const parsed = new URL(trimmed, window.location.origin);
-    return ["http:", "https:", "mailto:"].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
+import { isSafeNoteLink } from "../../../../domain/note/note";
 
 export function sanitizePastedHTML(html: string) {
   if (typeof DOMParser === "undefined") return "";
@@ -17,7 +8,7 @@ export function sanitizePastedHTML(html: string) {
     [...element.attributes].forEach((attribute) => {
       if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
     });
-    if (element.hasAttribute("href") && !safeHref(element.getAttribute("href") ?? "")) element.removeAttribute("href");
+    if (element.hasAttribute("href") && !isSafeNoteLink(element.getAttribute("href") ?? "")) element.removeAttribute("href");
     if (element.hasAttribute("src")) {
       const source = element.getAttribute("src") ?? "";
       if (element.tagName.toLowerCase() !== "img" || !source.startsWith("/api/workspaces/") || source.startsWith("//")) element.removeAttribute("src");

@@ -9,11 +9,11 @@ export {
 } from "./catalog/diagram-catalog.ts";
 export type { DiagramCatalogItem, DiagramCategory, DiagramNodeShape } from "./catalog/diagram-catalog.ts";
 
-export type DiagramKind = "architecture" | "flowchart";
+type DiagramKind = "architecture" | "flowchart";
 // `component` remains readable for old snapshots. New creation paths are icon-only.
-export type DiagramNodeRenderMode = "component" | "icon";
+type DiagramNodeRenderMode = "component" | "icon";
 
-export interface DiagramNode {
+interface DiagramNode {
   id: string;
   specKey: string;
   label: string;
@@ -26,7 +26,7 @@ export interface DiagramNode {
   renderMode?: DiagramNodeRenderMode;
 }
 
-export interface DiagramEdge {
+interface DiagramEdge {
   id: string;
   from: string;
   to: string;
@@ -34,7 +34,7 @@ export interface DiagramEdge {
   elementId: string;
 }
 
-export interface DiagramGroup {
+interface DiagramGroup {
   id: string;
   label: string;
   elementId: string;
@@ -57,7 +57,7 @@ export interface DiagramSelection {
   groupId: string | null;
 }
 
-export interface ElementGeometry {
+interface ElementGeometry {
   id: string;
   isDeleted?: boolean;
   x?: number;
@@ -70,8 +70,8 @@ export interface ElementGeometry {
 }
 
 export const DIAGRAM_DATA_KEY = "notespaceDiagrams";
-export const NODE_WIDTH = 164;
-export const NODE_HEIGHT = 72;
+const NODE_WIDTH = 164;
+const NODE_HEIGHT = 72;
 
 export function emptyDiagramSelection(): DiagramSelection {
   return { diagramId: null, nodeIds: [], edgeId: null, groupId: null };

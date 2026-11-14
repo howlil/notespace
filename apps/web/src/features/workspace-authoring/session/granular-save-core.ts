@@ -4,7 +4,7 @@ import { reconcileCanvasConflict } from "../../../domain/workspace/canvas-confli
 import type { GranularConflictDraft } from "../../../domain/workspace/conflict.ts";
 import type { Snapshot } from "../../../domain/workspace/workspace.ts";
 
-export type GranularCanvasState = {
+type GranularCanvasState = {
   canvas: Snapshot;
   version: number;
   updatedAt: string;

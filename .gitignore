@@ -10,6 +10,8 @@ test-results/
 .env
 bin/
 apps/web/public/excalidraw-assets/
+__pycache__/
+*.py[cod]
 
 # Native desktop build output and prepared sidecar binaries.
 apps/desktop/src-tauri/target/

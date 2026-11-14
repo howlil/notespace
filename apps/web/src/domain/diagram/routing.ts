@@ -9,7 +9,7 @@ import type { StructuredDiagram } from "./diagram";
 const GROUP_PADDING = 28;
 const GROUP_PREFIX = "notespace-group:";
 
-export interface DiagramRoute {
+interface DiagramRoute {
   edgeId: string;
   x: number;
   y: number;

@@ -1,5 +1,5 @@
-export type NoteCardViewport = { zoom: number; scrollX: number; scrollY: number };
-export type NoteCardGeometry = { x: number; y: number; width: number; height: number; angle?: number };
+type NoteCardViewport = { zoom: number; scrollX: number; scrollY: number };
+type NoteCardGeometry = { x: number; y: number; width: number; height: number; angle?: number };
 
 /** Below this zoom a card shows only its derived first line (B9a level of detail). */
 export const NOTE_CARD_LABEL_ZOOM = 0.35;
@@ -43,7 +43,7 @@ export function noteCardBodyMaxHeight(
   return Math.max(height, NOTE_CARD_MAX_AUTO_HEIGHT);
 }
 
-export type NoteCardFrame = {
+type NoteCardFrame = {
   left: number;
   top: number;
   width: number;

@@ -4,7 +4,7 @@ import { fetchEraserIcon } from "../../../../adapters/http/eraser-icon-api";
 import type { StructuredDiagram } from "../../../../domain/diagram/diagram";
 import { eraserIconFileId, eraserIconName } from "./palette/eraser-icons";
 
-export type EraserIconLoadResult = {
+type EraserIconLoadResult = {
   available: Set<string>;
   failed: string[];
 };

@@ -16,11 +16,11 @@ export function keyFromDirection(direction: DirectionalSpawnDirection) {
   return "ArrowDown";
 }
 
-export const DIRECTIONAL_SPAWN_GAP = 120;
+const DIRECTIONAL_SPAWN_GAP = 120;
 
 /** Select at most one directional control based on pointer proximity to a shape edge. */
-export type FlowchartHandleBounds = { left: number; top: number; right: number; bottom: number };
-export const FLOWCHART_HANDLE_HOVER_DISTANCE = 32;
+type FlowchartHandleBounds = { left: number; top: number; right: number; bottom: number };
+const FLOWCHART_HANDLE_HOVER_DISTANCE = 32;
 
 export function hoveredFlowchartDirection(
   bounds: FlowchartHandleBounds,

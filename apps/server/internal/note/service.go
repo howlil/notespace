@@ -2,10 +2,7 @@ package note
 
 import (
 	"context"
-	"crypto/rand"
-	"errors"
 	"strings"
-	"time"
 )
 
 type Service struct{ store Store }
@@ -66,9 +63,3 @@ func (s Service) DeleteEmpty(ctx context.Context, id string) error {
 	}
 	return s.store.DeleteEmptyNote(ctx, id)
 }
-
-func NewID() string { return rand.Text() }
-
-func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
-
-func isNotFound(err error) bool { return errors.Is(err, ErrNotFound) }

@@ -3,8 +3,8 @@ import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/t
 import type { ExcalidrawFrameLikeElement, NonDeleted, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { appendCanvasCodeBlocksToSvg, type CodeBlockExportViews } from "./canvas-code-block-export.ts";
 
-export type CanvasImageFormat = "png" | "svg";
-export type CanvasImageExportSource = {
+type CanvasImageFormat = "png" | "svg";
+type CanvasImageExportSource = {
   elements: readonly NonDeletedExcalidrawElement[];
   appState: AppState;
   codeBlockViews?: CodeBlockExportViews;
@@ -15,7 +15,7 @@ function exportDarkMode(appState: AppState, fallback: boolean) {
   return appState.exportWithDarkMode || appState.theme === "dark" || fallback;
 }
 
-export async function createCanvasImageBlob(
+async function createCanvasImageBlob(
   api: ExcalidrawImperativeAPI,
   appDark: boolean,
   format: CanvasImageFormat,

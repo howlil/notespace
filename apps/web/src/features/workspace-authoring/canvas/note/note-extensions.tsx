@@ -49,7 +49,7 @@ export function ensureNoteBlockIds(document: NoteDocument): NoteDocument {
   return { ...document, content };
 }
 
-export const NoteBlockIdentity = Extension.create({
+const NoteBlockIdentity = Extension.create({
   name: "noteBlockIdentity",
   addGlobalAttributes() {
     return [{
@@ -199,7 +199,7 @@ function BlockReferenceView({ node }: NodeViewProps) {
   </NodeViewWrapper>;
 }
 
-export const NoteImage = Node.create({
+const NoteImage = Node.create({
   name: "noteImage",
   group: "block",
   atom: true,
@@ -231,7 +231,7 @@ export const NoteImage = Node.create({
   },
 });
 
-export const NoteEmbed = Node.create({
+const NoteEmbed = Node.create({
   name: "noteEmbed",
   group: "block",
   atom: true,
@@ -267,7 +267,7 @@ export const NoteEmbed = Node.create({
   },
 });
 
-export const NoteBlockReference = Node.create({
+const NoteBlockReference = Node.create({
   name: "noteBlockReference",
   group: "block",
   atom: true,
@@ -310,7 +310,7 @@ function calloutTone(value: unknown) {
   return typeof value === "string" && calloutTones.has(value) ? value : "note";
 }
 
-export const NoteCallout = Node.create({
+const NoteCallout = Node.create({
   name: "noteCallout",
   group: "block",
   content: "block+",

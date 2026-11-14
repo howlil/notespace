@@ -6,7 +6,7 @@ import { readCanvasCodeBlock, type CanvasCodeBlockData } from "../code/canvas-co
 import { clampCodeBlockHeight, codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "../code/canvas-code-block-layout.ts";
 import { noteHeightChanged, shouldSwitchNoteToFixedHeight } from "../note/note-card-layout.ts";
 
-export type CodeGeometry = { width: number; height: number };
+type CodeGeometry = { width: number; height: number };
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

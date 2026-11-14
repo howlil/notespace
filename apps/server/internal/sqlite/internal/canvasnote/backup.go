@@ -2,9 +2,7 @@ package canvasnotequery
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 
 	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
@@ -90,16 +88,3 @@ func DeleteAllTx(ctx context.Context, tx dbtx.DBTX) error {
 	}
 	return nil
 }
-
-func EnsureNoteExistsTx(ctx context.Context, tx dbtx.DBTX, id string) error {
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM canvas_notes WHERE id=?`, id).Scan(&count); err != nil {
-		return err
-	}
-	if count != 1 {
-		return note.ErrInvalid
-	}
-	return nil
-}
-
-func IsMissing(err error) bool { return errors.Is(err, sql.ErrNoRows) }

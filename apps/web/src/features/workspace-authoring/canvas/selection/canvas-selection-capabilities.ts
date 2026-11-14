@@ -1,14 +1,14 @@
 import { readCanvasCodeBlock } from "../code/canvas-code-block.ts";
 
-export type CanvasSelectionElementLike = {
+type CanvasSelectionElementLike = {
   type: string;
   customData?: Record<string, unknown>;
   strokeOptions?: { variability: string; streamline: number };
 };
 
-export type CapabilityCoverage = "all" | "some" | "none";
+type CapabilityCoverage = "all" | "some" | "none";
 
-export type CanvasSelectionCapabilities = {
+type CanvasSelectionCapabilities = {
   count: number;
   types: string[];
   mixed: boolean;
@@ -28,7 +28,7 @@ const fillTypes = new Set(["rectangle", "diamond", "ellipse"]);
 const lineTypes = new Set(["arrow", "line"]);
 const drawingTypes = new Set([...fillTypes, ...lineTypes]);
 
-export type SharedCanvasValue<T> = { kind: "unsupported" } | { kind: "mixed" } | { kind: "shared"; value: T };
+type SharedCanvasValue<T> = { kind: "unsupported" } | { kind: "mixed" } | { kind: "shared"; value: T };
 export type CanvasStyleProperty = "strokeColor" | "backgroundColor" | "fillStyle" | "strokeWidth" | "strokeStyle"
   | "roughness" | "roundness" | "pressure" | "opacity" | "startArrowhead" | "endArrowhead"
   | "fontFamily" | "fontSize" | "textAlign" | "arrowType";

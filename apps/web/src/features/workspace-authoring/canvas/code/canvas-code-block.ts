@@ -7,7 +7,7 @@ export type { CodeBlockTheme, ResolvedCodeTheme } from "../../../../domain/code/
 
 export const CODE_BLOCK_DATA_KEY = "notespaceCodeBlock";
 
-export type CodeBlockHeightMode = "auto" | "manual";
+type CodeBlockHeightMode = "auto" | "manual";
 
 export type CanvasCodeBlockData = {
   version: 1;
@@ -23,7 +23,7 @@ export function effectiveCanvasCodeLanguage(block: Pick<CanvasCodeBlockData, "co
   return block.languageLocked ? normalizeCodeLanguage(block.language) : detectCodeLanguage(block.code);
 }
 
-export type HighlightToken = {
+type HighlightToken = {
   text: string;
   classes: string[];
 };

@@ -6,12 +6,12 @@ import {
   type JavaScriptRunResult,
 } from "./code-runner.ts";
 
-export type RunnableCode = {
+type RunnableCode = {
   code: string;
   language: string;
 };
 
-export type LiveRunnableCode = RunnableCode & { id: string };
+type LiveRunnableCode = RunnableCode & { id: string };
 
 export type CodeRunView =
   | { status: "running"; stdout: string[]; stderr: string[] }
@@ -19,7 +19,7 @@ export type CodeRunView =
 
 type CodeRunEntry = { source: RunnableCode; view: CodeRunView };
 
-export function sameRunnableCode(left: RunnableCode, right: RunnableCode) {
+function sameRunnableCode(left: RunnableCode, right: RunnableCode) {
   return left.code === right.code && left.language === right.language;
 }
 

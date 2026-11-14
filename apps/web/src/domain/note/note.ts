@@ -1,4 +1,4 @@
-export type NoteMark = { type: string; attrs?: Record<string, unknown> };
+type NoteMark = { type: string; attrs?: Record<string, unknown> };
 
 export type NoteNode = {
   type: string;
@@ -10,7 +10,7 @@ export type NoteNode = {
 
 export type NoteDocument = { type: "doc"; content: NoteNode[] };
 
-export type CanvasNoteHeightMode = "auto" | "fixed";
+type CanvasNoteHeightMode = "auto" | "fixed";
 
 export type CanvasNoteReference = {
   noteId: string;
@@ -19,7 +19,7 @@ export type CanvasNoteReference = {
   heightMode?: CanvasNoteHeightMode;
 };
 
-export const CANVAS_NOTE_DATA_KEY = "notespaceNote";
+const CANVAS_NOTE_DATA_KEY = "notespaceNote";
 
 export function emptyNoteDocument(): NoteDocument {
   return { type: "doc", content: [] };

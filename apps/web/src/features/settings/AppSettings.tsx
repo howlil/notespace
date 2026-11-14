@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react";
 import { isDesktopUpdaterEnabled } from "../../adapters/desktop/desktop-updater";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
-import { DatabaseBackup, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
+import { DatabaseBackup, Monitor, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -88,7 +88,13 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
 
   const deviceRecovery = native
     ? <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">{renderDesktopRecovery(onBusyChange)}</fieldset>
-    : <section className="py-2" aria-label="Device recovery"><p className="m-0 text-[10px] leading-4 text-muted">Device recovery snapshots are available in the Windows desktop app.</p></section>;
+    : <section className="flex items-start gap-2.5 rounded-lg border border-line bg-surface p-3" aria-label="Device recovery">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-tint text-muted" aria-hidden="true"><Monitor size={15} /></span>
+        <div className="min-w-0">
+          <h3 className="m-0 text-xs font-medium text-ink">Device recovery</h3>
+          <p className="mt-0.5 mb-0 text-[10px] leading-4 text-muted">Device recovery snapshots are available in the Windows desktop app.</p>
+        </div>
+      </section>;
 
   return (
     <Dialog open={open} onOpenChange={onChangeOpen}>

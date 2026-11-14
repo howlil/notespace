@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, RotateCcw, Trash2, Upload } from "lucide-react";
+import { Archive, Download, Info, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button } from "../../../shared/ui";
 import { ConfirmDialog } from "../../../shared/ui/overlays/confirm-dialog";
 import type { CategorySummary } from "../../../domain/workspace/workspace";
@@ -112,34 +112,44 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
 
   return (
     <>
-      <div className="divide-y divide-line border-y border-line" aria-label="Library data tools">
-        <section className="py-2.5" aria-label="Portable library backup">
-          <div className="grid gap-2">
-            <div>
+      <div className="grid gap-3" aria-label="Library data tools">
+        <section className="rounded-lg border border-line bg-surface p-3" aria-label="Portable library backup">
+          <div className="flex items-start gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-tint text-accent" aria-hidden="true"><Archive size={15} /></span>
+            <div className="min-w-0">
               <h3 className="m-0 text-xs font-medium text-ink">Portable library backup</h3>
-              <p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Use a ZIP to move your library to another device or keep a copy you can restore later.</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Button asChild variant="secondary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={mutationBusy || disabled} onClick={(event) => { if (mutationBusy || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
-              <Button variant="secondary" size="sm" aria-label="Restore library backup" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore backup</Button>
+              <p className="mt-0.5 mb-0 text-[10px] leading-4 text-muted">Move your library to another device or keep a copy you can restore later.</p>
             </div>
           </div>
-          <p className="mt-1.5 text-[10px] leading-4 text-muted">Includes Workspaces, Canvas content, images, Trash, and history.</p>
-          <p className="mt-1 text-[10px] leading-4 text-muted">Restoring a backup replaces your current library.</p>
+          <p className="mt-2.5 mb-0 text-[10px] leading-4 text-muted">Includes Workspaces, Canvas content, images, Trash, and history.</p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <Button asChild variant="primary" size="sm"><a href={exportLibraryBackup()} download aria-disabled={mutationBusy || disabled} onClick={(event) => { if (mutationBusy || disabled) event.preventDefault(); }}><Download size={13} /> Export ZIP</a></Button>
+            <Button variant="secondary" size="sm" aria-label="Restore library backup" onClick={() => restoreInput.current?.click()} disabled={loading || disabled}><Upload size={13} /> Restore backup</Button>
+          </div>
+          <p className="mt-2.5 mb-0 flex items-start gap-1.5 rounded-md bg-tint px-2 py-1.5 text-[10px] leading-4 text-muted"><Info size={12} className="mt-px shrink-0" aria-hidden="true" /><span>Restoring a backup replaces your current library.</span></p>
           <input ref={restoreInput} className="hidden" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" onChange={(event) => setPendingBackupRestore(event.target.files?.[0] ?? null)} />
         </section>
 
-        <div className="py-2.5">{deviceRecovery}</div>
+        {deviceRecovery}
 
-        <section className="py-2.5" aria-label="Trash">
-          <div className="mb-1.5 flex items-center justify-between"><div><h3 className="m-0 text-xs font-medium text-ink">Trash</h3><p className="mt-1 mb-0 text-[10px] leading-4 text-muted">Restore a Workspace or delete it permanently.</p></div><span className="text-[10px] tabular-nums text-muted">{loading ? "…" : trash.length}</span></div>
-          {trash.length ? <div className="max-h-52 overflow-auto border-t border-line">
-            {trash.map((item) => <div key={item.id} className="flex min-h-11 items-center gap-3 border-b border-line py-2">
+        <section className="rounded-lg border border-line bg-surface p-3" aria-label="Trash">
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-tint text-muted" aria-hidden="true"><Trash2 size={15} /></span>
+              <div className="min-w-0">
+                <h3 className="m-0 text-xs font-medium text-ink">Trash</h3>
+                <p className="mt-0.5 mb-0 text-[10px] leading-4 text-muted">Restore a Workspace or delete it permanently.</p>
+              </div>
+            </div>
+            <span className="shrink-0 rounded-full bg-tint px-2 py-0.5 text-[10px] font-medium tabular-nums text-muted" aria-label={`${loading ? 0 : trash.length} deleted Workspaces`}>{loading ? "…" : trash.length}</span>
+          </div>
+          {trash.length ? <ul className="mt-2.5 grid max-h-52 gap-1 overflow-auto">
+            {trash.map((item) => <li key={item.id} className="flex min-h-11 items-center gap-2 rounded-md border border-line px-2.5 py-1.5">
               <div className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{item.title}</strong><span className="text-[9px] text-muted">{categoryNames.get(item.categoryId) ?? "Category unavailable"} · deleted {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.deletedAt))}</span></div>
-              <Button variant="ghost" size="sm" aria-label={`Restore ${item.title}`} onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={12} /> Restore</Button>
+              <Button variant="secondary" size="sm" aria-label={`Restore ${item.title}`} onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={12} /> Restore</Button>
               <Button variant="ghost" size="icon" className="text-danger" aria-label={`Permanently delete ${item.title}`} onClick={() => setPermanentTarget(item)} disabled={loading || disabled}><Trash2 size={13} /></Button>
-            </div>)}
-          </div> : <p className="m-0 border-t border-line py-2 text-[10px] text-muted">{loading ? "Loading deleted Workspaces…" : "No deleted Workspaces."}</p>}
+            </li>)}
+          </ul> : <p className="mt-2.5 mb-0 rounded-md border border-dashed border-line px-2.5 py-3 text-center text-[10px] text-muted">{loading ? "Loading deleted Workspaces…" : "No deleted Workspaces."}</p>}
         </section>
       </div>
 

@@ -4,6 +4,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/asset"
 	"github.com/howlil/notespace/apps/server/internal/capture"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -12,10 +13,11 @@ const LibraryBackupFormat = "notespace-backup"
 const LibraryBackupVersion = 3
 
 type WorkspaceEnvelope struct {
-	Project workspacepkg.Workspace         `json:"project"`
-	Plan    planning.Plan                  `json:"plan,omitempty"`
-	History []workspacepkg.HistorySnapshot `json:"history"`
-	Assets  []asset.Stored                 `json:"assets"`
+	Project       workspacepkg.Workspace         `json:"project"`
+	Plan          planning.Plan                  `json:"plan,omitempty"`
+	History       []workspacepkg.HistorySnapshot `json:"history"`
+	Assets        []asset.Stored                 `json:"assets"`
+	NoteInstances []note.Instance                `json:"noteInstances,omitempty"`
 }
 
 type TrashRecord struct {
@@ -31,6 +33,7 @@ type LibraryBackup struct {
 	Version                   int                            `json:"version"`
 	GeneratedAt               string                         `json:"generatedAt"`
 	Categories                []workspacepkg.CategorySummary `json:"categories"`
+	Notes                     []note.Note                    `json:"notes,omitempty"`
 	Workspaces                []WorkspaceEnvelope            `json:"workspaces"`
 	Tasks                     []planning.Task                `json:"standaloneTasks,omitempty"`
 	Captures                  []capture.Item                 `json:"captures,omitempty"`
@@ -66,6 +69,15 @@ func ValidateWorkspaceEnvelope(envelope WorkspaceEnvelope, categoryID string) er
 		if err := asset.ValidateStored(stored); err != nil {
 			return workspacepkg.ErrInvalid
 		}
+	}
+	seenInstances := map[string]bool{}
+	seenElements := map[string]bool{}
+	for _, instance := range envelope.NoteInstances {
+		if seenInstances[instance.ID] || seenElements[instance.ElementID] || instance.WorkspaceID != authored.ID || note.ValidateInstance(instance, authored.ID) != nil {
+			return workspacepkg.ErrInvalid
+		}
+		seenInstances[instance.ID] = true
+		seenElements[instance.ElementID] = true
 	}
 	plan := envelope.Plan
 	if plan.WorkspaceID == "" {

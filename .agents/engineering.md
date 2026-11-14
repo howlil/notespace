@@ -22,7 +22,7 @@ The desktop path is:
 Tauri lifecycle → one Go sidecar on loopback → existing web/API contract → SQLite
 ```
 
-Product references: Desktop behavior and recovery in `product.md`; paginated Workspace traversal in `product.md`. The current branch also carries the explicit Canvas-only/Note-retirement migration; it must not create a second product model.
+Product references: Desktop behavior and recovery, Workspace navigation, Canvas tools, and Canvas Note Card behavior in `product.md`. Canvas remains the only authoring surface; the #203 Note entity is an explicit content capability inside Canvas, not a second page or navigation model.
 
 ## Responsibilities
 
@@ -109,7 +109,8 @@ K5 Desktop: Tauri starts the sidecar, waits for its one-use bootstrap URL, then 
 
 K6 Migration: migrations are append-only and must validate existing data, retain a verified pre-upgrade recovery copy when required, then commit or rollback atomically. Code N must read the supported N-1 state during rollout; breaking removal uses expand → migrate → contract. Previously applied migration variants are recognized only by explicit checksum; follow-up behavior ships in a new migration, never by rewriting stored checksums or replacing the library. Each migration commits its schema fingerprint in the same transaction so restart can resume after a later step fails.
 
-K7 Note retirement: the runtime is Canvas-only, but the current code still has compatibility DTO fields (`Note`, document, references) and historical schema names. New behavior must not create Note state. Removing those fields or legacy routes is a separate contract change and requires migration/backup evidence.
+K7 Legacy Note compatibility: historical DTO fields (`Note`, document, references), schema names, and retirement migrations remain compatibility/recovery history. They are not the canonical store for the new Canvas Note model and must not be repurposed.
+K8 Canvas Note (issue #203): canonical Note content is a library-level, versioned entity in a new storage namespace; its document is a versioned ProseMirror JSON tree, never stored HTML. Canvas scene elements carry typed `{ noteId, instanceId, version }` references and own geometry. Note content and Canvas snapshots have independent optimistic versions and save lifecycles. Create+place is one idempotent server transaction; removing an instance never deletes its Note. Existing backups must round-trip canonical Notes and references; restore validates references and rejects malformed or unsupported Note schema versions atomically. Rich input is parsed, sanitized and validated at its ingress; assets remain managed by the existing asset lifecycle. Search, backlinks and reference previews are derived projections; a preview is read-only and bounded, never another canonical editor. A mounted Canvas re-reads its referenced Notes on entry; real-time multi-window collaboration is out of scope. Canonical Note deletion is a separately guarded library operation (`DELETE /api/notes/{id}`): it removes only an empty Note that no live Canvas element places, clearing that Note's orphan instance rows in the same transaction; it is never an instance-delete alias and writes no Trash record because an empty Note holds nothing to recover. Code N and rollback-compatible code must preserve pre-existing retired Note fields without interpreting them as new Notes.
 
 Compatibility classification (#201 S8; router + capability handlers/models are implementation truth):
 
@@ -143,6 +144,8 @@ FL4 Destructive lifecycle: Trash/restore/backup request → library use-case →
 
 FL5 Note retirement: startup migration validates and snapshots old data → removes retired Note payloads/links → scrubs Canvas artifacts → serves empty compatibility fields. Restore/backup remains the recovery boundary; no hidden Note payload may remain in active or Trash state.
 
+FL6 Canvas Note knowledge actions: an active card creates semantic document changes, managed assets or stable references → the authoring session flushes versioned Note content → SQLite updates the canonical entity and derived search/reference projections → another Canvas reloads the identity on entry. Invalid input, missing targets and unavailable AI remain recoverable presentation states and do not create a second content owner.
+
 ## Guarantees
 
 G1 (Desktop, Canvas close) [H]: when a dirty Canvas is closed or navigated, the system either persists it or blocks/communicates failure; measure at the HTTP acknowledgement and reopen/read-back boundary. Numeric SLO is A1.
@@ -174,7 +177,11 @@ DEC2 [one-way]: keep Tauri as a thin shell and same-origin HTTP instead of dupli
 
 DEC3 [one-way]: keep one SQLite adapter/connection/transaction authority instead of per-domain database owners. Driver: FL4/FL5 atomicity. Private query/codec packages behind Store are allowed only with a borrowed-transaction contract and rollback proof, never independent pools or commits. Trade-off: explicit facade/delegation work reduces density while preserving recovery. Revisit for a new authoritative state owner or transaction boundary.
 
-DEC4 [two-way]: retain legacy Project/Note-compatible read shapes while the Canvas-only migration settles. Driver: K6/K7 compatibility. Contract removal requires explicit product scope and migration proof.
+DEC4 [one-way]: preserve the legacy Note DTO/migration compatibility path while introducing canonical Canvas Notes in a separate namespace and API. Driver: K6/K7 rollback/recovery and K8's versioned Note content. Trade-off: temporary parallel compatibility shapes and backup complexity. Revisit only after supported backup and rollback windows formally retire the legacy contract.
+
+DEC5 [two-way]: use Tiptap/ProseMirror as the lazy Canvas Note editor and canonical document model; use only MIT-licensed core/extensions and keep editor-specific code behind the Canvas Note adapter. Driver: J3/B9-B10, M1-M4, and no existing rich-text editor owner. Trade-off: added editor payload and ProseMirror schema/version maintenance. Revisit if the in-app IME/paste/Canvas-transform spike fails or measured lazy-chunk cost is unacceptable. Feasibility evidence: current app uses React 18; registry metadata for Tiptap 3.30.3 declares React 18 peer support and MIT licensing; StarterKit and table are modular dependencies. This is a package/API feasibility result, not a verified in-app IME, SSR, clipboard, or zoom result; those remain M1 proof gates.
+
+DEC6 [two-way]: keep cross-Canvas Note freshness as re-read-on-entry and explicit recovery, not a subscription protocol. Driver: local-first single-user scope and K8's optimistic revision contract. Trade-off: a second already-open Canvas can be stale until it re-enters or reloads; real-time synchronization requires a separately authorized collaboration boundary.
 
 ## Fitness rules
 
@@ -182,7 +189,7 @@ F1: Web dependency allowlist and dynamic-import scan | `tests/architecture-bound
 F2: Web domain has no browser/HTTP/framework imports | same architecture test | CI | pass when all domain files remain pure; exception requires D#.
 F3: Features do not import sibling implementations; non-desktop features delegate native SDK access to adapters | same architecture test | CI | pass; compose siblings in pages, keep updater capability IPC in adapters/desktop.
 F4: Server packages keep `httpapi → capability → sqlite` direction through consumer-owned ports | `internal/architecture` import checks | enforced in Go tests; exception requires D#.
-F5: No new Note authoring surface or legacy UI route | source/route contract tests | CI | pass when retirement tests remain green; compatibility fields are allowed only at K7.
+F5: Canvas Note authoring is only through Canvas; legacy Note fields/routes cannot become its canonical storage | source/route contract tests | CI | pass when Canvas ownership checks and legacy compatibility tests remain green under K7/K8.
 F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.
 
 F7: Feature outsiders use its public entry; no self-barrel or eager Canvas export. Modular feature roots hold entries or runtime modules with actual consumers in >=2 child capabilities; single-owner leaves colocate, small cohesive features may stay flat. New capability names need no filename-list update; generic root dumps are rejected | web import/ownership checks with negative cases | `bun run test`.
@@ -191,7 +198,7 @@ F9: Nested browser suites remain discovered exactly once; configured script entr
 
 ## Debt and risks
 
-D1: Workspace DTO/model still carries `Note`, `document`, `references` and empty compatibility arrays | preserves rollout compatibility | pay when K7 contract is explicitly removed | workspace owner.
+D1: Workspace DTO/model still carries `Note`, `document`, `references` and empty compatibility arrays | preserves rollout compatibility beside K8's isolated canonical Note store | pay when the legacy K7 compatibility window is retired | workspace owner.
 
 D2: `/api/projects` and historical SQLite table names remain | avoids destructive rename with no product payoff | pay only with measured migration benefit | httpapi/migrations owner.
 

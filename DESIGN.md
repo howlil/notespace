@@ -1,6 +1,6 @@
 # Notespace Design Contract
 
-This contract defines the single-shell Welcome + Canvas navigation. The approved Welcome v3 and Canvas prototype are visual references. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Note data and Note authoring are retired; Canvas is the authored content contract.
+This contract defines the single-shell Welcome + Canvas navigation. The approved Welcome v3 and Canvas prototype are visual references. Runtime tokens in `apps/web/src/shared/styles/globals.css` remain authoritative. Canvas remains the only authored surface; issue #203 adds canvas-native Note Cards within that surface.
 
 ## Decision order
 
@@ -19,7 +19,7 @@ Notespace is a self-hosted, compact spatial knowledge workspace. Make finding a 
 - **Welcome, empty library:** only when the authoritative library has zero Workspaces, show a centered UIarc-inspired outline folder/Canvas illustration, “No workspaces yet”, brief next-step copy, one primary **Create Workspace** action and secondary **Restore backup**. Keep the illustration decorative, static and token-colored; no sample knowledge-map content or gallery tabs. Never treat loading, errors or an empty category as an empty library.
 - **Welcome, existing library:** show the Notespace cobalt paper-stack Workspace cards, compact continue/resume entry, library search and creation actions. The Category Explorer remains available; selecting a category is addressable through `/?category=...`. No second dashboard, stats, activity feed or redundant navigation.
 - **Workspace:** full-bleed Excalidraw Canvas is the only authoring surface. Its floating tool rail, Diagram palette and More tools retain the existing native Notespace SVG geometry and behaviors. Upper-right Canvas chrome keeps fit, zoom, and history as direct compact icon controls; **More canvas actions** opens only secondary view, background, library, file, export, navigation and help actions. Explorer is optional and can be toggled without leaving the selected Workspace.
-- **Retired Note model:** Notes, Note editors, linked Note artifacts, Note search destinations and Markdown-to-Note import are removed. Existing Note data is purged by the Canvas-only migration.
+- **Canvas Note Card (#203):** Note is a plain content card created and edited directly on Canvas. It has no standalone route, title field, icon, cover, header/footer or persistent toolbar. Selection is single-click; editing is double-click; creation focuses the editor; Escape exits editing. Text selection may expose a compact, viewport-clamped formatting control; slash menus and recovery state are contextual and dismissible. Geometry belongs to the Canvas instance, while canonical content is shared by Note identity. Read-only embeds/previews never mount another editor; missing targets state the condition without mutating content. Removing an instance does not delete its Note. Existing retirement-era DTOs and migrations remain compatibility history, not Note storage.
 - **Removed from navigation:** standalone Note view, Split View, Focus Mode, Activity indicators/dock, and their switches/rails. No permanent page or navigation for these modes.
 - **Global utilities:** Quick Open (`Ctrl/Cmd+K`), Settings, backup export/restore, Trash, confirmations, and Canvas conflict recovery remain reachable in both content states.
 - **Desktop:** reuse the existing 38px titlebar/native window controls and one application shell. Avoid extra Workspace rail, duplicate branding or titlebar controls; browser and Tauri share product behavior.
@@ -32,12 +32,12 @@ Notespace is a self-hosted, compact spatial knowledge workspace. Make finding a 
 | Welcome (first-run) | Route + library feature | Same shell, centered outline empty state, Create/Restore entry, no Canvas tool rail |
 | Welcome (existing library) | Route + `WorkspaceLibrary` | Same shell, existing cobalt paper-stack cards (max 196px, radius 18px), optional 228px Explorer |
 | Workspace authoring | `WorkspacePage` + Canvas feature | Persistent shell, full-bleed Canvas, floating native tools, one Canvas options panel |
-| Note editing | Retired | No Note route, editor, picker or artifact surface |
+| Note editing | Workspace Canvas | Inline plain card; selected, editing, manipulating and recoverable save states; no separate route |
 | Utilities | Settings, Quick Open, data/recovery | Overlays keep accessible focus and recoverable pending/error states |
 
 ## Workspace editor and Canvas contract
 
-Preserve existing Excalidraw primitives, diagrams, code blocks, image assets, keyboard shortcuts, pan/zoom and undo/redo. Canvas is the sole authored content boundary; no Canvas element may reference a retired Note artifact.
+Preserve existing Excalidraw primitives, diagrams, code blocks, image assets, keyboard shortcuts, pan/zoom and undo/redo. Canvas is the sole authored content boundary. A Note card's geometry and typed identity reference are scene-owned; its versioned content is Note-store-owned. Read-only instances render semantic content without mounting another editor. Light/dark rendering uses semantic tokens; failed or conflicting saves retain the draft and expose recovery.
 
 Keep Canvas granular autosave and conflict handling, blocking unsafe navigation/desktop close until pending Canvas snapshots are settled. Maintain a recoverable empty Canvas state; distinguish genuinely empty Canvas from content positioned offscreen (offer **Back to content** where applicable).
 
@@ -372,4 +372,3 @@ Automated browser tests should protect stable interaction/design contracts, not 
 ## Change rule
 
 When a requested visual change conflicts with this file, prefer the explicit current user instruction. Otherwise preserve this contract and make the smallest coherent design change that improves the requested user outcome.
-

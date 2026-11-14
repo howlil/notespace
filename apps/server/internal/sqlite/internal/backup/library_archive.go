@@ -6,6 +6,7 @@ import (
 
 	"github.com/howlil/notespace/apps/server/internal/activity"
 	"github.com/howlil/notespace/apps/server/internal/capture"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
@@ -31,10 +32,11 @@ type ArchiveAsset struct {
 }
 
 type ArchiveWorkspaceEnvelope struct {
-	Project workspacepkg.Workspace         `json:"project"`
-	Plan    planning.Plan                  `json:"plan,omitempty"`
-	History []workspacepkg.HistorySnapshot `json:"history"`
-	Assets  []ArchiveAsset                 `json:"assets"`
+	Project       workspacepkg.Workspace         `json:"project"`
+	Plan          planning.Plan                  `json:"plan,omitempty"`
+	History       []workspacepkg.HistorySnapshot `json:"history"`
+	Assets        []ArchiveAsset                 `json:"assets"`
+	NoteInstances []note.Instance                `json:"noteInstances,omitempty"`
 }
 
 type ArchiveTrashRecord struct {
@@ -51,6 +53,7 @@ type LibraryArchiveManifest struct {
 	SchemaVersion             int                            `json:"schemaVersion"`
 	GeneratedAt               string                         `json:"generatedAt"`
 	Categories                []workspacepkg.CategorySummary `json:"categories"`
+	Notes                     []note.Note                    `json:"notes,omitempty"`
 	Workspaces                []ArchiveWorkspaceEnvelope     `json:"workspaces"`
 	Tasks                     []planning.Task                `json:"standaloneTasks,omitempty"`
 	Captures                  []capture.Item                 `json:"captures,omitempty"`
@@ -76,5 +79,5 @@ func ArchiveEnvelope(value WorkspaceEnvelope, blobs map[string][]byte, catalog m
 		}
 		assets = append(assets, ArchiveAsset{ID: stored.ID, MimeType: stored.MimeType, CreatedAt: stored.CreatedAt, Blob: path, SHA256: hash, Size: int64(len(stored.Data))})
 	}
-	return ArchiveWorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}
+	return ArchiveWorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets, NoteInstances: value.NoteInstances}
 }

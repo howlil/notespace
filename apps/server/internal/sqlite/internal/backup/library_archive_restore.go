@@ -54,5 +54,5 @@ func RestoreArchiveEnvelope(value ArchiveWorkspaceEnvelope, blobData map[string]
 	if err != nil {
 		return WorkspaceEnvelope{}, err
 	}
-	return WorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets}, nil
+	return WorkspaceEnvelope{Project: value.Project, Plan: value.Plan, History: value.History, Assets: assets, NoteInstances: value.NoteInstances}, nil
 }

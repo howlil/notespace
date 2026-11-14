@@ -2,6 +2,7 @@ package searchquery
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"unicode"
 
@@ -34,6 +35,60 @@ func ReplaceWorkspaceTx(ctx context.Context, tx dbtx.DBTX, value StaleSearchWork
 	_, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
 ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.ID, value.Version, value.CategoryID, value.Title)
 	return err
+}
+
+func canvasNoteSearchText(raw string) string {
+	var value any
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return raw
+	}
+	parts := []string{}
+	var walk func(any)
+	walk = func(current any) {
+		switch value := current.(type) {
+		case string:
+			if strings.TrimSpace(value) != "" {
+				parts = append(parts, value)
+			}
+		case []any:
+			for _, item := range value {
+				walk(item)
+			}
+		case map[string]any:
+			for _, item := range value {
+				walk(item)
+			}
+		}
+	}
+	walk(value)
+	return strings.Join(parts, " ")
+}
+
+func syncCanvasNotesTx(ctx context.Context, tx dbtx.DBTX) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note'`); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `
+SELECT n.id,COALESCE(i.id,''),COALESCE(i.workspace_id,''),COALESCE(p.title,''),COALESCE(p.category_id,''),n.document_state
+FROM canvas_notes n
+LEFT JOIN canvas_note_instances i ON i.note_id=n.id
+LEFT JOIN projects p ON p.id=i.workspace_id
+ORDER BY n.updated_at DESC,n.id,i.id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var noteID, instanceID, workspaceID, workspaceTitle, categoryID, document string
+		if err := rows.Scan(&noteID, &instanceID, &workspaceID, &workspaceTitle, &categoryID, &document); err != nil {
+			return err
+		}
+		content := canvasNoteSearchText(document)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, categoryID, workspaceID, workspaceTitle, noteID, "", instanceID, "Canvas Note", content); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 // SyncIndexTx borrows one transaction so authored revisions and the projection
@@ -70,7 +125,7 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 			return err
 		}
 	}
-	return nil
+	return syncCanvasNotesTx(ctx, tx)
 }
 
 func SafeFTSQuery(query string) string {

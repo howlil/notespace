@@ -115,7 +115,7 @@ function WorkspaceFolderCard({
           {editing ? (
             <div className={cardLinkClass} aria-label={`Edit ${workspace.title}`}>{cardBody}</div>
           ) : (
-            <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} className={cardLinkClass} aria-label={`Open ${workspace.title}`}>{cardBody}</Link>
+            <Link to="/workspaces/$workspaceId" params={{ workspaceId: workspace.id }} search={{ noteId: undefined }} className={cardLinkClass} aria-label={`Open ${workspace.title}`}>{cardBody}</Link>
           )}
         </ContextMenuTrigger>
         <ContextMenuContent>

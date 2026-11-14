@@ -1,8 +1,10 @@
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { DIAGRAM_DATA_KEY } from "../../../../domain/diagram/diagram.ts";
+import { readCanvasNoteReference, type CanvasNoteReference } from "../../../../domain/note/note.ts";
 import { readCanvasCodeBlock, type CanvasCodeBlockData } from "../code/canvas-code-block.ts";
 import { clampCodeBlockHeight, codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "../code/canvas-code-block-layout.ts";
+import { noteHeightChanged, shouldSwitchNoteToFixedHeight } from "../note/note-card-layout.ts";
 
 export type CodeGeometry = { width: number; height: number };
 
@@ -61,7 +63,7 @@ export function sameElementVersions(left: readonly OrderedExcalidrawElement[], r
 export function codeGeometryMap(elements: readonly OrderedExcalidrawElement[]) {
   const geometry = new Map<string, CodeGeometry>();
   for (const element of elements) {
-    if (!element.isDeleted && readCanvasCodeBlock(element)) {
+    if (!element.isDeleted && (readCanvasCodeBlock(element) || readCanvasNoteReference(element))) {
       geometry.set(element.id, { width: element.width, height: element.height });
     }
   }
@@ -73,6 +75,8 @@ export function deriveCanvasElementState(
   previousGeometry: ReadonlyMap<string, CodeGeometry>,
   expectedAutoFitHeights: ReadonlyMap<string, number>,
   normalizeManualHeight: (element: OrderedExcalidrawElement, block: CanvasCodeBlockData) => OrderedExcalidrawElement,
+  normalizeManualNoteHeight?: (element: OrderedExcalidrawElement, reference: CanvasNoteReference) => OrderedExcalidrawElement,
+  isManipulating = false,
 ) {
   let authoredElements: readonly OrderedExcalidrawElement[] = elements;
   let mutableElements: OrderedExcalidrawElement[] | null = null;
@@ -84,6 +88,36 @@ export function deriveCanvasElementState(
 
   elements.forEach((element, index) => {
     if (!element.isDeleted) hasLiveElements = true;
+    const noteReference = readCanvasNoteReference(element);
+    if (noteReference && !element.isDeleted) {
+      const previous = previousGeometry.get(element.id);
+      const expectedHeight = expectedAutoFitHeights.get(element.id);
+      if (expectedHeight !== undefined && !noteHeightChanged(expectedHeight, element.height)) {
+        acknowledgedAutoFitIds.push(element.id);
+        codeGeometry.set(element.id, { width: element.width, height: element.height });
+        return;
+      }
+      if (isManipulating) {
+        if (previous) codeGeometry.set(element.id, previous);
+        return;
+      }
+      const manualResize = shouldSwitchNoteToFixedHeight({
+        heightMode: noteReference.heightMode,
+        previousHeight: previous?.height,
+        currentHeight: element.height,
+        expectedAutoFitHeight: expectedHeight,
+      });
+      if (manualResize && normalizeManualNoteHeight) {
+        normalizedManualResize = true;
+        const nextElement = normalizeManualNoteHeight(element, { ...noteReference, heightMode: "fixed" });
+        if (!mutableElements) mutableElements = [...elements];
+        mutableElements[index] = nextElement;
+        codeGeometry.set(nextElement.id, { width: nextElement.width, height: nextElement.height });
+        return;
+      }
+      codeGeometry.set(element.id, { width: element.width, height: element.height });
+      return;
+    }
     const block = readCanvasCodeBlock(element);
     if (!block || element.isDeleted) return;
 

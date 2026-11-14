@@ -107,7 +107,7 @@ export function useLibraryNavigation({ categories, selectedCategoryId, onChanged
         setExpanded((current) => new Set(current).add(target.categoryId!));
       }
       if (createdWorkspace) {
-        await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: createdWorkspace.id } });
+        await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: createdWorkspace.id }, search: { noteId: undefined } });
         notifyLibraryChanged();
       } else signalLibraryChanged();
     } catch (error) {

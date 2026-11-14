@@ -2,9 +2,12 @@ package sqlite
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/howlil/notespace/apps/server/internal/asset"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -94,4 +97,44 @@ func TestWorkspaceExistsAndAssetPutAvoidHydratedReadback(t *testing.T) {
 	if stored.ID != "image-fast" || stored.WorkspaceID != workspace.ID || stored.CreatedAt == "" || string(stored.Data) != "payload" {
 		t.Fatalf("put result = %#v", stored)
 	}
+}
+
+func TestIndexedSearchFindsCanvasNoteContent(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-note-search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Canvas note search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canvasData := json.RawMessage(`{"elements":[{"id":"note-element","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-indexed","instanceId":"instance-indexed"}}}],"appState":{},"files":{}}`)
+	created, err := store.CreateNoteInstance(ctx, workspace.ID, note.CreateInstanceRequest{
+		ClientRequestID:       "request-indexed",
+		ClientNoteID:          "note-indexed",
+		ClientInstanceID:      "instance-indexed",
+		ElementID:             "note-element",
+		ExpectedCanvasVersion: workspace.CanvasVersion,
+		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Indexed canvas note content"}]}]}`),
+		Canvas:                note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData},
+		X:                     0, Y: 0, Width: 320, Height: 180,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := workspacepkg.NewService(NewIndexedWorkspaceStore(store)).Search(ctx, "indexed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range results {
+		if result.Type == "note" && result.NoteID == created.Note.ID {
+			if result.WorkspaceID != workspace.ID || result.InstanceID != created.Instance.ID || !strings.Contains(strings.ToLower(result.Excerpt), "indexed canvas note content") {
+				t.Fatalf("note search result = %#v", result)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected indexed canvas note result, got %#v", results)
 }

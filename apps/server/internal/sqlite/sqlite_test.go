@@ -257,7 +257,7 @@ func TestRetiredNotesMigrationScrubsHistoryAndCanvasCount(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name='0025_remove_notes.sql'`, recordedNoteMigrationChecksum); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -333,7 +333,7 @@ func TestRetiredNotesMigrationPreservesModernHistoryPayload(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE workspace_history_payload SET content_hash=?,codec=?,payload=?,payload_size=? WHERE history_id=?`, hash, "zlib-json-v1", payload, len(payload), snapshot.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -422,7 +422,7 @@ func TestRetiredNotesMigrationProcessesAllHistoryPayloads(t *testing.T) {
 		}
 		fixtures = append(fixtures, historyFixture{workspaceID: project.ID, historyID: snapshot.ID})
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -474,7 +474,7 @@ func TestRetiredNotesMigrationRollsBackMalformedHistoryPayload(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE projects SET references_state=? WHERE id=?`, `["must-survive"]`, p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -531,7 +531,7 @@ func TestRetiredNotesMigrationRollsBackMalformedCanvas(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE projects SET references_state=? WHERE id=?`, `["must-survive"]`, p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -709,7 +709,7 @@ func TestRetiredNotesMigrationRollsBackMalformedTrash(t *testing.T) {
 	if _, err := store.db.ExecContext(ctx, `UPDATE workspace_trash SET payload=? WHERE id=?`, corrupt, created.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -789,7 +789,7 @@ func plantRetiredNoteTrash(t *testing.T, store *Store, id string, canvas workspa
 func reopenRetiredNotesMigration(t *testing.T, store *Store, path string) *Store {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name=?`, backupquery.RetiredNotesMigration); err != nil {
+	if _, err := store.db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, backupquery.RetiredNotesMigration); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

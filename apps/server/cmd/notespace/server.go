@@ -22,6 +22,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
@@ -46,6 +47,7 @@ func run() error {
 	defer store.Close()
 	workspaceStore := sqlite.NewIndexedWorkspaceStore(store)
 	workspaceService := workspace.NewService(workspaceStore)
+	noteService := note.NewService(store)
 	planningService := planning.NewService(store, store, nil)
 	activityService := activity.NewService(store, store, nil)
 	captureService := capture.NewService(store)
@@ -60,6 +62,7 @@ func run() error {
 		Capture:   &captureService,
 		Assets:    &assetService,
 		Library:   &libraryService,
+		Notes:     &noteService,
 		Icons:     iconSource,
 		Health:    store.Healthy,
 	}

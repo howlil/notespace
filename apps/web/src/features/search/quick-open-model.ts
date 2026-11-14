@@ -5,9 +5,10 @@ export type QuickOpenDestination = {
   title: string;
   context: string;
   href: string;
-  kind: "category" | "workspace";
+  kind: "category" | "workspace" | "note";
   categoryId?: string;
   workspaceId?: string;
+  noteId?: string;
 };
 
 export function searchResultHref(result: SearchResult) {
@@ -17,6 +18,10 @@ export function searchResultHref(result: SearchResult) {
   if (result.type === "workspace") {
     return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
   }
+  if (result.type === "note" && result.noteId) {
+    if (!result.workspaceId) return "/";
+    return `/workspaces/${encodeURIComponent(result.workspaceId)}?noteId=${encodeURIComponent(result.noteId)}`;
+  }
   return `/workspaces/${encodeURIComponent(result.workspaceId)}`;
 }
 
@@ -25,13 +30,14 @@ export function destinationFromSearchResult(result: SearchResult): QuickOpenDest
     key: `${result.type}-${result.categoryId ?? ""}-${result.workspaceId}`,
     title: result.type === "category"
       ? result.categoryTitle || "Category"
-      : result.workspaceTitle,
+      : result.type === "note" ? "Canvas Note" : result.workspaceTitle,
     context: result.type === "category"
       ? "Category"
-      : result.categoryTitle || "Workspace",
+      : result.type === "note" ? result.workspaceTitle || "Unplaced Canvas Note" : result.categoryTitle || "Workspace",
     href: searchResultHref(result),
     kind: result.type,
     categoryId: result.type === "category" ? result.categoryId : undefined,
     workspaceId: result.workspaceId,
+    noteId: result.noteId,
   };
 }

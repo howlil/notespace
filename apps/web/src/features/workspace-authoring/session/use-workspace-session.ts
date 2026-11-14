@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { WorkspaceContent, Snapshot } from "../../../domain/workspace/workspace";
-import { acknowledgeCanvasSnapshot, applyCanvasSnapshot } from "./workspace-session-state";
+import { acknowledgeCanvasSnapshot, applyCanvasSnapshot, isStaleWorkspaceCanvasVersion } from "./workspace-session-state";
 import { useGranularWorkspaceAutosave } from "./use-granular-workspace-autosave";
 import { getWorkspaceCanvas, type CanvasState } from "../../../adapters/http/workspace-api";
 
@@ -43,13 +43,16 @@ export function useWorkspaceSession({
   }, []);
 
   const onCanvasSaved = useCallback((saved: CanvasState) => {
+    identity.current.canvasVersion = saved.version;
     const next = acknowledgeCanvasSnapshot(current.current, saved.canvas);
     if (JSON.stringify(next.canvas) !== JSON.stringify(current.current.canvas)) {
       current.current = next;
-      touch();
     }
+    touch();
     return current.current.canvas;
   }, [touch]);
+
+  // External note/instance endpoints advance the canvas version alongside their own write.
 
   const {
     status,
@@ -64,6 +67,15 @@ export function useWorkspaceSession({
     onCanvasSaved,
     beforePersist: flushRegisteredAuthoring,
   });
+
+  const acknowledgeCanvas = useCallback((saved: CanvasState) => {
+    identity.current.canvasVersion = saved.version;
+    if (!rebaseVersion(saved.version)) {
+      void recoverCanvas(saved.version).catch(() => {});
+    }
+    current.current = acknowledgeCanvasSnapshot(current.current, saved.canvas);
+    return current.current.canvas;
+  }, [rebaseVersion, recoverCanvas]);
 
   const flushAll = useCallback(async () => {
     await flushRegisteredAuthoring();
@@ -102,6 +114,17 @@ export function useWorkspaceSession({
       return "rehydrated" as const;
     }
 
+    // Router invalidation can deliver a Workspace payload that was fetched
+    // before the latest granular Canvas acknowledgement. Never rebase a newer
+    // in-memory/durable Canvas back to that stale payload.
+    if (isStaleWorkspaceCanvasVersion(identity.current.canvasVersion, next.canvasVersion)) {
+      if (current.current.title !== next.content.title) {
+        current.current = { ...current.current, title: next.content.title };
+        touch();
+      }
+      return "metadata-updated" as const;
+    }
+
     if (next.canvasVersion === identity.current.canvasVersion) {
       if (current.current.title !== next.content.title) {
         current.current = { ...current.current, title: next.content.title };
@@ -119,12 +142,14 @@ export function useWorkspaceSession({
 
   return {
     current,
+    canvasVersion: identity.current.canvasVersion,
     status,
     dirty: granularDirty,
     flushAll,
     registerAuthoringFlush,
     reconcileWorkspace,
     updateCanvas,
+    acknowledgeCanvas,
     retryConflict,
     useSavedCanvas,
     registerCanvasExport,

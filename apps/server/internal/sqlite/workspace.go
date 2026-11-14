@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	canvasnotequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/canvasnote"
 	searchquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/search"
 	workspacequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/workspace"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
@@ -57,6 +58,9 @@ func (s *Store) UpdateCanvas(ctx context.Context, workspaceID string, update wor
 
 	state, err := workspacequery.UpdateCanvasTx(ctx, tx, workspaceID, update.Version, encoded, elementCount, now)
 	if err != nil {
+		return workspacepkg.CanvasState{}, err
+	}
+	if err := canvasnotequery.SyncGeometryTx(ctx, tx, workspaceID, update.Canvas.Data, now); err != nil {
 		return workspacepkg.CanvasState{}, err
 	}
 	if err := searchquery.AdvanceCanvasRevisionTx(ctx, tx, workspaceID); err != nil {

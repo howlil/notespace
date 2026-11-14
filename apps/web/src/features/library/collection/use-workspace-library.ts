@@ -84,7 +84,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
 
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
-      await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id } });
+      await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id }, search: { noteId: undefined } });
       notifyLibraryChanged();
     } catch (err) {
       showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not create workspace." });

@@ -100,6 +100,9 @@ type SearchResult struct {
 	WorkspaceID    string `json:"workspaceId"`
 	WorkspaceTitle string `json:"workspaceTitle"`
 	Excerpt        string `json:"excerpt"`
+	NoteID         string `json:"noteId,omitempty"`
+	InstanceID     string `json:"instanceId,omitempty"`
+	ElementID      string `json:"elementId,omitempty"`
 }
 
 type HistoryEntry struct {

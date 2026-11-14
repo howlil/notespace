@@ -15,6 +15,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/httpapi"
 	"github.com/howlil/notespace/apps/server/internal/icon"
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/planning"
 	"github.com/howlil/notespace/apps/server/internal/sqlite"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
@@ -46,6 +47,7 @@ func apiDependencies(store *sqlite.Store) httpapi.Dependencies {
 	captureService := capture.NewService(store)
 	assetService := asset.NewService(store, store)
 	libraryService := library.NewService(store)
+	noteService := note.NewService(store)
 	return httpapi.Dependencies{
 		Workspace: &workspaceService,
 		Planning:  &planningService,
@@ -53,6 +55,7 @@ func apiDependencies(store *sqlite.Store) httpapi.Dependencies {
 		Capture:   &captureService,
 		Assets:    &assetService,
 		Library:   &libraryService,
+		Notes:     &noteService,
 		Icons:     testIconSource{},
 		Health:    store.Healthy,
 	}

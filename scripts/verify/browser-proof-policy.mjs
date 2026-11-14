@@ -6,6 +6,7 @@ const override = (match, risk, property) => ({ match, risk, property });
 
 export const browserProofPolicy = {
   "canvas/canvas-peer-sync.e2e.mjs": suite("P1", "Same-browser peer delivery and durable scene readback"),
+  "canvas/canvas-note.e2e.mjs": suite("P0", "Canvas-native Note creation, focus, persistence and recovery"),
   "canvas/canvas-pinch-zoom.e2e.mjs": suite("P1", "Canvas gesture ownership across native and HTML surfaces"),
   "canvas/canvas-toolbar.e2e.mjs": suite("P1", "Canvas creation, source/output lifecycle, selection and source-only export", [
     override(/CSP blocks/, "P0", "Hostile code cannot fetch or spawn workers; output stays bounded"),

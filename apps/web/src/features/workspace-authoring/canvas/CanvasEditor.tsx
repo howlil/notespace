@@ -31,6 +31,7 @@ import { CanvasCodeBlockActions } from "./code/CanvasCodeBlockActions";
 import { CanvasCodeBlockLayer, defaultCodeBlockView, type CodeBlockViewOptions } from "./code/CanvasCodeBlockLayer";
 import { copyCanvasImage, downloadCanvasImage } from "./code/canvas-code-block-export-actions";
 import { defaultCanvasCodeBlock, effectiveCanvasCodeLanguage, readCanvasCodeBlock, withCanvasCodeBlock, type CanvasCodeBlockData } from "./code/canvas-code-block";
+import { canPreviewHtml } from "./code/preview/can-preview-html";
 import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeight, codeElementContainsClientPoint } from "./code/canvas-code-block-layout";
 import { CanvasBottomChrome, type CanvasContextualAnchor } from "./chrome/CanvasBottomChrome";
 import { CanvasToolRail } from "./chrome/CanvasToolRail";
@@ -234,9 +235,21 @@ export default function CanvasEditor({
   const liveCodeElementIds = useMemo(() => liveCodeBlocks.map(({ id }) => id), [liveCodeBlocks]);
   const { runs: codeRuns, runBlock: executeCodeBlock, stopRun: stopCodeRun, clearRun: clearCodeRun } = useCodeRunner(liveCodeBlocks);
   const runCodeBlock = useCallback((id: string, block: CanvasCodeBlockData) => {
-    updateCodeView(id, { showOutput: true });
-    executeCodeBlock(id, { ...block, language: effectiveCanvasCodeLanguage(block) });
+    const language = effectiveCanvasCodeLanguage(block);
+    if (canPreviewHtml(language)) {
+      updateCodeView(id, { showOutput: true, previewHtml: true });
+      return;
+    }
+    updateCodeView(id, { showOutput: true, previewHtml: false });
+    executeCodeBlock(id, { ...block, language });
   }, [executeCodeBlock, updateCodeView]);
+  const toggleHtmlPreview = useCallback((id: string) => {
+    setCodeBlockViews((current) => {
+      const existing = current[id] ?? defaultCodeBlockView;
+      const nextPreview = !(existing.showOutput && existing.previewHtml);
+      return { ...current, [id]: { ...existing, showOutput: nextPreview, previewHtml: nextPreview } };
+    });
+  }, []);
 
   useEffect(() => {
     if (!canvasApi) return;
@@ -701,12 +714,15 @@ export default function CanvasEditor({
       const previous = readCanvasCodeBlock(element);
       if (!previous) return element;
       if (previous.code !== block.code || previous.language !== block.language) clearCodeRun(elementId);
+      if (!canPreviewHtml(effectiveCanvasCodeLanguage(block))) {
+        updateCodeView(elementId, { previewHtml: false });
+      }
       return newElementWith(element, {
         customData: withCanvasCodeBlock(element.customData, block),
       });
     }) as OrderedExcalidrawElement[];
     value.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
-  }, [clearCodeRun]);
+  }, [clearCodeRun, updateCodeView]);
 
   const autoFitCodeBlock = useCallback((elementId: string, targetHeight: number) => {
     const value = api.current;
@@ -958,6 +974,8 @@ export default function CanvasEditor({
           const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
           const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
           if (selectedElementCount === 1 && selectedCodeElement && selectedCodeBlock) {
+            const view = codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView;
+            const previewing = Boolean(view.showOutput && view.previewHtml && canPreviewHtml(selectedCodeBlock));
             return (
               <CanvasCodeBlockActions
                 appDark={dark}
@@ -965,11 +983,16 @@ export default function CanvasEditor({
                 suppressed={isObjectManipulating || contextMenuOpen || viewModeEnabled}
                 onExitEditing={() => setEditingCodeBlockId(null)}
                 block={selectedCodeBlock}
-                outputVisible={Boolean((codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).showOutput)}
-                wordWrap={(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).wordWrap}
+                outputVisible={Boolean(view.showOutput)}
+                wordWrap={view.wordWrap}
                 running={codeRuns[selectedCodeElement.id]?.status === "running"}
-                onToggleOutput={() => updateCodeView(selectedCodeElement.id, { showOutput: !(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).showOutput })}
-                onToggleWrap={() => updateCodeView(selectedCodeElement.id, { wordWrap: !(codeBlockViews[selectedCodeElement.id] ?? defaultCodeBlockView).wordWrap })}
+                previewing={previewing}
+                onToggleOutput={() => {
+                  const nextOutput = !view.showOutput;
+                  updateCodeView(selectedCodeElement.id, { showOutput: nextOutput, previewHtml: nextOutput ? view.previewHtml : false });
+                }}
+                onTogglePreview={() => toggleHtmlPreview(selectedCodeElement.id)}
+                onToggleWrap={() => updateCodeView(selectedCodeElement.id, { wordWrap: !view.wordWrap })}
                 onRun={() => runCodeBlock(selectedCodeElement.id, selectedCodeBlock)}
                 onStop={() => stopCodeRun(selectedCodeElement.id)}
                 onDuplicate={() => runCanvasAction("duplicateSelection")}
@@ -980,6 +1003,7 @@ export default function CanvasEditor({
                 }}
                 onDelete={() => {
                   clearCodeRun(selectedCodeElement.id);
+                  updateCodeView(selectedCodeElement.id, { showOutput: false, previewHtml: false });
                   setEditingCodeBlockId(null);
                   runCanvasAction("deleteSelectedElements");
                 }}

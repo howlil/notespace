@@ -6,6 +6,7 @@ import { useAnchoredPanelPosition } from "../../../../shared/ui/overlays/anchore
 import { useExclusivePopup } from "../../../../shared/ui/overlays/dismissable";
 import { codeLanguageOptions, detectCodeLanguage, effectiveCanvasCodeLanguage as effectiveLanguage, resolveCodeTheme, type CanvasCodeBlockData } from "./canvas-code-block";
 import { canRunCanvasCode } from "./canvas-code-runner";
+import { canPreviewHtml } from "./preview/can-preview-html";
 
 const control = "flex h-8 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] text-muted hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 const row = "flex min-h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-[11px] hover:bg-tint focus-visible:outline-2 focus-visible:outline-accent";
@@ -17,12 +18,14 @@ type CodeActionsProps = {
   outputVisible: boolean;
   wordWrap: boolean;
   running: boolean;
+  previewing: boolean;
   onExitEditing: () => void;
   onUpdate: (block: CanvasCodeBlockData) => void;
   onFitContent: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onToggleOutput: () => void;
+  onTogglePreview: () => void;
   onToggleWrap: () => void;
   onRun: () => void;
   onStop: () => void;
@@ -33,12 +36,18 @@ function languageTitle(block: CanvasCodeBlockData) {
   return codeLanguageOptions.find(([value]) => value === language)?.[1] ?? language;
 }
 
-function CodeRunAction({ block, running, onRun, onStop }: Pick<CodeActionsProps, "block" | "running" | "onRun" | "onStop">) {
+function CodeRunAction({ block, running, previewing, onRun, onStop, onTogglePreview }: Pick<CodeActionsProps, "block" | "running" | "previewing" | "onRun" | "onStop" | "onTogglePreview">) {
   const language = effectiveLanguage(block);
+  if (canPreviewHtml(language)) {
+    const label = previewing ? "Hide HTML preview" : "Preview HTML";
+    return (
+      <button type="button" className={cn(control, previewing && "bg-tint text-accent")} title={label} aria-label={label} aria-pressed={previewing} onClick={onTogglePreview}>
+        {previewing ? <Square className="size-4" /> : <Play className="size-4" />}
+      </button>
+    );
+  }
   const runnable = canRunCanvasCode(language);
-  const unavailable = language === "xml"
-    ? "HTML preview disabled: browser and WebView2 isolation is not verified"
-    : "Source only; execution is available for JavaScript";
+  const unavailable = "Source only; execution is available for JavaScript";
   const label = running ? "Stop JavaScript" : "Run JavaScript";
   return (
     <span className="shrink-0" title={runnable ? label : unavailable}>
@@ -79,7 +88,8 @@ function CodeLanguagePopup({ block, onChoose }: { block: CanvasCodeBlockData; on
   const filtered = codeLanguageOptions.filter(([, label]) => label.toLowerCase().includes(query.toLowerCase()));
   const groups = [
     { label: "Executable", options: filtered.filter(([value]) => canRunCanvasCode(value)) },
-    { label: "Source / highlighting", options: filtered.filter(([value]) => !canRunCanvasCode(value)) },
+    { label: "HTML preview", options: filtered.filter(([value]) => canPreviewHtml(value)) },
+    { label: "Source / highlighting", options: filtered.filter(([value]) => !canRunCanvasCode(value) && !canPreviewHtml(value)) },
   ];
   return <>
     <input autoFocus aria-label="Search code languages" placeholder="Search languages" value={query} onChange={(event) => setQuery(event.target.value)} className="m-1 h-8 shrink-0 rounded-md border border-line bg-canvas px-2 text-[11px] outline-accent" />
@@ -178,7 +188,7 @@ export function CanvasCodeBlockActions(actions: CodeActionsProps) {
         <span className="truncate">{languageTitle(block)}</span><ChevronDown className="size-3.5 shrink-0" />
       </button>
       <CodeOutputAction outputVisible={actions.outputVisible} onToggleOutput={actions.onToggleOutput} />
-      <CodeRunAction block={block} running={actions.running} onRun={actions.onRun} onStop={actions.onStop} />
+      <CodeRunAction block={block} running={actions.running} previewing={actions.previewing} onRun={actions.onRun} onStop={actions.onStop} onTogglePreview={actions.onTogglePreview} />
       <CodeCopyAction code={block.code} />
       <button ref={moreRef} type="button" className={control} title="More code actions" aria-label="More code actions" aria-haspopup="dialog" aria-expanded={popup === "more"} onClick={() => setPopup(popup === "more" ? null : "more")}><MoreHorizontal className="size-4" /></button>
       {popup && !suppressed && createPortal(

@@ -104,8 +104,7 @@ while modified-wheel pinch remains Canvas-owned. Fit and source-only image expor
 follow the current UI-local wrap option without persisting it.
 Popup Escape restores its trigger before editing Escape retains selection.
 Use existing semantic tokens and Lucide; no permanent status or output toolbar.
-JavaScript retains bounded Worker execution; HTML preview stays disabled until
-browser and WebView2 isolation is proven. Exports remain headerless source-only.
+JavaScript retains bounded Worker execution; HTML/XML preview is opt-in and renders lazily inside the output pane within a two-layer opaque-origin `srcdoc` sandbox (five-action toolbar limit preserved via the Run/Preview action). Exports remain headerless source-only.
 
 Canvas conflicts expose retry-merge, a downloadable local draft including images,
 and use-saved recovery with explicit local-discard confirmation. Recovery errors

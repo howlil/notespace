@@ -1,5 +1,6 @@
 /* global console, fetch, setTimeout, URL, AbortSignal */
 
+import { createServer } from "node:http";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -311,13 +312,40 @@ async function assertCanvasNoteModule(session, workspaceId) {
 }
 
 async function assertCodeModule(session) {
+  const origin = new URL(await session.getCurrentUrl()).origin;
   await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Code block"]'))).click();
   const block = await visibleElement(session, By.css('[data-canvas-code-block]'));
   assert.equal((await session.findElements(By.css('[data-canvas-code-header]'))).length, 0);
   assert.equal((await session.findElements(By.css('[role="toolbar"][aria-label="Code block settings"]'))).length, 1);
+  const replaceEditorCode = async (nextCode, { commit = false } = {}) => {
+    const existing = await session.findElements(By.css('textarea[aria-label="Edit code block"]'));
+    if (!existing.length) {
+      const source = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code source"]'));
+      const yOffset = await session.executeScript((el) => {
+        const rect = el.getBoundingClientRect();
+        const top = Math.max(rect.top + 8, 80);
+        const bottom = Math.min(rect.bottom - 8, window.innerHeight - 20);
+        const targetY = bottom > top ? (top + bottom) / 2 : (rect.top + rect.bottom) / 2;
+        return Math.round(targetY - (rect.top + rect.height / 2));
+      }, source);
+      await session.actions().move({ origin: source, x: 0, y: yOffset }).doubleClick().perform();
+    }
+    const field = await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
+    await session.executeScript(`
+      const editor = arguments[0];
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+      setter.call(editor, arguments[1]);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      editor.dispatchEvent(new Event('change', { bubbles: true }));
+    `, field, nextCode);
+    if (commit) {
+      await field.sendKeys(Key.ESCAPE);
+    }
+    return field;
+  };
+
   await session.actions().doubleClick(block).perform();
-  const editor = await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
-  await editor.sendKeys('console.log("desktop-code-module");');
+  const editor = await replaceEditorCode('console.log("desktop-code-module");');
   await editor.sendKeys(Key.chord(Key.CONTROL, Key.ENTER));
   const output = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code output"]'));
   await session.wait(async () => (await output.getText()).includes("desktop-code-module"), 10_000, "Native Worker output appears inside the card");
@@ -326,11 +354,91 @@ async function assertCodeModule(session) {
   const search = await visibleElement(session, By.css('[aria-label="Search code languages"]'));
   await search.sendKeys("HTML");
   await (await visibleElement(session, By.xpath('//div[@data-code-toolbar-popup]//button[normalize-space()="HTML / XML"]'))).click();
-  await visibleElement(session, By.css('button[aria-label="HTML preview disabled: browser and WebView2 isolation is not verified"][disabled]'));
-  assert.equal((await session.findElements(By.css('iframe[title="Canvas interactive HTML preview"]'))).length, 0);
-  await editor.sendKeys(Key.ESCAPE);
-  await waitForWorkspaceSaved(session);
-  console.log("native Code Module proof passed: one toolbar, headerless card, Worker output and disabled HTML preview");
+
+  const leaks = [];
+  const trapServer = createServer((req, res) => {
+    leaks.push(`${req.method} ${req.url}`);
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end("<html><body>trap-leaked</body></html>");
+  });
+  await new Promise((resolve) => trapServer.listen(0, "127.0.0.1", resolve));
+  const trapOrigin = `http://127.0.0.1:${trapServer.address().port}`;
+  try {
+    // Keep the initial interactive snippet compact so the preview button fits within smaller CI WebView2 viewports.
+    const interactiveHtml = '<button id="counter">Count <span id="count">0</span></button><script>document.querySelector("#counter").onclick=()=>{const c=document.querySelector("#count");c.textContent=String(Number(c.textContent)+1)};</script>';
+    await replaceEditorCode(interactiveHtml, { commit: true });
+
+    // Lazy execution: preview iframe must stay unmounted until user opts in.
+    assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
+    await (await visibleElement(session, By.css('button[aria-label="Preview HTML"]:not([disabled])'))).click();
+
+    const hostFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview-host"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(hostFrame);
+    const contentFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(contentFrame);
+    try {
+      await (await visibleElement(session, By.css("#counter"))).click();
+      assert.equal((await (await visibleElement(session, By.css("#count"))).getText()).trim(), "1");
+    } finally {
+      await session.switchTo().defaultContent();
+    }
+
+    const htmlPayload = [
+      `<pre id="probe">pending</pre><iframe id="nested-trap" src="${trapOrigin}/leak-iframe"></iframe><script>`,
+      '(async()=>{const b=async f=>{try{await f();return"LEAKED"}catch{return"blocked"}};',
+      'const i=async(c,p)=>{if(!window.__TAURI_INTERNALS__?.invoke)return"blocked";try{return await Promise.race([Promise.resolve(window.__TAURI_INTERNALS__.invoke(c,p)).then(()=>"LEAKED",()=>"blocked"),new Promise(r=>setTimeout(()=>r("blocked-unsettled"),400))])}catch{return"blocked"}};',
+      `const r={origin:window.origin,hasChromeWebview:Boolean(window.chrome?.webview),tauriPlugins:Object.keys(window.__TAURI_INTERNALS__?.plugins??{}),parentDoc:await b(()=>void parent.document.title),topDoc:await b(()=>void top.document.title),storage:await b(()=>localStorage.setItem("x","1")),fetchApi:await b(()=>fetch("/api/health")),fetchOrigin:await b(()=>fetch(${JSON.stringify(`${origin}/api/health`)})),fetchTrap:await b(()=>fetch(${JSON.stringify(`${trapOrigin}/leak-fetch`)})),fetchIpc:await b(()=>fetch("http://ipc.localhost/desktop_recovery_diagnostics")),tauriDiag:await i("desktop_recovery_diagnostics"),tauriOpener:await i("plugin:opener|open_url",{url:"https://example.com/"}),ipcPost:await b(()=>{if(!window.ipc?.postMessage)throw 1;window.ipc.postMessage(\'{"cmd":"desktop_recovery_diagnostics"}\')})};`,
+      'const p=document.querySelector("#probe");p.textContent=JSON.stringify(r);p.dataset.ready="1";})();</script>',
+    ].join("\n");
+
+    await replaceEditorCode(htmlPayload, { commit: true });
+
+    await session.wait(async () => session.executeScript(() => {
+      const host = document.querySelector('iframe[name="notespace-html-preview-host"]');
+      return Boolean(host?.getAttribute('srcdoc')?.includes('probe'));
+    }), 10_000, "Host preview iframe srcdoc updates to isolation probe");
+    const probeHostFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview-host"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(probeHostFrame);
+    const probeContentFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
+    await session.switchTo().frame(probeContentFrame);
+    try {
+      await session.wait(async () => {
+        const nodes = await session.findElements(By.css('#probe[data-ready="1"]'));
+        return nodes.length > 0;
+      }, 10_000, "WebView2 HTML preview probe finishes inside nested sandbox frame");
+      const report = JSON.parse(await (await visibleElement(session, By.css("#probe"))).getText());
+      assert.equal(report.origin, "null");
+      assert.equal(report.hasChromeWebview, false, "WebView2 child frame must strip chrome.webview");
+      assert.deepEqual(report.tauriPlugins, [], "WebView2 child frame must clear __TAURI_INTERNALS__.plugins");
+      assert.equal(report.parentDoc, "blocked");
+      assert.equal(report.topDoc, "blocked");
+      assert.equal(report.storage, "blocked");
+      assert.equal(report.fetchApi, "blocked");
+      assert.equal(report.fetchOrigin, "blocked");
+      assert.equal(report.fetchTrap, "blocked");
+      assert.equal(report.fetchIpc, "blocked");
+      assert.ok(report.tauriDiag === "blocked" || report.tauriDiag === "blocked-unsettled", `expected blocked tauriDiag, got ${report.tauriDiag}`);
+      assert.equal(report.tauriOpener, "blocked");
+      assert.equal(report.ipcPost, "blocked");
+    } finally {
+      await session.switchTo().defaultContent();
+    }
+
+    await replaceEditorCode(`<meta http-equiv="refresh" content="0;url=${trapOrigin}/leak-meta-refresh"><script>setTimeout(() => { try { location.href = ${JSON.stringify(`${origin}/api/health`)}; } catch {} }, 30);</script>`, { commit: true });
+    await delay(900);
+    const urlAfterNav = await session.getCurrentUrl();
+    assert.ok(urlAfterNav.startsWith(origin), `Top WebView2 window must stay on sidecar origin, got ${urlAfterNav}`);
+    await visibleElement(session, By.css("[data-canvas-code-block]"));
+    assert.deepEqual(leaks, []);
+
+    await (await visibleElement(session, By.css('button[aria-label="Hide HTML preview"]'))).click();
+    assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
+    await waitForWorkspaceSaved(session);
+  } finally {
+    trapServer.closeAllConnections?.();
+    await new Promise((resolve) => trapServer.close(resolve));
+  }
+  console.log("native Code Module proof passed: one toolbar, headerless card, Worker output and isolated WebView2 HTML preview");
 }
 
 async function assertProductPersistence(session, marker) {

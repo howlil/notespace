@@ -95,6 +95,11 @@ jobs:
     needs: cross-platform-native
     runs-on: windows-2022
     timeout-minutes: 85
+    env:
+      BUN_VERSION: "1.3.14"
+      NODE_VERSION: "24"
+      TAURI_DRIVER_VERSION: "2.1.0"
+      ARTIFACT_SIGNING_VERSION: "0.12.0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -174,6 +179,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      # Isolated Bun package cache: same key as the verify-desktop native lane,
+      # so a proven master run seeds downloads that this release reuses. Frozen
+      # install still recreates project junctions; never archive node_modules.
+      - name: Configure isolated Bun package cache
+        shell: pwsh
+        run: '"BUN_INSTALL_CACHE_DIR=$env:RUNNER_TOOL_CACHE/notespace-bun-packages" >> $env:GITHUB_ENV'
+      - uses: actions/cache/restore@v4
+        id: native-packages
+        with:
+          path: ${{ env.BUN_INSTALL_CACHE_DIR }}
+          key: windows-2022-${{ runner.arch }}-native-packages-v2-bun${{ env.BUN_VERSION }}-node${{ env.NODE_VERSION }}-${{ hashFiles('bun.lock', 'package.json', 'apps/web/package.json') }}
       - run: bun install --frozen-lockfile
       - run: bun run --filter @notespace/web build
       - run: bun run desktop:icons
@@ -199,8 +215,31 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: node scripts/release/prepare-desktop-windows-sign-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
-      - name: Install official Windows Artifact Signing CLI
-        run: cargo install artifact-signing-cli --locked
+      - name: Configure isolated signing CLI root
+        shell: pwsh
+        run: '"ARTIFACT_SIGNING_ROOT=$env:RUNNER_TOOL_CACHE/notespace-artifact-signing-cli" >> $env:GITHUB_ENV'
+      - uses: actions/cache/restore@v4
+        id: signing-cli
+        with:
+          path: ${{ env.ARTIFACT_SIGNING_ROOT }}
+          key: windows-2022-${{ runner.arch }}-artifact-signing-cli-${{ env.ARTIFACT_SIGNING_VERSION }}-v1
+      - name: Install pinned Windows Artifact Signing CLI on cache miss
+        if: steps.signing-cli.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          cargo install artifact-signing-cli --version $env:ARTIFACT_SIGNING_VERSION --locked --root $env:ARTIFACT_SIGNING_ROOT
+          if ($LASTEXITCODE -ne 0) { throw "Pinned artifact-signing-cli installation failed" }
+      - name: Validate signing CLI cache before use
+        shell: pwsh
+        run: |
+          $cli = Join-Path $env:ARTIFACT_SIGNING_ROOT 'bin/artifact-signing-cli.exe'
+          if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) { throw "Signing CLI binary is missing" }
+          $installed = (& cargo install --list --root $env:ARTIFACT_SIGNING_ROOT --color never) -join "`n"
+          $version = [regex]::Escape($env:ARTIFACT_SIGNING_VERSION)
+          if ($LASTEXITCODE -ne 0 -or $installed -notmatch "(?m)^artifact-signing-cli v${version}:$") { throw "Signing CLI version does not match cache contract" }
+          & $cli --help
+          if ($LASTEXITCODE -ne 0) { throw "Signing CLI cannot execute" }
+          (Join-Path $env:ARTIFACT_SIGNING_ROOT 'bin') >> $env:GITHUB_PATH
       - name: Build signed Windows installer and updater artifact
         working-directory: apps/desktop/src-tauri
         env:
@@ -221,8 +260,31 @@ jobs:
           apps/desktop/src-tauri/target/release/notespace-desktop.exe
           apps/desktop/src-tauri/binaries/notespace-server-x86_64-pc-windows-msvc.exe
 
-      - name: Install Tauri WebDriver server
-        run: cargo install tauri-driver --locked
+      - name: Configure isolated native driver root
+        shell: pwsh
+        run: '"TAURI_DRIVER_ROOT=$env:RUNNER_TOOL_CACHE/notespace-tauri-driver" >> $env:GITHUB_ENV'
+      - uses: actions/cache/restore@v4
+        id: native-driver
+        with:
+          path: ${{ env.TAURI_DRIVER_ROOT }}
+          key: windows-2022-${{ runner.arch }}-tauri-driver-${{ env.TAURI_DRIVER_VERSION }}-v1
+      - name: Install pinned Tauri WebDriver server on cache miss
+        if: steps.native-driver.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --version $env:TAURI_DRIVER_VERSION --locked --root $env:TAURI_DRIVER_ROOT
+          if ($LASTEXITCODE -ne 0) { throw "Pinned tauri-driver installation failed" }
+      - name: Validate native driver cache before use
+        shell: pwsh
+        run: |
+          $driver = Join-Path $env:TAURI_DRIVER_ROOT 'bin/tauri-driver.exe'
+          if (-not (Test-Path -LiteralPath $driver -PathType Leaf)) { throw "Native driver binary is missing" }
+          $installed = (& cargo install --list --root $env:TAURI_DRIVER_ROOT --color never) -join "`n"
+          $version = [regex]::Escape($env:TAURI_DRIVER_VERSION)
+          if ($LASTEXITCODE -ne 0 -or $installed -notmatch "(?m)^tauri-driver v${version}:$") { throw "Native driver version does not match cache contract" }
+          & $driver --help
+          if ($LASTEXITCODE -ne 0) { throw "Native driver cannot execute" }
+          (Join-Path $env:TAURI_DRIVER_ROOT 'bin') >> $env:GITHUB_PATH
       - name: Install Microsoft EdgeDriver matching WebView2 Runtime
         shell: pwsh
         run: ./scripts/dev/install-webview2-edgedriver.ps1
@@ -234,12 +296,14 @@ jobs:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
+          TAURI_DRIVER: ${{ env.TAURI_DRIVER_ROOT }}/bin/tauri-driver.exe
         run: bun run test:desktop:native
       - name: Verify release product persistence
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
           TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-critical-profile
           NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-critical-data
+          TAURI_DRIVER: ${{ env.TAURI_DRIVER_ROOT }}/bin/tauri-driver.exe
         run: bun run test:desktop:critical
       - name: Download previous stable MSI
         if: steps.previous.outputs.enabled == 'true'
@@ -306,6 +370,19 @@ jobs:
           $files = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Recurse -File | Where-Object { $_.Extension -eq '.msi' }
           $lines = $files | ForEach-Object { $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash; "$hash  $($_.Name)" }
           $lines | Set-Content "apps/desktop/src-tauri/target/release/bundle/SHA256SUMS.txt"
+      # Cache reuse is free for a release, but only a successful trusted master
+      # proof seeds the shared caches; releases restore the proven binaries and
+      # never write them (dispatch ref is always master; guard is defensive).
+      - uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/master' && steps.native-driver.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.TAURI_DRIVER_ROOT }}
+          key: ${{ steps.native-driver.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v4
+        if: github.ref == 'refs/heads/master' && steps.signing-cli.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.ARTIFACT_SIGNING_ROOT }}
+          key: ${{ steps.signing-cli.outputs.cache-primary-key }}
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:

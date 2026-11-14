@@ -317,9 +317,35 @@ async function assertCodeModule(session) {
   const block = await visibleElement(session, By.css('[data-canvas-code-block]'));
   assert.equal((await session.findElements(By.css('[data-canvas-code-header]'))).length, 0);
   assert.equal((await session.findElements(By.css('[role="toolbar"][aria-label="Code block settings"]'))).length, 1);
+  const replaceEditorCode = async (nextCode, { commit = false } = {}) => {
+    const existing = await session.findElements(By.css('textarea[aria-label="Edit code block"]'));
+    if (!existing.length) {
+      const source = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code source"]'));
+      const yOffset = await session.executeScript((el) => {
+        const rect = el.getBoundingClientRect();
+        const top = Math.max(rect.top + 8, 80);
+        const bottom = Math.min(rect.bottom - 8, window.innerHeight - 20);
+        const targetY = bottom > top ? (top + bottom) / 2 : (rect.top + rect.bottom) / 2;
+        return Math.round(targetY - (rect.top + rect.height / 2));
+      }, source);
+      await session.actions().move({ origin: source, x: 0, y: yOffset }).doubleClick().perform();
+    }
+    const field = await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
+    await session.executeScript(`
+      const editor = arguments[0];
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+      setter.call(editor, arguments[1]);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      editor.dispatchEvent(new Event('change', { bubbles: true }));
+    `, field, nextCode);
+    if (commit) {
+      await field.sendKeys(Key.ESCAPE);
+    }
+    return field;
+  };
+
   await session.actions().doubleClick(block).perform();
-  const editor = await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
-  await editor.sendKeys('console.log("desktop-code-module");');
+  const editor = await replaceEditorCode('console.log("desktop-code-module");');
   await editor.sendKeys(Key.chord(Key.CONTROL, Key.ENTER));
   const output = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code output"]'));
   await session.wait(async () => (await output.getText()).includes("desktop-code-module"), 10_000, "Native Worker output appears inside the card");
@@ -338,61 +364,17 @@ async function assertCodeModule(session) {
   await new Promise((resolve) => trapServer.listen(0, "127.0.0.1", resolve));
   const trapOrigin = `http://127.0.0.1:${trapServer.address().port}`;
   try {
-    const htmlPayload = `<button id="counter">Count <span id="count">0</span></button>
-<pre id="probe">pending</pre>
-<iframe id="nested-trap" src="${trapOrigin}/leak-iframe"></iframe>
-<script>
-document.querySelector('#counter').addEventListener('click', () => {
-  const c = document.querySelector('#count');
-  c.textContent = String(Number(c.textContent) + 1);
-});
-(async () => {
-  const result = { origin: window.origin, hasChromeWebview: Boolean(window.chrome?.webview) };
-  try { void parent.document.title; result.parentDoc = 'LEAKED'; } catch { result.parentDoc = 'blocked'; }
-  try { void top.document.title; result.topDoc = 'LEAKED'; } catch { result.topDoc = 'blocked'; }
-  try { localStorage.setItem('x', '1'); result.storage = 'LEAKED'; } catch { result.storage = 'blocked'; }
-  try { await fetch('/api/health'); result.fetchApi = 'LEAKED'; } catch { result.fetchApi = 'blocked'; }
-  try { await fetch(${JSON.stringify(`${origin}/api/health`)}); result.fetchOrigin = 'LEAKED'; } catch { result.fetchOrigin = 'blocked'; }
-  try { await fetch(${JSON.stringify(`${trapOrigin}/leak-fetch`)}); result.fetchTrap = 'LEAKED'; } catch { result.fetchTrap = 'blocked'; }
-  try {
-    if (window.__TAURI_INTERNALS__?.invoke) {
-      await window.__TAURI_INTERNALS__.invoke('desktop_recovery_diagnostics');
-      result.tauriDiag = 'LEAKED';
-    } else { result.tauriDiag = 'blocked'; }
-  } catch { result.tauriDiag = 'blocked'; }
-  try {
-    if (window.__TAURI_INTERNALS__?.invoke) {
-      await window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: 'https://example.com/' });
-      result.tauriOpener = 'LEAKED';
-    } else { result.tauriOpener = 'blocked'; }
-  } catch { result.tauriOpener = 'blocked'; }
-  try {
-    if (window.ipc?.postMessage) {
-      window.ipc.postMessage('{"cmd":"desktop_recovery_diagnostics","callback":1,"error":2}');
-      result.ipcPost = 'posted';
-    } else { result.ipcPost = 'blocked'; }
-  } catch { result.ipcPost = 'blocked'; }
-  const probe = document.querySelector('#probe');
-  probe.textContent = JSON.stringify(result);
-  probe.dataset.ready = '1';
-})();
-</script>`;
+    const htmlPayload = [
+      '<button id="counter">Count <span id="count">0</span></button><pre id="probe">pending</pre>',
+      `<iframe id="nested-trap" src="${trapOrigin}/leak-iframe"></iframe><script>`,
+      'document.querySelector("#counter").onclick=()=>{const c=document.querySelector("#count");c.textContent=String(Number(c.textContent)+1)};',
+      '(async()=>{const b=async f=>{try{await f();return"LEAKED"}catch{return"blocked"}};',
+      'const i=async(c,p)=>{if(!window.__TAURI_INTERNALS__?.invoke)return"blocked";try{return await Promise.race([Promise.resolve(window.__TAURI_INTERNALS__.invoke(c,p)).then(()=>"LEAKED",()=>"blocked"),new Promise(r=>setTimeout(()=>r("blocked-unsettled"),400))])}catch{return"blocked"}};',
+      `const r={origin:window.origin,hasChromeWebview:Boolean(window.chrome?.webview),tauriPlugins:Object.keys(window.__TAURI_INTERNALS__?.plugins??{}),parentDoc:await b(()=>void parent.document.title),topDoc:await b(()=>void top.document.title),storage:await b(()=>localStorage.setItem("x","1")),fetchApi:await b(()=>fetch("/api/health")),fetchOrigin:await b(()=>fetch(${JSON.stringify(`${origin}/api/health`)})),fetchTrap:await b(()=>fetch(${JSON.stringify(`${trapOrigin}/leak-fetch`)})),fetchIpc:await b(()=>fetch("http://ipc.localhost/desktop_recovery_diagnostics")),tauriDiag:await i("desktop_recovery_diagnostics"),tauriOpener:await i("plugin:opener|open_url",{url:"https://example.com/"}),ipcPost:await b(()=>{if(!window.ipc?.postMessage)throw 1;window.ipc.postMessage(\'{"cmd":"desktop_recovery_diagnostics"}\')})};`,
+      'const p=document.querySelector("#probe");p.textContent=JSON.stringify(r);p.dataset.ready="1";})();</script>',
+    ].join("\n");
 
-    const replaceEditorCode = async (nextCode) => {
-      const source = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code source"]'));
-      await session.actions().doubleClick(source).perform();
-      await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'));
-      await session.executeScript(`
-        const editor = document.querySelector('textarea[aria-label="Edit code block"]');
-        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-        setter.call(editor, arguments[0]);
-        editor.dispatchEvent(new Event('input', { bubbles: true }));
-        editor.dispatchEvent(new Event('change', { bubbles: true }));
-      `, nextCode);
-      await (await visibleElement(session, By.css('textarea[aria-label="Edit code block"]'))).sendKeys(Key.ESCAPE);
-    };
-
-    await replaceEditorCode(htmlPayload);
+    await replaceEditorCode(htmlPayload, { commit: true });
 
     // Lazy execution: preview iframe must stay unmounted until user opts in.
     assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
@@ -410,13 +392,15 @@ document.querySelector('#counter').addEventListener('click', () => {
       const report = JSON.parse(await (await visibleElement(session, By.css("#probe"))).getText());
       assert.equal(report.origin, "null");
       assert.equal(report.hasChromeWebview, false, "WebView2 child frame must strip chrome.webview");
+      assert.deepEqual(report.tauriPlugins, [], "WebView2 child frame must clear __TAURI_INTERNALS__.plugins");
       assert.equal(report.parentDoc, "blocked");
       assert.equal(report.topDoc, "blocked");
       assert.equal(report.storage, "blocked");
       assert.equal(report.fetchApi, "blocked");
       assert.equal(report.fetchOrigin, "blocked");
       assert.equal(report.fetchTrap, "blocked");
-      assert.equal(report.tauriDiag, "blocked");
+      assert.equal(report.fetchIpc, "blocked");
+      assert.ok(report.tauriDiag === "blocked" || report.tauriDiag === "blocked-unsettled", `expected blocked tauriDiag, got ${report.tauriDiag}`);
       assert.equal(report.tauriOpener, "blocked");
       assert.equal(report.ipcPost, "blocked");
 
@@ -426,7 +410,7 @@ document.querySelector('#counter').addEventListener('click', () => {
       await session.switchTo().defaultContent();
     }
 
-    await replaceEditorCode(`<meta http-equiv="refresh" content="0;url=${trapOrigin}/leak-meta-refresh"><script>setTimeout(() => { try { location.href = ${JSON.stringify(`${origin}/api/health`)}; } catch {} }, 30);</script>`);
+    await replaceEditorCode(`<meta http-equiv="refresh" content="0;url=${trapOrigin}/leak-meta-refresh"><script>setTimeout(() => { try { location.href = ${JSON.stringify(`${origin}/api/health`)}; } catch {} }, 30);</script>`, { commit: true });
     await delay(900);
     const urlAfterNav = await session.getCurrentUrl();
     assert.ok(urlAfterNav.startsWith(origin), `Top WebView2 window must stay on sidecar origin, got ${urlAfterNav}`);

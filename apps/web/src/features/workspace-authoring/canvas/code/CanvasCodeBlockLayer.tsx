@@ -103,7 +103,7 @@ export function CanvasCodeBlockLayer({
     ...element, ...viewport, viewportWidth: layerSize.width, viewportHeight: layerSize.height,
   }));
   return (
-    <div ref={layerRef} className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-label="Canvas code blocks">
+    <div ref={layerRef} className="pointer-events-none absolute inset-0 z-10 overflow-clip" aria-label="Canvas code blocks">
       {codeElements.map(({ element, block }) => {
         if (block.heightMode !== "auto") return null;
         const baseline = initialMeasurements.current.get(element.id);
@@ -158,7 +158,7 @@ function CodeCard(props: CodeCardProps) {
   const { width, height, fontSize, lineHeight, layout } = metrics;
   return (
     <section data-canvas-code-block={element.id} aria-label={`Code block, ${language}`} data-output-layout={view.showOutput ? layout : undefined}
-      className="absolute overflow-hidden rounded-md"
+      className="absolute overflow-clip rounded-md"
       style={{ left: (element.x + viewport.scrollX) * viewport.zoom, top: (element.y + viewport.scrollY) * viewport.zoom,
         width, height, transform: `rotate(${element.angle}rad)`, transformOrigin: "center",
         fontFamily: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace', fontSize, lineHeight: `${lineHeight}px`,

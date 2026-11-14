@@ -49,6 +49,43 @@ const ISOLATION_INIT_SCRIPT: &str = r#"
       writable: false,
     });
   } catch {}
+  try {
+    Object.defineProperty(window, "ipc", {
+      value: undefined,
+      configurable: false,
+      writable: false,
+    });
+  } catch {}
+  try {
+    if ("__TAURI__" in window) {
+      Object.defineProperty(window, "__TAURI__", {
+        value: undefined,
+        configurable: false,
+        writable: false,
+      });
+    }
+  } catch {}
+  try {
+    if (window.__TAURI_INTERNALS__) {
+      try {
+        Object.defineProperty(window.__TAURI_INTERNALS__, "plugins", {
+          value: Object.freeze({}),
+          configurable: false,
+          writable: false,
+        });
+      } catch {}
+      try {
+        Object.freeze(window.__TAURI_INTERNALS__);
+      } catch {}
+    }
+  } catch {}
+  try {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      value: undefined,
+      configurable: false,
+      writable: false,
+    });
+  } catch {}
 })();
 "#;
 

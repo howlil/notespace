@@ -30,10 +30,6 @@ func (s *IndexedWorkspaceStore) Create(ctx context.Context, value workspacepkg.W
 	return nil
 }
 
-func (s *IndexedWorkspaceStore) Update(ctx context.Context, id string, update workspacepkg.Update) (workspacepkg.Workspace, error) {
-	return s.Store.Update(ctx, id, update)
-}
-
 func (s *IndexedWorkspaceStore) Move(ctx context.Context, id, categoryID string, expectedCategory ...string) (workspacepkg.Workspace, error) {
 	value, err := s.Store.Move(ctx, id, categoryID, expectedCategory...)
 	if err != nil {
@@ -41,10 +37,4 @@ func (s *IndexedWorkspaceStore) Move(ctx context.Context, id, categoryID string,
 	}
 	s.refresh(ctx, id)
 	return value, nil
-}
-
-// Search keeps the search projection behind the workspace.Store port. Callers do
-// not need to know whether retrieval is backed by FTS or the base store.
-func (s *IndexedWorkspaceStore) Search(ctx context.Context, query string) ([]workspacepkg.SearchResult, error) {
-	return s.Store.SearchIndexed(ctx, query)
 }

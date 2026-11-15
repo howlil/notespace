@@ -11,12 +11,14 @@ type CategoryStore interface {
 
 type WorkspaceStore interface {
 	Create(context.Context, Workspace) error
-	List(context.Context) ([]Summary, error)
-	ListRecent(context.Context, int) ([]Summary, error)
 	ListWorkspaces(context.Context, WorkspaceQuery) (WorkspacePage, error)
 	Move(context.Context, string, string, ...string) (Workspace, error)
 	RenameMetadata(context.Context, string, string, ...string) (Workspace, error)
-	Update(context.Context, string, Update) (Workspace, error)
+}
+
+type GranularStore interface {
+	GetCanvasState(context.Context, string) (CanvasState, error)
+	UpdateCanvas(context.Context, string, CanvasUpdate) (CanvasState, error)
 }
 
 type SearchStore interface {

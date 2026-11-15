@@ -13,7 +13,7 @@ import (
 func Decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
-		Send(w, 415, map[string]string{"error": "Expected application/json"})
+		Send(w, http.StatusUnsupportedMediaType, map[string]string{"error": "Expected application/json"})
 		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
@@ -29,9 +29,9 @@ func Decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			Send(w, 413, map[string]string{"error": "Workspace exceeds the 10 MiB limit"})
+			Send(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Request exceeds the 10 MiB limit"})
 		} else {
-			Send(w, 400, map[string]string{"error": "Invalid JSON request"})
+			Send(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON request"})
 		}
 		return false
 	}

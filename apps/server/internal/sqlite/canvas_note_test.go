@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -63,4 +64,21 @@ func compactNoteScene(compact bool) json.RawMessage {
 		"appState": map[string]any{}, "files": map[string]any{},
 	})
 	return data
+}
+
+func TestNormalizeNoteWriteErrorDoesNotMislabelInfrastructure(t *testing.T) {
+	// A generic infrastructure failure must NOT be mislabeled as a user-facing
+	// conflict; it must be wrapped and preserved so the transport can return 500.
+	infra := errors.New("disk I/O error")
+	err := normalizeNoteWriteError(infra)
+	if errors.Is(err, note.ErrConflict) {
+		t.Fatalf("infra error mapped to conflict: %v", err)
+	}
+	if !errors.Is(err, infra) {
+		t.Fatalf("infra error cause lost: %v", err)
+	}
+	// nil stays nil.
+	if err := normalizeNoteWriteError(nil); err != nil {
+		t.Fatalf("nil error mapped to %v", err)
+	}
 }

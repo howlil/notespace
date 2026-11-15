@@ -36,45 +36,19 @@ export interface CategorySummary {
   workspaceCount: number;
 }
 
-export interface Note {
-  id: string;
-  title: string;
-  document: Snapshot;
-  createdAt: string;
-  updatedAt: string;
-  version: number;
-}
-
 export interface Workspace extends WorkspaceSummary {
-  document: Snapshot;
-  notes: Note[];
   canvas: Snapshot;
   canvasVersion: number;
-  references: WorkspaceReference[];
-  splitRatio: number;
-}
-
-export interface WorkspaceReference {
-  id: string;
-  noteId?: string;
-  blockId: string;
-  elementId: string;
 }
 
 export type WorkspaceContent = Pick<
   Workspace,
-  "title" | "document" | "notes" | "canvas" | "references" | "splitRatio"
+  "title" | "canvas"
 >;
 
 export function workspaceContentOf(project: Workspace): WorkspaceContent {
   return {
     title: project.title,
-    document: project.document,
-    // Notes are retired. Keep the optional compatibility field empty while
-    // older server payloads roll forward through the Canvas-only migration.
-    notes: [],
     canvas: project.canvas,
-    references: project.references,
-    splitRatio: project.splitRatio,
   };
 }

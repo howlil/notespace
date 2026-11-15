@@ -53,3 +53,20 @@ func TestUpdateCanvasPropagatesStoreConflict(t *testing.T) {
 		t.Fatalf("error = %v, want ErrConflict", err)
 	}
 }
+
+func TestCountActiveCanvasElementsExcludesDeletedAndRejectsInvalidJSON(t *testing.T) {
+	count, err := CountActiveCanvasElements(Snapshot{
+		Format:  "excalidraw",
+		Version: 1,
+		Data:    []byte(`{"elements":[{"id":"a","isDeleted":false},{"id":"b","isDeleted":true},{"id":"c"}],"appState":{},"files":{}}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("active elements = %d, want 2", count)
+	}
+	if _, err := CountActiveCanvasElements(Snapshot{Data: []byte(`{invalid`)}); err == nil {
+		t.Fatal("expected error on invalid JSON")
+	}
+}

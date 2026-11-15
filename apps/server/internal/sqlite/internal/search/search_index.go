@@ -6,7 +6,9 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
+	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
 type StaleSearchWorkspace struct {
@@ -14,6 +16,52 @@ type StaleSearchWorkspace struct {
 	CategoryID string
 	Title      string
 	Version    int
+}
+
+func Query(ctx context.Context, db dbtx.DBTX, query string) ([]workspacepkg.SearchResult, error) {
+	results := []workspacepkg.SearchResult{}
+	categoryRows, err := db.QueryContext(ctx, `SELECT id,title FROM categories WHERE LOWER(title) LIKE ? ESCAPE '\' ORDER BY updated_at DESC LIMIT 20`, dbtx.ContainsLikeLiteral(query))
+	if err != nil {
+		return nil, err
+	}
+	for categoryRows.Next() {
+		var id, title string
+		if err := categoryRows.Scan(&id, &title); err != nil {
+			categoryRows.Close()
+			return nil, err
+		}
+		results = append(results, workspacepkg.SearchResult{Type: "category", CategoryID: id, CategoryTitle: title, Excerpt: title})
+	}
+	if err := categoryRows.Err(); err != nil {
+		categoryRows.Close()
+		return nil, err
+	}
+	categoryRows.Close()
+
+	match := SafeFTSQuery(query)
+	if match == "" {
+		return results, nil
+	}
+	rows, err := db.QueryContext(ctx, `SELECT s.type,s.category_id,COALESCE(c.title,''),s.workspace_id,s.workspace_title,s.note_id,s.note_title,s.block_id,s.title,s.content
+FROM workspace_search s LEFT JOIN categories c ON c.id=s.category_id
+WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var kind, categoryID, categoryTitle, workspaceID, workspaceTitle, noteID, noteTitle, blockID, title, content string
+		if err := rows.Scan(&kind, &categoryID, &categoryTitle, &workspaceID, &workspaceTitle, &noteID, &noteTitle, &blockID, &title, &content); err != nil {
+			return nil, err
+		}
+		result := workspacepkg.SearchResult{Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle, WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, Excerpt: title}
+		if kind == "note" {
+			result.InstanceID = blockID
+			result.Excerpt = content
+		}
+		results = append(results, result)
+	}
+	return results, rows.Err()
 }
 
 // AdvanceCanvasRevisionTx does not index Canvas content. Existing title/category
@@ -25,8 +73,26 @@ WHERE workspace_id=?`, workspaceID, workspaceID)
 	return err
 }
 
+// InvalidateNotesInWorkspaceTx clears the per-Note search markers for every Note
+// placed in a workspace, so the next search reindexes their FTS rows. Called when
+// a Canvas scene changes (Note instance placement/geometry) where the Note's own
+// revision does not move but the derived row's workspace/instance fields do.
+func InvalidateNotesInWorkspaceTx(ctx context.Context, tx dbtx.DBTX, workspaceID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM canvas_note_search_meta
+WHERE note_id IN (SELECT note_id FROM canvas_note_instances WHERE workspace_id=?)`, workspaceID)
+	return err
+}
+
+func InvalidateNoteTx(ctx context.Context, tx dbtx.DBTX, noteID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM canvas_note_search_meta WHERE note_id=?`, noteID)
+	return err
+}
+
 func ReplaceWorkspaceTx(ctx context.Context, tx dbtx.DBTX, value StaleSearchWorkspace) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id=?`, value.ID); err != nil {
+		return err
+	}
+	if err := InvalidateNotesInWorkspaceTx(ctx, tx, value.ID); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.CategoryID, value.ID, value.Title, "", "", "", value.Title, ""); err != nil {
@@ -37,58 +103,77 @@ ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=exc
 	return err
 }
 
-func canvasNoteSearchText(raw string) string {
-	var value any
-	if err := json.Unmarshal([]byte(raw), &value); err != nil {
-		return raw
-	}
-	parts := []string{}
-	var walk func(any)
-	walk = func(current any) {
-		switch value := current.(type) {
-		case string:
-			if strings.TrimSpace(value) != "" {
-				parts = append(parts, value)
-			}
-		case []any:
-			for _, item := range value {
-				walk(item)
-			}
-		case map[string]any:
-			for _, item := range value {
-				walk(item)
-			}
-		}
-	}
-	walk(value)
-	return strings.Join(parts, " ")
+type staleNotePlacement struct {
+	noteID         string
+	instanceID     string
+	workspaceID    string
+	workspaceTitle string
+	categoryID     string
+	document       string
 }
 
 func syncCanvasNotesTx(ctx context.Context, tx dbtx.DBTX) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note'`); err != nil {
-		return err
-	}
 	rows, err := tx.QueryContext(ctx, `
 SELECT n.id,COALESCE(i.id,''),COALESCE(i.workspace_id,''),COALESCE(p.title,''),COALESCE(p.category_id,''),n.document_state
 FROM canvas_notes n
+LEFT JOIN canvas_note_search_meta m ON m.note_id=n.id
 LEFT JOIN canvas_note_instances i ON i.note_id=n.id
 LEFT JOIN projects p ON p.id=i.workspace_id
+WHERE m.note_id IS NULL OR m.revision<>n.revision OR m.updated_at<>n.updated_at
 ORDER BY n.updated_at DESC,n.id,i.id`)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	placements := []staleNotePlacement{}
+	staleNoteIDs := []string{}
+	seenNoteIDs := map[string]bool{}
 	for rows.Next() {
-		var noteID, instanceID, workspaceID, workspaceTitle, categoryID, document string
-		if err := rows.Scan(&noteID, &instanceID, &workspaceID, &workspaceTitle, &categoryID, &document); err != nil {
+		var item staleNotePlacement
+		if err := rows.Scan(&item.noteID, &item.instanceID, &item.workspaceID, &item.workspaceTitle, &item.categoryID, &item.document); err != nil {
+			rows.Close()
 			return err
 		}
-		content := canvasNoteSearchText(document)
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, categoryID, workspaceID, workspaceTitle, noteID, "", instanceID, "Canvas Note", content); err != nil {
+		placements = append(placements, item)
+		if !seenNoteIDs[item.noteID] {
+			seenNoteIDs[item.noteID] = true
+			staleNoteIDs = append(staleNoteIDs, item.noteID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	// Drop FTS rows for deleted Notes and prior rows for stale Notes before
+	// inserting updated placements, then advance the meta marker so unchanged
+	// Notes are not re-scanned on the next search.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note' AND note_id NOT IN (SELECT id FROM canvas_notes)`); err != nil {
+		return err
+	}
+	for _, noteID := range staleNoteIDs {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note' AND note_id=?`, noteID); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	for _, item := range placements {
+		content := note.ExtractSearchText(json.RawMessage(item.document))
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, item.categoryID, item.workspaceID, item.workspaceTitle, item.noteID, "", item.instanceID, "Canvas Note", content); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM canvas_note_search_meta WHERE note_id NOT IN (SELECT id FROM canvas_notes)`); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO canvas_note_search_meta(note_id,revision,updated_at)
+SELECT id,revision,updated_at FROM canvas_notes
+WHERE id IN (
+  SELECT DISTINCT n.id FROM canvas_notes n
+  LEFT JOIN canvas_note_search_meta m ON m.note_id=n.id
+  WHERE m.note_id IS NULL OR m.revision<>n.revision OR m.updated_at<>n.updated_at
+)
+ON CONFLICT(note_id) DO UPDATE SET revision=excluded.revision,updated_at=excluded.updated_at`)
+	return err
 }
 
 // SyncIndexTx borrows one transaction so authored revisions and the projection
@@ -114,7 +199,10 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 		return err
 	}
 	rows.Close()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM canvas_note_search_meta WHERE note_id IN (SELECT DISTINCT note_id FROM workspace_search WHERE type='note' AND workspace_id<>'' AND workspace_id NOT IN (SELECT id FROM projects))`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE workspace_id<>'' AND workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search_meta WHERE workspace_id NOT IN (SELECT id FROM projects)`); err != nil {
@@ -126,6 +214,19 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 		}
 	}
 	return syncCanvasNotesTx(ctx, tx)
+}
+
+func DeleteAllTx(ctx context.Context, tx dbtx.DBTX) error {
+	for _, statement := range []string{
+		`DELETE FROM workspace_search`,
+		`DELETE FROM workspace_search_meta`,
+		`DELETE FROM canvas_note_search_meta`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func SafeFTSQuery(query string) string {

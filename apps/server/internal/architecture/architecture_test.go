@@ -28,8 +28,7 @@ func privateDependencyViolation(source, target string) bool {
 	if target == "sqlite/internal/dbtx" {
 		return false
 	}
-	// Backup codecs and legacy recovery borrow explicit capability query entries.
-	return source != "sqlite/internal/backup"
+	return true
 }
 
 func TestPrivateDependencyGuard(t *testing.T) {
@@ -37,7 +36,8 @@ func TestPrivateDependencyGuard(t *testing.T) {
 		{"httpapi/workspace", "httpapi"},
 		{"httpapi/workspace", "httpapi/library"},
 		{"sqlite/internal/workspace", "sqlite"},
-		{"sqlite/internal/workspace", "sqlite/internal/planning"},
+		{"sqlite/internal/workspace", "sqlite/internal/canvasnote"},
+		{"sqlite/internal/backup", "sqlite/internal/workspace"},
 	} {
 		if !privateDependencyViolation(pair[0], pair[1]) {
 			t.Errorf("guard accepted upward/cross-capability import %v", pair)
@@ -46,7 +46,6 @@ func TestPrivateDependencyGuard(t *testing.T) {
 	for _, pair := range [][2]string{
 		{"httpapi/workspace", "httpapi/internal/transport"},
 		{"sqlite/internal/workspace", "sqlite/internal/dbtx"},
-		{"sqlite/internal/backup", "sqlite/internal/workspace"},
 	} {
 		if privateDependencyViolation(pair[0], pair[1]) {
 			t.Errorf("guard rejected borrowed dependency %v", pair)
@@ -58,31 +57,21 @@ const modulePath = "github.com/howlil/notespace/apps/server/internal/"
 
 var allowedDependencies = map[string]map[string]bool{
 	"workspace": {},
-	"capture": {
-		"workspace": true,
-	},
-	"planning": {},
-	"activity": {},
-	"asset":    {},
-	"icon":     {},
+	"asset":     {},
+	"icon":      {},
+	"note":      {},
 	"library": {
 		"workspace": true,
 	},
 	"httpapi": {
-		"capture":   true,
 		"workspace": true,
-		"planning":  true,
-		"activity":  true,
 		"library":   true,
 		"asset":     true,
 		"icon":      true,
 		"note":      true,
 	},
 	"sqlite": {
-		"capture":   true,
 		"workspace": true,
-		"planning":  true,
-		"activity":  true,
 		"library":   true,
 		"asset":     true,
 		"note":      true,
@@ -184,7 +173,7 @@ func TestServerDependencyBoundaries(t *testing.T) {
 
 func TestLegacyServerPackagesRemoved(t *testing.T) {
 	internalRoot := filepath.Clean("..")
-	for _, name := range []string{"project", "study", "persistence"} {
+	for _, name := range []string{"project", "study", "persistence", "planning", "capture", "activity"} {
 		path := filepath.Join(internalRoot, name)
 		_, err := os.Stat(path)
 		if err == nil {

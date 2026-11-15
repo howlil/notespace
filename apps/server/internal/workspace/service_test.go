@@ -19,10 +19,10 @@ func TestServiceCreateNormalizesInputAndHydratesCanonicalState(t *testing.T) {
 	if store.createInput.CategoryID != UncategorizedCategoryID {
 		t.Fatalf("category = %q", store.createInput.CategoryID)
 	}
-	if store.createInput.Version != 1 || len(store.createInput.Notes) != 0 || store.createInput.CanvasVersion != 1 {
+	if store.createInput.Version != 1 || store.createInput.CanvasVersion != 1 {
 		t.Fatalf("invalid create defaults: %#v", store.createInput)
 	}
-	if got.ID == "" || got.Document.Format != "tiptap" || got.Canvas.Format != "excalidraw" {
+	if got.ID == "" || got.Canvas.Format != "excalidraw" {
 		t.Fatalf("hydrated workspace = %#v", got)
 	}
 }
@@ -48,11 +48,8 @@ func TestServiceRenameDoesNotRewriteGranularAuthoredState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if store.updateID != current.ID || store.updateInput.Title != "Renamed" {
-		t.Fatalf("metadata update = %#v", store.updateInput)
-	}
-	if store.updateInput.Version != 0 || len(store.updateInput.Notes) != 0 || len(store.updateInput.Canvas.Data) != 0 {
-		t.Fatal("rename must never send aggregate authored state")
+	if store.renameID != current.ID || store.renameTitle != "Renamed" {
+		t.Fatalf("metadata update = %q %q", store.renameID, store.renameTitle)
 	}
 	if got.Title != "Renamed" {
 		t.Fatalf("renamed title = %q", got.Title)
@@ -72,9 +69,6 @@ func TestServiceMoveRequiresExistingCategory(t *testing.T) {
 
 func TestServiceQueryBoundariesRejectInvalidPagination(t *testing.T) {
 	service := NewService(&workspaceTestStore{})
-	if _, err := service.ListRecent(context.Background(), 0); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("ListRecent error = %v", err)
-	}
 	if _, err := service.ListWorkspaces(context.Background(), WorkspaceQuery{Limit: 101}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("ListWorkspaces error = %v", err)
 	}

@@ -23,7 +23,6 @@ type Store interface {
 	DeleteCategory(context.Context, string) error
 	ExportBackupArchive(context.Context) ([]byte, error)
 	RestoreBackupArchive(context.Context, []byte) error
-	RestoreBackupJSON(context.Context, []byte) error
 }
 
 type Service struct {
@@ -63,8 +62,4 @@ func (s Service) ExportBackup(ctx context.Context) ([]byte, error) {
 
 func (s Service) RestoreBackupArchive(ctx context.Context, data []byte) error {
 	return s.store.RestoreBackupArchive(ctx, data)
-}
-
-func (s Service) RestoreBackupJSON(ctx context.Context, data []byte) error {
-	return s.store.RestoreBackupJSON(ctx, data)
 }

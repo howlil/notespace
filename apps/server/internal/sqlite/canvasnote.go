@@ -3,8 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/note"
@@ -15,11 +15,7 @@ import (
 )
 
 func (s *Store) GetNote(ctx context.Context, id string) (note.Note, error) {
-	return canvasnotequery.GetNote(s.db, ctx, id)
-}
-
-func (s *Store) ListBacklinks(ctx context.Context, id string) ([]note.Backlink, error) {
-	return canvasnotequery.ListBacklinks(s.db, ctx, id)
+	return canvasnotequery.GetNote(ctx, s.db, id)
 }
 
 func (s *Store) UpdateNote(ctx context.Context, id string, request note.UpdateRequest) (note.Note, error) {
@@ -51,7 +47,7 @@ func (s *Store) CreateNoteInstance(ctx context.Context, workspaceID string, requ
 		if replay.Note.ID != request.ClientNoteID || replay.Instance.ID != request.ClientInstanceID {
 			return note.CreateInstanceResult{}, note.ErrConflict
 		}
-		canvas, err := workspacequery.GetCanvasState(tx, ctx, workspaceID)
+		canvas, err := workspacequery.GetCanvasState(ctx, tx, workspaceID)
 		if err != nil {
 			return note.CreateInstanceResult{}, err
 		}
@@ -67,7 +63,7 @@ func (s *Store) CreateNoteInstance(ctx context.Context, workspaceID string, requ
 			return note.CreateInstanceResult{}, normalizeNoteWriteError(err)
 		}
 	} else {
-		canonical, err = canvasnotequery.GetNote(tx, ctx, request.ExistingNoteID)
+		canonical, err = canvasnotequery.GetNote(ctx, tx, request.ExistingNoteID)
 		if err != nil {
 			return note.CreateInstanceResult{}, err
 		}
@@ -98,10 +94,14 @@ func (s *Store) DeleteNoteInstance(ctx context.Context, workspaceID, instanceID 
 		return note.CanvasState{}, err
 	}
 	defer tx.Rollback()
-	if _, err := canvasnotequery.GetInstanceTx(ctx, tx, workspaceID, instanceID); err != nil {
+	instance, err := canvasnotequery.GetInstanceTx(ctx, tx, workspaceID, instanceID)
+	if err != nil {
 		return note.CanvasState{}, err
 	}
 	if err := canvasnotequery.DeleteInstanceTx(ctx, tx, workspaceID, instanceID); err != nil {
+		return note.CanvasState{}, err
+	}
+	if err := searchquery.InvalidateNoteTx(ctx, tx, instance.NoteID); err != nil {
 		return note.CanvasState{}, err
 	}
 	state, err := updateCanvasInTx(ctx, tx, workspaceID, request.ExpectedCanvasVersion, request.Canvas)
@@ -122,7 +122,7 @@ func (s *Store) DeleteEmptyNote(ctx context.Context, id string) error {
 		return err
 	}
 	defer tx.Rollback()
-	value, err := canvasnotequery.GetNote(tx, ctx, id)
+	value, err := canvasnotequery.GetNote(ctx, tx, id)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (s *Store) DeleteEmptyNote(ctx context.Context, id string) error {
 	for _, placement := range placements {
 		live, seen := liveByWorkspace[placement.WorkspaceID]
 		if !seen {
-			canvas, err := workspacequery.GetCanvasState(tx, ctx, placement.WorkspaceID)
+			canvas, err := workspacequery.GetCanvasState(ctx, tx, placement.WorkspaceID)
 			if err != nil {
 				return err
 			}
@@ -157,26 +157,7 @@ func (s *Store) DeleteEmptyNote(ctx context.Context, id string) error {
 }
 
 func updateCanvasInTx(ctx context.Context, tx *sql.Tx, workspaceID string, version int, canvas note.CanvasSnapshot) (workspacepkg.CanvasState, error) {
-	encoded, err := json.Marshal(canvas)
-	if err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	value := workspacepkg.Snapshot{Format: canvas.Format, Version: canvas.Version, Data: canvas.Data}
-	elementCount, err := workspacequery.CanvasElementCount(value)
-	if err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	state, err := workspacequery.UpdateCanvasTx(ctx, tx, workspaceID, version, encoded, elementCount, time.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	if err := canvasnotequery.SyncGeometryTx(ctx, tx, workspaceID, canvas.Data, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	if err := searchquery.AdvanceCanvasRevisionTx(ctx, tx, workspaceID); err != nil {
-		return workspacepkg.CanvasState{}, err
-	}
-	return state, nil
+	return applyCanvasTx(ctx, tx, workspaceID, version, workspacepkg.Snapshot{Format: canvas.Format, Version: canvas.Version, Data: canvas.Data})
 }
 
 func canvasState(value workspacepkg.CanvasState) note.CanvasState {
@@ -194,10 +175,14 @@ func commitNoteResult(tx *sql.Tx, result note.CreateInstanceResult) (note.Create
 }
 
 func normalizeNoteWriteError(err error) error {
-	// SQLite's constraint text is intentionally not sent across HTTP. The
-	// serialized Store turns a duplicate identity into a typed conflict.
-	if err != nil {
+	if err == nil {
+		return nil
+	}
+	// A duplicate identity surfaces as a SQLite constraint violation (unique or
+	// primary-key). Everything else is an infrastructure failure and must reach
+	// the transport as a 500, never be mislabeled as a user-facing conflict.
+	if isConstraintError(err) {
 		return note.ErrConflict
 	}
-	return nil
+	return fmt.Errorf("note write failed: %w", err)
 }

@@ -72,3 +72,55 @@ func TestIsEmptyDocumentOnlyAcceptsBlankParagraphs(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractCanvasPlacementsReadsActivePlacementsAndRejectsMalformedJSON(t *testing.T) {
+	compact := true
+	scene := json.RawMessage(`{"elements":[
+		{"id":"el-live","isDeleted":false,"x":10,"y":20,"width":320,"height":180,"customData":{"notespaceNote":{"noteId":"note-1","instanceId":"inst-1","compact":true}}},
+		{"id":"el-dead","isDeleted":true,"x":0,"y":0,"width":200,"height":100,"customData":{"notespaceNote":{"noteId":"note-1","instanceId":"inst-dead"}}},
+		{"id":"el-rect","isDeleted":false,"x":5,"y":5,"width":50,"height":50}
+	],"appState":{},"files":{}}`)
+	placements, err := ExtractCanvasPlacements(scene)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(placements) != 1 {
+		t.Fatalf("placements len = %d, want 1", len(placements))
+	}
+	got := placements[0]
+	if got.ElementID != "el-live" || got.NoteID != "note-1" || got.InstanceID != "inst-1" ||
+		got.X != 10 || got.Y != 20 || got.Width != 320 || got.Height != 180 ||
+		got.Compact == nil || *got.Compact != compact {
+		t.Fatalf("unexpected placement: %+v", got)
+	}
+	if _, err := ExtractCanvasPlacements(json.RawMessage(`not json`)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("malformed scene error = %v, want ErrInvalid", err)
+	}
+}
+
+func TestExtractSearchTextCollectsProseMirrorText(t *testing.T) {
+	doc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"First line"}]},{"type":"paragraph","content":[{"type":"text","text":"Second line"}]}]}`)
+	got := ExtractSearchText(doc)
+	if got == "" || !containsAll(got, "First line", "Second line") {
+		t.Fatalf("search text = %q", got)
+	}
+	if fallback := ExtractSearchText(json.RawMessage(`plain fallback`)); fallback != "plain fallback" {
+		t.Fatalf("fallback search text = %q", fallback)
+	}
+}
+
+func containsAll(haystack string, needles ...string) bool {
+	for _, needle := range needles {
+		found := false
+		for i := 0; i+len(needle) <= len(haystack); i++ {
+			if haystack[i:i+len(needle)] == needle {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}

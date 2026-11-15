@@ -16,7 +16,7 @@ test("browser discovery includes every nested capability suite exactly once", ()
   assert.equal(actual.length, expected.length);
   assert.equal(new Set(actual).size, actual.length);
   assert.deepEqual(actual.map((path) => relative(directory, path)).sort(), expected.sort());
-  for (const owner of ["canvas", "library", "settings", "compatibility"]) {
+  for (const owner of ["canvas", "library", "settings"]) {
     assert.ok(actual.some((path) => relative(directory, path).startsWith(owner)), `${owner} suites must be discovered`);
   }
 });
@@ -94,7 +94,6 @@ test("affected proof unions changed owners and retains the minimum durability/se
   for (const proof of browserProofInventory(root)) {
     const path = relative(root, proof.file).replaceAll("\\", "/");
     if (proof.smoke || /tests\/e2e\/(library|canvas|settings)\//.test(path)) assert.ok(names.has(proof.name), proof.name);
-    if (path.includes("/compatibility/")) assert.equal(names.has(proof.name), false, proof.name);
   }
   const canvasOnly = selectBrowserRun(root, { mode: "affected", changedFiles: [changedFiles[1]] });
   assert.ok(canvasOnly.proofs.length < plan.proofs.length);

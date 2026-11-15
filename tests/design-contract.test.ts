@@ -460,7 +460,7 @@ test("Canvas-only Workspace removes the retired Note authoring surface", () => {
   assert.doesNotMatch(workspace, /splitPane|resizeSplit|WorkspaceViewSwitcher|useWorkspacePaneLayout/);
   assert.doesNotMatch(workspacePage, /WorkspaceRail|ActivityIndicator|Focus mode/);
   assert.doesNotMatch(source(ROOT_ROUTE), /<ActivityDock/);
-  assert.match(content, /notes: \[\]/);
+  assert.doesNotMatch(content, /notes|references|document|splitRatio/);
   assert.equal(existsSync(DOCUMENT_EDITOR), false);
   assert.equal(existsSync(DOCUMENT_SLASH_COMMANDS), false);
   assert.equal(existsSync(NOTE_CODE_BLOCK), false);

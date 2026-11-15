@@ -12,11 +12,7 @@ const canvasB: Snapshot = { format: "excalidraw", version: 1, data: { elements: 
 function content(): WorkspaceContent {
   return {
     title: "Workspace",
-    document: { format: "tiptap", version: 1, data: {} },
-    notes: [],
     canvas: canvasA,
-    references: [],
-    splitRatio: 0.5,
   };
 }
 
@@ -24,7 +20,7 @@ test("canvas transition changes only the authored canvas", () => {
   const before = content();
   const after = applyCanvasSnapshot(before, canvasB);
   assert.deepEqual(after.canvas, canvasB);
-  assert.equal(after.notes, before.notes);
+  assert.equal(after.title, before.title);
 });
 
 test("stale Workspace payloads cannot replace a newer Canvas acknowledgement", () => {

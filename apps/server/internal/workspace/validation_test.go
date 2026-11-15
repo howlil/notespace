@@ -2,7 +2,6 @@ package workspace
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 )
@@ -29,24 +28,8 @@ func TestValidateWorkspaceOwnsAggregateInvariants(t *testing.T) {
 		{"blank title", func(w *Workspace) { w.Title = "   " }},
 		{"title over limit", func(w *Workspace) { w.Title = strings.Repeat("x", 161) }},
 		{"zero version", func(w *Workspace) { w.Version = 0 }},
-		{"split ratio below minimum", func(w *Workspace) { w.SplitRatio = 0.2499 }},
-		{"split ratio above maximum", func(w *Workspace) { w.SplitRatio = 0.7001 }},
-		{"invalid document format", func(w *Workspace) { w.Document.Format = "markdown" }},
-		{"invalid document json", func(w *Workspace) { w.Document.Data = []byte("{") }},
 		{"invalid canvas format", func(w *Workspace) { w.Canvas.Format = "svg" }},
 		{"invalid canvas shape", func(w *Workspace) { w.Canvas.Data = []byte("{\"elements\":[],\"appState\":{}}") }},
-		{"duplicate reference ids", func(w *Workspace) {
-			w.References = []Reference{
-				{ID: "ref-1", BlockID: "block-1", ElementID: "element-1"},
-				{ID: "ref-1", BlockID: "block-2", ElementID: "element-2"},
-			}
-		}},
-		{"too many references", func(w *Workspace) {
-			w.References = make([]Reference, 1001)
-			for i := range w.References {
-				w.References[i] = Reference{ID: fmt.Sprintf("ref-%d", i), BlockID: fmt.Sprintf("block-%d", i), ElementID: fmt.Sprintf("element-%d", i)}
-			}
-		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,15 +39,5 @@ func TestValidateWorkspaceOwnsAggregateInvariants(t *testing.T) {
 				t.Fatalf("ValidateWorkspace() error = %v, want ErrInvalid", err)
 			}
 		})
-	}
-}
-
-func TestValidateWorkspaceAcceptsBoundaryValues(t *testing.T) {
-	for _, ratio := range []float64{0.25, 0.7} {
-		value := validWorkspaceFixture()
-		value.SplitRatio = ratio
-		if err := ValidateWorkspace(value); err != nil {
-			t.Fatalf("split ratio %v rejected: %v", ratio, err)
-		}
 	}
 }

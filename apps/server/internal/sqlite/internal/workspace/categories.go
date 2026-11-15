@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-func CreateCategory(db dbtx.DBTX, ctx context.Context, category workspacepkg.CategorySummary) error {
+func CreateCategory(ctx context.Context, db dbtx.DBTX, category workspacepkg.CategorySummary) error {
 	_, err := db.ExecContext(
 		ctx,
 		`INSERT INTO categories(id,title,created_at,updated_at) VALUES (?,?,?,?)`,
@@ -21,9 +20,10 @@ func CreateCategory(db dbtx.DBTX, ctx context.Context, category workspacepkg.Cat
 	)
 	return err
 }
-func UpdateCategory(db dbtx.DBTX, ctx context.Context, id, title string) (workspacepkg.CategorySummary, error) {
+
+func UpdateCategory(ctx context.Context, db dbtx.DBTX, id, title, now string) (workspacepkg.CategorySummary, error) {
 	var category workspacepkg.CategorySummary
-	err := db.QueryRowContext(ctx, `UPDATE categories SET title=?,updated_at=? WHERE id=? RETURNING id,title,created_at,updated_at`, title, time.Now().UTC().Format(time.RFC3339Nano), id).Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt)
+	err := db.QueryRowContext(ctx, `UPDATE categories SET title=?,updated_at=? WHERE id=? RETURNING id,title,created_at,updated_at`, title, now, id).Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return category, workspacepkg.ErrNotFound
 	}
@@ -32,7 +32,8 @@ func UpdateCategory(db dbtx.DBTX, ctx context.Context, id, title string) (worksp
 	}
 	return category, nil
 }
-func ListCategories(db dbtx.DBTX, ctx context.Context) ([]workspacepkg.CategorySummary, error) {
+
+func ListCategories(ctx context.Context, db dbtx.DBTX) ([]workspacepkg.CategorySummary, error) {
 	rows, err := db.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
 	if err != nil {
 		return nil, err
@@ -48,8 +49,38 @@ func ListCategories(db dbtx.DBTX, ctx context.Context) ([]workspacepkg.CategoryS
 	}
 	return out, rows.Err()
 }
-func CategoryExists(db dbtx.DBTX, ctx context.Context, id string) (bool, error) {
+
+func CategoryExists(ctx context.Context, db dbtx.DBTX, id string) (bool, error) {
 	var count int
 	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, id).Scan(&count)
 	return count > 0, err
+}
+
+func DeleteCategoryTx(ctx context.Context, tx dbtx.DBTX, id string) error {
+	exists, err := CategoryExists(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return workspacepkg.ErrNotFound
+	}
+	var active int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE category_id=?`, id).Scan(&active); err != nil {
+		return err
+	}
+	if active > 0 {
+		return workspacepkg.ErrNotEmpty
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return workspacepkg.ErrNotFound
+	}
+	return nil
 }

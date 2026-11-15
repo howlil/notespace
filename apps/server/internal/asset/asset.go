@@ -21,5 +21,4 @@ type Stored struct {
 type Store interface {
 	PutAsset(context.Context, Stored) (Stored, error)
 	GetAsset(context.Context, string, string) (Stored, error)
-	DeleteAsset(context.Context, string, string) error
 }

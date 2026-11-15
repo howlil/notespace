@@ -50,10 +50,10 @@ func newDevelopmentWebProxy(rawTarget string) (http.Handler, error) {
 
 // isClientNavigationRoute defines the authoritative single source of truth for SPA client routes.
 func isClientNavigationRoute(clean string) bool {
-	if clean == "/" || clean == "/today" || clean == "/inbox" {
+	if clean == "/" {
 		return true
 	}
-	prefixes := []string{"/categories/", "/workspaces/", "/projects/"}
+	prefixes := []string{"/categories/", "/workspaces/"}
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(clean, prefix) {
 			rest := strings.TrimPrefix(clean, prefix)

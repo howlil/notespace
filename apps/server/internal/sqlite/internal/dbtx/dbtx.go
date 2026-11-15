@@ -12,3 +12,5 @@ type DBTX interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
+
+type Scanner interface{ Scan(...any) error }

@@ -1,8 +1,6 @@
-package searchquery
+package dbtx
 
-import (
-	"strings"
-)
+import "strings"
 
 func ContainsLikeLiteral(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))

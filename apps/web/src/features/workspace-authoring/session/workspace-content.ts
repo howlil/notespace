@@ -1,11 +1,11 @@
 import type { WorkspaceContent } from "../../../domain/workspace/workspace";
 
 export function normalizeWorkspaceContent(content: WorkspaceContent) {
-  const changed = content.references.length > 0;
-  const normalized: WorkspaceContent = {
-    ...content,
-    notes: [],
-    references: [],
+  return {
+    content: {
+      title: content.title,
+      canvas: content.canvas,
+    },
+    changed: false,
   };
-  return { content: normalized, changed };
 }

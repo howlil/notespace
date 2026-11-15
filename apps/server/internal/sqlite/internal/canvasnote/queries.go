@@ -10,9 +10,7 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 )
 
-type scanner interface{ Scan(...any) error }
-
-func noteFromRow(row scanner) (note.Note, error) {
+func noteFromRow(row dbtx.Scanner) (note.Note, error) {
 	var value note.Note
 	var document string
 	if err := row.Scan(&value.ID, &value.SchemaVersion, &document, &value.Revision, &value.CreatedAt, &value.UpdatedAt); err != nil {
@@ -25,39 +23,10 @@ func noteFromRow(row scanner) (note.Note, error) {
 	return value, nil
 }
 
-func GetNote(db dbtx.DBTX, ctx context.Context, id string) (note.Note, error) {
+func GetNote(ctx context.Context, db dbtx.DBTX, id string) (note.Note, error) {
 	return noteFromRow(db.QueryRowContext(ctx, `
 		SELECT id,schema_version,document_state,revision,created_at,updated_at
 		FROM canvas_notes WHERE id=?`, id))
-}
-
-func ListBacklinks(db dbtx.DBTX, ctx context.Context, targetID string) ([]note.Backlink, error) {
-	rows, err := db.QueryContext(ctx, `
-SELECT source.id,COALESCE(instance.id,''),COALESCE(instance.element_id,''),COALESCE(instance.workspace_id,''),COALESCE(project.title,''),source.document_state
-FROM canvas_notes source
-LEFT JOIN canvas_note_instances instance ON instance.note_id=source.id
-LEFT JOIN projects project ON project.id=instance.workspace_id
-WHERE source.id<>?
-  AND EXISTS (
-    SELECT 1
-    FROM json_tree(source.document_state) reference
-    WHERE (reference.key='noteId' AND CAST(reference.value AS TEXT)=?)
-       OR (reference.key='href' AND CAST(reference.value AS TEXT) LIKE '%?noteId=' || ? || '%')
-  )
-ORDER BY source.updated_at DESC,instance.id`, targetID, targetID, targetID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	backlinks := []note.Backlink{}
-	for rows.Next() {
-		var value note.Backlink
-		if err := rows.Scan(&value.NoteID, &value.InstanceID, &value.ElementID, &value.WorkspaceID, &value.WorkspaceTitle, &value.Excerpt); err != nil {
-			return nil, err
-		}
-		backlinks = append(backlinks, value)
-	}
-	return backlinks, rows.Err()
 }
 
 func InsertNoteTx(ctx context.Context, tx dbtx.DBTX, value note.Note) error {
@@ -67,17 +36,15 @@ func InsertNoteTx(ctx context.Context, tx dbtx.DBTX, value note.Note) error {
 }
 
 func UpdateNoteTx(ctx context.Context, tx dbtx.DBTX, id string, request note.UpdateRequest, updatedAt string) (note.Note, error) {
-	var value note.Note
-	var document string
-	err := tx.QueryRowContext(ctx, `
+	value, err := noteFromRow(tx.QueryRowContext(ctx, `
 		UPDATE canvas_notes
 		SET document_state=?,revision=revision+1,updated_at=?
 		WHERE id=? AND revision=?
 		RETURNING id,schema_version,document_state,revision,created_at,updated_at`,
 		string(request.Document), updatedAt, id, request.ExpectedRevision,
-	).Scan(&value.ID, &value.SchemaVersion, &document, &value.Revision, &value.CreatedAt, &value.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		if _, lookupErr := GetNote(tx, ctx, id); errors.Is(lookupErr, note.ErrNotFound) {
+	))
+	if errors.Is(err, note.ErrNotFound) {
+		if _, lookupErr := GetNote(ctx, tx, id); errors.Is(lookupErr, note.ErrNotFound) {
 			return note.Note{}, note.ErrNotFound
 		}
 		return note.Note{}, note.ErrConflict
@@ -85,7 +52,6 @@ func UpdateNoteTx(ctx context.Context, tx dbtx.DBTX, id string, request note.Upd
 	if err != nil {
 		return note.Note{}, err
 	}
-	value.Document = json.RawMessage(document)
 	return value, nil
 }
 
@@ -146,25 +112,14 @@ func ListPlacementsTx(ctx context.Context, tx dbtx.DBTX, noteID string) ([]note.
 // LiveInstanceIDs returns the instance IDs of a Canvas scene that still show a
 // non-deleted element for the Note. Malformed scenes fail closed.
 func LiveInstanceIDs(canvasData json.RawMessage, noteID string) (map[string]bool, error) {
-	var scene struct {
-		Elements []struct {
-			IsDeleted  bool `json:"isDeleted"`
-			CustomData struct {
-				Reference struct {
-					NoteID     string `json:"noteId"`
-					InstanceID string `json:"instanceId"`
-				} `json:"notespaceNote"`
-			} `json:"customData"`
-		} `json:"elements"`
-	}
-	if err := json.Unmarshal(canvasData, &scene); err != nil {
-		return nil, note.ErrInvalid
+	placements, err := note.ExtractCanvasPlacements(canvasData)
+	if err != nil {
+		return nil, err
 	}
 	live := map[string]bool{}
-	for _, element := range scene.Elements {
-		reference := element.CustomData.Reference
-		if !element.IsDeleted && reference.NoteID == noteID && reference.InstanceID != "" {
-			live[reference.InstanceID] = true
+	for _, placement := range placements {
+		if placement.NoteID == noteID && placement.InstanceID != "" {
+			live[placement.InstanceID] = true
 		}
 	}
 	return live, nil
@@ -199,7 +154,7 @@ func GetCreateRequestTx(ctx context.Context, tx dbtx.DBTX, workspaceID, requestI
 	if err != nil {
 		return note.CreateInstanceResult{}, false, err
 	}
-	created, err := GetNote(tx, ctx, noteID)
+	created, err := GetNote(ctx, tx, noteID)
 	if err != nil {
 		return note.CreateInstanceResult{}, false, err
 	}
@@ -216,37 +171,20 @@ func InsertCreateRequestTx(ctx context.Context, tx dbtx.DBTX, workspaceID, reque
 }
 
 func SyncGeometryTx(ctx context.Context, tx dbtx.DBTX, workspaceID string, canvasData json.RawMessage, updatedAt string) error {
-	var scene struct {
-		Elements []struct {
-			ID         string  `json:"id"`
-			IsDeleted  bool    `json:"isDeleted"`
-			X          float64 `json:"x"`
-			Y          float64 `json:"y"`
-			Width      float64 `json:"width"`
-			Height     float64 `json:"height"`
-			CustomData struct {
-				Reference struct {
-					NoteID     string `json:"noteId"`
-					InstanceID string `json:"instanceId"`
-					Compact    *bool  `json:"compact"`
-				} `json:"notespaceNote"`
-			} `json:"customData"`
-		} `json:"elements"`
+	placements, err := note.ExtractCanvasPlacements(canvasData)
+	if err != nil {
+		return err
 	}
-	if err := json.Unmarshal(canvasData, &scene); err != nil {
-		return note.ErrInvalid
-	}
-	for _, element := range scene.Elements {
-		if element.IsDeleted || element.CustomData.Reference.InstanceID == "" || !note.ValidateGeometry(element.X, element.Y, element.Width, element.Height) {
+	for _, placement := range placements {
+		if placement.InstanceID == "" || !note.ValidateGeometry(placement.X, placement.Y, placement.Width, placement.Height) {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE canvas_note_instances SET element_id=?,x=?,y=?,width=?,height=?,updated_at=? WHERE workspace_id=? AND id=? AND note_id=?`, element.ID, element.X, element.Y, element.Width, element.Height, updatedAt, workspaceID, element.CustomData.Reference.InstanceID, element.CustomData.Reference.NoteID); err != nil {
-			return err
+		var compact any
+		if placement.Compact != nil {
+			compact = boolInt(*placement.Compact)
 		}
-		if element.CustomData.Reference.Compact != nil {
-			if _, err := tx.ExecContext(ctx, `UPDATE canvas_note_instances SET compact=?,updated_at=? WHERE workspace_id=? AND id=? AND note_id=?`, boolInt(*element.CustomData.Reference.Compact), updatedAt, workspaceID, element.CustomData.Reference.InstanceID, element.CustomData.Reference.NoteID); err != nil {
-				return err
-			}
+		if _, err := tx.ExecContext(ctx, `UPDATE canvas_note_instances SET element_id=?,x=?,y=?,width=?,height=?,compact=COALESCE(?,compact),updated_at=? WHERE workspace_id=? AND id=? AND note_id=?`, placement.ElementID, placement.X, placement.Y, placement.Width, placement.Height, compact, updatedAt, workspaceID, placement.InstanceID, placement.NoteID); err != nil {
+			return err
 		}
 	}
 	return nil

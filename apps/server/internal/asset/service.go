@@ -51,12 +51,3 @@ func (s Service) Get(ctx context.Context, workspaceID, assetID string) (Stored, 
 	}
 	return s.store.GetAsset(ctx, workspaceID, assetID)
 }
-
-func (s Service) Delete(ctx context.Context, workspaceID, assetID string) error {
-	workspaceID = strings.TrimSpace(workspaceID)
-	assetID = strings.TrimSpace(assetID)
-	if workspaceID == "" || assetID == "" {
-		return ErrInvalid
-	}
-	return s.store.DeleteAsset(ctx, workspaceID, assetID)
-}

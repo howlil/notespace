@@ -55,15 +55,6 @@ type Note struct {
 	UpdatedAt     string          `json:"updatedAt"`
 }
 
-type Backlink struct {
-	NoteID         string `json:"noteId"`
-	WorkspaceID    string `json:"workspaceId,omitempty"`
-	WorkspaceTitle string `json:"workspaceTitle,omitempty"`
-	InstanceID     string `json:"instanceId,omitempty"`
-	ElementID      string `json:"elementId,omitempty"`
-	Excerpt        string `json:"excerpt"`
-}
-
 type Instance struct {
 	ID          string  `json:"id"`
 	NoteID      string  `json:"noteId"`
@@ -112,7 +103,6 @@ type DeleteInstanceRequest struct {
 
 type Store interface {
 	GetNote(context.Context, string) (Note, error)
-	ListBacklinks(context.Context, string) ([]Backlink, error)
 	UpdateNote(context.Context, string, UpdateRequest) (Note, error)
 	CreateNoteInstance(context.Context, string, CreateInstanceRequest) (CreateInstanceResult, error)
 	DeleteNoteInstance(context.Context, string, string, DeleteInstanceRequest) (CanvasState, error)
@@ -417,25 +407,96 @@ func ValidateDeleteRequest(request DeleteInstanceRequest) error {
 }
 
 func canvasHasReference(canvas CanvasSnapshot, elementID, noteID, instanceID string) bool {
-	var scene struct {
-		Elements []struct {
-			ID         string `json:"id"`
-			IsDeleted  bool   `json:"isDeleted"`
-			CustomData struct {
-				Reference struct {
-					NoteID     string `json:"noteId"`
-					InstanceID string `json:"instanceId"`
-				} `json:"notespaceNote"`
-			} `json:"customData"`
-		} `json:"elements"`
-	}
-	if json.Unmarshal(canvas.Data, &scene) != nil {
+	placements, err := ExtractCanvasPlacements(canvas.Data)
+	if err != nil {
 		return false
 	}
-	for _, element := range scene.Elements {
-		if element.ID == elementID && !element.IsDeleted && element.CustomData.Reference.NoteID == noteID && element.CustomData.Reference.InstanceID == instanceID {
+	for _, placement := range placements {
+		if placement.ElementID == elementID && placement.NoteID == noteID && placement.InstanceID == instanceID {
 			return true
 		}
 	}
 	return false
+}
+
+// CanvasPlacement describes an active Canvas Note element inside an Excalidraw scene.
+type CanvasPlacement struct {
+	ElementID  string
+	NoteID     string
+	InstanceID string
+	X          float64
+	Y          float64
+	Width      float64
+	Height     float64
+	Compact    *bool
+}
+
+// ExtractCanvasPlacements decodes active Note placement metadata and geometry from an Excalidraw scene.
+func ExtractCanvasPlacements(canvasData json.RawMessage) ([]CanvasPlacement, error) {
+	var scene struct {
+		Elements []struct {
+			ID         string  `json:"id"`
+			IsDeleted  bool    `json:"isDeleted"`
+			X          float64 `json:"x"`
+			Y          float64 `json:"y"`
+			Width      float64 `json:"width"`
+			Height     float64 `json:"height"`
+			CustomData struct {
+				Reference struct {
+					NoteID     string `json:"noteId"`
+					InstanceID string `json:"instanceId"`
+					Compact    *bool  `json:"compact"`
+				} `json:"notespaceNote"`
+			} `json:"customData"`
+		} `json:"elements"`
+	}
+	if err := json.Unmarshal(canvasData, &scene); err != nil {
+		return nil, ErrInvalid
+	}
+	var placements []CanvasPlacement
+	for _, element := range scene.Elements {
+		ref := element.CustomData.Reference
+		if element.IsDeleted || (ref.NoteID == "" && ref.InstanceID == "") {
+			continue
+		}
+		placements = append(placements, CanvasPlacement{
+			ElementID:  element.ID,
+			NoteID:     ref.NoteID,
+			InstanceID: ref.InstanceID,
+			X:          element.X,
+			Y:          element.Y,
+			Width:      element.Width,
+			Height:     element.Height,
+			Compact:    ref.Compact,
+		})
+	}
+	return placements, nil
+}
+
+// ExtractSearchText extracts plain text from a ProseMirror Note document for FTS indexing.
+func ExtractSearchText(document json.RawMessage) string {
+	var value any
+	if err := json.Unmarshal(document, &value); err != nil {
+		return string(document)
+	}
+	parts := []string{}
+	var walk func(any)
+	walk = func(current any) {
+		switch value := current.(type) {
+		case string:
+			if strings.TrimSpace(value) != "" {
+				parts = append(parts, value)
+			}
+		case []any:
+			for _, item := range value {
+				walk(item)
+			}
+		case map[string]any:
+			for _, item := range value {
+				walk(item)
+			}
+		}
+	}
+	walk(value)
+	return strings.Join(parts, " ")
 }

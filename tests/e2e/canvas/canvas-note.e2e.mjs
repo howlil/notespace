@@ -1104,26 +1104,31 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await click(ariaLabel("Delete table column"));
     await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 2);
 
+    // DIAG (temporary): capture each card's editor text before the reload so a failure shows whether the editor or the saved copy lost content.
+    const editorBeforeReload = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => (node.querySelector(".ProseMirror")?.innerText ?? "").slice(0, 200)));
     await waitSaved();
     await openWorkspace(workspace.id);
     await expectCount(card, 3);
+    const readViewChecks = [
+      `${card} [data-note-read-view] mark[data-note-highlight="yellow"]`,
+      `${card} [data-note-read-view] span[data-note-text-color="blue"]`,
+      `${card} [data-note-read-view] div[data-note-toggle]`,
+      `${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`,
+    ];
     try {
-      await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
+      for (const selector of readViewChecks) await visible(selector);
     } catch (error) {
-      // DIAG (temporary): on failure, record each card's render state so CI shows why the read view never mounted.
+      // DIAG (temporary): on failure, record each card's render state and the pre-reload editor text.
       const states = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => ({
         loading: Boolean(node.querySelector('[aria-label="Loading Note"]')),
         alert: Boolean(node.querySelector('[role="alert"]')),
         readView: Boolean(node.querySelector("[data-note-read-view]")),
         editor: Boolean(node.querySelector(".ProseMirror")),
-        text: (node.textContent ?? "").slice(0, 120),
+        text: (node.textContent ?? "").slice(0, 200),
       })));
-      console.log(`[diag-note-cards] ${JSON.stringify(states)}`);
+      console.log(`[diag-note-cards] ${JSON.stringify({ editorBeforeReload, states })}`);
       throw error;
     }
-    await visible(`${card} [data-note-read-view] span[data-note-text-color="blue"]`);
-    await visible(`${card} [data-note-read-view] div[data-note-toggle]`);
-    await visible(`${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`);
   } finally {
     await cleanupWorkspace(workspace.id);
   }

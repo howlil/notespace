@@ -1008,29 +1008,40 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
 test("Note formatting supports highlight, text color, toggle, table Row-/Col-, click-to-edit math, and @/[[ Create & link", { timeout: 180_000 }, async () => {
   const token = `Rich4${Date.now()}`;
   const workspace = await createWorkspace(`Canvas Note Rich4 ${token}`);
+  // DIAG (temporary): record the formatting editor's state after each step so a failure shows which step removed content.
+  const trail = [];
   try {
     await openWorkspace(workspace.id);
     await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
-    // DIAG (temporary): record the formatting editor's text after each step so a failure shows which step removed content.
-    const trail = [];
     const trace = async (label) => {
-      const text = await execute(() => document.querySelector('[data-note-element] .ProseMirror')?.innerText ?? null);
-      trail.push(`${label}: ${JSON.stringify(text)}`);
+      const snap = await execute(() => {
+        const pm = document.querySelector("[data-note-element] .ProseMirror");
+        const sel = window.getSelection();
+        return {
+          text: pm?.innerText ?? null,
+          html: pm?.innerHTML?.slice(0, 320) ?? null,
+          toolbar: Boolean(document.querySelector('[role="toolbar"][aria-label="Note formatting"]')),
+          save: document.querySelector('[aria-label="Workspace save status"]')?.textContent ?? null,
+          sel: sel
+            ? {
+                str: sel.toString(),
+                collapsed: sel.isCollapsed,
+                ranges: sel.rangeCount,
+                aOff: sel.anchorOffset,
+                fOff: sel.focusOffset,
+                aParent: sel.anchorNode?.parentElement?.tagName ?? null,
+              }
+            : null,
+          active: document.activeElement
+            ? `${document.activeElement.tagName}:${document.activeElement.getAttribute("aria-label") ?? ""}`
+            : null,
+        };
+      });
+      trail.push(`${label}: ${JSON.stringify(snap)}`);
     };
-    // DIAG (temporary): ArrowRight must collapse the formatted selection before Enter, or Enter replaces the word.
-    const collapseRight = async (label) => {
-      await press("ArrowRight");
-      const read = () => execute(() => ({ selected: window.getSelection()?.toString() ?? null, collapsed: window.getSelection()?.isCollapsed ?? null, active: document.activeElement?.className?.toString().slice(0, 60) ?? null }));
-      try {
-        await waitFor(async () => (await read()).collapsed === true, `${label}: selection did not collapse after ArrowRight`);
-      } catch (error) {
-        trail.push(`${label}: not collapsed ${JSON.stringify(await read())}`);
-        console.log(`[diag-note-cards] ${JSON.stringify({ trail })}`);
-        throw error;
-      }
-    };    const targetTitle = `AlphaTarget ${token}`;
+    const targetTitle = `AlphaTarget ${token}`;
     await fill(editor, targetTitle);
     await waitSaved();
     await press("Escape");
@@ -1047,28 +1058,36 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await click(role("button", "Highlight", { scope: formattingToolbar }));
     await click(role("button", "Highlight yellow", { scope: formattingToolbar }));
     await visible(`${card} mark[data-note-highlight="yellow"]`);
-    await trace("highlighted HighlightWord");
+    await trace("1-highlighted");
 
-    await collapseRight("after highlight");
+    await press("ArrowRight");
+    await trace("2-after-hl-right");
     await press("Enter");
+    await trace("3-after-hl-enter");
     await typeText("ColoredWord");
-    await trace("typed ColoredWord");
+    await trace("4-typed-color");
     await press("Shift+Home");
     await visible(formattingToolbar);
+    await trace("5-selected-color");
     await click(role("button", "Text color", { scope: formattingToolbar }));
     await click(role("button", "Text color blue", { scope: formattingToolbar }));
     await visible(`${card} span[data-note-text-color="blue"]`);
-    await trace("colored ColoredWord");
+    await trace("6-colored");
 
-    await collapseRight("after color");
+    await press("ArrowRight");
+    await trace("7-after-color-right");
     await press("Enter");
+    await trace("8-after-color-enter");
     await typeText("/math");
+    await trace("9-typed-slash-math");
     await press("Enter");
     const insertMath = role("dialog", "Insert Math formula");
     await visible(insertMath);
+    await trace("10-opened-insert-math");
     await fill(ariaLabel("LaTeX formula"), "x^2");
     await click(role("button", "Insert", { scope: insertMath }));
     await visible(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
+    await trace("11-inserted-x2");
 
     await click(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
     const editMath = role("dialog", "Edit Math formula");
@@ -1077,7 +1096,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await fill(ariaLabel("LaTeX formula"), "y^3");
     await click(role("button", "Update", { scope: editMath }));
     await visible(`${card} .tiptap-mathematics-render[data-latex="y^3"]`);
-    await trace("math updated to y^3");
+    await trace("12-updated-y3");
 
     await press("End");
     await press("Enter");
@@ -1155,6 +1174,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
       throw error;
     }
   } finally {
+    console.log(`[diag-note-trace] ${JSON.stringify(trail)}`);
     await cleanupWorkspace(workspace.id);
   }
 });

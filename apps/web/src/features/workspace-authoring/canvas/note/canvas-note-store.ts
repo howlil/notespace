@@ -40,6 +40,8 @@ export type CanvasNoteStore = {
   trash: (noteId: string) => Promise<void>;
   /** Restores a trashed Note, then re-reads it so every card shows it again. */
   restore: (noteId: string) => Promise<void>;
+  /** The document the store holds right now for a ready Note, including drafts not yet saved. */
+  readDocument: (noteId: string) => NoteDocument | undefined;
   queue: (noteId: string, document: NoteDocument) => void;
   flush: (noteId: string) => Promise<void>;
   flushAll: () => Promise<void>;
@@ -200,6 +202,10 @@ export function createCanvasNoteStore(deps: CanvasNoteStoreDeps): CanvasNoteStor
         if (entry.status === "ready") documents[noteId] = entry.note.document;
       }
       return documents;
+    },
+    readDocument(noteId) {
+      const entry = entries[noteId];
+      return entry?.status === "ready" ? entry.note.document : undefined;
     },
     ensure(noteIds) {
       for (const noteId of new Set(noteIds)) {

@@ -690,6 +690,7 @@ function NoteEditor(props: {
   activationPoint?: NoteActivationPoint | null;
   bodyMaxHeight?: number;
   onDocumentChange: (document: NoteDocument) => void;
+  readDocument: (noteId: string) => NoteDocument | undefined;
   onAutoResize: (elementId: string, height: number) => void;
   onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
   onExtractToNote?: (sourceElementId: string, extractedDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
@@ -705,6 +706,7 @@ function NoteEditor(props: {
     activationPoint,
     bodyMaxHeight,
     onDocumentChange,
+    readDocument,
     onAutoResize,
     onPlaceLinkedNote,
     onExtractToNote,
@@ -938,11 +940,14 @@ function NoteEditor(props: {
     const noteIdentityChanged = appliedNoteIdRef.current !== note.id;
     const serverRevisionChanged = appliedRevisionRef.current !== note.revision;
     if (noteIdentityChanged || serverRevisionChanged) {
-      if (JSON.stringify(editor.getJSON()) !== JSON.stringify(note.document)) editor.commands.setContent(note.document, { emitUpdate: false });
+      // Compare against the store's current document, not this render's prop: keystrokes queued after
+      // this render was scheduled are newer than `note.document`, and rewinding to the prop drops them.
+      const current = readDocument(note.id) ?? note.document;
+      if (JSON.stringify(editor.getJSON()) !== JSON.stringify(current)) editor.commands.setContent(current, { emitUpdate: false });
       appliedNoteIdRef.current = note.id;
       appliedRevisionRef.current = note.revision;
     }
-  }, [editor, note.id, note.revision, note.document]);
+  }, [editor, note.id, note.revision, note.document, readDocument]);
 
   const mentionMatchRange = useCallback(() => {
     if (!editor) return null;
@@ -1637,6 +1642,7 @@ type CanvasNoteCardProps = {
   onEditingChange: (elementId: string | null) => void;
   onExpand?: (elementId: string) => void;
   onDocumentChange: (noteId: string, document: NoteDocument) => void;
+  readDocument: (noteId: string) => NoteDocument | undefined;
   onRetry: (noteId: string) => void;
   onRestore?: (noteId: string) => void;
   onRemoveMissing?: (elementId: string) => void;
@@ -1739,6 +1745,7 @@ function CanvasNoteCard({
   onEditingChange,
   onExpand,
   onDocumentChange,
+  readDocument,
   onRetry,
   onRestore,
   onRemoveMissing,
@@ -1817,6 +1824,7 @@ function CanvasNoteCard({
             activationPoint={activationPoint}
             bodyMaxHeight={bodyMaxHeight}
             onDocumentChange={(document) => onDocumentChange(note.id, document)}
+            readDocument={readDocument}
             onAutoResize={onAutoResize}
             onPlaceLinkedNote={onPlaceLinkedNote}
             onExtractToNote={onExtractToNote}
@@ -1958,6 +1966,7 @@ export function CanvasNoteCardLayer({
             onEditingChange={onEditingChange}
             onExpand={onExpandedChange ? (elementId) => onExpandedChange(elementId) : undefined}
             onDocumentChange={store.queue}
+            readDocument={store.readDocument}
             onRetry={store.retry}
             onRestore={restoreNote}
             onRemoveMissing={onRemoveMissing}
@@ -1988,6 +1997,7 @@ export function CanvasNoteCardLayer({
               workspaceId={workspaceId}
               bodyMaxHeight={undefined}
               onDocumentChange={(document) => store.queue(expandedEntry.note.id, document)}
+              readDocument={store.readDocument}
               onAutoResize={ignoreAutoResize}
               onPlaceLinkedNote={onPlaceLinkedNote}
               onExtractToNote={onExtractToNote}

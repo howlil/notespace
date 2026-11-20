@@ -1107,7 +1107,20 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await waitSaved();
     await openWorkspace(workspace.id);
     await expectCount(card, 3);
-    await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
+    try {
+      await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
+    } catch (error) {
+      // DIAG (temporary): on failure, record each card's render state so CI shows why the read view never mounted.
+      const states = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => ({
+        loading: Boolean(node.querySelector('[aria-label="Loading Note"]')),
+        alert: Boolean(node.querySelector('[role="alert"]')),
+        readView: Boolean(node.querySelector("[data-note-read-view]")),
+        editor: Boolean(node.querySelector(".ProseMirror")),
+        text: (node.textContent ?? "").slice(0, 120),
+      })));
+      console.log(`[diag-note-cards] ${JSON.stringify(states)}`);
+      throw error;
+    }
     await visible(`${card} [data-note-read-view] span[data-note-text-color="blue"]`);
     await visible(`${card} [data-note-read-view] div[data-note-toggle]`);
     await visible(`${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`);

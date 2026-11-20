@@ -58,6 +58,9 @@ WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match
 		if kind == "note" {
 			result.InstanceID = blockID
 			result.Excerpt = content
+			if result.Excerpt == "" {
+				result.Excerpt = noteTitle
+			}
 		}
 		results = append(results, result)
 	}
@@ -119,7 +122,7 @@ FROM canvas_notes n
 LEFT JOIN canvas_note_search_meta m ON m.note_id=n.id
 LEFT JOIN canvas_note_instances i ON i.note_id=n.id
 LEFT JOIN projects p ON p.id=i.workspace_id
-WHERE m.note_id IS NULL OR m.revision<>n.revision OR m.updated_at<>n.updated_at
+WHERE n.deleted_at IS NULL AND (m.note_id IS NULL OR m.revision<>n.revision OR m.updated_at<>n.updated_at)
 ORDER BY n.updated_at DESC,n.id,i.id`)
 	if err != nil {
 		return err
@@ -148,7 +151,9 @@ ORDER BY n.updated_at DESC,n.id,i.id`)
 	// Drop FTS rows for deleted Notes and prior rows for stale Notes before
 	// inserting updated placements, then advance the meta marker so unchanged
 	// Notes are not re-scanned on the next search.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note' AND note_id NOT IN (SELECT id FROM canvas_notes)`); err != nil {
+	// Trashed Notes leave the index immediately; Restore invalidates their meta
+	// row so the next sync re-indexes them.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workspace_search WHERE type='note' AND note_id NOT IN (SELECT id FROM canvas_notes WHERE deleted_at IS NULL)`); err != nil {
 		return err
 	}
 	for _, noteID := range staleNoteIDs {
@@ -157,8 +162,10 @@ ORDER BY n.updated_at DESC,n.id,i.id`)
 		}
 	}
 	for _, item := range placements {
-		content := note.ExtractSearchText(json.RawMessage(item.document))
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, item.categoryID, item.workspaceID, item.workspaceTitle, item.noteID, "", item.instanceID, "Canvas Note", content); err != nil {
+		rawDoc := json.RawMessage(item.document)
+		noteTitle := note.ExtractFirstLine(rawDoc)
+		content := note.ExtractSearchText(rawDoc)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, item.categoryID, item.workspaceID, item.workspaceTitle, item.noteID, noteTitle, item.instanceID, noteTitle, content); err != nil {
 			return err
 		}
 	}

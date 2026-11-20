@@ -21,6 +21,32 @@ func (s Service) Get(ctx context.Context, id string) (Note, error) {
 	return s.store.GetNote(ctx, id)
 }
 
+func (s Service) List(ctx context.Context, query ListQuery) ([]Summary, error) {
+	query.Query = strings.TrimSpace(query.Query)
+	if query.Limit == 0 {
+		query.Limit = DefaultListLimit
+	}
+	if query.Limit < 0 || query.Limit > MaxListLimit {
+		return nil, ErrInvalid
+	}
+	items, err := s.store.ListNotes(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		return []Summary{}, nil
+	}
+	return items, nil
+}
+
+func (s Service) GetInfo(ctx context.Context, id string) (Info, error) {
+	id = strings.TrimSpace(id)
+	if !ValidateID(id, MaxNoteIDLength) {
+		return Info{}, ErrInvalid
+	}
+	return s.store.GetNoteInfo(ctx, id)
+}
+
 func (s Service) Update(ctx context.Context, id string, request UpdateRequest) (Note, error) {
 	id = strings.TrimSpace(id)
 	if !ValidateID(id, MaxNoteIDLength) || ValidateUpdateRequest(request) != nil {

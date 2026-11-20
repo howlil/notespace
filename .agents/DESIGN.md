@@ -1,6 +1,6 @@
 ---
 colors: {primary: "var(--accent)", surface: "var(--surface)", text: "var(--ink)", muted: "var(--muted)"}
-typography: {body: "var(--font-sans)", compact: "11px controls / 12px sections"}
+typography: {body: "var(--font-sans)", compact: "12px controls / 13px navigation / 11px minimum in shell"}
 spacing: {control: "4px rhythm", panel: "16px"}
 radius: {control: "6px", surface: "8px", dialog: "12px"}
 motion: {interactive: "100ms ease-out", surface: "160ms ease-out"}

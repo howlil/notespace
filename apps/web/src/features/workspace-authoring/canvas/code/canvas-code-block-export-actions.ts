@@ -1,13 +1,16 @@
-import { exportToSvg } from "@excalidraw/excalidraw";
+import { exportToSvg, getCommonBounds } from "@excalidraw/excalidraw";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawFrameLikeElement, NonDeleted, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { NoteDocument } from "../../../../domain/note/note.ts";
+import { appendCanvasNotesToSvg } from "../note/note-export.ts";
 import { appendCanvasCodeBlocksToSvg, type CodeBlockExportViews } from "./canvas-code-block-export.ts";
 
 type CanvasImageFormat = "png" | "svg";
-type CanvasImageExportSource = {
+export type CanvasImageExportSource = {
   elements: readonly NonDeletedExcalidrawElement[];
   appState: AppState;
   codeBlockViews?: CodeBlockExportViews;
+  noteDocuments?: Readonly<Record<string, NoteDocument>>;
   exportingFrame?: NonDeleted<ExcalidrawFrameLikeElement> | null;
 };
 
@@ -47,6 +50,18 @@ async function createCanvasImageBlob(
     },
   });
   appendCanvasCodeBlocksToSvg(svg, elements, darkMode, source?.codeBlockViews);
+  const boundsElements = source?.exportingFrame
+    ? [source.exportingFrame]
+    : elements.filter((element) => !element.isDeleted);
+  const exportPadding = source?.exportingFrame ? 0 : 10;
+  let noteOffset: { x: number; y: number } | undefined;
+  if (boundsElements.length > 0) {
+    const [minX, minY] = getCommonBounds(boundsElements);
+    if (Number.isFinite(minX) && Number.isFinite(minY)) {
+      noteOffset = { x: -minX + exportPadding, y: -minY + exportPadding };
+    }
+  }
+  appendCanvasNotesToSvg(svg, elements, darkMode, source?.noteDocuments, noteOffset ? { offset: noteOffset } : undefined);
   const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" });
   if (format === "svg") return svgBlob;
 

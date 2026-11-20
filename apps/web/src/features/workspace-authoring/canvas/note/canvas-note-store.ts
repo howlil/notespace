@@ -7,6 +7,8 @@ export type NoteSaveStatus = { state: NoteSaveState; message?: string; recover?:
 export type CanvasNoteEntry =
   | { status: "loading" }
   | { status: "ready"; note: Note }
+  /** The Note is in Trash: readable, but not editable, expandable or placeable until restored. */
+  | { status: "trashed"; note: Note }
   | { status: "missing" }
   | { status: "failed"; message: string };
 
@@ -20,6 +22,8 @@ export type CanvasNoteStoreSnapshot = {
 export type CanvasNoteStoreDeps = {
   getNote: (noteId: string) => Promise<Note>;
   updateNote: (noteId: string, document: NoteDocument, expectedRevision: number) => Promise<Note>;
+  trashNote?: (noteId: string) => Promise<void>;
+  restoreNote?: (noteId: string) => Promise<void>;
   debounceMs?: number;
   setTimer?: (callback: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
@@ -28,9 +32,14 @@ export type CanvasNoteStoreDeps = {
 export type CanvasNoteStore = {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => CanvasNoteStoreSnapshot;
+  getDocuments: () => Record<string, NoteDocument>;
   /** Loads every id that has no entry yet; missing/failed entries wait for an explicit retry. */
   ensure: (noteIds: Iterable<string>) => void;
   retry: (noteId: string) => void;
+  /** Saves any pending draft, moves the Note to Trash, then re-reads it so every card shows the Trash state. */
+  trash: (noteId: string) => Promise<void>;
+  /** Restores a trashed Note, then re-reads it so every card shows it again. */
+  restore: (noteId: string) => Promise<void>;
   queue: (noteId: string, document: NoteDocument) => void;
   flush: (noteId: string) => Promise<void>;
   flushAll: () => Promise<void>;
@@ -47,6 +56,10 @@ export function aggregateSaveStatus(statuses: Iterable<NoteSaveStatus>): NoteSav
     if (match) return match;
   }
   return { state: "saved" };
+}
+
+function entryForNote(note: Note): CanvasNoteEntry {
+  return note.deletedAt ? { status: "trashed", note } : { status: "ready", note };
 }
 
 function errorStatus(error: unknown): number | undefined {
@@ -105,7 +118,7 @@ export function createCanvasNoteStore(deps: CanvasNoteStoreDeps): CanvasNoteStor
     setEntry(noteId, { status: "loading" });
     publish();
     const request = deps.getNote(noteId).then((note) => {
-      setEntry(noteId, { status: "ready", note });
+      setEntry(noteId, entryForNote(note));
     }, (error: unknown) => {
       setEntry(noteId, errorStatus(error) === 404
         ? { status: "missing" }
@@ -181,6 +194,13 @@ export function createCanvasNoteStore(deps: CanvasNoteStoreDeps): CanvasNoteStor
       return () => { listeners.delete(listener); };
     },
     getSnapshot: () => snapshot,
+    getDocuments() {
+      const documents: Record<string, NoteDocument> = {};
+      for (const [noteId, entry] of Object.entries(entries)) {
+        if (entry.status === "ready") documents[noteId] = entry.note.document;
+      }
+      return documents;
+    },
     ensure(noteIds) {
       for (const noteId of new Set(noteIds)) {
         if (noteId && !entries[noteId] && !loads.has(noteId)) load(noteId);
@@ -189,6 +209,20 @@ export function createCanvasNoteStore(deps: CanvasNoteStoreDeps): CanvasNoteStor
     retry(noteId) {
       const entry = entries[noteId];
       if (entry?.status === "missing" || entry?.status === "failed") load(noteId);
+    },
+    async trash(noteId) {
+      if (!deps.trashNote) throw new Error("Moving a Note to Trash is unavailable.");
+      // A failed flush keeps the draft and aborts: Trash must never strand unsaved text.
+      await flush(noteId);
+      await deps.trashNote(noteId);
+      setEntry(noteId, entryForNote(await deps.getNote(noteId)));
+      publish();
+    },
+    async restore(noteId) {
+      if (!deps.restoreNote) throw new Error("Restoring a Note is unavailable.");
+      await deps.restoreNote(noteId);
+      setEntry(noteId, entryForNote(await deps.getNote(noteId)));
+      publish();
     },
     queue(noteId, document) {
       const current = entries[noteId];

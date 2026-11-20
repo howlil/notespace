@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   destinationFromSearchResult,
+  resolveQuickOpenAction,
   searchResultHref,
+  UNPLACED_NOTE_TOAST_MESSAGE,
 } from "./quick-open-model.ts";
 import type { SearchResult } from "../../adapters/http/workspace-api.ts";
 
@@ -79,4 +81,59 @@ test("Quick Open distinguishes multiple Note instances and defaults empty excerp
   assert.equal(first.title, "Canvas Note");
   assert.equal(second.title, "Second Note Headline");
   assert.notEqual(first.key, second.key);
+});
+
+test("Quick Open places unplaced Notes when on Canvas and explains why when no Workspace is open", () => {
+  const unplaced = destinationFromSearchResult(result({
+    type: "note",
+    noteId: "note-orphan",
+    workspaceId: "",
+    workspaceTitle: "",
+    excerpt: "  Orphan   heading \nBody line",
+  }));
+
+  assert.equal(unplaced.workspaceId, undefined);
+  assert.equal(unplaced.title, "Orphan heading");
+  assert.deepEqual(
+    resolveQuickOpenAction(unplaced, { canPlaceOnCanvas: true }),
+    { type: "place-note", noteId: "note-orphan" },
+  );
+  assert.deepEqual(
+    resolveQuickOpenAction(unplaced, { canPlaceOnCanvas: false }),
+    { type: "toast-unplaced-note", message: UNPLACED_NOTE_TOAST_MESSAGE },
+  );
+});
+
+test("Quick Open navigates placed Notes, Workspaces, and Categories to their canonical routes", () => {
+  const placedNote = destinationFromSearchResult(result({
+    type: "note",
+    noteId: "note-9",
+    workspaceId: "ws-2",
+    workspaceTitle: "Design",
+    excerpt: "Placed card",
+  }));
+  assert.deepEqual(
+    resolveQuickOpenAction(placedNote, { canPlaceOnCanvas: true }),
+    { type: "navigate-workspace", workspaceId: "ws-2", noteId: "note-9" },
+  );
+
+  const category = destinationFromSearchResult(result({
+    type: "category",
+    categoryId: "cat-3",
+    categoryTitle: "Systems",
+  }));
+  assert.deepEqual(
+    resolveQuickOpenAction(category, { canPlaceOnCanvas: false }),
+    { type: "navigate-category", categoryId: "cat-3" },
+  );
+
+  const workspace = destinationFromSearchResult(result({
+    type: "workspace",
+    workspaceId: "ws-7",
+  }));
+  assert.deepEqual(
+    resolveQuickOpenAction(workspace, { canPlaceOnCanvas: false }),
+    { type: "navigate-workspace", workspaceId: "ws-7", noteId: undefined },
+  );
+  assert.equal(resolveQuickOpenAction(undefined, { canPlaceOnCanvas: true }), null);
 });

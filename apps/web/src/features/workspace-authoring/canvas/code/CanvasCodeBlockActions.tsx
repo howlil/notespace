@@ -181,7 +181,7 @@ export function CanvasCodeBlockActions(actions: CodeActionsProps) {
     languageRef.current?.focus({ preventScroll: true });
   };
   return (
-    <div ref={toolbarRef} data-code-toolbar className="notespace-selection-actions pointer-events-auto relative z-[1] flex h-10 max-w-full items-center gap-1 overflow-hidden rounded-lg border border-line bg-surface p-1 shadow-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&~_.excalidraw_.mobile-shape-actions]:!hidden"
+    <div ref={toolbarRef} data-code-toolbar className="notespace-selection-actions pointer-events-auto relative z-[1] flex h-10 max-w-full items-center gap-1 overflow-hidden rounded-lg border border-line bg-surface p-1 [box-shadow:var(--shadow-float)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&~_.excalidraw_.mobile-shape-actions]:!hidden"
       role="toolbar" aria-label="Code block settings" onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); actions.onExitEditing(); } }}>
       <button ref={languageRef} type="button" className={cn(control, "min-w-0")} style={{ flexShrink: 1 }} title={`${languageTitle(block)}${block.languageLocked ? "" : " (Auto)"}`} aria-label="Code language" aria-haspopup="dialog" aria-expanded={popup === "language"} onClick={() => setPopup(popup === "language" ? null : "language")}>
@@ -193,7 +193,7 @@ export function CanvasCodeBlockActions(actions: CodeActionsProps) {
       <button ref={moreRef} type="button" className={control} title="More code actions" aria-label="More code actions" aria-haspopup="dialog" aria-expanded={popup === "more"} onClick={() => setPopup(popup === "more" ? null : "more")}><MoreHorizontal className="size-4" /></button>
       {popup && !suppressed && createPortal(
         <div ref={panelRef} data-code-toolbar-popup role="dialog" aria-label={popup === "language" ? "Code language" : "More code actions"}
-          className={cn("fixed z-[1000] flex max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink shadow-none", popup === "language" ? "w-64" : "w-56")}
+          className={cn("fixed z-[1000] flex max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border border-line bg-surface p-1 text-ink [box-shadow:var(--shadow-float)]", popup === "language" ? "w-64" : "w-56")}
           style={{ ...panelStyle, maxHeight: "min(320px, calc(100dvh - 16px))", visibility: position ? "visible" : "hidden" }}
           onPointerDown={(event) => event.stopPropagation()}
           onKeyDown={(event) => {

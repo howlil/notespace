@@ -11,6 +11,14 @@ export type QuickOpenDestination = {
   noteId?: string;
 };
 
+export type QuickOpenAction =
+  | { type: "navigate-category"; categoryId: string }
+  | { type: "navigate-workspace"; workspaceId: string; noteId?: string }
+  | { type: "place-note"; noteId: string }
+  | { type: "toast-unplaced-note"; message: string };
+
+export const UNPLACED_NOTE_TOAST_MESSAGE = "Open a Workspace to place this unplaced Note.";
+
 export function searchResultHref(result: SearchResult) {
   if (result.type === "category" && result.categoryId) {
     return `/?category=${encodeURIComponent(result.categoryId)}`;
@@ -28,10 +36,10 @@ export function searchResultHref(result: SearchResult) {
 function noteTitleFromExcerpt(excerpt: string): string {
   const firstLine = excerpt
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => line.replace(/\s+/g, " ").trim())
     .find(Boolean);
   if (!firstLine) return "Canvas Note";
-  return firstLine.length > 120 ? `${firstLine.slice(0, 117)}...` : firstLine;
+  return firstLine.length > 120 ? `${firstLine.slice(0, 117).trimEnd()}...` : firstLine;
 }
 
 export function destinationFromSearchResult(result: SearchResult): QuickOpenDestination {
@@ -49,7 +57,31 @@ export function destinationFromSearchResult(result: SearchResult): QuickOpenDest
     href: searchResultHref(result),
     kind: result.type,
     categoryId: result.type === "category" ? result.categoryId : undefined,
-    workspaceId: result.workspaceId,
+    workspaceId: result.workspaceId || undefined,
     noteId: result.noteId,
   };
+}
+
+export function resolveQuickOpenAction(
+  destination: QuickOpenDestination | undefined,
+  options: { canPlaceOnCanvas: boolean },
+): QuickOpenAction | null {
+  if (!destination) return null;
+  if (destination.kind === "category" && destination.categoryId) {
+    return { type: "navigate-category", categoryId: destination.categoryId };
+  }
+  if (destination.kind === "note" && !destination.workspaceId) {
+    if (options.canPlaceOnCanvas && destination.noteId) {
+      return { type: "place-note", noteId: destination.noteId };
+    }
+    return { type: "toast-unplaced-note", message: UNPLACED_NOTE_TOAST_MESSAGE };
+  }
+  if (destination.workspaceId) {
+    return {
+      type: "navigate-workspace",
+      workspaceId: destination.workspaceId,
+      noteId: destination.kind === "note" ? destination.noteId : undefined,
+    };
+  }
+  return null;
 }

@@ -82,7 +82,7 @@ export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: bo
         <DatabaseBackup size={16} className="mt-0.5 shrink-0 text-accent" aria-hidden="true" />
         <div>
           <h4 className="font-medium text-ink">Device recovery</h4>
-          <p className="mt-1 text-[10px] leading-4 text-muted">Windows snapshots recover this installation. They are not portable backups.</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">Windows snapshots recover this installation. They are not portable backups.</p>
         </div>
       </div>
       <div className="mt-2 divide-y divide-line border-y border-line">
@@ -90,7 +90,7 @@ export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: bo
           <div className="flex items-start justify-between gap-3">
             <div>
               <h5 className="font-medium text-ink">Verified SQLite snapshot</h5>
-              <p className="mt-1 text-[10px] leading-4 text-muted">Creates a safe copy without replacing the live library. Copy it to another drive for protection against device failure.</p>
+              <p className="mt-1 text-[11px] leading-4 text-muted">Creates a safe copy without replacing the live library. Copy it to another drive for protection against device failure.</p>
             </div>
             <ShieldCheck size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
           </div>
@@ -100,29 +100,29 @@ export function DesktopRecoveryTools({ onBusyChange }: { onBusyChange: (busy: bo
             </Button>
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => void refresh()}><RefreshCw size={13} /> Refresh list</Button>
           </div>
-          {message && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-4 text-muted" role="status">{message}</p>}
+          {message && <p className="mt-2 whitespace-pre-wrap text-[11px] leading-4 text-muted" role="status">{message}</p>}
         </div>
         <div className="py-2">
           <h5 className="font-medium text-ink">Manual snapshots ({manual.length})</h5>
-          <p className="mt-1 text-[10px] leading-4 text-muted">Snapshots you created from this device.</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">Snapshots you created from this device.</p>
           <div className="mt-2">
-            {manual.length === 0 && <p className="text-[10px] text-muted">No manual SQLite snapshots yet.</p>}
+            {manual.length === 0 && <p className="text-[11px] text-muted">No manual SQLite snapshots yet.</p>}
             {manual.map((point) => <BackupPoint key={point.name} point={point} />)}
           </div>
         </div>
         <div className="py-2">
           <h5 className="font-medium text-ink">Automatic recovery points ({migrations.length})</h5>
-          <p className="mt-1 text-[10px] leading-4 text-muted">Created before database upgrades so the previous state can be recovered offline.</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">Created before database upgrades so the previous state can be recovered offline.</p>
           <div className="mt-2">
-            {migrations.length === 0 && <p className="text-[10px] text-muted">No automatic recovery points yet.</p>}
+            {migrations.length === 0 && <p className="text-[11px] text-muted">No automatic recovery points yet.</p>}
             {migrations.map((point) => <BackupPoint key={point.name} point={point} />)}
           </div>
         </div>
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted">Recovery is manual and offline: quit Notespace, preserve the original database and WAL files, then follow the recovery runbook.</p>
+      <p className="mt-2 text-[11px] leading-4 text-muted">Recovery is manual and offline: quit Notespace, preserve the original database and WAL files, then follow the recovery runbook.</p>
       {diagnostics && (
         <details className="mt-2 border-t border-line pt-2">
-          <summary className="cursor-pointer text-[10px] font-medium">Safe diagnostics</summary>
+          <summary className="cursor-pointer text-[11px] font-medium">Safe diagnostics</summary>
           <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-muted">{JSON.stringify(diagnostics, null, 2)}</pre>
         </details>
       )}
@@ -134,10 +134,10 @@ function BackupPoint({ point }: { point: Point }) {
   return (
     <div className="border-b border-line py-2 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="min-w-0 truncate text-[10px] font-medium text-ink" title={point.name}>{point.name}</p>
-        <p className="shrink-0 text-[10px] text-muted">{(point.bytes / (1024 * 1024)).toFixed(2)} MiB</p>
+        <p className="min-w-0 truncate text-[11px] font-medium text-ink" title={point.name}>{point.name}</p>
+        <p className="shrink-0 text-[11px] text-muted">{(point.bytes / (1024 * 1024)).toFixed(2)} MiB</p>
       </div>
-      <p className="mt-1 select-text break-all text-[9px] text-muted">{point.path}</p>
+      <p className="mt-1 select-text break-all text-[11px] text-muted">{point.path}</p>
     </div>
   );
 }

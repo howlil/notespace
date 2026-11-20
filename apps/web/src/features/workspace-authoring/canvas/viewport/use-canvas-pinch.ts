@@ -15,7 +15,7 @@ export function useCanvasPinch(surfaceRef: RefObject<HTMLDivElement | null>, api
       if (!event.ctrlKey && !event.metaKey) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (!target.closest(".excalidraw__canvas, [data-canvas-code-block]")) return;
+      if (!target.closest(".excalidraw__canvas, [data-canvas-code-block], [data-note-element]")) return;
       if (target.closest('input, textarea, select, button, [contenteditable="true"], [role="toolbar"], iframe')) return;
 
       const editor = api.current;

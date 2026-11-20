@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import { readStoredLibraryItems, writeStoredLibraryItems } from "./assets/canvas-library";
 import type { Snapshot } from "../../../domain/workspace/workspace";
-import { duplicatedNoteInstanceIds, readCanvasNoteReference, withCanvasNoteReference } from "../../../domain/note/note";
+import { duplicatedNoteInstanceIds, readCanvasNoteReference, withCanvasNoteReference, withoutCanvasNoteReference, type NoteDocument } from "../../../domain/note/note";
 import type { CreateNoteInstanceRequest, CreateNoteInstanceResult, Note } from "../../../adapters/http/note-api";
 import { DiagramPalette } from "./diagram/palette/DiagramPalette";
 import {
@@ -36,10 +36,12 @@ import { CODE_BLOCK_DEFAULT_WIDTH, codeBlockHeightChanged, codeBlockMinimumHeigh
 import { CanvasBottomChrome, type CanvasContextualAnchor } from "./chrome/CanvasBottomChrome";
 import { CanvasToolRail } from "./chrome/CanvasToolRail";
 import { CanvasNoteActions, CanvasNoteCardLayer } from "./note/CanvasNoteCardLayer";
+import { NotePickerPopover } from "./note/NotePickerPopover";
 import type { NoteSaveStatus } from "./note/canvas-note-store";
 import { useCanvasNotes } from "./note/use-canvas-notes";
 import { registerCanvasNotePlacer } from "../../../adapters/browser/canvas-note-placement-events";
 import { CanvasViewControls } from "./chrome/CanvasViewControls";
+import { useContextualToolbarMode } from "./chrome/use-contextual-toolbar";
 import { CanvasFlowchartHandles } from "./flowchart/CanvasFlowchartHandles";
 import { CanvasSelectionActions, type CanvasRuntimeActionName } from "./selection/CanvasSelectionActions";
 import {
@@ -54,6 +56,7 @@ import { useCanvasFlowchart } from "./flowchart/use-canvas-flowchart";
 import { useCanvasDiagramCommands } from "./diagram/use-canvas-diagram-commands";
 import { useCodeRunner } from "./code/execution/use-code-runner";
 import { useCanvasPinch } from "./viewport/use-canvas-pinch";
+import { CanvasDotGrid } from "./viewport/CanvasDotGrid";
 import {
   canvasBackgroundColor,
   codeGeometryMap,
@@ -128,6 +131,8 @@ type CanvasEditorProps = {
   onElementSelect?: (elementId: string | null) => void;
   focusRequest?: FocusRequest;
   focusNoteId?: string;
+  focusBlockId?: string;
+  focusNonce?: string;
   dark: boolean;
   workspaceId: string;
   canvasVersion: number;
@@ -140,7 +145,7 @@ type CanvasEditorProps = {
 };
 
 export default function CanvasEditor({
-  initial, onChange, onElementSelect, focusRequest, focusNoteId, dark, workspaceId,
+  initial, onChange, onElementSelect, focusRequest, focusNoteId, focusBlockId, focusNonce, dark, workspaceId,
   canvasVersion, onCreateNote, onUpdateNote, onDeleteNoteInstance, onRegisterAuthoringFlush, onRegisterCanvasExport, onNoteSaveState,
 }: CanvasEditorProps) {
   const { showToast } = useToast();
@@ -153,7 +158,7 @@ export default function CanvasEditor({
     delete data[DIAGRAM_DATA_KEY];
     return {
       ...data,
-      appState: { viewBackgroundColor: dark ? "#1d1e24" : "#f8f9fc", ...(initial.data.appState as object) },
+      appState: { viewBackgroundColor: dark ? "#191a1f" : "#fafaf8", ...(initial.data.appState as object) },
       files: {},
     } as ExcalidrawInitialDataState;
   });
@@ -165,6 +170,18 @@ export default function CanvasEditor({
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [editingCodeBlockId, setEditingCodeBlockId] = useState<string | null>(null);
   const [editingNoteElementId, setEditingNoteElementId] = useState<string | null>(null);
+  const [expandedNoteElementId, setExpandedNoteElementId] = useState<string | null>(null);
+  const [infoNoteId, setInfoNoteId] = useState<string | null>(null);
+  const [trashNoteId, setTrashNoteId] = useState<string | null>(null);
+  const [notePickerOpen, setNotePickerOpen] = useState(false);
+  const [highlightedBlock, setHighlightedBlock] = useState<{ noteId: string; blockId: string } | null>(null);
+  const noteDocumentsGetterRef = useRef<() => Record<string, NoteDocument>>(() => ({}));
+  const registerNoteDocuments = useCallback((read: () => Record<string, NoteDocument>) => {
+    noteDocumentsGetterRef.current = read;
+    return () => {
+      if (noteDocumentsGetterRef.current === read) noteDocumentsGetterRef.current = () => ({});
+    };
+  }, []);
   const [codeBlockViews, setCodeBlockViews] = useState<Record<string, CodeBlockViewOptions>>({});
   const updateCodeView = useCallback((id: string, patch: Partial<CodeBlockViewOptions>) => {
     setCodeBlockViews((current) => ({ ...current, [id]: { ...(current[id] ?? defaultCodeBlockView), ...patch } }));
@@ -173,7 +190,7 @@ export default function CanvasEditor({
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialElements));
   const expectedAutoFitHeightRef = useRef(new Map<string, number>());
-  const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, dark ? "#1d1e24" : "#f8f9fc"));
+  const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, dark ? "#191a1f" : "#fafaf8"));
   const [toolOverlay, setToolOverlay] = useState<"diagram" | "more" | null>(null);
   const [activeCanvasOverlay, setActiveCanvasOverlay] = useState<CanvasOverlayScope>(null);
   const diagramOpen = toolOverlay === "diagram";
@@ -188,6 +205,9 @@ export default function CanvasEditor({
   const [selectedElementCount, setSelectedElementCount] = useState(0);
   const [, setSelectionStyleKey] = useState("");
   const [isObjectManipulating, setIsObjectManipulating] = useState(false);
+  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
+  const [selectionKey, setSelectionKey] = useState("");
+  const [toolbarMode, setToolbarMode] = useContextualToolbarMode();
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [viewModeEnabled, setViewModeEnabled] = useState(false);
   const [selectionAnchor, setSelectionAnchor] = useState<CanvasContextualAnchor | null>(null);
@@ -208,7 +228,7 @@ export default function CanvasEditor({
   const nativeImageExportRef = useRef<(name: NativeImageExportAction) => boolean>(() => false);
   nativeImageExportRef.current = (name) => {
     const currentApi = api.current;
-    if (!currentApi || !currentApi.getSceneElements().some((element) => readCanvasCodeBlock(element))) return false;
+    if (!currentApi || !currentApi.getSceneElements().some((element) => readCanvasCodeBlock(element) || readCanvasNoteReference(element))) return false;
     if (name === "imageExport") {
       currentApi.app.setOpenDialog({ name: "imageExport" });
       return true;
@@ -217,7 +237,12 @@ export default function CanvasEditor({
     const appState = currentApi.getAppState();
     const scene = currentApi.getSceneElements();
     const selected = scene.filter((element) => appState.selectedElementIds[element.id]);
-    const source = { elements: selected.length ? selected : scene, appState, codeBlockViews };
+    const source = {
+      elements: selected.length ? selected : scene,
+      appState,
+      codeBlockViews,
+      noteDocuments: noteDocumentsGetterRef.current(),
+    };
     void copyCanvasImage(currentApi, dark, format, source).then(() => {
       showToast({ kind: "success", message: `${format.toUpperCase()} copied.` });
     }).catch((error: unknown) => {
@@ -259,9 +284,15 @@ export default function CanvasEditor({
   useEffect(() => {
     if (!canvasApi) return;
     return interceptNativeImageExportCallback(canvasApi, async (type, elements, options) => {
-      if (!elements.some((element) => readCanvasCodeBlock(element))) return false;
+      if (!elements.some((element) => readCanvasCodeBlock(element) || readCanvasNoteReference(element))) return false;
       const appState = canvasApi.getAppState();
-      const source = { elements, appState, exportingFrame: options.exportingFrame, codeBlockViews };
+      const source = {
+        elements,
+        appState,
+        exportingFrame: options.exportingFrame,
+        codeBlockViews,
+        noteDocuments: noteDocumentsGetterRef.current(),
+      };
       const exportDark = appState.exportWithDarkMode || appState.theme === "dark";
       const name = canvasApi.app.getName() || "notespace-canvas";
       try {
@@ -344,6 +375,11 @@ export default function CanvasEditor({
     source: OrderedExcalidrawElement,
     target: OrderedExcalidrawElement,
   ) => {
+    if (readCanvasNoteReference(source)) {
+      // A connected Note gets its own identity from the Note store, never a copy of the source reference.
+      if (!readCanvasNoteReference(target)) return target;
+      return newElementWith(target, { customData: withoutCanvasNoteReference(target.customData) });
+    }
     const sourceBlock = readCanvasCodeBlock(source);
     if (!sourceBlock) return target;
     const nextBlock = {
@@ -354,6 +390,11 @@ export default function CanvasEditor({
     return newElementWith(target, {
       customData: withCanvasCodeBlock(target.customData, nextBlock),
     });
+  }, []);
+
+  const spawnedNoteRef = useRef<((source: OrderedExcalidrawElement, target: OrderedExcalidrawElement) => Promise<void>) | null>(null);
+  const handleSpawnedShape = useCallback((source: OrderedExcalidrawElement, target: OrderedExcalidrawElement) => {
+    if (readCanvasNoteReference(source)) void spawnedNoteRef.current?.(source, target);
   }, []);
 
   const {
@@ -367,9 +408,18 @@ export default function CanvasEditor({
     commitPreview: commitNativeFlowchartPreview,
     syncSelection: syncFlowchartSelection,
     focusEditor: focusCanvasEditor,
-  } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget });
+  } = useCanvasFlowchart({ apiRef: api, surfaceRef, decorateTarget: decorateDirectionalSpawnTarget, onSpawned: handleSpawnedShape });
 
-  const canvasOverlayInteractionActive = contextualInteractionActive || contextMenuOpen || viewModeEnabled || diagramOpen || moreOpen || editingCodeBlockId !== null || editingNoteElementId !== null;
+  const canvasOverlayInteractionActive = contextualInteractionActive
+    || contextMenuOpen
+    || viewModeEnabled
+    || diagramOpen
+    || moreOpen
+    || editingCodeBlockId !== null
+    || editingNoteElementId !== null
+    || expandedNoteElementId !== null
+    || infoNoteId !== null
+    || notePickerOpen;
 
   useEffect(() => {
     if (canvasOverlayInteractionActive) cancelNativeFlowchartPreview();
@@ -487,22 +537,38 @@ export default function CanvasEditor({
     canvasApi.setViewport({ target: element, fit: "scale-down", animation: { duration: 250 } });
   }, [canvasApi, focusRequest]);
 
-  useEffect(() => {
-    if (!focusNoteId || !canvasApi) return;
-    const element = canvasApi.getSceneElements().find((candidate) => readCanvasNoteReference(candidate)?.noteId === focusNoteId && !candidate.isDeleted);
+  const focusNoteOnCanvas = useCallback((noteId: string, blockId?: string) => {
+    if (!canvasApi) return;
+    const element = canvasApi.getSceneElements().find((candidate) => readCanvasNoteReference(candidate)?.noteId === noteId && !candidate.isDeleted);
     if (!element) return;
+    setExpandedNoteElementId(null);
+    setInfoNoteId(null);
     setEditingNoteElementId(null);
     setSelectedElementCount(1);
     setSelectedElementId(element.id);
     canvasApi.updateScene({ appState: { selectedElementIds: { [element.id]: true } } });
     canvasApi.setViewport({ target: element, fit: "scale-down", animation: { duration: 250 } });
-  }, [canvasApi, focusNoteId]);
+    setHighlightedBlock(blockId ? { noteId, blockId } : null);
+  }, [canvasApi]);
+
+  useEffect(() => {
+    if (!focusNoteId || !canvasApi) return;
+    focusNoteOnCanvas(focusNoteId, focusBlockId);
+  }, [canvasApi, focusBlockId, focusNonce, focusNoteId, focusNoteOnCanvas]);
+
+  useEffect(() => {
+    if (!highlightedBlock) return;
+    const timer = window.setTimeout(() => setHighlightedBlock(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [highlightedBlock]);
 
   const changed = useCallback((elements: readonly OrderedExcalidrawElement[], state: AppState, files: BinaryFiles) => {
     setActiveTool(state.activeTool.type);
     setIsObjectManipulating(isCanvasObjectManipulating(state));
+    setIsMarqueeSelecting(Boolean(state.selectionElement));
     const selectedIds = Object.entries(state.selectedElementIds).filter(([, value]) => value).map(([id]) => id);
     setSelectedElementCount(selectedIds.length);
+    setSelectionKey([...selectedIds].sort().join(","));
     setSelectionStyleKey(elements.filter((element) => state.selectedElementIds[element.id]).map((element) => `${element.id}:${element.version}`).join("|") + JSON.stringify([
       state.currentItemStrokeColor, state.currentItemBackgroundColor, state.currentItemStrokeWidthKey,
       state.currentItemFillStyle, state.currentItemOpacity, state.currentItemStrokeVariability,
@@ -637,11 +703,16 @@ export default function CanvasEditor({
     startNoteEditing,
     finishNoteEditing,
     insertNote,
+    insertNoteAt,
+    createConnectedNoteFrom,
+    spawnConnectedNote,
     placeLinkedNote,
     deleteSelectedNote,
     removeMissingNote,
     duplicateSelectedNote,
     toggleFoldNote,
+    setNoteColor,
+    setNoteShape,
     fitNoteContent,
     resizeNote,
     resolveNativeNoteCopies,
@@ -666,6 +737,8 @@ export default function CanvasEditor({
     viewModeEnabled,
     onCreateNote,
     onDeleteNoteInstance,
+    onExpandNote: setExpandedNoteElementId,
+    onOpenNotePicker: onCreateNote ? () => setNotePickerOpen(true) : undefined,
     setSceneElements,
     setOverlayElements,
     setHasElements,
@@ -677,6 +750,7 @@ export default function CanvasEditor({
     showToast,
   });
   nativeNoteCopiesRef.current = resolveNativeNoteCopies;
+  spawnedNoteRef.current = spawnConnectedNote;
 
   useEffect(() => onRegisterAuthoringFlush?.(async () => {
     await flushPendingAssets();
@@ -872,6 +946,13 @@ export default function CanvasEditor({
 
   useCanvasPinch(surfaceRef, api);
 
+  const currentCanvasNoteIds = useMemo(() => new Set(
+    sceneElements.flatMap((element) => {
+      const reference = readCanvasNoteReference(element);
+      return reference ? [reference.noteId] : [];
+    }),
+  ), [sceneElements]);
+
   useEffect(() => {
     if (viewModeEnabled || !onCreateNote) return;
     return registerCanvasNotePlacer((noteId) => placeLinkedNote(noteId));
@@ -910,10 +991,29 @@ export default function CanvasEditor({
       onDoubleClickCapture={(event) => {
         if (editingCodeBlockId || editingNoteElementId) return;
         const target = event.target;
-        if (target instanceof Element && target.closest(".notespace-selection-actions")) return;
+        if (target instanceof Element && target.closest(".notespace-selection-actions, .notespace-note-ui, [role='toolbar'], [role='dialog'], [data-flowchart-handle]")) return;
         const value = api.current;
         const rect = surfaceRef.current?.getBoundingClientRect();
         if (!value || !rect) return;
+        if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+          if (viewModeEnabled || !onCreateNote) return;
+          if (!(target instanceof Element) || !target.closest(".excalidraw__canvas")) return;
+          const appState = value.getAppState();
+          if (appState.openDialog) return;
+          const hitsCustomCard = value.getSceneElementsIncludingDeleted().some((candidate) => (
+            !candidate.isDeleted
+            && (Boolean(readCanvasNoteReference(candidate)) || Boolean(readCanvasCodeBlock(candidate)))
+            && codeElementContainsClientPoint(candidate, canvasViewport, rect, event.clientX, event.clientY)
+          ));
+          if (hitsCustomCard) return;
+          const zoom = appState.zoom.value || 1;
+          const sceneX = (event.clientX - rect.left) / zoom - appState.scrollX;
+          const sceneY = (event.clientY - rect.top) / zoom - appState.scrollY;
+          event.preventDefault();
+          event.stopPropagation();
+          void insertNoteAt(sceneX, sceneY);
+          return;
+        }
         const selectedIds = Object.entries(value.getAppState().selectedElementIds)
           .filter(([, selected]) => selected)
           .map(([id]) => id);
@@ -936,6 +1036,7 @@ export default function CanvasEditor({
         setEditingCodeBlockId(element.id);
       }}
     >
+      <CanvasDotGrid viewport={canvasViewport} hidden={gridModeEnabled} />
       <CanvasCodeBlockLayer
         elements={overlayElements}
         viewport={canvasViewport}
@@ -955,21 +1056,37 @@ export default function CanvasEditor({
         viewport={canvasViewport}
         selectedElementId={selectedElementId}
         editingElementId={editingNoteElementId}
+        expandedElementId={expandedNoteElementId}
+        infoNoteId={infoNoteId}
+        trashNoteId={trashNoteId}
         activationPoint={noteActivationPoint}
+        highlightNoteId={highlightedBlock?.noteId ?? null}
+        highlightBlockId={highlightedBlock?.blockId ?? null}
         onEditingChange={finishNoteEditing}
+        onExpandedChange={setExpandedNoteElementId}
+        onInfoNoteChange={setInfoNoteId}
+        onTrashNoteChange={setTrashNoteId}
+        onFocusNote={focusNoteOnCanvas}
         onRegisterFlush={registerNoteFlush}
+        onRegisterDocuments={registerNoteDocuments}
         onUpdateNote={onUpdateNote ?? (async () => { throw new Error("Note editing is unavailable."); })}
         onSaveState={onNoteSaveState}
         onAutoResize={resizeNote}
         onRemoveMissing={removeMissingNote}
         onPlaceLinkedNote={placeLinkedNote}
+        onExtractToNote={(sourceElementId, extractedDocument) => createConnectedNoteFrom(sourceElementId, extractedDocument, { connectArrow: true, selectTarget: false, autoEdit: false })}
+        onCreateAndLinkNote={(sourceElementId, initialDocument) => createConnectedNoteFrom(sourceElementId, initialDocument, { connectArrow: true, selectTarget: false, autoEdit: false })}
+        onSuccess={reportCanvasSuccess}
         onError={reportCanvasAssetError}
       />
-      <CanvasViewControls api={canvasApi} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onAction={runCanvasAction} onToolOverlayOpen={closeCanvasPopovers} onOverlayOpen={() => setActiveCanvasOverlay("view")} overlayActive={activeCanvasOverlay === null || activeCanvasOverlay === "view"} toolOverlayOpen={toolOverlay !== null} />
+      <CanvasViewControls api={canvasApi} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} toolbarMode={toolbarMode} onToolbarModeChange={setToolbarMode} onAction={runCanvasAction} onToolOverlayOpen={closeCanvasPopovers} onOverlayOpen={() => setActiveCanvasOverlay("view")} overlayActive={activeCanvasOverlay === null || activeCanvasOverlay === "view"} toolOverlayOpen={toolOverlay !== null} />
       <CanvasBottomChrome
         contextualAnchor={selectionAnchor}
         activeTool={activeTool}
-        contextualVisible={!isObjectManipulating && !contextMenuOpen && !viewModeEnabled}
+        contextualVisible={!isObjectManipulating && !isMarqueeSelecting && !contextMenuOpen && !viewModeEnabled}
+        mode={toolbarMode}
+        selectionKey={selectionKey}
+        interactionActive={contextualInteractionActive}
         contextual={(() => {
           const selectedCodeElement = overlayElements.find((element) => element.id === selectedElementId && !element.isDeleted);
           const selectedCodeBlock = readCanvasCodeBlock(selectedCodeElement);
@@ -1015,13 +1132,22 @@ export default function CanvasEditor({
           if (selectedElementCount === 1 && selectedNoteElement && selectedNoteReference) {
             if (editingNoteElementId === selectedNoteElement.id) return null;
             return <CanvasNoteActions
+              key={selectedNoteElement.id}
               folded={selectedNoteReference.compact === true}
               fixedHeight={selectedNoteReference.heightMode === "fixed"}
+              color={selectedNoteReference.color ?? "default"}
+              shape={selectedNoteReference.shape ?? "rounded"}
               onEdit={() => startNoteEditing(selectedNoteElement.id, null)}
               onToggleFold={() => toggleFoldNote(selectedNoteElement.id, selectedNoteReference)}
+              onColorChange={(color) => setNoteColor(selectedNoteElement.id, color)}
+              onShapeChange={(shape) => setNoteShape(selectedNoteElement.id, shape)}
+              onExpand={() => setExpandedNoteElementId(selectedNoteElement.id)}
+              onOpenInfo={() => setInfoNoteId(selectedNoteReference.noteId)}
+              onOpenNotePicker={onCreateNote ? () => setNotePickerOpen(true) : undefined}
               onFitContent={() => fitNoteContent(selectedNoteElement.id)}
               onPlaceLinked={() => { void placeLinkedNote(selectedNoteReference.noteId); }}
               onDuplicate={() => runCanvasAction("duplicateSelection")}
+              onTrash={() => setTrashNoteId(selectedNoteReference.noteId)}
               onDelete={() => runCanvasAction("deleteSelectedElements")}
             />;
           }
@@ -1057,6 +1183,7 @@ export default function CanvasEditor({
           onCoreToolSelect={closeCanvasPopovers}
           onInsertCodeBlock={insertCodeBlock}
           onInsertNote={() => { void insertNote(); }}
+          onOpenNotePicker={onCreateNote ? () => setNotePickerOpen(true) : undefined}
           onBackgroundChange={setCanvasBackground}
           onAction={runCanvasAction}
           diagramPanel={(
@@ -1101,6 +1228,12 @@ export default function CanvasEditor({
         </div>
       )}
       <Excalidraw initialData={initialData} onInitialize={onInitialize} onChange={changed} onLibraryChange={persistLibraryItems} theme={dark ? "dark" : "light"} autoFocus={false} handleKeyboardGlobally={false} validateEmbeddable={true} UIOptions={canvasUIOptions} />
+      <NotePickerPopover
+        open={notePickerOpen}
+        onOpenChange={setNotePickerOpen}
+        currentCanvasNoteIds={currentCanvasNoteIds}
+        onSelectNote={(noteId) => placeLinkedNote(noteId)}
+      />
     </div>
   );
 }

@@ -49,12 +49,13 @@ function CompactMenuTool({ api, tool, active, buttonRef, onClick }: { api: Excal
     </button>
   );
 }
-function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClose }: {
+function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onOpenNotePicker, onClose }: {
   open: boolean;
   anchorRef: { current: HTMLDivElement | null };
   api: ExcalidrawImperativeAPI | null;
   activeTool: AppState["activeTool"]["type"];
   onSelectTool: (type: ToolbarTool) => void;
+  onOpenNotePicker?: () => void;
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
@@ -82,7 +83,7 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClos
           exit={{ opacity: 0, scale: 0.98, x: -4 }}
           transition={motionTransition}
           id="canvas-more-tools-panel"
-          className="fixed z-[1000] w-[min(224px,calc(100vw-16px))] overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
+          className="fixed z-[1000] w-[min(224px,calc(100vw-16px))] overflow-hidden rounded-lg border border-line bg-surface text-ink [box-shadow:var(--shadow-float)]"
           style={{ top: position?.top ?? 8, left: position?.left ?? 8, visibility: "visible" }}
           role="dialog"
           aria-label="More canvas tools"
@@ -96,6 +97,19 @@ function MoreToolsPanel({ open, anchorRef, api, activeTool, onSelectTool, onClos
                   {group.tools.map((tool) => (
                     <CompactMenuTool key={tool.type} api={api} tool={tool} active={activeTool === tool.type} buttonRef={tool === groups[0]?.tools[0] ? firstToolRef : undefined} onClick={() => { onSelectTool(tool.type); onClose(); }} />
                   ))}
+                  {group.label === "Insert" && onOpenNotePicker && (
+                    <button
+                      type="button"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-md border border-transparent px-2 text-left text-[10px] text-ink/80 transition-colors hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+                      aria-label="Place existing Note"
+                      title="Place existing Note (Shift+N)"
+                      onClick={() => { onClose(); onOpenNotePicker(); }}
+                    >
+                      <span className="grid size-4 shrink-0 place-items-center [&_svg]:size-4"><StickyNote className="size-3.5" strokeWidth={1.5} /></span>
+                      <span className="min-w-0 flex-1 truncate">Place existing Note</span>
+                      <kbd className="text-[8px] text-muted">⇧N</kbd>
+                    </button>
+                  )}
                 </div>
               </MenuSection>
             ))}
@@ -119,11 +133,12 @@ export function CanvasToolRail(props: {
   onCoreToolSelect: () => void;
   onInsertCodeBlock: () => void;
   onInsertNote: () => void;
+  onOpenNotePicker?: () => void;
   onBackgroundChange: (color: string) => void;
   onAction: (name: CanvasActionName) => void;
   diagramPanel: ReactNode;
 }) {
-  const { api, activeTool, diagramAnchorRef, moreToolsAnchorRef, diagramOpen, moreOpen, onOverlayOpen, onDiagramToggle, onMoreToggle, onCoreToolSelect, onInsertCodeBlock, onInsertNote, diagramPanel } = props;
+  const { api, activeTool, diagramAnchorRef, moreToolsAnchorRef, diagramOpen, moreOpen, onOverlayOpen, onDiagramToggle, onMoreToggle, onCoreToolSelect, onInsertCodeBlock, onInsertNote, onOpenNotePicker, diagramPanel } = props;
   const availableTools = supportedTools(api);
   const activeSecondaryTool = secondaryTools.find(({ type }) => type === activeTool);
   const railRef = useRef<HTMLDivElement>(null);
@@ -170,7 +185,7 @@ export function CanvasToolRail(props: {
   }, [diagramOpen, onDiagramToggle]);
 
   return (
-    <motion.div ref={railRef} initial={{ opacity: 1, x: -3 }} animate={{ opacity: 1, x: 0 }} transition={motionTransition} className="pointer-events-auto relative flex flex-col items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
+    <motion.div ref={railRef} initial={{ opacity: 1, x: -3 }} animate={{ opacity: 1, x: 0 }} transition={motionTransition} className="pointer-events-auto relative flex flex-col items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 [box-shadow:var(--shadow-float)]" role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex min-h-0 flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primaryTools.filter(({ type }) => availableTools.has(type)).map((tool) => <ToolButton key={tool.type} toolType={tool.type} icon={<ToolGlyph api={api} tool={tool} />} label={tool.label} shortcut={tool.shortcut} active={activeTool === tool.type} onClick={() => selectTool(tool.type)} />)}
         <ToolButton icon={<Code2 className={controlGlyphClass} strokeWidth={1.5} />} label="Code block" onClick={() => { if (diagramOpen) onDiagramToggle(); onCoreToolSelect(); onInsertCodeBlock(); }} />
@@ -192,7 +207,7 @@ export function CanvasToolRail(props: {
           ariaControls="canvas-more-tools-panel"
           onClick={() => { if (!moreOpen) onOverlayOpen(); onMoreToggle(); }}
         />
-        <MoreToolsPanel open={moreOpen} anchorRef={moreToolsAnchorRef} api={api} activeTool={activeTool} onSelectTool={selectTool} onClose={() => { if (moreOpen) onMoreToggle(); }} />
+        <MoreToolsPanel open={moreOpen} anchorRef={moreToolsAnchorRef} api={api} activeTool={activeTool} onSelectTool={selectTool} onOpenNotePicker={onOpenNotePicker} onClose={() => { if (moreOpen) onMoreToggle(); }} />
       </div>
     </motion.div>
   );

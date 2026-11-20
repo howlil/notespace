@@ -58,7 +58,7 @@ test("filled destructive actions have readable foreground in both themes", () =>
   assert.match(read("apps/web/src/shared/ui/controls/button.tsx"), /text-\[var\(--danger-foreground\)\]/);
 });
 
-test("shared transient surfaces keep tokenized elevation while Workspace chrome stays flat", () => {
+test("shared transient surfaces keep tokenized elevation while Workspace chrome uses the lighter float token", () => {
   for (const path of [
     "apps/web/src/shared/ui/overlays/context-menu.tsx",
   ]) {
@@ -69,7 +69,7 @@ test("shared transient surfaces keep tokenized elevation while Workspace chrome 
     "apps/web/src/features/workspace-authoring/canvas/chrome/CanvasViewControls.tsx",
   ]) {
     const workspaceChrome = read(path);
-    assert.ok(workspaceChrome.includes("shadow-none"), path);
+    assert.ok(workspaceChrome.includes("[box-shadow:var(--shadow-float)]"), path);
     assert.ok(!workspaceChrome.includes("[box-shadow:var(--shadow-popup)]"), path);
   }
 });

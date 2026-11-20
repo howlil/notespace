@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { getNote } from "../../../../adapters/http/note-api";
+import { getNote, restoreTrashedNote, trashNote } from "../../../../adapters/http/note-api";
 import { createCanvasNoteStore, type CanvasNoteEntry, type CanvasNoteStore, type CanvasNoteStoreDeps, type CanvasNoteStoreSnapshot } from "./canvas-note-store";
 import { trackDetachedNoteFlush } from "./detached-note-flushes";
 
@@ -7,10 +7,12 @@ const CanvasNoteStoreContext = createContext<CanvasNoteStore | null>(null);
 export const CanvasNoteStoreProvider = CanvasNoteStoreContext.Provider;
 
 /** One store per mounted Canvas: a Canvas re-reads its referenced Notes on entry (DEC6). */
-export function useCanvasNoteStore(deps: Omit<CanvasNoteStoreDeps, "getNote">): CanvasNoteStore {
+export function useCanvasNoteStore(deps: Omit<CanvasNoteStoreDeps, "getNote" | "trashNote" | "restoreNote">): CanvasNoteStore {
   const latest = useLatest(deps);
   const [store] = useState(() => createCanvasNoteStore({
     getNote,
+    trashNote,
+    restoreNote: restoreTrashedNote,
     updateNote: (noteId, document, expectedRevision) => latest.current.updateNote(noteId, document, expectedRevision),
   }));
   // Leaving the Canvas must not drop a debounced draft; the session flush barrier normally ran already.

@@ -137,7 +137,7 @@ export function ColorSwatches({ colors, current, label, onChange }: {
           type="color"
           value={current && /^#[0-9a-f]{6}$/i.test(current) ? current : "#ffffff"}
           aria-label={`Custom ${label.toLowerCase()}`}
-          className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
+          className="size-5 cursor-pointer rounded-md border-0 bg-transparent p-0"
           onChange={(event) => onChange(event.target.value)}
         />
       </label>

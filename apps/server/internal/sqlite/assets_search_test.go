@@ -316,3 +316,84 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 		}
 	}
 }
+
+func TestIndexedSearchExcludesProseMirrorMetadataAndUUIDs(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-note-clean-search.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	workspace, err := workspacepkg.NewService(store).Create(ctx, "Clean Index Workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canvasData := json.RawMessage(`{"elements":[{"id":"el-clean","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-clean","instanceId":"inst-clean"}}}],"appState":{},"files":{}}`)
+	doc := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{"type":"heading","attrs":{"level":1,"blockId":"550e8400-e29b-41d4-a716-446655440000"},"content":[{"type":"text","text":"Quarterly Architecture Review"}]},
+			{"type":"paragraph","attrs":{"blockId":"660e8400-e29b-41d4-a716-446655440001"},"content":[
+				{"type":"text","text":"Ship "},
+				{"type":"text","text":"vector search","marks":[{"type":"link","attrs":{"href":"https://internal.example/hiddenpath"}}]}
+			]},
+			{"type":"noteCallout","attrs":{"tone":"warning","blockId":"770e8400-e29b-41d4-a716-446655440002"},"content":[
+				{"type":"paragraph","content":[{"type":"text","text":"Keep latency predictable"}]}
+			]},
+			{"type":"noteImage","attrs":{"src":"/api/workspaces/w1/assets/asset-secret","assetId":"asset-secret","alt":"Topology diagram"}}
+		]
+	}`)
+	if _, err := store.CreateNoteInstance(ctx, workspace.ID, note.CreateInstanceRequest{
+		ClientRequestID:       "req-clean",
+		ClientNoteID:          "note-clean",
+		ClientInstanceID:      "inst-clean",
+		ElementID:             "el-clean",
+		ExpectedCanvasVersion: workspace.CanvasVersion,
+		Document:              doc,
+		Canvas:                note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData},
+		X:                     0, Y: 0, Width: 320, Height: 180,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	indexed := workspacepkg.NewService(NewIndexedWorkspaceStore(store))
+	for _, noise := range []string{"paragraph", "doc", "noteCallout", "550e8400", "660e8400", "hiddenpath", "asset", "Canvas"} {
+		results, err := indexed.Search(ctx, noise)
+		if err != nil {
+			t.Fatalf("search(%q) error: %v", noise, err)
+		}
+		for _, r := range results {
+			if r.Type == "note" && r.NoteID == "note-clean" {
+				t.Fatalf("noise query %q falsely matched note: %#v", noise, r)
+			}
+		}
+	}
+
+	results, err := indexed.Search(ctx, "vector")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hit *workspacepkg.SearchResult
+	for i := range results {
+		if results[i].Type == "note" && results[i].NoteID == "note-clean" {
+			hit = &results[i]
+			break
+		}
+	}
+	if hit == nil {
+		t.Fatalf("expected note match for 'vector', got %#v", results)
+	}
+	wantExcerpt := "Quarterly Architecture Review\nShip vector search\nKeep latency predictable\nTopology diagram"
+	if hit.Excerpt != wantExcerpt {
+		t.Fatalf("Excerpt = %q, want %q", hit.Excerpt, wantExcerpt)
+	}
+
+	var storedNoteTitle string
+	if err := store.db.QueryRowContext(ctx, `SELECT note_title FROM workspace_search WHERE type='note' AND note_id='note-clean'`).Scan(&storedNoteTitle); err != nil {
+		t.Fatal(err)
+	}
+	if storedNoteTitle != "Quarterly Architecture Review" {
+		t.Fatalf("workspace_search.note_title = %q, want %q", storedNoteTitle, "Quarterly Architecture Review")
+	}
+}

@@ -11,6 +11,20 @@ type Handler struct{ notes *note.Service }
 
 func New(notes *note.Service) Handler { return Handler{notes: notes} }
 
+func (h Handler) List(w http.ResponseWriter, r *http.Request) {
+	query, err := transport.NoteListQuery(r)
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	items, err := h.notes.List(r.Context(), query)
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusOK, note.ListResult{Notes: items})
+}
+
 func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 	value, err := h.notes.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -18,6 +32,15 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transport.Send(w, http.StatusOK, value)
+}
+
+func (h Handler) Info(w http.ResponseWriter, r *http.Request) {
+	info, err := h.notes.GetInfo(r.Context(), r.PathValue("id"))
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusOK, info)
 }
 
 func (h Handler) Update(w http.ResponseWriter, r *http.Request) {

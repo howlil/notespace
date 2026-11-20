@@ -42,7 +42,7 @@ test("Workspace destructive actions and asset writes share the authoring boundar
 test("Existing Canvas controls remain border-only with native tools", () => {
   assert.match(canvas, /Canvas tools".*onPointerDown/);
   assert.match(canvas, /Canvas view controls".*onPointerDown/);
-  assert.match(canvas, /rounded-lg border border-line bg-surface p-1 shadow-none/);
+  assert.match(canvas, /rounded-lg border border-line bg-surface p-1 \[box-shadow:var\(--shadow-float\)\]/);
   assert.match(canvas, /notespace-canvas-tool-dock.*absolute top-1\/2 left-2/);
   assert.match(canvas, /data-anchored=\{anchored \? "true" : "false"\}/);
   assert.match(canvas, /notespace-canvas-contextual-chrome[^\n]*fixed z-\[100\]/);

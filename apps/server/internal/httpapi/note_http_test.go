@@ -155,6 +155,185 @@ func TestCanvasNoteCreateRollsBackOnUnknownWorkspace(t *testing.T) {
 	expect(t, call(t, api, http.MethodGet, "/api/notes/orphan-note", nil), http.StatusNotFound)
 }
 
+func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-http-contracts.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+
+	ws1 := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Primary Space"}))
+	ws2 := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Secondary Space"}))
+
+	// Create note-1 placed in ws1.
+	doc1 := json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":1,"blockId":"blk-h1"},"content":[{"type":"text","text":"HTTP Target Note"}]},{"type":"paragraph","content":[{"type":"text","text":"Detailed body text"}]}]}`)
+	res1 := call(t, api, http.MethodPost, "/api/workspaces/"+ws1.ID+"/note-instances", note.CreateInstanceRequest{
+		ClientRequestID: "http-req-1", ClientNoteID: "http-note-1", ClientInstanceID: "http-inst-1", ElementID: "http-el-1",
+		ExpectedCanvasVersion: ws1.CanvasVersion, Document: doc1,
+		Canvas: testNoteCanvas("http-el-1", "http-note-1", "http-inst-1", false),
+		X:      20, Y: 30, Width: 320, Height: 180,
+	})
+	expect(t, res1, http.StatusOK)
+
+	// Create note-2 in ws2 referencing note-1 via link + embed, plus self-link (must be excluded from note-2 info).
+	doc2 := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{"type":"paragraph","content":[
+				{"type":"text","text":"Linker Note "},
+				{"type":"text","text":"ref","marks":[{"type":"link","attrs":{"href":"/workspaces/` + ws1.ID + `?noteId=http-note-1&blockId=blk-h1"}}]},
+				{"type":"text","text":"self","marks":[{"type":"link","attrs":{"href":"/workspaces/` + ws2.ID + `?noteId=http-note-2"}}]}
+			]},
+			{"type":"noteEmbed","attrs":{"noteId":"http-note-1","workspaceId":"` + ws1.ID + `"}}
+		]
+	}`)
+	res2 := call(t, api, http.MethodPost, "/api/workspaces/"+ws2.ID+"/note-instances", note.CreateInstanceRequest{
+		ClientRequestID: "http-req-2", ClientNoteID: "http-note-2", ClientInstanceID: "http-inst-2", ElementID: "http-el-2",
+		ExpectedCanvasVersion: ws2.CanvasVersion, Document: doc2,
+		Canvas: testNoteCanvas("http-el-2", "http-note-2", "http-inst-2", false),
+		X:      20, Y: 30, Width: 320, Height: 180,
+	})
+	expect(t, res2, http.StatusOK)
+
+	// GET /api/notes returns both notes sorted by updated_at DESC.
+	listRes := call(t, api, http.MethodGet, "/api/notes", nil)
+	expect(t, listRes, http.StatusOK)
+	var listPayload note.ListResult
+	if err := json.Unmarshal(listRes.Body.Bytes(), &listPayload); err != nil {
+		t.Fatal(err)
+	}
+	if len(listPayload.Notes) != 2 || listPayload.Notes[0].ID != "http-note-2" || listPayload.Notes[1].ID != "http-note-1" {
+		t.Fatalf("GET /api/notes = %+v", listPayload)
+	}
+	if listPayload.Notes[1].Label != "HTTP Target Note" || listPayload.Notes[1].PlacementCount != 1 || len(listPayload.Notes[1].WorkspaceIDs) != 1 || listPayload.Notes[1].WorkspaceIDs[0] != ws1.ID || listPayload.Notes[1].IsEmpty {
+		t.Fatalf("unexpected note-1 summary: %+v", listPayload.Notes[1])
+	}
+
+	// Limit and query filtering.
+	limitRes := call(t, api, http.MethodGet, "/api/notes?limit=1", nil)
+	expect(t, limitRes, http.StatusOK)
+	var limitPayload note.ListResult
+	if err := json.Unmarshal(limitRes.Body.Bytes(), &limitPayload); err != nil {
+		t.Fatal(err)
+	}
+	if len(limitPayload.Notes) != 1 {
+		t.Fatalf("GET /api/notes?limit=1 len = %d, want 1", len(limitPayload.Notes))
+	}
+
+	queryRes := call(t, api, http.MethodGet, "/api/notes?q=detailed", nil)
+	expect(t, queryRes, http.StatusOK)
+	var queryPayload note.ListResult
+	if err := json.Unmarshal(queryRes.Body.Bytes(), &queryPayload); err != nil {
+		t.Fatal(err)
+	}
+	if len(queryPayload.Notes) != 1 || queryPayload.Notes[0].ID != "http-note-1" {
+		t.Fatalf("GET /api/notes?q=detailed = %+v", queryPayload)
+	}
+
+	// Noise query must return empty list.
+	noiseRes := call(t, api, http.MethodGet, "/api/notes?q=paragraph", nil)
+	expect(t, noiseRes, http.StatusOK)
+	if strings.TrimSpace(noiseRes.Body.String()) != `{"notes":[]}` {
+		t.Fatalf("noise query body = %s, want {\"notes\":[]}", noiseRes.Body.String())
+	}
+
+	// Validation errors on query params.
+	for _, bad := range []string{"?limit=0", "?limit=101", "?limit=abc", "?unplaced=maybe"} {
+		expect(t, call(t, api, http.MethodGet, "/api/notes"+bad, nil), http.StatusBadRequest)
+	}
+
+	// GET /api/notes/{id}/info for note-1.
+	infoRes := call(t, api, http.MethodGet, "/api/notes/http-note-1/info", nil)
+	expect(t, infoRes, http.StatusOK)
+	var info note.Info
+	if err := json.Unmarshal(infoRes.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if info.NoteID != "http-note-1" || len(info.Placements) != 1 || info.Placements[0].WorkspaceTitle != "Primary Space" || info.Placements[0].ElementID != "http-el-1" {
+		t.Fatalf("note-1 info placements = %+v", info)
+	}
+	if len(info.Backlinks) != 2 {
+		t.Fatalf("note-1 backlinks = %+v, want 2 (link + embed)", info.Backlinks)
+	}
+	for _, bl := range info.Backlinks {
+		if bl.NoteID != "http-note-2" || bl.WorkspaceID != ws2.ID || bl.WorkspaceTitle != "Secondary Space" {
+			t.Fatalf("unexpected backlink entry: %+v", bl)
+		}
+	}
+
+	// Self-link is not included in note-2's backlinks; empty slices serialize as [].
+	info2Res := call(t, api, http.MethodGet, "/api/notes/http-note-2/info", nil)
+	expect(t, info2Res, http.StatusOK)
+	if !strings.Contains(info2Res.Body.String(), `"backlinks":[]`) {
+		t.Fatalf("note-2 info should serialize empty backlinks array: %s", info2Res.Body.String())
+	}
+
+	// Trash ws2 -> note-2 becomes unplaced and appears in ?unplaced=true, and note-1 backlink workspace clears.
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+ws2.ID), http.StatusNoContent)
+	unplacedRes := call(t, api, http.MethodGet, "/api/notes?unplaced=true", nil)
+	expect(t, unplacedRes, http.StatusOK)
+	if !strings.Contains(unplacedRes.Body.String(), `"id":"http-note-2"`) || !strings.Contains(unplacedRes.Body.String(), `"workspaceIds":[]`) {
+		t.Fatalf("unplaced after trash = %s", unplacedRes.Body.String())
+	}
+
+	infoAfterTrashRes := call(t, api, http.MethodGet, "/api/notes/http-note-1/info", nil)
+	expect(t, infoAfterTrashRes, http.StatusOK)
+	var infoAfterTrash note.Info
+	if err := json.Unmarshal(infoAfterTrashRes.Body.Bytes(), &infoAfterTrash); err != nil {
+		t.Fatal(err)
+	}
+	if len(infoAfterTrash.Backlinks) != 2 || infoAfterTrash.Backlinks[0].WorkspaceID != "" || infoAfterTrash.Backlinks[0].WorkspaceTitle != "" {
+		t.Fatalf("backlinks after workspace trash = %+v", infoAfterTrash.Backlinks)
+	}
+
+	// 404 for unknown note info.
+	expect(t, call(t, api, http.MethodGet, "/api/notes/unknown-note/info", nil), http.StatusNotFound)
+}
+
+func TestUpdateNoteValidatesSlice4ExtensionsOverHTTP(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "note-http-slice4.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := newAPI(store)
+
+	ws := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Slice 4"}))
+	createRes := call(t, api, http.MethodPost, "/api/workspaces/"+ws.ID+"/note-instances", note.CreateInstanceRequest{
+		ClientRequestID: "s4-req-1", ClientNoteID: "s4-note-1", ClientInstanceID: "s4-inst-1", ElementID: "s4-el-1",
+		ExpectedCanvasVersion: ws.CanvasVersion, Document: json.RawMessage(`{"type":"doc","content":[]}`),
+		Canvas: testNoteCanvas("s4-el-1", "s4-note-1", "s4-inst-1", false),
+		X:      20, Y: 30, Width: 320, Height: 180,
+	})
+	expect(t, createRes, http.StatusOK)
+
+	validDoc := json.RawMessage(`{
+		"type":"doc",
+		"content":[{
+			"type":"noteToggle",
+			"attrs":{"open":true,"blockId":"toggle-blk-1"},
+			"content":[
+				{"type":"noteToggleSummary","content":[{"type":"text","text":"Details"}]},
+				{"type":"paragraph","content":[
+					{"type":"text","text":"Important","marks":[{"type":"noteHighlight","attrs":{"tone":"blue"}},{"type":"noteTextColor","attrs":{"tone":"purple"}}]}
+				]}
+			]
+		}]
+	}`)
+	expect(t, call(t, api, http.MethodPut, "/api/notes/s4-note-1", note.UpdateRequest{Document: validDoc, ExpectedRevision: 1}), http.StatusOK)
+
+	for _, badDoc := range []string{
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":"yes"}}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight","attrs":{"tone":"neon"}}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor","attrs":{"tone":"gold"}}]}]}]}`,
+	} {
+		expect(t, call(t, api, http.MethodPut, "/api/notes/s4-note-1", note.UpdateRequest{Document: json.RawMessage(badDoc), ExpectedRevision: 2}), http.StatusBadRequest)
+	}
+}
+
 func testNoteCanvas(elementID, noteID, instanceID string, deleted bool) note.CanvasSnapshot {
 	data, _ := json.Marshal(map[string]any{
 		"elements": []any{map[string]any{

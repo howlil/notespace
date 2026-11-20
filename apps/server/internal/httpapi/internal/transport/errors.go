@@ -28,6 +28,8 @@ func Fail(w http.ResponseWriter, err error) {
 		Send(w, http.StatusConflict, map[string]string{"error": "This note or Canvas changed in another session. Your draft remains available for recovery.", "code": "note_conflict"})
 	case errors.Is(err, note.ErrNotEmpty):
 		Send(w, http.StatusConflict, map[string]string{"error": "This Note has content and cannot be deleted here.", "code": "note_not_empty"})
+	case errors.Is(err, note.ErrNoteTrashed):
+		Send(w, http.StatusConflict, map[string]string{"error": "This Note is in Trash. Restore it to edit or place it.", "code": "note_trashed"})
 	case errors.Is(err, note.ErrNoteInUse):
 		Send(w, http.StatusConflict, map[string]string{"error": "This Note is still placed on a Canvas.", "code": "note_in_use"})
 	case errors.Is(err, asset.ErrWorkspaceNotFound):

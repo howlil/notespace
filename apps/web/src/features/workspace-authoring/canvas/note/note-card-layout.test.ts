@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  NOTE_CARD_FOLDED_HEIGHT,
   NOTE_CARD_LABEL_ZOOM,
   NOTE_CARD_MAX_AUTO_HEIGHT,
   NOTE_CARD_MIN_HEIGHT,
@@ -9,7 +10,6 @@ import {
   noteCardDetail,
   noteCardFrame,
   noteCardLabelFontSize,
-  noteCardUiScale,
   shouldSwitchNoteToFixedHeight,
 } from "./note-card-layout.ts";
 
@@ -27,9 +27,12 @@ test("card frame keeps Canvas-unit size and scales as one surface at any zoom", 
   }
 });
 
-test("folded cards follow their first line instead of the instance height, and rotation turns around the center", () => {
-  const collapsed = noteCardFrame(element, { zoom: 1, scrollX: 0, scrollY: 0 }, true);
-  assert.equal(collapsed.minHeight, 0);
+test("folded cards align tightly with the 48px folded bar, and rotation turns around the center", () => {
+  assert.equal(NOTE_CARD_FOLDED_HEIGHT, 48);
+  const collapsed = noteCardFrame({ ...element, height: NOTE_CARD_FOLDED_HEIGHT }, { zoom: 1, scrollX: 0, scrollY: 0 }, true);
+  assert.equal(collapsed.minHeight, NOTE_CARD_FOLDED_HEIGHT);
+  assert.equal(collapsed.height, NOTE_CARD_FOLDED_HEIGHT);
+  assert.ok(noteCardLabelFontSize(0.01, true) <= 24, "folded bar label stays inside 48px even at low zoom");
   const rotated = noteCardFrame({ ...element, angle: Math.PI / 2 }, { zoom: 2, scrollX: 0, scrollY: 0 }, false);
   assert.equal(rotated.transform, `scale(2) translate(160px, 100px) rotate(${Math.PI / 2}rad) translate(-160px, -100px)`);
 });
@@ -44,9 +47,7 @@ test("zoomed-out cards show a readable label while editing always keeps content"
   assert.equal(noteCardLabelFontSize(0.01), 48);
 });
 
-test("contextual UI counter-scales and invalid zoom falls back to identity", () => {
-  assert.equal(noteCardUiScale(0.5), 2);
-  assert.equal(noteCardUiScale(0), 1);
+test("invalid zoom falls back to identity so the card and its popups stay unscaled", () => {
   assert.equal(noteCardFrame(element, { zoom: Number.NaN, scrollX: 0, scrollY: 0 }, false).transform, "scale(1)");
 });
 

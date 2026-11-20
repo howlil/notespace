@@ -68,10 +68,10 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
     <ToastGlyph kind={kind} />
     <div className="min-w-0 flex-1">
       <p className="m-0 break-words text-xs font-semibold leading-[1.5]">{toast.message}</p>
-      {toast.description && <p className="m-0 mt-0.5 break-words text-[11px] leading-[1.55] text-muted">{toast.description}</p>}
+      {toast.description && <p className="m-0 mt-0.5 break-words text-[12px] leading-[1.55] text-muted">{toast.description}</p>}
       {toast.action && <Button
         type="button" variant="ghost" size="sm"
-        className="mt-1.5 min-h-7 border border-line px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-tint"
+        className="mt-1.5 min-h-7 border border-line px-2.5 py-1 text-[12px] font-semibold text-ink hover:bg-tint"
         onClick={(event) => {
           const action = toast.action;
           // Keyboard focus remains inside the notification after Retry morphs to Loading.
@@ -173,7 +173,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
       }}>
       {toasts.length > 1 && <button type="button"
-        className="mb-2 ml-auto block rounded-md bg-surface px-2 py-1 text-[11px] font-medium text-muted shadow-sm hover:text-ink focus-visible:text-accent"
+        className="mb-2 ml-auto block rounded-md bg-surface px-2 py-1 text-[12px] font-medium text-muted shadow-sm hover:text-ink focus-visible:text-accent"
         aria-expanded={expanded}
         aria-label={expanded ? "Collapse notifications" : `Expand ${toasts.length} notifications`}
         onClick={() => setExpandedByClick((open) => !open)}>

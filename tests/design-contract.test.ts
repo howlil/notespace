@@ -129,7 +129,7 @@ test("frontend styling contract: global, authoring, and desktop chrome CSS have 
 
 test("frontend styling contract: globals owns tokens and document defaults, not feature selectors", () => {
   const globals = source(GLOBALS);
-  assert.match(globals, /--sidebar:\s*#fff/i); assert.match(globals, /--accent:\s*#2858d8/i); assert.match(globals, /--tint:\s*#eaf0ff/i); assert.match(globals, /--accent:\s*#91b1ff/i); assert.match(globals, /--tint:\s*#223254/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
+  assert.match(globals, /--sidebar:\s*#f0f0ec/i); assert.match(globals, /--accent:\s*#2858d8/i); assert.match(globals, /--tint:\s*#eaf0ff/i); assert.match(globals, /--accent:\s*#91b1ff/i); assert.match(globals, /--tint:\s*#223254/i); assert.match(globals, /@layer base/); assert.match(globals, /prefers-reduced-motion/);
   for (const selector of [/\.sidebar\b/, /\.dashboard\b/, /\.tiptap\b/, /\.pane-resizer\b/, /\.toast-viewport\b/, /\.workspace-main\b/]) assert.doesNotMatch(globals, selector, `feature selector ${selector} leaked into globals.css`);
 });
 
@@ -364,7 +364,7 @@ test("canvas contract: tool, contextual, and viewport chrome have distinct owner
   assert.match(diagram, /AnimatePresence/);
   assert.match(diagram, /motion\.aside/);
   assert.match(diagram, /height: "auto"/);
-  assert.match(diagram, /shadow-none/);
+  assert.match(diagram, /shadow-float/);
 });
 
 test("frontend contract: repeated page controls reuse shared UI primitives", () => {
@@ -379,7 +379,7 @@ test("frontend contract: repeated page controls reuse shared UI primitives", () 
   assert.match(desktopUpdate, /\[box-shadow:var\(--shadow-popup\)\]/); assert.doesNotMatch(desktopUpdate, /<button/);
   assert.match(codeBlockLayer, /aria-label="Code output"/);
   assert.match(source(CANVAS_CODE_BLOCK_ACTIONS), /focus-visible:outline-2/);
-   assert.match(source(PAGE_SHELL), /Hide Explorer|Show Explorer/); assert.match(source(PAGE_SHELL), /NotespaceLogo/); assert.match(source(PAGE_SHELL), /aria-label="Search Notespace"/); assert.match(source(PAGE_SHELL), /PanelLeftOpen/); assert.match(source(PAGE_SHELL), /PanelLeftClose/); assert.match(source(PAGE_SHELL), /aria-label="Notespace home"/); assert.match(source(PAGE_SHELL), /<SettingsTrigger[\s\S]*showLabel/); assert.doesNotMatch(source(SIDEBAR), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-accent/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
+   assert.match(source(PAGE_SHELL), /Hide Explorer|Show Explorer/); assert.match(source(PAGE_SHELL), /NotespaceLogo/); assert.match(source(PAGE_SHELL), /aria-label="Search Notespace"/); assert.match(source(PAGE_SHELL), /PanelLeftOpen/); assert.match(source(PAGE_SHELL), /PanelLeftClose/); assert.match(source(PAGE_SHELL), /aria-label="Notespace home"/); assert.match(source(PAGE_SHELL), /<SettingsTrigger[\s\S]*showLabel/); assert.doesNotMatch(source(SIDEBAR), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /OPEN_QUICK_SEARCH_EVENT/); assert.match(source(QUICK_OPEN), /event\.metaKey \|\| event\.ctrlKey/); assert.doesNotMatch(source(DASHBOARD), /ActivityDashboard|afterList/); assert.match(source(WORKSPACE_LIBRARY), /aspect-square/); assert.match(source(WORKSPACE_LIBRARY), /article className="[^"]*bg-tint/); assert.match(source(WORKSPACE_LIBRARY), /bg-surface\/75 backdrop-blur-lg/); assert.doesNotMatch(source(WORKSPACE_LIBRARY), /bg-tint\/95|Updated recently|<h2 className="m-0 text-xs font-semibold text-ink">Workspaces<\/h2>/);
   assert.doesNotMatch(source(WORKSPACE_LIBRARY), /aria-label="Library views"/);
   assert.match(source(WORKSPACE_LIBRARY), /<ContextMenu>/); assert.match(source(WORKSPACE_LIBRARY), /Edit title/); assert.match(source(WORKSPACE_LIBRARY_MODEL), /deleteWorkspace/); assert.match(source(WORKSPACE_LIBRARY), /<ConfirmDialog/);
   assert.match(source(SKELETON), /animate-soft-pulse/); assert.match(source(WORKSPACE_LIST_SKELETON), /Loading workspaces/);
@@ -456,7 +456,7 @@ test("Canvas-only Workspace removes the retired Note authoring surface", () => {
   assert.match(workspace, /registerDesktopFlush\(flushAll\)/);
   assert.match(workspace, /await flushAll\(\)/);
   assert.doesNotMatch(workspace, /DocumentEditor|selectedNote|onOpenNote|createWorkspaceNote|deleteWorkspaceNote/);
-  assert.doesNotMatch(canvas, /CanvasNoteArtifact|NotePicker|noteOpen|onOpenNote/);
+  assert.doesNotMatch(canvas, /CanvasNoteArtifact|\bNotePicker\b|noteOpen|\bonOpenNote\b/);
   assert.doesNotMatch(workspace, /splitPane|resizeSplit|WorkspaceViewSwitcher|useWorkspacePaneLayout/);
   assert.doesNotMatch(workspacePage, /WorkspaceRail|ActivityIndicator|Focus mode/);
   assert.doesNotMatch(source(ROOT_ROUTE), /<ActivityDock/);

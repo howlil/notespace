@@ -47,6 +47,39 @@ func (a Handler) DeleteTrash(w http.ResponseWriter, r *http.Request) {
 	transport.Send(w, http.StatusNoContent, nil)
 }
 
+func (a Handler) TrashNote(w http.ResponseWriter, r *http.Request) {
+	if err := a.library.TrashNote(r.Context(), r.PathValue("id")); err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusNoContent, nil)
+}
+
+func (a Handler) ListTrashedNotes(w http.ResponseWriter, r *http.Request) {
+	items, err := a.library.ListTrashedNotes(r.Context())
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusOK, items)
+}
+
+func (a Handler) RestoreNote(w http.ResponseWriter, r *http.Request) {
+	if err := a.library.RestoreNote(r.Context(), r.PathValue("id")); err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusNoContent, nil)
+}
+
+func (a Handler) DeleteTrashedNote(w http.ResponseWriter, r *http.Request) {
+	if err := a.library.DeleteTrashedNote(r.Context(), r.PathValue("id")); err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusNoContent, nil)
+}
+
 func (a Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	data, err := a.library.ExportBackup(r.Context())
 	if err != nil {

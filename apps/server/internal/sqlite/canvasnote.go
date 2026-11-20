@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/note"
 	canvasnotequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/canvasnote"
 	searchquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/search"
@@ -16,6 +17,38 @@ import (
 
 func (s *Store) GetNote(ctx context.Context, id string) (note.Note, error) {
 	return canvasnotequery.GetNote(ctx, s.db, id)
+}
+
+func (s *Store) ListNotes(ctx context.Context, query note.ListQuery) ([]note.Summary, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	items, err := canvasnotequery.ListNotesTx(ctx, tx, query)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *Store) GetNoteInfo(ctx context.Context, id string) (note.Info, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return note.Info{}, err
+	}
+	defer tx.Rollback()
+	info, err := canvasnotequery.GetNoteInfoTx(ctx, tx, id)
+	if err != nil {
+		return note.Info{}, err
+	}
+	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+		return note.Info{}, err
+	}
+	return info, nil
 }
 
 func (s *Store) UpdateNote(ctx context.Context, id string, request note.UpdateRequest) (note.Note, error) {
@@ -66,6 +99,9 @@ func (s *Store) CreateNoteInstance(ctx context.Context, workspaceID string, requ
 		canonical, err = canvasnotequery.GetNote(ctx, tx, request.ExistingNoteID)
 		if err != nil {
 			return note.CreateInstanceResult{}, err
+		}
+		if canonical.DeletedAt != "" {
+			return note.CreateInstanceResult{}, note.ErrNoteTrashed
 		}
 	}
 
@@ -151,6 +187,66 @@ func (s *Store) DeleteEmptyNote(ctx context.Context, id string) error {
 		}
 	}
 	if err := canvasnotequery.DeleteNoteTx(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// TrashNote moves a Note to Trash regardless of content or placement. Instance
+// rows stay, so Restore returns it to every Canvas that placed it.
+func (s *Store) TrashNote(ctx context.Context, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := canvasnotequery.TrashNoteTx(ctx, tx, id, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ListTrashedNotes(ctx context.Context) ([]library.TrashedNote, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	rows, err := canvasnotequery.ListTrashedNotesTx(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]library.TrashedNote, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, library.TrashedNote{ID: row.ID, Label: row.Label, Excerpt: row.Excerpt, DeletedAt: row.DeletedAt, PlacementCount: row.PlacementCount})
+	}
+	return items, nil
+}
+
+// RestoreTrashedNote clears the Trash marker and invalidates the search
+// projection so the Note is indexed again on the next search.
+func (s *Store) RestoreTrashedNote(ctx context.Context, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := canvasnotequery.RestoreNoteTx(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := searchquery.InvalidateNoteTx(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) DeleteTrashedNote(ctx context.Context, id string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := canvasnotequery.DeleteTrashedNoteTx(ctx, tx, id); err != nil {
 		return err
 	}
 	return tx.Commit()

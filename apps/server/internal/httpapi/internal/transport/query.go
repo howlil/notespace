@@ -3,7 +3,9 @@ package transport
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
@@ -57,5 +59,21 @@ func WorkspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuer
 		Offset:     offset,
 		Limit:      limit,
 		Snapshot:   r.URL.Query().Get("snapshot"),
+	}, nil
+}
+
+func NoteListQuery(r *http.Request) (note.ListQuery, error) {
+	unplaced, err := parseBoolQuery(r, "unplaced")
+	if err != nil {
+		return note.ListQuery{}, note.ErrInvalid
+	}
+	limit, err := parseIntQuery(r, "limit", note.DefaultListLimit)
+	if err != nil || limit < 1 || limit > note.MaxListLimit {
+		return note.ListQuery{}, note.ErrInvalid
+	}
+	return note.ListQuery{
+		Query:    strings.TrimSpace(r.URL.Query().Get("q")),
+		Unplaced: unplaced,
+		Limit:    limit,
 	}, nil
 }

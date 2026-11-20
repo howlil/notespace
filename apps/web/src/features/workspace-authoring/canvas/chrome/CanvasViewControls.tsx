@@ -10,16 +10,17 @@ import { nativeActionIcon } from "../native/CanvasNativeActions";
 import { NativeDotsHorizontalIcon, NativeLibraryIcon } from "../native/CanvasNativeIcons";
 import type { CanvasActionName } from "../native/CanvasToolbar";
 import { MenuAction, MenuSection, motionTransition } from "./CanvasChromeMenu";
+import { CONTEXTUAL_TOOLBAR_MODES, type ContextualToolbarMode } from "./contextual-toolbar-policy";
 const canvasBackgroundOptions = [
   { label: "Snow", color: "#ffffff" },
-  { label: "Canvas", color: "#f8f9fc" },
+  { label: "Canvas", color: "#fafaf8" },
   { label: "Mist", color: "#f1f2f6" },
   { label: "Sky", color: "#e8eef6" },
   { label: "Lemon", color: "#fff8e7" },
   { label: "Mint", color: "#eef8f1" },
   { label: "Blush", color: "#fceff1" },
   { label: "Lavender", color: "#f1edff" },
-  { label: "Ink", color: "#1d1e24" },
+  { label: "Ink", color: "#191a1f" },
   { label: "Slate", color: "#24262d" },
 ] as const;
 function BackgroundPalette({ backgroundColor, onBackgroundChange }: { backgroundColor: string; onBackgroundChange: (color: string) => void }) {
@@ -27,12 +28,12 @@ function BackgroundPalette({ backgroundColor, onBackgroundChange }: { background
     <div className="grid gap-2 p-2">
       <div className="grid grid-cols-5 gap-1" role="group" aria-label="Canvas background colors">
         {canvasBackgroundOptions.map(({ label, color }) => (
-          <button key={color} type="button" className={cn("size-7 rounded border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} aria-pressed={backgroundColor.toLowerCase() === color} onClick={() => onBackgroundChange(color)} />
+          <button key={color} type="button" className={cn("size-7 rounded-md border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} aria-pressed={backgroundColor.toLowerCase() === color} onClick={() => onBackgroundChange(color)} />
         ))}
       </div>
       <label className="flex items-center gap-2 border-t border-line pt-2 text-[9px] text-muted">
         <span className="min-w-0 flex-1">Custom color</span>
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Custom canvas background" className="size-6 cursor-pointer rounded border border-line bg-transparent p-0.5" onChange={(event) => onBackgroundChange(event.target.value)} />
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(backgroundColor) ? backgroundColor : "#ffffff"} aria-label="Custom canvas background" className="size-6 cursor-pointer rounded-md border border-line bg-transparent p-0.5" onChange={(event) => onBackgroundChange(event.target.value)} />
       </label>
     </div>
   );
@@ -48,13 +49,15 @@ function CanvasIconAction({ api, nativeAction, label, icon, onClick }: { api: Ex
   return <IconButton type="button" variant="ghost" className="!size-7 text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label={label} title={label} onClick={onClick}><span className="grid place-items-center [&_svg]:size-4">{nativeIcon ?? icon}</span></IconButton>;
 }
 
-function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnabled, objectsSnapModeEnabled, libraryOpen, onBackgroundChange, onToggleLibrary, onAction, onClose }: {
+function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnabled, objectsSnapModeEnabled, toolbarMode, libraryOpen, onToolbarModeChange, onBackgroundChange, onToggleLibrary, onAction, onClose }: {
   api: ExcalidrawImperativeAPI | null;
   anchorRef: { current: HTMLDivElement | null };
   open: boolean;
   backgroundColor: string;
   gridModeEnabled: boolean;
   objectsSnapModeEnabled: boolean;
+  toolbarMode: ContextualToolbarMode;
+  onToolbarModeChange: (mode: ContextualToolbarMode) => void;
   libraryOpen: boolean;
   onBackgroundChange: (color: string) => void;
   onToggleLibrary: () => void;
@@ -77,7 +80,7 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
           exit={{ opacity: 0, scale: 0.985, y: -3 }}
           transition={motionTransition}
           id="canvas-command-menu"
-          className="fixed z-[1000] grid max-h-[min(72dvh,520px)] w-[min(244px,calc(100vw-16px))] gap-2 overflow-y-auto rounded-lg border border-line bg-surface p-2 text-ink shadow-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0"
+          className="fixed z-[1000] grid max-h-[min(72dvh,520px)] w-[min(244px,calc(100vw-16px))] gap-2 overflow-y-auto rounded-lg border border-line bg-surface p-2 text-ink [box-shadow:var(--shadow-float)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0"
           style={{ top: position?.top ?? 8, left: position?.left ?? 8, visibility: position ? "visible" : "hidden" }}
           role="dialog"
           aria-label="Canvas options"
@@ -88,6 +91,16 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
             <ViewMenuAction api={api} name="gridMode" label="Grid" active={gridModeEnabled} onClick={() => onAction("gridMode")} />
             <ViewMenuAction api={api} name="objectsSnapMode" label="Object snapping" active={objectsSnapModeEnabled} onClick={() => onAction("objectsSnapMode")} />
             <button type="button" className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10px] text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", libraryOpen && "bg-tint text-accent")} aria-pressed={libraryOpen} onClick={() => { onToggleLibrary(); onClose(); }}><NativeLibraryIcon className="size-4" /><span>Library</span></button>
+          </MenuSection>
+          <MenuSection label="Selection toolbar">
+            <div className="grid gap-0.5" role="group" aria-label="Selection toolbar style">
+              {CONTEXTUAL_TOOLBAR_MODES.map(({ mode, label, description }) => (
+                <button key={mode} type="button" className={cn("flex min-h-8 w-full flex-col justify-center rounded-md px-2 text-left text-ink hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent", toolbarMode === mode && "bg-tint text-accent")} aria-pressed={toolbarMode === mode} onClick={() => onToolbarModeChange(mode)}>
+                  <span className="text-[10px]">{label}</span>
+                  <span className="text-[9px] text-muted">{description}</span>
+                </button>
+              ))}
+            </div>
           </MenuSection>
           <MenuSection label="Canvas">
             <div className="grid gap-1 rounded-md border border-line p-1">
@@ -113,10 +126,12 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
     </AnimatePresence>
   ), document.body);
 }
-export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen }: {
+export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, toolbarMode, onToolbarModeChange, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen }: {
   api: ExcalidrawImperativeAPI | null;
   gridModeEnabled: boolean;
   objectsSnapModeEnabled: boolean;
+  toolbarMode: ContextualToolbarMode;
+  onToolbarModeChange: (mode: ContextualToolbarMode) => void;
   onAction: (name: CanvasActionName) => void;
   onToolOverlayOpen: () => void;
   onOverlayOpen?: () => void;
@@ -163,7 +178,7 @@ export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnable
   };
 
   return (
-    <motion.aside initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto absolute top-2 right-2 z-20 flex max-w-[calc(100vw-16px)] flex-row items-center gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-none" role="toolbar" aria-label="Canvas view controls" aria-orientation="horizontal" onPointerDown={(event) => event.stopPropagation()}>
+    <motion.aside initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={motionTransition} className="pointer-events-auto absolute top-2 right-2 z-20 flex max-w-[calc(100vw-16px)] flex-row items-center gap-0.5 rounded-lg border border-line bg-surface p-1 [box-shadow:var(--shadow-float)]" role="toolbar" aria-label="Canvas view controls" aria-orientation="horizontal" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex items-center gap-px" role="group" aria-label="Canvas zoom controls">
         <CanvasIconAction api={api} nativeAction="zoomToFit" label="Fit canvas" icon={<Maximize />} onClick={() => runQuickAction("zoomToFit")} />
         <CanvasIconAction api={api} nativeAction="resetZoom" label="Reset zoom" icon={<RotateCcw />} onClick={() => runQuickAction("resetZoom")} />
@@ -179,7 +194,7 @@ export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnable
       <span className="mx-0.5 h-4 w-px bg-line" aria-hidden="true" />
       <div ref={commandMenuRef} className="relative">
         <IconButton id="canvas-options-trigger" type="button" variant="ghost" className={cn("!size-8 text-ink/70 hover:bg-tint hover:text-accent", commandMenuOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="More canvas actions" aria-haspopup="dialog" aria-expanded={commandMenuOpen} aria-controls="canvas-command-menu" title="Canvas options" onClick={() => { if (!commandMenuOpen) { onToolOverlayOpen(); onOverlayOpen?.(); } setCommandMenuOpen((open) => !open); }}><NativeDotsHorizontalIcon className="size-5" /></IconButton>
-        <CanvasCommandMenu api={api} anchorRef={commandMenuRef} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={closeCommandMenu} />
+        <CanvasCommandMenu api={api} anchorRef={commandMenuRef} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} toolbarMode={toolbarMode} onToolbarModeChange={onToolbarModeChange} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={closeCommandMenu} />
       </div>
     </motion.aside>
   );

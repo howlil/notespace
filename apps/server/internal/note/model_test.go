@@ -3,7 +3,10 @@ package note
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestValidateDocumentRejectsUnsafeLinks(t *testing.T) {
@@ -64,6 +67,8 @@ func TestIsEmptyDocumentOnlyAcceptsBlankParagraphs(t *testing.T) {
 		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"kept"}]}]}`,
 		`{"type":"doc","content":[{"type":"heading","attrs":{"level":1}}]}`,
 		`{"type":"doc","content":[{"type":"noteImage","attrs":{"assetId":"image-1"}}]}`,
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":true},"content":[{"type":"noteToggleSummary"},{"type":"paragraph"}]}]}`,
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":false}}]}`,
 		`{"type":"paragraph","content":[]}`,
 		`not json`,
 	} {
@@ -99,28 +104,178 @@ func TestExtractCanvasPlacementsReadsActivePlacementsAndRejectsMalformedJSON(t *
 }
 
 func TestExtractSearchTextCollectsProseMirrorText(t *testing.T) {
-	doc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"First line"}]},{"type":"paragraph","content":[{"type":"text","text":"Second line"}]}]}`)
+	doc := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{"type":"paragraph"},
+			{"type":"heading","attrs":{"level":1,"blockId":"550e8400-e29b-41d4-a716-446655440000"},"content":[{"type":"text","text":"  First   line "}]},
+			{"type":"paragraph","attrs":{"blockId":"660e8400-e29b-41d4-a716-446655440001"},"content":[
+				{"type":"text","text":"Second "},
+				{"type":"text","text":"linked","marks":[{"type":"link","attrs":{"href":"https://secret.example/hidden-url"}},{"type":"noteHighlight","attrs":{"tone":"yellow"}}]},
+				{"type":"text","text":"   line"}
+			]},
+			{"type":"noteCallout","attrs":{"tone":"warning","blockId":"770e8400-e29b-41d4-a716-446655440002"},"content":[
+				{"type":"paragraph","content":[{"type":"text","text":"Callout body"}]}
+			]},
+			{"type":"noteToggle","attrs":{"open":false,"blockId":"880e8400-e29b-41d4-a716-446655440003"},"content":[
+				{"type":"noteToggleSummary","content":[{"type":"text","text":"Toggle title"}]},
+				{"type":"paragraph","content":[{"type":"text","text":"Toggle details"}]}
+			]},
+			{"type":"noteImage","attrs":{"src":"/api/workspaces/ws-1/assets/asset-99","assetId":"asset-99","alt":"System   diagram"}},
+			{"type":"noteImage","attrs":{"src":"/api/workspaces/ws-1/assets/asset-empty","assetId":"asset-empty","alt":"   "}},
+			{"type":"noteEmbed","attrs":{"noteId":"embed-target","workspaceId":"ws-1","label":"Leaked embed label"}},
+			{"type":"noteBlockReference","attrs":{"noteId":"ref-target","workspaceId":"ws-1","blockId":"ref-block-uuid"}}
+		]
+	}`)
 	got := ExtractSearchText(doc)
-	if got == "" || !containsAll(got, "First line", "Second line") {
-		t.Fatalf("search text = %q", got)
+	want := strings.Join([]string{
+		"First line",
+		"Second linked line",
+		"Callout body",
+		"Toggle title",
+		"Toggle details",
+		"System diagram",
+	}, "\n")
+	if got != want {
+		t.Fatalf("ExtractSearchText =\n%q\nwant:\n%q", got, want)
+	}
+	for _, forbidden := range []string{
+		"doc", "paragraph", "heading", "text", "noteCallout", "warning",
+		"noteToggle", "noteToggleSummary", "noteImage", "noteEmbed", "noteBlockReference",
+		"noteHighlight", "yellow", "550e8400", "660e8400", "770e8400", "880e8400",
+		"secret.example", "hidden-url", "/api/workspaces", "asset-99",
+		"embed-target", "Leaked embed label", "ref-target", "ref-block-uuid",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("ExtractSearchText leaked metadata %q in %q", forbidden, got)
+		}
 	}
 	if fallback := ExtractSearchText(json.RawMessage(`plain fallback`)); fallback != "plain fallback" {
 		t.Fatalf("fallback search text = %q", fallback)
 	}
+	if empty := ExtractSearchText(json.RawMessage(`{"type":"doc","content":[]}`)); empty != "" {
+		t.Fatalf("empty doc search text = %q, want empty", empty)
+	}
 }
 
-func containsAll(haystack string, needles ...string) bool {
-	for _, needle := range needles {
-		found := false
-		for i := 0; i+len(needle) <= len(haystack); i++ {
-			if haystack[i:i+len(needle)] == needle {
-				found = true
-				break
+func TestExtractFirstLineMirrorsWebBehavior(t *testing.T) {
+	doc := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{"type":"paragraph","content":[{"type":"text","text":"   "}]},
+			{"type":"noteImage","attrs":{"src":"/api/workspaces/ws-1/assets/a1","assetId":"a1","alt":"Cover image"}},
+			{"type":"noteToggle","attrs":{"open":true},"content":[
+				{"type":"noteToggleSummary","content":[{"type":"text","text":"  Toggle   "},{"type":"text","text":"heading\tline"}]},
+				{"type":"paragraph","content":[{"type":"text","text":"Body text"}]}
+			]}
+		]
+	}`)
+	if got := ExtractFirstLine(doc); got != "Toggle heading line" {
+		t.Fatalf("ExtractFirstLine = %q, want %q", got, "Toggle heading line")
+	}
+
+	longText := strings.Repeat("α", 140)
+	longDoc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"` + longText + `"}]}]}`)
+	gotLong := ExtractFirstLine(longDoc)
+	if utf8.RuneCountInString(gotLong) != MaxLabelRunes || !strings.HasSuffix(gotLong, "…") {
+		t.Fatalf("truncated ExtractFirstLine len=%d value=%q", utf8.RuneCountInString(gotLong), gotLong)
+	}
+
+	if got := ExtractFirstLine(json.RawMessage(`{"type":"doc","content":[]}`)); got != "" {
+		t.Fatalf("empty doc ExtractFirstLine = %q", got)
+	}
+	if got := ExtractFirstLine(json.RawMessage(`not json`)); got != "" {
+		t.Fatalf("invalid json ExtractFirstLine = %q", got)
+	}
+}
+
+func TestValidateDocumentSlice4ToggleAndColorMarks(t *testing.T) {
+	validDoc := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{
+				"type":"noteToggle",
+				"attrs":{"open":true,"blockId":"toggle-1"},
+				"content":[
+					{"type":"noteToggleSummary","content":[{"type":"text","text":"Summary"}]},
+					{"type":"paragraph","content":[
+						{"type":"text","text":"Highlighted","marks":[{"type":"noteHighlight","attrs":{"tone":"pink"}}]},
+						{"type":"text","text":"Colored","marks":[{"type":"noteTextColor","attrs":{"tone":"muted"}}]}
+					]}
+				]
+			},
+			{
+				"type":"noteToggle",
+				"content":[
+					{"type":"noteToggleSummary","attrs":{},"content":[{"type":"text","text":"No attrs toggle"}]},
+					{"type":"paragraph"}
+				]
 			}
-		}
-		if !found {
-			return false
+		]
+	}`)
+	if err := ValidateDocument(validDoc); err != nil {
+		t.Fatalf("valid Slice 4 document rejected: %v", err)
+	}
+
+	for _, tone := range []string{"yellow", "green", "blue", "pink", "purple", "orange"} {
+		doc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight","attrs":{"tone":"` + tone + `"}}]}]}]}`)
+		if err := ValidateDocument(doc); err != nil {
+			t.Fatalf("valid noteHighlight tone %q rejected: %v", tone, err)
 		}
 	}
-	return true
+	for _, tone := range []string{"muted", "red", "orange", "yellow", "green", "blue", "purple"} {
+		doc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor","attrs":{"tone":"` + tone + `"}}]}]}]}`)
+		if err := ValidateDocument(doc); err != nil {
+			t.Fatalf("valid noteTextColor tone %q rejected: %v", tone, err)
+		}
+	}
+
+	invalidDocs := []string{
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":"true"}}]}`,
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":1}}]}`,
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"blockId":"bad/id"}}]}`,
+		`{"type":"doc","content":[{"type":"noteToggle","attrs":"not-a-map"}]}`,
+		`{"type":"doc","content":[{"type":"noteToggleSummary","attrs":"not-a-map"}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight"}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight","attrs":{}}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight","attrs":{"tone":"red"}}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor"}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor","attrs":{"tone":"pink"}}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor","attrs":{"tone":123}}]}]}]}`,
+	}
+	for _, raw := range invalidDocs {
+		if err := ValidateDocument(json.RawMessage(raw)); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("invalid Slice 4 document %s error = %v, want ErrInvalid", raw, err)
+		}
+	}
+}
+
+func TestExtractBacklinkKindsDeduplicatesAndMatchesQueryParam(t *testing.T) {
+	doc := json.RawMessage(`{
+		"type":"doc",
+		"content":[
+			{"type":"paragraph","content":[
+				{"type":"text","text":"Link 1","marks":[{"type":"link","attrs":{"href":"/workspaces/ws-1?noteId=target-note"}}]},
+				{"type":"text","text":"Link 2","marks":[{"type":"link","attrs":{"href":"/workspaces/ws-2?noteId=target-note&blockId=b-1"}}]},
+				{"type":"text","text":"Other","marks":[{"type":"link","attrs":{"href":"/workspaces/ws-2?noteId=target-note-other"}}]}
+			]},
+			{"type":"noteToggle","attrs":{"open":true},"content":[
+				{"type":"noteToggleSummary","content":[{"type":"text","text":"Refs"}]},
+				{"type":"noteEmbed","attrs":{"noteId":"target-note","workspaceId":"ws-1"}},
+				{"type":"noteEmbed","attrs":{"noteId":"target-note","workspaceId":"ws-2"}},
+				{"type":"noteBlockReference","attrs":{"noteId":"target-note","workspaceId":"ws-1","blockId":"blk-1"}}
+			]}
+		]
+	}`)
+	got := ExtractBacklinkKinds(doc, "target-note")
+	want := []string{BacklinkKindLink, BacklinkKindEmbed, BacklinkKindBlockRef}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ExtractBacklinkKinds = %v, want %v", got, want)
+	}
+	if other := ExtractBacklinkKinds(doc, "target-note-other"); !reflect.DeepEqual(other, []string{BacklinkKindLink}) {
+		t.Fatalf("ExtractBacklinkKinds(other) = %v, want [link]", other)
+	}
+	if none := ExtractBacklinkKinds(doc, "missing"); len(none) != 0 {
+		t.Fatalf("ExtractBacklinkKinds(missing) = %v, want empty", none)
+	}
 }

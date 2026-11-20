@@ -6,7 +6,7 @@ import { readCanvasCodeBlock, type CanvasCodeBlockData } from "../code/canvas-co
 import { clampCodeBlockHeight, codeBlockHeightChanged, shouldSwitchCodeBlockToManualHeight } from "../code/canvas-code-block-layout.ts";
 import { noteHeightChanged, shouldSwitchNoteToFixedHeight } from "../note/note-card-layout.ts";
 
-type CodeGeometry = { width: number; height: number };
+type CodeGeometry = { width: number; height: number; compact?: boolean };
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -63,7 +63,11 @@ export function sameElementVersions(left: readonly OrderedExcalidrawElement[], r
 export function codeGeometryMap(elements: readonly OrderedExcalidrawElement[]) {
   const geometry = new Map<string, CodeGeometry>();
   for (const element of elements) {
-    if (!element.isDeleted && (readCanvasCodeBlock(element) || readCanvasNoteReference(element))) {
+    if (element.isDeleted) continue;
+    const noteReference = readCanvasNoteReference(element);
+    if (noteReference) {
+      geometry.set(element.id, { width: element.width, height: element.height, compact: noteReference.compact === true });
+    } else if (readCanvasCodeBlock(element)) {
       geometry.set(element.id, { width: element.width, height: element.height });
     }
   }
@@ -92,13 +96,19 @@ export function deriveCanvasElementState(
     if (noteReference && !element.isDeleted) {
       const previous = previousGeometry.get(element.id);
       const expectedHeight = expectedAutoFitHeights.get(element.id);
+      const isCompact = noteReference.compact === true;
       if (expectedHeight !== undefined && !noteHeightChanged(expectedHeight, element.height)) {
         acknowledgedAutoFitIds.push(element.id);
-        codeGeometry.set(element.id, { width: element.width, height: element.height });
+        codeGeometry.set(element.id, { width: element.width, height: element.height, compact: isCompact });
         return;
       }
       if (isManipulating) {
         if (previous) codeGeometry.set(element.id, previous);
+        return;
+      }
+      // Folding/unfolding (including Undo/Redo of fold) changes element height without locking fixed mode.
+      if (isCompact || (previous?.compact !== undefined && previous.compact !== isCompact)) {
+        codeGeometry.set(element.id, { width: element.width, height: element.height, compact: isCompact });
         return;
       }
       const manualResize = shouldSwitchNoteToFixedHeight({
@@ -112,10 +122,10 @@ export function deriveCanvasElementState(
         const nextElement = normalizeManualNoteHeight(element, { ...noteReference, heightMode: "fixed" });
         if (!mutableElements) mutableElements = [...elements];
         mutableElements[index] = nextElement;
-        codeGeometry.set(nextElement.id, { width: nextElement.width, height: nextElement.height });
+        codeGeometry.set(nextElement.id, { width: nextElement.width, height: nextElement.height, compact: isCompact });
         return;
       }
-      codeGeometry.set(element.id, { width: element.width, height: element.height });
+      codeGeometry.set(element.id, { width: element.width, height: element.height, compact: isCompact });
       return;
     }
     const block = readCanvasCodeBlock(element);

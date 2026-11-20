@@ -10,6 +10,21 @@ export type NoteNode = {
 
 export type NoteDocument = { type: "doc"; content: NoteNode[] };
 
+export const NOTE_CARD_COLORS = ["default", "blue", "teal", "green", "yellow", "orange", "pink", "purple"] as const;
+export type NoteCardColor = (typeof NOTE_CARD_COLORS)[number];
+
+export const NOTE_CARD_SHAPES = ["rounded", "square"] as const;
+export type NoteCardShape = (typeof NOTE_CARD_SHAPES)[number];
+
+export const NOTE_HIGHLIGHT_TONES = ["yellow", "green", "blue", "pink", "purple", "orange"] as const;
+export type NoteHighlightTone = (typeof NOTE_HIGHLIGHT_TONES)[number];
+
+export const NOTE_TEXT_COLOR_TONES = ["muted", "red", "orange", "yellow", "green", "blue", "purple"] as const;
+export type NoteTextColorTone = (typeof NOTE_TEXT_COLOR_TONES)[number];
+
+const NOTE_CARD_COLOR_SET: ReadonlySet<string> = new Set(NOTE_CARD_COLORS);
+const NOTE_CARD_SHAPE_SET: ReadonlySet<string> = new Set(NOTE_CARD_SHAPES);
+
 type CanvasNoteHeightMode = "auto" | "fixed";
 
 export type CanvasNoteReference = {
@@ -17,9 +32,15 @@ export type CanvasNoteReference = {
   instanceId: string;
   compact?: boolean;
   heightMode?: CanvasNoteHeightMode;
+  expandedHeight?: number;
+  color?: NoteCardColor;
+  /** Corner style of the card; absent means the default rounded card. */
+  shape?: NoteCardShape;
 };
 
 const CANVAS_NOTE_DATA_KEY = "notespaceNote";
+const MIN_EXPANDED_HEIGHT = 48;
+const MAX_EXPANDED_HEIGHT = 10000;
 
 export function emptyNoteDocument(): NoteDocument {
   return { type: "doc", content: [] };
@@ -31,15 +52,24 @@ export function readCanvasNoteReference(element: { customData?: unknown; isDelet
   if (!customData || typeof customData !== "object") return null;
   const reference = (customData as Record<string, unknown>)[CANVAS_NOTE_DATA_KEY];
   if (!reference || typeof reference !== "object") return null;
-  const { noteId, instanceId, compact, heightMode } = reference as Record<string, unknown>;
+  const { noteId, instanceId, compact, heightMode, expandedHeight, color, shape } = reference as Record<string, unknown>;
   if (typeof noteId !== "string" || noteId.length === 0 || typeof instanceId !== "string" || instanceId.length === 0) {
     return null;
   }
+  const validExpandedHeight = typeof expandedHeight === "number"
+    && Number.isFinite(expandedHeight)
+    && expandedHeight >= MIN_EXPANDED_HEIGHT
+    && expandedHeight <= MAX_EXPANDED_HEIGHT;
+  const validColor = typeof color === "string" && NOTE_CARD_COLOR_SET.has(color);
+  const validShape = typeof shape === "string" && NOTE_CARD_SHAPE_SET.has(shape);
   return {
     noteId,
     instanceId,
     ...(typeof compact === "boolean" ? { compact } : {}),
     ...(heightMode === "auto" || heightMode === "fixed" ? { heightMode } : {}),
+    ...(validExpandedHeight ? { expandedHeight } : {}),
+    ...(validColor ? { color: color as NoteCardColor } : {}),
+    ...(validShape ? { shape: shape as NoteCardShape } : {}),
   };
 }
 
@@ -48,6 +78,14 @@ export function withCanvasNoteReference(customData: unknown, reference: CanvasNo
     ...(customData && typeof customData === "object" ? customData as Record<string, unknown> : {}),
     [CANVAS_NOTE_DATA_KEY]: reference,
   };
+}
+
+/** Returns `customData` without the Note reference, or undefined when nothing else remains to keep. */
+export function withoutCanvasNoteReference(customData: unknown): Record<string, unknown> | undefined {
+  if (!customData || typeof customData !== "object") return undefined;
+  const rest = { ...(customData as Record<string, unknown>) };
+  delete rest[CANVAS_NOTE_DATA_KEY];
+  return Object.keys(rest).length ? rest : undefined;
 }
 
 export function notePlacement({
@@ -113,7 +151,7 @@ export function noteFirstLine(document: NoteDocument): string {
 /** Block nodes that carry a stable `blockId` for block references (mirrors the server contract). */
 export const NOTE_BLOCK_NODE_TYPES: ReadonlySet<string> = new Set([
   "paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList", "taskList", "table",
-  "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference", "noteCallout",
+  "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference", "noteCallout", "noteToggle",
 ]);
 
 const NOTE_BLOCK_ID_MAX_LENGTH = 128;

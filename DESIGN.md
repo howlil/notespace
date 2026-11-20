@@ -17,7 +17,7 @@ Notespace is a self-hosted, compact spatial knowledge workspace. Make finding a 
 - **Category-first Explorer:** only Categories and Workspace rows; no All workspaces link or global New workspace button. Category name/chevron disclose without navigation. Category-targeted plus creates there; F2/context menu renames, and every category has explicit View category. The protected legacy Uncategorized ID and Home creation/routes remain unchanged.
 - **Dock/drawer:** the dock is 228px or zero, preserving mounted form drafts and pending operations. At <=760px the same panel overlays Canvas, closes on backdrop/Escape/navigation, and returns focus to the toggle. Hidden content is inert. Session-only desktop auto/open/closed preference is independent of transient mobile drawer state and resets to auto on reload; toggling never remounts or resets Canvas. Dialogs/menus take keyboard precedence. Width transition is 160ms with reduced-motion support.
 - **Welcome, empty library:** only when the authoritative library has zero Workspaces, show a centered UIarc-inspired outline folder/Canvas illustration, “No workspaces yet”, brief next-step copy, one primary **Create Workspace** action and secondary **Restore backup**. Keep the illustration decorative, static and token-colored; no sample knowledge-map content or gallery tabs. Never treat loading, errors or an empty category as an empty library.
-- **Welcome, existing library:** show the Notespace cobalt paper-stack Workspace cards, compact continue/resume entry, library search and creation actions. The Category Explorer remains available; selecting a category is addressable through `/?category=...`. No second dashboard, stats, activity feed or redundant navigation.
+- **Welcome, existing library:** show the Notespace paper-stack Workspace cards, compact continue/resume entry, library search and creation actions. The Category Explorer remains available; selecting a category is addressable through `/?category=...`. No second dashboard, stats, activity feed or redundant navigation.
 - **Workspace:** full-bleed Excalidraw Canvas is the only authoring surface. Its floating tool rail, Diagram palette and More tools retain the existing native Notespace SVG geometry and behaviors. Upper-right Canvas chrome keeps fit, zoom, and history as direct compact icon controls; **More canvas actions** opens only secondary view, background, library, file, export, navigation and help actions. Explorer is optional and can be toggled without leaving the selected Workspace.
 - **Canvas Note Card (#203):** Note is a plain content card created and edited directly on Canvas. It has no standalone route, title field, icon, cover, header/footer or persistent toolbar. Selection is single-click; editing is double-click; creation focuses the editor; Escape exits editing. Text selection may expose a compact, viewport-clamped formatting control; slash menus and recovery state are contextual and dismissible. Geometry belongs to the Canvas instance, while canonical content is shared by Note identity. Read-only embeds/previews never mount another editor; missing targets state the condition without mutating content. Removing an instance does not delete its Note. Existing retirement-era DTOs and migrations remain compatibility history, not Note storage.
 - **Removed from navigation:** standalone Note view, Split View, Focus Mode, Activity indicators/dock, and their switches/rails. No permanent page or navigation for these modes.
@@ -30,7 +30,7 @@ Notespace is a self-hosted, compact spatial knowledge workspace. Make finding a 
 | Surface | Ownership | UI contract |
 | --- | --- | --- |
 | Welcome (first-run) | Route + library feature | Same shell, centered outline empty state, Create/Restore entry, no Canvas tool rail |
-| Welcome (existing library) | Route + `WorkspaceLibrary` | Same shell, existing cobalt paper-stack cards (max 196px, radius 18px), optional 228px Explorer |
+| Welcome (existing library) | Route + `WorkspaceLibrary` | Same shell, existing paper-stack cards (max 196px, radius 18px), optional 228px Explorer |
 | Workspace authoring | `WorkspacePage` + Canvas feature | Persistent shell, full-bleed Canvas, floating native tools, one Canvas options panel |
 | Note editing | Workspace Canvas | Inline plain card; selected, editing, manipulating and recoverable save states; no separate route |
 | Utilities | Settings, Quick Open, data/recovery | Overlays keep accessible focus and recoverable pending/error states |
@@ -63,7 +63,7 @@ Default direction:
 - subtle motion only when it explains state or continuity;
 - light and dark modes must remain coherent.
 
-Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a restrained cobalt-blue thumbnail field with a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy.
+Glassmorphism or bento composition is allowed only when it has a clear semantic or structural job. Neither is a default styling recipe. Workspace library cards use a soft `--tint` thumbnail field with `--surface` paper sheets and a translucent, blurred metadata surface to separate identity from supporting details without changing the compact card hierarchy; accent appears only on hover and focus.
 
 ## Design tokens
 
@@ -86,14 +86,14 @@ The application uses semantic colors so the same component can remain coherent i
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
-| `--bg` | `#F7F8FA` | `#18191D` | Application background and page canvas outside contained surfaces |
-| `--surface` | `#FFFFFF` | `#202126` | Cards, panels, popups, inputs, and editor chrome |
-| `--sidebar` | `#FFFFFF` | `#1C1D22` | Secondary navigation and low-emphasis workspace regions |
-| `--canvas` | `#F8F9FC` | `#1D1E24` | Drawing surface behind Excalidraw content |
+| `--bg` | `#F5F5F2` | `#141519` | Application background and page canvas outside contained surfaces |
+| `--surface` | `#FFFFFF` | `#1D1E23` | Cards, panels, popups, inputs, and editor chrome |
+| `--sidebar` | `#F0F0EC` | `#17181C` | Secondary navigation and low-emphasis workspace regions |
+| `--canvas` | `#FAFAF8` | `#191A1F` | Drawing surface behind Excalidraw content |
 | `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
-| `--muted` | `#636979` | `#999BA9` | Supporting text, metadata, inactive icons, and hints |
-| `--line` | `#E4E5EC` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#2858D8` | `#91B1FF` | Focus, selected controls, links, active icons, workspace card fields, and primary emphasis |
+| `--muted` | `#5C6270` | `#9FA2B0` | Supporting text, metadata, inactive icons, and hints |
+| `--line` | `#E3E3DD` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
+| `--accent` | `#2858D8` | `#91B1FF` | Focus, selected controls, links, active icons, workspace card hover, and primary emphasis |
 | `--tint` | `#EAF0FF` | `#223254` | Hover background, active background, selected rows, and soft emphasis |
 | `--button` | `#26262F` | `#E6E6ED` | Primary action background |
 | `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
@@ -132,9 +132,10 @@ Notespace uses Open Sans throughout the application. The available local weights
 | Body | `14px` | Default document and application text |
 | Display / page title | `25–30px` | Use sparingly for Home or focused entry points |
 | Section title | `12–14px`, weight 500–600 | Titles for contained sections and panels |
-| Compact control | `11px`, weight 500 | Buttons, tabs, toolbar labels, and compact navigation |
-| Supporting text | `9–10px`, weight 400–500 | Metadata, descriptions, shortcut hints, and helper copy |
-| Icon caption | `8px`, weight 400–500 | Dense icon grids where the icon remains the primary signal |
+| Navigation row | `13px`, weight 400–500 | Explorer category and Workspace rows |
+| Compact control | `12px`, weight 500 | Buttons, tabs, toolbar labels, and compact navigation |
+| Supporting text | `11px`, weight 400–500 | Metadata, descriptions, shortcut hints, and helper copy; 11px is the floor in shell, Settings and shared primitives |
+| Canvas chrome caption | `8–10px`, weight 400–500 | Legacy dense Canvas chrome and Note popovers only (kbd hints, icon grids); migrate to 11px when their geometry allows |
 | Primary weight | `500` | Default emphasis for controls and compact labels |
 | Strong weight | `600` | Page titles, section headings, and selected state labels |
 
@@ -171,6 +172,8 @@ Rounded corners communicate component hierarchy, not decoration.
 
 Ordinary controls keep the 6px `rounded-md` radius; standard popups use 8px `rounded-lg` rather than locally chosen 5px or 7px. The 18px paper-stack card is a documented brand component, not a general surface radius.
 
+The Canvas also shows a passive 24px dot grid (`--canvas-dot`, `CanvasDotGrid`): presentation only, never in the scene or exports, hidden when Excalidraw grid mode is on or zoom is below 0.35.
+
 The Excalidraw adapter has its own engine-facing values to keep dependency UI aligned with Notespace:
 
 ```text
@@ -194,12 +197,13 @@ Focus is stateful feedback, not decoration. Do not render a persistent focus rin
 
 ### Elevation and overlay tokens
 
-Notespace is intentionally low-elevation. The Canvas rail and Canvas popups use `shadow-none` so the drawing surface remains calm and the hierarchy comes from placement, borders, and tint.
+Notespace is low-elevation. Floating Canvas chrome (rail, view controls, selection/code toolbars, Canvas popups) uses the light `--shadow-float` token so it lifts off the drawing surface without competing with content; hierarchy still comes from placement, borders, and tint.
 
 | Layer | Current value | Use |
 | --- | --- | --- |
-| Flat surface | `none` | Canvas chrome, Excalidraw islands, main content surfaces |
-| Lightweight popup | `var(--shadow-popup)` = `0 12px 32px #0002` | Shared `PopupSurface`, context menus, workspace/document popups, and activity dock outside the Canvas |
+| Flat surface | `none` | Excalidraw islands, main content surfaces |
+| Floating chrome | `var(--shadow-float)` = `0 1px 2px #0000000a, 0 4px 12px #0000000f` (dark: `#0006` / `#00000059`) | Canvas rail, view controls, selection and code toolbars, Diagram palette |
+| Lightweight popup | `var(--shadow-popup)` = `0 12px 32px #0002` | Shared `PopupSurface`, context menus, Note card popups, Workspace card hover, and activity dock outside the Canvas |
 | Dialog | Existing `shadow-2xl shadow-black/20` | Modal confirmation and dialog surfaces only |
 
 Canvas overlay strata are local implementation tokens and should remain consistent:
@@ -312,7 +316,7 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
-- **Resolved baseline contrast:** light `--muted: #636979` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
+- **Resolved baseline contrast:** light `--muted: #5C6270` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
 - Preserve the approved Cobalt / White Fox Spirit identity unless an explicit product decision changes it; brand illustrations never override semantic UI state colors.
 
 ### Fox Spirit brand asset contract

@@ -50,23 +50,23 @@ function WorkspaceFolderCard({
 
   const cardLinkClass = "group block w-full min-h-20 rounded-[18px] text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   const cardBody = (
-    <article className="relative aspect-square overflow-hidden rounded-[18px] border border-accent/40 bg-accent transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-1 group-hover:border-accent group-hover:shadow-md">
+    <article className="relative aspect-square overflow-hidden rounded-[18px] border border-line bg-tint transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-1 group-hover:border-accent/50 group-hover:[box-shadow:var(--shadow-popup)]">
       <motion.span aria-hidden="true" className="absolute left-[58%] top-[24%] z-10 h-[35%] w-[27%]" {...paperMotion(0.04)}>
-        <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-background p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
+        <span className="block size-full rotate-[7deg] rounded-[8px] border border-line bg-surface p-1.5 transition-transform duration-200 group-hover:-translate-y-1">
           <span className="block h-1 w-[82%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[58%] rounded-full bg-line" />
           <span className="mt-4 block h-1 w-[70%] rounded-full bg-line" />
         </span>
       </motion.span>
       <motion.span aria-hidden="true" className="absolute left-[42%] top-[19%] z-10 h-[40%] w-[34%]" {...paperMotion(0.065)}>
-        <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-background p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
+        <span className="block size-full rotate-[2deg] rounded-[9px] border border-line bg-surface p-2 transition-transform duration-200 group-hover:-translate-y-1.5">
           <span className="block h-1 w-[84%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[62%] rounded-full bg-line" />
           <span className="mt-4 block h-1 w-[74%] rounded-full bg-line" />
         </span>
       </motion.span>
       <motion.span aria-hidden="true" className="absolute left-[24%] top-[13%] z-10 h-[47%] w-[48%]" {...paperMotion(0.09)}>
-        <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-background p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
+        <span className="block size-full -rotate-[9deg] rounded-[10px] border border-line bg-surface p-2.5 transition-transform duration-200 group-hover:-translate-y-2">
           <span className="block h-1 w-[86%] rounded-full bg-line" />
           <span className="mt-1.5 block h-1 w-[64%] rounded-full bg-line" />
           <span className="mt-5 block h-1 w-[76%] rounded-full bg-line" />
@@ -74,7 +74,7 @@ function WorkspaceFolderCard({
         </span>
       </motion.span>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-white/50 bg-surface/75 backdrop-blur-lg">
+      <div className="absolute inset-x-0 bottom-0 z-20 h-[61%] rounded-t-[18px] border-t border-line bg-surface/75 backdrop-blur-lg">
         <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1">
             {editing ? (
@@ -94,9 +94,9 @@ function WorkspaceFolderCard({
             ) : (
               <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-.25px] text-ink">{workspace.title}</strong>
             )}
-            <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-medium text-ink/70">{metadata}</span>
+            <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-muted">{metadata}</span>
           </div>
-          <time className="shrink-0 rounded-full border border-line bg-background px-2 py-1 text-[10px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
+          <time className="shrink-0 rounded-full border border-line bg-background px-2 py-1 text-[11px] font-medium tabular-nums text-ink/70" dateTime={workspace.updatedAt}>{editedAt(workspace.updatedAt)}</time>
         </div>
       </div>
     </article>
@@ -158,7 +158,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
               <span className="grid size-10 place-items-center rounded-full border border-line bg-background text-ink/70 transition-colors duration-200 group-hover:border-accent group-hover:text-accent">
                 <Plus size={18} aria-hidden="true" />
               </span>
-              <span className="text-[11px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
+              <span className="text-[12px] font-medium text-ink/70 transition-colors duration-200 group-hover:text-accent">
                 New workspace
               </span>
             </article>
@@ -176,7 +176,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
               <form onSubmit={onSubmit} className="grid w-full gap-2">
                 <Input
                   autoFocus
-                  className="w-full min-h-0 py-1.5 px-2 text-[11px]"
+                  className="w-full min-h-0 py-1.5 px-2 text-[12px]"
                   placeholder="Workspace name"
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
@@ -188,7 +188,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
                   <Button
                     type="submit"
                     size="sm"
-                    className="flex-1 min-h-0 py-1 text-[10px]"
+                    className="flex-1 min-h-0 py-1 text-[11px]"
                     disabled={!value.trim() || loading}
                   >
                     {loading ? "Creating…" : "Create"}
@@ -197,7 +197,7 @@ function NewWorkspaceCard({ editing, value, loading, onActivate, onChange, onSub
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="min-h-0 py-1 px-2.5 text-[10px]"
+                    className="min-h-0 py-1 px-2.5 text-[11px]"
                     onClick={onCancel}
                     disabled={loading}
                   >
@@ -278,7 +278,7 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
       <section className="min-w-0" aria-labelledby="library-list-title">
         {pageLoading ? <WorkspaceListSkeleton /> : (view === "all" ? allLoadError : categoryLoadError) ? (
           <div role="alert" className="flex min-h-[130px] flex-col items-start justify-center gap-3 rounded-md border border-line bg-surface px-4 py-5">
-            <p className="m-0 text-[11px] text-danger">
+            <p className="m-0 text-[12px] text-danger">
               {view === "category" ? "Category workspaces" : "Workspaces"} could not be loaded. {view === "all" ? allLoadError : categoryLoadError}
             </p>
             <Button variant="secondary" size="sm" onClick={view === "all" ? retryAll : retryCategory}>Retry</Button>
@@ -351,10 +351,10 @@ export function WorkspaceLibrary({ model }: WorkspaceLibraryProps) {
         )}
       </section>
       {(view === "all" || view === "category") && page && page.total > page.limit && (
-        <nav className="mt-4 flex items-center justify-center gap-3 text-[10px] text-ink/70" aria-label="Workspace pages">
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit), true)}>Previous</Button>
+        <nav className="mt-4 flex items-center justify-center gap-3 text-[11px] text-ink/70" aria-label="Workspace pages">
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[11px]" disabled={!page.offset || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: Math.max(0, page.offset - page.limit) }) : void openAll(Math.max(0, page.offset - page.limit), true)}>Previous</Button>
           <span>{page.offset + 1}–{Math.min(page.offset + page.items.length, page.total)} of {page.total}</span>
-          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[10px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
+          <Button variant="secondary" size="sm" className="min-h-[30px] px-2.5 py-1.5 text-[11px]" disabled={page.nextOffset === undefined || pageLoading} onClick={() => view === "category" ? updateCategoryPageState({ offset: page.nextOffset ?? page.offset }) : void openAll(page.nextOffset ?? page.offset, true)}>Next</Button>
         </nav>
       )}
       <ConfirmDialog

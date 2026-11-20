@@ -1,12 +1,14 @@
-export type NoteCardViewport = { zoom: number; scrollX: number; scrollY: number };
-export type NoteCardGeometry = { x: number; y: number; width: number; height: number; angle?: number };
+type NoteCardViewport = { zoom: number; scrollX: number; scrollY: number };
+type NoteCardGeometry = { x: number; y: number; width: number; height: number; angle?: number };
 
 /** Below this zoom a card shows only its derived first line (B9a level of detail). */
 export const NOTE_CARD_LABEL_ZOOM = 0.35;
+export const NOTE_CARD_FOLDED_HEIGHT = 48;
 export const NOTE_CARD_MIN_HEIGHT = 180;
 export const NOTE_CARD_MAX_AUTO_HEIGHT = 560;
 const NOTE_CARD_BODY_FONT_SIZE = 14;
 const NOTE_CARD_MAX_LABEL_FONT_SIZE = 48;
+const NOTE_CARD_MAX_FOLDED_FONT_SIZE = 24;
 
 export function clampNoteAutoHeight(height: number): number {
   if (!Number.isFinite(height)) return NOTE_CARD_MIN_HEIGHT;
@@ -43,11 +45,12 @@ export function noteCardBodyMaxHeight(
   return Math.max(height, NOTE_CARD_MAX_AUTO_HEIGHT);
 }
 
-export type NoteCardFrame = {
+type NoteCardFrame = {
   left: number;
   top: number;
   width: number;
   minHeight: number;
+  height?: number;
   transform: string;
   transformOrigin: string;
 };
@@ -60,14 +63,15 @@ export function noteCardFrame(element: NoteCardGeometry, viewport: NoteCardViewp
   const zoom = viewport.zoom > 0 && Number.isFinite(viewport.zoom) ? viewport.zoom : 1;
   const angle = element.angle ?? 0;
   const halfWidth = element.width / 2;
-  const halfHeight = element.height / 2;
+  const effectiveHeight = collapsed ? NOTE_CARD_FOLDED_HEIGHT : element.height;
+  const halfHeight = effectiveHeight / 2;
   const rotation = angle ? ` translate(${halfWidth}px, ${halfHeight}px) rotate(${angle}rad) translate(${-halfWidth}px, ${-halfHeight}px)` : "";
   return {
     left: (element.x + viewport.scrollX) * zoom,
     top: (element.y + viewport.scrollY) * zoom,
     width: element.width,
-    // A folded card is only its first line, so its height follows that line instead of the instance.
-    minHeight: collapsed ? 0 : element.height,
+    minHeight: collapsed ? NOTE_CARD_FOLDED_HEIGHT : element.height,
+    ...(collapsed ? { height: NOTE_CARD_FOLDED_HEIGHT } : {}),
     transform: `scale(${zoom})${rotation}`,
     transformOrigin: "0 0",
   };
@@ -80,12 +84,8 @@ export function noteCardDetail(zoom: number, editing: boolean): NoteCardDetail {
 }
 
 /** Label text grows in Canvas units as the view zooms out so it stays readable on screen. */
-export function noteCardLabelFontSize(zoom: number): number {
+export function noteCardLabelFontSize(zoom: number, folded = false): number {
   const safeZoom = zoom > 0 && Number.isFinite(zoom) ? zoom : 1;
-  return Math.min(NOTE_CARD_MAX_LABEL_FONT_SIZE, Math.max(NOTE_CARD_BODY_FONT_SIZE, NOTE_CARD_BODY_FONT_SIZE * 0.8 / safeZoom));
-}
-
-/** Contextual UI inside a scaled card is counter-scaled so menus keep their screen size. */
-export function noteCardUiScale(zoom: number): number {
-  return zoom > 0 && Number.isFinite(zoom) ? 1 / zoom : 1;
+  const cap = folded ? NOTE_CARD_MAX_FOLDED_FONT_SIZE : NOTE_CARD_MAX_LABEL_FONT_SIZE;
+  return Math.min(cap, Math.max(NOTE_CARD_BODY_FONT_SIZE, NOTE_CARD_BODY_FONT_SIZE * 0.8 / safeZoom));
 }

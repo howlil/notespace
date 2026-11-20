@@ -221,51 +221,6 @@ pub fn list_desktop_manual_backups(app: AppHandle) -> Result<Vec<Value>, String>
     Ok(result)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejects_partial_and_symlink_like_candidates() {
-        assert!(!is_snapshot_name("pre-migration-incomplete.partial.db"));
-        assert!(!is_snapshot_name(
-            "pre-migration-20261018T012345.123456789Z-xyz.db"
-        ));
-        assert!(!is_snapshot_name(
-            "../pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"
-        ));
-        assert!(!is_snapshot_name(
-            "pre-migration-20261018T012345.12345678éZ-0123456789abcdef.db"
-        ));
-        assert!(is_snapshot_name(
-            "pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"
-        ));
-    }
-
-    #[test]
-    fn only_lists_real_nonempty_owned_files() {
-        let root =
-            std::env::temp_dir().join(format!("notespace-recovery-test-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        let db = root.join("notespace.db");
-        let recovery = PathBuf::from(format!("{}.recovery", db.display()));
-        fs::create_dir_all(&recovery).unwrap();
-        let valid = recovery.join("pre-migration-20261018T012345.123456789Z-0123456789abcdef.db");
-        fs::write(&valid, b"snapshot").unwrap();
-        fs::write(recovery.join(".part.partial.db"), b"ignored").unwrap();
-        fs::write(
-            recovery.join("pre-migration-20261018T012345.123456789Z-fedcba9876543210.db"),
-            [],
-        )
-        .unwrap();
-        let points = read_recovery_points(&db).unwrap();
-        assert_eq!(points.len(), 1);
-        assert_eq!(points[0].name, valid.file_name().unwrap().to_string_lossy());
-        fs::remove_dir_all(&root).unwrap();
-    }
-}
-
 pub(crate) fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     app.state::<RuntimeProcess>()
         .recovery_visible
@@ -310,4 +265,49 @@ pub(crate) fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     "#
     );
     let _ = window.eval(&script);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_partial_and_symlink_like_candidates() {
+        assert!(!is_snapshot_name("pre-migration-incomplete.partial.db"));
+        assert!(!is_snapshot_name(
+            "pre-migration-20261018T012345.123456789Z-xyz.db"
+        ));
+        assert!(!is_snapshot_name(
+            "../pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"
+        ));
+        assert!(!is_snapshot_name(
+            "pre-migration-20261018T012345.12345678éZ-0123456789abcdef.db"
+        ));
+        assert!(is_snapshot_name(
+            "pre-migration-20261018T012345.123456789Z-0123456789abcdef.db"
+        ));
+    }
+
+    #[test]
+    fn only_lists_real_nonempty_owned_files() {
+        let root =
+            std::env::temp_dir().join(format!("notespace-recovery-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("notespace.db");
+        let recovery = PathBuf::from(format!("{}.recovery", db.display()));
+        fs::create_dir_all(&recovery).unwrap();
+        let valid = recovery.join("pre-migration-20261018T012345.123456789Z-0123456789abcdef.db");
+        fs::write(&valid, b"snapshot").unwrap();
+        fs::write(recovery.join(".part.partial.db"), b"ignored").unwrap();
+        fs::write(
+            recovery.join("pre-migration-20261018T012345.123456789Z-fedcba9876543210.db"),
+            [],
+        )
+        .unwrap();
+        let points = read_recovery_points(&db).unwrap();
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].name, valid.file_name().unwrap().to_string_lossy());
+        fs::remove_dir_all(&root).unwrap();
+    }
 }

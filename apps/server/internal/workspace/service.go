@@ -116,12 +116,8 @@ func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID 
 			UpdatedAt:  now,
 			Version:    1,
 		},
-		Document:      Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[]}`)},
-		Notes:         []Note{},
 		Canvas:        Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 		CanvasVersion: 1,
-		References:    []Reference{},
-		SplitRatio:    0.45,
 	}
 	if err := s.store.Create(ctx, p); err != nil {
 		if id != "" {
@@ -136,25 +132,4 @@ func (s Service) CreateWithID(ctx context.Context, id, title string, categoryID 
 		return Workspace{}, err
 	}
 	return s.Get(ctx, p.ID)
-}
-
-func (s Service) Update(ctx context.Context, id string, u Update) (Workspace, error) {
-	u.Title = strings.TrimSpace(u.Title)
-	if u.References == nil {
-		current, err := s.Get(ctx, id)
-		if err != nil {
-			return Workspace{}, err
-		}
-		if u.References == nil {
-			u.References = current.References
-		}
-	}
-	if !ValidTitle(u.Title) || u.Version < 1 || u.SplitRatio < .25 || u.SplitRatio > .7 || !validDocument(u.Document) || !validCanvas(u.Canvas) || !validReferences(u.References) || !validNotes(u.Notes) {
-		return Workspace{}, ErrInvalid
-	}
-	value, err := s.store.Update(ctx, id, u)
-	if err != nil {
-		return Workspace{}, err
-	}
-	return s.hydrateGranularState(ctx, value)
 }

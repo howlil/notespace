@@ -3,7 +3,8 @@ import test from "node:test";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { defaultCanvasCodeBlock, withCanvasCodeBlock } from "../code/canvas-code-block.ts";
 import { codeBlockMinimumHeight } from "../code/canvas-code-block-layout.ts";
-import { deriveCanvasElementState, sameElementVersions } from "./canvas-scene-state.ts";
+import { withCanvasNoteReference } from "../../../../domain/note/note.ts";
+import { codeGeometryMap, deriveCanvasElementState, sameElementVersions } from "./canvas-scene-state.ts";
 
 function codeElement(overrides: Record<string, unknown> = {}) {
   return {
@@ -102,4 +103,38 @@ test("element version equality only changes when render-relevant geometry/versio
   const element = codeElement();
   assert.equal(sameElementVersions([element], [element]), true);
   assert.equal(sameElementVersions([element], [codeElement({ version: 2 })]), false);
+});
+
+test("folding and unfolding a Note card does not switch heightMode to fixed", () => {
+  const expanded = codeElement({
+    id: "note-1",
+    height: 220,
+    customData: withCanvasNoteReference({}, { noteId: "n1", instanceId: "i1", compact: false }),
+  });
+  const folded = codeElement({
+    id: "note-1",
+    height: 48,
+    version: 2,
+    customData: withCanvasNoteReference({}, { noteId: "n1", instanceId: "i1", compact: true, expandedHeight: 220 }),
+  });
+  const normalizeNote = (element: OrderedExcalidrawElement, ref: Parameters<typeof withCanvasNoteReference>[1]) => ({
+    ...element,
+    customData: withCanvasNoteReference(element.customData, ref),
+  }) as OrderedExcalidrawElement;
+
+  const prev = codeGeometryMap([expanded]);
+  const foldedResult = deriveCanvasElementState([folded], prev, new Map(), normalizeManualHeight, normalizeNote);
+  assert.equal(foldedResult.normalizedManualResize, false);
+
+  const unfoldedResult = deriveCanvasElementState([expanded], foldedResult.codeGeometry, new Map(), normalizeManualHeight, normalizeNote);
+  assert.equal(unfoldedResult.normalizedManualResize, false, "unfolding/undoing fold keeps heightMode auto");
+
+  const manualResized = codeElement({
+    id: "note-1",
+    height: 310,
+    version: 3,
+    customData: withCanvasNoteReference({}, { noteId: "n1", instanceId: "i1", compact: false }),
+  });
+  const resizedResult = deriveCanvasElementState([manualResized], unfoldedResult.codeGeometry, new Map(), normalizeManualHeight, normalizeNote);
+  assert.equal(resizedResult.normalizedManualResize, true, "manual vertical resize of unfolded Note still locks fixed heightMode");
 });

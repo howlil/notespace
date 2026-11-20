@@ -24,7 +24,7 @@ function fallbackNodeText(specKey: string, label: string) {
 
 const diagramFontFamily = FONT_FAMILY.Helvetica;
 
-export function renderStructuredDiagram(
+function renderStructuredDiagram(
   diagram: StructuredDiagram,
   dark: boolean,
   availableEraserIcons: ReadonlySet<string> = new Set(),

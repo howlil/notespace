@@ -3,11 +3,13 @@ package transport
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-func ParseIntQuery(r *http.Request, key string, fallback int) (int, error) {
+func parseIntQuery(r *http.Request, key string, fallback int) (int, error) {
 	raw := r.URL.Query().Get(key)
 	if raw == "" {
 		return fallback, nil
@@ -19,7 +21,7 @@ func ParseIntQuery(r *http.Request, key string, fallback int) (int, error) {
 	return value, nil
 }
 
-func ParseBoolQuery(r *http.Request, key string) (bool, error) {
+func parseBoolQuery(r *http.Request, key string) (bool, error) {
 	switch r.URL.Query().Get(key) {
 	case "", "false", "0":
 		return false, nil
@@ -31,15 +33,15 @@ func ParseBoolQuery(r *http.Request, key string) (bool, error) {
 }
 
 func WorkspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuery, error) {
-	hasCanvas, err := ParseBoolQuery(r, "hasCanvas")
+	hasCanvas, err := parseBoolQuery(r, "hasCanvas")
 	if err != nil {
 		return workspace.WorkspaceQuery{}, err
 	}
-	offset, err := ParseIntQuery(r, "offset", 0)
+	offset, err := parseIntQuery(r, "offset", 0)
 	if err != nil || offset < 0 {
 		return workspace.WorkspaceQuery{}, workspace.ErrInvalid
 	}
-	limit, err := ParseIntQuery(r, "limit", 50)
+	limit, err := parseIntQuery(r, "limit", 50)
 	if err != nil || limit < 1 || limit > 100 {
 		return workspace.WorkspaceQuery{}, workspace.ErrInvalid
 	}
@@ -57,5 +59,21 @@ func WorkspaceQuery(r *http.Request, categoryID string) (workspace.WorkspaceQuer
 		Offset:     offset,
 		Limit:      limit,
 		Snapshot:   r.URL.Query().Get("snapshot"),
+	}, nil
+}
+
+func NoteListQuery(r *http.Request) (note.ListQuery, error) {
+	unplaced, err := parseBoolQuery(r, "unplaced")
+	if err != nil {
+		return note.ListQuery{}, note.ErrInvalid
+	}
+	limit, err := parseIntQuery(r, "limit", note.DefaultListLimit)
+	if err != nil || limit < 1 || limit > note.MaxListLimit {
+		return note.ListQuery{}, note.ErrInvalid
+	}
+	return note.ListQuery{
+		Query:    strings.TrimSpace(r.URL.Query().Get("q")),
+		Unplaced: unplaced,
+		Limit:    limit,
 	}, nil
 }

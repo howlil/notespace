@@ -15,7 +15,6 @@ func (s *assetTestStore) PutAsset(_ context.Context, value Stored) (Stored, erro
 func (s *assetTestStore) GetAsset(context.Context, string, string) (Stored, error) {
 	return Stored{}, nil
 }
-func (s *assetTestStore) DeleteAsset(context.Context, string, string) error { return nil }
 
 type assetWorkspaceLookup struct {
 	exists bool
@@ -74,12 +73,12 @@ func TestPutRequiresExistingWorkspaceAndNormalizesValue(t *testing.T) {
 	}
 }
 
-func TestGetAndDeleteRejectBlankIdentifiers(t *testing.T) {
+func TestGetRejectsBlankIdentifiers(t *testing.T) {
 	service := NewService(&assetTestStore{}, &assetWorkspaceLookup{exists: true})
 	if _, err := service.Get(context.Background(), " ", "asset-1"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("Get error = %v", err)
 	}
-	if err := service.Delete(context.Background(), "workspace-1", " "); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("Delete error = %v", err)
+	if _, err := service.Get(context.Background(), "workspace-1", " "); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Get error = %v", err)
 	}
 }

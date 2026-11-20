@@ -21,15 +21,7 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.Update(ctx, workspace.ID, workspacepkg.Update{
-		Title:      "Newer acknowledged state",
-		Document:   workspace.Document,
-		Notes:      workspace.Notes,
-		Canvas:     workspace.Canvas,
-		References: workspace.References,
-		SplitRatio: workspace.SplitRatio,
-		Version:    workspace.Version,
-	})
+	updated, err := service.Rename(ctx, workspace.ID, "Newer acknowledged state", workspace.Title)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@ export type SaveStatus = { message?: string } & (
   | { state: "conflict"; message: string }
 );
 
-export type SaveEvent =
+type SaveEvent =
   | { type: "snapshot_scheduled" }
   | { type: "save_started" }
   | { type: "save_succeeded" }

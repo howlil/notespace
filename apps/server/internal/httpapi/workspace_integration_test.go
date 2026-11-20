@@ -23,16 +23,7 @@ func TestInvalidWorkspaceMutationsPreserveDurableAggregate(t *testing.T) {
 	created := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Stable state"}))
 	before := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/"+created.ID, nil))
 
-	invalidAggregate := workspacepkg.Update{
-		Title:      "",
-		Document:   before.Document,
-		Notes:      before.Notes,
-		Canvas:     before.Canvas,
-		References: before.References,
-		SplitRatio: before.SplitRatio,
-		Version:    before.Version,
-	}
-	expect(t, call(t, api, http.MethodPatch, "/api/workspaces/"+created.ID, invalidAggregate), http.StatusBadRequest)
+	expect(t, call(t, api, http.MethodPatch, "/api/workspaces/"+created.ID+"/title", map[string]string{"title": ""}), http.StatusBadRequest)
 
 	invalidCanvas := workspacepkg.CanvasUpdate{
 		Canvas: workspacepkg.Snapshot{

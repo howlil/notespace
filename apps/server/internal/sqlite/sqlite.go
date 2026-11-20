@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,7 @@ import (
 
 	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
 	"github.com/howlil/notespace/apps/server/migrations"
-	_ "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite"
 )
 
 type Store struct {
@@ -52,12 +53,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 			}
 		}
 		if err == nil {
-			err = migrations.RunWithHook(ctx, db, func(hookCtx context.Context, tx *sql.Tx, name string) error {
-				if name != backupquery.RetiredNotesMigration {
-					return nil
-				}
-				return backupquery.ScrubRetiredNoteArtifactsTx(hookCtx, tx)
-			})
+			err = migrations.RunWithHook(ctx, db, backupquery.ScrubRetiredNoteArtifactsTx)
 			if err == nil && wasExisting && inspection.NeedsMigration {
 				err = migrations.ValidateFull(ctx, db)
 			}
@@ -76,3 +72,18 @@ func Open(ctx context.Context, path string) (*Store, error) {
 func (s *Store) Stats() sql.DBStats                { return s.db.Stats() }
 func (s *Store) Close() error                      { return s.db.Close() }
 func (s *Store) Healthy(ctx context.Context) error { return s.db.PingContext(ctx) }
+
+func isConstraintError(err error) bool {
+	var sqliteErr *sqlite3.Error
+	if !errors.As(err, &sqliteErr) || sqliteErr.Code() == 0 {
+		return false
+	}
+	switch sqliteErr.Code() {
+	case 19, // SQLITE_CONSTRAINT
+		1555, // SQLITE_CONSTRAINT_PRIMARYKEY
+		2067, // SQLITE_CONSTRAINT_UNIQUE
+		787:  // SQLITE_CONSTRAINT_FOREIGNKEY (missing parent, e.g. workspace)
+		return true
+	}
+	return false
+}

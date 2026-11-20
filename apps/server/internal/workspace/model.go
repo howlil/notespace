@@ -56,7 +56,7 @@ type WorkspaceQuery struct {
 }
 
 // Category is the library-level grouping for workspaces. A workspace owns its
-// notes and canvas as one editable aggregate.
+// canvas and canonical canvas note placements.
 type CategorySummary struct {
 	ID             string `json:"id"`
 	Title          string `json:"title"`
@@ -65,32 +65,10 @@ type CategorySummary struct {
 	WorkspaceCount int    `json:"workspaceCount"`
 }
 
-// Reference is a product-owned relationship between one document block and one
-// canvas object. Targets may be absent after ordinary editing and are repaired
-// by the client rather than silently reassigned by the server.
-type Reference struct {
-	ID        string `json:"id"`
-	BlockID   string `json:"blockId"`
-	ElementID string `json:"elementId"`
-}
-
-type Note struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Document  Snapshot `json:"document"`
-	CreatedAt string   `json:"createdAt"`
-	UpdatedAt string   `json:"updatedAt"`
-	Version   int      `json:"version,omitempty"`
-}
-
 type Workspace struct {
 	Summary
-	Document      Snapshot    `json:"document"`
-	Notes         []Note      `json:"notes"`
-	Canvas        Snapshot    `json:"canvas"`
-	CanvasVersion int         `json:"canvasVersion,omitempty"`
-	References    []Reference `json:"references"`
-	SplitRatio    float64     `json:"splitRatio"`
+	Canvas        Snapshot `json:"canvas"`
+	CanvasVersion int      `json:"canvasVersion,omitempty"`
 }
 
 type SearchResult struct {
@@ -103,32 +81,4 @@ type SearchResult struct {
 	NoteID         string `json:"noteId,omitempty"`
 	InstanceID     string `json:"instanceId,omitempty"`
 	ElementID      string `json:"elementId,omitempty"`
-}
-
-type HistoryEntry struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspaceId"`
-	Version     int    `json:"version"`
-	Title       string `json:"title"`
-	CreatedAt   string `json:"createdAt"`
-}
-
-type HistorySnapshot struct {
-	HistoryEntry
-	Document   Snapshot    `json:"document"`
-	Notes      []Note      `json:"notes"`
-	Canvas     Snapshot    `json:"canvas"`
-	References []Reference `json:"references"`
-	SplitRatio float64     `json:"splitRatio"`
-}
-
-// Update is a complete authored snapshot; Version is an optimistic concurrency guard.
-type Update struct {
-	Title      string      `json:"title"`
-	Document   Snapshot    `json:"document"`
-	Notes      []Note      `json:"notes"`
-	Canvas     Snapshot    `json:"canvas"`
-	References []Reference `json:"references"`
-	SplitRatio float64     `json:"splitRatio"`
-	Version    int         `json:"version"`
 }

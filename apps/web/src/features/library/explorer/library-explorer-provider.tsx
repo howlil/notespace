@@ -4,7 +4,7 @@ import type { WorkspacePage } from "../../../domain/workspace/workspace";
 import { listCategoryWorkspaces } from "../../../adapters/http/workspace-api";
 import { useLibraryRevision } from "../use-library-revision";
 
-export type ExplorerPreference = "auto" | "open" | "closed";
+type ExplorerPreference = "auto" | "open" | "closed";
 
 const ExplorerContext = createContext<{
   preference: ExplorerPreference;

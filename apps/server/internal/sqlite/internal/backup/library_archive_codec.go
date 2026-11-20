@@ -19,17 +19,17 @@ func archiveManifest(backup LibraryBackup, blobs map[string][]byte) LibraryArchi
 	catalog := map[string]ArchiveBlob{}
 	manifest := LibraryArchiveManifest{
 		Format: LibraryBackupFormat, Version: LibraryArchiveVersion, SchemaVersion: LibraryArchiveSchemaVersion,
-		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Notes: backup.Notes, Activity: backup.Activity, DeletedActivitySessionIDs: backup.DeletedActivitySessionIDs, Tasks: backup.Tasks, Captures: backup.Captures,
+		GeneratedAt: backup.GeneratedAt, Categories: backup.Categories, Notes: backup.Notes,
 		Workspaces: make([]ArchiveWorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:      make([]ArchiveTrashRecord, 0, len(backup.Trash)),
 	}
 	for _, workspace := range backup.Workspaces {
-		manifest.Workspaces = append(manifest.Workspaces, ArchiveEnvelope(workspace, blobs, catalog))
+		manifest.Workspaces = append(manifest.Workspaces, archiveEnvelope(workspace, blobs, catalog))
 	}
 	for _, record := range backup.Trash {
 		manifest.Trash = append(manifest.Trash, ArchiveTrashRecord{
 			ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt,
-			Payload: ArchiveEnvelope(record.Payload, blobs, catalog),
+			Payload: archiveEnvelope(record.Payload, blobs, catalog),
 		})
 	}
 	for _, entry := range catalog {
@@ -90,15 +90,15 @@ func DecodeArchive(data []byte) (LibraryBackup, error) {
 func archiveEntries(data []byte) (map[string]*zip.File, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return nil, InvalidArchive("invalid ZIP backup")
+		return nil, invalidArchive("invalid ZIP backup")
 	}
 	entries := map[string]*zip.File{}
 	for _, file := range reader.File {
 		if file.Name == "" || strings.Contains(file.Name, "\\") || strings.HasPrefix(file.Name, "/") || strings.Contains(file.Name, "../") {
-			return nil, InvalidArchive("unsafe backup entry")
+			return nil, invalidArchive("unsafe backup entry")
 		}
 		if _, exists := entries[file.Name]; exists {
-			return nil, InvalidArchive("duplicate backup entry")
+			return nil, invalidArchive("duplicate backup entry")
 		}
 		entries[file.Name] = file
 	}
@@ -109,18 +109,18 @@ func archiveEntries(data []byte) (map[string]*zip.File, error) {
 func readArchiveManifest(entries map[string]*zip.File) (LibraryArchiveManifest, error) {
 	manifestFile := entries[ArchiveManifestPath]
 	if manifestFile == nil {
-		return LibraryArchiveManifest{}, InvalidArchive("backup manifest missing")
+		return LibraryArchiveManifest{}, invalidArchive("backup manifest missing")
 	}
-	manifestJSON, err := ReadArchiveEntry(manifestFile, MaxArchiveManifestBytes)
+	manifestJSON, err := readArchiveEntry(manifestFile, MaxArchiveManifestBytes)
 	if err != nil {
 		return LibraryArchiveManifest{}, err
 	}
 	var manifest LibraryArchiveManifest
 	if err := json.Unmarshal(manifestJSON, &manifest); err != nil {
-		return LibraryArchiveManifest{}, InvalidArchive("invalid backup manifest")
+		return LibraryArchiveManifest{}, invalidArchive("invalid backup manifest")
 	}
 	if manifest.Format != LibraryBackupFormat || (manifest.Version != 2 && manifest.Version != LibraryArchiveVersion) || manifest.SchemaVersion > LibraryArchiveSchemaVersion {
-		return LibraryArchiveManifest{}, InvalidArchive("unsupported backup format")
+		return LibraryArchiveManifest{}, invalidArchive("unsupported backup format")
 	}
 
 	return manifest, nil
@@ -128,7 +128,7 @@ func readArchiveManifest(entries map[string]*zip.File) (LibraryArchiveManifest, 
 
 func validateArchiveBlobEntry(file *zip.File, blob ArchiveBlob) error {
 	if file == nil || file.Method != zip.Store || file.UncompressedSize64 != uint64(blob.Size) {
-		return InvalidArchive("blob entry mismatch")
+		return invalidArchive("blob entry mismatch")
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func readArchiveBlobs(manifest LibraryArchiveManifest, entries map[string]*zip.F
 	var expanded uint64
 	for _, blob := range manifest.Blobs {
 		if blob.Path != "blobs/"+blob.SHA256 || len(blob.SHA256) != 64 || blob.Size < 0 || seenBlobs[blob.Path] {
-			return nil, InvalidArchive("invalid blob manifest")
+			return nil, invalidArchive("invalid blob manifest")
 		}
 		file := entries[blob.Path]
 		if err := validateArchiveBlobEntry(file, blob); err != nil {
@@ -150,14 +150,14 @@ func readArchiveBlobs(manifest LibraryArchiveManifest, entries map[string]*zip.F
 
 			// Exported blobs use zip.Store, so a valid Notespace archive cannot
 			// expand beyond its archive size. This rejects decompression bombs.
-			return nil, InvalidArchive("backup expands beyond round-trip bound")
+			return nil, invalidArchive("backup expands beyond round-trip bound")
 		}
-		body, err := ReadArchiveEntry(file, file.UncompressedSize64)
+		body, err := readArchiveEntry(file, file.UncompressedSize64)
 		if err != nil {
 			return nil, err
 		}
-		if ArchiveHash(body) != blob.SHA256 {
-			return nil, InvalidArchive("blob checksum mismatch")
+		if archiveHash(body) != blob.SHA256 {
+			return nil, invalidArchive("blob checksum mismatch")
 		}
 		seenBlobs[blob.Path] = true
 		blobData[blob.Path] = body
@@ -169,21 +169,33 @@ func readArchiveBlobs(manifest LibraryArchiveManifest, entries map[string]*zip.F
 func archiveBackup(manifest LibraryArchiveManifest, blobData map[string][]byte) (LibraryBackup, error) {
 	backup := LibraryBackup{
 		Format: LibraryBackupFormat, Version: manifest.Version, GeneratedAt: manifest.GeneratedAt,
-		Categories: manifest.Categories, Notes: manifest.Notes, Activity: manifest.Activity, DeletedActivitySessionIDs: manifest.DeletedActivitySessionIDs, Tasks: manifest.Tasks, Captures: manifest.Captures,
+		Categories: manifest.Categories, Notes: manifest.Notes,
 		Workspaces: make([]WorkspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:      make([]TrashRecord, 0, len(manifest.Trash)),
 	}
 	for _, workspace := range manifest.Workspaces {
-		envelope, err := RestoreArchiveEnvelope(workspace, blobData)
+		envelope, err := restoreArchiveEnvelope(workspace, blobData)
 		if err != nil {
 			return LibraryBackup{}, err
+		}
+		if manifest.Version == 2 {
+			envelope.Project.Canvas, err = ScrubRetiredSnapshot(envelope.Project.Canvas)
+			if err != nil {
+				return LibraryBackup{}, invalidArchive("invalid canvas snapshot")
+			}
 		}
 		backup.Workspaces = append(backup.Workspaces, envelope)
 	}
 	for _, record := range manifest.Trash {
-		envelope, err := RestoreArchiveEnvelope(record.Payload, blobData)
+		envelope, err := restoreArchiveEnvelope(record.Payload, blobData)
 		if err != nil {
 			return LibraryBackup{}, err
+		}
+		if manifest.Version == 2 {
+			envelope.Project.Canvas, err = ScrubRetiredSnapshot(envelope.Project.Canvas)
+			if err != nil {
+				return LibraryBackup{}, invalidArchive("invalid canvas snapshot")
+			}
 		}
 		backup.Trash = append(backup.Trash, TrashRecord{ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt, Payload: envelope})
 	}

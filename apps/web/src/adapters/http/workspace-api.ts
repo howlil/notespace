@@ -18,7 +18,7 @@ export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string
 export type SearchResult = { type: "category" | "workspace" | "note"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; excerpt: string; noteId?: string; instanceId?: string; elementId?: string };
 export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
 
-export interface WorkspaceHttpClient {
+interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;
   getWorkspaceCanvas(workspaceId: string): Promise<CanvasState>;
   updateWorkspaceCanvas(workspaceId: string, canvas: Snapshot, version: number): Promise<CanvasState>;

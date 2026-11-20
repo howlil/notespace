@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react";
 import { isDesktopUpdaterEnabled } from "../../adapters/desktop/desktop-updater";
 import { REQUEST_DESKTOP_UPDATE_CHECK } from "../../shared/browser/desktop-update-events";
-import { DatabaseBackup, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
+import { DatabaseBackup, Monitor, Moon, Settings2, SlidersHorizontal, Sun, X } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -88,7 +88,13 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
 
   const deviceRecovery = native
     ? <fieldset disabled={backupBusy} className="min-w-0 border-0 p-0">{renderDesktopRecovery(onBusyChange)}</fieldset>
-    : <section className="py-2" aria-label="Device recovery"><p className="m-0 text-[10px] leading-4 text-muted">Device recovery snapshots are available in the Windows desktop app.</p></section>;
+    : <section className="flex items-start gap-2.5 rounded-lg border border-line bg-surface p-3" aria-label="Device recovery">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-tint text-muted" aria-hidden="true"><Monitor size={15} /></span>
+        <div className="min-w-0">
+          <h3 className="m-0 text-xs font-medium text-ink">Device recovery</h3>
+          <p className="mt-0.5 mb-0 text-[11px] leading-4 text-muted">Device recovery snapshots are available in the Windows desktop app.</p>
+        </div>
+      </section>;
 
   return (
     <Dialog open={open} onOpenChange={onChangeOpen}>
@@ -177,7 +183,7 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
                         <p className="font-medium text-ink">Library storage</p>
                         <p className="mt-0.5 text-muted">{native ? "Saved on this device" : "Saved in this browser"}</p>
                       </div>
-                      <span className="text-[10px] text-muted">Local</span>
+                      <span className="text-[11px] text-muted">Local</span>
                     </div>
                   </div>
                   {updaterEnabled && (
@@ -234,7 +240,7 @@ function SettingsTabButton({
       disabled={disabled}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`flex min-h-9 items-center gap-2 rounded-md px-3 text-left text-[11px] font-medium transition-[color,background-color,transform] duration-100 active:scale-[0.985] disabled:opacity-50 ${active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink"}`}
+      className={`flex min-h-9 items-center gap-2 rounded-md px-3 text-left text-[12px] font-medium transition-[color,background-color,transform] duration-100 active:scale-[0.985] disabled:opacity-50 ${active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink"}`}
     >
       {icon}
       {children}

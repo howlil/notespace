@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { duplicatedNoteInstanceIds, emptyNoteDocument, isSafeNoteLink, isValidNoteBlockId, noteBlockIdRepairs, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference } from "./note.ts";
+import { duplicatedNoteInstanceIds, emptyNoteDocument, isSafeNoteLink, isValidNoteBlockId, NOTE_BLOCK_NODE_TYPES, NOTE_CARD_COLORS, NOTE_HIGHLIGHT_TONES, NOTE_TEXT_COLOR_TONES, noteBlockIdRepairs, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference, withoutCanvasNoteReference } from "./note.ts";
+
+test("Dropping a Canvas Note reference keeps other metadata and never mutates the input", () => {
+    const customData = withCanvasNoteReference({ source: "canvas" }, { noteId: "note-1", instanceId: "instance-1" });
+    const stripped = withoutCanvasNoteReference(customData);
+    assert.deepEqual(stripped, { source: "canvas" });
+    assert.equal(readCanvasNoteReference({ customData: stripped }), null);
+    assert.notEqual(readCanvasNoteReference({ customData }), null);
+    assert.equal(withoutCanvasNoteReference(undefined), undefined);
+  });
 
 test("Canvas Note starts with a valid empty document", () => {
     assert.deepEqual(emptyNoteDocument(), { type: "doc", content: [] });
@@ -100,4 +109,59 @@ test("safe Note links allow internal workspace links, http/https, and mailto whi
   assert.equal(isSafeNoteLink("javascript:alert(1)"), false);
   assert.equal(isSafeNoteLink("data:text/html,<script>alert(1)</script>"), false);
   assert.equal(isSafeNoteLink("//evil.example.com"), false);
+});
+
+test("Canvas Note reference validates expandedHeight, color, and noteToggle block identity", () => {
+  assert.ok(NOTE_BLOCK_NODE_TYPES.has("noteToggle"));
+  assert.ok(NOTE_CARD_COLORS.includes("blue"));
+  assert.ok(NOTE_CARD_COLORS.includes("teal"));
+  assert.ok(NOTE_HIGHLIGHT_TONES.includes("yellow"));
+  assert.ok(NOTE_TEXT_COLOR_TONES.includes("muted"));
+
+  const valid = withCanvasNoteReference({}, {
+    noteId: "n1",
+    instanceId: "i1",
+    compact: true,
+    expandedHeight: 240,
+    color: "green",
+  });
+  assert.deepEqual(readCanvasNoteReference({ customData: valid }), {
+    noteId: "n1",
+    instanceId: "i1",
+    compact: true,
+    expandedHeight: 240,
+    color: "green",
+  });
+
+  const invalid = {
+    notespaceNote: {
+      noteId: "n1",
+      instanceId: "i1",
+      expandedHeight: 20,
+      color: "neon",
+    },
+  };
+  assert.deepEqual(readCanvasNoteReference({ customData: invalid }), {
+    noteId: "n1",
+    instanceId: "i1",
+  });
+
+  const overflow = {
+    notespaceNote: {
+      noteId: "n1",
+      instanceId: "i1",
+      expandedHeight: 20000,
+    },
+  };
+  assert.deepEqual(readCanvasNoteReference({ customData: overflow }), {
+    noteId: "n1",
+    instanceId: "i1",
+  });
+});
+
+test("Canvas Note reference keeps a valid card shape and drops unknown ones", () => {
+  const square = withCanvasNoteReference({}, { noteId: "n1", instanceId: "i1", shape: "square" });
+  assert.deepEqual(readCanvasNoteReference({ customData: square }), { noteId: "n1", instanceId: "i1", shape: "square" });
+  const bogus = { notespaceNote: { noteId: "n1", instanceId: "i1", shape: "hexagon" } };
+  assert.deepEqual(readCanvasNoteReference({ customData: bogus }), { noteId: "n1", instanceId: "i1" });
 });

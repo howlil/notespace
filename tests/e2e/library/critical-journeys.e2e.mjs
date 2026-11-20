@@ -45,8 +45,9 @@ test("critical: legacy Note links open only their Workspace Canvas", async () =>
     await expectCount(role("button", "New Note", { exact: true }), 0);
     await expectCount(role("button", "Link note", { exact: true }), 0);
     const stored = await api(`/api/workspaces/${workspace.id}`);
-    assert.deepEqual(stored.notes, []);
-    assert.deepEqual(stored.references, []);
+    assert.equal(stored.id, workspace.id);
+    assert.equal("notes" in stored, false);
+    assert.equal("references" in stored, false);
   } finally {
     await deleteWorkspace(workspace.id).catch(() => undefined);
     await purgeTrash(workspace.id);

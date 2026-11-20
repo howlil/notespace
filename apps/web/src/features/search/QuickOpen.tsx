@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Folder, Search, Settings2 } from "lucide-react";
+import { Folder, Search, Settings2, StickyNote } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   canPlaceNoteOnCanvas,
@@ -13,6 +13,7 @@ import type { SearchResult } from "../../adapters/http/workspace-api";
 import { useToast } from "../../shared/ui/feedback/toast-provider";
 import {
   destinationFromSearchResult,
+  resolveQuickOpenAction,
   type QuickOpenDestination,
 } from "./quick-open-model";
 import { OPEN_QUICK_SEARCH_EVENT } from "./quick-search-events";
@@ -130,15 +131,26 @@ export function QuickOpen() {
   }, [categories, query, recent, recentStatus, searchState]);
 
   function openDestination(destination: QuickOpenDestination | undefined) {
-    if (!destination) return;
-    setOpen(false);
-    if (destination.kind === "category" && destination.categoryId) {
-      void navigate({ to: "/", search: { category: destination.categoryId } });
+    const action = resolveQuickOpenAction(destination, { canPlaceOnCanvas });
+    if (!action) return;
+    if (action.type === "place-note") {
+      placeNoteDestination(action.noteId);
       return;
     }
-    if (destination.workspaceId) {
-      void navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: destination.workspaceId }, search: { noteId: destination.kind === "note" ? destination.noteId : undefined } });
+    setOpen(false);
+    if (action.type === "toast-unplaced-note") {
+      showToast({ kind: "info", message: action.message });
+      return;
     }
+    if (action.type === "navigate-category") {
+      void navigate({ to: "/", search: { category: action.categoryId } });
+      return;
+    }
+    void navigate({
+      to: "/workspaces/$workspaceId",
+      params: { workspaceId: action.workspaceId },
+      search: { noteId: action.noteId },
+    });
   }
 
   function placeNoteDestination(noteId: string | undefined) {
@@ -167,7 +179,7 @@ export function QuickOpen() {
                 if (event.key === "Enter") { event.preventDefault(); openDestination(destinations[selected] ?? destinations[0]); }
               }}
             />
-            <kbd className="rounded border border-line px-1.5 py-0.5 text-[10px] text-muted">Esc</kbd>
+            <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[11px] text-muted">Esc</kbd>
           </div>
 
           <div className="max-h-[min(64dvh,520px)] overflow-y-auto p-2">
@@ -175,13 +187,13 @@ export function QuickOpen() {
               onClick={() => { setOpen(false); window.dispatchEvent(new Event("notespace:open-settings")); }}>
               <Settings2 size={14} aria-hidden="true" /> Settings &amp; Data
             </Button>}
-            <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
+            <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-[.08em] text-muted">{query.trim().length >= 2 ? "Search results" : "Recent workspaces"}</div>
             {resultStatus === "loading" ? (
-              <p className="m-0 px-2.5 py-5 text-[11px] text-muted" role="status" aria-live="polite">
+              <p className="m-0 px-2.5 py-5 text-[12px] text-muted" role="status" aria-live="polite">
                 {searching ? "Searching Notespace…" : "Loading recent workspaces…"}
               </p>
             ) : resultStatus === "error" ? (
-              <div role="alert" className="flex items-center justify-between gap-3 px-2.5 py-5 text-[11px] text-danger">
+              <div role="alert" className="flex items-center justify-between gap-3 px-2.5 py-5 text-[12px] text-danger">
                 <span>{searching ? "Search could not be loaded." : "Recent workspaces could not be loaded."}</span>
                 <Button size="sm" variant="secondary" type="button" onClick={() => {
                   if (searching) setSearchRevision((value) => value + 1);
@@ -200,9 +212,11 @@ export function QuickOpen() {
                   className="!min-h-0 min-w-0 flex-1 justify-start gap-2.5 rounded-md border-0 px-2.5 py-2 text-left"
                   onClick={() => openDestination(destination)}
                 >
-                  <Folder size={15} className="shrink-0 text-accent" />
-                  <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted">{destination.context}</span></span>
-                  <span className="text-[10px] text-muted">↵</span>
+                  {destination.kind === "note"
+                    ? <StickyNote size={15} className="shrink-0 text-accent" aria-hidden="true" />
+                    : <Folder size={15} className="shrink-0 text-accent" aria-hidden="true" />}
+                  <span className="min-w-0 flex-1"><strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium text-ink">{destination.title}</strong><span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted">{destination.context}</span></span>
+                  <span className="text-[11px] text-muted">↵</span>
                 </Button>
                 {canPlaceOnCanvas && destination.kind === "note" && destination.noteId && (
                   <Button
@@ -210,14 +224,14 @@ export function QuickOpen() {
                     variant="secondary"
                     size="sm"
                     title={`Place "${destination.title}" on this canvas`}
-                    className="!min-h-0 mr-1.5 shrink-0 px-2 py-1 text-[10px]"
+                    className="!min-h-0 mr-1.5 shrink-0 px-2 py-1 text-[11px]"
                     onClick={() => placeNoteDestination(destination.noteId)}
                   >
                     Place
                   </Button>
                 )}
               </div>
-            )) : <p className="m-0 px-2.5 py-5 text-[10px] text-muted">{query.trim().length >= 2 ? "No matching knowledge." : "No recent workspaces."}</p>}
+            )) : <p className="m-0 px-2.5 py-5 text-[11px] text-muted">{query.trim().length >= 2 ? "No matching knowledge." : "No recent workspaces."}</p>}
           </div>
         </DialogContent>
       </Dialog>

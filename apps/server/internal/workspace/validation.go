@@ -10,61 +10,11 @@ func ValidTitle(title string) bool {
 	return strings.TrimSpace(title) != "" && utf8.RuneCountInString(title) <= 160
 }
 
-func ValidDocumentSnapshot(snapshot Snapshot) bool { return validDocument(snapshot) }
-
 func ValidateWorkspace(p Workspace) error {
-	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 || p.SplitRatio < .25 || p.SplitRatio > .7 || !validDocument(p.Document) || !validCanvas(p.Canvas) || !validReferences(p.References) || !validNotes(p.Notes) {
+	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 || !validCanvas(p.Canvas) {
 		return ErrInvalid
 	}
 	return nil
-}
-
-func ValidateHistorySnapshot(snapshot HistorySnapshot) error {
-	if strings.TrimSpace(snapshot.ID) == "" || strings.TrimSpace(snapshot.WorkspaceID) == "" || !ValidTitle(snapshot.Title) || snapshot.Version < 1 || snapshot.SplitRatio < .25 || snapshot.SplitRatio > .7 || !validDocument(snapshot.Document) || !validCanvas(snapshot.Canvas) || !validReferences(snapshot.References) || !validNotes(snapshot.Notes) {
-		return ErrInvalid
-	}
-	return nil
-}
-
-const MaxNotesPerWorkspace = 100
-
-func validNotes(notes []Note) bool {
-	if len(notes) > MaxNotesPerWorkspace {
-		return false
-	}
-	seen := map[string]bool{}
-	for _, note := range notes {
-		if note.ID == "" || seen[note.ID] || !ValidTitle(note.Title) || !validDocument(note.Document) {
-			return false
-		}
-		seen[note.ID] = true
-	}
-	return true
-}
-
-func validReferences(references []Reference) bool {
-	if len(references) > 1000 {
-		return false
-	}
-	seen := map[string]bool{}
-	for _, reference := range references {
-		if reference.ID == "" || reference.BlockID == "" || reference.ElementID == "" || seen[reference.ID] {
-			return false
-		}
-		seen[reference.ID] = true
-	}
-	return true
-}
-
-func validDocument(s Snapshot) bool {
-	if s.Format != "tiptap" || s.Version != 1 {
-		return false
-	}
-	var doc struct {
-		Type    string            `json:"type"`
-		Content []json.RawMessage `json:"content"`
-	}
-	return json.Unmarshal(s.Data, &doc) == nil && doc.Type == "doc" && doc.Content != nil
 }
 
 func validCanvas(s Snapshot) bool {
@@ -77,4 +27,23 @@ func validCanvas(s Snapshot) bool {
 		Files    map[string]json.RawMessage   `json:"files"`
 	}
 	return json.Unmarshal(s.Data, &scene) == nil && scene.Elements != nil && scene.AppState != nil && scene.Files != nil
+}
+
+// CountActiveCanvasElements parses an Excalidraw scene and counts non-deleted elements.
+func CountActiveCanvasElements(s Snapshot) (int, error) {
+	var scene struct {
+		Elements []struct {
+			IsDeleted bool `json:"isDeleted"`
+		} `json:"elements"`
+	}
+	if err := json.Unmarshal(s.Data, &scene); err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, element := range scene.Elements {
+		if !element.IsDeleted {
+			count++
+		}
+	}
+	return count, nil
 }

@@ -101,7 +101,7 @@ test("Switching categories replaces the visible workspaces without stale results
   try {
     await goto(`/?category=${categoryA.id}`);
     await visible(role("link", `Open ${workspaceA.title}`));
-    assert.match(await highlight(role("link", `Open ${workspaceA.title}`)), /bg-accent/);
+    assert.match(await highlight(role("link", `Open ${workspaceA.title}`)), /bg-tint/);
     await visible(role("group", "Category workspaces"));
     await expectCount(role("link", `Open ${workspaceB.title}`), 0);
 
@@ -109,7 +109,7 @@ test("Switching categories replaces the visible workspaces without stale results
     await click(role("menuitem", "View category"));
     await waitFor(async () => (await queryParam("category")) === categoryB.id, "Selection switches category");
     await expectClass(role("link", `Open ${workspaceB.title}`), /./);
-    assert.match(await highlight(role("link", `Open ${workspaceB.title}`)), /bg-accent/);
+    assert.match(await highlight(role("link", `Open ${workspaceB.title}`)), /bg-tint/);
     await expectCount(role("link", `Open ${workspaceA.title}`), 0);
 
     await back();

@@ -15,7 +15,7 @@ test("critical: Canvas controls remain border-only and usable with the shared sh
     const tools = role("toolbar", "Canvas tools");
     await visible(tools);
     assert.equal((await css(tools, "border-top-width")).value, "1px");
-    await expectClass(tools, /shadow-none/);
+    await expectClass(tools, /shadow-float/);
 
     const surface = await box(".notespace-canvas-surface");
     const canvas = await box(".excalidraw__canvas.interactive");

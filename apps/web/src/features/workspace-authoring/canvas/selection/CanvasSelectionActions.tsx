@@ -455,7 +455,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
         key={openPanel}
         ref={panelRef}
         className={cn(
-          "absolute z-[110] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface text-ink shadow-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0",
+          "absolute z-[110] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface text-ink [box-shadow:var(--shadow-float)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:size-0",
           openPanel === "more" ? "max-h-[min(42dvh,300px)]" : "max-h-[min(42dvh,320px)]",
           panelWidthClass[openPanel],
         )}
@@ -601,7 +601,7 @@ export function CanvasSelectionActions({ api, activeTool, selectedElementCount, 
     <div
       ref={rootRef}
       data-context={hasSelection ? "selection" : "tool"}
-      className={cn("notespace-selection-actions pointer-events-auto relative z-[1] flex w-fit max-w-[calc(100vw-16px)] min-w-0 items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 shadow-none [&~_.excalidraw_.mobile-shape-actions]:!hidden", vertical ? "flex-col" : "h-10 flex-row")}
+      className={cn("notespace-selection-actions pointer-events-auto relative z-[1] flex w-fit max-w-[calc(100vw-16px)] min-w-0 items-center gap-0.5 overflow-visible rounded-lg border border-line bg-surface p-1 [box-shadow:var(--shadow-float)] [&~_.excalidraw_.mobile-shape-actions]:!hidden", vertical ? "flex-col" : "h-10 flex-row")}
       style={{ visibility: shouldShow ? undefined : "hidden" }}
       aria-hidden={!shouldShow}
       role="toolbar"

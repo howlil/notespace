@@ -93,7 +93,7 @@ export function NativeBucketFillIcon(props: IconProps) {
   return <Icon strokeWidth={1.25} {...props}><path d="M5 16 6.465 17.638a2 2 0 1 1-3.015.099L5 16Z" /><path d="M13.737 9.737c2.299-2.3 3.23-5.095 2.081-6.245-1.15-1.15-3.945-.217-6.244 2.082-2.3 2.299-3.231 5.095-2.082 6.244 1.15 1.15 3.946.218 6.245-2.081Z" /><path d="M7.492 11.818c.362.362.768.676 1.208.934l6.895 4.047c1.078.557 2.255-.075 3.692-1.512 1.437-1.437 2.07-2.614 1.512-3.692-.372-.718-1.72-3.017-4.047-6.895a6.015 6.015 0 0 0-.934-1.208" /></Icon>;
 }
 
-export type NativeArrowType = "sharp" | "round" | "elbow";
+type NativeArrowType = "sharp" | "round" | "elbow";
 export function NativeArrowTypeIcon({ type, ...props }: IconProps & { type: NativeArrowType }) {
   if (type === "round") return <Icon strokeWidth={2} {...props}><path d="M16 12 20 9l-4-3" /><path d="M6 20c0-6.075 4.925-11 11-11h3" /></Icon>;
   if (type === "elbow") return <Icon strokeWidth={2} {...props}><path d="M4 19h6c1.097 0 2-.903 2-2V9c0-1.097.903-2 2-2h7" /><path d="m18 4 3 3-3 3" /></Icon>;
@@ -121,7 +121,7 @@ export function NativeFillIcon({ value, ...props }: IconProps & { value: FillSty
   return <Icon viewBox="0 0 20 20" strokeWidth={1.25} {...props}><rect x="2.625" y="2.625" width="14.75" height="14.75" rx="3.254" />{value === "hachure" ? <><path d="M2.258 15.156 15.156 2.258M7.324 20.222 20.222 7.325" /><path d="m-.222 12.675 12.897-12.897M4.518 18.118 17.416 5.22" /></> : <><path d="M2.426 15.044 15.044 2.426M7.383 20 20 7.383M0 12.617 12.617 0M4.637 17.941 17.256 5.324" /><path d="M15.045 17.574 2.426 4.956M20 12.617 7.383 0M12.617 20 0 7.383M17.941 15.363 5.324 2.745" /></>}</Icon>;
 }
 
-export type NativeStrokeWidth = "thin" | "medium" | "bold";
+type NativeStrokeWidth = "thin" | "medium" | "bold";
 export function NativeStrokeWidthIcon({ value, ...props }: IconProps & { value: NativeStrokeWidth }) {
   const width = value === "thin" ? 1.25 : value === "medium" ? 2.5 : 3.75;
   return <Icon viewBox="0 0 20 20" strokeWidth={width} {...props}><path d="M5 10h10" /></Icon>;

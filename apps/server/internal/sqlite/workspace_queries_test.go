@@ -67,14 +67,14 @@ func TestWorkspaceAndCategorySearchTreatLikeMetacharactersLiterally(t *testing.T
 		t.Fatalf("backslash workspace search = %#v, want only %q", page.Items, backslashWorkspace.ID)
 	}
 
-	results, err := store.SearchIndexed(ctx, "%")
+	results, err := store.Search(ctx, "%")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].Type != "category" || results[0].CategoryID != percentCategory.ID {
 		t.Fatalf("percent category search = %#v, want only category %q", results, percentCategory.ID)
 	}
-	results, err = store.SearchIndexed(ctx, "_")
+	results, err = store.Search(ctx, "_")
 	if err != nil {
 		t.Fatal(err)
 	}

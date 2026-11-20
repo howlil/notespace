@@ -63,11 +63,11 @@ apps/
 ├── server/
 │   ├── cmd/notespace/        process bootstrap
 │   ├── internal/
-│   │   ├── workspace/ planning/ activity/ capture/ asset/ icon/ library/
+│   │   ├── workspace/ note/ asset/ icon/ library/
 │   │   ├── httpapi/          facade, capability handlers, internal/transport
 │   │   └── sqlite/           Store facade and transaction coordinators
-│   │       └── internal/    dbtx, workspace, planning, activity, capture,
-│   │                       assets, search, backup query packages
+│   │       └── internal/    dbtx, workspace, canvasnote, assets,
+│   │                       search, backup query packages
 │   └── migrations/
 └── desktop/src-tauri/src/
     ├── lib.rs               Tauri assembly and command registration
@@ -75,7 +75,7 @@ apps/
     ├── runtime/             state, sidecar, readiness, shutdown
     └── window.rs recovery.rs updates.rs diagnostics.rs
 
-tests/e2e/                   canvas, library, settings, compatibility, support
+tests/e2e/                   canvas, library, settings, support
 scripts/                     dev, verify, release, assets
 ```
 
@@ -260,7 +260,7 @@ cmd/notespace
     ↓
 httpapi
     ↓
-workspace / planning / activity / asset / library / icon
+workspace / note / asset / library / icon
     ↓
 consumer-owned ports
     ↓
@@ -276,32 +276,18 @@ sqlite
 Owns:
 
 - Workspace;
-- retired Note DTO fields for compatibility only;
 - Canvas;
 - category behavior;
 - authored-state validation;
-- granular authoring use-cases;
-- compatibility aggregate Workspace behavior.
+- granular authoring use-cases.
 
-#### `planning`
-
-Owns:
-
-- Milestones;
-- Tasks;
-- historical unassigned Tasks (read/assign only);
-- persisted historical planning contracts (no routed Today/Capture UI);
-- planning state transitions and validation.
-
-#### `activity`
+#### `note`
 
 Owns:
 
-- activity sessions;
-- heartbeats;
-- duration/statistics;
-- linked Task/Workspace snapshots;
-- activity validation.
+- canonical Canvas Notes and placements;
+- ProseMirror document validation and plain-text indexing extraction;
+- optimistic version checks for Note documents and Canvas placements.
 
 #### `asset`
 
@@ -419,7 +405,7 @@ COMMIT or ROLLBACK
 
 The application ZIP backup is currently capped at 64 MiB because archive assembly is in-memory. Larger installations should use an SQLite-safe infrastructure backup until archive streaming exists.
 
-## HTTP compatibility
+## HTTP routes
 
 Canonical client terminology:
 
@@ -428,7 +414,7 @@ Canonical client terminology:
 /api/workspaces/*
 ```
 
-Legacy `/api/projects/*` endpoints remain as compatibility surfaces and emit deprecation metadata. New code should not introduce new Project-named consumers.
+Legacy `/api/projects/*`, full-snapshot `PATCH /api/workspaces/{id}`, and retired `planning`, `capture`, and `activity` endpoints have been removed.
 
 ## Process, security, and deployment
 

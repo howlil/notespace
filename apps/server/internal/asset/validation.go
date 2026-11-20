@@ -6,10 +6,13 @@ import (
 )
 
 // NormalizeMimeType accepts only the image MIME family used by durable assets
-// and removes optional parameters before persistence or transport use.
+// and removes optional parameters before persistence or transport use. SVG is
+// deliberately excluded: an SVG loaded directly as a document can execute script
+// in the same origin (the asset endpoint is served inline without an isolating
+// CSP), so untrusted SVG is rejected at every ingress (upload, store, restore).
 func NormalizeMimeType(value string) (string, error) {
 	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
-	if err != nil || !strings.HasPrefix(strings.ToLower(mediaType), "image/") {
+	if err != nil || !strings.HasPrefix(strings.ToLower(mediaType), "image/") || strings.HasPrefix(strings.ToLower(mediaType), "image/svg") {
 		return "", ErrInvalid
 	}
 	return mediaType, nil

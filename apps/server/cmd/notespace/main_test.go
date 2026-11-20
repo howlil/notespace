@@ -25,11 +25,11 @@ func TestProductionRoutes(t *testing.T) {
 		status       int
 	}{
 		{"GET", "/", 200},
-		{"GET", "/today", 200},
-		{"GET", "/inbox", 200},
+		{"GET", "/today", 404},
+		{"GET", "/inbox", 404},
 		{"GET", "/categories/test", 200},
 		{"GET", "/workspaces/test", 200},
-		{"GET", "/projects/example", 200},
+		{"GET", "/projects/example", 404},
 		{"GET", "/assets/nonexistent.js", 404},
 		{"GET", "/api/nonexistent", 404},
 		{"GET", "/nonexistent", 404},

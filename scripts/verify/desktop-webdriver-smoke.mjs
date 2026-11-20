@@ -506,24 +506,9 @@ async function seedDurableDomains(session) {
   const workspaceId = decodeURIComponent(match[1]);
   const prefix = `/api/workspaces/${encodeURIComponent(workspaceId)}`;
 
-  const milestone = await requestLocal(`${prefix}/milestones`, "POST", { title: "Upgrade milestone" });
-  assert.ok(milestone.id);
-  const task = await requestLocal(`${prefix}/tasks`, "POST", { title: "Preserved task", milestoneId: milestone.id });
-  assert.ok(task.id);
-  // This request is executed against the previously installed MSI during
-  // --upgrade-seed. Its historical API accepts title/plannedFor only; the
-  // candidate must still preserve that unowned Task after migration.
-  const standalone = await requestLocal("/api/tasks", "POST", { title: "Upgrade inbox task" });
-  assert.ok(standalone.id);
   const assetId = `upgrade-proof-asset-${Date.now()}`;
   const originalAsset = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   await requestLocal(`${prefix}/assets/${assetId}`, "PUT", originalAsset, { "Content-Type": "image/png" });
-  const activityId = `upgrade-proof-session-${Date.now()}`;
-  await requestLocal(`/api/activity/sessions/${activityId}`, "PUT", {
-    title: "Preserved activity", activityType: "write",
-    activityDate: new Date().toISOString().slice(0, 10),
-    activeSeconds: 600, finish: true, workspaceId, taskId: task.id,
-  });
   const canvasWorkspace = await requestLocal("/api/workspaces", "POST", { title: "Upgrade Canvas evidence" });
   assert.ok(canvasWorkspace.id);
   const canvasPath = `/api/workspaces/${encodeURIComponent(canvasWorkspace.id)}/canvas`;
@@ -543,26 +528,19 @@ async function seedDurableDomains(session) {
   const trashed = await requestLocal("/api/workspaces", "POST", { title: "Upgrade Trash evidence" });
   assert.ok(trashed.id && trashed.version);
   await requestLocal(`/api/workspaces/${encodeURIComponent(trashed.id)}`, "DELETE", undefined, { "If-Match": `"${trashed.version}"` });
-  return { workspaceId, taskId: task.id, standaloneTaskId: standalone.id, assetId, activityId, trashedId: trashed.id, canvasWorkspaceId: canvasWorkspace.id, canvasElementId };
+  return { workspaceId, assetId, trashedId: trashed.id, canvasWorkspaceId: canvasWorkspace.id, canvasElementId };
 }
 
 async function assertDurableDomains(marker) {
   const prefix = `/api/workspaces/${encodeURIComponent(marker.workspaceId)}`;
   const workspace = await requestLocal(prefix);
   assert.equal(workspace.id, marker.workspaceId);
-  const task = await requestLocal(`/api/tasks/${encodeURIComponent(marker.taskId)}`);
-  assert.equal(task.title, "Preserved task");
-  const standalone = await requestLocal(`/api/tasks/${encodeURIComponent(marker.standaloneTaskId)}`);
-  assert.equal(standalone.title, "Upgrade inbox task");
-  assert.equal(standalone.workspaceId ?? null, null, "Legacy Task must not be auto-assigned");
   const asset = await requestLocal(`${prefix}/assets/${encodeURIComponent(marker.assetId)}`);
   assert.deepEqual(Array.from(asset), [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   const canvas = await requestLocal(`/api/workspaces/${encodeURIComponent(marker.canvasWorkspaceId)}/canvas`);
   assert.ok(canvas.canvas.data.elements.some(element => element.id === marker.canvasElementId), "Authored Canvas element must survive upgrade");
   const trash = await requestLocal("/api/trash");
   assert.ok(JSON.stringify(trash).includes(marker.trashedId), "Trashed workspace must survive upgrade");
-  const activities = await requestLocal("/api/activity/sessions?limit=50");
-  assert.ok(JSON.stringify(activities).includes(marker.activityId), "Activity history must survive upgrade");
 }
 
 async function closeDesktopWindow(session) {

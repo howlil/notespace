@@ -25,7 +25,7 @@ func TestBorrowedCanvasQueriesRollBackEveryAggregateStage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := store.SearchIndexed(ctx, "Atomic"); err != nil {
+			if _, err := store.Search(ctx, "Atomic"); err != nil {
 				t.Fatal(err)
 			}
 			before, err := store.libraryBackupAtomic(ctx)

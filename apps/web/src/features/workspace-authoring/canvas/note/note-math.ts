@@ -1,6 +1,6 @@
 import katex from "katex";
 
-export type NoteLatexValidation =
+type NoteLatexValidation =
   | { ok: true; html: string }
   | { ok: false; error: string };
 

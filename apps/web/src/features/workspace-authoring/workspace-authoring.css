@@ -432,9 +432,6 @@
 .notespace-note-content th { background: var(--canvas); font-weight: 600; }
 .notespace-note-content .notespace-note-math .katex-display { margin: .5em 0; }
 
-/* Contextual UI inside a zoom-scaled card keeps its screen size. */
-.notespace-note-ui { zoom: var(--note-ui-scale, 1); }
-
 .notespace-note-callout {
   margin: .5rem 0;
   border-left: 3px solid var(--accent);
@@ -456,6 +453,234 @@
 .notespace-note-callout-danger {
   border-left-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+/*
+ * Canvas Note card colors, modeled on Heptabase's calm, warm tints (sampled from its public whiteboard
+ * gallery: cream #f8eccc, peach #f8d0b0, sage #d8e4d4, sky #bcd8e4, lavender #e4d4f4). Hues stay clearly
+ * colored (mid-light, not white-washed) so a card reads at a glance, and the near-black ink keeps >= 10:1.
+ * A colored card is the same light surface in both themes, so its content switches to dark-ink tokens.
+ */
+[data-note-element][data-note-color="blue"] { background-color: #b8d9f0; border-color: #8fbfe3; }
+[data-note-element][data-note-color="teal"] { background-color: #b7e3dd; border-color: #86c9c0; }
+[data-note-element][data-note-color="green"] { background-color: #cbe5c3; border-color: #9fcb94; }
+[data-note-element][data-note-color="yellow"] { background-color: #f7e3a1; border-color: #e2c463; }
+[data-note-element][data-note-color="orange"] { background-color: #f8d0b0; border-color: #e7a877; }
+[data-note-element][data-note-color="pink"] { background-color: #f6cfd6; border-color: #e3a1ae; }
+[data-note-element][data-note-color="purple"] { background-color: #dcd0f4; border-color: #b7a3e6; }
+
+/* Text tones: one source for the text, the picker "A" glyphs, and the colored-card overrides. */
+:root {
+  --note-ink: #14151a;
+  --note-tone-muted: #555b6b;
+  --note-tone-red: #c4162a;
+  --note-tone-orange: #a94700;
+  --note-tone-yellow: #8a5b00;
+  --note-tone-green: #0c6e33;
+  --note-tone-blue: #1b5bd8;
+  --note-tone-purple: #6d2bd1;
+}
+:root[data-theme="dark"] {
+  --note-tone-muted: #a3a6b3;
+  --note-tone-red: #ff8a8a;
+  --note-tone-orange: #ffb066;
+  --note-tone-yellow: #ffd84d;
+  --note-tone-green: #6ee7a0;
+  --note-tone-blue: #7db8ff;
+  --note-tone-purple: #c3a6ff;
+}
+
+/* Light theme: a darker, higher-contrast black for note text than the app's softer --ink. */
+:root:not([data-theme="dark"]) [data-note-element] [data-note-scroll],
+:root:not([data-theme="dark"]) [data-note-element] [data-note-label] {
+  --ink: var(--note-ink);
+  color: var(--ink);
+}
+
+/* Popups live outside [data-note-scroll]/[data-note-label], so only the card's own content switches to dark ink. */
+[data-note-element][data-note-color] [data-note-scroll],
+[data-note-element][data-note-color] [data-note-label] {
+  --ink: var(--note-ink);
+  --muted: color-mix(in srgb, var(--note-ink) 72%, transparent);
+  --line: rgba(20, 21, 26, 0.26);
+  --tint: rgba(255, 255, 255, 0.45);
+  --canvas: rgba(255, 255, 255, 0.5);
+  --surface: rgba(255, 255, 255, 0.6);
+  --accent: #0a3a9e;
+  --danger: #8f1d12;
+  --warning: #6b3d00;
+  --note-tone-muted: #555b6b;
+  --note-tone-red: #c4162a;
+  --note-tone-orange: #a94700;
+  --note-tone-yellow: #8a5b00;
+  --note-tone-green: #0c6e33;
+  --note-tone-blue: #1b5bd8;
+  --note-tone-purple: #6d2bd1;
+  color: var(--ink);
+}
+
+[data-note-element][data-note-selected="true"],
+[data-note-element][data-note-editing="true"] {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+/* Inline highlight marks: saturated washes with near-black text so they stay readable on every card color. */
+.notespace-note-content .notespace-note-hl {
+  color: var(--note-ink);
+  border-radius: 3px;
+  padding: 0 .15em;
+  box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.12);
+}
+.notespace-note-content .notespace-note-hl-yellow { background-color: #ffe14d; }
+.notespace-note-content .notespace-note-hl-green { background-color: #7fe08a; }
+.notespace-note-content .notespace-note-hl-blue { background-color: #86c4ff; }
+.notespace-note-content .notespace-note-hl-pink { background-color: #ff9db5; }
+.notespace-note-content .notespace-note-hl-purple { background-color: #d6a6ff; }
+.notespace-note-content .notespace-note-hl-orange { background-color: #ffb866; }
+
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl { color: inherit; box-shadow: none; }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-yellow { background-color: rgba(255, 214, 10, 0.38); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-green { background-color: rgba(48, 209, 88, 0.36); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-blue { background-color: rgba(10, 132, 255, 0.45); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-pink { background-color: rgba(255, 55, 95, 0.40); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-purple { background-color: rgba(191, 90, 242, 0.44); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-orange { background-color: rgba(255, 159, 10, 0.40); }
+/* A colored card is light even in dark theme, so highlights keep dark text and their solid wash there. */
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl { color: var(--note-ink); box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.12); }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-yellow { background-color: #ffe14d; }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-green { background-color: #7fe08a; }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-blue { background-color: #86c4ff; }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-pink { background-color: #ff9db5; }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-purple { background-color: #d6a6ff; }
+:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-orange { background-color: #ffb866; }
+
+/* Inline text color marks: >= 4.5:1 on white and on every card tint (light), or on dark surfaces (dark theme). */
+.notespace-note-content .notespace-note-tc-muted { color: var(--note-tone-muted); }
+.notespace-note-content .notespace-note-tc-red { color: var(--note-tone-red); }
+.notespace-note-content .notespace-note-tc-orange { color: var(--note-tone-orange); }
+.notespace-note-content .notespace-note-tc-yellow { color: var(--note-tone-yellow); }
+.notespace-note-content .notespace-note-tc-green { color: var(--note-tone-green); }
+.notespace-note-content .notespace-note-tc-blue { color: var(--note-tone-blue); }
+.notespace-note-content .notespace-note-tc-purple { color: var(--note-tone-purple); }
+
+/* Card color, highlight, and text-color picker swatches (WCAG AA non-text >= 3:1 against --surface). */
+[data-note-color-swatch="default"] { background-color: var(--surface); border-color: var(--muted); }
+[data-note-color-swatch="blue"] { background-color: #b8d9f0; border-color: #6fa9d4; }
+[data-note-color-swatch="teal"] { background-color: #b7e3dd; border-color: #62b0a6; }
+[data-note-color-swatch="green"] { background-color: #cbe5c3; border-color: #7db371; }
+[data-note-color-swatch="yellow"] { background-color: #f7e3a1; border-color: #cfa930; }
+[data-note-color-swatch="orange"] { background-color: #f8d0b0; border-color: #d98e50; }
+[data-note-color-swatch="pink"] { background-color: #f6cfd6; border-color: #d4808f; }
+[data-note-color-swatch="purple"] { background-color: #dcd0f4; border-color: #9a82d6; }
+
+[data-note-highlight-swatch="yellow"] { background-color: #ffe14d; border-color: var(--muted); }
+[data-note-highlight-swatch="green"] { background-color: #7fe08a; border-color: var(--muted); }
+[data-note-highlight-swatch="blue"] { background-color: #86c4ff; border-color: var(--muted); }
+[data-note-highlight-swatch="pink"] { background-color: #ff9db5; border-color: var(--muted); }
+[data-note-highlight-swatch="purple"] { background-color: #d6a6ff; border-color: var(--muted); }
+[data-note-highlight-swatch="orange"] { background-color: #ffb866; border-color: var(--muted); }
+
+:root[data-theme="dark"] [data-note-highlight-swatch="yellow"] { background-color: rgba(255, 214, 10, 0.7); }
+:root[data-theme="dark"] [data-note-highlight-swatch="green"] { background-color: rgba(48, 209, 88, 0.7); }
+:root[data-theme="dark"] [data-note-highlight-swatch="blue"] { background-color: rgba(10, 132, 255, 0.75); }
+:root[data-theme="dark"] [data-note-highlight-swatch="pink"] { background-color: rgba(255, 55, 95, 0.7); }
+:root[data-theme="dark"] [data-note-highlight-swatch="purple"] { background-color: rgba(191, 90, 242, 0.75); }
+:root[data-theme="dark"] [data-note-highlight-swatch="orange"] { background-color: rgba(255, 159, 10, 0.7); }
+
+/* Text color swatches render an "A" in the tone, so the picker previews the real text color. */
+[data-note-text-color-swatch="muted"] { color: var(--note-tone-muted); }
+[data-note-text-color-swatch="red"] { color: var(--note-tone-red); }
+[data-note-text-color-swatch="orange"] { color: var(--note-tone-orange); }
+[data-note-text-color-swatch="yellow"] { color: var(--note-tone-yellow); }
+[data-note-text-color-swatch="green"] { color: var(--note-tone-green); }
+[data-note-text-color-swatch="blue"] { color: var(--note-tone-blue); }
+[data-note-text-color-swatch="purple"] { color: var(--note-tone-purple); }
+
+/* Collapsible toggle block (Slice 4). */
+.notespace-note-content .notespace-note-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: .3rem;
+  margin: .45em 0;
+}
+
+.notespace-note-content .notespace-note-toggle-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: .1rem;
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+}
+
+.notespace-note-content .notespace-note-toggle-trigger:hover:not(:disabled) {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.notespace-note-content .notespace-note-toggle-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.notespace-note-content .notespace-note-toggle-summary {
+  font-weight: 600;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
+.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
+  display: none;
+}
+
+.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
+.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
+  margin-top: .25em;
+}
+
+/* Empty focused editor placeholder (CSS-only decoration; never stored as text). */
+.notespace-note-content .notespace-note-empty {
+  position: relative;
+}
+.notespace-note-content .notespace-note-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: var(--muted);
+  opacity: .75;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Target block highlight pulse when navigating to ?noteId=...&blockId=... */
+@keyframes notespace-block-highlight {
+  0% { background-color: color-mix(in srgb, var(--accent) 24%, transparent); }
+  100% { background-color: color-mix(in srgb, var(--accent) 10%, transparent); }
+}
+
+.notespace-note-content .notespace-note-block-highlight,
+.notespace-note-content [data-note-block-highlight="true"] {
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: notespace-block-highlight 1.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notespace-note-content .notespace-note-block-highlight,
+  .notespace-note-content [data-note-block-highlight="true"] {
+    animation: none;
+  }
 }
 
 /* Explorer can make the Canvas narrower than the browser viewport. */

@@ -647,3 +647,42 @@ test("slash opens Diagram search and Escape closes it", async () => {
     await cleanupWorkspace(id);
   }
 });
+
+test("selection toolbar can be compact or docked, and Escape hides it until the selection changes", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas toolbar mode ${Date.now()}`);
+  try {
+    const bounds = await box(canvas);
+    await click(role("button", "Rectangle", { exact: true, scope: canvasTools() }));
+    await drag({ x: bounds.x + 220, y: bounds.y + 180 }, { x: bounds.x + 360, y: bounds.y + 250 });
+    const actions = role("toolbar", "Selected shape actions");
+    await visible(actions);
+
+    const setMode = async (label) => {
+      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+      await click(role("button", label, { scope: role("dialog", "Canvas options") }));
+      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+      await notVisible(role("dialog", "Canvas options"));
+    };
+
+    await setMode("Compact");
+    await visible(role("button", "Show tools"));
+    await expectCount(actions, 0);
+    await click(role("button", "Show tools"));
+    await visible(actions);
+
+    await setMode("Docked");
+    await visible(actions);
+    await waitFor(async () => {
+      const dock = await box(actions);
+      return dock.y > bounds.y + 250 && Math.abs(dock.x + dock.width / 2 - (bounds.x + bounds.width / 2)) <= 24;
+    }, "Docked toolbar sits at the bottom center instead of over the selection");
+
+    await setMode("Floating");
+    await visible(actions);
+    await press("Escape");
+    await notVisible(actions);
+    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.contextualToolbarMode")), "floating");
+  } finally {
+    await cleanupWorkspace(id);
+  }
+});

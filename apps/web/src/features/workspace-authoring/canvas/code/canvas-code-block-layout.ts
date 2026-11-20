@@ -4,7 +4,7 @@ export const CODE_BLOCK_LINE_HEIGHT = 17;
 export const CODE_BLOCK_BODY_PADDING_X = 8;
 export const CODE_BLOCK_BODY_PADDING_Y = 8;
 export const CODE_BLOCK_LINE_NUMBER_WIDTH = 30;
-export const CODE_BLOCK_OUTPUT_SPLIT_WIDTH = 560;
+const CODE_BLOCK_OUTPUT_SPLIT_WIDTH = 560;
 
 export function codeBlockOutputLayout(renderedWidth: number) {
   return renderedWidth >= CODE_BLOCK_OUTPUT_SPLIT_WIDTH ? "split" : "stack";

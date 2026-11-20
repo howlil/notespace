@@ -21,7 +21,7 @@ export type ToastItem = Omit<ToastInput, "kind" | "duration"> & {
   version: number;
 };
 export const MAX_VISIBLE_TOASTS = 3;
-export const MAX_QUEUED_TOASTS = 8;
+const MAX_QUEUED_TOASTS = 8;
 
 export function toastDuration(kind: ToastKind, action?: ToastAction): number {
   if (kind === "loading" || (kind === "error" && action)) return Infinity;

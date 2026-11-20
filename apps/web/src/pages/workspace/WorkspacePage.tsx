@@ -9,6 +9,8 @@ type Props = {
   workspace: Workspace;
   categories: CategorySummary[];
   focusNoteId?: string;
+  focusBlockId?: string;
+  focusNonce?: string;
 };
 
 type WorkspaceSessionHandle = {
@@ -16,7 +18,7 @@ type WorkspaceSessionHandle = {
   prepareForDestructiveAction: () => Promise<boolean>;
 };
 
-export function WorkspacePage({ workspace, categories, focusNoteId }: Props) {
+export function WorkspacePage({ workspace, categories, focusNoteId, focusBlockId, focusNonce }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
   const sessionRef = useRef<WorkspaceSessionHandle | null>(null);
@@ -40,17 +42,26 @@ export function WorkspacePage({ workspace, categories, focusNoteId }: Props) {
            if (change?.kind === "workspace-deleted" && change.workspaceId === workspace.id) void navigate({ to: "/" });
            else void router.invalidate();
          }} />}>
-      <WorkspaceAuthoringSession key={workspace.id} workspace={workspace} focusNoteId={focusNoteId} onSessionChange={registerSession} />
+      <WorkspaceAuthoringSession
+        key={workspace.id}
+        workspace={workspace}
+        focusNoteId={focusNoteId}
+        focusBlockId={focusBlockId}
+        focusNonce={focusNonce}
+        onSessionChange={registerSession}
+      />
     </LibraryPageShell>
   );
 }
 
-function WorkspaceAuthoringSession({ workspace, focusNoteId, onSessionChange }: {
+function WorkspaceAuthoringSession({ workspace, focusNoteId, focusBlockId, focusNonce, onSessionChange }: {
   workspace: Workspace;
   focusNoteId?: string;
+  focusBlockId?: string;
+  focusNonce?: string;
   onSessionChange: (session: WorkspaceSessionHandle | null) => void;
 }) {
-  const authoring = useWorkspaceAuthoring({ workspace, focusNoteId });
+  const authoring = useWorkspaceAuthoring({ workspace, focusNoteId, focusBlockId, focusNonce });
   const prepareRef = useRef(authoring.prepareForDestructiveAction);
   prepareRef.current = authoring.prepareForDestructiveAction;
   const prepareForDestructiveAction = useCallback(() => prepareRef.current(), []);

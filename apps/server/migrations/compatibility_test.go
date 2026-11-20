@@ -170,14 +170,32 @@ func TestKnownLocalNoteRetirementChecksumAllowsFollowupMigration(t *testing.T) {
 	const followupMigration = "0026_scrub_retired_note_artifacts.sql"
 	ctx := context.Background()
 	db := openTestDB(t)
-	if err := Run(ctx, db); err != nil {
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE schema_migrations SET checksum=? WHERE name='0025_remove_notes.sql'`, recordedChecksum); err != nil {
+	names, err := fs.Glob(files, "*.sql")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE name>=?`, followupMigration); err != nil {
-		t.Fatal(err)
+	sort.Strings(names)
+	for _, name := range names {
+		if strings.Compare(name, followupMigration) >= 0 {
+			break
+		}
+		content, err := files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, string(content)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		sum := checksum(content)
+		if name == "0025_remove_notes.sql" {
+			sum = recordedChecksum
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, sum, "test"); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	inspection, err := Inspect(ctx, db)

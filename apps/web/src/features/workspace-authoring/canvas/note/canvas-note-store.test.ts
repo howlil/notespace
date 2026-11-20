@@ -217,3 +217,72 @@ test("a failed non-conflict save exposes retry that resends the retained draft",
   assert.deepEqual(persisted, ["draft"]);
   assert.equal(store.getSnapshot().save.state, "saved");
 });
+
+test("getDocuments returns only ready Note documents including queued local edits", async () => {
+  const { store } = setup({
+    getNote: async (id) => {
+      if (id === "gone") throw httpError(404);
+      return note(id, 1, doc(`loaded-${id}`));
+    },
+  });
+  store.ensure(["a", "gone"]);
+  await settle();
+  assert.deepEqual(store.getDocuments(), { a: doc("loaded-a") });
+  store.queue("a", doc("edited-a"));
+  assert.deepEqual(store.getDocuments(), { a: doc("edited-a") });
+});
+
+test("a Note read with deletedAt becomes a trashed entry and returns to ready after restore", async () => {
+  let trashed = true;
+  const restored: string[] = [];
+  const { store } = setup({
+    getNote: async (id) => (trashed ? { ...note(id, 4), deletedAt: "2026-01-01T00:00:00Z" } : note(id, 4)),
+    restoreNote: async (id) => { restored.push(id); trashed = false; },
+  });
+  store.ensure(["a"]);
+  await settle();
+  const entry = store.getSnapshot().entries.a;
+  assert.equal(entry?.status, "trashed");
+  // A trashed Note is not editable: queued drafts are ignored until it is restored.
+  store.queue("a", doc("ignored"));
+  assert.equal(store.getSnapshot().saves.a, undefined);
+
+  await store.restore("a");
+  assert.deepEqual(restored, ["a"]);
+  assert.equal(store.getSnapshot().entries.a?.status, "ready");
+});
+
+test("trash saves the pending draft first, then re-reads the Note as trashed", async () => {
+  const order: string[] = [];
+  let trashed = false;
+  const { store, timers } = setup({
+    getNote: async (id) => (trashed ? { ...note(id, 2), deletedAt: "2026-01-01T00:00:00Z" } : note(id, 1)),
+    updateNote: async (id, document, expectedRevision) => { order.push("update"); return note(id, expectedRevision + 1, document); },
+    trashNote: async () => { order.push("trash"); trashed = true; },
+  });
+  store.ensure(["a"]);
+  await settle();
+  store.queue("a", doc("draft"));
+  assert.equal(timers.size, 1);
+
+  await store.trash("a");
+  assert.deepEqual(order, ["update", "trash"]);
+  assert.equal(store.getSnapshot().entries.a?.status, "trashed");
+  assert.equal(store.getSnapshot().saves.a, undefined);
+});
+
+test("trash aborts and keeps the draft when the pending save fails", async () => {
+  let trashCalls = 0;
+  const { store } = setup({
+    updateNote: async () => { throw httpError(409, "conflict"); },
+    trashNote: async () => { trashCalls += 1; },
+  });
+  store.ensure(["a"]);
+  await settle();
+  store.queue("a", doc("draft"));
+
+  await assert.rejects(() => store.trash("a"));
+  assert.equal(trashCalls, 0);
+  assert.equal(store.getSnapshot().saves.a, "conflict");
+  assert.equal(store.getSnapshot().entries.a?.status, "ready");
+});

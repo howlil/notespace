@@ -11,7 +11,7 @@ browser / Tauri WebView
         ↓ same-origin HTTP
 httpapi + desktop boundary
         ↓ application capabilities
-workspace  planning  activity  asset  icon  library
+workspace  note  asset  icon  library
         ↓ consumer-owned ports
 SQLite adapter + migrations
 ```
@@ -36,9 +36,9 @@ R4 (Domain): own pure Workspace, Canvas, diagram, autosave, merge and validation
 
 R5 (Adapters): own HTTP transport/mapping, browser events/storage, durable assets and third-party editor integration. Adapters do not become product orchestrators.
 
-R6 (Application packages): own server use-cases and invariants. `workspace` owns Workspace/category/Canvas semantics; `library` owns Trash, backup and restore; `planning`, `activity`, `asset`, and `icon` retain their explicit contracts until product scope retires them.
+R6 (Application packages): own server use-cases and invariants. `workspace` owns Workspace/category/Canvas semantics; `note` owns canonical Canvas Notes and placements; `library` owns Trash, ZIP backup and restore; `asset` and `icon` retain their explicit contracts.
 
-R7 (HTTP controller): own routing, decoding, transport validation, authorization/middleware, status/error mapping and compatibility headers. It calls one application use-case and does not perform transactions.
+R7 (HTTP controller): own routing, decoding, transport validation, authorization/middleware, and status/error mapping. It calls one application use-case and does not perform transactions.
 
 R8 (SQLite adapter): own SQL, scanning, transactions, derived projections, connection configuration and migration execution. It implements ports; it is not imported by application packages.
 
@@ -73,23 +73,23 @@ These seams are implemented. Current source and executable architecture checks d
 | R2 composition | routes stays framework-owned; pages/{home,workspace,shell} | Thin URL routes; pages compose features. |
 | R3 library | features/library/index.ts; collection/, explorer/, backup/ | Sidebar joins Explorer state/UI; one root-mounted provider survives route changes. |
 | R3 authoring | features/workspace-authoring/index.ts; session/, canvas/ | Session owns draft/save/recovery; CanvasEditor stays the Canvas orchestrator. |
-| Canvas | Keep assets/chrome/code/diagram/flowchart/native/selection/state/sync/viewport; chrome owns tool rail/catalog, view/command UI and contextual positioning; selection composes callback-only controls and pure popup math | Colocate the Canvas-only palette in canvas/diagram/palette; code-block execution stays in canvas/code/execution with a same-origin worker CSP and bounded host output; HTML/XML preview stays in canvas/code/preview using a two-layer opaque-origin \`srcdoc\` sandbox paired with server framing headers and Tauri/WebView2 COM + init-script frame isolation; PNG/SVG exports include the code-block overlay. |
+| Canvas | Keep assets/chrome/code/diagram/flowchart/native/selection/state/sync/viewport; chrome owns tool rail/catalog, view/command UI and contextual positioning; selection composes callback-only controls and pure popup math | Colocate the Canvas-only palette in canvas/diagram/palette; code-block execution stays in canvas/code/execution with a same-origin worker CSP and bounded host output; HTML/XML preview stays in canvas/code/preview using a two-layer opaque-origin `srcdoc` sandbox paired with server framing headers and Tauri/WebView2 COM + init-script frame isolation; PNG/SVG exports include the code-block overlay. |
 | R1 web desktop | features/desktop/index.ts; chrome/lifecycle/recovery/updates | Native UI and close bridge leave generic shared UI/root route bodies; root still composes cross-feature slots. |
 | R4 rules | domain/{workspace,diagram,code} | Small cohesive modules stay flat; framework/HTTP/browser/editor dependencies stay outside. |
 | R5 adapters | adapters/{http,browser,assets,desktop} | IPC/quiescence is distinct from generic browser events. Adapters never import features. |
 | Generic UI | shared/ui/{controls,overlays,feedback,theme,brand} | Export consumed primitives; native chrome belongs to R1. |
-| R6 Go use-cases | Existing internal/{workspace,planning,activity,capture,asset,icon,library} | Keep small packages flat; consumer-owned ports remain here. |
+| R6 Go use-cases | Existing internal/{workspace,note,asset,icon,library} | Keep small packages flat; consumer-owned ports remain here. |
 | R7 HTTP | httpapi.New(Dependencies) facade; capability handler packages; httpapi/internal/transport | Root mounts middleware once. Children cannot import root API or persistence. |
-| R8 SQLite | Root Store/connection/transaction facade; sqlite/internal/{dbtx,workspace,planning,activity,capture,assets,search,backup} | One adapter/pool/transaction authority, not one database per capability. |
+| R8 SQLite | Root Store/connection/transaction facade; sqlite/internal/{dbtx,workspace,canvasnote,assets,search,backup} | One adapter/pool/transaction authority, not one database per capability. |
 | R1 Rust | Thin lib.rs; runtime.rs + runtime/{state,sidecar,readiness,shutdown}.rs; window/recovery/updates/diagnostics.rs | Crate-private facade; one RuntimeProcess owns child generation and close/backup locks. |
-| Browser proofs | tests/e2e/{canvas,library,settings,compatibility,support} | One harness; recursive discovery, critical selection and fixture roots move together. |
+| Browser proofs | tests/e2e/{canvas,library,settings,support} | One harness; recursive discovery, critical selection and fixture roots move together. |
 | CLI / landing | scripts/{dev,verify,release,assets}; Astro pages/layouts/components/styles/lib | Update Taskfile/package/workflow paths together. Small landing needs no additional hierarchy. |
 
 Outside feature callers use its public entry; internals use direct imports, not self-barrels. Root-owned stylesheet imports remain explicit and ordered in the managed head. Do not eagerly export CanvasEditor and collapse its lazy engine boundary. A directory needs a coherent owner/capability, not a mandatory file-count threshold.
 
 Go subfolders create packages; Store/API receiver methods cannot move there unchanged. Extract repositories/handlers behind existing facade signatures. Children must not import their parent facade; Go packages are the entries, not TypeScript-style index files.
 
-SQLite root coordinators begin/commit/rollback. Compound backup/restore/Trash/migration passes the same borrowed *sql.Tx through a minimal SQL-only DBTX interface. Children never begin transactions or use *sql.DB inside a borrowed transaction. Cross-capability recovery uses explicit transaction-bound snapshot/restore entries, not another repository's tables. Archive EncodeArchive/DecodeArchive in sqlite/internal/backup are SQL-free: Store takes the consistent snapshot, decodes/validates before restore, and alone owns atomic mutation. Preserve archive entry order, stored-blob/checksum/expansion bounds and supported formats. Canvas writes compose workspace.UpdateCanvasTx and search.AdvanceCanvasRevisionTx on that same borrowed transaction; search SyncIndexTx/ReplaceWorkspaceTx own projection SQL, not transaction lifetime. Preserve the single connection, paging-cache lifetime, non-fatal post-write search refresh and pre-upgrade snapshot ordering. Aggregate tests stay at the facade; repository tests follow their package.
+SQLite root coordinators begin/commit/rollback. Compound backup/restore/Trash/migration passes the same borrowed *sql.Tx through a minimal SQL-only DBTX interface. Children never begin transactions or use *sql.DB inside a borrowed transaction. Cross-capability recovery uses explicit transaction-bound snapshot/restore entries, not another repository's tables. Archive EncodeArchive/DecodeArchive in sqlite/internal/backup are SQL-free: Store takes the consistent snapshot, decodes/validates before restore, and alone owns atomic mutation. Preserve archive entry order, stored-blob/checksum/expansion bounds and supported formats. Canvas writes funnel through a single `applyCanvasTx` helper (both generic workspace updates and Canvas Note create/delete) that composes workspace.UpdateCanvasTx, canvasnote.SyncGeometryTx, search.AdvanceCanvasRevisionTx and search.InvalidateNotesInWorkspaceTx on that same borrowed transaction; search SyncIndexTx/ReplaceWorkspaceTx own projection SQL, not transaction lifetime. The per-Note FTS projection is lazy: canvas_note_search_meta tracks each Note's revision so syncCanvasNotesTx reindexes only stale Notes, with placement changes invalidating via the workspace hook. Preserve the single connection, paging-cache lifetime, non-fatal post-write search refresh and pre-upgrade snapshot ordering. Aggregate tests stay at the facade; repository tests follow their package.
 
 Place new files in the existing owning capability. Keep small cohesive capabilities flat; add a subfolder only for a distinct responsibility or dependency boundary. Do not introduce generic catch-all components/hooks/utils folders, unused barrels, or forwarding files for retired locations. Feature roots and operational script groups are checked automatically. New import aliases require resolver support in the architecture check.
 
@@ -97,11 +97,11 @@ Change one owner with its callers/tests/checks together. Keep public feature exp
 
 ## Contracts
 
-K1 Web → HTTP: relative `/api/...` requests use typed adapters; transport maps status/errors, while application packages own semantics. New APIs use `Workspace`; `/api/projects` and old schema names remain compatibility-only.
+K1 Web → HTTP: relative `/api/...` requests use typed adapters; transport maps status/errors, while application packages own semantics. All APIs use `Workspace` and `Canvas Note`; retired `/api/projects`, full-snapshot `PATCH /api/workspaces/{id}`, `planning`, `capture`, and `activity` routes are removed.
 
 K2 HTTP → application: decode and validate transport input, call the narrow use-case, map known domain errors. No handler reaches through a service to its store or starts a cross-domain transaction.
 
-K3 Application → SQLite: interfaces are owned by the consuming application package. A transaction is required when one invariant spans Workspace, Canvas, history, assets, Trash or full-library restore.
+K3 Application → SQLite: interfaces are owned by the consuming application package. A transaction is required when one invariant spans Workspace, Canvas, Notes, assets, Trash or full-library restore.
 
 K4 Canvas save: client sends the base version; server accepts the next state or returns conflict; client fetches/rebases/merges according to the Canvas conflict rules and never overwrites an unresolved concurrent edit. Acknowledgements merge into both the live draft and any queued edit before the next write. Failed image uploads remain in the asset barrier until retry succeeds or the image is removed.
 
@@ -109,23 +109,9 @@ K5 Desktop: Tauri starts the sidecar, waits for its one-use bootstrap URL, then 
 
 K6 Migration: migrations are append-only and must validate existing data, retain a verified pre-upgrade recovery copy when required, then commit or rollback atomically. Code N must read the supported N-1 state during rollout; breaking removal uses expand → migrate → contract. Previously applied migration variants are recognized only by explicit checksum; follow-up behavior ships in a new migration, never by rewriting stored checksums or replacing the library. Each migration commits its schema fingerprint in the same transaction so restart can resume after a later step fails.
 
-K7 Legacy Note compatibility: historical DTO fields (`Note`, document, references), schema names, and retirement migrations remain compatibility/recovery history. They are not the canonical store for the new Canvas Note model and must not be repurposed.
-K8 Canvas Note (issue #203): canonical Note content is a library-level, versioned entity in a new storage namespace; its document is a versioned ProseMirror JSON tree, never stored HTML. Canvas scene elements carry typed `{ noteId, instanceId, version }` references and own geometry. Note content and Canvas snapshots have independent optimistic versions and save lifecycles. Create+place is one idempotent server transaction; removing an instance never deletes its Note. Existing backups must round-trip canonical Notes and references; restore validates references and rejects malformed or unsupported Note schema versions atomically. Rich input is parsed, sanitized and validated at its ingress; assets remain managed by the existing asset lifecycle. Search, backlinks and reference previews are derived projections; a preview is read-only and bounded, never another canonical editor. A mounted Canvas re-reads its referenced Notes on entry; real-time multi-window collaboration is out of scope. Canonical Note deletion is a separately guarded library operation (`DELETE /api/notes/{id}`): it removes only an empty Note that no live Canvas element places, clearing that Note's orphan instance rows in the same transaction; it is never an instance-delete alias and writes no Trash record because an empty Note holds nothing to recover. Code N and rollback-compatible code must preserve pre-existing retired Note fields without interpreting them as new Notes.
+K7 Retired domain contraction (`0031_contract_retired_domains.sql`): historical `planning`, `capture`, `activity`, legacy `workspace_notes`, `workspace_history`, and retired `projects` columns (`references_state`, `split_ratio`, `notes_revision`) are contracted from the active schema and server packages. Portable recovery uses v3 ZIP archives (`application/zip`, while still accepting N-1 v2 ZIP archives during rollout per K6); desktop native SQLite recovery (`snapshot.go`) remains active.
 
-Compatibility classification (#201 S8; router + capability handlers/models are implementation truth):
-
-| Surface / DTO owner | Classification and traced consumers |
-| --- | --- |
-| Workspace/Canvas/category/search/assets/Trash/backup routes; Summary, WorkspacePage, CategorySummary, CanvasState/CanvasUpdate, SearchResult, Trash records | Active product: adapters/http/workspace-api, adapters/assets/image-api, Library/session/Canvas; Web and desktop share this HTTP client. |
-| GET/POST /api/projects; GET/PATCH/DELETE /api/projects/{id}; PATCH .../{id}/title and .../{id}/category | External compatibility aliases (7 method/path pairs); same workspace handlers; successor/deprecation headers and legacy Location retained. workspace_http_test covers aliases/restart. No current Web/desktop production caller found; this is NOT proof of no external clients. |
-| PATCH /api/workspaces/{id} complete snapshot; Workspace, Update, Note, Reference, HistoryEntry/HistorySnapshot document/notes/references/splitRatio fields | External DTO compatibility + backup/migration requirement; current UI writes Canvas through /canvas instead. Empty retired shapes remain in Web/domain and Go/workspace; old documents/notes are normalized/scrubbed, not restored as authoring UI. |
-| GET workspace/{id}/plan; POST milestones/tasks; PATCH/DELETE milestone/task IDs (all under /api/workspaces/{id}) | External compatibility + backup: planning Plan/Milestone/Task and MilestonePatch/TaskPatch; planning handlers, Store invariants, HTTP/idempotency/concurrency and restore tests. |
-| GET /api/tasks/{today,inbox,unassigned}; GET/PATCH/DELETE /api/tasks/{taskId}; POST /api/tasks; POST /api/tasks/{taskId}/assign-workspace | External compatibility + backup: planning Today/TodayTask/Inbox/Task; historical standalone/assigned task identity and attribution remain. No current production Web/desktop caller found. |
-| GET/POST /api/captures; GET/PATCH/DELETE /api/captures/{captureId}; POST .../{captureId}/organize | External compatibility + backup: capture Item/Organize, CRUD content/version bodies and receipt fields; only task organization is accepted, legacy document input remains rejected. Capture HTTP/retry/backup tests and normalization are consumers. |
-| GET /api/activity/sessions; PUT/DELETE .../sessions/{sessionId}; GET /api/activity/stats; GET /api/activity/{date}; GET /api/activity | External compatibility + durable backup/migration ledger: Session, Heartbeat/ActivityHeartbeat, WorkspaceStats, Activity/DayActivity, DayDetail/WorkspaceBreakdown. Activity HTTP/revision/deletion/restart tests and studySessions/deleted-ID backup fields remain. TaskRef/WorkspaceRef are internal lookup ports, not wire DTOs. |
-| LibraryBackup/WorkspaceEnvelope/TrashRecord; archive manifest/workspace/trash/blob/asset shapes; JSON v1–3, ZIP v2–3 and historical Trash gob fields | Active recovery + backup/migration requirement: library handlers, desktop's shared Web backup tools, prior-format and actual SQLite rollback tests. Native manual/pre-upgrade SQLite snapshots are a separate connection-lifetime path. Schema names projects/study_sessions and legacy FTS note columns stay; current search returns only category/workspace. |
-
-The current Web route map exposes only Home and Workspace; no retired authoring route was reintroduced. No exposed legacy surface is classified safe-to-delete. No retirement is proposed here. Future removal needs explicit product approval, a separate expand→migrate→contract change, recovery and supported N-1 proof; a missing frontend route or caller never authorizes deletion.
+K8 Canvas Note (issue #203): canonical Note content is a library-level, versioned entity in a new storage namespace; its document is a versioned ProseMirror JSON tree, never stored HTML. Canvas scene elements carry typed `{ noteId, instanceId, version }` references and own geometry. Note content and Canvas snapshots have independent optimistic versions and save lifecycles. Create+place is one idempotent server transaction; removing an instance never deletes its Note. Existing backups must round-trip canonical Notes and references; restore validates references and rejects malformed or unsupported Note schema versions atomically. Rich input is parsed, sanitized and validated at its ingress; assets remain managed by the existing asset lifecycle. Search and reference previews are derived projections; a preview is read-only and bounded, never another canonical editor. A mounted Canvas re-reads its referenced Notes on entry; real-time multi-window collaboration is out of scope. Canonical Note deletion is a separately guarded library operation (`DELETE /api/notes/{id}`): it removes only an empty Note that no live Canvas element places, clearing that Note's orphan instance rows in the same transaction; it is never an instance-delete alias and writes no Trash record because an empty Note holds nothing to recover. Notes with content or placements use Trash instead (B16): `canvas_notes.deleted_at` (migration 0032, additive, NULL = active) marks a trashed Note whose content, revision and instance rows stay intact. The `library` package owns the lifecycle (`POST /api/notes/{id}/trash`, `GET /api/trash/notes`, `POST|DELETE /api/trash/notes/{id}`); trashed Notes stay readable via `GET /api/notes/{id}` (`deletedAt` set) but reject update and placement with `note_trashed` (409), disappear from list, search and backlinks, and `deleted_at` rides in the v3 archive `notes[]` (absent in older archives = active). Permanent delete is allowed only from Trash and has no automatic purge.
 
 DEP1 SQLite/modernc: local durable store; failure blocks writes and startup, recovery is through validation and backup paths; no remote availability target is assumed.
 DEP2 Tauri/WebView2: desktop host boundary; failure is surfaced as recoverable startup/native verification failure, not hidden in web product code.
@@ -142,7 +128,7 @@ FL3 Pagination: library query → workspace service/store creates or resumes a s
 
 FL4 Destructive lifecycle: Trash/restore/backup request → library use-case → one SQLite transaction → validated durable result. No raw delete path bypasses the library contract.
 
-FL5 Note retirement: startup migration validates and snapshots old data → removes retired Note payloads/links → scrubs Canvas artifacts → serves empty compatibility fields. Restore/backup remains the recovery boundary; no hidden Note payload may remain in active or Trash state.
+FL5 Domain contraction: startup migration validates and snapshots old data → contracts retired `planning`, `capture`, `activity`, `workspace_notes`, and `workspace_history` schema → preserves active Workspaces, Canvas, Notes, Assets, and Trash.
 
 FL6 Canvas Note knowledge actions: an active card creates semantic document changes, managed assets or stable references → the authoring session flushes versioned Note content → SQLite updates the canonical entity and derived search/reference projections → another Canvas reloads the identity on entry. Invalid input, missing targets and unavailable AI remain recoverable presentation states and do not create a second content owner.
 
@@ -177,11 +163,17 @@ DEC2 [one-way]: keep Tauri as a thin shell and same-origin HTTP instead of dupli
 
 DEC3 [one-way]: keep one SQLite adapter/connection/transaction authority instead of per-domain database owners. Driver: FL4/FL5 atomicity. Private query/codec packages behind Store are allowed only with a borrowed-transaction contract and rollback proof, never independent pools or commits. Trade-off: explicit facade/delegation work reduces density while preserving recovery. Revisit for a new authoritative state owner or transaction boundary.
 
-DEC4 [one-way]: preserve the legacy Note DTO/migration compatibility path while introducing canonical Canvas Notes in a separate namespace and API. Driver: K6/K7 rollback/recovery and K8's versioned Note content. Trade-off: temporary parallel compatibility shapes and backup complexity. Revisit only after supported backup and rollback windows formally retire the legacy contract.
+DEC4 [one-way]: contract retired `planning`, `capture`, `activity`, legacy `workspace_notes`, `workspace_history`, `/api/projects`, and JSON backup restore codecs (`0031_contract_retired_domains.sql`), keeping only active Workspace, Canvas, Canvas Note, Asset, and v3 ZIP recovery contracts alongside desktop SQLite snapshots.
 
 DEC5 [two-way]: use Tiptap/ProseMirror as the lazy Canvas Note editor and canonical document model; use only MIT-licensed core/extensions and keep editor-specific code behind the Canvas Note adapter. Driver: J3/B9-B10, M1-M4, and no existing rich-text editor owner. Trade-off: added editor payload and ProseMirror schema/version maintenance. Revisit if the in-app IME/paste/Canvas-transform spike fails or measured lazy-chunk cost is unacceptable. Feasibility evidence: current app uses React 18; registry metadata for Tiptap 3.30.3 declares React 18 peer support and MIT licensing; StarterKit and table are modular dependencies. This is a package/API feasibility result, not a verified in-app IME, SSR, clipboard, or zoom result; those remain M1 proof gates.
 
 DEC6 [two-way]: keep cross-Canvas Note freshness as re-read-on-entry and explicit recovery, not a subscription protocol. Driver: local-first single-user scope and K8's optimistic revision contract. Trade-off: a second already-open Canvas can be stale until it re-enters or reloads; real-time synchronization requires a separately authorized collaboration boundary.
+
+DEC7 [one-way]: make the per-Note FTS projection lazy and single-path. Canvas writes share one `applyCanvasTx` tx helper (generic updates + Note create/delete), and `canvas_note_search_meta` (migration 0030) tracks each Note's revision so `syncCanvasNotesTx` reindexes only stale Notes instead of rebuilding every row per search; placement changes invalidate via `InvalidateNotesInWorkspaceTx`. Driver: K8 derived projections, FL6 lazy search, and R8 single-write-owner; removes the duplicated canvas-update tx logic and the full note FTS rebuild on every query. Trade-off: one extra meta table and an invalidation hook; over-invalidation (shared Notes reindexed across workspaces) is accepted as correct-but-broader. Revisit if note counts stay small and the rebuild cost is unmeasured.
+
+DEC8 [one-way]: reject `image/svg+xml` (and any `image/svg*`) at every asset ingress. New uploads/restores deny SVG (`NormalizeMimeType` is shared by upload, store, and restore) so untrusted SVG never executes inline on the same origin; any pre-DEC8 stored non-image or SVG asset remains readable only behind download isolation (`Content-Security-Policy: sandbox`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`). Driver: secure-default ingress and non-destructive upgrade compatibility. Trade-off: no new user-uploaded SVG in asset storage; icons (validated from the eraser source and served separately) remain unaffected.
+
+DEC9 [one-way]: classify Canvas Note write errors at the Store boundary instead of mapping every failure to conflict. `normalizeNoteWriteError` turns only SQLite constraint codes (UNIQUE/PRIMARYKEY/FOREIGNKEY) into `note.ErrConflict` (409) and wraps everything else as an infrastructure error (500). Driver: accurate error semantics, reliability and observability. Trade-off: a non-constraint database fault no longer masquerades as a user-facing conflict.
 
 ## Fitness rules
 
@@ -198,19 +190,14 @@ F9: Nested browser suites remain discovered exactly once; configured script entr
 
 ## Debt and risks
 
-D1: Workspace DTO/model still carries `Note`, `document`, `references` and empty compatibility arrays | preserves rollout compatibility beside K8's isolated canonical Note store | pay when the legacy K7 compatibility window is retired | workspace owner.
+D1: Historical SQLite table name `projects` remains for Workspace rows | avoids destructive table rename with no product payoff | pay only with measured migration benefit | migrations owner.
 
-D2: `/api/projects` and historical SQLite table names remain | avoids destructive rename with no product payoff | pay only with measured migration benefit | httpapi/migrations owner.
-
-D3: planning/activity/capture server contracts remain while their UI surfaces are retired | preserves stored history/API compatibility | pay after product scope decides data/API retirement | product + application owners.
-
-Risks/trade-offs: (1) legacy compatibility widens DTO and test surface; (2) one SQLite boundary limits future independent scaling; (3) third-party Canvas/editor state is complex, so browser/native proof must remain focused on durable behavior rather than implementation details.
+Risks/trade-offs: (1) one SQLite boundary limits future independent scaling; (2) third-party Canvas/editor state is complex, so browser/native proof must remain focused on durable behavior rather than implementation details.
 
 ## Assumptions
 
 A1: Product supplies numeric latency/availability/RPO targets later; until then, correctness and recovery are verified behaviorally and no invented SLO is used.
 A2: Browser and desktop continue to share product behavior and local SQLite remains authoritative.
-A3: Planning/activity/capture data retirement is not authorized merely because its UI is absent; the current contract keeps those packages isolated.
 
 ## Verification and release boundary
 

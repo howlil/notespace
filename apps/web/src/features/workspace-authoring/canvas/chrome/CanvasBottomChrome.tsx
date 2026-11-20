@@ -1,5 +1,8 @@
+import { SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import type { ContextualToolbarMode } from "./contextual-toolbar-policy";
+import { useContextualToolbarPresentation } from "./use-contextual-toolbar";
 export type CanvasContextualAnchor = {
   left: number;
   top: number;
@@ -17,22 +20,35 @@ function clampContextualPosition(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
-export function CanvasBottomChrome({ contextual, tools, contextualAnchor, activeTool, contextualVisible = true }: { contextual: ReactNode; tools: ReactNode; contextualAnchor?: CanvasContextualAnchor | null; activeTool?: string; contextualVisible?: boolean }) {
+export function CanvasBottomChrome({ contextual, tools, contextualAnchor, activeTool, contextualVisible = true, mode = "floating", selectionKey = "", interactionActive = false }: {
+  contextual: ReactNode;
+  tools: ReactNode;
+  contextualAnchor?: CanvasContextualAnchor | null;
+  activeTool?: string;
+  /** False while the user is manipulating, a context menu is open, or the canvas is view-only. */
+  contextualVisible?: boolean;
+  mode?: ContextualToolbarMode;
+  /** Identifies the current selection so settling, Escape dismissal, and chip expansion reset when it changes. */
+  selectionKey?: string;
+  interactionActive?: boolean;
+}) {
   const chromeRef = useRef<HTMLDivElement>(null);
   const contextualRef = useRef<HTMLDivElement>(null);
   const [contextualPosition, setContextualPosition] = useState<CanvasContextualPosition | null>(null);
   const anchored = Boolean(contextualAnchor);
-  const positionInputs = useRef({ contextualAnchor, activeTool });
-  positionInputs.current = { contextualAnchor, activeTool };
+  const { presentation, expand } = useContextualToolbarPresentation({ mode, selectionKey, hasSelection: anchored, suppressed: !contextualVisible, interactionActive });
+  const visible = presentation !== "hidden";
+  const positionInputs = useRef({ contextualAnchor, activeTool, mode });
+  positionInputs.current = { contextualAnchor, activeTool, mode };
   const frameRef = useRef<number | null>(null);
   useLayoutEffect(() => {
-    contextualRef.current?.toggleAttribute("inert", !contextualVisible);
-  }, [contextualVisible]);
+    contextualRef.current?.toggleAttribute("inert", !visible);
+  }, [visible]);
 
   const updateContextualPosition = useCallback(() => {
     const surface = chromeRef.current?.getBoundingClientRect();
     const toolbar = contextualRef.current;
-    const { contextualAnchor: selectionBounds, activeTool: tool } = positionInputs.current;
+    const { contextualAnchor: selectionBounds, activeTool: tool, mode: toolbarMode } = positionInputs.current;
     const toolButton = Array.from(chromeRef.current?.querySelectorAll<HTMLElement>("[data-canvas-tool]") ?? [])
       .find((button) => button.dataset.canvasTool === tool);
     const anchor = selectionBounds ?? toolButton?.getBoundingClientRect();
@@ -49,6 +65,14 @@ export function CanvasBottomChrome({ contextual, tools, contextualAnchor, active
     const fullyOutside = anchor.right < surface.left || anchor.left > surface.right || anchor.bottom < surface.top || anchor.top > surface.bottom;
     if (fullyOutside) {
       setContextualPosition((previous) => sameContextualPosition(previous, null) ? previous : null);
+      return;
+    }
+
+    if (selectionBounds && toolbarMode === "docked") {
+      const dockLeft = clampContextualPosition(surface.left + (surface.width - width) / 2, surface.left + surfaceGap, surface.right - width - surfaceGap);
+      const dockTop = clampContextualPosition(surface.bottom - height - 16, surface.top + surfaceGap, surface.bottom - height - surfaceGap);
+      const docked = { top: dockTop, left: dockLeft };
+      setContextualPosition((previous) => sameContextualPosition(previous, docked) ? previous : docked);
       return;
     }
 
@@ -75,7 +99,7 @@ export function CanvasBottomChrome({ contextual, tools, contextualAnchor, active
   useLayoutEffect(() => {
     updateContextualPosition();
     schedulePosition();
-  }, [activeTool, contextual, contextualAnchor, schedulePosition, updateContextualPosition]);
+  }, [activeTool, contextual, contextualAnchor, mode, presentation, schedulePosition, updateContextualPosition]);
 
   useLayoutEffect(() => {
     const toolbar = contextualRef.current;
@@ -100,10 +124,21 @@ export function CanvasBottomChrome({ contextual, tools, contextualAnchor, active
         ref={contextualRef}
         data-anchored={anchored ? "true" : "false"}
         className="notespace-canvas-contextual-chrome pointer-events-none fixed z-[100] flex max-w-[calc(100vw-16px)] flex-col items-start"
-        aria-hidden={!contextualVisible}
-        style={{ top: contextualPosition?.top ?? 8, left: contextualPosition?.left ?? 8, visibility: contextualPosition && contextualVisible ? "visible" : "hidden" }}
+        aria-hidden={!visible}
+        style={{ top: contextualPosition?.top ?? 8, left: contextualPosition?.left ?? 8, visibility: contextualPosition && visible ? "visible" : "hidden" }}
       >
-        {contextual}
+        {presentation === "chip" ? (
+          <button
+            type="button"
+            className="pointer-events-auto grid size-8 place-items-center rounded-lg border border-line bg-surface text-ink/70 [box-shadow:var(--shadow-float)] hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            aria-label="Show tools"
+            title="Show tools"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={expand}
+          >
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+          </button>
+        ) : contextual}
       </div>
       <div className="notespace-canvas-tool-dock pointer-events-none absolute top-1/2 left-2 flex -translate-y-1/2 flex-col items-center">
         {tools}

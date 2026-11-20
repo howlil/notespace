@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withCanvasNoteReference } from "../../../../domain/note/note.ts";
 import { defaultCanvasCodeBlock, withCanvasCodeBlock } from "../code/canvas-code-block.ts";
 import { analyzeCanvasSelection, canvasStylePatchForElement, sharedCanvasValue, supportsCanvasStyle } from "./canvas-selection-capabilities.ts";
 
@@ -82,4 +83,55 @@ test("a batch pressure edit preserves each stroke's own options and patches only
   assert.deepEqual(canvasStylePatchForElement(pen, patch), { strokeOptions: { variability: "constant", streamline: 0.9 }, opacity: 50 });
   assert.deepEqual(canvasStylePatchForElement({ type: "image" }, patch), { opacity: 50 });
   assert.deepEqual(canvasStylePatchForElement({ type: "rectangle" }, patch), { backgroundColor: "red", opacity: 50 });
+});
+
+test("multi-selecting Note cards excludes Excalidraw drawing styles while preserving opacity", () => {
+  const noteA = {
+    type: "rectangle",
+    customData: withCanvasNoteReference(undefined, { noteId: "note-1", instanceId: "inst-1" }),
+  };
+  const noteB = {
+    type: "rectangle",
+    customData: withCanvasNoteReference(undefined, { noteId: "note-2", instanceId: "inst-2" }),
+  };
+
+  const homogeneous = analyzeCanvasSelection([noteA, noteB]);
+  assert.equal(homogeneous.mixed, false);
+  assert.equal(homogeneous.hasNote, true);
+  assert.equal(homogeneous.hasCode, false);
+  assert.deepEqual(homogeneous.types, ["note"]);
+  assert.equal(homogeneous.stroke, "none");
+  assert.equal(homogeneous.fill, "none");
+  assert.equal(homogeneous.line, "none");
+  assert.equal(homogeneous.arrow, "none");
+  assert.equal(homogeneous.text, "none");
+  assert.equal(homogeneous.freeDraw, "none");
+  assert.equal(homogeneous.opacity, "all");
+
+  assert.equal(supportsCanvasStyle(noteA, "strokeColor"), false);
+  assert.equal(supportsCanvasStyle(noteA, "backgroundColor"), false);
+  assert.equal(supportsCanvasStyle(noteA, "roughness"), false);
+  assert.equal(supportsCanvasStyle(noteA, "opacity"), true);
+  assert.deepEqual(
+    canvasStylePatchForElement(noteA, { strokeColor: "red", backgroundColor: "blue", roughness: 2, opacity: 75 }),
+    { opacity: 75 },
+  );
+
+  const mixed = analyzeCanvasSelection([noteA, { type: "rectangle" }]);
+  assert.equal(mixed.mixed, true);
+  assert.equal(mixed.hasNote, true);
+  assert.deepEqual(mixed.types, ["note", "rectangle"]);
+  assert.equal(mixed.stroke, "some");
+  assert.equal(mixed.fill, "some");
+  assert.equal(mixed.opacity, "all");
+});
+
+test("malformed Note metadata retains underlying rectangle capabilities", () => {
+  const malformed = { type: "rectangle", customData: { notespaceNote: { noteId: "" } } };
+  const result = analyzeCanvasSelection([malformed]);
+  assert.equal(result.hasNote, false);
+  assert.deepEqual(result.types, ["rectangle"]);
+  assert.equal(result.stroke, "all");
+  assert.equal(result.fill, "all");
+  assert.equal(supportsCanvasStyle(malformed, "strokeColor"), true);
 });

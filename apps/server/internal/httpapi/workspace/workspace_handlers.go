@@ -1,33 +1,28 @@
 package workspacehttp
 
 import (
-	"github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
 	"net/http"
 
+	"github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
+	"github.com/howlil/notespace/apps/server/internal/library"
 	"github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-func (a Handler) List(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("limit") != "" {
-		limit, err := transport.ParseIntQuery(r, "limit", 0)
-		if err != nil || limit < 1 || limit > 100 {
-			transport.Fail(w, workspace.ErrInvalid)
-			return
-		}
-		data, err := a.workspace.ListRecent(r.Context(), limit)
-		if err != nil {
-			transport.Fail(w, err)
-			return
-		}
-		transport.Send(w, 200, data)
-		return
+// Handler owns workspace transport and delegates product rules to application services.
+type Handler struct {
+	library   *library.Service
+	workspace *workspace.Service
+}
+
+func New(library *library.Service, workspace *workspace.Service) Handler {
+	return Handler{library: library, workspace: workspace}
+}
+
+func optionalExpected(value *string) []string {
+	if value == nil {
+		return nil
 	}
-	data, err := a.workspace.List(r.Context())
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.Send(w, 200, data)
+	return []string{*value}
 }
 
 func (a Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +36,7 @@ func (a Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, page)
+	transport.Send(w, http.StatusOK, page)
 }
 
 func (a Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -58,12 +53,8 @@ func (a Handler) Create(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	locationPrefix := "/api/workspaces/"
-	if transport.IsLegacyProjectPath(r.URL.Path) {
-		locationPrefix = "/api/projects/"
-	}
-	w.Header().Set("Location", locationPrefix+p.ID)
-	transport.Send(w, 201, p)
+	w.Header().Set("Location", "/api/workspaces/"+p.ID)
+	transport.Send(w, http.StatusCreated, p)
 }
 
 func (a Handler) Get(w http.ResponseWriter, r *http.Request) {
@@ -72,20 +63,7 @@ func (a Handler) Get(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, p)
-}
-
-func (a Handler) Update(w http.ResponseWriter, r *http.Request) {
-	var body workspace.Update
-	if !transport.Decode(w, r, &body) {
-		return
-	}
-	p, err := a.workspace.Update(r.Context(), r.PathValue("id"), body)
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.Send(w, 200, p)
+	transport.Send(w, http.StatusOK, p)
 }
 
 func (a Handler) Rename(w http.ResponseWriter, r *http.Request) {
@@ -96,16 +74,12 @@ func (a Handler) Rename(w http.ResponseWriter, r *http.Request) {
 	if !transport.Decode(w, r, &body) {
 		return
 	}
-	var expected []string
-	if body.ExpectedTitle != nil {
-		expected = append(expected, *body.ExpectedTitle)
-	}
-	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title, expected...)
+	p, err := a.workspace.Rename(r.Context(), r.PathValue("id"), body.Title, optionalExpected(body.ExpectedTitle)...)
 	if err != nil {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, p)
+	transport.Send(w, http.StatusOK, p)
 }
 
 func (a Handler) Move(w http.ResponseWriter, r *http.Request) {
@@ -116,16 +90,12 @@ func (a Handler) Move(w http.ResponseWriter, r *http.Request) {
 	if !transport.Decode(w, r, &body) {
 		return
 	}
-	var expected []string
-	if body.ExpectedCategoryID != nil {
-		expected = append(expected, *body.ExpectedCategoryID)
-	}
-	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID, expected...)
+	p, err := a.workspace.Move(r.Context(), r.PathValue("id"), body.CategoryID, optionalExpected(body.ExpectedCategoryID)...)
 	if err != nil {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, p)
+	transport.Send(w, http.StatusOK, p)
 }
 
 func (a Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -139,4 +109,13 @@ func (a Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transport.Send(w, http.StatusNoContent, nil)
+}
+
+func (a Handler) Search(w http.ResponseWriter, r *http.Request) {
+	data, err := a.workspace.Search(r.Context(), r.URL.Query().Get("q"))
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.Send(w, http.StatusOK, data)
 }

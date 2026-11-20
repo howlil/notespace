@@ -8,11 +8,11 @@ import { workspaceRenameTitle } from "../../../domain/workspace/naming";
 import { errorMessage } from "../../../shared/lib/error-message";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
 
-export type LibraryView = "all" | "category";
-export type CategoryWorkspacePageState = { offset: number };
+type LibraryView = "all" | "category";
+type CategoryWorkspacePageState = { offset: number };
 const defaultCategoryPageState: CategoryWorkspacePageState = { offset: 0 };
 
-export type UseWorkspaceLibraryOptions = {
+type UseWorkspaceLibraryOptions = {
   categories: CategorySummary[];
   initialSelectedCategoryId?: string;
   initialCategoryPage?: WorkspacePage;

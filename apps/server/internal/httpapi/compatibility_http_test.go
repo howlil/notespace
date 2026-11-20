@@ -19,11 +19,18 @@ func TestRemovedStudyAndHistoryCompatibilityRoutesStayUnavailable(t *testing.T) 
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Compatibility boundary"}))
 
 	for _, path := range []string{
+		"/api/projects",
+		"/api/projects/" + p.ID,
 		"/api/workspaces/" + p.ID + "/history",
 		"/api/projects/" + p.ID + "/history",
 		"/api/workspaces/" + p.ID + "/study",
 		"/api/workspaces/" + p.ID + "/study-sessions",
 		"/api/study/activity?from=2026-09-03&to=2026-09-03",
+		"/api/workspaces/" + p.ID + "/plan",
+		"/api/tasks/today",
+		"/api/captures",
+		"/api/activity",
+		"/api/notes/n1/backlinks",
 	} {
 		expect(t, call(t, api, "GET", path, nil), http.StatusNotFound)
 	}

@@ -1,12 +1,12 @@
 import { mergeCanvasSnapshots } from "./canvas-merge.ts";
 import type { Snapshot } from "./workspace";
 
-export type CanvasConflictLatest = {
+type CanvasConflictLatest = {
   canvas: Snapshot;
   canvasVersion: number;
 };
 
-export type CanvasConflictResolution = {
+type CanvasConflictResolution = {
   canvas: Snapshot;
   version: number;
   converged: boolean;

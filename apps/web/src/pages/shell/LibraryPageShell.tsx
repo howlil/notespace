@@ -117,16 +117,16 @@ function ShellHeader({ explorer, workspaceTitle, headerActions }: Pick<Props, "w
           {explorer.open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
         </button>
         {workspaceTitle && <div role="group" aria-label="Current workspace"
-          className="min-w-0 max-w-[228px] truncate border-l border-line pl-2 text-[11px] font-medium text-ink min-[1000px]:max-w-[calc((100vw_-_640px)/2)]"
+          className="min-w-0 max-w-[228px] truncate border-l border-line pl-2 text-[12px] font-medium text-ink min-[1000px]:max-w-[calc((100vw_-_640px)/2)]"
           title={workspaceTitle}>{workspaceTitle}</div>}
         <div className="min-w-0 flex-1" data-tauri-drag-region />
         <button type="button" data-notespace-titlebar-search
-          className="pointer-events-auto flex h-7 w-[min(390px,42vw)] min-w-0 shrink items-center gap-2 rounded-md border border-line bg-background px-2 text-left text-[11px] text-muted transition-colors duration-100 hover:border-accent/35 hover:bg-tint/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[1000px]:absolute min-[1000px]:left-1/2 min-[1000px]:top-1/2 min-[1000px]:-translate-x-1/2 min-[1000px]:-translate-y-1/2"
+          className="pointer-events-auto flex h-7 w-[min(390px,42vw)] min-w-0 shrink items-center gap-2 rounded-md border border-line bg-background px-2 text-left text-[12px] text-muted transition-colors duration-100 hover:border-accent/35 hover:bg-tint/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-[1000px]:absolute min-[1000px]:left-1/2 min-[1000px]:top-1/2 min-[1000px]:-translate-x-1/2 min-[1000px]:-translate-y-1/2"
           aria-label="Search Notespace" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" title="Search · Ctrl/⌘ K"
           onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_SEARCH_EVENT))}>
           <Search size={14} className="shrink-0" aria-hidden="true" />
           <span className="flex-1 truncate">Search Notespace</span>
-          <kbd className="ml-auto shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 text-[9px] text-muted max-[760px]:hidden">Ctrl/⌘ K</kbd>
+          <kbd className="ml-auto shrink-0 rounded-md border border-line bg-surface px-1.5 py-0.5 text-[11px] text-muted max-[760px]:hidden">Ctrl/⌘ K</kbd>
         </button>
         {headerActions}
       </HeaderPlacement>;
@@ -143,7 +143,7 @@ function ExplorerPanel({ sidebar, explorer }: Pick<Props, "sidebar"> & { explore
           <div className="flex h-full min-h-0 w-[228px] max-w-full flex-col border-r border-line">
             <div className="min-h-0 flex-1 overflow-hidden">{sidebar}</div>
             <div className="flex shrink-0 flex-col gap-1 border-t border-line px-2 py-2">
-              <SettingsTrigger showLabel className="w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left text-[11px] text-ink hover:bg-tint hover:text-accent" />
+              <SettingsTrigger showLabel className="w-full justify-start gap-2 rounded-md border-0 px-2.5 py-2 text-left text-[12px] text-ink hover:bg-tint hover:text-accent" />
             </div>
           </div>
         </div>

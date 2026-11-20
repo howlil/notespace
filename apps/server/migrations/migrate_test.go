@@ -83,164 +83,104 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 		t.Fatalf("projects foreign keys to categories = %d, want 1", foreignKeyCount)
 	}
 	var duplicateAuthoredColumns int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('document_state','notes_state','canvas_state')`).Scan(&duplicateAuthoredColumns); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('document_state','notes_state','canvas_state','references_state','split_ratio','notes_revision')`).Scan(&duplicateAuthoredColumns); err != nil {
 		t.Fatal(err)
 	}
 	if duplicateAuthoredColumns != 0 {
 		t.Fatalf("legacy authored project columns = %d, want 0", duplicateAuthoredColumns)
 	}
-	var granularNotes, granularCanvas int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_notes WHERE workspace_id='legacy-project'`).Scan(&granularNotes); err != nil {
-		t.Fatal(err)
-	}
+	var granularCanvas int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_canvas WHERE workspace_id='legacy-project'`).Scan(&granularCanvas); err != nil {
 		t.Fatal(err)
 	}
-	if granularNotes != 0 || granularCanvas != 1 {
-		t.Fatalf("Canvas-only migration = notes:%d canvas:%d, want 0/1", granularNotes, granularCanvas)
+	if granularCanvas != 1 {
+		t.Fatalf("Canvas-only migration = canvas:%d, want 1", granularCanvas)
 	}
-}
-
-func TestUnifiedPlanningTaskMigrationPreservesWorkspaceTasks(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "planning-v17.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	ctx := context.Background()
-	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys=ON`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
-		t.Fatal(err)
-	}
-
-	names, err := fs.Glob(files, "*.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if strings.Compare(name, "0018_unified_planning_tasks.sql") >= 0 {
-			break
-		}
-		contents, err := files.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(ctx, string(contents)); err != nil {
-			t.Fatalf("apply %s: %v", name, err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, checksum(contents), "test"); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if _, err := db.ExecContext(ctx, `INSERT INTO categories(id,title,created_at,updated_at) VALUES ('legacy','Uncategorized','created','updated') ON CONFLICT(id) DO NOTHING`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO projects(id,category_id,title,references_state,split_ratio,created_at,updated_at,version) VALUES ('workspace-1','legacy','Workspace','[]',0.5,'created','updated',1)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO workspace_tasks(id,workspace_id,milestone_id,title,description,position,completed_at,created_at,updated_at,version) VALUES ('task-1','workspace-1',NULL,'Keep me','',0,NULL,'created','updated',3)`); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := Run(ctx, db); err != nil {
-		t.Fatal(err)
-	}
-
-	var workspaceID, title string
-	var version int
-	var plannedFor sql.NullString
-	if err := db.QueryRowContext(ctx, `SELECT workspace_id,title,planned_for,version FROM planning_tasks WHERE id='task-1'`).Scan(&workspaceID, &title, &plannedFor, &version); err != nil {
-		t.Fatal(err)
-	}
-	if workspaceID != "workspace-1" || title != "Keep me" || plannedFor.Valid || version != 3 {
-		t.Fatalf("migrated task = workspace:%q title:%q planned:%v version:%d", workspaceID, title, plannedFor, version)
-	}
-	var oldTable int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='workspace_tasks'`).Scan(&oldTable); err != nil {
-		t.Fatal(err)
-	}
-	if oldTable != 0 {
-		t.Fatal("workspace_tasks table still exists after unified task migration")
-	}
-}
-
-func TestActivityMigrationPreservesStudyHistory(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "activity-v18.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	ctx := context.Background()
-	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys=ON`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
-		t.Fatal(err)
-	}
-
-	names, err := fs.Glob(files, "*.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if strings.Compare(name, "0019_activity_sessions.sql") >= 0 {
-			break
-		}
-		contents, err := files.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(ctx, string(contents)); err != nil {
-			t.Fatalf("apply %s: %v", name, err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, checksum(contents), "test"); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO study_sessions(
-			id,workspace_id,workspace_title_snapshot,activity_date,started_at,ended_at,
-			active_seconds,last_heartbeat_at,logical_session_id
-		)
-		VALUES (
-			'legacy-session:2026-09-20','workspace-legacy','Distributed Systems',
-			'2026-09-20','2026-09-20T01:00:00Z','2026-09-20T01:30:00Z',
-			1800,'2026-09-20T01:30:00Z','legacy-session'
-		)
-	`); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := Run(ctx, db); err != nil {
-		t.Fatal(err)
-	}
-
-	var workspaceID, title, activityType, logicalID string
-	var seconds int64
+	var retiredTables int
 	if err := db.QueryRowContext(ctx, `
-		SELECT workspace_id,activity_title,activity_type,logical_session_id,active_seconds
-		FROM activity_sessions
-		WHERE id='legacy-session:2026-09-20'
-	`).Scan(&workspaceID, &title, &activityType, &logicalID, &seconds); err != nil {
+		SELECT COUNT(*) FROM sqlite_schema
+		WHERE type='table' AND name IN (
+			'workspace_notes',
+			'workspace_history',
+			'workspace_history_payload',
+			'capture_items',
+			'planning_tasks',
+			'workspace_milestones',
+			'planning_create_requests',
+			'activity_sessions',
+			'activity_deleted_sessions'
+		)
+	`).Scan(&retiredTables); err != nil {
 		t.Fatal(err)
 	}
-	if workspaceID != "workspace-legacy" || title != "Distributed Systems" || activityType != "learn" || logicalID != "legacy-session" || seconds != 1800 {
-		t.Fatalf("migrated activity = workspace:%q title:%q type:%q logical:%q seconds:%d", workspaceID, title, activityType, logicalID, seconds)
+	if retiredTables != 0 {
+		t.Fatalf("retired tables remaining after migration = %d, want 0", retiredTables)
+	}
+}
+
+func TestContractRetiredDomainsMigrationPreservesActiveWorkspaces(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "contract-v30.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys=ON`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, checksum TEXT, applied_at TEXT)`); err != nil {
+		t.Fatal(err)
 	}
 
-	var oldTable int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='study_sessions'`).Scan(&oldTable); err != nil {
+	names, err := fs.Glob(files, "*.sql")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if oldTable != 0 {
-		t.Fatal("study_sessions table still exists after activity migration")
+	sort.Strings(names)
+	for _, name := range names {
+		if strings.Compare(name, "0031_contract_retired_domains.sql") >= 0 {
+			break
+		}
+		contents, err := files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, string(contents)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, checksum(contents), "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO categories(id,title,created_at,updated_at) VALUES ('cat-1','Study','created','updated')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO projects(id,category_id,title,references_state,split_ratio,created_at,updated_at,version,notes_revision) VALUES ('workspace-1','cat-1','Workspace','[]',0.5,'created','updated',2,4)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,updated_at,version) VALUES ('workspace-1','{"version":1,"camera":{"x":0,"y":0,"zoom":1},"elements":[]}','updated',5)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO planning_tasks(id,workspace_id,title,description,position,created_at,updated_at,version) VALUES ('task-1','workspace-1','Retired task','',0,'created','updated',1)`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Run(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	var title string
+	var version int
+	if err := db.QueryRowContext(ctx, `SELECT title,version FROM projects WHERE id='workspace-1'`).Scan(&title, &version); err != nil {
+		t.Fatal(err)
+	}
+	var canvasVersion int
+	if err := db.QueryRowContext(ctx, `SELECT version FROM workspace_canvas WHERE workspace_id='workspace-1'`).Scan(&canvasVersion); err != nil {
+		t.Fatal(err)
+	}
+	if title != "Workspace" || version != 2 || canvasVersion != 5 {
+		t.Fatalf("preserved project = title:%q version:%d canvasVersion:%d", title, version, canvasVersion)
 	}
 }

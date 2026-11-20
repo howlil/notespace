@@ -1,12 +1,12 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 
 export const CLOSE_POPUPS_EVENT = "notespace:close-popups";
-export const POPUP_OPEN_EVENT = "notespace:popup-open";
+const POPUP_OPEN_EVENT = "notespace:popup-open";
 
 type DismissableRef = RefObject<HTMLElement | null>;
 const popupClosers = new Map<symbol, () => void>();
 
-export function requestExclusivePopup(owner?: symbol) {
+function requestExclusivePopup(owner?: symbol) {
   popupClosers.forEach((close, token) => {
     if (token !== owner) close();
   });

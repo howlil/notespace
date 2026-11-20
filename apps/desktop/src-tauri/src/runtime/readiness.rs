@@ -89,8 +89,7 @@ pub(crate) fn startup_detail(stderr: &str) -> Option<&str> {
     stderr
         .lines()
         .filter_map(|line| line.trim().strip_prefix(STARTUP_ERROR_PREFIX))
-        .filter(|detail| !detail.trim().is_empty())
-        .last()
+        .rfind(|detail| !detail.trim().is_empty())
 }
 
 pub(crate) fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
@@ -123,9 +122,7 @@ pub(crate) fn parse_ready_line(line: &str) -> Result<Option<Url>, String> {
 
 pub(crate) fn startup_error_message(error: &str) -> String {
     if error.contains("before readiness") {
-        return format!(
-            "Unable to start the local Notespace server. Check system permissions and retry from the recovery screen."
-        );
+        return "Unable to start the local Notespace server. Check system permissions and retry from the recovery screen.".to_string();
     }
     format!("Unable to start Notespace: {error}")
 }
@@ -166,8 +163,8 @@ mod tests {
         for invalid in [
             format!("NOTESPACE_READY=http://0.0.0.0:49201/__desktop_session?code={key}"),
             format!("NOTESPACE_READY=https://127.0.0.1:49201/__desktop_session?code={key}"),
-            format!("NOTESPACE_READY=http://127.0.0.1:49201/"),
-            format!("NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code=bad"),
+            "NOTESPACE_READY=http://127.0.0.1:49201/".to_string(),
+            "NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code=bad".to_string(),
             format!("NOTESPACE_READY=http://127.0.0.1:49201/__desktop_session?code={key}&extra=1"),
         ] {
             assert!(

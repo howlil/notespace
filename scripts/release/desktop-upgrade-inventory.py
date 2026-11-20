@@ -15,14 +15,11 @@ from pathlib import Path
 IDENTITIES = {
     "categories": ("id",),
     "projects": ("id",),
-    "workspace_notes": ("workspace_id", "id"),
     "workspace_canvas": ("workspace_id",),
-    "planning_tasks": ("id",),
-    "workspace_milestones": ("id",),
+    "canvas_notes": ("id",),
+    "canvas_note_instances": ("id",),
     "workspace_assets": ("workspace_id", "id"),
-    "activity_sessions": ("id",),
     "workspace_trash": ("id",),
-    "workspace_history": ("id",),
 }
 
 
@@ -50,10 +47,10 @@ def snapshot(database):
             rows = [list(row) for row in con.execute(f"SELECT {select} FROM {table}")]
             # JSON encoding stable independent of SQLite row ordering.
             results[table] = sorted(json.dumps(row, separators=(",", ":")) for row in rows)
-        if "projects" not in results or "workspace_notes" not in results:
-            raise RuntimeError("Upgrade fixture requires canonical workspace + note tables")
-        if not results["projects"] or not results["workspace_notes"]:
-            raise RuntimeError("Upgrade proof must contain authored Workspace and Note data")
+        if "projects" not in results or "workspace_canvas" not in results:
+            raise RuntimeError("Upgrade fixture requires canonical workspace + canvas tables")
+        if not results["projects"] or not results["workspace_canvas"]:
+            raise RuntimeError("Upgrade proof must contain authored Workspace and Canvas data")
 
         # Preserve a per-field digest for every existing user-owned row.
         # An ID-only inventory cannot detect overwritten Note/Canvas/task text.

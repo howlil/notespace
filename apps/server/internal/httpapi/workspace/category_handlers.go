@@ -1,7 +1,10 @@
 package workspacehttp
 
-import "github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/howlil/notespace/apps/server/internal/httpapi/internal/transport"
+)
 
 func (a Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	data, err := a.workspace.ListCategories(r.Context())
@@ -9,7 +12,7 @@ func (a Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, data)
+	transport.Send(w, http.StatusOK, data)
 }
 
 func (a Handler) ListCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +27,7 @@ func (a Handler) ListCategoryWorkspaces(w http.ResponseWriter, r *http.Request) 
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, page)
+	transport.Send(w, http.StatusOK, page)
 }
 
 func (a Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +43,7 @@ func (a Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Location", "/api/categories/"+category.ID)
-	transport.Send(w, 201, category)
+	transport.Send(w, http.StatusCreated, category)
 }
 
 func (a Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +58,7 @@ func (a Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	transport.Send(w, 200, category)
+	transport.Send(w, http.StatusOK, category)
 }
 
 func (a Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {

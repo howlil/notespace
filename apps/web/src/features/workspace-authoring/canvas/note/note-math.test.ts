@@ -7,6 +7,10 @@ test("valid LaTeX renders HTML while invalid or unsafe LaTeX returns a recoverab
   assert.equal(valid.ok, true);
   if (valid.ok) assert.match(valid.html, /katex/);
 
+  const validBlock = renderNoteLatex("\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}", true);
+  assert.equal(validBlock.ok, true);
+  if (validBlock.ok) assert.match(validBlock.html, /katex-display/);
+
   const empty = renderNoteLatex("   ", false);
   assert.equal(empty.ok, false);
 

@@ -208,7 +208,7 @@ export function DiagramPalette({
           animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, x: offsetX, y: offsetY }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="fixed z-[1000] flex max-h-[min(720px,calc(100dvh-16px))] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink shadow-none"
+          className="fixed z-[1000] flex max-h-[min(720px,calc(100dvh-16px))] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink [box-shadow:var(--shadow-float)]"
           style={{ top: position?.top ?? 8, left: position?.left ?? 8, visibility: "visible", transformOrigin: `${horizontal === "left" ? "right" : "left"} ${vertical === "above" ? "bottom" : "top"}` }}
           aria-label="Diagram tools"
           onPointerDown={(event) => event.stopPropagation()}

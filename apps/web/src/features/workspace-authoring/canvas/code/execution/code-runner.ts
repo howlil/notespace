@@ -26,7 +26,7 @@ export function canRunCode(language: string) {
   return normalizeCodeLanguage(language) === "javascript";
 }
 
-export type WorkerMessage =
+type WorkerMessage =
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
   | { type: "done"; result?: string }

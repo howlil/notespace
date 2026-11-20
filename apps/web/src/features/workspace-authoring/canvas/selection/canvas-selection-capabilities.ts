@@ -1,18 +1,20 @@
+import { readCanvasNoteReference } from "../../../../domain/note/note.ts";
 import { readCanvasCodeBlock } from "../code/canvas-code-block.ts";
 
-export type CanvasSelectionElementLike = {
+type CanvasSelectionElementLike = {
   type: string;
   customData?: Record<string, unknown>;
   strokeOptions?: { variability: string; streamline: number };
 };
 
-export type CapabilityCoverage = "all" | "some" | "none";
+type CapabilityCoverage = "all" | "some" | "none";
 
-export type CanvasSelectionCapabilities = {
+type CanvasSelectionCapabilities = {
   count: number;
   types: string[];
   mixed: boolean;
   hasCode: boolean;
+  hasNote: boolean;
   stroke: CapabilityCoverage;
   opacity: CapabilityCoverage;
   fill: CapabilityCoverage;
@@ -28,7 +30,7 @@ const fillTypes = new Set(["rectangle", "diamond", "ellipse"]);
 const lineTypes = new Set(["arrow", "line"]);
 const drawingTypes = new Set([...fillTypes, ...lineTypes]);
 
-export type SharedCanvasValue<T> = { kind: "unsupported" } | { kind: "mixed" } | { kind: "shared"; value: T };
+type SharedCanvasValue<T> = { kind: "unsupported" } | { kind: "mixed" } | { kind: "shared"; value: T };
 export type CanvasStyleProperty = "strokeColor" | "backgroundColor" | "fillStyle" | "strokeWidth" | "strokeStyle"
   | "roughness" | "roundness" | "pressure" | "opacity" | "startArrowhead" | "endArrowhead"
   | "fontFamily" | "fontSize" | "textAlign" | "arrowType";
@@ -44,7 +46,7 @@ const styleTypes: Record<Exclude<CanvasStyleProperty, "opacity">, ReadonlySet<st
 
 export function supportsCanvasStyle(element: CanvasSelectionElementLike, property: CanvasStyleProperty): boolean {
   if (property === "opacity") return true;
-  return semanticType(element) !== "code" && styleTypes[property].has(element.type);
+  return !isCustomCanvasElement(element) && styleTypes[property].has(element.type);
 }
 
 export function sharedCanvasValue<E, T>(elements: readonly E[], read: (element: E) => T): SharedCanvasValue<T> {
@@ -73,7 +75,14 @@ export function canvasStylePatchForElement<P extends object>(element: CanvasSele
 }
 
 function semanticType(element: CanvasSelectionElementLike) {
-  return readCanvasCodeBlock(element) ? "code" : element.type;
+  if (readCanvasCodeBlock(element)) return "code";
+  if (readCanvasNoteReference(element)) return "note";
+  return element.type;
+}
+
+function isCustomCanvasElement(element: CanvasSelectionElementLike) {
+  const kind = semanticType(element);
+  return kind === "code" || kind === "note";
 }
 
 function coverage(elements: readonly CanvasSelectionElementLike[], predicate: (element: CanvasSelectionElementLike) => boolean): CapabilityCoverage {
@@ -90,13 +99,14 @@ export function analyzeCanvasSelection(elements: readonly CanvasSelectionElement
     types,
     mixed: types.length > 1,
     hasCode: types.includes("code"),
-    stroke: coverage(elements, (element) => semanticType(element) !== "code" && strokeTypes.has(element.type)),
+    hasNote: types.includes("note"),
+    stroke: coverage(elements, (element) => !isCustomCanvasElement(element) && strokeTypes.has(element.type)),
     opacity: coverage(elements, () => true),
-    fill: coverage(elements, (element) => semanticType(element) !== "code" && fillTypes.has(element.type)),
-    line: coverage(elements, (element) => semanticType(element) !== "code" && lineTypes.has(element.type)),
-    arrow: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "arrow"),
-    text: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "text"),
-    freeDraw: coverage(elements, (element) => semanticType(element) !== "code" && element.type === "freedraw"),
+    fill: coverage(elements, (element) => !isCustomCanvasElement(element) && fillTypes.has(element.type)),
+    line: coverage(elements, (element) => !isCustomCanvasElement(element) && lineTypes.has(element.type)),
+    arrow: coverage(elements, (element) => !isCustomCanvasElement(element) && element.type === "arrow"),
+    text: coverage(elements, (element) => !isCustomCanvasElement(element) && element.type === "text"),
+    freeDraw: coverage(elements, (element) => !isCustomCanvasElement(element) && element.type === "freedraw"),
     embed: coverage(elements, (element) => element.type === "embeddable"),
   };
 }

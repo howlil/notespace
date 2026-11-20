@@ -16,27 +16,6 @@ import (
 	"path/filepath"
 )
 
-func TestLegacyProjectRoutesRemainCompatibleAndAdvertiseSuccessor(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "compat.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	api := newLibraryAPI(store)
-
-	created := call(t, api, "POST", "/api/projects", map[string]string{"title": "Legacy client"})
-	expect(t, created, http.StatusCreated)
-	if created.Header().Get("Deprecation") != "true" || created.Header().Get("Link") == "" {
-		t.Fatalf("legacy headers = deprecation=%q link=%q", created.Header().Get("Deprecation"), created.Header().Get("Link"))
-	}
-	workspace := decodeWorkspace(t, created)
-	if got := created.Header().Get("Location"); got != "/api/projects/"+workspace.ID {
-		t.Fatalf("legacy location = %q", got)
-	}
-	expect(t, call(t, api, "GET", "/api/projects/"+workspace.ID, nil), http.StatusOK)
-	expect(t, deleteWorkspaceRequest(t, api, "/api/projects/"+workspace.ID), http.StatusNoContent)
-}
-
 func TestCategoryGroupsWorkspaces(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -214,9 +193,6 @@ func TestWorkspaceHasNoNoteState(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Canvas only"}))
-	if len(p.Notes) != 0 {
-		t.Fatalf("workspace returned retired notes: %+v", p.Notes)
-	}
 	expect(t, call(t, api, "GET", "/api/workspaces/"+p.ID+"/notes", nil), http.StatusNotFound)
 }
 
@@ -237,19 +213,21 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	created := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems"})
 	expect(t, created, 201)
 	p := decodeWorkspace(t, created)
-	update := workspacepkg.Update{Title: p.Title, Version: p.Version, SplitRatio: .6,
-		Document:   workspacepkg.Snapshot{Format: "tiptap", Version: 1, Data: json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Consensus"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Raft"}]}]}]}]}`)},
-		Canvas:     workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
-		References: []workspacepkg.Reference{{ID: "consensus-client", BlockID: "consensus", ElementID: "client"}},
+	canvasUpdate := workspacepkg.CanvasUpdate{
+		Version: p.CanvasVersion,
+		Canvas:  workspacepkg.Snapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"client","type":"rectangle","x":20,"y":30}],"appState":{"scrollX":12,"scrollY":20,"zoom":{"value":1.2}},"files":{}}`)},
 	}
-	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID, update)
+	saved := call(t, api, "PATCH", "/api/workspaces/"+p.ID+"/canvas", canvasUpdate)
 	expect(t, saved, 200)
-	expected := decodeWorkspace(t, saved)
+	var expected workspacepkg.CanvasState
+	if err := json.Unmarshal(saved.Body.Bytes(), &expected); err != nil {
+		t.Fatal(err)
+	}
 	if expected.Version != 2 {
 		t.Fatalf("version %d", expected.Version)
 	}
-	// A stale tab must not overwrite either surface.
-	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 409)
+	// A stale tab must not overwrite the canvas surface.
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID+"/canvas", canvasUpdate), 409)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -261,12 +239,12 @@ func TestProjectJourneyAndRestart(t *testing.T) {
 	restored := call(t, api, "GET", "/api/workspaces/"+p.ID, nil)
 	expect(t, restored, 200)
 	got := decodeWorkspace(t, restored)
-	if got.Title != expected.Title || got.SplitRatio != expected.SplitRatio || got.Version != expected.Version || string(got.Document.Data) != string(expected.Document.Data) || string(got.Canvas.Data) != string(expected.Canvas.Data) || !reflect.DeepEqual(got.References, expected.References) {
+	if got.Title != p.Title || got.CanvasVersion != expected.Version || !reflect.DeepEqual(got.Canvas.Data, expected.Canvas.Data) {
 		t.Fatalf("restart changed content: %+v", got)
 	}
 	second := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Networking"})
 	expect(t, second, 201)
-	if other := decodeWorkspace(t, second); other.ID == p.ID || strings.Contains(string(other.Document.Data), "Consensus") {
+	if other := decodeWorkspace(t, second); other.ID == p.ID || strings.Contains(string(other.Canvas.Data), "client") {
 		t.Fatal("project content leaked")
 	}
 	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+p.ID), 204)
@@ -354,15 +332,12 @@ func TestInvalidSnapshotAndStorageFailure(t *testing.T) {
 	}
 	api := newAPI(store)
 	p := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Keep me"}))
-	update := workspacepkg.Update{Title: p.Title, Version: 1, SplitRatio: .45, Document: p.Document, Canvas: p.Canvas}
-	update.Document.Format = "unknown"
-	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
-	update.Document = p.Document
-	update.Canvas.Data = json.RawMessage(`{"elements":null}`)
-	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
+	update := workspacepkg.CanvasUpdate{Version: 1, Canvas: p.Canvas}
+	update.Canvas.Format = "unknown"
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID+"/canvas", update), 400)
 	update.Canvas = p.Canvas
-	update.SplitRatio = .99
-	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID, update), 400)
+	update.Canvas.Data = json.RawMessage(`{"elements":null}`)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+p.ID+"/canvas", update), 400)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}

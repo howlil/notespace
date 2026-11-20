@@ -57,7 +57,7 @@ func TestConcurrentWorkspaceCreateWithSameIdentityHasOneDurableEffect(t *testing
 		if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
 			t.Fatal(err)
 		}
-		if created.ID != "same-client-command" || len(created.Notes) != 0 {
+		if created.ID != "same-client-command" {
 			t.Fatalf("unexpected replay receipt: %+v", created.Summary)
 		}
 	}
@@ -145,7 +145,7 @@ func TestWorkspaceMetadataNoopsDoNotIncrementVersionOrInvalidateSnapshots(t *tes
 	if rename.Version != before.Version || move.Version != before.Version || after.Version != before.Version {
 		t.Fatalf("no-op metadata mutation advanced version: before=%d rename=%d move=%d after=%d", before.Version, rename.Version, move.Version, after.Version)
 	}
-	if len(after.Notes) != 0 || after.CanvasVersion != before.CanvasVersion {
+	if after.CanvasVersion != before.CanvasVersion {
 		t.Fatal("no-op metadata mutation replaced authored state")
 	}
 }

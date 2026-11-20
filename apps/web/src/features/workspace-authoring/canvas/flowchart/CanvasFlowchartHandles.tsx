@@ -93,8 +93,8 @@ export function CanvasFlowchartHandles({
               transition={{ duration: 0.12 }}
             >
               <span className="inline-flex items-center gap-1">
-                <kbd className="rounded border border-line bg-canvas px-1 py-0.5 font-sans text-[9px] text-ink">Alt</kbd>
-                <kbd className="rounded border border-line bg-canvas px-1 py-0.5 font-sans text-[9px] text-ink">{arrowFor(previewDirection)}</kbd>
+                <kbd className="rounded-md border border-line bg-canvas px-1 py-0.5 font-sans text-[9px] text-ink">Alt</kbd>
+                <kbd className="rounded-md border border-line bg-canvas px-1 py-0.5 font-sans text-[9px] text-ink">{arrowFor(previewDirection)}</kbd>
               </span>
             </motion.div>
           );

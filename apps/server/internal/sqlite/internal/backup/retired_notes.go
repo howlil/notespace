@@ -8,40 +8,66 @@ import (
 	"errors"
 	"fmt"
 
-	workspacequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/workspace"
+	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 	workspacepkg "github.com/howlil/notespace/apps/server/internal/workspace"
 )
 
-const RetiredNotesMigration = "0026_scrub_retired_note_artifacts.sql"
+const (
+	RetiredNotesMigration           = "0026_scrub_retired_note_artifacts.sql"
+	ContractRetiredDomainsMigration = "0031_contract_retired_domains.sql"
+)
 
-// scrubRetiredNoteArtifactsTx removes old Note-link elements from active and
-// history Canvas snapshots, compressed history payloads, and trash envelopes.
-// The migration owns the transaction so relational cleanup, JSON scrub,
-// derived count, payload re-encoding, and the migration marker commit or
-// roll back together. Trash rows stay; only their payloads are rewritten.
-func ScrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx) error {
-	// Reapply relational retirement for rows created by compatibility paths
-	// after 0025, including history rows whose compressed payload is absent.
-	document, err := json.Marshal(EmptyDocumentSnapshot())
-	if err != nil {
-		return err
+type canvasStateRow struct {
+	id   string
+	data string
+}
+
+// ScrubRetiredNoteArtifactsTx removes retired Note-link artifacts from active
+// Canvas snapshots and Trash envelopes during schema upgrades while keeping all
+// active Canvas Notes (`customData.notespaceNote`) untouched. The migration owns
+// the transaction so JSON scrub, derived counts, Trash re-encoding, and the
+// migration marker commit or roll back together.
+func ScrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx, name string) error {
+	switch name {
+	case RetiredNotesMigration:
+		document, err := json.Marshal(emptyDocumentSnapshot())
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE projects SET references_state='[]'`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE workspace_history SET document_state=?,notes_state='[]',references_state='[]'`, document); err != nil {
+			return err
+		}
+		if err := scrubRetiredCanvasTx(ctx, tx); err != nil {
+			return err
+		}
+		if err := scrubRetiredHistoryCanvasTx(ctx, tx); err != nil {
+			return err
+		}
+		return scrubRetiredTrashTx(ctx, tx)
+	case ContractRetiredDomainsMigration:
+		if err := scrubRetiredCanvasTx(ctx, tx); err != nil {
+			return err
+		}
+		return scrubRetiredTrashTx(ctx, tx)
+	default:
+		return nil
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE projects SET references_state='[]'`); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE workspace_history SET document_state=?,notes_state='[]',references_state='[]'`, document); err != nil {
-		return err
-	}
+}
+
+func scrubRetiredCanvasTx(ctx context.Context, tx dbtx.DBTX) error {
 	lastWorkspaceID := ""
 	for {
-		row, err := NextCanvasStateRow(ctx, tx, `
+		row, err := nextCanvasStateRow(ctx, tx, `
 SELECT workspace_id,canvas_state
 FROM workspace_canvas
 WHERE workspace_id > ?
 ORDER BY workspace_id
 LIMIT 1`, lastWorkspaceID)
 		if errors.Is(err, sql.ErrNoRows) {
-			break
+			return nil
 		}
 		if err != nil {
 			return err
@@ -55,17 +81,19 @@ LIMIT 1`, lastWorkspaceID)
 		}
 		lastWorkspaceID = row.id
 	}
+}
 
+func scrubRetiredHistoryCanvasTx(ctx context.Context, tx dbtx.DBTX) error {
 	lastHistoryID := ""
 	for {
-		row, err := NextCanvasStateRow(ctx, tx, `
+		row, err := nextCanvasStateRow(ctx, tx, `
 SELECT id,canvas_state
 FROM workspace_history
 WHERE id > ?
 ORDER BY id
 LIMIT 1`, lastHistoryID)
 		if errors.Is(err, sql.ErrNoRows) {
-			break
+			return nil
 		}
 		if err != nil {
 			return err
@@ -82,58 +110,9 @@ LIMIT 1`, lastHistoryID)
 			return err
 		}
 	}
-	if err := ScrubRetiredHistoryPayloadsTx(ctx, tx); err != nil {
-		return err
-	}
-	return ScrubRetiredTrashTx(ctx, tx)
 }
 
-type HistoryPayloadRow struct {
-	id          string
-	workspaceID string
-	version     int
-	title       string
-	splitRatio  float64
-	createdAt   string
-	codec       string
-	payload     []byte
-}
-
-func ScrubRetiredHistoryPayloadsTx(ctx context.Context, tx *sql.Tx) error {
-	lastHistoryID := ""
-	for {
-		value, err := NextHistoryPayloadRow(ctx, tx, lastHistoryID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		var snapshot workspacepkg.HistorySnapshot
-		if err := workspacequery.DecodeHistoryPayload(value.codec, value.payload, &snapshot); err != nil {
-			return fmt.Errorf("decode history payload %s: %w", value.id, err)
-		}
-		snapshot.ID = value.id
-		snapshot.WorkspaceID = value.workspaceID
-		snapshot.Version = value.version
-		snapshot.Title = value.title
-		snapshot.SplitRatio = value.splitRatio
-		snapshot.CreatedAt = value.createdAt
-		if err := NormalizeRetiredHistorySnapshot(&snapshot); err != nil {
-			return fmt.Errorf("normalize history payload %s: %w", value.id, err)
-		}
-		encoded, hash, err := workspacequery.EncodeHistoryPayload(snapshot)
-		if err != nil {
-			return fmt.Errorf("encode history payload %s: %w", value.id, err)
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE workspace_history_payload SET content_hash=?,codec=?,payload=?,payload_size=? WHERE history_id=?`, hash, "zlib-json-v1", encoded, len(encoded), value.id); err != nil {
-			return err
-		}
-		lastHistoryID = value.id
-	}
-}
-
-func ScrubRetiredTrashTx(ctx context.Context, tx *sql.Tx) error {
+func scrubRetiredTrashTx(ctx context.Context, tx dbtx.DBTX) error {
 	lastID := ""
 	for {
 		var id string
@@ -153,9 +132,11 @@ LIMIT 1`, lastID).Scan(&id, &payload)
 		if err := DecodeTrashEnvelope(payload, &envelope); err != nil {
 			return fmt.Errorf("decode trash envelope %s: %w", id, err)
 		}
-		if err := NormalizeRetiredEnvelope(&envelope); err != nil {
-			return fmt.Errorf("normalize trash envelope %s: %w", id, err)
+		canvas, err := ScrubRetiredSnapshot(envelope.Project.Canvas)
+		if err != nil {
+			return fmt.Errorf("scrub trash envelope %s: %w", id, err)
 		}
+		envelope.Project.Canvas = canvas
 		encoded, err := EncodeTrashEnvelope(envelope)
 		if err != nil {
 			return fmt.Errorf("encode trash envelope %s: %w", id, err)
@@ -167,47 +148,9 @@ LIMIT 1`, lastID).Scan(&id, &payload)
 	}
 }
 
-func NormalizeRetiredHistorySnapshot(snapshot *workspacepkg.HistorySnapshot) error {
-	snapshot.Document = EmptyDocumentSnapshot()
-	snapshot.Notes = nil
-	snapshot.References = nil
-	canvas, err := ScrubRetiredSnapshot(snapshot.Canvas)
-	if err != nil {
-		return err
-	}
-	snapshot.Canvas = canvas
-	return nil
-}
-
-type CanvasStateRow struct {
-	id   string
-	data string
-}
-
-func NextCanvasStateRow(ctx context.Context, tx *sql.Tx, query, lastID string) (CanvasStateRow, error) {
-	var value CanvasStateRow
+func nextCanvasStateRow(ctx context.Context, tx dbtx.DBTX, query, lastID string) (canvasStateRow, error) {
+	var value canvasStateRow
 	err := tx.QueryRowContext(ctx, query, lastID).Scan(&value.id, &value.data)
-	return value, err
-}
-
-func NextHistoryPayloadRow(ctx context.Context, tx *sql.Tx, lastID string) (HistoryPayloadRow, error) {
-	var value HistoryPayloadRow
-	err := tx.QueryRowContext(ctx, `
-SELECT h.id,h.workspace_id,h.version,h.title,h.split_ratio,h.created_at,p.codec,p.payload
-FROM workspace_history h
-JOIN workspace_history_payload p ON p.history_id=h.id
-WHERE h.id > ?
-ORDER BY h.id
-LIMIT 1`, lastID).Scan(
-		&value.id,
-		&value.workspaceID,
-		&value.version,
-		&value.title,
-		&value.splitRatio,
-		&value.createdAt,
-		&value.codec,
-		&value.payload,
-	)
 	return value, err
 }
 
@@ -279,68 +222,6 @@ func ScrubCanvasState(encoded string) ([]byte, bool, int, error) {
 	return encodedSnapshot, true, elementCount, nil
 }
 
-func NormalizeRetiredBackup(backup *LibraryBackup) error {
-	for i := range backup.Workspaces {
-		if err := NormalizeRetiredEnvelope(&backup.Workspaces[i]); err != nil {
-			return err
-		}
-	}
-	for i := range backup.Trash {
-		if err := NormalizeRetiredEnvelope(&backup.Trash[i].Payload); err != nil {
-			return err
-		}
-	}
-	if backup.Version < LibraryBackupVersion {
-		for i := range backup.Captures {
-			if backup.Captures[i].TargetKind != "note" {
-				continue
-			}
-			backup.Captures[i].Status = "pending"
-			backup.Captures[i].Version++
-			backup.Captures[i].TargetKind = ""
-			backup.Captures[i].TargetWorkspaceID = ""
-			backup.Captures[i].TargetID = ""
-			backup.Captures[i].ConvertedAt = ""
-		}
-	}
-	return nil
-}
-
-func NormalizeRetiredEnvelope(envelope *WorkspaceEnvelope) error {
-	if err := NormalizeRetiredDocument(&envelope.Project.Document); err != nil {
-		return err
-	}
-	envelope.Project.Notes = nil
-	envelope.Project.References = nil
-	var err error
-	envelope.Project.Canvas, err = ScrubRetiredSnapshot(envelope.Project.Canvas)
-	if err != nil {
-		return workspacepkg.ErrInvalid
-	}
-	for i := range envelope.History {
-		if err := NormalizeRetiredDocument(&envelope.History[i].Document); err != nil {
-			return err
-		}
-		envelope.History[i].Notes = nil
-		envelope.History[i].References = nil
-		envelope.History[i].Canvas, err = ScrubRetiredSnapshot(envelope.History[i].Canvas)
-		if err != nil {
-			return workspacepkg.ErrInvalid
-		}
-	}
-	return nil
-}
-
-func NormalizeRetiredDocument(snapshot *workspacepkg.Snapshot) error {
-	if snapshot.Format != "" || snapshot.Version != 0 || len(snapshot.Data) != 0 {
-		if !workspacepkg.ValidDocumentSnapshot(*snapshot) {
-			return workspacepkg.ErrInvalid
-		}
-	}
-	*snapshot = EmptyDocumentSnapshot()
-	return nil
-}
-
 func ScrubRetiredSnapshot(snapshot workspacepkg.Snapshot) (workspacepkg.Snapshot, error) {
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
@@ -356,7 +237,7 @@ func ScrubRetiredSnapshot(snapshot workspacepkg.Snapshot) (workspacepkg.Snapshot
 	return snapshot, nil
 }
 
-func EmptyDocumentSnapshot() workspacepkg.Snapshot {
+func emptyDocumentSnapshot() workspacepkg.Snapshot {
 	return workspacepkg.Snapshot{
 		Format:  "tiptap",
 		Version: 1,

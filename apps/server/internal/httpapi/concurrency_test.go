@@ -25,15 +25,7 @@ func TestWorkspaceDeleteIfMatchRejectsStaleView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.Update(ctx, workspace.ID, workspacepkg.Update{
-		Title:      "Newer",
-		Document:   workspace.Document,
-		Notes:      workspace.Notes,
-		Canvas:     workspace.Canvas,
-		References: workspace.References,
-		SplitRatio: workspace.SplitRatio,
-		Version:    workspace.Version,
-	})
+	updated, err := service.Rename(ctx, workspace.ID, "Newer", workspace.Title)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,17 @@ import { settleDetachedNoteFlushes } from "../canvas/note/detached-note-flushes"
 const CanvasEditor = lazy(() => import("../canvas/CanvasEditor"));
 
 
-export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: Workspace; focusNoteId?: string }) {
+export function useWorkspaceAuthoring({
+  workspace,
+  focusNoteId,
+  focusBlockId,
+  focusNonce,
+}: {
+  workspace: Workspace;
+  focusNoteId?: string;
+  focusBlockId?: string;
+  focusNonce?: string;
+}) {
   const { dark } = useTheme();
   const { showToast, dismissToast } = useToast();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -196,6 +206,8 @@ export function useWorkspaceAuthoring({ workspace, focusNoteId }: { workspace: W
         <CanvasEditor
           workspaceId={workspace.id}
           focusNoteId={focusNoteId}
+          focusBlockId={focusBlockId}
+          focusNonce={focusNonce}
           canvasVersion={canvasVersion}
           initial={current.current.canvas}
           onChange={updateCanvas}

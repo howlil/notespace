@@ -93,7 +93,7 @@ func TestPersistenceScaleEvidence(t *testing.T) {
 	var authoredBytes int64
 	if err := store.db.QueryRowContext(ctx, `SELECT
 COALESCE((SELECT length(canvas_state) FROM workspace_canvas WHERE workspace_id=?),0)
-+ COALESCE((SELECT length(title)+length(references_state) FROM projects WHERE id=?),0)`,
++ COALESCE((SELECT length(title) FROM projects WHERE id=?),0)`,
 		created.ID, created.ID).Scan(&authoredBytes); err != nil {
 		t.Fatal(err)
 	}

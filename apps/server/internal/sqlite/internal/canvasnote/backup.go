@@ -2,28 +2,23 @@ package canvasnotequery
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
 
 	"github.com/howlil/notespace/apps/server/internal/note"
 	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 )
 
 func SnapshotNotesTx(ctx context.Context, tx dbtx.DBTX) ([]note.Note, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id,schema_version,document_state,revision,created_at,updated_at FROM canvas_notes ORDER BY id`)
+	rows, err := tx.QueryContext(ctx, `SELECT `+noteColumns+` FROM canvas_notes ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	values := []note.Note{}
 	for rows.Next() {
-		var value note.Note
-		var document string
-		if err := rows.Scan(&value.ID, &value.SchemaVersion, &document, &value.Revision, &value.CreatedAt, &value.UpdatedAt); err != nil {
+		value, err := noteFromRow(rows)
+		if err != nil {
 			return nil, err
 		}
-		value.Document = json.RawMessage(document)
 		values = append(values, value)
 	}
 	if err := rows.Err(); err != nil {
@@ -59,7 +54,11 @@ func RestoreNotesTx(ctx context.Context, tx dbtx.DBTX, values []note.Note) error
 		if note.ValidateNote(value) != nil {
 			return note.ErrInvalid
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO canvas_notes(id,schema_version,document_state,revision,created_at,updated_at) VALUES (?,?,?,?,?,?)`, value.ID, value.SchemaVersion, string(value.Document), value.Revision, value.CreatedAt, value.UpdatedAt); err != nil {
+		var deletedAt any
+		if value.DeletedAt != "" {
+			deletedAt = value.DeletedAt
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO canvas_notes(id,schema_version,document_state,revision,created_at,updated_at,deleted_at) VALUES (?,?,?,?,?,?,?)`, value.ID, value.SchemaVersion, string(value.Document), value.Revision, value.CreatedAt, value.UpdatedAt, deletedAt); err != nil {
 			return err
 		}
 	}
@@ -90,16 +89,3 @@ func DeleteAllTx(ctx context.Context, tx dbtx.DBTX) error {
 	}
 	return nil
 }
-
-func EnsureNoteExistsTx(ctx context.Context, tx dbtx.DBTX, id string) error {
-	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM canvas_notes WHERE id=?`, id).Scan(&count); err != nil {
-		return err
-	}
-	if count != 1 {
-		return note.ErrInvalid
-	}
-	return nil
-}
-
-func IsMissing(err error) bool { return errors.Is(err, sql.ErrNoRows) }

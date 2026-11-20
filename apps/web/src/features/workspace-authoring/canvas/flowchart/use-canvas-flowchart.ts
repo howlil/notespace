@@ -1,4 +1,4 @@
-import { CaptureUpdateAction, sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, newElementWith, sceneCoordsToViewportCoords } from "@excalidraw/excalidraw";
 import type {
   AppState,
   ExcalidrawImperativeAPI,
@@ -32,6 +32,7 @@ export function useCanvasFlowchart({
   apiRef,
   surfaceRef,
   decorateTarget,
+  onSpawned,
 }: {
   apiRef: RefObject<ExcalidrawImperativeAPI | null>;
   surfaceRef: RefObject<HTMLDivElement | null>;
@@ -39,6 +40,11 @@ export function useCanvasFlowchart({
     source: OrderedExcalidrawElement,
     target: OrderedExcalidrawElement,
   ) => OrderedExcalidrawElement;
+  /** Fires once per committed spawn with the source and the shape it created. */
+  onSpawned?: (
+    source: OrderedExcalidrawElement,
+    target: OrderedExcalidrawElement,
+  ) => void;
 }) {
   const [anchor, setAnchor] = useState<CanvasFlowchartAnchor | null>(null);
   const anchorRef = useRef<CanvasFlowchartAnchor | null>(null);
@@ -136,6 +142,19 @@ export function useCanvasFlowchart({
       );
       if (!handled || !api.app.flowchart.isCreatingChart) return false;
 
+      // Hidden carrier rectangles (such as Note hosts with opacity: 0) cause Excalidraw's
+      // FlowChartCreator to clone pending nodes and binding arrows at opacity: 0; restore preview visibility.
+      const pendingNodes = api.app.flowchart.pendingNodes;
+      if (source.opacity === 0 && pendingNodes) {
+        let adjusted = false;
+        pendingNodes.forEach((node, index) => {
+          if (node.opacity !== 0) return;
+          pendingNodes[index] = newElementWith(node, { opacity: 100 });
+          adjusted = true;
+        });
+        if (adjusted) api.app.triggerRender(true);
+      }
+
       const semanticPreview: FlowchartSemanticPreview = {
         sourceId: source.id,
         beforeIds,
@@ -200,7 +219,7 @@ export function useCanvasFlowchart({
       );
 
       const decorateCommittedTarget = () => {
-        if (!decorateTarget || !semanticPreview) return false;
+        if (!semanticPreview) return false;
         const current = api.getSceneElementsIncludingDeleted();
         const source = current.find(
           (element) => element.id === semanticPreview.sourceId && !element.isDeleted,
@@ -218,8 +237,20 @@ export function useCanvasFlowchart({
             ? semanticPreview.targetId
             : undefined;
 
+        let updated = false;
         let decorated = false;
         const elements = current.map((element) => {
+          if (
+            !semanticPreview.beforeIds.has(element.id)
+            && !element.isDeleted
+            && element.type === "arrow"
+            && source.opacity === 0
+            && element.opacity === 0
+          ) {
+            updated = true;
+            return newElementWith(element, { opacity: 100 });
+          }
+          if (!decorateTarget) return element;
           const isTarget = rememberedTargetId
             ? element.id === rememberedTargetId
             : !semanticPreview.beforeIds.has(element.id)
@@ -229,10 +260,11 @@ export function useCanvasFlowchart({
           const next = decorateTarget(source, element);
           if (next === element) return element;
           decorated = true;
+          updated = true;
           semanticPreview.targetId = element.id;
           return next;
         });
-        if (!decorated) return false;
+        if (!updated) return false;
         api.updateScene({
           elements,
           captureUpdate: CaptureUpdateAction.NEVER,
@@ -241,15 +273,34 @@ export function useCanvasFlowchart({
       };
 
       const decoratedSynchronously = decorateCommittedTarget();
+      let spawnReported = false;
+      const reportSpawned = () => {
+        if (spawnReported || !onSpawned || !semanticPreview) return;
+        const current = api.getSceneElementsIncludingDeleted();
+        const source = current.find(
+          (element) => element.id === semanticPreview.sourceId && !element.isDeleted,
+        );
+        const target = current.find(
+          (element) =>
+            !semanticPreview.beforeIds.has(element.id)
+            && !element.isDeleted
+            && isNativeFlowchartShapeType(element.type),
+        );
+        if (!source || !target) return;
+        spawnReported = true;
+        onSpawned(source, target);
+      };
+      reportSpawned();
       previewRef.current = null;
       semanticPreviewRef.current = null;
       setPreviewDirection(null);
       requestAnimationFrame(() => {
         if (!decoratedSynchronously) decorateCommittedTarget();
+        reportSpawned();
         focusEditor();
       });
     },
-    [apiRef, beginPreview, decorateTarget, focusEditor],
+    [apiRef, beginPreview, decorateTarget, focusEditor, onSpawned],
   );
 
   const syncSelection = useCallback(

@@ -1108,8 +1108,6 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await openWorkspace(workspace.id);
     await expectCount(card, 3);
     await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
-    // DIAG (temporary): capture the read view markup when the blue text-color span is missing.
-    console.log(`[diag-note-read-view] ${await execute(() => document.querySelector("[data-note-element] [data-note-read-view]")?.outerHTML ?? "NO READ VIEW")}`.slice(0, 4000));
     await visible(`${card} [data-note-read-view] span[data-note-text-color="blue"]`);
     await visible(`${card} [data-note-read-view] div[data-note-toggle]`);
     await visible(`${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`);

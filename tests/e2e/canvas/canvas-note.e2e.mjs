@@ -1013,6 +1013,12 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
+    // DIAG (temporary): record the formatting editor's text after each step so a failure shows which step removed content.
+    const trail = [];
+    const trace = async (label) => {
+      const text = await execute(() => document.querySelector('[data-note-element] .ProseMirror')?.innerText ?? null);
+      trail.push(`${label}: ${JSON.stringify(text)}`);
+    };
     const targetTitle = `AlphaTarget ${token}`;
     await fill(editor, targetTitle);
     await waitSaved();
@@ -1030,15 +1036,18 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await click(role("button", "Highlight", { scope: formattingToolbar }));
     await click(role("button", "Highlight yellow", { scope: formattingToolbar }));
     await visible(`${card} mark[data-note-highlight="yellow"]`);
+    await trace("highlighted HighlightWord");
 
     await press("ArrowRight");
     await press("Enter");
     await typeText("ColoredWord");
+    await trace("typed ColoredWord");
     await press("Shift+Home");
     await visible(formattingToolbar);
     await click(role("button", "Text color", { scope: formattingToolbar }));
     await click(role("button", "Text color blue", { scope: formattingToolbar }));
     await visible(`${card} span[data-note-text-color="blue"]`);
+    await trace("colored ColoredWord");
 
     await press("ArrowRight");
     await press("Enter");
@@ -1057,6 +1066,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await fill(ariaLabel("LaTeX formula"), "y^3");
     await click(role("button", "Update", { scope: editMath }));
     await visible(`${card} .tiptap-mathematics-render[data-latex="y^3"]`);
+    await trace("math updated to y^3");
 
     await press("End");
     await press("Enter");
@@ -1065,6 +1075,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(role("button", new RegExp(targetTitle), { scope: refList }));
     await press("Enter");
     await containsText(editor, targetTitle);
+    await trace("linked AlphaTarget");
 
     const freshTitle = `FreshIdea ${token}`;
     await typeText(` and [[${freshTitle}`);
@@ -1072,11 +1083,13 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(createAndLinkBtn);
     await click(createAndLinkBtn);
     await expectCount(card, 3);
+    await trace("created FreshIdea");
 
     await press("Enter");
     await typeText("/toggle");
     await press("Enter");
     await visible(`${card} div[data-note-toggle]`);
+    await trace("toggle inserted");
     await typeText("Toggle title");
     await press("Enter");
     await typeText("Toggle content");
@@ -1103,6 +1116,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 3);
     await click(ariaLabel("Delete table column"));
     await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 2);
+    await trace("table done");
 
     // DIAG (temporary): capture each card's editor text before the reload so a failure shows whether the editor or the saved copy lost content.
     const editorBeforeReload = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => (node.querySelector(".ProseMirror")?.innerText ?? "").slice(0, 200)));
@@ -1126,7 +1140,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
         editor: Boolean(node.querySelector(".ProseMirror")),
         text: (node.textContent ?? "").slice(0, 200),
       })));
-      console.log(`[diag-note-cards] ${JSON.stringify({ editorBeforeReload, states })}`);
+      console.log(`[diag-note-cards] ${JSON.stringify({ trail, editorBeforeReload, states })}`);
       throw error;
     }
   } finally {

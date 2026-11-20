@@ -1019,7 +1019,18 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
       const text = await execute(() => document.querySelector('[data-note-element] .ProseMirror')?.innerText ?? null);
       trail.push(`${label}: ${JSON.stringify(text)}`);
     };
-    const targetTitle = `AlphaTarget ${token}`;
+    // DIAG (temporary): ArrowRight must collapse the formatted selection before Enter, or Enter replaces the word.
+    const collapseRight = async (label) => {
+      await press("ArrowRight");
+      const read = () => execute(() => ({ selected: window.getSelection()?.toString() ?? null, collapsed: window.getSelection()?.isCollapsed ?? null, active: document.activeElement?.className?.toString().slice(0, 60) ?? null }));
+      try {
+        await waitFor(async () => (await read()).collapsed === true, `${label}: selection did not collapse after ArrowRight`);
+      } catch (error) {
+        trail.push(`${label}: not collapsed ${JSON.stringify(await read())}`);
+        console.log(`[diag-note-cards] ${JSON.stringify({ trail })}`);
+        throw error;
+      }
+    };    const targetTitle = `AlphaTarget ${token}`;
     await fill(editor, targetTitle);
     await waitSaved();
     await press("Escape");
@@ -1038,7 +1049,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(`${card} mark[data-note-highlight="yellow"]`);
     await trace("highlighted HighlightWord");
 
-    await press("ArrowRight");
+    await collapseRight("after highlight");
     await press("Enter");
     await typeText("ColoredWord");
     await trace("typed ColoredWord");
@@ -1049,7 +1060,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(`${card} span[data-note-text-color="blue"]`);
     await trace("colored ColoredWord");
 
-    await press("ArrowRight");
+    await collapseRight("after color");
     await press("Enter");
     await typeText("/math");
     await press("Enter");

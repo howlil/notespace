@@ -544,6 +544,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
     await containsText("[data-note-element]", updatedHeadline);
 
     await doubleClick("[data-note-element]");
+    await visible(editor);
     await press("Escape");
     await expectCount(editor, 0);
     await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
@@ -992,8 +993,8 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
     await visible("[data-note-picker-popover]");
     await fill(ariaLabel("Search Notes to place"), primaryHeading);
     // The picker clears its options while a search is in flight and then re-renders them.
-    // Wait for that load to settle so the option click targets the final list, not a replaced node.
-    await visible(`[aria-label="Loading Notes"]`);
+    // Wait for the filtered ready summary so the option click targets the final list, not a replaced node.
+    await containsText("[data-note-picker-popover]", "1 Note");
     await expectCount(`[aria-label="Loading Notes"]`, 0);
     await click(role("option", new RegExp(primaryHeading)));
     await expectCount(card, 1);
@@ -1008,39 +1009,11 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
 test("Note formatting supports highlight, text color, toggle, table Row-/Col-, click-to-edit math, and @/[[ Create & link", { timeout: 180_000 }, async () => {
   const token = `Rich4${Date.now()}`;
   const workspace = await createWorkspace(`Canvas Note Rich4 ${token}`);
-  // DIAG (temporary): record the formatting editor's state after each step so a failure shows which step removed content.
-  const trail = [];
   try {
     await openWorkspace(workspace.id);
     await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
-    const trace = async (label) => {
-      const snap = await execute(() => {
-        const pm = document.querySelector("[data-note-element] .ProseMirror");
-        const sel = window.getSelection();
-        return {
-          text: pm?.innerText ?? null,
-          html: pm?.innerHTML?.slice(0, 320) ?? null,
-          toolbar: Boolean(document.querySelector('[role="toolbar"][aria-label="Note formatting"]')),
-          save: document.querySelector('[aria-label="Workspace save status"]')?.textContent ?? null,
-          sel: sel
-            ? {
-                str: sel.toString(),
-                collapsed: sel.isCollapsed,
-                ranges: sel.rangeCount,
-                aOff: sel.anchorOffset,
-                fOff: sel.focusOffset,
-                aParent: sel.anchorNode?.parentElement?.tagName ?? null,
-              }
-            : null,
-          active: document.activeElement
-            ? `${document.activeElement.tagName}:${document.activeElement.getAttribute("aria-label") ?? ""}`
-            : null,
-        };
-      });
-      trail.push(`${label}: ${JSON.stringify(snap)}`);
-    };
     const targetTitle = `AlphaTarget ${token}`;
     await fill(editor, targetTitle);
     await waitSaved();
@@ -1058,36 +1031,25 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await click(role("button", "Highlight", { scope: formattingToolbar }));
     await click(role("button", "Highlight yellow", { scope: formattingToolbar }));
     await visible(`${card} mark[data-note-highlight="yellow"]`);
-    await trace("1-highlighted");
 
     await press("ArrowRight");
-    await trace("2-after-hl-right");
     await press("Enter");
-    await trace("3-after-hl-enter");
     await typeText("ColoredWord");
-    await trace("4-typed-color");
     await press("Shift+Home");
     await visible(formattingToolbar);
-    await trace("5-selected-color");
     await click(role("button", "Text color", { scope: formattingToolbar }));
     await click(role("button", "Text color blue", { scope: formattingToolbar }));
     await visible(`${card} span[data-note-text-color="blue"]`);
-    await trace("6-colored");
 
     await press("ArrowRight");
-    await trace("7-after-color-right");
     await press("Enter");
-    await trace("8-after-color-enter");
     await typeText("/math");
-    await trace("9-typed-slash-math");
     await press("Enter");
     const insertMath = role("dialog", "Insert Math formula");
     await visible(insertMath);
-    await trace("10-opened-insert-math");
     await fill(ariaLabel("LaTeX formula"), "x^2");
     await click(role("button", "Insert", { scope: insertMath }));
     await visible(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
-    await trace("11-inserted-x2");
 
     await click(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
     const editMath = role("dialog", "Edit Math formula");
@@ -1096,7 +1058,6 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await fill(ariaLabel("LaTeX formula"), "y^3");
     await click(role("button", "Update", { scope: editMath }));
     await visible(`${card} .tiptap-mathematics-render[data-latex="y^3"]`);
-    await trace("12-updated-y3");
 
     await press("End");
     await press("Enter");
@@ -1105,7 +1066,6 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(role("button", new RegExp(targetTitle), { scope: refList }));
     await press("Enter");
     await containsText(editor, targetTitle);
-    await trace("linked AlphaTarget");
 
     const freshTitle = `FreshIdea ${token}`;
     await typeText(` and [[${freshTitle}`);
@@ -1113,13 +1073,11 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await visible(createAndLinkBtn);
     await click(createAndLinkBtn);
     await expectCount(card, 3);
-    await trace("created FreshIdea");
 
     await press("Enter");
     await typeText("/toggle");
     await press("Enter");
     await visible(`${card} div[data-note-toggle]`);
-    await trace("toggle inserted");
     await typeText("Toggle title");
     await press("Enter");
     await typeText("Toggle content");
@@ -1146,35 +1104,15 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 3);
     await click(ariaLabel("Delete table column"));
     await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 2);
-    await trace("table done");
 
-    // DIAG (temporary): capture each card's editor text before the reload so a failure shows whether the editor or the saved copy lost content.
-    const editorBeforeReload = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => (node.querySelector(".ProseMirror")?.innerText ?? "").slice(0, 200)));
     await waitSaved();
     await openWorkspace(workspace.id);
     await expectCount(card, 3);
-    const readViewChecks = [
-      `${card} [data-note-read-view] mark[data-note-highlight="yellow"]`,
-      `${card} [data-note-read-view] span[data-note-text-color="blue"]`,
-      `${card} [data-note-read-view] div[data-note-toggle]`,
-      `${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`,
-    ];
-    try {
-      for (const selector of readViewChecks) await visible(selector);
-    } catch (error) {
-      // DIAG (temporary): on failure, record each card's render state and the pre-reload editor text.
-      const states = await execute(() => [...document.querySelectorAll("[data-note-element]")].map((node) => ({
-        loading: Boolean(node.querySelector('[aria-label="Loading Note"]')),
-        alert: Boolean(node.querySelector('[role="alert"]')),
-        readView: Boolean(node.querySelector("[data-note-read-view]")),
-        editor: Boolean(node.querySelector(".ProseMirror")),
-        text: (node.textContent ?? "").slice(0, 200),
-      })));
-      console.log(`[diag-note-cards] ${JSON.stringify({ trail, editorBeforeReload, states })}`);
-      throw error;
-    }
+    await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
+    await visible(`${card} [data-note-read-view] span[data-note-text-color="blue"]`);
+    await visible(`${card} [data-note-read-view] div[data-note-toggle]`);
+    await visible(`${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`);
   } finally {
-    console.log(`[diag-note-trace] ${JSON.stringify(trail)}`);
     await cleanupWorkspace(workspace.id);
   }
 });

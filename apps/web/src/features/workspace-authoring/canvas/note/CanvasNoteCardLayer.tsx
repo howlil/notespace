@@ -1,5 +1,6 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
+import type { EditorView } from "@tiptap/pm/view";
 import "katex/dist/katex.min.css";
 import {
   Bold,
@@ -48,6 +49,7 @@ import {
 } from "./note-extract";
 import { renderNoteLatex } from "./note-math";
 import { sanitizePastedHTML } from "./note-sanitize";
+import { syncPendingNoteDOMSelection } from "./note-selection-sync";
 import {
   isSafeNoteLink,
   NOTE_CARD_COLORS,
@@ -388,6 +390,11 @@ const toolbarButtonClass = (active: boolean) =>
   + (active ? "bg-tint text-accent" : "text-muted hover:bg-tint hover:text-ink");
 
 const keepSelection = (event: { preventDefault: () => void }) => event.preventDefault();
+// Focusing synchronously before running a command avoids @tiptap/core's async requestAnimationFrame focus
+// race that can restore an older non-empty selection after the user has moved the caret.
+const ensureNoteFocus = (editor: Editor) => {
+  if (!editor.view.hasFocus()) editor.view.focus();
+};
 
 /**
  * Icon-first formatting bar. On a canvas card it floats above the card's top edge, so it never covers any
@@ -427,6 +434,7 @@ function NoteFormattingToolbar({
       style={{ top }}
       role="toolbar"
       aria-label="Note formatting"
+      onMouseDown={keepSelection}
     >
       <div className="flex flex-nowrap items-center gap-0.5">
         {FORMAT_MARKS.map(({ label, mark, icon: Icon, run }) => {
@@ -440,7 +448,10 @@ function NoteFormattingToolbar({
               aria-pressed={active}
               title={label}
               onMouseDown={keepSelection}
-              onClick={() => run(editor)}
+              onClick={() => {
+                ensureNoteFocus(editor);
+                run(editor);
+              }}
             >
               <Icon className="size-4" aria-hidden="true" />
             </button>
@@ -512,6 +523,7 @@ function NoteFormattingToolbar({
                 className={"size-6 rounded-md border transition-transform hover:scale-110 " + (active ? "ring-2 ring-accent ring-offset-1 ring-offset-surface" : "")}
                 onMouseDown={keepSelection}
                 onClick={() => {
+                  ensureNoteFocus(editor);
                   editor.chain().focus().toggleNoteHighlight(tone).run();
                   setPanel(null);
                 }}
@@ -524,6 +536,7 @@ function NoteFormattingToolbar({
             aria-label="Clear highlight"
             onMouseDown={keepSelection}
             onClick={() => {
+              ensureNoteFocus(editor);
               editor.chain().focus().unsetNoteHighlight().run();
               setPanel(null);
             }}
@@ -547,6 +560,7 @@ function NoteFormattingToolbar({
                 className={"grid size-6 place-items-center rounded-md border border-line bg-canvas text-[13px] font-bold leading-none transition-transform hover:scale-110 " + (active ? "ring-2 ring-accent ring-offset-1 ring-offset-surface" : "")}
                 onMouseDown={keepSelection}
                 onClick={() => {
+                  ensureNoteFocus(editor);
                   if (active) editor.chain().focus().unsetNoteTextColor().run();
                   else editor.chain().focus().setNoteTextColor(tone).run();
                   setPanel(null);
@@ -562,6 +576,7 @@ function NoteFormattingToolbar({
             aria-label="Reset text color"
             onMouseDown={keepSelection}
             onClick={() => {
+              ensureNoteFocus(editor);
               editor.chain().focus().unsetNoteTextColor().run();
               setPanel(null);
             }}
@@ -740,6 +755,7 @@ function NoteEditor(props: {
   const onEditMathRef = useRef<(info: NoteMathEditRequest) => void>(() => {});
   const extractingRef = useRef(false);
   const creatingLinkRef = useRef(false);
+  const [initialDocument] = useState(() => note.document);
   const [extensions] = useState(() => createNoteExtensions({
     onEditMath: (info) => onEditMathRef.current(info),
   }));
@@ -758,6 +774,10 @@ function NoteEditor(props: {
       return false;
     }
   }, [onError, workspaceId]);
+  const insertImageFileRef = useRef(insertImageFile);
+  insertImageFileRef.current = insertImageFile;
+  const onDocumentChangeRef = useRef(onDocumentChange);
+  onDocumentChangeRef.current = onDocumentChange;
 
   const syncTriggers = (value: Editor) => {
     const pos = caretPosition(value, containerRef.current);
@@ -790,34 +810,49 @@ function NoteEditor(props: {
     setSlashPosition(pos);
     setSlash((previous) => ({ query, index: previous?.query === query ? previous.index : 0 }));
   };
+  const syncTriggersRef = useRef(syncTriggers);
+  syncTriggersRef.current = syncTriggers;
+
+  // Keep `editorProps` and initial `content` reference-stable so React re-renders do not trigger
+  // `@tiptap/react`'s `setOptions` -> `view.setProps` + `view.updateState` on every keystroke/panel toggle.
+  const editorProps = useMemo(() => ({
+    attributes: { class: "notespace-note-content outline-none", "aria-label": "Note content" },
+    transformPastedHTML: sanitizePastedHTML,
+    handlePaste: (_view: EditorView, event: ClipboardEvent) => {
+      const file = [...(event.clipboardData?.files ?? [])].find((value) => value.type.startsWith("image/"));
+      if (!file) return false;
+      event.preventDefault();
+      void insertImageFileRef.current(file);
+      return true;
+    },
+    handleDrop: (_view: EditorView, event: DragEvent, _slice: unknown, moved: boolean) => {
+      if (moved) return false;
+      const file = [...(event.dataTransfer?.files ?? [])].find((value) => value.type.startsWith("image/"));
+      if (!file) return false;
+      event.preventDefault();
+      void insertImageFileRef.current(file);
+      return true;
+    },
+    handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+      if (!event.isComposing && event.keyCode !== 229) syncPendingNoteDOMSelection(view);
+      return keyHandlerRef.current(event);
+    },
+    handleDOMEvents: {
+      keyup: (view: EditorView) => {
+        syncPendingNoteDOMSelection(view);
+        return false;
+      },
+    },
+  }), []);
 
   const editor = useEditor({
     extensions,
-    content: note.document,
+    content: initialDocument,
     immediatelyRender: false,
-    editorProps: {
-      attributes: { class: "notespace-note-content outline-none", "aria-label": "Note content" },
-      transformPastedHTML: sanitizePastedHTML,
-      handlePaste: (_view, event) => {
-        const file = [...(event.clipboardData?.files ?? [])].find((value) => value.type.startsWith("image/"));
-        if (!file) return false;
-        event.preventDefault();
-        void insertImageFile(file);
-        return true;
-      },
-      handleDrop: (_view, event, _slice, moved) => {
-        if (moved) return false;
-        const file = [...(event.dataTransfer?.files ?? [])].find((value) => value.type.startsWith("image/"));
-        if (!file) return false;
-        event.preventDefault();
-        void insertImageFile(file);
-        return true;
-      },
-      handleKeyDown: (_view, event) => keyHandlerRef.current(event),
-    },
+    editorProps,
     onUpdate: ({ editor: value }) => {
-      onDocumentChange(value.getJSON() as NoteDocument);
-      syncTriggers(value);
+      onDocumentChangeRef.current(value.getJSON() as NoteDocument);
+      syncTriggersRef.current(value);
     },
     onSelectionUpdate: ({ editor: value }) => {
       const hasSelection = !value.state.selection.empty;
@@ -826,13 +861,13 @@ function NoteEditor(props: {
         const currentHref = value.getAttributes("link").href;
         setLinkURL(typeof currentHref === "string" ? currentHref : "");
       }
-      syncTriggers(value);
+      syncTriggersRef.current(value);
     },
     onCreate: ({ editor: value }) => {
       const normalized = ensureNoteBlockIds(value.getJSON() as NoteDocument);
       if (JSON.stringify(normalized) !== JSON.stringify(value.getJSON())) {
         value.commands.setContent(normalized, { emitUpdate: false });
-        onDocumentChange(normalized);
+        onDocumentChangeRef.current(normalized);
       }
     },
   });

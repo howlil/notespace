@@ -218,7 +218,7 @@ test("a failed non-conflict save exposes retry that resends the retained draft",
   assert.equal(store.getSnapshot().save.state, "saved");
 });
 
-test("getDocuments returns only ready Note documents including queued local edits", async () => {
+test("getDocuments and readDocument return only ready Note documents including queued local edits", async () => {
   const { store } = setup({
     getNote: async (id) => {
       if (id === "gone") throw httpError(404);
@@ -228,8 +228,11 @@ test("getDocuments returns only ready Note documents including queued local edit
   store.ensure(["a", "gone"]);
   await settle();
   assert.deepEqual(store.getDocuments(), { a: doc("loaded-a") });
+  assert.deepEqual(store.readDocument("a"), doc("loaded-a"));
+  assert.equal(store.readDocument("gone"), undefined);
   store.queue("a", doc("edited-a"));
   assert.deepEqual(store.getDocuments(), { a: doc("edited-a") });
+  assert.deepEqual(store.readDocument("a"), doc("edited-a"));
 });
 
 test("a Note read with deletedAt becomes a trashed entry and returns to ready after restore", async () => {

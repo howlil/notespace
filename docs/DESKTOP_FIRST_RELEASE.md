@@ -76,11 +76,25 @@ does not constitute complete beta update availability.
 or failed native acceptance may be bypassed for publication. Never overwrite
 a published beta tag, MSI asset, detached signature, or release.
 
-## Route B — Signed stable with automatic updates (optional)
+## Route B — Production stable releases with automatic updates
 
-The following Gates 1–4 are **only for signed production releases**.
-Azure Artifact Signing is the configured publisher identity mechanism
-in this specific signed workflow, not a mandatory Tauri or Windows cost.
+Production stable releases (`v1.0.0+` via `mode: desktop-stable`) always require
+**Tauri updater signing** (`TAURI_SIGNING_PRIVATE_KEY` +
+`NOTESPACE_UPDATER_PUBLIC_KEY`), native Windows WebView2/SQLite persistence
+acceptance, and GitHub build provenance attestation.
+
+**Windows Authenticode (Azure Artifact Signing) is optional and fail-closed:**
+
+- If **none** of the 7 Azure signing secrets/variables are configured,
+  `desktop-stable` publishes a full non-prerelease GitHub Release with Tauri
+  minisign updater verification (`latest.json`, `.msi.sig`), `SHA256SUMS.txt`,
+  and GitHub attestation; SmartScreen may still warn until a publisher
+  certificate is configured.
+- If **all 7** Azure signing secrets/variables are configured, `desktop-stable`
+  signs the MSI with Azure Artifact Signing and enforces `Valid` Authenticode
+  signature and exact `NOTESPACE_WINDOWS_SIGNER_SUBJECT` match.
+- If **only some** (1–6 of 7) Azure signing settings are present, preflight
+  fails closed without creating a tag or release.
 
 ## Gate 1 — signing credentials (repository owner action)
 
@@ -89,18 +103,18 @@ Set names under
 in `howlil/notespace`. Never paste signing private keys or Azure client
 secrets in chat, issues, source files, or pull requests.
 
-| GitHub scope | Name | Description |
-| --- | --- | --- |
-| Secret | `TAURI_SIGNING_PRIVATE_KEY` | Tauri updater private signing key (full contents) |
-| Secret, if key encrypted | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Updater signing key password |
-| Variable | `NOTESPACE_UPDATER_PUBLIC_KEY` | Base64 of Tauri minisign public-key box |
-| Variable | `NOTESPACE_AZURE_SIGNING_ENDPOINT` | Trusted Azure Artifact Signing HTTPS endpoint |
-| Variable | `NOTESPACE_AZURE_SIGNING_ACCOUNT` | Azure Artifact Signing account |
-| Variable | `NOTESPACE_AZURE_SIGNING_PROFILE` | Publisher certificate profile |
-| Variable | `NOTESPACE_WINDOWS_SIGNER_SUBJECT` | Exact expected Authenticode subject |
-| Secret | `AZURE_CLIENT_ID` | Azure service principal client ID |
-| Secret | `AZURE_CLIENT_SECRET` | Azure service principal secret |
-| Secret | `AZURE_TENANT_ID` | Azure tenant ID |
+| GitHub scope | Name | Required for stable | Description |
+| --- | --- | --- | --- |
+| Secret | `TAURI_SIGNING_PRIVATE_KEY` | Always | Tauri updater private signing key (full contents) |
+| Secret, if key encrypted | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | If encrypted | Updater signing key password |
+| Variable | `NOTESPACE_UPDATER_PUBLIC_KEY` | Always | Base64 of Tauri minisign public-key box |
+| Variable | `NOTESPACE_AZURE_SIGNING_ENDPOINT` | Optional (all 7 or none) | Trusted Azure Artifact Signing HTTPS endpoint |
+| Variable | `NOTESPACE_AZURE_SIGNING_ACCOUNT` | Optional (all 7 or none) | Azure Artifact Signing account |
+| Variable | `NOTESPACE_AZURE_SIGNING_PROFILE` | Optional (all 7 or none) | Publisher certificate profile |
+| Variable | `NOTESPACE_WINDOWS_SIGNER_SUBJECT` | Optional (all 7 or none) | Exact expected Authenticode subject |
+| Secret | `AZURE_CLIENT_ID` | Optional (all 7 or none) | Azure service principal client ID |
+| Secret | `AZURE_CLIENT_SECRET` | Optional (all 7 or none) | Azure service principal secret |
+| Secret | `AZURE_TENANT_ID` | Optional (all 7 or none) | Azure tenant ID |
 
 Generate a new updater keypair **locally**, not in GitHub Actions, and back up
 the private key securely for future updates:

@@ -17,6 +17,8 @@ test("publisher signature and updater signatures are distinct hard gates", () =>
   assert.match(workflow, /Require Windows publisher signing and Azure credentials/);
   assert.match(workflow, /Get-AuthenticodeSignature/);
   assert.match(workflow, /NOTESPACE_WINDOWS_SIGNER_SUBJECT/);
+  assert.match(workflow, /\$signature\.Status -ne "Valid"/);
+  assert.match(workflow, /\$signature\.Status -ne "NotSigned"/);
   assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
   assert.match(workflow, /\.msi\.sig/);
 });

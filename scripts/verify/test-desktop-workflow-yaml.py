@@ -214,11 +214,15 @@ def main():
     assert 'git rev-parse "refs/tags/$IMAGE_VERSION^{commit}"' in binding["run"]
     assert "value=${{ inputs.version }}" in meta["with"]["tags"]
     assert "enable=${{ inputs.version != '' }}" in meta["with"]["tags"], "Blank image version cannot update latest"
-    for filename, job_name, effect in [("release.yml", "image", "docker/login-action@v3"), ("release-desktop.yml", "release-credentials-preflight", "Require all production signing configuration"), ("deploy-cloudflare.yml", "deploy", "cloudflare/wrangler-action@v4")]:
+    for filename, job_name, effect in [("release.yml", "image", "docker/login-action@v3"), ("release-desktop.yml", "release-credentials-preflight", "Require production signing configuration"), ("deploy-cloudflare.yml", "deploy", "cloudflare/wrangler-action@v4")]:
         steps = check_workflow(WORKFLOWS / filename)["jobs"][job_name]["steps"]
         gate_index = next(i for i, s in enumerate(steps) if "assert-desktop-release-ci.mjs --collect " in s.get("run", ""))
         effect_index = next(i for i, s in enumerate(steps) if effect in (s.get("uses"), s.get("name")))
         assert gate_index < effect_index, f"{filename}: preflight must precede mutation/credentials"
+
+    stable_release = check_workflow(WORKFLOWS / "release-desktop.yml")
+    assert stable_release["jobs"]["release-credentials-preflight"]["outputs"]["authenticode_enabled"] == "${{ steps.signing.outputs.authenticode_enabled }}"
+    assert stable_release["jobs"]["windows-installer"]["needs"] == ["release-credentials-preflight", "cross-platform-native"]
 
     beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
     assert set(beta["on"]) == {"workflow_dispatch", "workflow_call"}, "Free beta must be manual or explicitly orchestrated"

@@ -230,23 +230,53 @@ async function drawRectangleOnCanvas(session) {
   await waitForWorkspaceSaved(session);
 }
 
-// The seed binary intentionally uses the previous UI. Upgrade proof must not
-// require a current-version Canvas/Note overlay in a historical installer.
+// The seed binary intentionally uses the previous published installer. Support
+// both the modern Canvas-only v1.0+ shell (empty-library Create Workspace +
+// Canvas/Note tools) and historical pre-1.0 installers (New workspace + document editor).
 async function runLegacyProductPersistenceJourney(session) {
   const workspaceTitle = `Desktop smoke ${Date.now()}`;
-  const initialMarker = `Desktop persistence ${Date.now()}`;
-  const finalMarker = `${initialMarker} :: flushed before close`;
-  await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
-  await visibleElement(session, By.css('input[aria-label="New workspace name"]')).sendKeys(workspaceTitle, Key.ENTER);
-  await (await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`))).click();
+  const createTrigger = await visibleElement(
+    session,
+    By.xpath("//main//button[normalize-space()='Create Workspace'] | //main//button[@aria-label='New workspace']"),
+  );
+  if ((await createTrigger.getAttribute("aria-label")) === "New workspace") {
+    await createTrigger.click();
+    await (await visibleElement(session, By.css('input[aria-label="New workspace name"]'))).sendKeys(workspaceTitle, Key.ENTER);
+    await (await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`))).click();
+  } else {
+    await createTrigger.click();
+    const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
+    await field.sendKeys(workspaceTitle);
+    await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
+  }
   await waitForUrl(session, /[/]workspaces[/]/);
-  const editor = await visibleElement(session, By.css('[role="textbox"][aria-label="Workspace document"]'));
-  await editor.click();
-  await editor.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
-  await waitForText(session, "Saving…");
-  await editor.sendKeys(" :: flushed before close");
-  await waitForEditorText(session, finalMarker);
-  return { workspaceTitle, noteMarker: finalMarker };
+  const workspaceId = decodeURIComponent(new URL(await session.getCurrentUrl()).pathname.split("/").pop());
+
+  const surface = await visibleElement(
+    session,
+    By.css('.excalidraw__canvas.interactive, [role="textbox"][aria-label="Workspace document"]'),
+  );
+  if ((await surface.getAttribute("aria-label")) === "Workspace document") {
+    const initialMarker = `Desktop persistence ${Date.now()}`;
+    const finalMarker = `${initialMarker} :: flushed before close`;
+    await surface.click();
+    await surface.sendKeys(Key.chord(Key.CONTROL, "a"), initialMarker);
+    await waitForText(session, "Saving…");
+    await surface.sendKeys(" :: flushed before close");
+    await waitForEditorText(session, finalMarker);
+    return { workspaceTitle, workspaceId, noteMarker: finalMarker };
+  }
+
+  await waitForWorkspaceSaved(session);
+  await drawRectangleOnCanvas(session);
+  const noteTool = await session.findElements(By.css('[aria-label="Canvas tools"] button[aria-label="Note"]'));
+  const canvasNote = noteTool.length ? await assertCanvasNoteModule(session, workspaceId) : null;
+  return {
+    workspaceTitle,
+    workspaceId,
+    canvasNote,
+    noteMarker: canvasNote?.text ?? `canvas-upgrade-${Date.now()}`,
+  };
 }
 
 async function runProductPersistenceJourney(session) {

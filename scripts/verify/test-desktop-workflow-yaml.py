@@ -184,11 +184,14 @@ def main():
     broad = "inputs.profile == 'regression' || (github.event_name == 'push' && inputs.profile != 'native')"
     assert desktop["env"]["EXTENDED_DESKTOP"] == "${{ " + broad + " }}"
     assert desktop["jobs"]["check-desktop-windows-latest"]["if"] == broad
+    assert desktop["jobs"]["check-desktop-macos"]["if"] == "inputs.profile == 'regression'"
+    assert desktop["jobs"]["check-desktop-macos"]["runs-on"] == "macos-latest"
     assert desktop["on"]["workflow_call"]["inputs"]["profile"]["default"] == "legacy"
     assert any(s.get("run") == "cargo test --locked" and s.get("if") == "env.EXTENDED_DESKTOP == 'true'" for s in desktop["jobs"]["check-desktop"]["steps"])
     classify_steps = ci["jobs"]["classify"]["steps"]
     preflight = next(step for step in classify_steps if step.get("run") == "node --test scripts/verify/ci-plan.test.mjs")
     planner = next(step for step in classify_steps if step.get("id") == "plan")
+    assert planner["env"]["BEFORE_SHA"] == "${{ github.event.before }}", "Master push classifier must inspect exact before..HEAD diff"
     assert "if" not in preflight and classify_steps.index(preflight) < classify_steps.index(planner), "Lane planner cannot skip its own proof"
 
     check_native_verification(check_workflow(WORKFLOWS / "verify-desktop.yml"))
@@ -198,11 +201,19 @@ def main():
     for filename in ["auto-desktop-beta.yml", "publish-desktop.yml", "publish-desktop-beta.yml", "release-desktop.yml", "release.yml", "deploy-cloudflare.yml"]:
         events = set(check_workflow(WORKFLOWS / filename)["on"])
         assert "workflow_dispatch" in events and events <= {"workflow_dispatch", "workflow_call"}, f"{filename}: push/tag/completion must never publish or dispatch"
-    for filename, job_name in [("auto-desktop-beta.yml", "preflight"), ("publish-desktop.yml", "prepare-and-dispatch"), ("publish-desktop-beta.yml", "windows-msi-beta"), ("release-desktop.yml", "release-credentials-preflight"), ("release.yml", "image"), ("deploy-cloudflare.yml", "deploy")]:
+    for filename, job_name, expected_target in [
+        ("auto-desktop-beta.yml", "preflight", "--target desktop"),
+        ("publish-desktop.yml", "prepare-and-dispatch", "--target desktop"),
+        ("publish-desktop-beta.yml", "windows-msi-beta", "--target desktop"),
+        ("release-desktop.yml", "release-credentials-preflight", "--target desktop"),
+        ("release.yml", "image", "--target image"),
+        ("deploy-cloudflare.yml", "deploy", "--target cloudflare"),
+    ]:
         workflow = check_workflow(WORKFLOWS / filename)
         gates = [s for s in workflow["jobs"][job_name]["steps"] if "assert-desktop-release-ci.mjs" in s.get("run", "")]
         assert len(gates) == 1 and "if" not in gates[0], f"{filename}: publisher cannot skip exact-master preflight"
         assert "assert-desktop-release-ci.mjs --collect " in gates[0]["run"], "Never trust a name-only or stale offline CI record for publication"
+        assert expected_target in gates[0]["run"], f"{filename}: must require {expected_target} lane proofs"
         assert gates[0]["env"]["GH_TOKEN"] == "${{ github.token }}"
 
     image = check_workflow(WORKFLOWS / "release.yml")
@@ -222,12 +233,23 @@ def main():
 
     stable_release = check_workflow(WORKFLOWS / "release-desktop.yml")
     assert stable_release["jobs"]["release-credentials-preflight"]["outputs"]["authenticode_enabled"] == "${{ steps.signing.outputs.authenticode_enabled }}"
-    assert stable_release["jobs"]["windows-installer"]["needs"] == ["release-credentials-preflight", "cross-platform-native"]
+    assert stable_release["jobs"]["windows-installer"]["needs"] == "release-credentials-preflight"
+    assert "cross-platform-native" not in stable_release["jobs"], "Cross-platform compile checks belong in regression, not blocking Windows MSI release"
+    stable_steps = stable_release["jobs"]["windows-installer"]["steps"]
+    rust_cache_idx = next(i for i, s in enumerate(stable_steps) if s.get("uses") == "Swatinem/rust-cache@v2")
+    sync_ver_idx = next(i for i, s in enumerate(stable_steps) if s.get("name") == "Synchronize desktop version")
+    assert rust_cache_idx < sync_ver_idx, "Restore/key Rust release cache before mutating Cargo.lock version"
+    assert stable_steps[rust_cache_idx]["with"]["shared-key"] == "windows-2022-desktop-release"
+    stable_scripts = "\n".join(str(s.get("run", "")) for s in stable_steps if isinstance(s, dict))
+    assert "bun run test:desktop:native" not in stable_scripts, "Redundant native smoke reruns critical journey"
+    assert stable_scripts.count("bun run test:desktop:critical") == 1
 
     beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
     assert set(beta["on"]) == {"workflow_dispatch", "workflow_call"}, "Free beta must be manual or explicitly orchestrated"
     assert len(beta["jobs"]) == 1, "Free beta must remain a single Windows job"
     steps = beta["jobs"]["windows-msi-beta"]["steps"]
+    beta_rust_cache = next(s for s in steps if s.get("uses") == "Swatinem/rust-cache@v2")
+    assert beta_rust_cache["with"]["shared-key"] == "windows-2022-desktop-release"
     scripts = "\n".join(str(s.get("run", "")) for s in steps if isinstance(s, dict))
     assert scripts.count("bun run test:desktop:critical") == 1, "One critical native persistence journey required"
     assert "bun run test:desktop:native" not in scripts, "Redundant native smoke reruns critical journey"

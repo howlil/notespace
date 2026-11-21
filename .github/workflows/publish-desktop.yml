@@ -87,7 +87,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target desktop
 
       - name: Require production updater and optional Windows publisher signing configuration
         shell: bash

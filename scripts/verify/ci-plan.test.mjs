@@ -8,10 +8,20 @@ const cli = fileURLToPath(new URL("./ci-plan.mjs", import.meta.url));
 const allOn = Object.fromEntries(LANES.map((lane) => [lane, true]));
 const selected = (plan) => LANES.filter((lane) => plan[lane]);
 
-test("master, schedule and manual runs always select every lane", () => {
-  for (const event of ["push", "schedule", "workflow_dispatch"]) {
+test("schedule and manual runs always select every lane", () => {
+  for (const event of ["schedule", "workflow_dispatch"]) {
     assert.deepEqual(selectLanes(event, ["docs/TESTING.md"]), allOn, event);
   }
+});
+
+test("master push skips heavy lanes only for pure docs or landing diffs, and falls back to all lanes otherwise", () => {
+  assert.deepEqual(selectLanes("push", null), allOn);
+  assert.deepEqual(selectLanes("push", []), allOn);
+  assert.deepEqual(selected(selectLanes("push", ["docs/TESTING.md", "README.md", ".agents/engineering.md"])), []);
+  assert.deepEqual(selected(selectLanes("push", ["landing/src/pages/index.astro", "docs/TESTING.md"])), ["landing"]);
+  assert.deepEqual(selectLanes("push", ["apps/web/src/features/settings/AppSettings.tsx"]), allOn);
+  assert.deepEqual(selectLanes("push", ["docs/DESKTOP_BETA_RELEASE_0.1.0.md"]), allOn);
+  assert.deepEqual(selectLanes("push", ["unknown-root-file.txt"]), allOn);
 });
 
 test("unknown pull request diff selects every lane instead of skipping proof", () => {
@@ -29,23 +39,41 @@ test("landing-only pull requests run only the landing lane", () => {
   assert.deepEqual(selected(plan), ["landing"]);
 });
 
-test("an app change runs core lanes and browser affected proof, not native or landing", () => {
-  const plan = selectLanes("pull_request", ["apps/web/src/features/settings/AppSettings.tsx"]);
-  assert.equal(plan.web && plan.server && plan.browser && plan.compose, true);
-  assert.equal(plan.desktop, false);
-  assert.equal(plan.landing, false);
-  assert.equal(plan["release-policy"], false);
+test("web-only pull requests run web and affected browser proof, skipping server, compose, and desktop", () => {
+  const canvas = selectLanes("pull_request", ["apps/web/src/features/workspace-authoring/canvas/CanvasEditor.tsx"]);
+  assert.deepEqual(selected(canvas), ["web", "browser"]);
+  // Settings changes also check landing hero label contracts.
+  const settings = selectLanes("pull_request", ["apps/web/src/features/settings/AppSettings.tsx"]);
+  assert.deepEqual(selected(settings), ["web", "browser", "landing"]);
+  // Unit/contract test-only files run only the web lane.
+  const unitOnly = selectLanes("pull_request", ["apps/web/src/shared/ui/theme/theme-model.test.ts", "tests/design-system.test.ts"]);
+  assert.deepEqual(selected(unitOnly), ["web"]);
 });
 
-test("native, release and workflow changes select the desktop and release-policy lanes", () => {
-  assert.equal(selectLanes("pull_request", ["apps/desktop/src-tauri/src/lib.rs"]).desktop, true);
-  assert.equal(selectLanes("pull_request", ["scripts/release/resolve-desktop-release-version.mjs"]).desktop, true);
-  assert.equal(selectLanes("pull_request", [".github/workflows/ci.yml"])["release-policy"], true);
+test("server-only pull requests run server lanes without web; Go test-only files run only server", () => {
+  const api = selectLanes("pull_request", ["apps/server/internal/httpapi/handler.go"]);
+  assert.deepEqual(selected(api), ["server", "browser", "compose"]);
+  const sqlite = selectLanes("pull_request", ["apps/server/internal/sqlite/store.go"]);
+  assert.deepEqual(selected(sqlite), ["server", "browser", "desktop", "compose"]);
+  const goTestOnly = selectLanes("pull_request", ["apps/server/internal/sqlite/store_test.go"]);
+  assert.deepEqual(selected(goTestOnly), ["server"]);
+});
+
+test("desktop, release, compose, and workflow changes select only their owning lanes with fail-closed fallback", () => {
+  assert.deepEqual(selected(selectLanes("pull_request", ["apps/desktop/src-tauri/src/lib.rs"])), ["desktop", "release-policy"]);
+  assert.deepEqual(selected(selectLanes("pull_request", ["scripts/verify/desktop-webdriver-smoke.mjs"])), ["desktop", "release-policy"]);
+  assert.deepEqual(selected(selectLanes("pull_request", ["scripts/release/resolve-desktop-release-version.mjs"])), ["desktop", "release-policy"]);
+  assert.deepEqual(selected(selectLanes("pull_request", ["Dockerfile", "compose.ci.yaml"])), ["compose"]);
+  assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/deploy-cloudflare.yml"])), ["landing", "release-policy"]);
+  assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/release-desktop.yml"])), ["desktop", "release-policy"]);
+  assert.deepEqual(selectLanes("pull_request", [".github/workflows/ci.yml"]), allOn);
+  assert.deepEqual(selectLanes("pull_request", ["package.json"]), allOn);
+  assert.deepEqual(selectLanes("pull_request", ["unclassified-root-file.txt"]), allOn);
 });
 
 test("a mixed docs and app change is not treated as docs-only", () => {
   const plan = selectLanes("pull_request", ["docs/TESTING.md", "apps/server/internal/httpapi/handler.go"]);
-  assert.equal(plan.server, true);
+  assert.deepEqual(selected(plan), ["server", "browser", "compose"]);
 });
 
 test("browser mode is affected only for pull requests with a readable diff", () => {

@@ -49,9 +49,19 @@ jobs:
           RELEASE_BUMP: ${{ inputs.bump }}
         run: node scripts/release/release-request.mjs
       - name: Require current master push CI
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          RELEASE_MODE: ${{ steps.request.outputs.mode }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_MODE" in
+            desktop-beta|desktop-stable) TARGET="desktop" ;;
+            image) TARGET="image" ;;
+            cloudflare) TARGET="cloudflare" ;;
+            *) TARGET="gate" ;;
+          esac
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target "$TARGET"
 
   beta:
     needs: preflight
@@ -143,7 +153,7 @@ jobs:
             echo "::error::Image version must be stable vMAJOR.MINOR.PATCH; beta tags cannot update latest."
             exit 1
           fi
-          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target image
       - name: Bind image version to immutable source tag
         if: inputs.version != ''
         shell: bash

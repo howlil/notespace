@@ -34,5 +34,5 @@ jobs:
             echo "::error::Run release preflight from master."
             exit 1
           fi
-          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target desktop
           echo "Read-only preflight passed; no publisher was dispatched." >> "$GITHUB_STEP_SUMMARY"

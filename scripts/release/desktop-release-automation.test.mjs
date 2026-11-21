@@ -122,16 +122,57 @@ test("successful run cannot hide a missing, skipped, duplicate or stale-attempt 
   }
 });
 
+test("target-specific release preflight blocks docs/landing-only master runs from desktop or image releases", () => {
+  const job = (name, overrides = {}) => ({
+    name, run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success", ...overrides,
+  });
+  const withJobs = (list) => ({
+    master_sha: sha,
+    workflow_runs: [run()],
+    jobs: { total_count: list.length, jobs: list },
+  });
+  const docsOnly = withJobs([job("ci / gate")]);
+  const landingOnly = withJobs([job("ci / gate"), job("landing")]);
+  const full = withJobs([
+    job("ci / gate"),
+    job("web"),
+    job("server"),
+    job("browser"),
+    job("landing"),
+    job("compose"),
+    job("desktop / check-desktop"),
+    job("desktop / check-desktop-windows"),
+  ]);
+
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(docsOnly, sha, repository, { target: "gate" }));
+  for (const target of ["desktop", "image", "cloudflare"]) {
+    assert.throws(() => assertDesktopReleaseChecks(docsOnly, sha, repository, { target }), `docs-only must block ${target}`);
+  }
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "cloudflare" }));
+  assert.throws(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "image" }));
+  for (const target of ["gate", "desktop", "image", "cloudflare"]) {
+    assert.doesNotThrow(() => assertDesktopReleaseChecks(full, sha, repository, { target }), `full must pass ${target}`);
+  }
+  const skippedDesktop = withJobs([
+    job("ci / gate"), job("web"), job("server"), job("browser"),
+    job("desktop / check-desktop"), job("desktop / check-desktop-windows", { conclusion: "skipped" }),
+  ]);
+  assert.throws(() => assertDesktopReleaseChecks(skippedDesktop, sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(full, sha, repository, { target: "unknown" }));
+});
+
 test("real cross-platform CLI executes the gate and propagates refusal, not a silent no-op", () => {
   const root = mkdtempSync(join(tmpdir(), "release preflight "));
   const file = join(root, "evidence.json");
   const script = fileURLToPath(new URL("./assert-desktop-release-ci.mjs", import.meta.url));
   try {
     writeFileSync(file, JSON.stringify(proof()));
-    const invoke = (expected) => spawnSync(process.execPath, [script, file, expected], { env: { ...process.env, GITHUB_REPOSITORY: repository }, encoding: "utf8" });
+    const invoke = (expected, extra = []) => spawnSync(process.execPath, [script, file, expected, ...extra], { env: { ...process.env, GITHUB_REPOSITORY: repository }, encoding: "utf8" });
     const good = invoke(sha);
     assert.equal(good.status, 0, good.stderr);
-    assert.match(good.stdout, /exact-attempt ci \/ gate passed/);
+    assert.match(good.stdout, /exact-attempt ci \/ gate \(gate\) passed/);
+    assert.notEqual(invoke(sha, ["--target", "desktop"]).status, 0, "Gate-only evidence must fail --target desktop");
     assert.notEqual(invoke("b".repeat(40)).status, 0);
     assert.notEqual(invoke("invalid").status, 0);
     writeFileSync(file, JSON.stringify(proof([])));
@@ -220,19 +261,19 @@ function stepScript(filename, step) {
   return section.split(/run: \|\r?\n/)[1].split(/\r?\n/).map((line) => line.slice(10)).join("\n");
 }
 
-function admissionScript(filename, step) {
+function admissionScript(filename, step, expectedTarget) {
   const script = stepScript(filename, step);
-  const command = 'node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"';
-  assert.equal(script.split(command).length, 2, "Admission must call exactly one real preflight");
+  const command = `node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target ${expectedTarget}`;
+  assert.equal(script.split(command).length, 2, `Admission must call exactly one real preflight (${command})`);
   return script.replace(command, 'echo GATE_REACHED');
 }
 
 test("actual Bash admission rejects beta/malformed tags and non-master before the CI gate", () => {
-  for (const [filename, step, key, acceptsBlank] of [
-    ["release.yml", "Require verified master and explicit stable image version", "IMAGE_VERSION", true],
-    ["release-desktop.yml", "Require verified master and explicit stable tag", "RELEASE_TAG_INPUT", false],
+  for (const [filename, step, key, acceptsBlank, target] of [
+    ["release.yml", "Require verified master and explicit stable image version", "IMAGE_VERSION", true, "image"],
+    ["release-desktop.yml", "Require verified master and explicit stable tag", "RELEASE_TAG_INPUT", false, "desktop"],
   ]) {
-    const script = admissionScript(filename, step);
+    const script = admissionScript(filename, step, target);
     const invoke = (value, ref = "refs/heads/master") => spawnSync("bash", ["-c", script], { env: { ...process.env, GITHUB_REF: ref, [key]: value }, encoding: "utf8" });
     assert.match(invoke("v1.2.3").stdout, /GATE_REACHED/);
     assert.equal(invoke("").status === 0, acceptsBlank);
@@ -283,8 +324,10 @@ test("release and native CI reuse caches and never compile the Tauri CLI from so
   assert.doesNotMatch(desktop, /name: Run native WebDriver parity smoke/);
   assert.match(beta, /bun run test:desktop:critical/);
   assert.match(stable, /Gate release on real MSI upgrade and user-data preservation/);
-  assert.equal((stable.match(/Swatinem\/rust-cache@v2/g) ?? []).length, 2);
-  assert.equal((stable.match(/oven-sh\/setup-bun@v2/g) ?? []).length, 2);
+  assert.equal((stable.match(/Swatinem\/rust-cache@v2/g) ?? []).length, 1);
+  assert.equal((stable.match(/oven-sh\/setup-bun@v2/g) ?? []).length, 1);
+  assert.match(stable, /shared-key: windows-2022-desktop-release/);
+  assert.match(beta, /shared-key: windows-2022-desktop-release/);
 });
 
 test("only obsolete PR checks are canceled, never master CI or a release", () => {

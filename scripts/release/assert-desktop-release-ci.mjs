@@ -1,10 +1,16 @@
-// Publication authority: current master, latest push ci, actual aggregate job.
+// Publication authority: current master, latest push ci, actual aggregate gate + target lane proofs.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import process from "node:process";
 
 export const REQUIRED_DESKTOP_WORKFLOWS = ["ci"];
+export const TARGET_REQUIRED_JOBS = {
+  gate: ["ci / gate"],
+  desktop: ["ci / gate", "web", "server", "browser", "desktop / check-desktop", "desktop / check-desktop-windows"],
+  image: ["ci / gate", "web", "server", "browser", "compose"],
+  cloudflare: ["ci / gate", "landing"],
+};
 const repositoryPattern = /^[a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*$/i;
 const positiveId = (value) => Number.isSafeInteger(value) && value > 0;
 
@@ -27,22 +33,30 @@ function selectMasterRun(payload, sha, repository) {
   return newest;
 }
 
-function assertGateIdentity(gate, run, sha) {
-  if (gate.run_id !== run.id || gate.run_attempt !== run.run_attempt || gate.head_sha !== sha) throw new Error("Gate belongs to stale run/attempt/SHA");
-  if (gate.status !== "completed" || gate.conclusion !== "success") throw new Error("Required ci / gate did not succeed; release blocked");
+function assertJobIdentity(job, run, sha, name) {
+  if (job.run_id !== run.id || job.run_attempt !== run.run_attempt || job.head_sha !== sha) {
+    throw new Error(`${name} belongs to stale run/attempt/SHA`);
+  }
+  if (job.status !== "completed" || job.conclusion !== "success") {
+    throw new Error(`Required ${name} did not succeed (status=${job.status}, conclusion=${job.conclusion}); release blocked`);
+  }
 }
 
-export function assertDesktopReleaseChecks(payload, expectedSha, repository) {
+export function assertDesktopReleaseChecks(payload, expectedSha, repository, { target = "gate" } = {}) {
   assert.match(expectedSha, /^[a-f0-9]{40}$/, "Expected full master commit SHA");
   assert.match(repository, repositoryPattern, "Expected repository identity");
+  const requiredJobs = TARGET_REQUIRED_JOBS[target];
+  if (!requiredJobs) throw new Error(`Unknown release CI target: ${target}`);
   if (payload?.master_sha !== expectedSha) throw new Error("Master advanced or current-master evidence is missing");
   const run = selectMasterRun(payload, expectedSha, repository);
   if (run.status !== "completed" || run.conclusion !== "success") throw new Error("Latest master push ci has not succeeded; release blocked");
   const jobs = payload.jobs;
   if (!Array.isArray(jobs?.jobs) || jobs.total_count !== jobs.jobs.length) throw new Error("Incomplete CI job evidence");
-  const gates = jobs.jobs.filter((job) => job.name === "ci / gate");
-  if (gates.length !== 1) throw new Error("Missing or duplicate required ci / gate");
-  assertGateIdentity(gates[0], run, expectedSha);
+  for (const name of requiredJobs) {
+    const matches = jobs.jobs.filter((job) => job.name === name);
+    if (matches.length !== 1) throw new Error(`Missing or duplicate required ${name} for ${target} release`);
+    assertJobIdentity(matches[0], run, expectedSha, name);
+  }
 }
 
 function collectChecks(expectedSha, repository) {
@@ -60,11 +74,26 @@ function collectChecks(expectedSha, repository) {
   return payload;
 }
 
+function parseCliArgs(argv) {
+  const args = argv.slice(2);
+  let target = "gate";
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--target") {
+      if (i + 1 >= args.length) throw new Error("Missing value for --target");
+      target = args[++i];
+      continue;
+    }
+    positional.push(args[i]);
+  }
+  if (positional.length !== 2) throw new Error("Expected --collect <SHA> or <evidence.json> <SHA> [--target <gate|desktop|image|cloudflare>]");
+  return { source: positional[0], sha: positional[1], target };
+}
+
 if (import.meta.main) {
-  if (process.argv.length !== 4) throw new Error("Expected --collect <SHA> or <evidence.json> <SHA>");
+  const { source, sha, target } = parseCliArgs(process.argv);
   const repository = process.env.GITHUB_REPOSITORY;
-  const sha = process.argv[3];
-  const payload = process.argv[2] === "--collect" ? collectChecks(sha, repository) : JSON.parse(readFileSync(process.argv[2], "utf8"));
-  assertDesktopReleaseChecks(payload, sha, repository);
-  console.log(`Current master ${sha}: latest push ci and exact-attempt ci / gate passed`);
+  const payload = source === "--collect" ? collectChecks(sha, repository) : JSON.parse(readFileSync(source, "utf8"));
+  assertDesktopReleaseChecks(payload, sha, repository, { target });
+  console.log(`Current master ${sha}: latest push ci and exact-attempt ci / gate (${target}) passed`);
 }

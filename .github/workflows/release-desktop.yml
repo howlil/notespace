@@ -37,6 +37,8 @@ jobs:
   release-credentials-preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      authenticode_enabled: ${{ steps.signing.outputs.authenticode_enabled }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +59,8 @@ jobs:
             exit 1
           fi
           node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
-      - name: Require all production signing configuration
+      - name: Require production signing configuration
+        id: signing
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -70,29 +73,57 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
-          missing=0
-          for key in \
-            TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY \
-            NOTESPACE_AZURE_SIGNING_ENDPOINT NOTESPACE_AZURE_SIGNING_ACCOUNT \
-            NOTESPACE_AZURE_SIGNING_PROFILE NOTESPACE_WINDOWS_SIGNER_SUBJECT \
-            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
-            if [[ -z "${!key}" ]]; then
-              echo "::error title=Missing desktop signing configuration::Set $key in repository Actions secrets or variables."
-              missing=1
+          set -euo pipefail
+          missing_updater=0
+          for key in TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error title=Missing desktop updater signing configuration::Set $key in repository Actions secrets or variables."
+              missing_updater=1
             fi
           done
-          if [[ "$missing" -ne 0 ]]; then
+          if [[ "$missing_updater" -ne 0 ]]; then
             echo "See docs/DESKTOP_FIRST_RELEASE.md. No installer has been published."
             exit 1
           fi
-          echo "All required release signing names are configured; cryptographic checks run later."
+          azure_keys=(
+            NOTESPACE_AZURE_SIGNING_ENDPOINT
+            NOTESPACE_AZURE_SIGNING_ACCOUNT
+            NOTESPACE_AZURE_SIGNING_PROFILE
+            NOTESPACE_WINDOWS_SIGNER_SUBJECT
+            AZURE_CLIENT_ID
+            AZURE_CLIENT_SECRET
+            AZURE_TENANT_ID
+          )
+          azure_present=0
+          azure_missing=()
+          for key in "${azure_keys[@]}"; do
+            if [[ -n "${!key:-}" ]]; then
+              azure_present=$((azure_present + 1))
+            else
+              azure_missing+=("$key")
+            fi
+          done
+          if [[ "$azure_present" -gt 0 && "$azure_present" -lt "${#azure_keys[@]}" ]]; then
+            for key in "${azure_missing[@]}"; do
+              echo "::error title=Incomplete desktop Authenticode signing configuration::Set $key or clear all Azure signing settings."
+            done
+            echo "See docs/DESKTOP_FIRST_RELEASE.md. No installer has been published."
+            exit 1
+          fi
+          if [[ "$azure_present" -eq "${#azure_keys[@]}" ]]; then
+            echo "authenticode_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Updater signing and Windows Authenticode signing names are configured; cryptographic checks run later."
+          else
+            echo "authenticode_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Stable release configured with Tauri updater signing only (Windows Authenticode signing is not configured)."
+          fi
 
   windows-installer:
     # Keep native WebView2 + EdgeDriver release acceptance on a known working
     # Windows image while https://github.com/actions/runner-images/issues/14738
     # and MicrosoftEdge/WebView2Feedback#5415 remain unresolved.
     # Still run current Windows build/unit tests in verify-desktop.yml.
-    needs: cross-platform-native
+    needs: [release-credentials-preflight, cross-platform-native]
     runs-on: windows-2022
     timeout-minutes: 85
     env:
@@ -206,6 +237,7 @@ jobs:
           NOTESPACE_UPDATER_PUBLIC_KEY: ${{ vars.NOTESPACE_UPDATER_PUBLIC_KEY }}
         run: node scripts/release/prepare-desktop-updater-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
       - name: Require Windows publisher signing and Azure credentials
+        if: needs.release-credentials-preflight.outputs.authenticode_enabled == 'true'
         shell: pwsh
         env:
           NOTESPACE_AZURE_SIGNING_ENDPOINT: ${{ vars.NOTESPACE_AZURE_SIGNING_ENDPOINT }}
@@ -216,20 +248,23 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: node scripts/release/prepare-desktop-windows-sign-config.mjs "$env:RUNNER_TEMP/notespace-updater-release.json"
       - name: Configure isolated signing CLI root
+        if: needs.release-credentials-preflight.outputs.authenticode_enabled == 'true'
         shell: pwsh
         run: '"ARTIFACT_SIGNING_ROOT=$env:RUNNER_TOOL_CACHE/notespace-artifact-signing-cli" >> $env:GITHUB_ENV'
       - uses: actions/cache/restore@v4
+        if: needs.release-credentials-preflight.outputs.authenticode_enabled == 'true'
         id: signing-cli
         with:
           path: ${{ env.ARTIFACT_SIGNING_ROOT }}
           key: windows-2022-${{ runner.arch }}-artifact-signing-cli-${{ env.ARTIFACT_SIGNING_VERSION }}-v1
       - name: Install pinned Windows Artifact Signing CLI on cache miss
-        if: steps.signing-cli.outputs.cache-hit != 'true'
+        if: needs.release-credentials-preflight.outputs.authenticode_enabled == 'true' && steps.signing-cli.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cargo install artifact-signing-cli --version $env:ARTIFACT_SIGNING_VERSION --locked --root $env:ARTIFACT_SIGNING_ROOT
           if ($LASTEXITCODE -ne 0) { throw "Pinned artifact-signing-cli installation failed" }
       - name: Validate signing CLI cache before use
+        if: needs.release-credentials-preflight.outputs.authenticode_enabled == 'true'
         shell: pwsh
         run: |
           $cli = Join-Path $env:ARTIFACT_SIGNING_ROOT 'bin/artifact-signing-cli.exe'
@@ -240,7 +275,7 @@ jobs:
           & $cli --help
           if ($LASTEXITCODE -ne 0) { throw "Signing CLI cannot execute" }
           (Join-Path $env:ARTIFACT_SIGNING_ROOT 'bin') >> $env:GITHUB_PATH
-      - name: Build signed Windows installer and updater artifact
+      - name: Build Windows installer and signed updater artifact
         working-directory: apps/desktop/src-tauri
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -335,17 +370,25 @@ jobs:
       - name: Verify Windows publisher signature on installer
         shell: pwsh
         env:
+          AUTHENTICODE_ENABLED: ${{ needs.release-credentials-preflight.outputs.authenticode_enabled }}
           EXPECTED_WINDOWS_SIGNER_SUBJECT: ${{ vars.NOTESPACE_WINDOWS_SIGNER_SUBJECT }}
         run: |
-          if (-not $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) { throw "Publisher signer subject policy is missing" }
           $installers = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
           if ($installers.Count -ne 1) { throw "Expected one Windows installer for verification" }
           $signature = Get-AuthenticodeSignature -FilePath $installers[0].FullName
-          if ($signature.Status -ne "Valid") { throw "Authenticode signature not valid: $($signature.Status)" }
-          if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Subject -ne $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) {
-            throw "Authenticode publisher identity does not match configured policy"
+          if ($env:AUTHENTICODE_ENABLED -eq "true") {
+            if (-not $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) { throw "Publisher signer subject policy is missing" }
+            if ($signature.Status -ne "Valid") { throw "Authenticode signature not valid: $($signature.Status)" }
+            if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Subject -ne $env:EXPECTED_WINDOWS_SIGNER_SUBJECT) {
+              throw "Authenticode publisher identity does not match configured policy"
+            }
+            Write-Host "Publisher certificate verified, SHA256:"
+          } else {
+            if ($signature.Status -ne "NotSigned") {
+              throw "Release unexpectedly carries an Authenticode signature without Azure signing policy ($($signature.Status))"
+            }
+            Write-Host "Updater-signed, Authenticode-unsigned stable MSI verified, SHA256:"
           }
-          Write-Host "Publisher certificate verified, SHA256:"
           (Get-FileHash $installers[0].FullName -Algorithm SHA256).Hash
       - name: Create signed updater manifest
         shell: pwsh
@@ -379,7 +422,7 @@ jobs:
           path: ${{ env.TAURI_DRIVER_ROOT }}
           key: ${{ steps.native-driver.outputs.cache-primary-key }}
       - uses: actions/cache/save@v4
-        if: github.ref == 'refs/heads/master' && steps.signing-cli.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/master' && needs.release-credentials-preflight.outputs.authenticode_enabled == 'true' && steps.signing-cli.outputs.cache-hit != 'true'
         with:
           path: ${{ env.ARTIFACT_SIGNING_ROOT }}
           key: ${{ steps.signing-cli.outputs.cache-primary-key }}
@@ -409,6 +452,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          AUTHENTICODE_ENABLED: ${{ needs.release-credentials-preflight.outputs.authenticode_enabled }}
         run: |
           $bundle = Resolve-Path "apps/desktop/src-tauri/target/release/bundle"
           $files = @(Get-ChildItem $bundle -Recurse -File | Where-Object { $_.Extension -eq '.msi' })
@@ -418,7 +462,12 @@ jobs:
           $paths = $files | ForEach-Object { $_.FullName }
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) { throw "Refusing to overwrite an existing signed release" }
-          gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
+          if ($env:AUTHENTICODE_ENABLED -eq "true") {
+            gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
+          } else {
+            $unsignedNotice = 'Signed for in-app updates via Tauri minisign and verified with GitHub build provenance attestation (see `SHA256SUMS.txt`). This Windows MSI does not carry an Authenticode publisher certificate, so Windows SmartScreen may warn on first install.'
+            gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --notes $unsignedNotice --generate-notes
+          }
           if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
 
   cross-platform-native:

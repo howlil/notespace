@@ -149,7 +149,7 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.match(workflow, /Require successful master push ci and exact-attempt ci \/ gate/);
   assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$GITHUB_SHA"/);
   assert.match(workflow, /scripts\/release\/assert-desktop-release-ci\.mjs/);
-  assert.match(workflow, /Require production updater and Windows publisher signing configuration/);
+  assert.match(workflow, /Require production updater and optional Windows publisher signing configuration/);
   assert.match(workflow, /git tag -a/);
   assert.match(workflow, /gh workflow run release-desktop\.yml --ref master --field/);
   assert.ok(workflow.indexOf("Require successful master push ci") < workflow.indexOf("git tag -a"));
@@ -158,6 +158,50 @@ test("release automation cannot silently publish on every push or skip signing/C
   assert.match(release, /Verify Windows publisher signature on installer/);
   assert.match(release, /Attest signed MSI build provenance/);
   assert.match(release, /Publish GitHub Release/);
+});
+
+test("stable signing preflight requires updater keys and treats Azure Authenticode as fail-closed all-or-nothing", () => {
+  const updater = { TAURI_SIGNING_PRIVATE_KEY: "priv", NOTESPACE_UPDATER_PUBLIC_KEY: "pub" };
+  const azure = {
+    NOTESPACE_AZURE_SIGNING_ENDPOINT: "https://wus2.codesigning.azure.net",
+    NOTESPACE_AZURE_SIGNING_ACCOUNT: "NotespacePublisher",
+    NOTESPACE_AZURE_SIGNING_PROFILE: "Production",
+    NOTESPACE_WINDOWS_SIGNER_SUBJECT: "CN=Notespace",
+    AZURE_CLIENT_ID: "id",
+    AZURE_CLIENT_SECRET: "secret",
+    AZURE_TENANT_ID: "tenant",
+  };
+  const emptyAzure = Object.fromEntries(Object.keys(azure).map((key) => [key, ""]));
+  const root = mkdtempSync(join(tmpdir(), "stable signing proof "));
+  try {
+    for (const [filename, step, checksOutput] of [
+      ["publish-desktop.yml", "Require production updater and optional Windows publisher signing configuration", false],
+      ["release-desktop.yml", "Require production signing configuration", true],
+    ]) {
+      const script = stepScript(filename, step);
+      const output = join(root, `${filename}.out`);
+      const invoke = (env) => {
+        writeFileSync(output, "");
+        return spawnSync("bash", ["-c", script], {
+          env: { ...process.env, ...emptyAzure, TAURI_SIGNING_PRIVATE_KEY: "", NOTESPACE_UPDATER_PUBLIC_KEY: "", GITHUB_OUTPUT: output, ...env },
+          encoding: "utf8",
+        });
+      };
+      assert.notEqual(invoke({}).status, 0, `${filename}: missing updater signing must fail`);
+      assert.notEqual(invoke({ TAURI_SIGNING_PRIVATE_KEY: "priv" }).status, 0, `${filename}: missing updater pubkey must fail`);
+      const unsignedStable = invoke(updater);
+      assert.equal(unsignedStable.status, 0, `${filename}: updater-only stable must pass: ${unsignedStable.stderr}`);
+      if (checksOutput) assert.equal(readFileSync(output, "utf8").trim(), "authenticode_enabled=false");
+      assert.notEqual(invoke({ ...updater, AZURE_CLIENT_ID: "id" }).status, 0, `${filename}: partial Azure config (1/7) must fail closed`);
+      const sixOfSeven = { ...updater, ...azure, NOTESPACE_WINDOWS_SIGNER_SUBJECT: "" };
+      assert.notEqual(invoke(sixOfSeven).status, 0, `${filename}: partial Azure config (6/7) must fail closed`);
+      const signedStable = invoke({ ...updater, ...azure });
+      assert.equal(signedStable.status, 0, `${filename}: full updater + Azure config must pass: ${signedStable.stderr}`);
+      if (checksOutput) assert.equal(readFileSync(output, "utf8").trim(), "authenticode_enabled=true");
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("former auto beta is now read-only manual preflight, never publication or fan-out", () => {
@@ -172,7 +216,7 @@ test("former auto beta is now read-only manual preflight, never publication or f
 
 function stepScript(filename, step) {
   const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
-  const section = workflow.split(`- name: ${step}`)[1].split(/\r?\n {6}- /)[0];
+  const section = workflow.split(`- name: ${step}`)[1].split(/\r?\n(?: {6}- | {2}[a-z0-9_-]+:)/i)[0];
   return section.split(/run: \|\r?\n/)[1].split(/\r?\n/).map((line) => line.slice(10)).join("\n");
 }
 

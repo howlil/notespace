@@ -1,4 +1,4 @@
-name: Publish Desktop Stable (signed)
+name: Publish Desktop Stable
 
 # Production releases remain opt-in: never publish on every master commit.
 # Creating a tag with GITHUB_TOKEN does NOT trigger push workflows. Dispatch
@@ -89,7 +89,7 @@ jobs:
           set -euo pipefail
           node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
 
-      - name: Require production updater and Windows publisher signing configuration
+      - name: Require production updater and optional Windows publisher signing configuration
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -103,20 +103,46 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
           set -euo pipefail
-          missing=0
-          for key in \
-            TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY \
-            NOTESPACE_AZURE_SIGNING_ENDPOINT NOTESPACE_AZURE_SIGNING_ACCOUNT \
-            NOTESPACE_AZURE_SIGNING_PROFILE NOTESPACE_WINDOWS_SIGNER_SUBJECT \
-            AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
-            if [[ -z "${!key}" ]]; then
-              echo "::error title=Signing is not configured::Set Actions secret/variable $key before publishing."
-              missing=1
+          missing_updater=0
+          for key in TAURI_SIGNING_PRIVATE_KEY NOTESPACE_UPDATER_PUBLIC_KEY; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error title=Updater signing is not configured::Set Actions secret/variable $key before publishing."
+              missing_updater=1
             fi
           done
-          if [[ "$missing" -ne 0 ]]; then
+          if [[ "$missing_updater" -ne 0 ]]; then
             echo "See docs/DESKTOP_FIRST_RELEASE.md; no tag was created."
             exit 1
+          fi
+          azure_keys=(
+            NOTESPACE_AZURE_SIGNING_ENDPOINT
+            NOTESPACE_AZURE_SIGNING_ACCOUNT
+            NOTESPACE_AZURE_SIGNING_PROFILE
+            NOTESPACE_WINDOWS_SIGNER_SUBJECT
+            AZURE_CLIENT_ID
+            AZURE_CLIENT_SECRET
+            AZURE_TENANT_ID
+          )
+          azure_present=0
+          azure_missing=()
+          for key in "${azure_keys[@]}"; do
+            if [[ -n "${!key:-}" ]]; then
+              azure_present=$((azure_present + 1))
+            else
+              azure_missing+=("$key")
+            fi
+          done
+          if [[ "$azure_present" -gt 0 && "$azure_present" -lt "${#azure_keys[@]}" ]]; then
+            for key in "${azure_missing[@]}"; do
+              echo "::error title=Incomplete Windows Authenticode signing configuration::Set $key or clear all Azure signing settings."
+            done
+            echo "See docs/DESKTOP_FIRST_RELEASE.md; no tag was created."
+            exit 1
+          fi
+          if [[ "$azure_present" -eq "${#azure_keys[@]}" ]]; then
+            echo "Updater signing and Windows Authenticode publisher signing are configured."
+          else
+            echo "::notice::Publishing stable release with Tauri updater signing only (no Windows Authenticode publisher certificate configured)."
           fi
 
       - name: Choose next stable release version

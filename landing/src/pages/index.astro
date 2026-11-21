@@ -578,9 +578,15 @@ console.log(<span class="nsx-tk-str">"Total:"</span>, total);</code></pre>
                 <div class="nsx-prefrow">
                   <div>
                     <p id="nsx-theme-label" class="nsx-prefname">Theme</p>
-                    <p class="nsx-mock-sub" data-theme-value>Light mode</p>
+                    <p class="nsx-mock-sub" data-theme-value>Light</p>
                   </div>
                   <button type="button" class="nsx-switch" role="switch" aria-checked="false" aria-labelledby="nsx-theme-label" data-theme-switch></button>
+                </div>
+                <div class="nsx-prefrow">
+                  <div>
+                    <p class="nsx-prefname">Color theme</p>
+                    <p class="nsx-mock-sub">Paper</p>
+                  </div>
                 </div>
                 <div class="nsx-prefrow">
                   <div>
@@ -727,7 +733,7 @@ docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
         const dark = themeWindow?.dataset.mode !== 'dark';
         if (themeWindow) themeWindow.dataset.mode = dark ? 'dark' : 'light';
         themeSwitch.setAttribute('aria-checked', String(dark));
-        if (themeValue) themeValue.textContent = dark ? 'Dark mode' : 'Light mode';
+        if (themeValue) themeValue.textContent = dark ? 'Dark' : 'Light';
       });
 
       // Library paging: one page of six at a time, with Previous and Next disabled at the ends.

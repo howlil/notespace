@@ -113,10 +113,11 @@ const appLabels = [
     'Appearance',
     'Change the look of Notespace.',
     'Theme',
-    'Light mode',
+    'Color theme',
     'Library storage',
     'Saved on this device',
   ]],
+  ['shared/ui/theme/theme-model.ts', ['Light', 'Dark', 'Paper']],
   ['features/workspace-authoring/canvas/code/CanvasCodeBlockActions.tsx', [
     'Run JavaScript',
     'Hide code output',

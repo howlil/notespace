@@ -1,7 +1,7 @@
 /* Library flow: create a Category and Workspace, rename the Category, survive reload. */
 import { after, before, test } from "node:test";
 import {
-  api, assert, click, createWorkspace, deleteCategory, deleteWorkspace, doubleClick, fill, goto,
+  api, assert, click, createWorkspace, deleteCategory, deleteWorkspace, doubleClick, expectCount, fill, goto,
   currentUrl, injectFault, press, purgeTrash, reload, requestLog, role, start, stop, text,
   visible, waitFor, waitUrl,
 } from "../support/harness.mjs";
@@ -77,7 +77,9 @@ test("critical: Library creates a category and Workspace, renames the category, 
     await visible(text("Could not load Workspaces."));
     await visible(role("link", existing.title, { exact: true }));
     await click(role("button", "Retry", { exact: true }));
+    await expectCount(text("Could not load Workspaces."), 0);
     await visible(role("link", workspaceTitle, { exact: true }));
+    await visible(role("toolbar", "Canvas tools"));
 
     // Enter and blur before the response belong to one rename operation.
     const renamedWorkspaceTitle = `${workspaceTitle} renamed`;

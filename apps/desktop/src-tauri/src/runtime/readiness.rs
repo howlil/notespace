@@ -54,9 +54,11 @@ pub(crate) async fn wait_for_readiness(
 
         match event {
             CommandEvent::Stdout(bytes) => {
-                let line = String::from_utf8_lossy(&bytes);
-                if let Some(url) = parse_ready_line(line.trim())? {
-                    return Ok(url);
+                let chunk = String::from_utf8_lossy(&bytes);
+                for line in chunk.lines() {
+                    if let Some(url) = parse_ready_line(line.trim())? {
+                        return Ok(url);
+                    }
                 }
             }
             CommandEvent::Stderr(bytes) => {

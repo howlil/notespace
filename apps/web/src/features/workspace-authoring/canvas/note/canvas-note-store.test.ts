@@ -255,6 +255,35 @@ test("a Note read with deletedAt becomes a trashed entry and returns to ready af
   assert.equal(store.getSnapshot().entries.a?.status, "ready");
 });
 
+test("retry refreshes a trashed Note entry after an external restore or permanent delete in Settings", async () => {
+  let state: "trashed" | "ready" | "deleted" = "trashed";
+  const { store } = setup({
+    getNote: async (id) => {
+      if (state === "deleted") throw httpError(404);
+      if (state === "trashed") return { ...note(id, 2), deletedAt: "2026-01-01T00:00:00Z" };
+      return note(id, 2);
+    },
+  });
+  store.ensure(["a"]);
+  await settle();
+  assert.equal(store.getSnapshot().entries.a?.status, "trashed");
+
+  state = "ready";
+  store.retry("a");
+  await settle();
+  assert.equal(store.getSnapshot().entries.a?.status, "ready");
+
+  state = "trashed";
+  store. ensure(["b"]);
+  await settle();
+  assert.equal(store.getSnapshot().entries.b?.status, "trashed");
+
+  state = "deleted";
+  store.retry("b");
+  await settle();
+  assert.equal(store.getSnapshot().entries.b?.status, "missing");
+});
+
 test("trash saves the pending draft first, then re-reads the Note as trashed", async () => {
   const order: string[] = [];
   let trashed = false;

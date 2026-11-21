@@ -570,3 +570,73 @@ func backupNoteCanvas(elementID, noteID, instanceID string) note.CanvasSnapshot 
 	})
 	return note.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: data}
 }
+
+func TestTrashedWorkspaceRestoresAndExportsAfterPlacedNoteDeleted(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "trash-deleted-note.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	service := workspacepkg.NewService(store)
+	workspace, err := service.Create(ctx, "Workspace with note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"temporary note"}]}]}`)
+	created, err := store.CreateNoteInstance(ctx, workspace.ID, note.CreateInstanceRequest{
+		ClientRequestID:       "req-trash-note",
+		ClientNoteID:          "note-deleted-while-trashed",
+		ClientInstanceID:      "inst-deleted-while-trashed",
+		ElementID:             "el-deleted-while-trashed",
+		ExpectedCanvasVersion: workspace.CanvasVersion,
+		Document:              document,
+		Canvas:                backupNoteCanvas("el-deleted-while-trashed", "note-deleted-while-trashed", "inst-deleted-while-trashed"),
+		X:                     10, Y: 20, Width: 320, Height: 180,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := store.Get(ctx, workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TrashWorkspace(ctx, workspace.ID, current.Version); err != nil {
+		t.Fatal(err)
+	}
+
+	// While the workspace is in Trash, the canonical Note is moved to Note Trash and permanently deleted.
+	if err := store.TrashNote(ctx, created.Note.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeleteTrashedNote(ctx, created.Note.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Exporting and restoring a full backup while the trashed workspace references a deleted Note must succeed.
+	archive, err := store.ExportBackupArchive(ctx)
+	if err != nil {
+		t.Fatalf("export backup after deleting note in trashed workspace: %v", err)
+	}
+	if err := store.RestoreBackupArchive(ctx, archive); err != nil {
+		t.Fatalf("restore backup after deleting note in trashed workspace: %v", err)
+	}
+
+	// Restoring the trashed workspace must succeed and skip the orphaned instance row without a foreign-key failure.
+	restored, err := store.RestoreTrashedWorkspace(ctx, workspace.ID)
+	if err != nil {
+		t.Fatalf("restore trashed workspace after placed note was deleted: %v", err)
+	}
+	if restored.ID != workspace.ID {
+		t.Fatalf("restored workspace ID = %q, want %q", restored.ID, workspace.ID)
+	}
+	var instanceCount int
+	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM canvas_note_instances WHERE workspace_id=?`, workspace.ID).Scan(&instanceCount); err != nil {
+		t.Fatal(err)
+	}
+	if instanceCount != 0 {
+		t.Fatalf("orphan instance count = %d, want 0", instanceCount)
+	}
+}

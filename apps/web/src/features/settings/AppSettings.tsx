@@ -12,6 +12,12 @@ import {
   IconButton,
 } from "../../shared/ui";
 import { useTheme } from "../../shared/ui/theme/theme-provider";
+import {
+  THEME_MODES,
+  THEME_PALETTES,
+  themeModeLabel,
+  type ThemeMode,
+} from "../../shared/ui/theme/theme-model";
 import { isTauriRuntime } from "../../adapters/desktop/desktop-lifecycle";
 
 export const OPEN_NOTESPACE_SETTINGS = "notespace:open-settings";
@@ -50,7 +56,7 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
   renderLibraryTools: (onBusyChange: (busy: boolean) => void, disabled: boolean, deviceRecovery: ReactNode) => ReactNode;
   renderDesktopRecovery: (onBusyChange: (busy: boolean) => void) => ReactNode;
 }) {
-  const { dark, toggle } = useTheme();
+  const { mode, resolvedTheme, palette, setMode, setPalette } = useTheme();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("general");
   const [native, setNative] = useState(false);
@@ -158,25 +164,93 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
                     <p className="mt-1 text-muted">Change the look of Notespace.</p>
                   </div>
                   <div className="divide-y divide-line border-y border-line">
-                    <div className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                       <div>
                         <p id="notespace-theme-label" className="font-medium text-ink">Theme</p>
-                        <p id="notespace-theme-value" className="mt-0.5 text-muted">{dark ? "Dark mode" : "Light mode"}</p>
+                        <p id="notespace-theme-value" className="mt-0.5 text-muted">{themeModeLabel(mode, resolvedTheme)}</p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={dark}
+                      <div
+                        role="radiogroup"
                         aria-labelledby="notespace-theme-label"
                         aria-describedby="notespace-theme-value"
-                        onClick={toggle}
-                        className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-[background-color,transform] duration-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${dark ? "bg-accent" : "bg-line/70 hover:bg-line"}`}
-                        data-state={dark ? "checked" : "unchecked"}
+                        className="inline-flex items-center gap-0.5 rounded-lg border border-line bg-background p-0.5"
                       >
-                        <span className={`grid size-6 place-items-center rounded-full bg-surface text-accent shadow-sm transition-transform duration-100 ${dark ? "translate-x-5" : "translate-x-0"}`}>
-                          {dark ? <Moon size={13} aria-hidden="true" /> : <Sun size={13} aria-hidden="true" />}
-                        </span>
-                      </button>
+                        {THEME_MODES.map((option) => {
+                          const active = mode === option;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              data-theme-mode={option}
+                              onClick={() => setMode(option)}
+                              className={`inline-flex min-h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-[color,background-color,transform] duration-100 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                                active
+                                  ? "bg-surface text-accent shadow-xs ring-1 ring-line"
+                                  : "text-muted hover:bg-tint hover:text-ink"
+                              }`}
+                            >
+                              <ThemeModeIcon mode={option} />
+                              <span className="capitalize">{option}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="py-2.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p id="notespace-palette-label" className="font-medium text-ink">Color theme</p>
+                        <p id="notespace-palette-value" className="text-[11px] text-muted">
+                          {THEME_PALETTES.find((item) => item.id === palette)?.description}
+                        </p>
+                      </div>
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="notespace-palette-label"
+                        aria-describedby="notespace-palette-value"
+                        className="mt-2 grid grid-cols-5 gap-1.5 max-[520px]:grid-cols-2"
+                      >
+                        {THEME_PALETTES.map((option) => {
+                          const active = palette === option.id;
+                          const swatch = option.preview[resolvedTheme];
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              data-theme-palette={option.id}
+                              title={option.description}
+                              onClick={() => setPalette(option.id)}
+                              className={`group flex flex-col items-start gap-1.5 rounded-lg border p-1.5 text-left transition-[color,background-color,border-color,transform] duration-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                                active
+                                  ? "border-accent bg-tint text-accent ring-1 ring-accent/20"
+                                  : "border-line bg-surface text-ink hover:border-accent/40 hover:bg-tint/60"
+                              }`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="relative flex h-9 w-full items-end justify-between overflow-hidden rounded-md border border-line/80 p-1.5"
+                                style={{ backgroundColor: swatch.canvas }}
+                              >
+                                <span
+                                  className="flex h-6 w-3/4 flex-col justify-center gap-1 rounded-[4px] border px-1.5"
+                                  style={{ backgroundColor: swatch.surface, borderColor: swatch.bg }}
+                                >
+                                  <span className="block h-1 w-4/5 rounded-full" style={{ backgroundColor: swatch.ink, opacity: 0.78 }} />
+                                  <span className="block h-1 w-1/2 rounded-full" style={{ backgroundColor: swatch.ink, opacity: 0.34 }} />
+                                </span>
+                                <span
+                                  className="size-2.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: swatch.accent }}
+                                />
+                              </span>
+                              <span className="px-0.5 text-[11px] font-medium leading-none">{option.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-3 py-2.5">
                       <div>
@@ -219,6 +293,12 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
       </DialogContent>
     </Dialog>
   );
+}
+
+function ThemeModeIcon({ mode }: { mode: ThemeMode }) {
+  if (mode === "system") return <Monitor size={13} aria-hidden="true" />;
+  if (mode === "dark") return <Moon size={13} aria-hidden="true" />;
+  return <Sun size={13} aria-hidden="true" />;
 }
 
 function SettingsTabButton({

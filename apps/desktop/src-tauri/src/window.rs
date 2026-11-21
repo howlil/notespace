@@ -1,7 +1,7 @@
 use crate::runtime::{stop_runtime, RuntimeProcess};
 use std::{sync::atomic::Ordering, time::Duration};
 use tauri::{AppHandle, Manager};
-const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(25);
 
 pub(crate) fn request_close(app: &AppHandle, api: tauri::CloseRequestApi) {
     // Do not terminate a backup worker mid-write. Completed backups are only

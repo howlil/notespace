@@ -181,16 +181,9 @@ test("dark mode renders distinct dark surfaces and borders for every card color"
     const darkSurface = noteCardSurfaceColors(color, true);
     const markup = canvasNotesSvgMarkup([noteElement({}, { color })], true, { "note-1": doc });
     assert.match(markup, new RegExp(`fill="${darkSurface.background}" stroke="${darkSurface.border}"`));
-    if (color === "default") {
-      assert.notEqual(lightSurface.background, darkSurface.background, "default card background should differ by theme");
-      assert.notEqual(lightSurface.border, darkSurface.border, "default card border should differ by theme");
-      assert.match(markup, /fill="#E8E8EF"/);
-    } else {
-      // A colored card is a vivid sticky in both themes, so it keeps the same hue and dark ink.
-      assert.deepEqual(lightSurface, darkSurface, `${color} card should look the same in both themes`);
-      assert.doesNotMatch(markup, /fill="#E8E8EF"/, `${color} card must not use light dark-theme ink`);
-      assert.match(markup, /fill="#14151A"/);
-    }
+    assert.notEqual(lightSurface.background, darkSurface.background, `${color} card background should adapt to dark mode`);
+    assert.notEqual(lightSurface.border, darkSurface.border, `${color} card border should adapt to dark mode`);
+    assert.match(markup, /fill="#EBE6DD"/, `${color} dark card should use readable light ink`);
   }
 });
 
@@ -198,8 +191,8 @@ test("square cards export with sharp corners and rounded cards keep the default 
   const doc: NoteDocument = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Shape" }] }] };
   const rounded = canvasNotesSvgMarkup([noteElement({}, {})], false, { "note-1": doc });
   const square = canvasNotesSvgMarkup([noteElement({}, { shape: "square" })], false, { "note-1": doc });
-  assert.match(rounded, /rx="8" fill="#FFFFFF"/);
-  assert.match(square, /rx="0" fill="#FFFFFF"/);
+  assert.match(rounded, /rx="8" fill="#FFFDF9"/);
+  assert.match(square, /rx="0" fill="#FFFDF9"/);
   assert.doesNotMatch(square, /<clipPath[^>]*><rect[^>]*rx="[1-9]/);
 });
 

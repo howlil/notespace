@@ -42,6 +42,10 @@ export function useGranularWorkspaceAutosave({
 
   const rebaseVersion = useCallback((version: number) => canvasSaver.rebase(version), [canvasSaver]);
 
+  const acknowledgeExternalVersion = useCallback((version: number, canvas?: Snapshot) => {
+    canvasSaver.acknowledgeExternalVersion(version, canvas);
+  }, [canvasSaver]);
+
   const recoverCanvas = useCallback(async (version: number, canvas?: Snapshot) => {
     if (!canvasSaver.recover(version, canvas)) throw new Error("Wait for the current save to finish, then try again.");
     if (canvas) await canvasSaver.flush();
@@ -59,6 +63,7 @@ export function useGranularWorkspaceAutosave({
     scheduleCanvas,
     flushAll,
     rebaseVersion,
+    acknowledgeExternalVersion,
     recoverCanvas,
   };
 }

@@ -162,3 +162,29 @@ test("storeImageAsset normalizes, uploads, and caches accepted asset", async () 
   assert.equal(result?.mimeType, "image/webp");
   assert.equal(result?.createdAt, 123);
 });
+
+test("loadImageAsset normalizes legacy cached SVG blobs before migrating to server", async () => {
+  const legacySvg: LocalImageAsset = {
+    id: "eraser-icon-docker",
+    workspaceId: "workspace-1",
+    blob: new Blob(["<svg/>"], { type: "image/svg+xml" }),
+    mimeType: "image/svg+xml",
+    createdAt: 10,
+  };
+  const normalizedWebp = new Blob(["webp"], { type: "image/webp" });
+  let uploadedMime = "";
+  const { calls, store } = harness({
+    readLocal: async () => { calls.localReads += 1; return legacySvg; },
+    normalize: async () => normalizedWebp,
+    uploadRemote: async (_workspaceId, _id, blob) => {
+      calls.uploads += 1;
+      uploadedMime = blob.type;
+      return true;
+    },
+  });
+
+  const migrated = await store.loadImageAsset("workspace-1", "eraser-icon-docker");
+  assert.equal(uploadedMime, "image/webp");
+  assert.equal(migrated?.mimeType, "image/webp");
+  assert.equal(calls.localPuts, 1);
+});

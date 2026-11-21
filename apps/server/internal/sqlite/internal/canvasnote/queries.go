@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/note"
@@ -456,7 +457,8 @@ func GetNoteInfoTx(ctx context.Context, tx dbtx.DBTX, targetID string) (note.Inf
 		SELECT id, document_state
 		FROM canvas_notes
 		WHERE id <> ? AND deleted_at IS NULL
-		ORDER BY updated_at DESC, id ASC`, targetID)
+		  AND (instr(document_state, ?) > 0 OR instr(document_state, ?) > 0)
+		ORDER BY updated_at DESC, id ASC`, targetID, targetID, url.QueryEscape(targetID))
 	if err != nil {
 		return note.Info{}, err
 	}

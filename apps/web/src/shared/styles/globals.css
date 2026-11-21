@@ -67,23 +67,24 @@
   }
 }
 
+/* Default palette: Paper (Warm Paper & Indigo). All curated palettes share verified WCAG AA contrast. */
 :root {
   color-scheme: light;
-  --bg: #f5f5f2;
-  --surface: #fff;
-  --sidebar: #f0f0ec;
-  --ink: #252630;
-  --muted: #5c6270;
-  --line: #e3e3dd;
-  --accent: #2858d8;
-  --tint: #eaf0ff;
-  --button: #26262f;
-  --button-text: #fff;
-  --canvas: #fafaf8;
-  --danger: #b13e4b;
-  --warning: #98651a;
+  --bg: #f3efe7;
+  --surface: #fffdf9;
+  --sidebar: #ebe6dc;
+  --ink: #23201b;
+  --muted: #60594f;
+  --line: #e1dacd;
+  --accent: #3252b6;
+  --tint: #e9eef9;
+  --button: #25221d;
+  --button-text: #fffdf9;
+  --canvas: #f7f4ed;
+  --danger: #b33c3c;
+  --warning: #8e5b12;
   --danger-foreground: #ffffff;
-  --success: #4d765d;
+  --success: #396d4f;
   --shadow-popup: 0 12px 32px #0002;
   --shadow-float: 0 1px 2px #0000000a, 0 4px 12px #0000000f;
   --canvas-dot: color-mix(in srgb, var(--ink) 16%, transparent);
@@ -91,22 +92,171 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #141519;
-  --surface: #1d1e23;
-  --sidebar: #17181c;
-  --ink: #e8e8ef;
-  --muted: #9fa2b0;
-  --line: #34353e;
+  --bg: #141311;
+  --surface: #24211d;
+  --sidebar: #1a1815;
+  --ink: #ebe6dd;
+  --muted: #a19a8e;
+  --line: #35312b;
+  --accent: #8caaf9;
+  --tint: #252f49;
+  --button: #ebe6dd;
+  --button-text: #1a1815;
+  --canvas: #171513;
+  --danger: #f28e88;
+  --warning: #eab665;
+  --danger-foreground: #1a1815;
+  --success: #81c097;
+  --shadow-popup: 0 12px 32px #00000073;
+  --shadow-float: 0 1px 2px #0006, 0 4px 12px #00000059;
+}
+
+/* Stone: Architectural cool mineral neutrals with Notespace Cobalt identity. */
+:root[data-palette="stone"] {
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --sidebar: #eaeef5;
+  --ink: #1b212c;
+  --muted: #545f73;
+  --line: #dce2ec;
+  --accent: #2858d8;
+  --tint: #eaf0ff;
+  --button: #1b212c;
+  --button-text: #ffffff;
+  --canvas: #f6f8fb;
+  --danger: #b83848;
+  --warning: #915f12;
+  --danger-foreground: #ffffff;
+  --success: #2d7152;
+}
+
+:root[data-theme="dark"][data-palette="stone"] {
+  --bg: #111318;
+  --surface: #1f242f;
+  --sidebar: #161920;
+  --ink: #e8ecf4;
+  --muted: #94a0b5;
+  --line: #2d3444;
   --accent: #91b1ff;
   --tint: #223254;
-  --button: #e6e6ed;
-  --button-text: #22232a;
-  --canvas: #191a1f;
-  --danger: #ff9aa5;
-  --warning: #f3bc6a;
-  --danger-foreground: #22232a;
-  --success: #8fc3a0;
-  --shadow-float: 0 1px 2px #0006, 0 4px 12px #00000059;
+  --button: #e8ecf4;
+  --button-text: #141821;
+  --canvas: #14171e;
+  --danger: #f58b97;
+  --warning: #ebb45d;
+  --danger-foreground: #141821;
+  --success: #73c59e;
+}
+
+/* Sage: Botanical linen neutrals with calm forest-pine accents. */
+:root[data-palette="sage"] {
+  --bg: #f2f4ef;
+  --surface: #fdfefb;
+  --sidebar: #e9ede6;
+  --ink: #1e2520;
+  --muted: #536057;
+  --line: #dce0d6;
+  --accent: #226a56;
+  --tint: #e3f1ec;
+  --button: #1e2520;
+  --button-text: #fdfefb;
+  --canvas: #f6f7f3;
+  --danger: #b43b45;
+  --warning: #8f5d14;
+  --danger-foreground: #ffffff;
+  --success: #29704c;
+}
+
+:root[data-theme="dark"][data-palette="sage"] {
+  --bg: #111513;
+  --surface: #1f2723;
+  --sidebar: #161c19;
+  --ink: #e5ebe7;
+  --muted: #94a39a;
+  --line: #2f3a34;
+  --accent: #72c4a8;
+  --tint: #1d352d;
+  --button: #e5ebe7;
+  --button-text: #141916;
+  --canvas: #141916;
+  --danger: #f38e97;
+  --warning: #e8b563;
+  --danger-foreground: #141916;
+  --success: #77c89d;
+}
+
+/* Amber: Warm editorial paper paired with restrained fox terracotta. */
+:root[data-palette="amber"] {
+  --bg: #f4efe9;
+  --surface: #fffdfa;
+  --sidebar: #ebe4db;
+  --ink: #241f1a;
+  --muted: #61574c;
+  --line: #e2d9cd;
+  --accent: #a9431a;
+  --tint: #f8eae2;
+  --button: #27211c;
+  --button-text: #fffdfa;
+  --canvas: #f8f4ee;
+  --danger: #b3333b;
+  --warning: #8c5a0e;
+  --danger-foreground: #ffffff;
+  --success: #3a6c4c;
+}
+
+:root[data-theme="dark"][data-palette="amber"] {
+  --bg: #151210;
+  --surface: #25201c;
+  --sidebar: #1b1714;
+  --ink: #efe8df;
+  --muted: #a69a8d;
+  --line: #38312b;
+  --accent: #ec9066;
+  --tint: #3b251b;
+  --button: #efe8df;
+  --button-text: #1b1714;
+  --canvas: #181412;
+  --danger: #f48b92;
+  --warning: #ebb560;
+  --danger-foreground: #1b1714;
+  --success: #7ebe94;
+}
+
+/* Graphite: Pure neutral monochrome surfaces for distraction-free focus. */
+:root[data-palette="graphite"] {
+  --bg: #f3f3f4;
+  --surface: #ffffff;
+  --sidebar: #ececed;
+  --ink: #1c1c1e;
+  --muted: #58585e;
+  --line: #dfdfdf;
+  --accent: #46495c;
+  --tint: #ebebef;
+  --button: #1c1c1e;
+  --button-text: #ffffff;
+  --canvas: #f7f7f8;
+  --danger: #b53844;
+  --warning: #8e5c10;
+  --danger-foreground: #ffffff;
+  --success: #356f4f;
+}
+
+:root[data-theme="dark"][data-palette="graphite"] {
+  --bg: #121213;
+  --surface: #202022;
+  --sidebar: #171718;
+  --ink: #eaeaea;
+  --muted: #9b9ba2;
+  --line: #303034;
+  --accent: #b4b8cc;
+  --tint: #292a31;
+  --button: #eaeaea;
+  --button-text: #161618;
+  --canvas: #151516;
+  --danger: #f38c96;
+  --warning: #eab460;
+  --danger-foreground: #161618;
+  --success: #7ac29a;
 }
 
 @layer base {
@@ -129,6 +279,11 @@
     font-family: var(--font-sans);
     font-size: 14px;
     -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--tint);
+    color: var(--ink);
   }
 
   button,

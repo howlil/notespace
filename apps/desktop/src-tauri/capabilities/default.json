@@ -13,6 +13,9 @@
           "url": "https://**"
         },
         {
+          "url": "http://**"
+        },
+        {
           "url": "mailto:*"
         },
         {

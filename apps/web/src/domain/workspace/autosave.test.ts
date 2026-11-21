@@ -245,3 +245,20 @@ test("explicit discard clears a conflict but cannot interrupt an in-flight save"
   assert.equal(saver.dirty, false);
   await saver.flush();
 });
+
+test("acknowledgeExternalVersion advances version while retaining unpersisted pending edits", async () => {
+  const calls: Array<[string, number]> = [];
+  const saver = new Autosave(
+    2,
+    async (value: string, version) => {
+      calls.push([value, version]);
+      return { version: version + 1 };
+    },
+    60_000,
+  );
+  saver.schedule("local pending edit");
+  saver.acknowledgeExternalVersion(5, "merged pending edit");
+  assert.equal(saver.dirty, true);
+  await saver.flush();
+  assert.deepEqual(calls, [["merged pending edit", 5]]);
+});

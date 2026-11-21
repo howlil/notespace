@@ -49,53 +49,55 @@ type NoteThemePalette = {
   dangerBg: string;
 };
 
-/** Heptabase-style warm tints. A colored card is the same light surface in both themes, so it keeps dark ink. */
-const TINTED_CARD_COLORS: Record<Exclude<NoteCardColor, "default">, CardPalette> = {
-  blue: { background: "#B8D9F0", border: "#8FBFE3" },
-  teal: { background: "#B7E3DD", border: "#86C9C0" },
-  green: { background: "#CBE5C3", border: "#9FCB94" },
-  yellow: { background: "#F7E3A1", border: "#E2C463" },
-  orange: { background: "#F8D0B0", border: "#E7A877" },
-  pink: { background: "#F6CFD6", border: "#E3A1AE" },
-  purple: { background: "#DCD0F4", border: "#B7A3E6" },
-};
-
+/** Adaptive Note card tints: calm paper-dyed tones in Light mode and atmospheric dark surfaces in Dark mode. */
 const LIGHT_CARD_COLORS: Record<NoteCardColor, CardPalette> = {
-  default: { background: "#FFFFFF", border: "#E3E3DD" },
-  ...TINTED_CARD_COLORS,
+  default: { background: "#FFFDF9", border: "#E1DACD" },
+  blue: { background: "#E4EEF8", border: "#BFD4EC" },
+  teal: { background: "#E1F1EE", border: "#B6DBD4" },
+  green: { background: "#E7F1E3", border: "#C2DAB9" },
+  yellow: { background: "#F8EFC9", border: "#E2CF8A" },
+  orange: { background: "#F8E4D4", border: "#E4BE9F" },
+  pink: { background: "#F7E3E8", border: "#E2BAC4" },
+  purple: { background: "#ECE6F8", border: "#CDC0E9" },
 };
 
 const DARK_CARD_COLORS: Record<NoteCardColor, CardPalette> = {
-  default: { background: "#1D1E23", border: "#34353E" },
-  ...TINTED_CARD_COLORS,
+  default: { background: "#24211D", border: "#35312B" },
+  blue: { background: "#1B283A", border: "#2D4363" },
+  teal: { background: "#182C2A", border: "#294B47" },
+  green: { background: "#1C2B1F", border: "#304A36" },
+  yellow: { background: "#2E2817", border: "#4F4425" },
+  orange: { background: "#312319", border: "#543B29" },
+  pink: { background: "#301E26", border: "#523240" },
+  purple: { background: "#262036", border: "#41375C" },
 };
 
 const LIGHT_THEME: NoteThemePalette = {
-  ink: "#14151A",
-  muted: "#5C6270",
-  border: "#E3E3DD",
-  quoteBar: "#C8CBD6",
-  accent: "#2858D8",
-  tint: "#EEF3FF",
-  codeBg: "#FAFAF8",
-  warning: "#98651A",
-  warningBg: "#FBF4E6",
-  danger: "#B13E4B",
-  dangerBg: "#FBECEF",
+  ink: "#1F2128",
+  muted: "#60594F",
+  border: "#E1DACD",
+  quoteBar: "#C8C1B4",
+  accent: "#3252B6",
+  tint: "#E9EEF9",
+  codeBg: "#F7F4ED",
+  warning: "#8E5B12",
+  warningBg: "#FBF3E4",
+  danger: "#B33C3C",
+  dangerBg: "#FBECEB",
 };
 
 const DARK_THEME: NoteThemePalette = {
-  ink: "#E8E8EF",
-  muted: "#9FA2B0",
-  border: "#34353E",
-  quoteBar: "#4B4D5A",
-  accent: "#91B1FF",
-  tint: "#22304C",
-  codeBg: "#18191E",
-  warning: "#F3BC6A",
+  ink: "#EBE6DD",
+  muted: "#A19A8E",
+  border: "#35312B",
+  quoteBar: "#524C43",
+  accent: "#8CAAF9",
+  tint: "#252F49",
+  codeBg: "#171513",
+  warning: "#EAB665",
   warningBg: "#31281B",
-  danger: "#FF9AA5",
-  dangerBg: "#332025",
+  danger: "#F28E88",
+  dangerBg: "#332020",
 };
 
 export function noteCardSurfaceColors(color: NoteCardColor | undefined, dark: boolean): CardPalette {
@@ -743,8 +745,7 @@ function renderNoteCard(
     ? ` opacity="${Math.max(0, Math.min(100, element.opacity)) / 100}"`
     : "";
 
-  const coloredCard = reference.color !== undefined && reference.color !== "default";
-  const theme = dark && !coloredCard ? DARK_THEME : LIGHT_THEME;
+  const theme = dark ? DARK_THEME : LIGHT_THEME;
   const surface = noteCardSurfaceColors(reference.color, dark);
   const cardRadius = reference.shape === "square" ? 0 : CARD_RADIUS;
   const clipId = `notespace-note-export-clip-${index}`;

@@ -146,11 +146,18 @@ export class Autosave<T> {
     if (this.pending !== undefined) this.pending = value;
   }
 
+  acknowledgeExternalVersion(version: number, value?: T) {
+    this.version = Math.max(1, this.version, version);
+    if (value !== undefined && this.pending !== undefined) {
+      this.pending = value;
+    }
+  }
+
   private async persistSnapshot(snapshot: T) {
     this.dispatch({ type: "save_started" });
     try {
       const saved = await this.persist(snapshot, this.version);
-      this.version = saved.version;
+      this.version = Math.max(this.version, saved.version);
     } catch (error) {
       if (this.pending === undefined) this.pending = snapshot;
       const normalized = error instanceof Error ? error : new Error("Save failed. Please retry.");

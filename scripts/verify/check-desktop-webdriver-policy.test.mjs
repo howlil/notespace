@@ -77,6 +77,14 @@ test("Tauri commands for the authenticated loopback UI have explicit least-privi
   for (const command of registered.filter(x => x !== "desktop_retry_runtime")) {
     assert.ok(loopback.permissions.includes(`allow-${command.replaceAll("_", "-")}`), `Loopback UI command not permitted: ${command}`);
   }
+  for (const permission of [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-is-focused",
+    "core:window:allow-is-maximized",
+  ]) {
+    assert.ok(loopback.permissions.includes(permission), `Loopback titlebar window permission missing: ${permission}`);
+  }
   assert.ok(!loopback.permissions.includes("allow-desktop-retry-runtime"), "Untrusted loopback pages cannot restart the sidecar");
   assert.ok(!loopback.permissions.some(x => typeof x === "string" && (x.startsWith("shell:") || x.startsWith("fs:"))), "Remote UI must not receive shell or filesystem access");
   assert.ok(local.permissions.includes("allow-desktop-retry-runtime"), "Bundled recovery UI retains retry action");

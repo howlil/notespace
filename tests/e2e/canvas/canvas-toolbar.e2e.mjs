@@ -686,3 +686,45 @@ test("selection toolbar can be compact or docked, and Escape hides it until the 
     await cleanupWorkspace(id);
   }
 });
+
+test("canvas background pattern switches between dots, plain, and grid and persists across reload", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas pattern ${Date.now()}`);
+  try {
+    const view = role("toolbar", "Canvas view controls");
+    const optionsTrigger = role("button", "More canvas actions", { scope: view });
+    const options = role("dialog", "Canvas options");
+
+    await expectCount('[data-canvas-background-pattern="dots"]', 1);
+    await click(optionsTrigger);
+    await visible(options);
+    await expectAttribute(role("button", "Dots background pattern", { exact: true, scope: options }), "aria-pressed", "true");
+
+    await click(role("button", "Plain background pattern", { exact: true, scope: options }));
+    await expectAttribute(role("button", "Plain background pattern", { exact: true, scope: options }), "aria-pressed", "true");
+    await expectCount("[data-canvas-dot-grid]", 0);
+    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.backgroundPattern")), "none");
+
+    await click(role("button", "Grid background pattern", { exact: true, scope: options }));
+    await expectAttribute(role("button", "Grid background pattern", { exact: true, scope: options }), "aria-pressed", "true");
+    await expectCount('[data-canvas-background-pattern="grid"]', 1);
+    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.backgroundPattern")), "grid");
+
+    // Excalidraw's snapping Grid hides the passive pattern so two grids do not overlap.
+    await click(role("button", "Grid", { exact: true, scope: options }));
+    await expectCount("[data-canvas-dot-grid]", 0);
+    await click(role("button", "Grid", { exact: true, scope: options }));
+    await expectCount('[data-canvas-background-pattern="grid"]', 1);
+
+    await press("Escape");
+    await reload();
+    await visible(canvas);
+    await expectCount('[data-canvas-background-pattern="grid"]', 1);
+
+    await click(optionsTrigger);
+    await click(role("button", "Dots background pattern", { exact: true, scope: options }));
+    await expectCount('[data-canvas-background-pattern="dots"]', 1);
+    await press("Escape");
+  } finally {
+    await cleanupWorkspace(id);
+  }
+});

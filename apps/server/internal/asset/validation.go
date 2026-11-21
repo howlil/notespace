@@ -1,6 +1,7 @@
 package asset
 
 import (
+	"bytes"
 	"mime"
 	"strings"
 )
@@ -12,10 +13,33 @@ import (
 // CSP), so untrusted SVG is rejected at every ingress (upload, store, restore).
 func NormalizeMimeType(value string) (string, error) {
 	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
-	if err != nil || !strings.HasPrefix(strings.ToLower(mediaType), "image/") || strings.HasPrefix(strings.ToLower(mediaType), "image/svg") {
+	lower := strings.ToLower(mediaType)
+	if err != nil || !strings.HasPrefix(lower, "image/") || strings.HasPrefix(lower, "image/svg") ||
+		strings.HasPrefix(lower, "image/xml") || strings.HasPrefix(lower, "image/html") ||
+		strings.HasSuffix(lower, "+xml") || strings.HasSuffix(lower, "+html") {
 		return "", ErrInvalid
 	}
 	return mediaType, nil
+}
+
+func looksLikeMarkupDocument(data []byte) bool {
+	sample := data
+	if len(sample) > 512 {
+		sample = sample[:512]
+	}
+	trimmed := bytes.ToLower(bytes.TrimSpace(sample))
+	for _, prefix := range [][]byte{
+		[]byte("<svg"),
+		[]byte("<?xml"),
+		[]byte("<!doctype"),
+		[]byte("<html"),
+		[]byte("<script"),
+	} {
+		if bytes.HasPrefix(trimmed, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // NormalizeStored enforces the asset invariants shared by normal uploads and
@@ -23,7 +47,7 @@ func NormalizeMimeType(value string) (string, error) {
 func NormalizeStored(value Stored) (Stored, error) {
 	value.ID = strings.TrimSpace(value.ID)
 	value.WorkspaceID = strings.TrimSpace(value.WorkspaceID)
-	if value.ID == "" || value.WorkspaceID == "" || len(value.Data) == 0 {
+	if value.ID == "" || value.WorkspaceID == "" || len(value.Data) == 0 || looksLikeMarkupDocument(value.Data) {
 		return Stored{}, ErrInvalid
 	}
 	mediaType, err := NormalizeMimeType(value.MimeType)

@@ -70,7 +70,7 @@ func RestoreInstancesTx(ctx context.Context, tx dbtx.DBTX, workspaceID string, v
 		if note.ValidateInstance(value, workspaceID) != nil {
 			return note.ErrInvalid
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO canvas_note_instances(id,note_id,workspace_id,element_id,x,y,width,height,compact,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.NoteID, value.WorkspaceID, value.ElementID, value.X, value.Y, value.Width, value.Height, boolInt(value.Compact), value.CreatedAt, value.UpdatedAt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO canvas_note_instances(id,note_id,workspace_id,element_id,x,y,width,height,compact,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM canvas_notes WHERE id=?)`, value.ID, value.NoteID, value.WorkspaceID, value.ElementID, value.X, value.Y, value.Width, value.Height, boolInt(value.Compact), value.CreatedAt, value.UpdatedAt, value.NoteID); err != nil {
 			return err
 		}
 	}

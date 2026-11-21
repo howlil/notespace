@@ -11,6 +11,10 @@ import { NativeDotsHorizontalIcon, NativeLibraryIcon } from "../native/CanvasNat
 import type { CanvasActionName } from "../native/CanvasToolbar";
 import { MenuAction, MenuSection, motionTransition } from "./CanvasChromeMenu";
 import { CONTEXTUAL_TOOLBAR_MODES, type ContextualToolbarMode } from "./contextual-toolbar-policy";
+import {
+  CANVAS_BACKGROUND_PATTERNS,
+  type CanvasBackgroundPattern,
+} from "../viewport/canvas-background-pattern";
 const canvasBackgroundOptions = [
   { label: "Snow", color: "#ffffff" },
   { label: "Canvas", color: "#fafaf8" },
@@ -23,10 +27,73 @@ const canvasBackgroundOptions = [
   { label: "Ink", color: "#191a1f" },
   { label: "Slate", color: "#24262d" },
 ] as const;
-function BackgroundPalette({ backgroundColor, onBackgroundChange }: { backgroundColor: string; onBackgroundChange: (color: string) => void }) {
+
+function BackgroundPatternGlyph({ pattern }: { pattern: CanvasBackgroundPattern }) {
+  if (pattern === "none") {
+    return (
+      <svg viewBox="0 0 14 14" className="size-3.5 shrink-0" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2" opacity="0.6" />
+      </svg>
+    );
+  }
+  if (pattern === "dots") {
+    return (
+      <svg viewBox="0 0 14 14" className="size-3.5 shrink-0" aria-hidden="true">
+        <circle cx="4" cy="4" r="1.15" fill="currentColor" />
+        <circle cx="10" cy="4" r="1.15" fill="currentColor" />
+        <circle cx="4" cy="10" r="1.15" fill="currentColor" />
+        <circle cx="10" cy="10" r="1.15" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 14 14" className="size-3.5 shrink-0" aria-hidden="true">
+      <path d="M5 1.5v11M9 1.5v11M1.5 5h11M1.5 9h11" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BackgroundPalette({
+  backgroundColor,
+  backgroundPattern,
+  onBackgroundChange,
+  onBackgroundPatternChange,
+}: {
+  backgroundColor: string;
+  backgroundPattern: CanvasBackgroundPattern;
+  onBackgroundChange: (color: string) => void;
+  onBackgroundPatternChange: (pattern: CanvasBackgroundPattern) => void;
+}) {
   return (
     <div className="grid gap-2 p-2">
-      <div className="grid grid-cols-5 gap-1" role="group" aria-label="Canvas background colors">
+      <div className="grid gap-1">
+        <span className="text-[9px] text-muted">Pattern</span>
+        <div className="grid grid-cols-3 gap-1" role="group" aria-label="Canvas background pattern">
+          {CANVAS_BACKGROUND_PATTERNS.map(({ pattern, label, ariaLabel }) => {
+            const active = backgroundPattern === pattern;
+            return (
+              <button
+                key={pattern}
+                type="button"
+                data-canvas-background-pattern-option={pattern}
+                aria-label={ariaLabel}
+                aria-pressed={active}
+                className={cn(
+                  "flex min-h-7 items-center justify-center gap-1 rounded-md border px-1.5 text-[10px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+                  active
+                    ? "border-accent bg-tint text-accent"
+                    : "border-line text-muted hover:bg-tint hover:text-ink",
+                )}
+                onClick={() => onBackgroundPatternChange(pattern)}
+              >
+                <BackgroundPatternGlyph pattern={pattern} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-5 gap-1 border-t border-line pt-2" role="group" aria-label="Canvas background colors">
         {canvasBackgroundOptions.map(({ label, color }) => (
           <button key={color} type="button" className={cn("size-7 rounded-md border border-line hover:scale-105 focus-visible:outline-2 focus-visible:outline-accent", backgroundColor.toLowerCase() === color && "ring-2 ring-accent ring-offset-1 ring-offset-surface")} style={{ backgroundColor: color }} aria-label={`${label} background`} aria-pressed={backgroundColor.toLowerCase() === color} onClick={() => onBackgroundChange(color)} />
         ))}
@@ -49,17 +116,19 @@ function CanvasIconAction({ api, nativeAction, label, icon, onClick }: { api: Ex
   return <IconButton type="button" variant="ghost" className="!size-7 text-ink/70 hover:bg-tint hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label={label} title={label} onClick={onClick}><span className="grid place-items-center [&_svg]:size-4">{nativeIcon ?? icon}</span></IconButton>;
 }
 
-function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnabled, objectsSnapModeEnabled, toolbarMode, libraryOpen, onToolbarModeChange, onBackgroundChange, onToggleLibrary, onAction, onClose }: {
+function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, backgroundPattern, gridModeEnabled, objectsSnapModeEnabled, toolbarMode, libraryOpen, onToolbarModeChange, onBackgroundChange, onBackgroundPatternChange, onToggleLibrary, onAction, onClose }: {
   api: ExcalidrawImperativeAPI | null;
   anchorRef: { current: HTMLDivElement | null };
   open: boolean;
   backgroundColor: string;
+  backgroundPattern: CanvasBackgroundPattern;
   gridModeEnabled: boolean;
   objectsSnapModeEnabled: boolean;
   toolbarMode: ContextualToolbarMode;
   onToolbarModeChange: (mode: ContextualToolbarMode) => void;
   libraryOpen: boolean;
   onBackgroundChange: (color: string) => void;
+  onBackgroundPatternChange: (pattern: CanvasBackgroundPattern) => void;
   onToggleLibrary: () => void;
   onAction: (name: CanvasActionName) => void;
   onClose: () => void;
@@ -105,7 +174,12 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
           <MenuSection label="Canvas">
             <div className="grid gap-1 rounded-md border border-line p-1">
               <span className="px-2 pt-1 text-[9px] text-muted">Canvas background</span>
-              <BackgroundPalette backgroundColor={backgroundColor} onBackgroundChange={onBackgroundChange} />
+              <BackgroundPalette
+                backgroundColor={backgroundColor}
+                backgroundPattern={backgroundPattern}
+                onBackgroundChange={onBackgroundChange}
+                onBackgroundPatternChange={onBackgroundPatternChange}
+              />
             </div>
             <MenuAction api={api} nativeAction="clearCanvas" label="Reset canvas" shortcut="⌘⌫" onClick={() => run("clearCanvas")} />
           </MenuSection>
@@ -126,10 +200,12 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
     </AnimatePresence>
   ), document.body);
 }
-export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, toolbarMode, onToolbarModeChange, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen }: {
+export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, backgroundPattern, onBackgroundPatternChange, toolbarMode, onToolbarModeChange, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen }: {
   api: ExcalidrawImperativeAPI | null;
   gridModeEnabled: boolean;
   objectsSnapModeEnabled: boolean;
+  backgroundPattern: CanvasBackgroundPattern;
+  onBackgroundPatternChange: (pattern: CanvasBackgroundPattern) => void;
   toolbarMode: ContextualToolbarMode;
   onToolbarModeChange: (mode: ContextualToolbarMode) => void;
   onAction: (name: CanvasActionName) => void;
@@ -194,7 +270,7 @@ export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnable
       <span className="mx-0.5 h-4 w-px bg-line" aria-hidden="true" />
       <div ref={commandMenuRef} className="relative">
         <IconButton id="canvas-options-trigger" type="button" variant="ghost" className={cn("!size-8 text-ink/70 hover:bg-tint hover:text-accent", commandMenuOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="More canvas actions" aria-haspopup="dialog" aria-expanded={commandMenuOpen} aria-controls="canvas-command-menu" title="Canvas options" onClick={() => { if (!commandMenuOpen) { onToolOverlayOpen(); onOverlayOpen?.(); } setCommandMenuOpen((open) => !open); }}><NativeDotsHorizontalIcon className="size-5" /></IconButton>
-        <CanvasCommandMenu api={api} anchorRef={commandMenuRef} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} toolbarMode={toolbarMode} onToolbarModeChange={onToolbarModeChange} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={closeCommandMenu} />
+        <CanvasCommandMenu api={api} anchorRef={commandMenuRef} open={commandMenuOpen} backgroundColor={backgroundColor} backgroundPattern={backgroundPattern} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} toolbarMode={toolbarMode} onToolbarModeChange={onToolbarModeChange} libraryOpen={libraryOpen} onBackgroundChange={changeBackground} onBackgroundPatternChange={onBackgroundPatternChange} onToggleLibrary={toggleLibrary} onAction={onAction} onClose={closeCommandMenu} />
       </div>
     </motion.aside>
   );

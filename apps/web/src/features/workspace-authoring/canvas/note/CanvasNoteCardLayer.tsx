@@ -1113,19 +1113,27 @@ function NoteEditor(props: {
     try {
       const extractedDoc = ensureNoteBlockIds(preview.extracted);
       const created = await onExtractToNote(elementId, extractedDoc);
-      if (!created || editor.isDestroyed) return;
+      if (!created) return;
       const label = noteFirstLine(extractedDoc) || "Extracted Note";
       const href = `/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(created.noteId)}`;
-      const extractedResult = extractBlocksFromDocument(currentDoc, { startIndex, endIndex }, {
+      const liveDoc = editor.isDestroyed ? (readDocument(note.id) ?? currentDoc) : (editor.getJSON() as NoteDocument);
+      const extractedResult = extractBlocksFromDocument(liveDoc, { startIndex, endIndex }, {
+        leaveLink: { href, label },
+      }) ?? extractBlocksFromDocument(currentDoc, { startIndex, endIndex }, {
         leaveLink: { href, label },
       });
       if (!extractedResult) return;
-      editor.commands.setContent(ensureNoteBlockIds(extractedResult.remaining), { emitUpdate: true });
+      const remainingDoc = ensureNoteBlockIds(extractedResult.remaining);
+      if (editor.isDestroyed) {
+        onDocumentChangeRef.current(remainingDoc);
+      } else {
+        editor.commands.setContent(remainingDoc, { emitUpdate: true });
+      }
       onSuccess?.("Extracted selection to a connected Note.");
     } finally {
       extractingRef.current = false;
     }
-  }, [editor, elementId, onError, onExtractToNote, onSuccess, workspaceId]);
+  }, [editor, elementId, note.id, onError, onExtractToNote, onSuccess, readDocument, workspaceId]);
 
   const canCreateAndLink = referenceState?.mode === "mention"
     && referenceState.step === "pick-note"

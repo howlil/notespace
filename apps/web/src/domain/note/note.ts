@@ -163,8 +163,29 @@ export function isValidNoteBlockId(value: unknown): value is string {
 
 export function isSafeNoteLink(url: string): boolean {
   const trimmed = url.trim();
-  if (!trimmed || trimmed.startsWith("//")) return false;
-  return /^\/workspaces\/[^/]+(?:[?#/].*)?$/i.test(trimmed) || /^(?:https?:\/\/|mailto:[^\s/]+)/i.test(trimmed);
+  if (!trimmed || trimmed.startsWith("//") || /[\r\n\s]/.test(trimmed)) return false;
+  if (trimmed.startsWith("/")) {
+    try {
+      const parsed = new URL(trimmed, "http://notespace.local");
+      return parsed.origin === "http://notespace.local"
+        && /^\/workspaces\/[^/]+$/i.test(parsed.pathname);
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const parsed = new URL(trimmed);
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === "http:" || protocol === "https:") {
+      return parsed.host.length > 0;
+    }
+    if (protocol === "mailto:") {
+      return /^mailto:[^\s/]+$/i.test(trimmed);
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /**

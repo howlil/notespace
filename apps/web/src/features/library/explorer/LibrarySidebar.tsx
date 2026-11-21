@@ -7,7 +7,7 @@ import { Button, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSu
 import { useLibraryNavigation, type LibraryChange } from "./use-library-navigation";
 import type { CategorySummary, WorkspaceSummary } from "../../../domain/workspace/workspace";
 
-type Props = { categories: CategorySummary[]; selectedCategoryId?: string; activeWorkspace?: WorkspaceSummary; onSelectCategory: (categoryId: string) => void; onChanged?: (change?: LibraryChange) => void; onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean> };
+type Props = { categories: CategorySummary[]; selectedCategoryId?: string; activeWorkspace?: WorkspaceSummary; onSelectCategory: (categoryId: string) => void; onChanged?: (change?: LibraryChange) => void; onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean | number> };
 
 function isExplorerToggle(target: EventTarget | null) {
   return target instanceof Element && target.matches('[data-explorer-toggle], [aria-label="Close Explorer"]');
@@ -80,7 +80,11 @@ export function LibrarySidebar({ categories, selectedCategoryId, activeWorkspace
       <nav aria-label="Categories" className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-0.5 overflow-y-auto overflow-x-hidden overscroll-contain pt-0.5 max-[560px]:min-h-0">
         {categories.map((category) => {
           const isOpen = expanded.has(category.id);
-          const preview = children[category.id] ?? [];
+          const preview = (children[category.id] ?? []).map((item) =>
+            activeWorkspace && item.id === activeWorkspace.id && activeWorkspace.version >= item.version
+              ? { ...item, ...activeWorkspace }
+              : item,
+          );
           const items = activeWorkspace?.categoryId === category.id && !preview.some((item) => item.id === activeWorkspaceId)
             ? [activeWorkspace, ...preview] : preview;
           const isSystemCategory = category.id === "legacy";

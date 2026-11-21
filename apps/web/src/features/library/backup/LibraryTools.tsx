@@ -104,6 +104,7 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
     try {
       await restoreTrashedNote(item.id);
       setTrashedNotes((current) => current.filter((candidate) => candidate.id !== item.id));
+      notifyLibraryChanged();
       showToast({ kind: "success", message: `Restored ${noteTitle(item)}.` });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not restore note." });
@@ -122,6 +123,7 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
     try {
       await deleteTrashedNote(item.id);
       setTrashedNotes((current) => current.filter((candidate) => candidate.id !== item.id));
+      notifyLibraryChanged();
       showToast({ kind: "success", message: `Permanently deleted ${noteTitle(item)}.` });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not permanently delete note." });

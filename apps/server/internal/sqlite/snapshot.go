@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 	"github.com/howlil/notespace/apps/server/migrations"
 )
 
@@ -37,7 +38,7 @@ func CreateManualSnapshot(ctx context.Context, source string) (string, error) {
 
 	// Query-only source: SQLite's VACUUM INTO takes a consistent read snapshot
 	// including committed WAL contents, even if the desktop app stays open.
-	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(absolute)+"?mode=ro&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+dbtx.EscapeSQLiteURIPath(filepath.ToSlash(absolute))+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return "", fmt.Errorf("open library read only: %w", err)
 	}
@@ -107,7 +108,7 @@ func vacuumAndPublishSnapshot(ctx context.Context, db *sql.DB, dir, prefix strin
 		return "", fmt.Errorf("protect snapshot permissions: %w", err)
 	}
 
-	snapshot, err := sql.Open("sqlite", "file:"+filepath.ToSlash(partial)+"?mode=ro&_pragma=foreign_keys(1)")
+	snapshot, err := sql.Open("sqlite", "file:"+dbtx.EscapeSQLiteURIPath(filepath.ToSlash(partial))+"?mode=ro&_pragma=foreign_keys(1)")
 	if err != nil {
 		return "", err
 	}

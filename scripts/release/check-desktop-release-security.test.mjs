@@ -11,6 +11,7 @@ test("exactly one installer and one cross-platform build job", () => {
 test("production release is immutable, stable and based on master", () => {
   assert.match(workflow, /Require stable release at current master HEAD/);
   assert.match(workflow, /Release already exists; immutable release policy/);
+  assert.match(workflow, /immutable release policy refuses asset replacement" \}\r?\n\s+\$global:LASTEXITCODE = 0\r?\n\s+exit 0/);
   assert.doesNotMatch(workflow, /gh release upload.*--clobber/);
 });
 test("publisher signature and updater signatures are distinct hard gates", () => {

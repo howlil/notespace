@@ -150,6 +150,8 @@ jobs:
           if ($candidate -ne $master) { throw "Release tag must point at current master HEAD" }
           gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Release already exists; immutable release policy refuses asset replacement" }
+          $global:LASTEXITCODE = 0
+          exit 0
       - name: Resolve release version
         id: release
         shell: pwsh
@@ -462,6 +464,7 @@ jobs:
           $paths = $files | ForEach-Object { $_.FullName }
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) { throw "Refusing to overwrite an existing signed release" }
+          $global:LASTEXITCODE = 0
           if ($env:AUTHENTICODE_ENABLED -eq "true") {
             gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --generate-notes
           } else {

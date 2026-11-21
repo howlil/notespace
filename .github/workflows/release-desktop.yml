@@ -58,7 +58,7 @@ jobs:
             echo "::error::Dispatch from master with an explicit stable release tag; beta tags are not production releases."
             exit 1
           fi
-          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA"
+          node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target desktop
       - name: Require production signing configuration
         id: signing
         shell: bash
@@ -122,8 +122,8 @@ jobs:
     # Keep native WebView2 + EdgeDriver release acceptance on a known working
     # Windows image while https://github.com/actions/runner-images/issues/14738
     # and MicrosoftEdge/WebView2Feedback#5415 remain unresolved.
-    # Still run current Windows build/unit tests in verify-desktop.yml.
-    needs: [release-credentials-preflight, cross-platform-native]
+    # Cross-platform macOS/Linux compile checks run in scheduled/manual regression.
+    needs: release-credentials-preflight
     runs-on: windows-2022
     timeout-minutes: 85
     env:
@@ -189,10 +189,6 @@ jobs:
             Write-Host "::notice::Initial stable release; no previous MSI to compare."
             "enabled=false" >> $env:GITHUB_OUTPUT
           }
-      - name: Synchronize desktop version
-        env:
-          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/release/sync-desktop-version.mjs
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
@@ -204,11 +200,17 @@ jobs:
           go-version-file: apps/server/go.mod
           cache-dependency-path: apps/server/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      # Restore and save the dedicated release cache BEFORE mutating Cargo.lock
+      # with the release version, so patch bumps reuse all compiled release deps.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "apps/desktop/src-tauri -> target"
-          shared-key: windows-2022-desktop
+          shared-key: windows-2022-desktop-release
           cache-bin: "false"
+      - name: Synchronize desktop version
+        env:
+          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/release/sync-desktop-version.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -227,11 +229,6 @@ jobs:
       - run: bun run --filter @notespace/web build
       - run: bun run desktop:icons
       - run: node scripts/dev/prepare-desktop-sidecar.mjs
-      - name: Smoke sidecar parent lifecycle
-        run: bun run test:desktop:lifecycle
-      - name: Test desktop runtime
-        working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
       - name: Require production updater signing keys
         shell: pwsh
         env:
@@ -328,13 +325,6 @@ jobs:
       - name: Diagnose release WebView2 environment
         shell: pwsh
         run: ./scripts/dev/diagnose-desktop-webdriver.ps1
-      - name: Smoke release binary
-        env:
-          TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
-          TAURI_NATIVE_PROFILE: ${{ runner.temp }}/notespace-release-webdriver-profile
-          NOTESPACE_DESKTOP_TEST_DATA_DIR: ${{ runner.temp }}/notespace-release-data
-          TAURI_DRIVER: ${{ env.TAURI_DRIVER_ROOT }}/bin/tauri-driver.exe
-        run: bun run test:desktop:native
       - name: Verify release product persistence
         env:
           TAURI_APP_BINARY: apps/desktop/src-tauri/target/release/notespace-desktop.exe
@@ -472,62 +462,3 @@ jobs:
             gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --notes $unsignedNotice --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
-
-  cross-platform-native:
-    needs: release-credentials-preflight
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            deps: ""
-          - os: ubuntu-latest
-            deps: "libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev"
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag || github.ref }}
-      - name: Resolve release version
-        id: release
-        shell: bash
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
-        run: |
-          tag="${RELEASE_TAG_INPUT:-${GITHUB_REF_NAME}}"
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release ref must be a SemVer tag such as v1.2.3, received '$tag'" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-      - name: Synchronize desktop version
-        env:
-          NOTESPACE_DESKTOP_VERSION: ${{ steps.release.outputs.version }}
-        run: node scripts/release/sync-desktop-version.mjs
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-          cache-dependency-path: apps/server/go.sum
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "apps/desktop/src-tauri -> target"
-          cache-bin: "false"
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
-      - run: bun install --frozen-lockfile
-      - run: bun run --filter @notespace/web build
-      - run: bun run desktop:icons
-      - run: node scripts/dev/prepare-desktop-sidecar.mjs
-      - working-directory: apps/desktop/src-tauri
-        run: cargo test --locked
-      - working-directory: apps/desktop/src-tauri
-        run: bunx @tauri-apps/cli@2.12.3 build --no-bundle -- --locked

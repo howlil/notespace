@@ -49,7 +49,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "apps/desktop/src-tauri -> target"
-          shared-key: windows-2022-desktop
+          shared-key: windows-2022-desktop-release
           cache-bin: "false"
 
       - name: Verify current master and passing master CI
@@ -65,7 +65,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $master -ne $env:GITHUB_SHA) {
             throw "master advanced; retry on its latest verified commit"
           }
-          node scripts/release/assert-desktop-release-ci.mjs --collect $env:GITHUB_SHA
+          node scripts/release/assert-desktop-release-ci.mjs --collect $env:GITHUB_SHA --target desktop
           if ($LASTEXITCODE -ne 0) { throw "Master CI gate failed" }
 
       - name: Select next public signed-updater beta version

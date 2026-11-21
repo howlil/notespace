@@ -519,14 +519,16 @@ async function requestLocal(path, method = "GET", body, headers = {}) {
       }
       const result = await window.fetch(path, request);
       const contentType = result.headers.get("Content-Type") ?? "";
-      const value = result.status === 204 ? null : contentType.includes("json")
+      const isJson = contentType.includes("json");
+      const binary = result.status !== 204 && !isJson;
+      const value = result.status === 204 ? null : isJson
         ? await result.json() : Array.from(new Uint8Array(await result.arrayBuffer()));
-      done({ status: result.status, ok: result.ok, value });
+      done({ status: result.status, ok: result.ok, binary, value });
     })().catch(error => done({ error: String(error) }));
   }, path, method, payload, headers);
   if (response.error) throw new Error(`${method} ${path}: ${response.error}`);
   if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}: ${JSON.stringify(response.value)}`);
-  return Array.isArray(response.value) ? new Uint8Array(response.value) : response.value;
+  return response.binary ? new Uint8Array(response.value) : response.value;
 }
 
 async function seedDurableDomains(session) {

@@ -24,10 +24,11 @@ test("Latest Windows builds and Rust tests remain mandatory without fake UI acce
 
 test("Release candidate still requires real UI and installed MSI upgrade", () => {
   assert.match(release, /windows-installer:[\s\S]*?runs-on: windows-2022/);
-  assert.match(release, /name: Smoke release binary/);
+  assert.doesNotMatch(release, /run: bun run test:desktop:native/, "Critical release persistence and MSI upgrade already cover release binary parity without a duplicate launch");
   assert.match(release, /name: Verify release product persistence/);
   assert.match(release, /name: Gate release on real MSI upgrade and user-data preservation/);
   assert.match(release, /name: Install Microsoft EdgeDriver matching WebView2 Runtime/);
+  assert.match(driver, /return response\.binary \? new Uint8Array\(response\.value\) : response\.value;/, "JSON array responses like /api/trash must not be coerced into Uint8Array");
 });
 
 test("Native smoke launches real WebView2 and explicitly reports session failure", () => {

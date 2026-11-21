@@ -4,9 +4,12 @@ import assert from "node:assert/strict";
 const file = new URL("../../.github/workflows/release-desktop.yml", import.meta.url);
 const workflow = readFileSync(file, "utf8");
 
-test("exactly one installer and one cross-platform build job", () => {
+const verifyDesktop = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
+
+test("release focuses on one Windows installer job while cross-platform compile stays in regression", () => {
   assert.equal((workflow.match(/^  windows-installer:/gm) ?? []).length, 1);
-  assert.equal((workflow.match(/^  cross-platform-native:/gm) ?? []).length, 1);
+  assert.equal((workflow.match(/^  cross-platform-native:/gm) ?? []).length, 0);
+  assert.match(verifyDesktop, /^  check-desktop-macos:\r?\n\s+if: inputs\.profile == 'regression'/m);
 });
 test("production release is immutable, stable and based on master", () => {
   assert.match(workflow, /Require stable release at current master HEAD/);
@@ -37,7 +40,7 @@ test("attestation generated and verified before publishing", () => {
 
 test("first-release signing prerequisite fails before expensive builds", () => {
   assert.match(workflow, /^  release-credentials-preflight:/m);
-  assert.match(workflow, /cross-platform-native:\s+needs: release-credentials-preflight/);
+  assert.match(workflow, /windows-installer:[\s\S]*?needs: release-credentials-preflight/);
   for (const name of [
     "TAURI_SIGNING_PRIVATE_KEY", "NOTESPACE_UPDATER_PUBLIC_KEY",
     "NOTESPACE_AZURE_SIGNING_ENDPOINT", "NOTESPACE_AZURE_SIGNING_ACCOUNT",

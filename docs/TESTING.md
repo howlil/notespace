@@ -252,19 +252,21 @@ cargo tauri build -- --locked
 
 `ci.yml` is the only PR/master workflow. Its `classify` job selects lanes from the changed paths with `scripts/verify/ci-plan.mjs`:
 
-- docs-only changes select no lanes;
-- landing-only changes select the `landing` lane;
-- any other PR change selects `web`, `server`, `browser` (affected proof), and `compose`;
-- native-relevant paths (desktop, release, workflows, Taskfile, `package.json`, the lockfile, and `docs/DESKTOP_BETA_RELEASE_*.md`) also select `desktop` and `release-policy`;
-- an unreadable or empty PR diff, and every master, scheduled, or manual run, selects every lane.
+- docs-only changes select no lanes (on both PR and `master` push);
+- landing-only changes select only the `landing` lane (on both PR and `master` push);
+- PRs split core lanes by owner:
+  - web changes run `web` + `browser` (affected proof; `features/settings/` also runs `landing`; unit/contract test-only files run `web` only);
+  - server changes run `server` + `browser` + `compose` (Go `*_test.go`-only files run `server` only; `cmd/`, `migrations/`, and `internal/sqlite/` non-test code also runs `desktop`);
+  - desktop/native and release script changes run `desktop` + `release-policy` only;
+  - container-only changes (`Dockerfile`, `compose*.yaml`) run `compose` only;
+  - shared root config (`package.json`, `bun.lock`, `Taskfile.yml`, `ci.yml`) or any unknown path falls back to every lane;
+- `master` pushes run every lane for any app, server, desktop, script, workflow, beta-release-note, or unreadable diff; scheduled and manual runs always run every lane.
 
-`ci / gate` runs with `always()` and fails when any selected lane did not succeed, or when an unselected lane failed. Master branch protection requires only `ci / gate`. Publishers require the current-master push `ci` run and its exact-attempt successful gate; neither regression nor legacy names are authority. Exercise the read-only preflight without publishing: `GITHUB_REPOSITORY=howlil/notespace node scripts/release/assert-desktop-release-ci.mjs --collect <full-current-master-SHA>`.
+`ci / gate` runs with `always()` and fails when any selected lane did not succeed, or when an unselected lane failed. Master branch protection requires only `ci / gate`. Publishers require the current-master push `ci` run, its exact-attempt `ci / gate`, and target-specific lane proofs (`--target desktop | image | cloudflare`) via `scripts/release/assert-desktop-release-ci.mjs --collect <full-current-master-SHA> --target <target>`, so docs-only or landing-only `master` pushes can never bypass desktop/container proofs while landing-only pushes can deploy Cloudflare immediately.
 
-Master pushes run every lane: full Node/web, Go unit/integration/race (including real SQLite migration/restore), landing, native Windows 2022, and Compose restart/readback. Browser master proof is the exact union of legacy critical and P0 smoke (**31 cases**). Browser PR proof runs the affected suites plus the P0 smoke floor; an unknown changed path falls back to the full inventory.
+Scheduled and manual runs (`workflow_dispatch`, daily 03:17 UTC) run the full browser inventory and extended desktop checks (Linux, Windows-latest, and macOS compile/Rust tests). They report `regression / gate`, separate from required `ci / gate`, and have event-isolated concurrency so they cannot cancel master proof. Trigger manually with `gh workflow run ci.yml --ref master`; this performs verification only, never publication.
 
-Scheduled and manual runs (`workflow_dispatch`, daily 03:17 UTC) run the full browser inventory and extended desktop checks. They report `regression / gate`, separate from required `ci / gate`, and have event-isolated concurrency so they cannot cancel master proof. Trigger manually with `gh workflow run ci.yml --ref master`; this performs verification only, never publication.
-
-`verify-desktop.yml` is a reusable workflow called by `ci.yml` only. It has no triggers of its own. Its `check-desktop` job runs the deterministic policy and YAML checks on Linux. `check-desktop-windows` runs one critical native navigation, pending-save close, and SQLite shutdown/relaunch journey on Windows Server 2022. Extended Windows-latest builds run only for regression and master. Windows native caches restore on PRs and save only after a successful master proof.
+`verify-desktop.yml` is a reusable workflow called by `ci.yml` only. It has no triggers of its own. Its `check-desktop` job runs the deterministic policy and YAML checks on Linux. `check-desktop-windows` runs one critical native navigation, pending-save close, and SQLite shutdown/relaunch journey on Windows Server 2022. Extended Windows-latest, Linux, and macOS desktop checks run in `regression` rather than blocking Windows MSI stable releases. Windows native caches restore on PRs and save only after a successful master proof; `release-desktop.yml` and `publish-desktop-beta.yml` share a dedicated `windows-2022-desktop-release` Rust cache restored before version sync.
 
 Focused policy proof: `node --test scripts/verify/ci-plan.test.mjs` (lane matrices and gate rules). Parsed workflow contract: `python scripts/verify/test-desktop-workflow-yaml.py` with the pinned PyYAML tooling.
 

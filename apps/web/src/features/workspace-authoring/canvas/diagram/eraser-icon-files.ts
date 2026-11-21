@@ -1,5 +1,5 @@
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { blobToDataUrl, loadImageAsset, storeImageAsset } from "../../../../adapters/assets/image-store";
+import { blobToDataUrl, loadImageAsset, normalizeImageBlob, storeImageAsset } from "../../../../adapters/assets/image-store";
 import { fetchEraserIcon } from "../../../../adapters/http/eraser-icon-api";
 import type { StructuredDiagram } from "../../../../domain/diagram/diagram";
 import { eraserIconFileId, eraserIconName } from "./palette/eraser-icons";
@@ -30,10 +30,23 @@ export async function ensureEraserDiagramIconFiles(
 
     try {
       let asset = await loadImageAsset(workspaceId, fileId);
-      if (!asset) {
-        asset = await storeImageAsset(workspaceId, fileId, await fetchEraserIcon(iconName));
+      if (asset && /^image\/svg\b/i.test(asset.mimeType)) {
+        asset = await storeImageAsset(workspaceId, fileId, asset.blob);
       }
-      if (!asset) throw new Error("Could not resolve diagram icon asset.");
+      if (!asset) {
+        const iconBlob = await fetchEraserIcon(iconName);
+        asset = await storeImageAsset(workspaceId, fileId, iconBlob);
+        if (!asset) {
+          const normalizedBlob = await normalizeImageBlob(iconBlob);
+          asset = {
+            id: fileId,
+            workspaceId,
+            blob: normalizedBlob,
+            mimeType: normalizedBlob.type || "image/webp",
+            createdAt: Date.now(),
+          };
+        }
+      }
 
       const dataURL = await blobToDataUrl(asset.blob);
       additions.push({

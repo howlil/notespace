@@ -1,7 +1,12 @@
 import { useEffect, type RefObject } from "react";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { canvasPinchViewport } from "./canvas-pinch-zoom";
+import {
+  canvasPinchViewport,
+  isCanvasPinchTarget,
+  pinchBaseViewport,
+  type PendingPinchViewport,
+} from "./canvas-pinch-zoom";
 
 export function useCanvasPinch(surfaceRef: RefObject<HTMLDivElement | null>, api: RefObject<ExcalidrawImperativeAPI | null>) {
   useEffect(() => {
@@ -11,22 +16,30 @@ export function useCanvasPinch(surfaceRef: RefObject<HTMLDivElement | null>, api
     // scrolling still reaches Excalidraw as pan, with no double zoom.
     const surface = surfaceRef.current;
     if (!surface) return;
+    let pending: PendingPinchViewport | null = null;
     const handlePinch = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!target.closest(".excalidraw__canvas, [data-canvas-code-block], [data-note-element]")) return;
-      if (target.closest('input, textarea, select, button, [contenteditable="true"], [role="toolbar"], iframe')) return;
+      const rawTarget = event.target;
+      const target = rawTarget instanceof Element
+        ? rawTarget
+        : rawTarget instanceof Node
+          ? rawTarget.parentElement
+          : null;
+      if (!target) return;
+      if (!isCanvasPinchTarget(target)) return;
 
       const editor = api.current;
       if (!editor) return;
       const state = editor.getAppState();
-      const next = canvasPinchViewport({
+      const committed = {
         zoom: state.zoom.value,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
-      }, event, surface.getBoundingClientRect());
+      };
+      const base = pinchBaseViewport(committed, pending, event.timeStamp);
+      const next = canvasPinchViewport(base, event, surface.getBoundingClientRect());
       if (!next) return;
+      pending = { committed, next, timeStamp: event.timeStamp };
 
       event.preventDefault();
       event.stopPropagation();

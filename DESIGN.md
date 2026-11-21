@@ -82,25 +82,29 @@ Do not introduce a one-off hex color, shadow, radius, or animation duration insi
 
 ### Color tokens
 
-The application uses semantic colors so the same component can remain coherent in light and dark themes. Components should consume the token name, not the theme-specific hex value.
+The application uses semantic colors so the same component stays coherent across **adaptive modes** (`System`, `Light`, `Dark`) and **five curated color palettes** (`Paper` default, `Stone`, `Sage`, `Amber`, and `Graphite`). Components consume token names (`var(--surface)`, `var(--ink)`, `var(--accent)`), never palette-specific hex values.
+
+Default palette (**Paper — Warm Paper & Indigo**):
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
-| `--bg` | `#F5F5F2` | `#141519` | Application background and page canvas outside contained surfaces |
-| `--surface` | `#FFFFFF` | `#1D1E23` | Cards, panels, popups, inputs, and editor chrome |
-| `--sidebar` | `#F0F0EC` | `#17181C` | Secondary navigation and low-emphasis workspace regions |
-| `--canvas` | `#FAFAF8` | `#191A1F` | Drawing surface behind Excalidraw content |
-| `--ink` | `#252630` | `#E8E8EF` | Primary text, icons, and high-emphasis content |
-| `--muted` | `#5C6270` | `#9FA2B0` | Supporting text, metadata, inactive icons, and hints |
-| `--line` | `#E3E3DD` | `#34353E` | Dividers, input borders, panel borders, and quiet outlines |
-| `--accent` | `#2858D8` | `#91B1FF` | Focus, selected controls, links, active icons, workspace card hover, and primary emphasis |
-| `--tint` | `#EAF0FF` | `#223254` | Hover background, active background, selected rows, and soft emphasis |
-| `--button` | `#26262F` | `#E6E6ED` | Primary action background |
-| `--button-text` | `#FFFFFF` | `#22232A` | Text and icons on the primary action |
-| `--danger` | `#B13E4B` | `#FF9AA5` | Destructive actions and error state |
-| `--warning` | `#98651A` | `#F3BC6A` | Non-blocking warnings and partial operation results |
-| `--danger-foreground` | `#FFFFFF` | `#22232A` | Readable text/icon on a filled destructive button |
-| `--success` | `#4D765D` | `#8FC3A0` | Saved, completed, or healthy state; readable over light/dark tinted surfaces |
+| `--bg` | `#F3EFE7` | `#141311` | Application background and page canvas outside contained surfaces |
+| `--surface` | `#FFFDF9` | `#24211D` | Cards, panels, popups, inputs, and editor chrome |
+| `--sidebar` | `#EBE6DC` | `#1A1815` | Secondary navigation and low-emphasis workspace regions |
+| `--canvas` | `#F7F4ED` | `#171513` | Drawing surface behind Excalidraw content |
+| `--ink` | `#23201B` | `#EBE6DD` | Primary text, icons, and high-emphasis content |
+| `--muted` | `#60594F` | `#A19A8E` | Supporting text, metadata, inactive icons, and hints |
+| `--line` | `#E1DACD` | `#35312B` | Dividers, input borders, panel borders, and quiet outlines |
+| `--accent` | `#3252B6` | `#8CAAF9` | Focus, selected controls, links, active icons, workspace card hover, and primary emphasis |
+| `--tint` | `#E9EEF9` | `#252F49` | Hover background, active background, selected rows, and soft emphasis |
+| `--button` | `#25221D` | `#EBE6DD` | Primary action background |
+| `--button-text` | `#FFFDF9` | `#1A1815` | Text and icons on the primary action |
+| `--danger` | `#B33C3C` | `#F28E88` | Destructive actions and error state |
+| `--warning` | `#8E5B12` | `#EAB665` | Non-blocking warnings and partial operation results |
+| `--danger-foreground` | `#FFFFFF` | `#1A1815` | Readable text/icon on a filled destructive button |
+| `--success` | `#396D4F` | `#81C097` | Saved, completed, or healthy state; readable over light/dark tinted surfaces |
+
+Additional curated palettes in `globals.css` (`data-palette`): **Stone** (architectural mineral neutrals with Cobalt `#2858D8` / `#91B1FF`), **Sage** (botanical linen with Pine `#226A56` / `#72C4A8`), **Amber** (warm editorial paper with Fox Terracotta `#A9431A` / `#EC9066`), and **Graphite** (pure distraction-free monochrome `#46495C` / `#B4B8CC`). Every palette keeps consistent neutral undertones within its light and dark modes and meets WCAG AA (≥ 4.5:1) across all surfaces. Canvas Note Cards adapt their tinted surfaces between calm paper-dyed tones in Light mode and deep atmospheric tinted surfaces in Dark mode.
 
 The Tailwind theme aliases map these semantics to utility names:
 
@@ -172,7 +176,7 @@ Rounded corners communicate component hierarchy, not decoration.
 
 Ordinary controls keep the 6px `rounded-md` radius; standard popups use 8px `rounded-lg` rather than locally chosen 5px or 7px. The 18px paper-stack card is a documented brand component, not a general surface radius.
 
-The Canvas also shows a passive 24px dot grid (`--canvas-dot`, `CanvasDotGrid`): presentation only, never in the scene or exports, hidden when Excalidraw grid mode is on or zoom is below 0.35.
+The Canvas supports a selectable passive background pattern (`Plain`, `Dots`, or `Grid`, stored per browser; defaults to `Dots` with a 24px step using `--canvas-dot`, `CanvasDotGrid`): presentation only, never in the scene or exports, hidden when Plain is chosen, Excalidraw grid mode is on, or zoom is below 0.35.
 
 The Excalidraw adapter has its own engine-facing values to keep dependency UI aligned with Notespace:
 
@@ -273,13 +277,13 @@ Every interactive component needs an accessible name and a keyboard path. Icon-o
 
 ## Color and emphasis
 
-Notespace is **neutral-first**. Writing and spatial thinking are the primary visual subjects; brand color supports navigation and interaction without competing with user-authored notes or Canvas content. Keep the approved restrained cobalt-blue identity:
+Notespace is **neutral-first** and **user-adaptive**. Writing and spatial thinking are the primary visual subjects; UI color supports navigation and focus without competing with user-authored notes or Canvas content:
 
-- Light accent/focus: `#2858D8` (`--accent`); light active tint: `#EAF0FF` (`--tint`).
-- Dark accent/focus: `#91B1FF` (`--accent`); dark active tint: `#223254` (`--tint`).
-- Neutral backgrounds, ink, supporting text, and status colors remain the semantic tokens in the table above.
+- **Adaptive Mode:** users choose `System` (live `prefers-color-scheme`), `Light`, or `Dark` in Settings → Appearance.
+- **Curated Color Themes:** users choose between `Paper` (default warm paper + indigo `#3252B6` / `#8CAAF9`), `Stone` (cool architectural stone + cobalt `#2858D8` / `#91B1FF`), `Sage`, `Amber`, and `Graphite`. Preferences live locally in browser storage (`notespace-theme`, `notespace-palette`).
+- **Fixed Brand Mark:** the Fox Spirit mark stays Cobalt `#2858D8` and White `#FFFFFF` across all palettes.
 
-The brand accent colors theme-aware navigation, focus, selected states, and new diagram presets. Existing user-authored Canvas colors are content and must not be rewritten during a theme change.
+The active palette accent colors theme-aware navigation, focus, selected states, and new diagram presets. Existing user-authored Canvas colors are content and must not be rewritten during a theme or palette change.
 
 ### Color distribution
 
@@ -316,8 +320,8 @@ Emphasis should come primarily from information hierarchy, density, typography, 
 
 - Target **WCAG AA**: at least **4.5:1 for normal text**, **3:1 for large text**, and **3:1 for essential non-text UI indicators** against adjacent colors where applicable. Evaluate actual rendered surfaces, including opacity and overlays.
 - Check text, links, placeholders, inactive-but-readable labels, focus indicators, selected states, and Canvas controls in both light and dark mode. Decorative or disabled-only elements do not need to be forced into normal-text treatment.
-- **Resolved baseline contrast:** light `--muted: #5C6270` targets at least **4.5:1** over `--surface`, `--bg`, `--canvas`, and `--tint`. The filled destructive button uses the theme-specific `--danger-foreground` rather than hard-coded white on the light pink dark-theme danger background. The design-token test also checks readable success status text in both themes; still verify overlays, alpha blends, and authored surfaces in the browser.
-- Preserve the approved Cobalt / White Fox Spirit identity unless an explicit product decision changes it; brand illustrations never override semantic UI state colors.
+- **Resolved baseline contrast:** every curated palette (`Paper`, `Stone`, `Sage`, `Amber`, `Graphite`) is verified in `tests/design-system.test.ts` to reach at least **4.5:1** for `--ink`, `--muted`, `--accent`, `--success`, `--danger`, and `--warning` over `--bg`, `--surface`, `--sidebar`, `--canvas`, and `--tint` in both light and dark themes, as well as `--danger-foreground` over `--danger` and `--button-text` over `--button`.
+- Preserve the approved Cobalt / White Fox Spirit brand mark across palettes; brand illustrations never override semantic UI state colors.
 
 ### Fox Spirit brand asset contract
 

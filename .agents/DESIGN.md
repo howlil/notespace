@@ -40,8 +40,7 @@ purpose per section, and no explanatory copy that does not change the next move.
 Use a compact Settings dialog with a narrow tab rail on wide screens and a
 horizontal tab row on narrow screens. Group data actions by user intent, not by
 implementation: move/restore a library first, recover this device second,
-manage deleted workspaces separately. The Theme setting takes effect
-immediately, keeps the accessible label stable, and shows its current mode.
+manage deleted workspaces separately. The Appearance section exposes two compact radio groups: Mode (`System`, `Light`, `Dark`) and Color theme (`Paper` default, `Stone`, `Sage`, `Amber`, `Graphite`). Both take effect immediately, persist in browser storage, keep accessible labels stable, and reflect the active resolved theme while keeping the Fox Spirit brand mark fixed in Cobalt.
 
 A genuinely empty Home library uses a centered outline folder/Canvas illustration,
 short “No workspaces yet” copy, Create Workspace and secondary Restore backup.

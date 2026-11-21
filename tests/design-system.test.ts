@@ -6,11 +6,27 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const globals = read("apps/web/src/shared/styles/globals.css");
-const light = globals.split(":root {")[1]?.split("}")[0];
-const dark = globals.split(':root[data-theme="dark"] {')[1]?.split("}")[0];
 
-function color(block: string | undefined, token: string): string {
-  assert.ok(block, "Expected theme root for " + token);
+const THEME_BLOCKS = [
+  { name: "paper light", selector: ":root {" },
+  { name: "paper dark", selector: ':root[data-theme="dark"] {' },
+  { name: "stone light", selector: ':root[data-palette="stone"] {' },
+  { name: "stone dark", selector: ':root[data-theme="dark"][data-palette="stone"] {' },
+  { name: "sage light", selector: ':root[data-palette="sage"] {' },
+  { name: "sage dark", selector: ':root[data-theme="dark"][data-palette="sage"] {' },
+  { name: "amber light", selector: ':root[data-palette="amber"] {' },
+  { name: "amber dark", selector: ':root[data-theme="dark"][data-palette="amber"] {' },
+  { name: "graphite light", selector: ':root[data-palette="graphite"] {' },
+  { name: "graphite dark", selector: ':root[data-theme="dark"][data-palette="graphite"] {' },
+] as const;
+
+function blockFor(selector: string): string {
+  const block = globals.split(selector)[1]?.split("}")[0];
+  assert.ok(block, "Missing theme block " + selector);
+  return block;
+}
+
+function color(block: string, token: string): string {
   const line = block.split("\n").map((value) => value.trim()).find((value) => value.startsWith(token + ":"));
   assert.ok(line, "Missing " + token);
   const value = line.slice(token.length + 1).trim().replace(/;$/, "");
@@ -32,28 +48,25 @@ function contrast(first: string, second: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-test("supporting text meets WCAG AA on theme surfaces", () => {
-  for (const theme of [light, dark]) {
+test("supporting and semantic text meet WCAG AA across all curated palettes and themes", () => {
+  for (const { name, selector } of THEME_BLOCKS) {
+    const theme = blockFor(selector);
     for (const surface of ["--bg", "--surface", "--sidebar", "--canvas", "--tint"]) {
-      const ratio = contrast(color(theme, "--muted"), color(theme, surface));
-      assert.ok(ratio >= 4.5, surface + " muted contrast: " + ratio.toFixed(2));
+      for (const fg of ["--ink", "--muted", "--accent", "--success", "--danger", "--warning"]) {
+        const ratio = contrast(color(theme, fg), color(theme, surface));
+        assert.ok(ratio >= 4.5, `${name}: ${fg} over ${surface} contrast ${ratio.toFixed(2)}`);
+      }
     }
   }
 });
 
-test("success status text is readable across theme surfaces", () => {
-  for (const theme of [light, dark]) {
-    for (const surface of ["--bg", "--surface", "--sidebar", "--canvas", "--tint"]) {
-      const ratio = contrast(color(theme, "--success"), color(theme, surface));
-      assert.ok(ratio >= 4.5, surface + " success contrast: " + ratio.toFixed(2));
-    }
-  }
-});
-
-test("filled destructive actions have readable foreground in both themes", () => {
-  for (const theme of [light, dark]) {
-    const ratio = contrast(color(theme, "--danger-foreground"), color(theme, "--danger"));
-    assert.ok(ratio >= 4.5, "Danger button contrast: " + ratio.toFixed(2));
+test("primary and filled destructive actions have readable foreground across all palettes and themes", () => {
+  for (const { name, selector } of THEME_BLOCKS) {
+    const theme = blockFor(selector);
+    const dangerRatio = contrast(color(theme, "--danger-foreground"), color(theme, "--danger"));
+    assert.ok(dangerRatio >= 4.5, `${name}: danger button contrast ${dangerRatio.toFixed(2)}`);
+    const buttonRatio = contrast(color(theme, "--button-text"), color(theme, "--button"));
+    assert.ok(buttonRatio >= 4.5, `${name}: primary button contrast ${buttonRatio.toFixed(2)}`);
   }
   assert.match(read("apps/web/src/shared/ui/controls/button.tsx"), /text-\[var\(--danger-foreground\)\]/);
 });

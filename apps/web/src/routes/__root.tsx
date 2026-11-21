@@ -13,6 +13,7 @@ import globalStyles from "../shared/styles/globals.css?inline";
 import workspaceAuthoringStyles from "../features/workspace-authoring/workspace-authoring.css?inline";
 import desktopTitlebarStyles from "../features/desktop/chrome/desktop-titlebar.css?inline";
 import { Button } from "../shared/ui";
+import { THEME_INIT_SCRIPT } from "../shared/ui/theme/theme-model";
 import { ThemeProvider } from "../shared/ui/theme/theme-provider";
 import { ToastProvider } from "../shared/ui/feedback/toast-provider";
 import { NativePopupManager } from "../shared/ui/overlays/dismissable";
@@ -95,6 +96,7 @@ function RootDocument({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}

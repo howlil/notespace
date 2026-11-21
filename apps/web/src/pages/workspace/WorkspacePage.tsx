@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import type { CategorySummary, Workspace } from "../../domain/workspace/workspace";
 import { LibraryPageShell } from "../shell/LibraryPageShell";
@@ -15,13 +15,21 @@ type Props = {
 
 type WorkspaceSessionHandle = {
   workspaceId: string;
-  prepareForDestructiveAction: () => Promise<boolean>;
+  prepareForDestructiveAction: () => Promise<boolean | number>;
 };
 
 export function WorkspacePage({ workspace, categories, focusNoteId, focusBlockId, focusNonce }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
   const sessionRef = useRef<WorkspaceSessionHandle | null>(null);
+  const [liveVersion, setLiveVersion] = useState(workspace.version);
+  useEffect(() => {
+    setLiveVersion((current) => Math.max(current, workspace.version));
+  }, [workspace.id, workspace.version]);
+  const activeWorkspace = useMemo(
+    () => ({ ...workspace, version: Math.max(workspace.version, liveVersion) }),
+    [liveVersion, workspace],
+  );
   const registerSession = useCallback((session: WorkspaceSessionHandle | null) => {
     sessionRef.current = session;
   }, []);
@@ -35,7 +43,7 @@ export function WorkspacePage({ workspace, categories, focusNoteId, focusBlockId
     <LibraryPageShell canvas workspaceTitle={workspace.title}
       sidebar={<LibrarySidebar categories={categories}
          selectedCategoryId={workspace.categoryId}
-         activeWorkspace={workspace}
+         activeWorkspace={activeWorkspace}
          onSelectCategory={(category) => { void navigate({ to: "/", search: { category } }); }}
          onBeforeDeleteWorkspace={beforeDeleteWorkspace}
          onChanged={(change) => {
@@ -49,17 +57,19 @@ export function WorkspacePage({ workspace, categories, focusNoteId, focusBlockId
         focusBlockId={focusBlockId}
         focusNonce={focusNonce}
         onSessionChange={registerSession}
+        onVersionChange={setLiveVersion}
       />
     </LibraryPageShell>
   );
 }
 
-function WorkspaceAuthoringSession({ workspace, focusNoteId, focusBlockId, focusNonce, onSessionChange }: {
+function WorkspaceAuthoringSession({ workspace, focusNoteId, focusBlockId, focusNonce, onSessionChange, onVersionChange }: {
   workspace: Workspace;
   focusNoteId?: string;
   focusBlockId?: string;
   focusNonce?: string;
   onSessionChange: (session: WorkspaceSessionHandle | null) => void;
+  onVersionChange: (version: number) => void;
 }) {
   const authoring = useWorkspaceAuthoring({ workspace, focusNoteId, focusBlockId, focusNonce });
   const prepareRef = useRef(authoring.prepareForDestructiveAction);
@@ -69,6 +79,10 @@ function WorkspaceAuthoringSession({ workspace, focusNoteId, focusBlockId, focus
     : authoring.status.state === "saving" ? "Saving…"
     : authoring.status.state === "conflict" ? "Conflict"
     : authoring.status.state === "error" ? "Not saved" : "Unsaved";
+
+  useEffect(() => {
+    onVersionChange(authoring.currentWorkspaceVersion);
+  }, [authoring.currentWorkspaceVersion, onVersionChange]);
 
   useEffect(() => {
     onSessionChange({ workspaceId: workspace.id, prepareForDestructiveAction });

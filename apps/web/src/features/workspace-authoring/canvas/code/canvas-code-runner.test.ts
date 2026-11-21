@@ -73,6 +73,9 @@ test("runner worker is a same-origin script with a restrictive response policy",
   assert.match(CODE_RUNNER_WORKER_CSP, /worker-src 'none'/);
   assert.match(workerSource, /new AsyncFunction/);
   assert.match(workerSource, /self\.importScripts/);
+  assert.match(workerSource, /self\.BroadcastChannel = undefined/);
+  assert.match(workerSource, /indexedDB/);
+  assert.match(workerSource, /caches/);
 });
 
 test("worker message parser rejects malformed payloads and bounds string fields", () => {

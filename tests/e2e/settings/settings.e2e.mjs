@@ -1,7 +1,7 @@
 /* Settings owns theme, data and backup; the modal cannot dismiss mid-restore. */
 import { after, before, test } from "node:test";
 import {
-  assert, click, createWorkspace, deleteWorkspace, expectCount,
+  assert, click, createWorkspace, deleteWorkspace, execute, expectCount,
   expectDisabled, expectEnabled, goto, hidden, injectFault, press, purgeTrash, role,
   start, stop, text, uploadFile, visible, waitFor, within,
 } from "../support/harness.mjs";
@@ -21,11 +21,12 @@ async function openSettings() {
 test("Settings owns the single Data & Backup surface in Navigation v8", async () => {
   await goto("/");
   await expectCount(role("button", "Backups", { exact: true }), 0);
-  await expectCount(role("switch", "Theme"), 0);
+  await expectCount(role("radiogroup", "Theme"), 0);
 
   const settings = await openSettings();
   await visible(role("heading", "Appearance", { scope: settings }));
-  await visible(role("switch", "Theme", { scope: settings }));
+  await visible(role("radiogroup", "Theme", { scope: settings }));
+  await visible(role("radiogroup", "Color theme", { scope: settings }));
   await click(role("button", "Data & backup", { scope: settings }));
   await visible(role("heading", "Data & backup", { scope: settings }));
   const exportLink = role("link", "Export ZIP", { scope: settings });
@@ -115,15 +116,22 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
   }
 });
 
-test("Theme is only inside Settings on Home", async () => {
+test("Theme mode and color palette live inside Settings and persist immediately", async () => {
   await goto("/");
-  await expectCount(role("switch", "Theme"), 0);
+  await expectCount(role("radiogroup", "Theme"), 0);
   const settings = await openSettings();
   await visible(role("heading", "Appearance", { scope: settings }));
-  const toggle = role("switch", "Theme", { scope: settings });
-  const initial = await (await visible(toggle)).getAttribute("aria-checked");
-  await click(toggle);
-  await waitFor(async () => (await visible(toggle)).getAttribute("aria-checked") !== initial, "Theme switch changes state");
+
+  const darkOption = await within(settings, 'button[role="radio"][data-theme-mode="dark"]');
+  await click(darkOption);
+  await waitFor(async () => (await execute(() => document.documentElement.dataset.theme)) === "dark", "Dark mode applies to document root");
+
+  const sageOption = await within(settings, 'button[role="radio"][data-theme-palette="sage"]');
+  await click(sageOption);
+  await waitFor(async () => (await execute(() => document.documentElement.dataset.palette)) === "sage", "Selected color theme applies to document root");
+
+  await click(await within(settings, 'button[role="radio"][data-theme-mode="system"]'));
+  await click(await within(settings, 'button[role="radio"][data-theme-palette="paper"]'));
   await click(role("button", "Close settings", { scope: settings }));
   await expectCount(settings, 0);
 });

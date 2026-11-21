@@ -11,6 +11,7 @@ import {
   loadImageAsset,
   storeImageAsset,
 } from "../../../../adapters/assets/image-store";
+import { fetchEraserIcon } from "../../../../adapters/http/eraser-icon-api";
 import { PendingCanvasAssetWrites, persistCanvasAsset } from "./canvas-assets";
 
 function readCanvasFiles(data: Record<string, unknown>) {
@@ -47,12 +48,29 @@ export function useCanvasAssets({
       [...fileIds].map(async (fileId) => {
         const source = initialFiles.current[fileId];
         let asset = await loadImageAsset(workspaceId, fileId);
+        if (asset && /^image\/svg\b/i.test(asset.mimeType)) {
+          asset = await storeImageAsset(workspaceId, fileId, asset.blob);
+        }
         if (!asset && source) {
           asset = await storeImageAsset(
             workspaceId,
             fileId,
             await blobFromDataUrl(source.dataURL),
           );
+        }
+        if (!asset && fileId.startsWith("eraser-icon-")) {
+          const iconName = fileId.slice("eraser-icon-".length);
+          if (iconName) {
+            try {
+              asset = await storeImageAsset(
+                workspaceId,
+                fileId,
+                await fetchEraserIcon(iconName),
+              );
+            } catch {
+              // Keep missing icon non-fatal during scene restore.
+            }
+          }
         }
         if (!asset) return null;
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/howlil/notespace/apps/server/internal/library"
+	"github.com/howlil/notespace/apps/server/internal/note"
 	assetsquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/assets"
 	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
 	canvasnotequery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/canvasnote"
@@ -61,6 +62,25 @@ func (s *Store) libraryBackupAtomic(ctx context.Context) (backupquery.LibraryBac
 	trash, err := backupquery.TrashRecordsTx(ctx, tx)
 	if err != nil {
 		return backupquery.LibraryBackup{}, err
+	}
+	if len(trash) > 0 {
+		liveNoteIDs := make(map[string]bool, len(notes))
+		for _, n := range notes {
+			liveNoteIDs[n.ID] = true
+		}
+		for i := range trash {
+			instances := trash[i].Payload.NoteInstances
+			if len(instances) == 0 {
+				continue
+			}
+			kept := make([]note.Instance, 0, len(instances))
+			for _, inst := range instances {
+				if liveNoteIDs[inst.NoteID] {
+					kept = append(kept, inst)
+				}
+			}
+			trash[i].Payload.NoteInstances = kept
+		}
 	}
 	backup := backupquery.LibraryBackup{
 		Format:      backupquery.LibraryBackupFormat,
@@ -194,7 +214,13 @@ func (s *Store) restoreLibraryBackup(ctx context.Context, backup backupquery.Lib
 	if err := migrations.Validate(ctx, tx); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.pagingMu.Lock()
+	clear(s.pagingSnapshots)
+	s.pagingMu.Unlock()
+	return nil
 }
 
 func restoreWorkspaceTx(ctx context.Context, tx *sql.Tx, envelope backupquery.WorkspaceEnvelope, categoryID string) error {
@@ -233,7 +259,22 @@ func (s *Store) ListTrash(ctx context.Context) ([]library.TrashItem, error) {
 }
 
 func (s *Store) DeleteTrashedWorkspace(ctx context.Context, id string) error {
-	return backupquery.DeleteTrashedWorkspace(ctx, s.db, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	record, err := backupquery.ReadTrashTx(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if err := assetsquery.RehomeNoteAssetsFromTrashTx(ctx, tx, record.Payload.Assets); err != nil {
+		return err
+	}
+	if err := backupquery.DeleteTrashedWorkspace(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // TrashWorkspace rejects a destructive command made from a stale

@@ -62,17 +62,26 @@ export function createImageStore(deps: ImageStoreDependencies) {
       const legacy = await deps.readLocal(workspaceId, id);
       if (!legacy || generation !== generationFor(workspaceId)) return null;
 
+      let migrated = legacy;
       try {
-        const accepted = await deps.uploadRemote(workspaceId, id, legacy.blob);
+        const normalizedBlob = await deps.normalize(legacy.blob);
+        if (normalizedBlob !== legacy.blob) {
+          migrated = {
+            ...legacy,
+            blob: normalizedBlob,
+            mimeType: normalizedBlob.type || legacy.mimeType,
+          };
+        }
+        const accepted = await deps.uploadRemote(workspaceId, id, migrated.blob);
         if (!accepted) {
           if (generation === generationFor(workspaceId)) await deps.removeLocal(workspaceId, id);
           return null;
         }
-        if (generation === generationFor(workspaceId)) await deps.putLocal(legacy);
+        if (generation === generationFor(workspaceId)) await deps.putLocal(migrated);
       } catch {
         // Keep legacy readable when the server is temporarily unavailable.
       }
-      return legacy;
+      return migrated;
     })().finally(() => {
       if (inFlightLoads.get(key)?.promise === load) inFlightLoads.delete(key);
     });

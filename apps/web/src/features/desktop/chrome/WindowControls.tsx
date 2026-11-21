@@ -27,16 +27,17 @@ export function WindowControls() {
     const syncMaximized = () => {
       void currentWindow.isMaximized()
         .then((value) => { if (mounted) setMaximized(value); })
-        .catch((cause) => { if (mounted) setError(errorMessage(cause)); });
+        .catch(() => {});
     };
 
     syncMaximized();
+    window.addEventListener("resize", syncMaximized);
     void currentWindow.onResized(syncMaximized)
       .then((unlisten) => {
         if (mounted) unlistenResize = unlisten;
         else unlisten();
       })
-      .catch((cause) => { if (mounted) setError(errorMessage(cause)); });
+      .catch(() => {});
 
     const onCloseStatus = (event: Event) => {
       const detail = (event as CustomEvent<{ state?: CloseState; message?: string }>).detail;
@@ -50,6 +51,7 @@ export function WindowControls() {
     return () => {
       mounted = false;
       unlistenResize?.();
+      window.removeEventListener("resize", syncMaximized);
       window.removeEventListener(CLOSE_STATUS_EVENT, onCloseStatus);
     };
   }, []);

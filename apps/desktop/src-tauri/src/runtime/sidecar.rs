@@ -144,16 +144,19 @@ pub(crate) async fn start_runtime(app: &tauri::AppHandle, generation: u64) -> Re
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
     set_allowed_loopback_origin(app, &ready_url);
-    window
-        .navigate(ready_url)
-        .map_err(|error| format!("open Notespace runtime: {error}"))?;
+    app.state::<RuntimeProcess>()
+        .recovery_visible
+        .store(false, Ordering::Release);
+    if let Err(error) = window.navigate(ready_url) {
+        app.state::<RuntimeProcess>()
+            .recovery_visible
+            .store(true, Ordering::Release);
+        return Err(format!("open Notespace runtime: {error}"));
+    }
     // Startup is complete; the task continues monitoring sidecar events.
     // Backups are allowed during normal operation, not during migration.
     app.state::<RuntimeProcess>()
         .startup_in_flight
-        .store(false, Ordering::Release);
-    app.state::<RuntimeProcess>()
-        .recovery_visible
         .store(false, Ordering::Release);
     diagnostics::record(app, "runtime_ready");
 

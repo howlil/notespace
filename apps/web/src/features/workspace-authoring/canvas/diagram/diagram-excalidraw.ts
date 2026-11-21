@@ -24,14 +24,20 @@ function fallbackNodeText(specKey: string, label: string) {
 
 const diagramFontFamily = FONT_FAMILY.Helvetica;
 
+function readThemeToken(token: string, fallback: string): string {
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  return value || fallback;
+}
+
 function renderStructuredDiagram(
   diagram: StructuredDiagram,
   dark: boolean,
   availableEraserIcons: ReadonlySet<string> = new Set(),
 ): OrderedExcalidrawElement[] {
-  const strokeColor = dark ? "#91b1ff" : "#2858d8";
-  const backgroundColor = dark ? "#223254" : "#eaf0ff";
-  const groupStroke = dark ? "#799be8" : "#6b91eb";
+  const strokeColor = readThemeToken("--accent", dark ? "#8caaf9" : "#3252b6");
+  const backgroundColor = readThemeToken("--tint", dark ? "#252f49" : "#e9eef9");
+  const groupStroke = readThemeToken("--muted", dark ? "#a19a8e" : "#60594f");
   const skeletons: ExcalidrawElementSkeleton[] = [];
 
   for (const group of diagram.groups) {

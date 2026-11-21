@@ -109,6 +109,11 @@ test("safe Note links allow internal workspace links, http/https, and mailto whi
   assert.equal(isSafeNoteLink("javascript:alert(1)"), false);
   assert.equal(isSafeNoteLink("data:text/html,<script>alert(1)</script>"), false);
   assert.equal(isSafeNoteLink("//evil.example.com"), false);
+  assert.equal(isSafeNoteLink("https://"), false);
+  assert.equal(isSafeNoteLink("http://"), false);
+  assert.equal(isSafeNoteLink("https://bad host.example"), false);
+  assert.equal(isSafeNoteLink("/workspaces/"), false);
+  assert.equal(isSafeNoteLink("/workspaces/ws-1/extra"), false);
 });
 
 test("Canvas Note reference validates expandedHeight, color, and noteToggle block identity", () => {

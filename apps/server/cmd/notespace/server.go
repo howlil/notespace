@@ -96,7 +96,10 @@ func run() error {
 	}
 	defer listener.Close()
 	actualAddress := listener.Addr().String()
-	handler := ownerAuth(routesWithDevelopmentProxy(api, webDir, developmentProxy), env("NOTESPACE_PASSWORD", ""))
+	handler := routesWithDevelopmentProxy(api, webDir, developmentProxy)
+	if !desktop {
+		handler = ownerAuth(handler, env("NOTESPACE_PASSWORD", ""))
+	}
 	handler = withTestCanvasSaveDelay(handler)
 	var bootstrapURL string
 	if desktop {

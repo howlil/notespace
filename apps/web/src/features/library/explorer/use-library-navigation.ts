@@ -24,7 +24,7 @@ type Options = {
   categories: CategorySummary[];
   selectedCategoryId?: string;
   onChanged?: (change?: LibraryChange) => void;
-  onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean>;
+  onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean | number>;
 };
 
 export function useLibraryNavigation({ categories, selectedCategoryId, onChanged, onBeforeDeleteWorkspace }: Options) {
@@ -177,8 +177,12 @@ export function useLibraryNavigation({ categories, selectedCategoryId, onChanged
           return next;
         });
       } else {
-        if (onBeforeDeleteWorkspace && !await onBeforeDeleteWorkspace(target.item.id)) return;
-        await deleteWorkspace(target.item.id, target.item.version);
+        const prepared = onBeforeDeleteWorkspace ? await onBeforeDeleteWorkspace(target.item.id) : true;
+        if (!prepared) return;
+        const expectedVersion = typeof prepared === "number"
+          ? Math.max(target.item.version, prepared)
+          : target.item.version;
+        await deleteWorkspace(target.item.id, expectedVersion);
       }
       setDeleting(null);
       signalLibraryChanged(target.kind === "workspace" ? { kind: "workspace-deleted", workspaceId: target.item.id } : undefined);

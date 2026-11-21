@@ -28,7 +28,7 @@ export function useWorkspaceAuthoring({
   focusBlockId?: string;
   focusNonce?: string;
 }) {
-  const { dark } = useTheme();
+  const { dark, palette } = useTheme();
   const { showToast, dismissToast } = useToast();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>({ state: "saved" });
@@ -38,7 +38,18 @@ export function useWorkspaceAuthoring({
     canvasVersion: workspace.canvasVersion,
     initial: normalized.content,
   });
-  const { current, canvasVersion, status: canvasStatus, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const { current, canvasVersion, getCanvasVersion, status: canvasStatus, dirty, flushAll, updateCanvas, acknowledgeCanvas, reconcileWorkspace, registerAuthoringFlush } = session;
+  const baselineVersionRef = useRef({ version: workspace.version, canvasVersion: workspace.canvasVersion });
+  if (
+    workspace.version > baselineVersionRef.current.version
+    || workspace.canvasVersion > baselineVersionRef.current.canvasVersion
+  ) {
+    baselineVersionRef.current = { version: workspace.version, canvasVersion: workspace.canvasVersion };
+  }
+  const currentWorkspaceVersion = useCallback(() => {
+    const base = baselineVersionRef.current;
+    return base.version + Math.max(0, getCanvasVersion() - base.canvasVersion);
+  }, [getCanvasVersion]);
   const registerCanvasAuthoringFlush = useCallback(
     (flush: () => Promise<void>) => registerAuthoringFlush("canvas-assets", flush),
     [registerAuthoringFlush],
@@ -96,14 +107,14 @@ export function useWorkspaceAuthoring({
     });
   }, [flushAll, noteSaveStatus, showToast]);
 
-  const prepareForDestructiveAction = useCallback(async () => {
+  const prepareForDestructiveAction = useCallback(async (): Promise<boolean | number> => {
     if (status.state === "conflict") {
       showToast({ kind: "error", message: noteSaveStatus.state === "conflict" ? "Recover the Note draft before deleting this Workspace." : "Resolve the Canvas conflict before deleting this Workspace." });
       return false;
     }
     try {
       await flushAll();
-      return true;
+      return currentWorkspaceVersion();
     } catch (error) {
       showToast({
         kind: "error",
@@ -112,7 +123,7 @@ export function useWorkspaceAuthoring({
       });
       return false;
     }
-  }, [flushAll, noteSaveStatus.state, retrySave, showToast, status.state]);
+  }, [currentWorkspaceVersion, flushAll, noteSaveStatus.state, retrySave, showToast, status.state]);
 
   useEffect(() => {
     if (status.state === "error") {
@@ -218,6 +229,7 @@ export function useWorkspaceAuthoring({
           onRegisterAuthoringFlush={registerCanvasAuthoringFlush}
           onRegisterCanvasExport={session.registerCanvasExport}
           dark={dark}
+          palette={palette}
         />
       </Suspense>
     </div>
@@ -230,6 +242,7 @@ export function useWorkspaceAuthoring({
       readExport={session.readCanvasExport} workspaceId={workspace.id} />,
     status,
     currentWorkspaceTitle: current.current.title,
+    currentWorkspaceVersion: currentWorkspaceVersion(),
     prepareForDestructiveAction,
   };
 }

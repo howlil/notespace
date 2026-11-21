@@ -40,7 +40,9 @@ test("desktop backup is reachable through Settings, not a floating overlay", () 
   assert.match(backup, /Automatic recovery points/);
   assert.doesNotMatch(settings, /OPEN_LIBRARY_TOOLS_EVENT|Open Data/);
   assert.match(settings, /renderLibraryTools\(onBusyChange, backupBusy, deviceRecovery\)/);
-  assert.match(settings, /role="switch"/);
+  assert.match(settings, /role="radiogroup"/);
+  assert.match(settings, /data-theme-mode=\{option\}/);
+  assert.match(settings, /data-theme-palette=\{option\.id\}/);
   assert.match(portable, /onBusyChange\(mutationBusy\)/);
   assert.doesNotMatch(portable, /onBusyChange\(loading\)/);
   assert.doesNotMatch(settings, /href=\{exportLibraryBackup\(\)\}/);

@@ -7,10 +7,21 @@ export function DesktopCloseBridge() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
+    const onCloseStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ state?: string; message?: string; internal?: boolean }>).detail;
+      if (!detail || detail.internal) return;
+      if (detail.state === "error") {
+        setCloseState("error");
+        setCloseError(detail.message ?? "Changes could not be saved. Try closing again.");
+      } else if (detail.state === "idle") {
+        setCloseState("idle");
+        setCloseError(null);
+      }
+    };
     const requestClose = () => {
       setCloseState("flushing");
       setCloseError(null);
-      window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "flushing" } }));
+      window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "flushing", internal: true } }));
       let release: (() => void) | null = null;
       try {
         release = beginDesktopQuiescence();
@@ -18,7 +29,7 @@ export function DesktopCloseBridge() {
         setCloseState("error");
         const message = error instanceof Error ? error.message : "Another save operation is already in progress.";
         setCloseError(message);
-        window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "error", message } }));
+        window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "error", message, internal: true } }));
         void cancelDesktopClose().catch(() => {});
         return;
       }
@@ -33,7 +44,7 @@ export function DesktopCloseBridge() {
           setCloseState("error");
           const message = error instanceof Error ? error.message : "Changes could not be saved. Try closing again.";
           setCloseError(message);
-          window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "error", message } }));
+          window.dispatchEvent(new CustomEvent("notespace:close-status", { detail: { state: "error", message, internal: true } }));
           try {
             await cancelDesktopClose();
           } catch (cancelError) {
@@ -42,7 +53,11 @@ export function DesktopCloseBridge() {
         });
     };
     window.addEventListener("notespace:close-requested", requestClose);
-    return () => window.removeEventListener("notespace:close-requested", requestClose);
+    window.addEventListener("notespace:close-status", onCloseStatus);
+    return () => {
+      window.removeEventListener("notespace:close-requested", requestClose);
+      window.removeEventListener("notespace:close-status", onCloseStatus);
+    };
   }, []);
   if (closeState === "idle") return null;
   const failed = closeState === "error";

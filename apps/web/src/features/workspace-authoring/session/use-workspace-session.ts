@@ -60,6 +60,7 @@ export function useWorkspaceSession({
     scheduleCanvas,
     flushAll: flushGranular,
     rebaseVersion,
+    acknowledgeExternalVersion,
     recoverCanvas,
   } = useGranularWorkspaceAutosave({
     workspaceId,
@@ -69,13 +70,18 @@ export function useWorkspaceSession({
   });
 
   const acknowledgeCanvas = useCallback((saved: CanvasState) => {
-    identity.current.canvasVersion = saved.version;
+    identity.current.canvasVersion = Math.max(identity.current.canvasVersion, saved.version);
+    const next = acknowledgeCanvasSnapshot(current.current, saved.canvas);
+    current.current = next;
     if (!rebaseVersion(saved.version)) {
-      void recoverCanvas(saved.version).catch(() => {});
+      const hasUnpersistedLocalEdits = JSON.stringify(next.canvas) !== JSON.stringify(saved.canvas);
+      acknowledgeExternalVersion(saved.version, hasUnpersistedLocalEdits ? next.canvas : undefined);
+      if (!hasUnpersistedLocalEdits) {
+        void recoverCanvas(saved.version).catch(() => {});
+      }
     }
-    current.current = acknowledgeCanvasSnapshot(current.current, saved.canvas);
     return current.current.canvas;
-  }, [rebaseVersion, recoverCanvas]);
+  }, [acknowledgeExternalVersion, rebaseVersion, recoverCanvas]);
 
   const flushAll = useCallback(async () => {
     await flushRegisteredAuthoring();
@@ -143,6 +149,7 @@ export function useWorkspaceSession({
   return {
     current,
     canvasVersion: identity.current.canvasVersion,
+    getCanvasVersion: () => identity.current.canvasVersion,
     status,
     dirty: granularDirty,
     flushAll,

@@ -214,7 +214,7 @@ export function createCanvasNoteStore(deps: CanvasNoteStoreDeps): CanvasNoteStor
     },
     retry(noteId) {
       const entry = entries[noteId];
-      if (entry?.status === "missing" || entry?.status === "failed") load(noteId);
+      if (entry?.status === "missing" || entry?.status === "failed" || entry?.status === "trashed") load(noteId);
     },
     async trash(noteId) {
       if (!deps.trashNote) throw new Error("Moving a Note to Trash is unavailable.");

@@ -1,8 +1,8 @@
 /* Canvas pinch zoom applies to both the drawing surface and HTML overlays. */
 import { after, before, test } from "node:test";
 import {
-  assert, box, cleanupWorkspace, click, createWorkspace, evaluate, openWorkspace,
-  role, start, stop, visible, waitFor,
+  assert, box, cleanupWorkspace, click, createWorkspace, doubleClick, evaluate, openWorkspace,
+  press, role, start, stop, visible, waitFor, within,
 } from "../support/harness.mjs";
 before(start);
 after(stop);
@@ -35,6 +35,33 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
     await zoomIs(1);
     assert.equal(await wheel(overlay, -8, true), false);
     await zoomIs(1.08);
+    await click(reset);
+    await zoomIs(1);
+
+    // Consecutive touchpad events arriving inside one frame must accumulate.
+    const burst = await evaluate(canvas, (element) => {
+      const rect = element.getBoundingClientRect();
+      const init = {
+        bubbles: true, cancelable: true, ctrlKey: true, deltaY: -4, deltaMode: 0,
+        clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+      };
+      return [
+        element.dispatchEvent(new WheelEvent("wheel", init)),
+        element.dispatchEvent(new WheelEvent("wheel", init)),
+      ];
+    });
+    assert.deepEqual(burst, [false, false]);
+    await zoomIs(1.08);
+    await click(reset);
+    await zoomIs(1);
+
+    // Pinching while editing a code block still zooms the Canvas.
+    await doubleClick(overlay);
+    const editor = await within(overlay, '[aria-label="Edit code block"]');
+    await visible(editor);
+    assert.equal(await wheel(editor, -8, true), false);
+    await zoomIs(1.08);
+    await press("Escape");
     await click(reset);
     await zoomIs(1);
   } finally {

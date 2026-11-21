@@ -16,6 +16,13 @@ pub(crate) const PREVIEW_CONTENT_FRAME_NAME: &str = "notespace-html-preview";
 const ISOLATION_INIT_SCRIPT: &str = r#"
 (() => {
   if (window === window.top) {
+    // WebView2 pinch-zoom is enabled natively so Windows Precision Touchpad
+    // pinch gestures reach the Canvas as Ctrl+wheel events. Suppress default
+    // page-scale zoom on any uncanceled modified wheel event that bubbles past
+    // the Canvas so desktop chrome outside the Canvas never scales.
+    window.addEventListener("wheel", (event) => {
+      if (event.ctrlKey || event.metaKey) event.preventDefault();
+    }, { passive: false });
     window.addEventListener("click", (event) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.altKey) return;
       const anchor = event.composedPath().find((node) => node instanceof Node && node.nodeName && node.nodeName.toUpperCase() === "A");
@@ -202,6 +209,18 @@ pub(crate) fn install_webview_isolation(app: &AppHandle) -> Result<(), String> {
                     .expect("WebView2 controller should expose CoreWebView2");
                 if let Ok(settings) = webview.Settings() {
                     let _ = settings.SetAreHostObjectsAllowed(false);
+                    // wry ties IsPinchZoomEnabled to zoom_hotkeys_enabled (false by default),
+                    // which drops Windows Precision Touchpad pinch gestures before Blink can
+                    // deliver synthetic Ctrl+wheel events to the Canvas. Keep browser zoom
+                    // hotkeys disabled via IsZoomControlEnabled(false) and re-enable pinch
+                    // gesture delivery while the top-window init script blocks page scaling
+                    // outside the Canvas.
+                    if let Ok(settings5) = windows_core::Interface::cast::<
+                        webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings5,
+                    >(&settings)
+                    {
+                        let _ = settings5.SetIsPinchZoomEnabled(true);
+                    }
                 }
 
                 let mut new_window_token = 0i64;
@@ -336,9 +355,26 @@ pub(crate) fn install_webview_isolation(_app: &AppHandle) -> Result<(), String> 
 mod tests {
     use super::{
         is_allowed_main_navigation, is_allowed_preview_frame_navigation,
-        is_blocked_subframe_navigation,
+        is_blocked_subframe_navigation, ISOLATION_INIT_SCRIPT,
     };
     use tauri::Url;
+
+    #[test]
+    fn top_window_init_script_guards_modified_wheel_without_leaking_to_child_frames() {
+        let split = ISOLATION_INIT_SCRIPT
+            .split_once("return;\n  }")
+            .expect("init script must separate top-window logic from child frame hardening");
+        assert!(
+            split.0.contains(r#"window.addEventListener("wheel""#)
+                && split.0.contains("event.ctrlKey || event.metaKey")
+                && split.0.contains("{ passive: false }"),
+            "top window must suppress uncanceled page-scale zoom on modified wheel in bubble phase"
+        );
+        assert!(
+            !split.1.contains(r#"addEventListener("wheel""#),
+            "child preview frames must not attach top-window wheel listeners"
+        );
+    }
 
     #[test]
     fn allows_only_bootstrap_or_pinned_loopback_origin_on_main_navigation() {

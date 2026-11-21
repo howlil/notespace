@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	backupquery "github.com/howlil/notespace/apps/server/internal/sqlite/internal/backup"
+	"github.com/howlil/notespace/apps/server/internal/sqlite/internal/dbtx"
 	"github.com/howlil/notespace/apps/server/migrations"
 	sqlite3 "modernc.org/sqlite"
 )
@@ -33,7 +34,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if statErr != nil && !os.IsNotExist(statErr) {
 		return nil, fmt.Errorf("inspect SQLite database path: %w", statErr)
 	}
-	dsn := filepath.ToSlash(absolute) + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=synchronous(FULL)"
+	dsn := "file:" + dbtx.EscapeSQLiteURIPath(filepath.ToSlash(absolute)) + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=synchronous(FULL)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err

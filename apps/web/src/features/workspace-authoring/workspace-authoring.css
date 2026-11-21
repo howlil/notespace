@@ -456,22 +456,28 @@
 }
 
 /*
- * Canvas Note card colors, modeled on Heptabase's calm, warm tints (sampled from its public whiteboard
- * gallery: cream #f8eccc, peach #f8d0b0, sage #d8e4d4, sky #bcd8e4, lavender #e4d4f4). Hues stay clearly
- * colored (mid-light, not white-washed) so a card reads at a glance, and the near-black ink keeps >= 10:1.
- * A colored card is the same light surface in both themes, so its content switches to dark-ink tokens.
+ * Adaptive Canvas Note card colors: paper-dyed calm tints in Light mode (>= 13:1 ink contrast)
+ * and deep atmospheric tinted surfaces in Dark mode (>= 12:1 ink contrast, zero night glare).
  */
-[data-note-element][data-note-color="blue"] { background-color: #b8d9f0; border-color: #8fbfe3; }
-[data-note-element][data-note-color="teal"] { background-color: #b7e3dd; border-color: #86c9c0; }
-[data-note-element][data-note-color="green"] { background-color: #cbe5c3; border-color: #9fcb94; }
-[data-note-element][data-note-color="yellow"] { background-color: #f7e3a1; border-color: #e2c463; }
-[data-note-element][data-note-color="orange"] { background-color: #f8d0b0; border-color: #e7a877; }
-[data-note-element][data-note-color="pink"] { background-color: #f6cfd6; border-color: #e3a1ae; }
-[data-note-element][data-note-color="purple"] { background-color: #dcd0f4; border-color: #b7a3e6; }
+[data-note-element][data-note-color="blue"] { background-color: #e4eef8; border-color: #bfd4ec; }
+[data-note-element][data-note-color="teal"] { background-color: #e1f1ee; border-color: #b6dbd4; }
+[data-note-element][data-note-color="green"] { background-color: #e7f1e3; border-color: #c2dab9; }
+[data-note-element][data-note-color="yellow"] { background-color: #f8efc9; border-color: #e2cf8a; }
+[data-note-element][data-note-color="orange"] { background-color: #f8e4d4; border-color: #e4be9f; }
+[data-note-element][data-note-color="pink"] { background-color: #f7e3e8; border-color: #e2bac4; }
+[data-note-element][data-note-color="purple"] { background-color: #ece6f8; border-color: #cdc0e9; }
+
+:root[data-theme="dark"] [data-note-element][data-note-color="blue"] { background-color: #1b283a; border-color: #2d4363; }
+:root[data-theme="dark"] [data-note-element][data-note-color="teal"] { background-color: #182c2a; border-color: #294b47; }
+:root[data-theme="dark"] [data-note-element][data-note-color="green"] { background-color: #1c2b1f; border-color: #304a36; }
+:root[data-theme="dark"] [data-note-element][data-note-color="yellow"] { background-color: #2e2817; border-color: #4f4425; }
+:root[data-theme="dark"] [data-note-element][data-note-color="orange"] { background-color: #312319; border-color: #543b29; }
+:root[data-theme="dark"] [data-note-element][data-note-color="pink"] { background-color: #301e26; border-color: #523240; }
+:root[data-theme="dark"] [data-note-element][data-note-color="purple"] { background-color: #262036; border-color: #41375c; }
 
 /* Text tones: one source for the text, the picker "A" glyphs, and the colored-card overrides. */
 :root {
-  --note-ink: #14151a;
+  --note-ink: #1f2128;
   --note-tone-muted: #555b6b;
   --note-tone-red: #c4162a;
   --note-tone-orange: #a94700;
@@ -490,69 +496,65 @@
   --note-tone-purple: #c3a6ff;
 }
 
-/* Light theme: a darker, higher-contrast black for note text than the app's softer --ink. */
+/* Light theme: crisp reading ink for Note cards. */
 :root:not([data-theme="dark"]) [data-note-element] [data-note-scroll],
 :root:not([data-theme="dark"]) [data-note-element] [data-note-label] {
   --ink: var(--note-ink);
   color: var(--ink);
 }
 
-/* Popups live outside [data-note-scroll]/[data-note-label], so only the card's own content switches to dark ink. */
-[data-note-element][data-note-color] [data-note-scroll],
-[data-note-element][data-note-color] [data-note-label] {
+/* Popups live outside [data-note-scroll]/[data-note-label], so only the card's own content adapts its local contrast tokens. */
+:root:not([data-theme="dark"]) [data-note-element][data-note-color] [data-note-scroll],
+:root:not([data-theme="dark"]) [data-note-element][data-note-color] [data-note-label] {
   --ink: var(--note-ink);
-  --muted: color-mix(in srgb, var(--note-ink) 72%, transparent);
-  --line: rgba(20, 21, 26, 0.26);
-  --tint: rgba(255, 255, 255, 0.45);
-  --canvas: rgba(255, 255, 255, 0.5);
-  --surface: rgba(255, 255, 255, 0.6);
-  --accent: #0a3a9e;
-  --danger: #8f1d12;
-  --warning: #6b3d00;
-  --note-tone-muted: #555b6b;
-  --note-tone-red: #c4162a;
-  --note-tone-orange: #a94700;
-  --note-tone-yellow: #8a5b00;
-  --note-tone-green: #0c6e33;
-  --note-tone-blue: #1b5bd8;
-  --note-tone-purple: #6d2bd1;
+  --muted: color-mix(in srgb, var(--note-ink) 70%, transparent);
+  --line: rgba(31, 33, 40, 0.2);
+  --tint: rgba(255, 255, 255, 0.5);
+  --canvas: rgba(255, 255, 255, 0.52);
+  --surface: rgba(255, 255, 255, 0.65);
+  --accent: #0f44a8;
+  --danger: #9c2426;
+  --warning: #754500;
   color: var(--ink);
 }
 
-[data-note-element][data-note-selected="true"],
-[data-note-element][data-note-editing="true"] {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+:root[data-theme="dark"] [data-note-element][data-note-color] [data-note-scroll],
+:root[data-theme="dark"] [data-note-element][data-note-color] [data-note-label] {
+  --line: rgba(255, 255, 255, 0.14);
+  --tint: rgba(255, 255, 255, 0.08);
+  --canvas: rgba(0, 0, 0, 0.22);
+  --surface: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
 }
 
-/* Inline highlight marks: saturated washes with near-black text so they stay readable on every card color. */
+:root [data-note-element][data-note-selected="true"],
+:root [data-note-element][data-note-editing="true"],
+:root[data-theme="dark"] [data-note-element][data-note-selected="true"],
+:root[data-theme="dark"] [data-note-element][data-note-editing="true"] {
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+/* Inline highlight marks: soft editorial washes in light mode and calm translucent washes in dark mode. */
 .notespace-note-content .notespace-note-hl {
   color: var(--note-ink);
   border-radius: 3px;
   padding: 0 .15em;
-  box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.09);
 }
-.notespace-note-content .notespace-note-hl-yellow { background-color: #ffe14d; }
-.notespace-note-content .notespace-note-hl-green { background-color: #7fe08a; }
-.notespace-note-content .notespace-note-hl-blue { background-color: #86c4ff; }
-.notespace-note-content .notespace-note-hl-pink { background-color: #ff9db5; }
-.notespace-note-content .notespace-note-hl-purple { background-color: #d6a6ff; }
-.notespace-note-content .notespace-note-hl-orange { background-color: #ffb866; }
+.notespace-note-content .notespace-note-hl-yellow { background-color: #fae588; }
+.notespace-note-content .notespace-note-hl-green { background-color: #b4e8bc; }
+.notespace-note-content .notespace-note-hl-blue { background-color: #b5d8fc; }
+.notespace-note-content .notespace-note-hl-pink { background-color: #f8c4d4; }
+.notespace-note-content .notespace-note-hl-purple { background-color: #e0c6fa; }
+.notespace-note-content .notespace-note-hl-orange { background-color: #fbd2a2; }
 
 :root[data-theme="dark"] .notespace-note-content .notespace-note-hl { color: inherit; box-shadow: none; }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-yellow { background-color: rgba(255, 214, 10, 0.38); }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-green { background-color: rgba(48, 209, 88, 0.36); }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-blue { background-color: rgba(10, 132, 255, 0.45); }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-pink { background-color: rgba(255, 55, 95, 0.40); }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-purple { background-color: rgba(191, 90, 242, 0.44); }
-:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-orange { background-color: rgba(255, 159, 10, 0.40); }
-/* A colored card is light even in dark theme, so highlights keep dark text and their solid wash there. */
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl { color: var(--note-ink); box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.12); }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-yellow { background-color: #ffe14d; }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-green { background-color: #7fe08a; }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-blue { background-color: #86c4ff; }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-pink { background-color: #ff9db5; }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-purple { background-color: #d6a6ff; }
-:root[data-theme="dark"] [data-note-element][data-note-color] .notespace-note-content .notespace-note-hl-orange { background-color: #ffb866; }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-yellow { background-color: rgba(242, 204, 72, 0.30); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-green { background-color: rgba(74, 204, 114, 0.28); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-blue { background-color: rgba(88, 160, 255, 0.34); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-pink { background-color: rgba(245, 96, 134, 0.32); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-purple { background-color: rgba(186, 118, 245, 0.34); }
+:root[data-theme="dark"] .notespace-note-content .notespace-note-hl-orange { background-color: rgba(245, 158, 72, 0.32); }
 
 /* Inline text color marks: >= 4.5:1 on white and on every card tint (light), or on dark surfaces (dark theme). */
 .notespace-note-content .notespace-note-tc-muted { color: var(--note-tone-muted); }
@@ -565,27 +567,35 @@
 
 /* Card color, highlight, and text-color picker swatches (WCAG AA non-text >= 3:1 against --surface). */
 [data-note-color-swatch="default"] { background-color: var(--surface); border-color: var(--muted); }
-[data-note-color-swatch="blue"] { background-color: #b8d9f0; border-color: #6fa9d4; }
-[data-note-color-swatch="teal"] { background-color: #b7e3dd; border-color: #62b0a6; }
-[data-note-color-swatch="green"] { background-color: #cbe5c3; border-color: #7db371; }
-[data-note-color-swatch="yellow"] { background-color: #f7e3a1; border-color: #cfa930; }
-[data-note-color-swatch="orange"] { background-color: #f8d0b0; border-color: #d98e50; }
-[data-note-color-swatch="pink"] { background-color: #f6cfd6; border-color: #d4808f; }
-[data-note-color-swatch="purple"] { background-color: #dcd0f4; border-color: #9a82d6; }
+[data-note-color-swatch="blue"] { background-color: #d0e4f7; border-color: #6fa0d4; }
+[data-note-color-swatch="teal"] { background-color: #cde9e4; border-color: #5ca89d; }
+[data-note-color-swatch="green"] { background-color: #d6ebd0; border-color: #74ac69; }
+[data-note-color-swatch="yellow"] { background-color: #f6e6a6; border-color: #c8a234; }
+[data-note-color-swatch="orange"] { background-color: #f6d8be; border-color: #d0884c; }
+[data-note-color-swatch="pink"] { background-color: #f5d6de; border-color: #cd7a8d; }
+[data-note-color-swatch="purple"] { background-color: #e1d7f6; border-color: #937bd0; }
 
-[data-note-highlight-swatch="yellow"] { background-color: #ffe14d; border-color: var(--muted); }
-[data-note-highlight-swatch="green"] { background-color: #7fe08a; border-color: var(--muted); }
-[data-note-highlight-swatch="blue"] { background-color: #86c4ff; border-color: var(--muted); }
-[data-note-highlight-swatch="pink"] { background-color: #ff9db5; border-color: var(--muted); }
-[data-note-highlight-swatch="purple"] { background-color: #d6a6ff; border-color: var(--muted); }
-[data-note-highlight-swatch="orange"] { background-color: #ffb866; border-color: var(--muted); }
+:root[data-theme="dark"] [data-note-color-swatch="blue"] { background-color: #2f517a; border-color: #5d88bd; }
+:root[data-theme="dark"] [data-note-color-swatch="teal"] { background-color: #255a55; border-color: #4f948d; }
+:root[data-theme="dark"] [data-note-color-swatch="green"] { background-color: #2e5938; border-color: #5c9669; }
+:root[data-theme="dark"] [data-note-color-swatch="yellow"] { background-color: #6b5b26; border-color: #a89248; }
+:root[data-theme="dark"] [data-note-color-swatch="orange"] { background-color: #734a2b; border-color: #b37a4e; }
+:root[data-theme="dark"] [data-note-color-swatch="pink"] { background-color: #6e384e; border-color: #ab6381; }
+:root[data-theme="dark"] [data-note-color-swatch="purple"] { background-color: #4d3d73; border-color: #826db3; }
 
-:root[data-theme="dark"] [data-note-highlight-swatch="yellow"] { background-color: rgba(255, 214, 10, 0.7); }
-:root[data-theme="dark"] [data-note-highlight-swatch="green"] { background-color: rgba(48, 209, 88, 0.7); }
-:root[data-theme="dark"] [data-note-highlight-swatch="blue"] { background-color: rgba(10, 132, 255, 0.75); }
-:root[data-theme="dark"] [data-note-highlight-swatch="pink"] { background-color: rgba(255, 55, 95, 0.7); }
-:root[data-theme="dark"] [data-note-highlight-swatch="purple"] { background-color: rgba(191, 90, 242, 0.75); }
-:root[data-theme="dark"] [data-note-highlight-swatch="orange"] { background-color: rgba(255, 159, 10, 0.7); }
+[data-note-highlight-swatch="yellow"] { background-color: #fae588; border-color: var(--muted); }
+[data-note-highlight-swatch="green"] { background-color: #b4e8bc; border-color: var(--muted); }
+[data-note-highlight-swatch="blue"] { background-color: #b5d8fc; border-color: var(--muted); }
+[data-note-highlight-swatch="pink"] { background-color: #f8c4d4; border-color: var(--muted); }
+[data-note-highlight-swatch="purple"] { background-color: #e0c6fa; border-color: var(--muted); }
+[data-note-highlight-swatch="orange"] { background-color: #fbd2a2; border-color: var(--muted); }
+
+:root[data-theme="dark"] [data-note-highlight-swatch="yellow"] { background-color: rgba(242, 204, 72, 0.72); }
+:root[data-theme="dark"] [data-note-highlight-swatch="green"] { background-color: rgba(74, 204, 114, 0.72); }
+:root[data-theme="dark"] [data-note-highlight-swatch="blue"] { background-color: rgba(88, 160, 255, 0.76); }
+:root[data-theme="dark"] [data-note-highlight-swatch="pink"] { background-color: rgba(245, 96, 134, 0.72); }
+:root[data-theme="dark"] [data-note-highlight-swatch="purple"] { background-color: rgba(186, 118, 245, 0.76); }
+:root[data-theme="dark"] [data-note-highlight-swatch="orange"] { background-color: rgba(245, 158, 72, 0.72); }
 
 /* Text color swatches render an "A" in the tone, so the picker previews the real text color. */
 [data-note-text-color-swatch="muted"] { color: var(--note-tone-muted); }

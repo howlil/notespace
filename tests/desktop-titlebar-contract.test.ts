@@ -60,9 +60,10 @@ test("Native close still requires durability handshake and native fallback", () 
 
 test("The only theme controls are in Settings", () => {
   const settings = source(web + "features/settings/AppSettings.tsx");
-  assert.match(settings, /role="switch"/);
-  assert.match(settings, /aria-checked=\{dark\}/);
+  assert.match(settings, /role="radiogroup"/);
+  assert.match(settings, /aria-checked=\{active\}/);
   assert.match(settings, /aria-labelledby="notespace-theme-label"/);
+  assert.match(settings, /aria-labelledby="notespace-palette-label"/);
   assert.doesNotMatch(shell, /ThemeToggle/);
   assert.doesNotMatch(workspace, /ThemeToggle|WorkspaceGuide/);
 });

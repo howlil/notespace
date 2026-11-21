@@ -34,7 +34,7 @@ func TestNormalizeMimeTypeRejectsNonImageOrMalformedMediaTypes(t *testing.T) {
 func TestNormalizeMimeTypeRejectsSVG(t *testing.T) {
 	// SVG loaded as a document can run script in the same origin, so it must
 	// never be accepted as a durable asset regardless of casing or parameters.
-	for _, input := range []string{"image/svg+xml", "image/svg+xml; charset=utf-8", "IMAGE/SVG+XML", "image/svg"} {
+	for _, input := range []string{"image/svg+xml", "image/svg+xml; charset=utf-8", "IMAGE/SVG+XML", "image/svg", "image/xml", "image/html", "image/custom+xml"} {
 		if _, err := NormalizeMimeType(input); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("NormalizeMimeType(%q) error = %v, want ErrInvalid", input, err)
 		}
@@ -63,6 +63,8 @@ func TestNormalizeStoredRejectsIncompleteOrUnsafeAssets(t *testing.T) {
 		{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "image/png"},
 		{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "text/html", Data: []byte("x")},
 		{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "image/svg+xml", Data: []byte("<svg/>")},
+		{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "image/png", Data: []byte("<svg><script>alert(1)</script></svg>")},
+		{ID: "asset-1", WorkspaceID: "workspace-1", MimeType: "image/png", Data: []byte("<!DOCTYPE html><html></html>")},
 	} {
 		if err := ValidateStored(value); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("ValidateStored(%#v) error = %v, want ErrInvalid", value, err)

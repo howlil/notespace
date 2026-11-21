@@ -25,6 +25,7 @@ import {
   type StructuredDiagram,
 } from "../../../domain/diagram/diagram";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
+import { DEFAULT_THEME_PALETTE, paletteCanvasColor, type ThemePalette } from "../../../shared/ui/theme/theme-model";
 import { mergeDiagramHistory, mergeDiagramSets, sameDiagramSelection, sameStructuredDiagrams } from "./state/canvas-state";
 import { directionFromKey } from "./flowchart/CanvasDirectionalSpawn";
 import { CanvasCodeBlockActions } from "./code/CanvasCodeBlockActions";
@@ -57,6 +58,7 @@ import { useCanvasDiagramCommands } from "./diagram/use-canvas-diagram-commands"
 import { useCodeRunner } from "./code/execution/use-code-runner";
 import { useCanvasPinch } from "./viewport/use-canvas-pinch";
 import { CanvasDotGrid } from "./viewport/CanvasDotGrid";
+import { useCanvasBackgroundPattern } from "./viewport/use-canvas-background-pattern";
 import {
   canvasBackgroundColor,
   codeGeometryMap,
@@ -134,6 +136,7 @@ type CanvasEditorProps = {
   focusBlockId?: string;
   focusNonce?: string;
   dark: boolean;
+  palette?: ThemePalette;
   workspaceId: string;
   canvasVersion: number;
   onCreateNote?: (request: CreateNoteInstanceRequest) => Promise<CreateNoteInstanceResult>;
@@ -145,10 +148,11 @@ type CanvasEditorProps = {
 };
 
 export default function CanvasEditor({
-  initial, onChange, onElementSelect, focusRequest, focusNoteId, focusBlockId, focusNonce, dark, workspaceId,
+  initial, onChange, onElementSelect, focusRequest, focusNoteId, focusBlockId, focusNonce, dark, palette = DEFAULT_THEME_PALETTE, workspaceId,
   canvasVersion, onCreateNote, onUpdateNote, onDeleteNoteInstance, onRegisterAuthoringFlush, onRegisterCanvasExport, onNoteSaveState,
 }: CanvasEditorProps) {
   const { showToast } = useToast();
+  const defaultCanvasBg = paletteCanvasColor(palette, dark);
   useEffect(() => {
     if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/";
   }, []);
@@ -158,7 +162,7 @@ export default function CanvasEditor({
     delete data[DIAGRAM_DATA_KEY];
     return {
       ...data,
-      appState: { viewBackgroundColor: dark ? "#191a1f" : "#fafaf8", ...(initial.data.appState as object) },
+      appState: { viewBackgroundColor: defaultCanvasBg, ...(initial.data.appState as object) },
       files: {},
     } as ExcalidrawInitialDataState;
   });
@@ -190,7 +194,7 @@ export default function CanvasEditor({
   const viewportRef = useRef(canvasViewport);
   const codeGeometryRef = useRef(codeGeometryMap(initialElements));
   const expectedAutoFitHeightRef = useRef(new Map<string, number>());
-  const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, dark ? "#191a1f" : "#fafaf8"));
+  const [backgroundColor, setBackgroundColor] = useState(() => canvasBackgroundColor(initial.data, defaultCanvasBg));
   const [toolOverlay, setToolOverlay] = useState<"diagram" | "more" | null>(null);
   const [activeCanvasOverlay, setActiveCanvasOverlay] = useState<CanvasOverlayScope>(null);
   const diagramOpen = toolOverlay === "diagram";
@@ -208,6 +212,7 @@ export default function CanvasEditor({
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
   const [selectionKey, setSelectionKey] = useState("");
   const [toolbarMode, setToolbarMode] = useContextualToolbarMode();
+  const [backgroundPattern, setBackgroundPattern] = useCanvasBackgroundPattern();
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [viewModeEnabled, setViewModeEnabled] = useState(false);
   const [selectionAnchor, setSelectionAnchor] = useState<CanvasContextualAnchor | null>(null);
@@ -1036,7 +1041,7 @@ export default function CanvasEditor({
         setEditingCodeBlockId(element.id);
       }}
     >
-      <CanvasDotGrid viewport={canvasViewport} hidden={gridModeEnabled} />
+      <CanvasDotGrid viewport={canvasViewport} pattern={backgroundPattern} hidden={gridModeEnabled} />
       <CanvasCodeBlockLayer
         elements={overlayElements}
         viewport={canvasViewport}
@@ -1079,7 +1084,7 @@ export default function CanvasEditor({
         onSuccess={reportCanvasSuccess}
         onError={reportCanvasAssetError}
       />
-      <CanvasViewControls api={canvasApi} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} toolbarMode={toolbarMode} onToolbarModeChange={setToolbarMode} onAction={runCanvasAction} onToolOverlayOpen={closeCanvasPopovers} onOverlayOpen={() => setActiveCanvasOverlay("view")} overlayActive={activeCanvasOverlay === null || activeCanvasOverlay === "view"} toolOverlayOpen={toolOverlay !== null} />
+      <CanvasViewControls api={canvasApi} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} backgroundPattern={backgroundPattern} onBackgroundPatternChange={setBackgroundPattern} toolbarMode={toolbarMode} onToolbarModeChange={setToolbarMode} onAction={runCanvasAction} onToolOverlayOpen={closeCanvasPopovers} onOverlayOpen={() => setActiveCanvasOverlay("view")} overlayActive={activeCanvasOverlay === null || activeCanvasOverlay === "view"} toolOverlayOpen={toolOverlay !== null} />
       <CanvasBottomChrome
         contextualAnchor={selectionAnchor}
         activeTool={activeTool}

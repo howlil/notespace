@@ -68,8 +68,8 @@ func (a Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
 		// without executing active scripts in the application origin.
 		w.Header().Set("Content-Security-Policy", "sandbox")
 		w.Header().Set("Content-Disposition", "attachment")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
 	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Type", value.MimeType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(value.Data)))
 	w.Header().Set("X-Notespace-Created-At", value.CreatedAt)

@@ -19,6 +19,9 @@
           "url": "https://**"
         },
         {
+          "url": "http://**"
+        },
+        {
           "url": "mailto:*"
         },
         {
@@ -41,6 +44,9 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-start-dragging",
-    "core:window:allow-is-maximized"
+    "core:window:allow-is-maximized",
+    "core:window:allow-is-focused",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

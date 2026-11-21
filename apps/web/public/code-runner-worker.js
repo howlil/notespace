@@ -43,6 +43,14 @@ try { self.WebSocket = undefined; } catch {}
 try { self.EventSource = undefined; } catch {}
 try { self.WebTransport = undefined; } catch {}
 try { self.RTCPeerConnection = undefined; } catch {}
+try { self.BroadcastChannel = undefined; } catch {}
+try { Object.defineProperty(self, "indexedDB", { value: undefined, configurable: false }); } catch {}
+try { Object.defineProperty(self, "caches", { value: undefined, configurable: false }); } catch {}
+try {
+  if (self.navigator && "storage" in self.navigator) {
+    Object.defineProperty(self.navigator, "storage", { value: undefined, configurable: false });
+  }
+} catch {}
 try { self.importScripts = () => { throw networkError(); }; } catch {}
 
 self.onmessage = async (event) => {

@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Url};
 use tauri_plugin_shell::ShellExt;
 
 use crate::{
@@ -221,6 +221,35 @@ pub fn list_desktop_manual_backups(app: AppHandle) -> Result<Vec<Value>, String>
     Ok(result)
 }
 
+fn encode_uri_component(input: &str) -> String {
+    let mut encoded = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+fn recovery_bootstrap_url(current: Option<&Url>, detail: &str) -> Option<Url> {
+    let is_bundled = current.is_some_and(|url| {
+        (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+            || (matches!(url.scheme(), "http" | "https")
+                && url.host_str() == Some("tauri.localhost"))
+    });
+    if is_bundled {
+        return None;
+    }
+    let base = if cfg!(windows) {
+        "http://tauri.localhost/index.html"
+    } else {
+        "tauri://localhost/index.html"
+    };
+    Url::parse(&format!("{base}#recovery={}", encode_uri_component(detail))).ok()
+}
+
 pub(crate) fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     app.state::<RuntimeProcess>()
         .recovery_visible
@@ -230,6 +259,11 @@ pub(crate) fn show_runtime_failure(app: &tauri::AppHandle, detail: &str) {
     };
     // Recovery is a plain HTML view: restore OS frame/close/drag before replacing React.
     let _ = window.set_decorations(true);
+    if let Some(target) = recovery_bootstrap_url(window.url().ok().as_ref(), detail) {
+        if window.navigate(target).is_ok() {
+            return;
+        }
+    }
     let Ok(message) = serde_json::to_string(detail) else {
         return;
     };
@@ -309,5 +343,25 @@ mod tests {
         assert_eq!(points.len(), 1);
         assert_eq!(points[0].name, valid.file_name().unwrap().to_string_lossy());
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn mid_session_loopback_failure_navigates_back_to_bundled_recovery_origin() {
+        let loopback = Url::parse("http://127.0.0.1:49201/workspaces/w1").unwrap();
+        let target = recovery_bootstrap_url(Some(&loopback), "Local runtime stopped: code 1")
+            .expect("loopback origin must redirect to bundled recovery origin");
+        assert_eq!(target.path(), "/index.html");
+        assert!(
+            target
+                .fragment()
+                .is_some_and(|fragment| fragment.starts_with("recovery=Local%20runtime%20stopped")),
+            "unexpected fragment: {:?}",
+            target.fragment()
+        );
+
+        let bundled_win = Url::parse("http://tauri.localhost/index.html").unwrap();
+        assert!(recovery_bootstrap_url(Some(&bundled_win), "failed").is_none());
+        let bundled_unix = Url::parse("tauri://localhost/index.html").unwrap();
+        assert!(recovery_bootstrap_url(Some(&bundled_unix), "failed").is_none());
     }
 }

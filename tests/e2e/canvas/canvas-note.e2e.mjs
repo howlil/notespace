@@ -544,6 +544,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
     await containsText("[data-note-element]", updatedHeadline);
 
     await doubleClick("[data-note-element]");
+    await visible(editor);
     await press("Escape");
     await expectCount(editor, 0);
     await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
@@ -992,8 +993,8 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
     await visible("[data-note-picker-popover]");
     await fill(ariaLabel("Search Notes to place"), primaryHeading);
     // The picker clears its options while a search is in flight and then re-renders them.
-    // Wait for that load to settle so the option click targets the final list, not a replaced node.
-    await visible(`[aria-label="Loading Notes"]`);
+    // Wait for the filtered ready summary so the option click targets the final list, not a replaced node.
+    await containsText("[data-note-picker-popover]", "1 Note");
     await expectCount(`[aria-label="Loading Notes"]`, 0);
     await click(role("option", new RegExp(primaryHeading)));
     await expectCount(card, 1);

@@ -12,7 +12,7 @@ test("Dropping a Canvas Note reference keeps other metadata and never mutates th
   });
 
 test("Canvas Note starts with a valid empty document", () => {
-    assert.deepEqual(emptyNoteDocument(), { type: "doc", content: [] });
+  assert.deepEqual(emptyNoteDocument(), { type: "markdown", text: "" });
   });
 
 test("Canvas Note keeps references without replacing other metadata", () => {

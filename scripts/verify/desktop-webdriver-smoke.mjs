@@ -318,9 +318,9 @@ async function runProductPersistenceJourney(session) {
 
 async function assertCanvasNoteModule(session, workspaceId) {
   await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Note"]'))).click();
-  const editor = await visibleElement(session, By.css("[data-note-element] .ProseMirror"));
+  const editor = await visibleElement(session, By.css("[data-note-element] [data-note-markdown-editor] .cm-content"));
   const text = `desktop-note-module-${Date.now()}`;
-  await editor.sendKeys(text);
+  await editor.sendKeys(`# ${text}`);
   await waitForWorkspaceSaved(session);
   let noteId = null;
   await session.wait(async () => {
@@ -329,7 +329,7 @@ async function assertCanvasNoteModule(session, workspaceId) {
     const candidate = elements.find((element) => !element.isDeleted && element.customData?.notespaceNote?.noteId)?.customData?.notespaceNote?.noteId;
     if (!candidate) return false;
     const note = await requestLocal(`/api/notes/${encodeURIComponent(candidate)}`).catch(() => null);
-    if (!note || !JSON.stringify(note.document ?? {}).includes(text)) return false;
+    if (note?.document?.type !== "markdown" || note.document.text !== `# ${text}`) return false;
     noteId = candidate;
     return true;
   }, 15_000, "Native Canvas Note instance and canonical document must persist");
@@ -337,7 +337,7 @@ async function assertCanvasNoteModule(session, workspaceId) {
   const readView = await visibleElement(session, By.css("[data-note-element] [data-note-read-view]"));
   await session.wait(async () => (await readView.getText()).includes(text), 10_000, "Native Canvas Note switches to read view with persisted content");
   await waitForWorkspaceSaved(session);
-  console.log("native Canvas Note proof passed: WebView2 Tiptap creation, persistence and read view");
+  console.log("native Canvas Note proof passed: WebView2 Markdown creation, persistence and read view");
   return { noteId, text };
 }
 

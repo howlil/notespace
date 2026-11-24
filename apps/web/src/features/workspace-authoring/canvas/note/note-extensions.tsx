@@ -32,6 +32,7 @@ import {
   noteBlockIdRepairs,
   noteFirstLine,
   type NoteDocument,
+  type RichNoteDocument,
   type NoteHighlightTone,
   type NoteNode,
   type NoteTextColorTone,
@@ -82,7 +83,7 @@ function createBlockId() {
   return globalThis.crypto?.randomUUID?.() ?? `block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function ensureNoteBlockIds(document: NoteDocument): NoteDocument {
+export function ensureNoteBlockIds(document: RichNoteDocument): RichNoteDocument {
   let changed = false;
   const seen = new Set<string>();
   const needsId = (node: NoteNode) => {
@@ -220,6 +221,7 @@ const NotePlaceholder = Extension.create({
 });
 
 function documentPreview(document: NoteDocument): string {
+  if (document.type === "markdown") return noteFirstLine(document);
   const walk = (nodes: NoteNode[]): string[] => nodes.flatMap((node) => [
     ...(typeof node.text === "string" ? [node.text] : []),
     ...(node.content ? walk(node.content) : []),

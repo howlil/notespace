@@ -4,7 +4,11 @@ import type { Note } from "../../../../adapters/http/note-api";
 import type { NoteDocument } from "../../../../domain/note/note";
 import { aggregateSaveStatus, createCanvasNoteStore, type CanvasNoteStoreDeps } from "./canvas-note-store.ts";
 
-const doc = (text: string): NoteDocument => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+const doc = (text: string): NoteDocument => ({ type: "markdown", text });
+const source = (document: NoteDocument): string => {
+  assert.equal(document.type, "markdown");
+  return document.text;
+};
 const note = (id: string, revision: number, document = doc(`r${revision}`)): Note => ({ id, schemaVersion: 1, revision, document, createdAt: "", updatedAt: "" });
 const httpError = (status: number, message = `HTTP ${status}`) => Object.assign(new Error(message), { status });
 
@@ -71,7 +75,7 @@ test("queued edits debounce into one save and report pending, saving, then saved
   const saves: Array<{ text: string; revision: number }> = [];
   const { store, timers } = setup({
     updateNote: async (id, document, expectedRevision) => {
-      saves.push({ text: document.content[0]?.content?.[0]?.text ?? "", revision: expectedRevision });
+      saves.push({ text: source(document), revision: expectedRevision });
       return note(id, expectedRevision + 1, document);
     },
   });
@@ -100,13 +104,13 @@ test("an acknowledgement never rewinds a newer local draft typed during the save
   const saved: string[] = [];
   const { store } = setup({
     updateNote: (_id, document) => {
-      saved.push(document.content[0]?.content?.[0]?.text ?? "");
+      saved.push(source(document));
       return saved.length === 1 ? first.promise : second.promise;
     },
   });
   const text = () => {
     const entry = store.getSnapshot().entries.a;
-    return entry?.status === "ready" ? entry.note.document.content[0]?.content?.[0]?.text : undefined;
+    return entry?.status === "ready" ? source(entry.note.document) : undefined;
   };
   store.ensure(["a"]);
   await settle();
@@ -120,7 +124,7 @@ test("an acknowledgement never rewinds a newer local draft typed during the save
   await flushing;
   const entry = store.getSnapshot().entries.a;
   assert.deepEqual(saved, ["older", "newer"]);
-  assert.equal(entry?.status === "ready" && entry.note.document.content[0]?.content?.[0]?.text, "newer");
+  assert.equal(entry?.status === "ready" && source(entry.note.document), "newer");
   assert.equal(entry?.status === "ready" && entry.note.revision, 3);
 });
 
@@ -131,7 +135,7 @@ test("a failed save keeps the newest draft and a later flush persists it", async
   const { store } = setup({
     updateNote: (id, document, expectedRevision) => {
       if (fail) { fail = false; return first.promise; }
-      persisted.push(document.content[0]?.content?.[0]?.text ?? "");
+      persisted.push(source(document));
       return Promise.resolve(note(id, expectedRevision + 1, document));
     },
   });
@@ -202,7 +206,7 @@ test("a failed non-conflict save exposes retry that resends the retained draft",
   const { store } = setup({
     updateNote: async (id, document, expectedRevision) => {
       if (fail) { fail = false; throw httpError(500, "Server unavailable"); }
-      persisted.push(document.content[0]?.content?.[0]?.text ?? "");
+      persisted.push(source(document));
       return note(id, expectedRevision + 1, document);
     },
   });

@@ -1,4 +1,4 @@
-import type { NoteDocument, NoteNode } from "../../../../domain/note/note";
+import type { NoteDocument, NoteNode, RichNoteDocument } from "../../../../domain/note/note";
 
 export type ExtractBlocksRange = {
   startIndex: number;
@@ -13,8 +13,8 @@ export type ExtractBlocksOptions = {
 };
 
 export type ExtractBlocksResult = {
-  extracted: NoteDocument;
-  remaining: NoteDocument;
+  extracted: RichNoteDocument;
+  remaining: RichNoteDocument;
 };
 
 export type NoteBlockSummary = {
@@ -66,7 +66,7 @@ function hasExtractableContent(nodes: readonly NoteNode[]): boolean {
  * Rejects invalid ranges or selections that contain only empty whitespace blocks.
  */
 export function extractBlocksFromDocument(
-  document: NoteDocument,
+  document: RichNoteDocument,
   range: ExtractBlocksRange,
   options?: ExtractBlocksOptions,
 ): ExtractBlocksResult | null {
@@ -86,7 +86,7 @@ export function extractBlocksFromDocument(
   const sliced = document.content.slice(startIndex, endIndex + 1);
   if (!hasExtractableContent(sliced)) return null;
 
-  const extracted: NoteDocument = {
+  const extracted: RichNoteDocument = {
     type: "doc",
     content: sliced.map(cloneNode),
   };
@@ -163,7 +163,7 @@ function blockPreview(node: NoteNode): string {
 
 /** Finds a block anywhere in a `NoteDocument` by its stable `attrs.blockId`. */
 export function findBlockById(document: NoteDocument | null | undefined, blockId: string): NoteNode | null {
-  if (!document || !blockId) return null;
+  if (document?.type !== "doc" || !blockId) return null;
   const visit = (nodes: readonly NoteNode[]): NoteNode | null => {
     for (const node of nodes) {
       if (node.attrs?.blockId === blockId) return node;
@@ -179,7 +179,7 @@ export function findBlockById(document: NoteDocument | null | undefined, blockId
 
 /** Lists non-empty addressable blocks (with `blockId`) in document order for block-reference pickers. */
 export function listNoteBlocks(document: NoteDocument | null | undefined): NoteBlockSummary[] {
-  if (!document) return [];
+  if (document?.type !== "doc") return [];
   const results: NoteBlockSummary[] = [];
   const visit = (nodes: readonly NoteNode[]) => {
     for (const node of nodes) {
@@ -215,7 +215,7 @@ function hasTaskMatchingBlockId(nodes: readonly NoteNode[], blockId: string): bo
  * Matches by `blockId` (on the `taskItem` or its child block) when present, falling back to
  * 0-based document-order `index`.
  */
-export function toggleTaskInDocument(document: NoteDocument, target: NoteTaskToggleTarget): NoteDocument {
+export function toggleTaskInDocument(document: RichNoteDocument, target: NoteTaskToggleTarget): RichNoteDocument {
   const checked = Boolean(target.checked);
   const useBlockId = Boolean(target.blockId && hasTaskMatchingBlockId(document.content, target.blockId));
   let taskIndex = 0;
@@ -263,7 +263,7 @@ export function toggleTaskInDocument(document: NoteDocument, target: NoteTaskTog
 /**
  * Pure immutable update that sets a `noteToggle` block's `open` state by `blockId`.
  */
-export function toggleNoteToggleInDocument(document: NoteDocument, blockId: string, open: boolean): NoteDocument {
+export function toggleNoteToggleInDocument(document: RichNoteDocument, blockId: string, open: boolean): RichNoteDocument {
   if (!blockId) return document;
   let changed = false;
 

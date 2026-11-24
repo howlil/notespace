@@ -62,6 +62,7 @@ import {
   type NoteCardColor,
   type NoteCardShape,
   type NoteDocument,
+  type RichNoteDocument,
 } from "../../../../domain/note/note";
 import { useExclusivePopup } from "../../../../shared/ui/overlays/dismissable";
 import type { CanvasNoteEntry, NoteSaveState, NoteSaveStatus } from "./canvas-note-store";
@@ -77,6 +78,7 @@ import { filterNoteSlashCommands, noteMentionQuery, noteSlashQuery, type NoteSla
 import { NoteFocusModal } from "./NoteFocusModal";
 import { NoteInfoPopover } from "./NoteInfoPopover";
 import { NoteReadView } from "./NoteReadView";
+import { MarkdownNoteEditor } from "./MarkdownNoteEditor";
 import { CanvasNoteStoreProvider, useCanvasNoteSnapshot, useCanvasNoteStore } from "./use-canvas-note-store";
 
 const noteActionIconClass = "grid size-6 place-items-center rounded text-muted hover:bg-tint hover:text-accent";
@@ -698,7 +700,7 @@ function NoteMathPrompt({
   );
 }
 
-function NoteEditor(props: {
+type NoteEditorProps = {
   note: Note;
   elementId: string;
   workspaceId: string;
@@ -713,7 +715,26 @@ function NoteEditor(props: {
   onSuccess?: (message: string) => void;
   onError: (message: string) => void;
   onEscape: () => void;
-}) {
+};
+
+function NoteEditor(props: NoteEditorProps) {
+  const { note, elementId, activationPoint, bodyMaxHeight, readDocument, onDocumentChange, onAutoResize, onEscape } = props;
+  if (note.document.type === "markdown") {
+    return <MarkdownNoteEditor
+      noteId={note.id}
+      document={note.document}
+      activationPoint={activationPoint}
+      bodyMaxHeight={bodyMaxHeight}
+      readDocument={readDocument}
+      onDocumentChange={onDocumentChange}
+      onResize={(height) => onAutoResize(elementId, height)}
+      onEscape={onEscape}
+    />;
+  }
+  return <LegacyNoteEditor {...props} note={{ ...note, document: note.document }} />;
+}
+
+function LegacyNoteEditor(props: NoteEditorProps & { note: Note & { document: RichNoteDocument } }) {
   const {
     note,
     elementId,
@@ -851,7 +872,7 @@ function NoteEditor(props: {
     immediatelyRender: false,
     editorProps,
     onUpdate: ({ editor: value }) => {
-      onDocumentChangeRef.current(value.getJSON() as NoteDocument);
+      onDocumentChangeRef.current(value.getJSON() as RichNoteDocument);
       syncTriggersRef.current(value);
     },
     onSelectionUpdate: ({ editor: value }) => {
@@ -864,7 +885,7 @@ function NoteEditor(props: {
       syncTriggersRef.current(value);
     },
     onCreate: ({ editor: value }) => {
-      const normalized = ensureNoteBlockIds(value.getJSON() as NoteDocument);
+      const normalized = ensureNoteBlockIds(value.getJSON() as RichNoteDocument);
       if (JSON.stringify(normalized) !== JSON.stringify(value.getJSON())) {
         value.commands.setContent(normalized, { emitUpdate: false });
         onDocumentChangeRef.current(normalized);
@@ -978,7 +999,7 @@ function NoteEditor(props: {
       // Compare against the store's current document, not this render's prop: keystrokes queued after
       // this render was scheduled are newer than `note.document`, and rewinding to the prop drops them.
       const current = readDocument(note.id) ?? note.document;
-      if (JSON.stringify(editor.getJSON()) !== JSON.stringify(current)) editor.commands.setContent(current, { emitUpdate: false });
+      if (current.type === "doc" && JSON.stringify(editor.getJSON()) !== JSON.stringify(current)) editor.commands.setContent(current, { emitUpdate: false });
       appliedNoteIdRef.current = note.id;
       appliedRevisionRef.current = note.revision;
     }
@@ -1103,7 +1124,7 @@ function NoteEditor(props: {
     const { $from, $to } = editor.state.selection;
     const startIndex = $from.index(0);
     const endIndex = $to.depth === 0 ? Math.max(startIndex, $to.index(0) - 1) : $to.index(0);
-    const currentDoc = editor.getJSON() as NoteDocument;
+    const currentDoc = editor.getJSON() as RichNoteDocument;
     const preview = extractBlocksFromDocument(currentDoc, { startIndex, endIndex });
     if (!preview) {
       onError("Select non-empty content to extract to a Note.");
@@ -1116,8 +1137,8 @@ function NoteEditor(props: {
       if (!created) return;
       const label = noteFirstLine(extractedDoc) || "Extracted Note";
       const href = `/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(created.noteId)}`;
-      const liveDoc = editor.isDestroyed ? (readDocument(note.id) ?? currentDoc) : (editor.getJSON() as NoteDocument);
-      const extractedResult = extractBlocksFromDocument(liveDoc, { startIndex, endIndex }, {
+      const liveDoc = editor.isDestroyed ? readDocument(note.id) : (editor.getJSON() as RichNoteDocument);
+      const extractedResult = extractBlocksFromDocument(liveDoc?.type === "doc" ? liveDoc : currentDoc, { startIndex, endIndex }, {
         leaveLink: { href, label },
       }) ?? extractBlocksFromDocument(currentDoc, { startIndex, endIndex }, {
         leaveLink: { href, label },
@@ -1750,6 +1771,7 @@ function NoteCardBody({
   if (folded) return <NoteLabel document={entry.note.document} zoom={zoom} lines={1} />;
   if (detail === "label") return <NoteLabel document={entry.note.document} zoom={zoom} lines={2} />;
   const readyNote = entry.note;
+  const document = readyNote.document;
   return (
     <div
       ref={readScrollRef}
@@ -1758,16 +1780,16 @@ function NoteCardBody({
       style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
     >
       <NoteReadView
-        document={readyNote.document}
+        document={document}
         highlightBlockId={highlightBlockId}
-        onToggleTask={(target) => {
-          const nextDoc = toggleTaskInDocument(readyNote.document, target);
-          if (nextDoc !== readyNote.document) onDocumentChange(readyNote.id, nextDoc);
-        }}
-        onToggleCollapse={(blockId, open) => {
-          const nextDoc = toggleNoteToggleInDocument(readyNote.document, blockId, open);
-          if (nextDoc !== readyNote.document) onDocumentChange(readyNote.id, nextDoc);
-        }}
+        onToggleTask={document.type === "doc" ? (target) => {
+          const nextDoc = toggleTaskInDocument(document, target);
+          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
+        } : undefined}
+        onToggleCollapse={document.type === "doc" ? (blockId, open) => {
+          const nextDoc = toggleNoteToggleInDocument(document, blockId, open);
+          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
+        } : undefined}
       />
     </div>
   );

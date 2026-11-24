@@ -5,6 +5,7 @@ import {
   type NoteDocument,
   type NoteNode,
 } from "../../../../domain/note/note.ts";
+import { notePreviewDocument } from "./note-markdown.ts";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const CARD_PADDING_X = 14;
@@ -262,7 +263,7 @@ function findBlockPreview(document: NoteDocument | undefined, blockId: string): 
     }
     return null;
   };
-  return visit(document.content);
+  return document.type === "doc" ? visit(document.content) : null;
 }
 
 type LayoutState = {
@@ -774,7 +775,7 @@ function renderNoteCard(
       theme,
       noteDocuments,
     };
-    renderBlocks(state, doc.content, contentX, contentWidth);
+    renderBlocks(state, notePreviewDocument(doc).content, contentX, contentWidth);
     if (!state.hasContent) {
       const baseline = cardY + CARD_PADDING_Y + 13.5;
       state.parts.push(

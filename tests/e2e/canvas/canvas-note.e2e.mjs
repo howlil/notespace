@@ -37,7 +37,7 @@ test("critical: blank Canvas Note stays blank after exiting edit", { timeout: 18
     await click(noteTool);
 
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await visible(card);
     await visible(editor);
     await expectFocused(editor);
@@ -58,12 +58,17 @@ test("critical: Note creates one focused pure card and survives reload", { timeo
     await click(noteTool);
 
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await visible(card);
     await visible(editor);
     await expectFocused(editor);
-    const authoredText = "Canvas-native note survives typed autosave";
-    await fill(editor, authoredText);
+    const heading = "Canvas-native Markdown";
+    const authoredText = `# ${heading}\n\n- [x] Source survives reload`;
+    await typeText(`# ${heading}`);
+    await visible(`${editor} .note-md-heading-1`);
+    await press("Enter");
+    await press("Enter");
+    await typeText("- [x] Source survives reload");
     await waitSaved();
 
     const stored = await api(`/api/workspaces/${workspace.id}`);
@@ -71,7 +76,7 @@ test("critical: Note creates one focused pure card and survives reload", { timeo
     assert.ok(noteElement, "Canvas stores exactly one live Note reference");
     const noteId = noteElement.customData.notespaceNote.noteId;
     const current = await api(`/api/notes/${noteId}`);
-    assert.match(JSON.stringify(current.document), new RegExp(authoredText));
+    assert.deepEqual(current.document, { type: "markdown", text: authoredText });
 
     await press("Escape");
     await expectCount(editor, 0);
@@ -82,10 +87,10 @@ test("critical: Note creates one focused pure card and survives reload", { timeo
 
     await openWorkspace(workspace.id);
     await visible(card);
-    await visible(`${card} p`);
-    await containsText(card, authoredText);
+    await containsText(`${card} h1`, heading);
+    await visible(`${card} [data-type="taskItem"][data-checked="true"]`);
     const preview = await api(`/api/notes/${noteId}`);
-    assert.match(JSON.stringify(preview.document), new RegExp(authoredText));
+    assert.deepEqual(preview.document, { type: "markdown", text: authoredText });
     const cardBounds = await visualBox(card);
     assert.ok(cardBounds.width >= 160 && cardBounds.height >= 48, "Note remains a valid visible Canvas instance");
   } finally {
@@ -102,16 +107,33 @@ async function visualBox(selector) {
   }, selector);
 }
 
-async function createNoteOnCanvas(workspaceId) {
+async function createNoteOnCanvas(workspaceId, { legacy = false } = {}) {
   const noteTool = '[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]';
-  await visible(noteTool);
-  await click(noteTool);
-  await visible("[data-note-element] .ProseMirror");
-  await waitSaved();
-  const stored = await api(`/api/workspaces/${workspaceId}`);
-  const element = (stored.canvas.data.elements ?? []).find((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
-  assert.ok(element, "Canvas stores the created Note reference");
-  return element.customData.notespaceNote.noteId;
+  const rule = legacy ? await injectFault({
+    method: "POST",
+    path: `/api/workspaces/${workspaceId}/note-instances`,
+    times: 1,
+    respond: ({ body }) => ({
+      replaceBody: JSON.stringify({ ...JSON.parse(body), document: { type: "doc", content: [] } }),
+    }),
+  }) : null;
+  try {
+    await visible(noteTool);
+    await click(noteTool);
+    await visible(`[data-note-editing="true"] ${legacy ? ".ProseMirror" : ".cm-content"}`);
+    await waitSaved();
+    const elementId = await execute(() => document.querySelector('[data-note-editing="true"]').getAttribute("data-note-element"));
+    const stored = await api(`/api/workspaces/${workspaceId}`);
+    const element = (stored.canvas.data.elements ?? []).find((candidate) => candidate.id === elementId && !candidate.isDeleted);
+    assert.ok(element?.customData?.notespaceNote, "Canvas stores the created Note reference");
+    return element.customData.notespaceNote.noteId;
+  } finally {
+    if (rule !== null) await clearFault(rule);
+  }
+}
+
+function createLegacyNoteOnCanvas(workspaceId) {
+  return createNoteOnCanvas(workspaceId, { legacy: true });
 }
 
 test("critical: failed Note save keeps the draft and the retry persists it", { timeout: 180_000 }, async () => {
@@ -120,7 +142,7 @@ test("critical: failed Note save keeps the draft and the retry persists it", { t
   try {
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     const draft = "draft kept through a failed save";
     fault = await injectFault({ method: "PUT", path: `/api/notes/${noteId}`, times: 1,
       respond: () => ({ status: 503, body: JSON.stringify({ error: "Note save failure" }) }) });
@@ -145,7 +167,7 @@ test("critical: undo removes a just-created Note instance and keeps no orphan re
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
     await press("Escape");
-    await expectCount("[data-note-element] .ProseMirror", 0);
+    await expectCount("[data-note-element] .cm-content", 0);
     await press("Control+z");
     await expectCount("[data-note-element]", 0);
     await waitSaved();
@@ -165,7 +187,7 @@ test("critical: undo reverts a typed Note edit and the saved Note follows", { ti
   try {
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     await expectFocused(editor);
     const typed = "undo target text";
     await fill(editor, typed);
@@ -183,7 +205,7 @@ test("critical: checklist state persists after reload", { timeout: 180_000 }, as
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createNoteOnCanvas(workspace.id);
+    const noteId = await createLegacyNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
     await expectFocused(editor);
@@ -214,7 +236,7 @@ test("critical: Note edits flush before leaving the Canvas", { timeout: 180_000 
   try {
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     const typed = "typed right before leaving the canvas";
     await fill(editor, typed);
     await click(role("link", "Notespace home", { exact: true }));
@@ -231,7 +253,7 @@ test("critical: Note 409 conflict surfaces Recover and rebases the local draft o
   try {
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     const draft = "draft that hit a revision conflict";
     fault = await injectFault({ method: "PUT", path: `/api/notes/${noteId}`, times: 1,
       respond: () => ({ status: 409, body: JSON.stringify({ error: "Note revision conflict" }) }) });
@@ -254,7 +276,7 @@ test("critical: Note rate-limited save (429) is a recoverable failure with Retry
   try {
     await openWorkspace(workspace.id);
     const noteId = await createNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     fault = await injectFault({ method: "PUT", path: `/api/notes/${noteId}`, times: 1,
       respond: () => ({ status: 429, body: JSON.stringify({ error: "Too many Note writes" }) }) });
     await fill(editor, "rate limited draft");
@@ -277,10 +299,10 @@ test("critical: Note moves and resizes at a non-default zoom and keeps its conte
     const noteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const text = "zoomed note keeps its text";
-    await fill(`${card} .ProseMirror`, text);
+    await fill(`${card} .cm-content`, text);
     await waitSaved();
     await press("Escape");
-    await expectCount(`${card} .ProseMirror`, 0);
+    await expectCount(`${card} .cm-content`, 0);
     await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
     await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
     const storedGeometry = async () => {
@@ -322,7 +344,7 @@ test("critical: multi-selected Notes stay intact and removing instances keeps ca
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     const texts = ["first multi-select note", "second multi-select note"];
     const noteTool = '[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]';
     for (const text of texts) {
@@ -366,7 +388,7 @@ test("Note read view renders rich semantic content and scales as one surface wit
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createNoteOnCanvas(workspace.id);
+    const noteId = await createLegacyNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     await press("Escape");
     await expectCount(`${card} .ProseMirror`, 0);
@@ -414,7 +436,7 @@ test("critical: rich formatting typed in a Note saves with unique block identiti
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createNoteOnCanvas(workspace.id);
+    const noteId = await createLegacyNoteOnCanvas(workspace.id);
     await typeText("## Plan");
     await press("Enter");
     await typeText("- first");
@@ -446,15 +468,15 @@ test("critical: duplicating a Note creates a new Note with the same content", { 
     await openWorkspace(workspace.id);
     const sourceId = await createNoteOnCanvas(workspace.id);
     const text = "duplicate source keeps its text";
-    await fill("[data-note-element] .ProseMirror", text);
+    await fill("[data-note-element] .cm-content", text);
     await waitSaved();
     await press("Escape");
-    await expectCount("[data-note-element] .ProseMirror", 0);
+    await expectCount("[data-note-element] .cm-content", 0);
     await press("Enter");
-    await visible("[data-note-element] .ProseMirror");
+    await visible("[data-note-element] .cm-content");
     await expectCount(role("toolbar", "Canvas Note actions"), 0);
     await press("Escape");
-    await expectCount("[data-note-element] .ProseMirror", 0);
+    await expectCount("[data-note-element] .cm-content", 0);
     await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
     await expectCount(role("button", "AI writing"), 0);
     await expectCount(role("button", "Import .md"), 0);
@@ -485,10 +507,10 @@ test("critical: native Ctrl+D copy of a Note card gets its own Note and never sh
     await openWorkspace(workspace.id);
     const sourceId = await createNoteOnCanvas(workspace.id);
     const text = "native copy keeps the same text";
-    await fill("[data-note-element] .ProseMirror", text);
+    await fill("[data-note-element] .cm-content", text);
     await waitSaved();
     await press("Escape");
-    await expectCount("[data-note-element] .ProseMirror", 0);
+    await expectCount("[data-note-element] .cm-content", 0);
     const point = await execute(() => {
       const rect = document.querySelector("[data-note-element]").getBoundingClientRect();
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
@@ -515,7 +537,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
   try {
     await openWorkspace(workspaceA.id);
     const noteId = await createNoteOnCanvas(workspaceA.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const editor = "[data-note-element] .cm-content";
     const initialHeadline = `${token} alpha headline`;
     await fill(editor, initialHeadline);
     await waitSaved();
@@ -566,7 +588,7 @@ test("embedded Note opens target via SPA navigation in edit and read views and r
   const workspaceB = await createWorkspace(`Embed Host ${token}`);
   try {
     await openWorkspace(workspaceA.id);
-    const targetId = await createNoteOnCanvas(workspaceA.id);
+    const targetId = await createLegacyNoteOnCanvas(workspaceA.id);
     const editor = "[data-note-element] .ProseMirror";
     const targetTitle = `${token} target architecture`;
     await fill(editor, targetTitle);
@@ -575,7 +597,7 @@ test("embedded Note opens target via SPA navigation in edit and read views and r
     await expectCount(editor, 0);
 
     await openWorkspace(workspaceB.id);
-    const hostId = await createNoteOnCanvas(workspaceB.id);
+    const hostId = await createLegacyNoteOnCanvas(workspaceB.id);
     await expectFocused(editor);
     await typeText("/embed");
     await press("Enter");
@@ -631,7 +653,7 @@ test("advanced rich content supports image upload, math validation recovery, tab
   const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", "base64");
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createNoteOnCanvas(workspace.id);
+    const noteId = await createLegacyNoteOnCanvas(workspace.id);
     const editor = "[data-note-element] .ProseMirror";
 
     await uploadFile('input[aria-label="Insert image"]', {
@@ -667,7 +689,7 @@ test("advanced rich content supports image upload, math validation recovery, tab
     await press("Escape");
     await expectCount(editor, 0);
 
-    await click('[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]');
+    await createLegacyNoteOnCanvas(workspace.id);
     await visible(editor);
     await typeText("/callout");
     await press("Enter");
@@ -699,7 +721,7 @@ test("critical: Note spawns a connected blank Note and supports manual graph arr
     await openWorkspace(workspace.id);
     const sourceNoteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await fill(editor, "Root note");
     await waitSaved();
     await press("Escape");
@@ -782,7 +804,7 @@ test("Note fold geometry, card colors, and Alt+DoubleClick placement persist acr
     await openWorkspace(workspace.id);
     await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await fill(editor, "Foldable headline\nSecond body line\nThird body line");
     await waitSaved();
     await press("Escape");
@@ -862,7 +884,7 @@ test("read-mode checklist and toggle stay interactive without editing and Delete
   const workspace = await createWorkspace(`Canvas Note Read Interactive ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createNoteOnCanvas(workspace.id);
+    const noteId = await createLegacyNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
     await expectFocused(editor);
@@ -918,7 +940,7 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
   const workspaceB = await createWorkspace(`Note Modal B ${token}`);
   try {
     await openWorkspace(workspaceA.id);
-    const sourceNoteId = await createNoteOnCanvas(workspaceA.id);
+    const sourceNoteId = await createLegacyNoteOnCanvas(workspaceA.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
     await expectFocused(editor);
@@ -1011,7 +1033,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
   const workspace = await createWorkspace(`Canvas Note Rich4 ${token}`);
   try {
     await openWorkspace(workspace.id);
-    await createNoteOnCanvas(workspace.id);
+    await createLegacyNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     const editor = `${card} .ProseMirror`;
     const targetTitle = `AlphaTarget ${token}`;
@@ -1020,7 +1042,7 @@ test("Note formatting supports highlight, text color, toggle, table Row-/Col-, c
     await press("Escape");
     await expectCount(editor, 0);
 
-    await click('[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]');
+    await createLegacyNoteOnCanvas(workspace.id);
     await visible(editor);
     await expectFocused(editor);
 

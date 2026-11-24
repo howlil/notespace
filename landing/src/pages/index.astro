@@ -8,653 +8,283 @@ import '../styles/showcase.css'
 const repoUrl = 'https://github.com/howlil/notespace'
 const releasesUrl = `${repoUrl}/releases`
 const docsUrl = `${repoUrl}#self-host-with-docker`
-const windowsMsiUrl = `${repoUrl}/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi`
-const description = 'A self-hosted canvas for diagrams, sketches, images and runnable code, saved to SQLite.'
+const windowsVersion = '1.0.3'
+// Known-good fallback. The client script swaps in the newest published MSI when GitHub answers.
+const windowsMsiUrl = `${repoUrl}/releases/download/v${windowsVersion}/Notespace_${windowsVersion}_x64_en-US.msi`
+const description = 'Diagrams, runnable code, and a searchable library in one workspace. Install the Windows app or run your own server with Docker.'
 
-// Inline Lucide-style strokes on a 24px grid, so the page adds no icon dependency.
-const paths = {
-  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-  chevDown: '<path d="m6 9 6 6 6-6"/>',
-  chevRight: '<path d="m9 6 6 6-6 6"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  play: '<path d="M7 4.5v15l12-7.5z"/>',
-  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
-  more: '<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>',
-  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-  pointer: '<path d="M5 3.5l6.2 16.2 2.6-6.6 6.6-2.6z"/>',
-  rect: '<rect x="4" y="6" width="16" height="12" rx="2"/>',
-  arrow: '<path d="M5 19 19 5"/><path d="M9 5h10v10"/>',
-  pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/>',
-  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
-  minus: '<path d="M5 12h14"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  fit: '<path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/>',
-  stroke: '<circle cx="12" cy="12" r="6"/>',
-  weight: '<path d="M4 12h16"/>',
-  minimize: '<path d="M5 12h14"/>',
-  maximize: '<rect x="5" y="5" width="14" height="14" rx="1"/>',
-  close: '<path d="M6 6l12 12M18 6 6 18"/>',
-  arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-  external: '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
-  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-  sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
-  database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
-  archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/>',
-  download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
-  upload: '<path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/>',
-  restore: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
-  trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
-}
-const svg = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${inner}</svg>`
-const I = Object.fromEntries(Object.entries(paths).map(([key, inner]) => [key, svg(inner)]))
-
-// Illustrative titles for the Library mock. Pages mirror the app's Previous / Next paging.
-const libraryPages = [
-  ['Checkout API', 'Event pipeline', 'Auth flow', 'Data model', 'Rollout plan', 'Incident log'],
-  ['Search index', 'Cache layers', 'Billing flow', 'Mobile API', 'Onboarding', 'Metrics plan'],
-  ['Queue retries', 'Pricing tiers', 'Payments', 'Email jobs', 'Admin tools', 'Audit log'],
-  ['Sprint board', 'Roadmap', 'Load tests', 'Feature flags', 'Logs', 'Postmortems'],
-]
-
-// Three line-art diagram thumbnails, cycled across the library cards.
-const thumbs = [
-  '<svg viewBox="0 0 160 120" fill="none" focusable="false"><rect x="18" y="44" width="44" height="32" rx="6" fill="#ffffff" stroke="#7d8394" stroke-width="1.2"/><rect x="98" y="44" width="44" height="32" rx="6" fill="#ffffff" stroke="#7d8394" stroke-width="1.2"/><path d="M62 60H98" stroke="#4a5062" stroke-width="1.4" stroke-linecap="round"/></svg>',
-  '<svg viewBox="0 0 160 120" fill="none" focusable="false"><path d="M80 20L106 46L80 72L54 46Z" fill="#ffffff" stroke="#2858d8" stroke-width="1.4"/><rect x="22" y="80" width="46" height="24" rx="6" fill="#ffffff" stroke="#7d8394" stroke-width="1.2"/><path d="M68 92H96" stroke="#4a5062" stroke-width="1.4" stroke-linecap="round"/></svg>',
-  '<svg viewBox="0 0 160 120" fill="none" focusable="false"><circle cx="54" cy="58" r="24" fill="#eaf0ff" stroke="#7d8394" stroke-width="1.2"/><path d="M92 84C112 52 124 96 146 60" stroke="#252630" stroke-width="1.6" stroke-linecap="round"/></svg>',
+// Every shipped feature, grouped the way the app groups them. Labels match the app's own text.
+const groups = [
+  ['Canvas', [
+    ['Tools', 'Select, hand, shapes, arrows, lines, pen, text, image, and eraser, plus code, note, and diagram tools.'],
+    ['Canvas options', 'Object snapping, a Selection toolbar (Floating, Compact, Docked, or Off), background pattern, and colors.'],
+    ['Navigation', 'Undo, Redo, zoom, and Fit canvas.'],
+    ['Multi-tab sync', 'Other open tabs of the same workspace in this browser stay in sync.'],
+  ]],
+  ['Code blocks', [
+    ['Run JavaScript', 'Runs in a worker. Show code output reveals the result under the block.'],
+    ['Preview HTML', 'Renders in a sandboxed frame.'],
+    ['Layout', 'Code language, Code theme, Line numbers, and Fit to content.'],
+    ['Block actions', 'Copy code, Duplicate code block, and Delete code block.'],
+  ]],
+  ['Diagrams', [
+    ['Component palette', 'General Components and more, with search across more than 2,200 components.'],
+    ['Drag to insert', 'Drag a component onto the canvas.'],
+    ['Connect', 'Select two nodes, then connect them.'],
+  ]],
+  ['Canvas notes', [
+    ['Note tool', 'Press N to add a note.'],
+    ['Place existing Note', 'Put one note in several workspaces.'],
+    ['Info & backlinks', 'Lists the workspaces a note is in, and its backlinks.'],
+    ['Rich text', 'Bold, LaTeX math, and Extract to Note.'],
+    ['Remove', 'Move to Trash, or Remove instance.'],
+  ]],
+  ['Library and search', [
+    ['Categories', 'The Explorer groups workspaces by category.'],
+    ['Workspace grid', 'Paged cards, with Previous and Next.'],
+    ['Quick Open', 'Ctrl/⌘ K, then type to find a workspace.'],
+    ['Trash', 'Restore a Workspace or Note, or use Delete permanently.'],
+  ]],
+  ['Saving and recovery', [
+    ['Save status', 'Saved appears only after SQLite confirms the write.'],
+    ['Conflict recovery', 'Retry merged save, Download draft, Use saved Canvas, or Keep editing.'],
+    ['Export ZIP', 'Includes Workspaces, Canvas content, images, Trash, and history.'],
+    ['Restore backup', 'Restoring a backup replaces your current library.'],
+    ['Device recovery', 'Device recovery snapshots are available in the Windows desktop app.'],
+  ]],
+  ['Settings', [
+    ['Theme', 'System, Light, or Dark.'],
+    ['Color theme', 'Paper, Stone, Sage, Amber, or Graphite.'],
+    ['Library storage', 'Shows "Saved in this browser" on the web and "Saved on this device" in the desktop app.'],
+  ]],
 ]
 ---
 
-<BaseLayout title="Notespace — Draw it. Run it. Own it." description={description}>
-  <div id="top" class="nsx">
-    <header class="nsx-nav">
-      <div class="nsx-wrap nsx-nav-row">
-        <a class="nsx-brand" href="#top" aria-label="Notespace home">
-          <img src="/brand/notespace-fox-head.svg" width="26" height="26" alt="" aria-hidden="true" decoding="async" />
+<BaseLayout title="Notespace — Write, draw, and run code on one canvas" description={description}>
+  <div id="top" class="nx">
+    <header class="nx-nav">
+      <div class="nx-wrap nx-nav-row">
+        <a class="nx-brand" href="#top" aria-label="Notespace home">
+          <img src="/brand/notespace-fox-head.svg" width="24" height="24" alt="" />
           <span>Notespace</span>
         </a>
-        <nav class="nsx-nav-links" aria-label="Primary navigation">
-          <a href="#canvas">Canvas</a>
-          <a href="#library">Library</a>
-          <a href="#saving">Saving</a>
-          <a href="#desktop">Desktop</a>
+        <nav class="nx-links" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#windows">Windows</a>
           <a href="#self-host">Self-host</a>
         </nav>
-        <div class="nsx-nav-actions">
-          <a class="nsx-link-quiet" href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
-          <a class="nsx-btn nsx-btn-primary nsx-btn-sm" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
-          <button class="nsx-menu-toggle" type="button" aria-label="Menu" aria-controls="nsx-mobile-nav" aria-expanded="false">
-            <span class="nsx-i" set:html={I.menu}></span>
-          </button>
+        <div class="nx-nav-end">
+          <a class="nx-btn nx-btn-primary nx-btn-sm nx-nav-cta" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
+          <button class="nx-menu" type="button" aria-controls="nx-mobile" aria-expanded="false">Menu</button>
         </div>
       </div>
-      <nav class="nsx-mobile-nav" id="nsx-mobile-nav" aria-label="Mobile navigation" data-open="false">
-        <a href="#canvas">Canvas</a>
-        <a href="#library">Library</a>
-        <a href="#saving">Saving</a>
-        <a href="#desktop">Desktop</a>
+      <nav class="nx-mobile" id="nx-mobile" aria-label="Mobile" hidden>
+        <a href="#features">Features</a>
+        <a href="#windows">Windows</a>
         <a href="#self-host">Self-host</a>
         <a href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
-        <a href={docsUrl} target="_blank" rel="noopener noreferrer">Self-host guide</a>
-        <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
       </nav>
     </header>
 
     <main id="main-content">
-      <!-- HERO: the headline, the download, and the real app shell -->
-      <section class="nsx-hero" aria-labelledby="hero-title">
-        <div class="nsx-wrap">
-          <h1 id="hero-title" class="nsx-h1"><span class="nsx-line">Draw it. Run it.</span> <span class="nsx-line">Own it.</span></h1>
-
-          <div class="nsx-hero-meta">
-            <p class="nsx-lead">A self-hosted canvas for diagrams, sketches, images and runnable code. Everything stays in one SQLite file you control.</p>
-            <div class="nsx-hero-cta">
-              <div class="nsx-cta-row">
-                <a class="nsx-btn nsx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>
-                  Download for Windows
-                  <span class="nsx-i" set:html={I.arrowRight}></span>
-                </a>
-                <a class="nsx-btn nsx-btn-ghost" href="#self-host">Self-host with Docker</a>
-              </div>
-              <p class="nsx-fineprint">Beta · Windows 64-bit · <span data-notespace-windows-version>v0.1.0-beta.1</span> · Unsigned installer</p>
-            </div>
+      <section class="nx-hero" aria-labelledby="hero-title">
+        <div class="nx-wrap">
+          <h1 id="hero-title">Write, draw, and run code on one canvas.</h1>
+          <p class="nx-lead">Diagrams, runnable code, and a searchable library in one workspace. Install the Windows app, or run your own server.</p>
+          <div class="nx-cta">
+            <a class="nx-btn nx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
+            <a class="nx-btn nx-btn-ghost" href="#self-host">Self-host with Docker</a>
           </div>
+          <p class="nx-fine">Windows 64-bit · <span data-notespace-windows-version>v{windowsVersion}</span> · Unsigned installer</p>
+          <figure class="nx-shot">
+            <img src="/product/canvas.webp" width="2160" height="1350" alt="Canvas with four boxes, Web app, API server, Worker and SQLite, joined by labeled arrows, and two code blocks below." fetchpriority="high" decoding="async" />
+          </figure>
+        </div>
+      </section>
 
-          <div class="nsx-app" role="img" aria-label="The Notespace app: Categories in the Explorer, a diagram of a Browser, Go server, Redis and PostgreSQL on the Canvas, a runnable JavaScript code block, and Quick Open searching for checkout.">
-            <div class="nsx-titlebar" aria-hidden="true">
-              <img class="nsx-tb-fox" src="/brand/notespace-fox-head.svg" width="16" height="16" alt="" decoding="async" />
-              <span class="nsx-tb-name">Checkout API</span>
-              <span class="nsx-tb-keys"><kbd class="nsx-kbd">Ctrl</kbd><kbd class="nsx-kbd">K</kbd></span>
-            </div>
-            <div class="nsx-app-body" aria-hidden="true">
-              <aside class="nsx-explorer">
-                <p class="nsx-group-label">Categories</p>
-                <ul class="nsx-tree">
-                  <li class="nsx-tree-row"><span class="nsx-i" set:html={I.chevDown}></span>Architecture</li>
-                  <li class="nsx-tree-row nsx-tree-child is-active">Checkout API</li>
-                  <li class="nsx-tree-row nsx-tree-child">Event pipeline</li>
-                  <li class="nsx-tree-row nsx-tree-child">Auth flow</li>
-                  <li class="nsx-tree-row"><span class="nsx-i" set:html={I.chevRight}></span>Research</li>
-                  <li class="nsx-tree-row"><span class="nsx-i" set:html={I.chevRight}></span>Scratch</li>
-                </ul>
-              </aside>
+      <section id="code" class="nx-section" aria-labelledby="code-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">01</p>
+            <h2 id="code-title" class="nx-h2">Run JavaScript. Preview HTML.</h2>
+            <p>JavaScript runs in a worker. HTML renders in a sandboxed frame.</p>
+          </header>
+          <figure class="nx-shot">
+            <img src="/product/code.webp" width="2160" height="1350" alt="JavaScript code block with output Browser → Server, beside an HTML block previewed as a Release checklist." loading="lazy" decoding="async" />
+          </figure>
+        </div>
+      </section>
 
-              <div class="nsx-canvas">
-                <div class="nsx-rail">
-                  <span class="nsx-ibtn is-on"><span class="nsx-i" set:html={I.pointer}></span></span>
-                  <span class="nsx-ibtn"><span class="nsx-i" set:html={I.rect}></span></span>
-                  <span class="nsx-ibtn"><span class="nsx-i" set:html={I.arrow}></span></span>
-                  <span class="nsx-ibtn"><span class="nsx-i" set:html={I.pen}></span></span>
-                  <span class="nsx-ibtn"><span class="nsx-i" set:html={I.image}></span></span>
-                </div>
+      <section id="diagrams" class="nx-section" aria-labelledby="diagrams-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">02</p>
+            <h2 id="diagrams-title" class="nx-h2">Drop components onto the canvas.</h2>
+            <p>Search more than 2,200 components, then connect two selected nodes.</p>
+          </header>
+          <figure class="nx-shot">
+            <img src="/product/diagram.webp" width="2160" height="1350" alt="Diagram palette on General Components, with User, Server and Database placed on the canvas." loading="lazy" decoding="async" />
+          </figure>
+        </div>
+      </section>
 
-                <div class="nsx-quick">
-                  <div class="nsx-quick-input">
-                    <span class="nsx-i" set:html={I.search}></span>
-                    <span class="nsx-quick-text" data-quick-input data-placeholder="Open workspace or category…"></span>
-                    <span class="nsx-caret"></span>
-                  </div>
-                  <div class="nsx-quick-group" data-results="">
-                    <p class="nsx-quick-head">Recent workspaces</p>
-                    <ul>
-                      <li class="nsx-quick-row is-selected"><span>Checkout API</span><em>Architecture</em></li>
-                      <li class="nsx-quick-row"><span>Event pipeline</span><em>Architecture</em></li>
-                    </ul>
-                  </div>
-                  <div class="nsx-quick-group" data-results="checkout" hidden>
-                    <p class="nsx-quick-head">Search results</p>
-                    <ul>
-                      <li class="nsx-quick-row is-selected"><span>Checkout API</span><em>Architecture</em></li>
-                      <li class="nsx-quick-row"><span>Checkout retries</span><em>Research</em></li>
-                    </ul>
-                  </div>
-                  <div class="nsx-quick-group" data-results="postgres" hidden>
-                    <p class="nsx-quick-head">Search results</p>
-                    <ul>
-                      <li class="nsx-quick-row is-selected"><span>Postgres migration notes</span><em>Research</em></li>
-                      <li class="nsx-quick-row"><span>Database replicas</span><em>Architecture</em></li>
-                    </ul>
-                  </div>
-                  <div class="nsx-quick-group" data-results="redis" hidden>
-                    <p class="nsx-quick-head">Search results</p>
-                    <ul>
-                      <li class="nsx-quick-row is-selected"><span>Redis cache rules</span><em>Architecture</em></li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="nsx-stage-diagram">
-                  <svg class="nsx-diagram" viewBox="0 96 600 300" preserveAspectRatio="xMidYMid meet" focusable="false">
-                    <defs>
-                      <marker id="nsx-arrow-hero" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                        <path d="M0 0L10 5L0 10z" fill="#4a5062" />
-                      </marker>
-                    </defs>
-                    <path class="nsx-edge" d="M164 164H226" marker-end="url(#nsx-arrow-hero)" />
-                    <path class="nsx-edge" d="M366 164H432" marker-end="url(#nsx-arrow-hero)" />
-                    <path class="nsx-edge nsx-edge-dash" d="M296 196V248" marker-end="url(#nsx-arrow-hero)" />
-                    <rect class="nsx-shape" x="24" y="132" width="140" height="64" rx="10" />
-                    <rect class="nsx-shape" x="226" y="132" width="140" height="64" rx="10" />
-                    <rect class="nsx-shape" x="226" y="248" width="140" height="56" rx="10" />
-                    <path class="nsx-shape" d="M432 140V196A68 14 0 0 0 568 196V140" />
-                    <ellipse class="nsx-shape" cx="500" cy="140" rx="68" ry="14" />
-                    <rect class="nsx-sel" x="218" y="124" width="156" height="80" />
-                    <rect class="nsx-handle" x="210" y="116" width="8" height="8" rx="1" />
-                    <rect class="nsx-handle" x="366" y="116" width="8" height="8" rx="1" />
-                    <rect class="nsx-handle" x="210" y="196" width="8" height="8" rx="1" />
-                    <rect class="nsx-handle" x="366" y="196" width="8" height="8" rx="1" />
-                    <path class="nsx-pen" pathLength="1" d="M32 360C100 326 166 388 236 356" />
-                    <text class="nsx-svg-label" x="94" y="170" text-anchor="middle">Browser</text>
-                    <text class="nsx-svg-label" x="296" y="170" text-anchor="middle">Go server</text>
-                    <text class="nsx-svg-label" x="296" y="282" text-anchor="middle">Redis</text>
-                    <text class="nsx-svg-label" x="500" y="178" text-anchor="middle">PostgreSQL</text>
-                    <text class="nsx-svg-sub" x="195" y="154" text-anchor="middle">HTTP</text>
-                    <text class="nsx-svg-sub" x="399" y="154" text-anchor="middle">SQL</text>
-                    <text class="nsx-svg-sub" x="306" y="226">cache</text>
-                  </svg>
-
-                  <svg class="nsx-diagram-m" viewBox="0 0 360 340" preserveAspectRatio="xMidYMid meet" focusable="false">
-                    <defs>
-                      <marker id="nsx-arrow-hero-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                        <path d="M0 0L10 5L0 10z" fill="#4a5062" />
-                      </marker>
-                    </defs>
-                    <path class="nsx-edge" d="M180 76V124" marker-end="url(#nsx-arrow-hero-m)" />
-                    <path class="nsx-edge" d="M104 180V228" marker-end="url(#nsx-arrow-hero-m)" />
-                    <path class="nsx-edge" d="M256 180V228" marker-end="url(#nsx-arrow-hero-m)" />
-                    <rect class="nsx-shape" x="24" y="20" width="312" height="56" rx="10" />
-                    <rect class="nsx-shape" x="24" y="124" width="312" height="56" rx="10" />
-                    <rect class="nsx-shape" x="24" y="228" width="144" height="52" rx="10" />
-                    <rect class="nsx-shape" x="192" y="228" width="144" height="52" rx="10" />
-                    <path class="nsx-pen" pathLength="1" d="M28 312C90 286 150 330 220 300" />
-                    <text class="nsx-svg-label" x="180" y="54" text-anchor="middle">Browser</text>
-                    <text class="nsx-svg-label" x="180" y="158" text-anchor="middle">Go server</text>
-                    <text class="nsx-svg-label" x="96" y="259" text-anchor="middle">Redis</text>
-                    <text class="nsx-svg-label" x="264" y="259" text-anchor="middle">PostgreSQL</text>
-                  </svg>
-                </div>
-
-                <div class="nsx-codeblock nsx-codewrap">
-                  <div class="nsx-codetools">
-                    <span class="nsx-lang">JavaScript</span>
-                    <span class="nsx-ibtn is-on"><span class="nsx-i" set:html={I.play}></span></span>
-                    <span class="nsx-ibtn is-on"><span class="nsx-i" set:html={I.eye}></span></span>
-                    <span class="nsx-ibtn"><span class="nsx-i" set:html={I.copy}></span></span>
-                    <span class="nsx-ibtn"><span class="nsx-i" set:html={I.more}></span></span>
-                  </div>
-                  <pre><code><span class="nsx-tk-kw">const</span> cart = [<span class="nsx-tk-num">1200</span>, <span class="nsx-tk-num">3000</span>];
-<span class="nsx-tk-kw">const</span> total = cart[<span class="nsx-tk-num">0</span>] + cart[<span class="nsx-tk-num">1</span>];
-console.log(<span class="nsx-tk-str">"Total:"</span>, total);</code></pre>
-                  <div class="nsx-out">Total: 4200</div>
-                </div>
-              </div>
-            </div>
+      <section id="notes" class="nx-section" aria-labelledby="notes-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">03</p>
+            <h2 id="notes-title" class="nx-h2">Canvas notes you can place anywhere.</h2>
+            <p>Place the same note in several workspaces. Info &amp; backlinks lists where it lives.</p>
+          </header>
+          <div class="nx-pair">
+            <figure class="nx-shot">
+              <img src="/product/note.webp" width="2160" height="1350" alt="Canvas note titled Launch checklist, its heading in bold above two lines of text." loading="lazy" decoding="async" />
+            </figure>
+            <figure class="nx-shot">
+              <img src="/product/note-placements.webp" width="2160" height="1350" alt="Note info for Launch checklist: placed in Roadmap Q4 and Launch plan, with no backlinks yet." loading="lazy" decoding="async" />
+            </figure>
           </div>
         </div>
       </section>
 
-      <!-- CANVAS: shapes, arrows and the component library, runnable code -->
-      <section id="canvas" class="nsx-section" aria-labelledby="canvas-title">
-        <div class="nsx-wrap">
-          <div class="nsx-head">
-            <h2 id="canvas-title" class="nsx-h2">Shapes, arrows and free drawing.</h2>
-          </div>
+      <section id="saving" class="nx-section" aria-labelledby="saving-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">04</p>
+            <h2 id="saving-title" class="nx-h2">Conflicts pause autosave and open a dialog.</h2>
+            <p>Four choices. Use saved Canvas asks before it removes your unsaved changes.</p>
+          </header>
+          <figure class="nx-shot">
+            <img src="/product/conflict.webp" width="2160" height="1350" alt="Recover Canvas changes dialog: Your Canvas changed elsewhere, with Retry merged save, Download draft, Use saved Canvas and Keep editing." loading="lazy" decoding="async" />
+          </figure>
+        </div>
+      </section>
 
-          <div class="nsx-board" aria-hidden="true">
-            <div class="nsx-rail">
-              <span class="nsx-ibtn is-on"><span class="nsx-i" set:html={I.pointer}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.rect}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.arrow}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.pen}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.image}></span></span>
-            </div>
-
-            <svg class="nsx-board-svg" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet" focusable="false">
-              <defs>
-                <marker id="nsx-arrow-board" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M0 0L10 5L0 10z" fill="#4a5062" />
-                </marker>
-              </defs>
-              <path class="nsx-edge" d="M240 202H350" marker-end="url(#nsx-arrow-board)" />
-              <path class="nsx-edge" d="M490 202H640" marker-end="url(#nsx-arrow-board)" />
-              <path class="nsx-edge nsx-edge-dash" d="M720 234V300" marker-end="url(#nsx-arrow-board)" />
-              <rect class="nsx-shape" x="90" y="170" width="150" height="64" rx="8" />
-              <rect class="nsx-shape" x="640" y="170" width="160" height="64" rx="8" />
-              <rect class="nsx-shape" x="640" y="300" width="160" height="104" rx="8" />
-              <path class="nsx-tint" d="M656 388L690 352L712 372L728 358L784 388Z" />
-              <circle class="nsx-shape" cx="760" cy="326" r="8" />
-              <path class="nsx-shape is-selected" d="M420 140L490 202L420 264L350 202Z" />
-              <path class="nsx-pen" d="M120 380C200 340 260 430 340 396" />
-              <path class="nsx-pen" d="M380 420C420 400 470 440 520 414" />
-              <rect class="nsx-sel" x="350" y="140" width="140" height="124" />
-              <rect class="nsx-handle" x="346" y="136" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="486" y="136" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="346" y="260" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="486" y="260" width="8" height="8" rx="1" />
-              <rect class="nsx-toolbar" x="368" y="92" width="104" height="30" rx="8" />
-              <g class="nsx-tool-stroke" transform="translate(374 95) scale(0.6)" set:html={paths.stroke}></g>
-              <g class="nsx-tool-stroke" transform="translate(398 95) scale(0.6)" set:html={paths.weight}></g>
-              <g class="nsx-tool-stroke" transform="translate(422 95) scale(0.6)" set:html={paths.copy}></g>
-              <g class="nsx-tool-stroke" transform="translate(446 95) scale(0.6)" set:html={paths.more}></g>
-              <text class="nsx-svg-label" x="165" y="207" text-anchor="middle">Request</text>
-              <text class="nsx-svg-label" x="420" y="207" text-anchor="middle">Valid?</text>
-              <text class="nsx-svg-label" x="720" y="207" text-anchor="middle">Session</text>
-              <text class="nsx-svg-sub" x="566" y="194" text-anchor="middle">yes</text>
-            </svg>
-
-            <svg class="nsx-board-svg-m" viewBox="0 0 360 560" preserveAspectRatio="xMidYMid meet" focusable="false">
-              <defs>
-                <marker id="nsx-arrow-board-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M0 0L10 5L0 10z" fill="#4a5062" />
-                </marker>
-              </defs>
-              <path class="nsx-edge" d="M180 96V150" marker-end="url(#nsx-arrow-board-m)" />
-              <path class="nsx-edge" d="M180 278V330" marker-end="url(#nsx-arrow-board-m)" />
-              <path class="nsx-edge nsx-edge-dash" d="M180 386V430" marker-end="url(#nsx-arrow-board-m)" />
-              <rect class="nsx-shape" x="40" y="40" width="280" height="56" rx="8" />
-              <rect class="nsx-shape" x="40" y="330" width="280" height="56" rx="8" />
-              <rect class="nsx-shape" x="40" y="430" width="280" height="100" rx="8" />
-              <path class="nsx-shape is-selected" d="M180 150L244 214L180 278L116 214Z" />
-              <path class="nsx-tint" d="M60 510L110 466L142 492L162 474L214 510Z" />
-              <circle class="nsx-shape" cx="270" cy="462" r="10" />
-              <rect class="nsx-sel" x="116" y="150" width="128" height="128" />
-              <rect class="nsx-handle" x="112" y="146" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="240" y="146" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="112" y="274" width="8" height="8" rx="1" />
-              <rect class="nsx-handle" x="240" y="274" width="8" height="8" rx="1" />
-              <path class="nsx-pen" d="M60 548C120 530 170 556 230 540" />
-              <text class="nsx-svg-label" x="180" y="74" text-anchor="middle">Request</text>
-              <text class="nsx-svg-label" x="180" y="219" text-anchor="middle">Valid?</text>
-              <text class="nsx-svg-sub" x="192" y="312">yes</text>
-              <text class="nsx-svg-label" x="180" y="364" text-anchor="middle">Session</text>
-            </svg>
-
-            <div class="nsx-zoom">
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.undo}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.redo}></span></span>
-              <span class="nsx-zoom-sep"></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.minus}></span></span>
-              <span class="nsx-zoom-val">100%</span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.plus}></span></span>
-              <span class="nsx-ibtn"><span class="nsx-i" set:html={I.fit}></span></span>
-            </div>
-          </div>
-
-          <div class="nsx-tiles">
-            <article class="nsx-tile nsx-tile--library">
-              <div class="nsx-tile-head">
-                <h3 class="nsx-h3">Diagram components</h3>
-                <p class="nsx-sub">A searchable library of tech and cloud components.</p>
-              </div>
-              <div class="nsx-search" aria-hidden="true"><span class="nsx-i" set:html={I.search}></span><span>Search diagram components</span></div>
-              <ul class="nsx-libgrid" aria-hidden="true">
-                <li class="is-active">Redis</li>
-                <li>PostgreSQL</li>
-                <li>Queue</li>
-                <li>Lambda</li>
-                <li>S3</li>
-                <li>Kubernetes</li>
-                <li>Docker</li>
-                <li>Browser</li>
-                <li>Server</li>
-              </ul>
-            </article>
-
-            <article class="nsx-tile nsx-tile--code">
-              <div class="nsx-tile-head">
-                <h3 class="nsx-h3">Run JavaScript. Preview HTML.</h3>
-                <p class="nsx-sub">JavaScript runs in a worker. HTML previews render in a sandboxed frame.</p>
-              </div>
-              <div class="nsx-codeflow">
-                <div class="nsx-codeblock">
-                  <div class="nsx-codetools" role="toolbar" aria-label="Code block">
-                    <span class="nsx-lang">JavaScript</span>
-                    <button type="button" class="nsx-ibtn" data-run aria-label="Run JavaScript" title="Run JavaScript"><span class="nsx-i" set:html={I.play}></span></button>
-                    <button type="button" class="nsx-ibtn is-on" data-toggle="nsx-code-out" aria-label="Hide code output" aria-pressed="true" title="Hide code output"><span class="nsx-i" set:html={I.eye}></span></button>
-                    <button type="button" class="nsx-ibtn nsx-copy" data-copy="nsx-code-src" aria-label="Copy code" title="Copy code"><span class="nsx-i nsx-copy-idle" set:html={I.copy}></span><span class="nsx-i nsx-copy-done" set:html={I.check}></span></button>
-                    <button type="button" class="nsx-ibtn" aria-label="More code actions" title="More code actions"><span class="nsx-i" set:html={I.more}></span></button>
-                  </div>
-                  <pre id="nsx-code-src"><code><span class="nsx-tk-kw">const</span> cart = [<span class="nsx-tk-num">1200</span>, <span class="nsx-tk-num">3000</span>];
-<span class="nsx-tk-kw">const</span> total = cart[<span class="nsx-tk-num">0</span>] + cart[<span class="nsx-tk-num">1</span>];
-console.log(<span class="nsx-tk-str">"Total:"</span>, total);</code></pre>
-                  <div id="nsx-code-out" class="nsx-out">Total: 4200</div>
-                </div>
-
-                <div class="nsx-langpop" role="group" aria-label="Code language">
-                  <div class="nsx-langsearch"><span class="nsx-i" set:html={I.search}></span><span>Search languages</span></div>
-                  <ul class="nsx-langlist">
-                    <li class="nsx-langrow">Auto / Detect language</li>
-                    <li class="nsx-langgroup">Executable</li>
-                    <li class="nsx-langrow is-active">JavaScript<span class="nsx-i" set:html={I.check}></span></li>
-                    <li class="nsx-langgroup">HTML preview</li>
-                    <li class="nsx-langrow">HTML / XML</li>
-                    <li class="nsx-langgroup">Source / highlighting</li>
-                    <li class="nsx-langrow">TypeScript</li>
-                    <li class="nsx-langrow">Python</li>
-                  </ul>
-                </div>
-              </div>
-            </article>
+      <section id="library" class="nx-section" aria-labelledby="library-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">05</p>
+            <h2 id="library-title" class="nx-h2">Every workspace, one shortcut away.</h2>
+            <p>Categories sit in the Explorer. Ctrl/⌘ K opens Quick Open.</p>
+          </header>
+          <div class="nx-pair">
+            <figure class="nx-shot">
+              <img src="/product/library.webp" width="2160" height="1350" alt="Your workspaces as a card grid beside the Categories explorer." loading="lazy" decoding="async" />
+            </figure>
+            <figure class="nx-shot">
+              <img src="/product/quick-open.webp" width="2160" height="1350" alt="Quick Open with API typed in, returning API architecture under Engineering." loading="lazy" decoding="async" />
+            </figure>
           </div>
         </div>
       </section>
 
-      <!-- LIBRARY: categories first, workspaces in paged views -->
-      <section id="library" class="nsx-section" aria-labelledby="library-title">
-        <div class="nsx-wrap">
-          <div class="nsx-head">
-            <h2 id="library-title" class="nsx-h2">Categories first. Workspaces underneath.</h2>
-            <p class="nsx-body">Quick Open (Ctrl/⌘ K) finds workspaces and categories.</p>
-          </div>
+      <section id="backup" class="nx-section" aria-labelledby="backup-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">06</p>
+            <h2 id="backup-title" class="nx-h2">Back up the library. Restore it. Recover deleted work.</h2>
+            <p>Export ZIP includes Workspaces, Canvas content, images, Trash, and history. Restore asks before replacing your library.</p>
+          </header>
+          <figure class="nx-shot">
+            <img src="/product/data-trash.webp" width="2160" height="1350" alt="Settings, Data and backup: Export ZIP, Restore backup, and a Trash list holding a deleted workspace." loading="lazy" decoding="async" />
+          </figure>
+        </div>
+      </section>
 
-          <div class="nsx-mock nsx-library">
-            <div class="nsx-mock-head">
-              <div class="nsx-chips" aria-hidden="true">
-                <span class="nsx-chip is-active"><span class="nsx-i" set:html={I.folder}></span>Architecture</span>
-                <span class="nsx-chip">Research</span>
-                <span class="nsx-chip">Scratch</span>
+      <section id="themes" class="nx-section" aria-labelledby="themes-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">07</p>
+            <h2 id="themes-title" class="nx-h2">Light, dark, or system. Five color themes.</h2>
+            <p>Paper, Stone, Sage, Amber, and Graphite.</p>
+          </header>
+          <figure class="nx-shot">
+            <img src="/product/appearance-dark.webp" width="2160" height="1350" alt="Settings, General in dark mode, with the Paper color theme selected." loading="lazy" decoding="async" />
+          </figure>
+        </div>
+      </section>
+
+      <section id="features" class="nx-section" aria-labelledby="features-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <h2 id="features-title" class="nx-h2">Every feature, in one list.</h2>
+          </header>
+          <div class="nx-index">
+            {groups.map(([title, items]) => (
+              <div class="nx-group">
+                <h3>{title}</h3>
+                <dl>
+                  {items.map(([term, detail]) => (
+                    <div>
+                      <dt>{term}</dt>
+                      <dd>{detail}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
-              <nav class="nsx-pager" aria-label="Workspace pages">
-                <button type="button" class="nsx-pager-btn" data-page-prev>Previous</button>
-                <span data-page-range>1–6 of 24</span>
-                <button type="button" class="nsx-pager-btn" data-page-next>Next</button>
-              </nav>
-            </div>
-
-            {libraryPages.map((titles, page) => (
-              <ul class="nsx-papers" data-page={page} hidden={page !== 0}>
-                {titles.map((title, index) => (
-                  <li class="nsx-paper">
-                    <span class="nsx-thumb" aria-hidden="true" set:html={thumbs[(index + page) % thumbs.length]}></span>
-                    <b class="nsx-paper-title">{title}</b>
-                  </li>
-                ))}
-              </ul>
             ))}
           </div>
         </div>
       </section>
 
-      <!-- SAVING: the save states, two-tab sync and the real conflict dialog -->
-      <section id="saving" class="nsx-section" aria-labelledby="saving-title">
-        <div class="nsx-wrap nsx-split">
-          <div class="nsx-split-copy">
-            <h2 id="saving-title" class="nsx-h2">Saved means SQLite confirmed it.</h2>
-            <p class="nsx-body">Autosave shows Saving… until SQLite acknowledges the write. If the Canvas changed elsewhere, autosave pauses so your local draft stays open for recovery.</p>
-            <ol class="nsx-states" aria-label="Save states">
-              <li class="nsx-state">Unsaved</li>
-              <li class="nsx-sep" aria-hidden="true"><span class="nsx-i" set:html={I.chevRight}></span></li>
-              <li class="nsx-state">Saving…</li>
-              <li class="nsx-sep" aria-hidden="true"><span class="nsx-i" set:html={I.chevRight}></span></li>
-              <li class="nsx-state is-on">Saved</li>
-            </ol>
-            <p class="nsx-body">The same workspace open in two tabs of one browser stays in sync.</p>
-            <div class="nsx-tabs" aria-hidden="true">
-              <div class="nsx-tabwin">
-                <div class="nsx-tabwin-bar"><img src="/brand/notespace-fox-head.svg" width="14" height="14" alt="" decoding="async" />Checkout API</div>
-                <div class="nsx-tabwin-body"><span class="nsx-tabwin-line"></span><span class="nsx-tabwin-line"></span></div>
-              </div>
-              <div class="nsx-tabwin is-live">
-                <div class="nsx-tabwin-bar"><img src="/brand/notespace-fox-head.svg" width="14" height="14" alt="" decoding="async" />Checkout API</div>
-                <div class="nsx-tabwin-body"><span class="nsx-tabwin-line"></span><span class="nsx-tabwin-line"></span></div>
-              </div>
+      <section id="windows" class="nx-section" aria-labelledby="windows-title">
+        <div class="nx-wrap nx-split">
+          <div class="nx-split-copy">
+            <p class="nx-num" aria-hidden="true">08</p>
+            <h2 id="windows-title" class="nx-h2">Notespace for Windows.</h2>
+            <p>A 64-bit MSI from GitHub Releases. It is unsigned, so Windows may show an “Unknown Publisher” warning.</p>
+            <div class="nx-cta">
+              <a class="nx-btn nx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
+              <a class="nx-link" href={releasesUrl} target="_blank" rel="noopener noreferrer">All releases</a>
             </div>
           </div>
-
-          <div class="nsx-stage" role="group" aria-label="Canvas conflict recovery">
-            <div class="nsx-dialog">
-              <h3 class="nsx-dialog-title">Recover Canvas changes</h3>
-              <p class="nsx-dialog-desc">Your Canvas changed elsewhere. Download your current draft, or retry merging it with the latest saved Canvas.</p>
-              <p class="nsx-danger-note" role="alert" data-conflict-warning hidden>Using the saved Canvas removes your unsaved local changes. Download your draft first if you want to keep a copy.</p>
-              <div class="nsx-dialog-actions">
-                <span class="nsx-mbtn is-primary">Retry merged save</span>
-                <span class="nsx-mbtn is-secondary">Download draft</span>
-                <button type="button" class="nsx-mbtn is-secondary" data-conflict-use>Use saved Canvas</button>
-                <button type="button" class="nsx-mbtn is-ghost" data-conflict-keep>Keep editing</button>
-              </div>
-            </div>
-          </div>
+          <dl class="nx-facts">
+            <div><dt>Version</dt><dd data-notespace-windows-version>v{windowsVersion}</dd></div>
+            <div><dt>Installer</dt><dd>MSI, unsigned</dd></div>
+            <div><dt>Library</dt><dd>Saved on this device</dd></div>
+          </dl>
         </div>
       </section>
 
-      <!-- VAULT: the real Settings dialog, Data & backup tab -->
-      <section id="vault" class="nsx-section" aria-labelledby="vault-title">
-        <div class="nsx-wrap nsx-split nsx-split--flip">
-          <div class="nsx-split-copy">
-            <h2 id="vault-title" class="nsx-h2">Your whole library, in one ZIP.</h2>
-            <p class="nsx-body">Backup downloads one versioned notespace-backup.zip with your library data and images. Restore is all-or-nothing.</p>
-          </div>
-
-          <div class="nsx-split-mock">
-            <div class="nsx-settings" aria-hidden="true">
-              <div class="nsx-settings-head">
-                <div><b>Settings</b><span>Preferences and data</span></div>
-                <span class="nsx-ibtn"><span class="nsx-i" set:html={I.close}></span></span>
-              </div>
-              <div class="nsx-settings-body">
-                <div class="nsx-settings-rail">
-                  <span class="nsx-srow"><span class="nsx-i" set:html={I.sliders}></span>General</span>
-                  <span class="nsx-srow is-active"><span class="nsx-i" set:html={I.database}></span>Data &amp; backup</span>
-                </div>
-                <div class="nsx-settings-main">
-                  <h3>Data &amp; backup</h3>
-                  <div class="nsx-block">
-                    <div class="nsx-block-head">
-                      <span class="nsx-block-icon" set:html={I.archive}></span>
-                      <b>Portable library backup</b>
-                    </div>
-                    <p>Includes Workspaces, Canvas content, images, Trash, and history.</p>
-                    <div class="nsx-block-actions">
-                      <span class="nsx-mbtn is-primary"><span class="nsx-i" set:html={I.download}></span>Export ZIP</span>
-                      <span class="nsx-mbtn is-secondary"><span class="nsx-i" set:html={I.upload}></span>Restore backup</span>
-                    </div>
-                    <p class="nsx-note-line"><span class="nsx-i" set:html={I.info}></span>Restoring a backup replaces your current library.</p>
-                  </div>
-                  <div class="nsx-block">
-                    <div class="nsx-block-head">
-                      <span class="nsx-block-icon" set:html={I.trash}></span>
-                      <b>Trash</b>
-                    </div>
-                    <ul class="nsx-trash">
-                      <li>
-                        <div class="nsx-trash-name"><b>Rollout plan</b><span>Research</span></div>
-                        <span class="nsx-mbtn is-secondary"><span class="nsx-i" set:html={I.restore}></span>Restore</span>
-                      </li>
-                      <li>
-                        <div class="nsx-trash-name"><b>Load tests</b><span>Architecture</span></div>
-                        <span class="nsx-mbtn is-secondary"><span class="nsx-i" set:html={I.restore}></span>Restore</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- DESKTOP: the Windows window with the real theme switch -->
-      <section id="desktop" class="nsx-section" aria-labelledby="desktop-title">
-        <div class="nsx-wrap">
-          <div class="nsx-head nsx-head--row">
-            <div class="nsx-head-copy">
-              <h2 id="desktop-title" class="nsx-h2">Notespace for Windows.</h2>
-              <p class="nsx-body">A beta installer, unsigned. Windows may show “Unknown Publisher”.</p>
-            </div>
-            <div class="nsx-cta-row">
-              <a class="nsx-btn nsx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>
-                Download for Windows
-                <span class="nsx-i" set:html={I.arrowRight}></span>
-              </a>
-              <a class="nsx-link-quiet" href={releasesUrl} target="_blank" rel="noopener noreferrer">All releases <span class="nsx-i" set:html={I.external}></span></a>
-            </div>
-          </div>
-
-          <div class="nsx-win" data-theme-window data-mode="light">
-            <div class="nsx-win-bar" aria-hidden="true">
-              <img src="/brand/notespace-fox-head.svg" width="14" height="14" alt="" decoding="async" />
-              <span>Notespace</span>
-              <span class="nsx-win-ctl">
-                <span><span class="nsx-i" set:html={I.minimize}></span></span>
-                <span><span class="nsx-i" set:html={I.maximize}></span></span>
-                <span><span class="nsx-i" set:html={I.close}></span></span>
-              </span>
-            </div>
-            <div class="nsx-win-body">
-              <div class="nsx-win-rail">
-                <div class="nsx-win-head">
-                  <b>Settings</b>
-                  <span>Preferences and data</span>
-                </div>
-                <span class="nsx-srow is-active"><span class="nsx-i" set:html={I.sliders}></span>General</span>
-                <span class="nsx-srow"><span class="nsx-i" set:html={I.database}></span>Data &amp; backup</span>
-              </div>
-              <div class="nsx-win-main">
-                <h3>Appearance</h3>
-                <p class="nsx-mock-sub">Change the look of Notespace.</p>
-                <div class="nsx-prefrow">
-                  <div>
-                    <p id="nsx-theme-label" class="nsx-prefname">Theme</p>
-                    <p class="nsx-mock-sub" data-theme-value>Light</p>
-                  </div>
-                  <button type="button" class="nsx-switch" role="switch" aria-checked="false" aria-labelledby="nsx-theme-label" data-theme-switch></button>
-                </div>
-                <div class="nsx-prefrow">
-                  <div>
-                    <p class="nsx-prefname">Color theme</p>
-                    <p class="nsx-mock-sub">Paper</p>
-                  </div>
-                </div>
-                <div class="nsx-prefrow">
-                  <div>
-                    <p class="nsx-prefname">Library storage</p>
-                    <p class="nsx-mock-sub">Saved on this device</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- SELF-HOST: the real README command, copyable -->
-      <section id="self-host" class="nsx-section" aria-labelledby="host-title">
-        <div class="nsx-wrap">
-          <div class="nsx-split">
-            <div class="nsx-split-copy">
-              <h2 id="host-title" class="nsx-h2">Self-host with Docker Compose.</h2>
-              <p class="nsx-body">Clone the repository and start it with one Compose command.</p>
-              <a class="nsx-link-accent" href={docsUrl} target="_blank" rel="noopener noreferrer">Read the self-host guide <span class="nsx-i" set:html={I.external}></span></a>
-            </div>
-            <div class="nsx-term">
-              <div class="nsx-term-bar">
-                <span>Terminal</span>
-                <button type="button" class="nsx-ibtn nsx-copy" data-copy="nsx-term-src" aria-label="Copy command" title="Copy command"><span class="nsx-i nsx-copy-idle" set:html={I.copy}></span><span class="nsx-i nsx-copy-done" set:html={I.check}></span></button>
-              </div>
-              <pre id="nsx-term-src"><code>git clone https://github.com/howlil/notespace.git
+      <section id="self-host" class="nx-section" aria-labelledby="self-host-title">
+        <div class="nx-wrap">
+          <header class="nx-head">
+            <p class="nx-num" aria-hidden="true">09</p>
+            <h2 id="self-host-title" class="nx-h2">Run your own server with Docker.</h2>
+            <p>Clone the repository and start it with Docker Compose. Set NOTESPACE_PASSWORD before you expose it.</p>
+          </header>
+          <pre class="nx-term"><code>git clone https://github.com/howlil/notespace.git
 cd notespace
 docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
 
-<span class="nsx-term-comment"># then open http://localhost:8080</span></code></pre>
-            </div>
-          </div>
-
-          <ul class="nsx-specs">
-            <li><b>One Go application</b><p>Written in Go and started by one Compose command.</p></li>
-            <li><b>One SQLite database</b><p>Workspaces, Canvas, Trash and search live in one SQLite database.</p></li>
-            <li><b>A password gate</b><p>Set <code>NOTESPACE_PASSWORD</code>, then terminate HTTPS at your reverse proxy.</p></li>
+# then open http://localhost:8080</code></pre>
+          <ul class="nx-specs">
+            <li><b>Data in one volume</b><span>Kept in the notespace-data volume.</span></li>
+            <li><b>Optional password</b><span>NOTESPACE_PASSWORD turns on HTTP Basic, user notespace.</span></li>
+            <li><b>Health check</b><span>/api/health stays open for platform checks.</span></li>
           </ul>
+          <a class="nx-link nx-more" href={docsUrl} target="_blank" rel="noopener noreferrer">Read the self-host guide</a>
         </div>
       </section>
 
-      <!-- CLOSING -->
-      <section class="nsx-close" aria-labelledby="close-title">
-        <div class="nsx-wrap nsx-close-inner">
-          <h2 id="close-title" class="nsx-h2 nsx-h2-xl">Your canvas, on your machine.</h2>
-          <p class="nsx-lead">Install the Windows beta, or run Notespace on your own server with Docker.</p>
-          <div class="nsx-cta-row">
-            <a class="nsx-btn nsx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>
-              Download for Windows
-              <span class="nsx-i" set:html={I.arrowRight}></span>
-            </a>
-            <a class="nsx-btn nsx-btn-ghost" href={docsUrl} target="_blank" rel="noopener noreferrer">Self-host guide</a>
+      <section class="nx-close" aria-labelledby="close-title">
+        <div class="nx-wrap">
+          <h2 id="close-title">Start with one canvas.</h2>
+          <div class="nx-cta">
+            <a class="nx-btn nx-btn-primary" href={windowsMsiUrl} data-notespace-windows-download>Download for Windows</a>
+            <a class="nx-btn nx-btn-ghost" href={docsUrl} target="_blank" rel="noopener noreferrer">Self-host guide</a>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="nsx-footer">
-      <div class="nsx-wrap nsx-footer-row">
-        <span class="nsx-brand nsx-brand-sm"><img src="/brand/notespace-fox-head.svg" width="20" height="20" alt="" aria-hidden="true" decoding="async" /><span>Notespace</span></span>
-        <nav class="nsx-footer-links" aria-label="Footer">
+    <footer class="nx-foot">
+      <div class="nx-wrap nx-foot-row">
+        <span class="nx-brand"><img src="/brand/notespace-fox-head.svg" width="24" height="24" alt="" /><span>Notespace</span></span>
+        <nav class="nx-foot-links" aria-label="Footer">
           <a href={repoUrl} target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href={releasesUrl} target="_blank" rel="noopener noreferrer">Releases</a>
           <a href={docsUrl} target="_blank" rel="noopener noreferrer">Self-host guide</a>
         </nav>
-        <span class="nsx-footer-note">Built with Go and SQLite.</span>
       </div>
     </footer>
 
@@ -662,7 +292,6 @@ docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
       import { latestWindowsInstaller } from '../lib/windows-release.mjs';
 
       // Progressive enhancement: every download link already points at the verified MSI.
-      // If GitHub is unavailable, the static link still works.
       async function refreshWindowsDownload() {
         try {
           const response = await fetch(
@@ -683,133 +312,18 @@ docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
         }
       }
       void refreshWindowsDownload();
-
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      // Quick Open types a query, swaps the result group, then loops. Static when motion is reduced.
-      const quickInput = document.querySelector('[data-quick-input]');
-      const quickGroups = [...document.querySelectorAll('[data-results]')];
-      const showResults = (key) => quickGroups.forEach((group) => { group.hidden = group.dataset.results !== key; });
-      if (quickInput) {
-        if (reduceMotion) {
-          quickInput.textContent = 'checkout';
-          showResults('checkout');
-        } else {
-          const words = ['checkout', 'postgres', 'redis'];
-          let word = 0;
-          let count = 0;
-          let deleting = false;
-          const tick = () => {
-            const current = words[word];
-            if (!deleting) {
-              count += 1;
-              quickInput.textContent = current.slice(0, count);
-              if (count === current.length) {
-                deleting = true;
-                showResults(current);
-                return setTimeout(tick, 1600);
-              }
-              return setTimeout(tick, 90);
-            }
-            count -= 1;
-            quickInput.textContent = current.slice(0, count);
-            if (count === 0) {
-              deleting = false;
-              word = (word + 1) % words.length;
-              showResults('');
-              return setTimeout(tick, 420);
-            }
-            return setTimeout(tick, 40);
-          };
-          setTimeout(tick, 1400);
-        }
-      }
-
-      // Settings theme switch: flips only the Windows window, as the app does.
-      const themeWindow = document.querySelector('[data-theme-window]');
-      const themeSwitch = document.querySelector('[data-theme-switch]');
-      const themeValue = document.querySelector('[data-theme-value]');
-      themeSwitch?.addEventListener('click', () => {
-        const dark = themeWindow?.dataset.mode !== 'dark';
-        if (themeWindow) themeWindow.dataset.mode = dark ? 'dark' : 'light';
-        themeSwitch.setAttribute('aria-checked', String(dark));
-        if (themeValue) themeValue.textContent = dark ? 'Dark' : 'Light';
-      });
-
-      // Library paging: one page of six at a time, with Previous and Next disabled at the ends.
-      const libraryPages = [...document.querySelectorAll('[data-page]')];
-      const pagePrev = document.querySelector('[data-page-prev]');
-      const pageNext = document.querySelector('[data-page-next]');
-      const pageRange = document.querySelector('[data-page-range]');
-      let pageIndex = 0;
-      const renderPage = () => {
-        libraryPages.forEach((page, index) => { page.hidden = index !== pageIndex; });
-        const first = pageIndex * 6 + 1;
-        if (pageRange) pageRange.textContent = `${first}–${first + 5} of ${libraryPages.length * 6}`;
-        if (pagePrev) pagePrev.disabled = pageIndex === 0;
-        if (pageNext) pageNext.disabled = pageIndex === libraryPages.length - 1;
-      };
-      pagePrev?.addEventListener('click', () => { pageIndex = Math.max(0, pageIndex - 1); renderPage(); });
-      pageNext?.addEventListener('click', () => { pageIndex = Math.min(libraryPages.length - 1, pageIndex + 1); renderPage(); });
-      renderPage();
-
-      // Canvas conflict: the first Use saved Canvas arms the discard confirmation, as the app does.
-      const conflictUse = document.querySelector('[data-conflict-use]');
-      const conflictKeep = document.querySelector('[data-conflict-keep]');
-      const conflictWarning = document.querySelector('[data-conflict-warning]');
-      const setConflict = (armed) => {
-        if (!conflictUse || !conflictWarning) return;
-        conflictWarning.hidden = !armed;
-        conflictUse.textContent = armed ? 'Discard local and use saved' : 'Use saved Canvas';
-        conflictUse.classList.toggle('is-danger', armed);
-        conflictUse.classList.toggle('is-secondary', !armed);
-      };
-      conflictUse?.addEventListener('click', () => setConflict(conflictWarning.hidden));
-      conflictKeep?.addEventListener('click', () => setConflict(false));
-
-      // Code block: the output toggle shows and hides the output; Run shows it too.
-      const outputToggle = document.querySelector('[data-toggle="nsx-code-out"]');
-      const outputPanel = document.getElementById('nsx-code-out');
-      const setOutput = (shown) => {
-        if (!outputPanel || !outputToggle) return;
-        outputPanel.hidden = !shown;
-        const label = shown ? 'Hide code output' : 'Show code output';
-        outputToggle.setAttribute('aria-pressed', String(shown));
-        outputToggle.setAttribute('aria-label', label);
-        outputToggle.title = label;
-      };
-      outputToggle?.addEventListener('click', () => setOutput(outputPanel?.hidden === true));
-      document.querySelector('[data-run]')?.addEventListener('click', () => setOutput(true));
-
-      // Copy buttons swap to a check mark for a moment; the source is copied as shown.
-      document.querySelectorAll('[data-copy]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const source = document.getElementById(button.dataset.copy ?? '');
-          if (!source) return;
-          try {
-            await navigator.clipboard.writeText(source.textContent ?? '');
-            button.dataset.copied = 'true';
-            setTimeout(() => { delete button.dataset.copied; }, 1400);
-          } catch {
-            // Clipboard blocked: the icon does not change.
-          }
-        });
-      });
     </script>
     <script is:inline>
-      const menuToggle = document.querySelector('.nsx-menu-toggle');
-      const mobileNav = document.getElementById('nsx-mobile-nav');
-      function setNav(open) {
-        if (!menuToggle || !mobileNav) return;
-        mobileNav.dataset.open = String(open);
-        menuToggle.setAttribute('aria-expanded', String(open));
-      }
-      menuToggle?.addEventListener('click', () => setNav(mobileNav?.dataset.open !== 'true'));
-      mobileNav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setNav(false)));
-      document.addEventListener('keydown', event => { if (event.key === 'Escape') setNav(false); });
-      document.addEventListener('click', event => {
-        if (!menuToggle?.contains(event.target) && !mobileNav?.contains(event.target)) setNav(false);
-      });
+      (() => {
+        const menu = document.querySelector('.nx-menu');
+        const panel = document.getElementById('nx-mobile');
+        const setOpen = (open) => {
+          panel.hidden = !open;
+          menu.setAttribute('aria-expanded', String(open));
+        };
+        menu.addEventListener('click', () => setOpen(panel.hidden));
+        panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setOpen(false)));
+      })();
     </script>
   </div>
 </BaseLayout>

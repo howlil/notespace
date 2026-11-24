@@ -172,7 +172,7 @@ They should use representative invalid domain input, not repeat every domain val
 
 There is one browser runner: `scripts/verify/browser-e2e.mjs`. It is WebdriverIO standalone plus Node's built-in test runner against headless installed Chrome and a real isolated Go/SQLite server. No Mocha/Cucumber runner, no Playwright, no downloaded browser bundle.
 
-Suites are grouped by capability and discovered recursively. `tests/browser-discovery.test.ts` protects discovery and configured script entrypoints; `tests/architecture-boundaries.test.ts` protects web feature entries and the lazy Canvas boundary. Go architecture checks cover private handler/query packages and transaction ownership. Aggregate SQLite rollback/restore proofs stay with Store.
+Suites are grouped by capability and discovered recursively. `tests/browser-discovery.test.ts` protects discovery and configured script entrypoints. ESLint checks web module placement, dependency direction, and feature entries. `tests/architecture-boundaries.test.ts` checks the lazy Canvas boundary. Go architecture checks cover private handler/query packages and transaction ownership. Aggregate SQLite rollback/restore proofs stay with Store.
 
 ```sh
 bun run test:e2e            # build the web app, then every browser journey
@@ -281,7 +281,8 @@ options, not a mandatory sequence of every test layer:
 | Change boundary | First faithful proof | Escalate when |
 | --- | --- | --- |
 | Documentation/instructions only | Inspect changed text, links, referenced paths/commands and applicable existing contracts | A documented executable boundary also changes; no local product build/full suite just for prose |
-| Web pure rule/orchestration | Existing colocated Node test; relevant type/lint/architecture check | DOM/focus/rendered geometry or real transport/persistence cannot be proved there: use the affected existing browser journey |
+| Web placement or import boundary | `bun run lint` or `bunx --no-install eslint <changed-file>` | Run the full lint pass when shared rules or module ownership change |
+| Web pure rule/orchestration | Existing colocated Node test | Use the affected existing browser journey for DOM, focus, rendering, or browser lifecycle behavior |
 | Go capability/validation | Existing package test | SQL/transaction/restore changes need real SQLite; concurrency needs race proof; process durability needs restart/readback |
 | Rust readiness/runtime rule | Filter the existing Rust tests for that module | Host/process/close/flush/security behavior requires matching runtime/PE/lifecycle and actual Windows native acceptance; a unit test is not that proof |
 | CI/release policy | Existing classifier/request/CLI and parsed workflow policy tests | Trigger/SHA/skip/permission/concurrency changes require real GitHub behavior; publication still needs separate authorization |
@@ -298,8 +299,8 @@ Useful commands (run from repository root unless shown otherwise):
 task test:web TEST=apps/web/src/features/workspace-authoring/canvas/code/canvas-code-block-layout.test.ts
 
 # one Go package (task includes race; plain package test is also available)
-task test:server PACKAGE=./internal/activity
-(cd apps/server && go test ./internal/activity)
+task test:server PACKAGE=./internal/workspace
+(cd apps/server && go test ./internal/workspace)
 
 # one Rust module's existing tests; does not launch the app/native journey
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked runtime::readiness::tests

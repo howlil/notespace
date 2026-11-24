@@ -31,7 +31,7 @@ The agent owns repository inspection, local implementation design within those b
 
 Stop for contradictions, destructive or irreversible migrations, public contract changes, security-boundary changes, or major architecture changes without explicit authorization.
 
-## Implementation rule
+## Operating rules
 
 Choose the smallest coherent change that satisfies the requested behavior and preserves ownership boundaries:
 
@@ -43,32 +43,25 @@ reuse
 → architecture change
 ```
 
-Avoid unrelated refactors, speculative abstractions, dependency churn, and generic best-practice expansion.
-
-## Keeping ownership clear
-
-- Place new code in its existing owning capability; follow the structure and dependency rules in `.agents/engineering.md`.
-- Web callers outside a feature use its public entry. Keep internal imports direct and preserve lazy editor boundaries.
-- Keep SQL connections and transaction lifetime in the SQLite Store facade. Private query packages borrow SQL access.
-- Move callers, colocated tests, source-contract paths, discovery, and script references together.
+- Start with the affected owner, its callers, and the nearest existing tests. Reuse context already read and widen the search when the evidence crosses a boundary.
+- For a feature, establish the data shape, owner, invariants, and external input boundary before writing logic. Reuse the owning capability. Compare prototypes when a consequential design choice remains uncertain.
+- For a bug, reproduce the failure, isolate the cause, fix it, and rerun the reproduction. Revisit the initial assumptions after repeated failed fixes. For performance work, measure before and after under comparable conditions.
+- For a refactor, identify the behavior to preserve. Simplify in small, verifiable increments. Move callers, tests, and script references together, then delete obsolete internal APIs.
+- Make reversible decisions independently within the current scope. For recurring failures, simplify the structure first, use types or lint for enforceable rules, and keep guidance for decisions that require judgment.
 
 ## Working loop
 
 Inspect diff → identify owner/risk → load relevant contract sections → smallest coherent change → nearest faithful proof → review actual diff → exact-head CI → stop.
 
 - Keep one coherent slice and one active implementation PR. A docs-only edit does not justify a local app build, full suite or manual regression dispatch.
-- Start local proof at the changed boundary; expand only for actual risk. Do not rerun full CI locally after unrelated edits or dispatch duplicate verification just to obtain more green runs.
+- Run the affected proof locally and let the required CI gate select the wider checks.
 - After push, inspect exact-head check results and failing steps first. Fix the cause; rerun affected proof, never hide failure with retries or weakened assertions.
 - Keep durable decisions in their existing canonical owner; task reasoning, proof links and temporary probes belong in the PR, not new repository reports.
 - Report concisely: behavior, commands/results, exact CI SHA, blocker and next action. Merge is not release; publication, deployment, release-tag creation or destructive restore needs explicit authorization. CI must not invoke a model or require an AI API key.
 
 ## Verification rule
 
-Verification is risk-proportional and evidence-driven.
-
-Start with the nearest existing check that proves the changed behavior or boundary. Reuse typecheck, lint, or a focused test where it can prove the guarantee. Add a check for a specific gap and expand verification when the change crosses an owner, public contract, or persistence boundary, or when the risk requires it.
-
-Do not bypass a relevant automated gate merely to make CI green.
+Name the observable result or invariant at risk. Use types and lint for structure, a focused test for a rule, real dependencies for persistence or transport semantics, and the affected user journey when the outcome depends on browser or native behavior. Reuse existing proof and add a test only for a material gap. Assert on results, durable state, or public effects. Report the evidence and any unverified behavior. Required gates must pass.
 
 ## Stop rule
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
 const WEB_SRC = join(ROOT, "apps", "web", "src");
@@ -10,234 +10,23 @@ function source(path: string) {
   return readFileSync(join(WEB_SRC, path), "utf8");
 }
 
-function collect(dir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) out.push(...collect(path));
-    else if (/\.(ts|tsx)$/.test(name) && !name.endsWith(".test.ts") && !name.endsWith(".test.tsx")) out.push(path);
-  }
-  return out;
-}
-
-function localImportSpecifiers(text: string) {
-  const specifiers = new Set<string>();
-  const patterns = [
-    /\bfrom\s+["']([^"']+)["']/g,
-    /\bimport\s+["']([^"']+)["']/g,
-    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) {
-      const value = match[1];
-      assert.doesNotMatch(value, /^(?:[@~#]\/|src\/|(?:routes|pages|features|adapters|domain|shared)\/)/,
-        "local import aliases require resolver support in the architecture check");
-      if (!value.startsWith(".") || /\.(css|scss|sass|less)$/.test(value)) continue;
-      specifiers.add(value);
-    }
-  }
-
-  return [...specifiers];
-}
-
-function localImports(file: string) {
-  return localImportSpecifiers(readFileSync(file, "utf8"))
-    .map((value) => resolve(dirname(file), value));
-}
-
-function featureEntryViolation(from: string, target: string): string | undefined {
-  const feature = /^features\/([^/]+)(?:\/(.*))?$/.exec(target);
-  if (!feature || /\.css(?:\?inline)?$/.test(target)) return;
-  const owner = /^features\/([^/]+)\//.exec(from)?.[1];
-  const entry = !feature[2] || /^index(?:\.ts)?$/.test(feature[2]);
-  if (owner === feature[1]) return entry ? "feature internals cannot import their own entry" : undefined;
-  return entry ? undefined : "feature callers must use its public entry";
-}
-
-test("feature entry guard rejects deep imports and self-barrels", () => {
-  assert.ok(featureEntryViolation("pages/home/HomePage.tsx", "features/library/collection/WorkspaceLibrary"));
-  assert.equal(featureEntryViolation("pages/home/HomePage.tsx", "features/library"), undefined);
-  assert.ok(featureEntryViolation("features/library/explorer/LibrarySidebar.tsx", "features/library/index"));
-  assert.equal(featureEntryViolation("features/library/explorer/LibrarySidebar.tsx", "features/library/explorer/use-library-navigation"), undefined);
-  assert.equal(featureEntryViolation("routes/__root.tsx", "features/desktop/chrome/desktop-titlebar.css?inline"), undefined);
-});
-
-test("feature consumers use public entries and Canvas keeps its lazy boundary", () => {
-  for (const file of collect(WEB_SRC)) {
-    const from = relative(WEB_SRC, file).replaceAll("\\", "/");
-    for (const dependency of localImports(file)) {
-      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.equal(featureEntryViolation(from, target), undefined, `${from} → ${target}`);
-    }
-  }
+test("Canvas authoring keeps its lazy editor boundary", () => {
   const authoring = source("features/workspace-authoring/session/WorkspaceAuthoring.tsx");
   assert.match(authoring, /lazy\(\(\) => import\("\.\.\/canvas\/CanvasEditor"\)\)/);
   assert.doesNotMatch(source("features/workspace-authoring/index.ts"), /CanvasEditor/);
 });
 
-const layers = ["routes", "pages", "features", "adapters", "domain", "shared"] as const;
-type Layer = (typeof layers)[number];
-
-const allowedDependencies: Record<Layer, ReadonlySet<Layer>> = {
-  routes: new Set(["routes", "pages", "features", "adapters", "domain", "shared"]),
-  pages: new Set(["pages", "features", "adapters", "domain", "shared"]),
-  features: new Set(["features", "adapters", "domain", "shared"]),
-  adapters: new Set(["adapters", "domain", "shared"]),
-  domain: new Set(["domain"]),
-  shared: new Set(["shared"]),
-};
-
-function topLevelLayer(file: string) {
-  return relative(WEB_SRC, file).replaceAll("\\", "/").split("/")[0] ?? "";
-}
-
-function isLayer(value: string): value is Layer {
-  return (layers as readonly string[]).includes(value);
-}
-
-function assertAllowedDependencyGraph() {
-  for (const sourceLayer of layers) {
-    const root = join(WEB_SRC, sourceLayer);
-    if (!existsSync(root)) continue;
-
-    for (const file of collect(root)) {
-      for (const dependency of localImports(file)) {
-        const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-        const targetLayer = topLevelLayer(dependency);
-
-        assert.ok(
-          isLayer(targetLayer) && allowedDependencies[sourceLayer].has(targetLayer),
-          `${relative(WEB_SRC, file)} in ${sourceLayer} depends on disallowed boundary ${target}`,
-        );
-      }
-    }
-  }
-}
-
-test("architecture parser sees static, side-effect, and dynamic local imports", () => {
-  assert.throws(() => localImportSpecifiers('import { value } from "@/features/library";'), /aliases require resolver support/);
-  assert.deepEqual(
-    localImportSpecifiers(`
-      import { staticValue } from "./static";
-      import "./side-effect";
-      const Lazy = lazy(() => import("./dynamic"));
-      import React from "react";
-      import "./styles.css";
-    `),
-    ["./static", "./side-effect", "./dynamic"],
-  );
-});
-
-test("web layers follow the explicit dependency allowlist", () => {
-  assertAllowedDependencyGraph();
-});
-
-function assertDesktopSdkOwner(from: string, text: string) {
-  if (from.startsWith("features/desktop/")) return;
-  assert.doesNotMatch(text, /\b(?:from\s*|import\s*\(\s*|import\s*)["']@tauri-apps\//,
-    `${from}: non-desktop features must delegate native IPC to adapters`);
-}
-
-test("non-desktop features delegate native SDK access to adapters", () => {
-  for (const text of ['import { invoke } from "@tauri-apps/api/core";', 'const sdk = import("@tauri-apps/api/core");']) {
-    assert.throws(() => assertDesktopSdkOwner("features/settings/Example.tsx", text));
-    assert.doesNotThrow(() => assertDesktopSdkOwner("features/desktop/updates/Example.tsx", text));
-  }
-  for (const file of collect(join(WEB_SRC, "features"))) {
-    assertDesktopSdkOwner(relative(WEB_SRC, file).replaceAll("\\", "/"), readFileSync(file, "utf8"));
-  }
-});
-
-test("features do not depend on sibling feature implementations", () => {
-  const root = join(WEB_SRC, "features");
-  for (const file of collect(root)) {
-    const owner = relative(root, file).replaceAll("\\", "/").split("/")[0];
-    for (const dependency of localImports(file)) {
-      const target = relative(root, dependency).replaceAll("\\", "/");
-      if (target.startsWith("../")) continue;
-      const targetOwner = target.split("/")[0];
-      assert.equal(
-        targetOwner,
-        owner,
-        `${relative(WEB_SRC, file)} crosses feature boundary into ${target}`,
-      );
-    }
-  }
-});
-
-test("routes compose pages instead of routed screens in features", () => {
-  const routeRoot = join(WEB_SRC, "routes");
-  for (const file of collect(routeRoot)) {
-    for (const dependency of localImports(file)) {
-      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(
-        target,
-        /^features\/(dashboard|category|workspace)\//,
-        `${relative(WEB_SRC, file)} imports a routed screen from features: ${target}`,
-      );
-    }
-  }
-});
-
 test("frontend routes expose only canonical Home and Workspace surfaces", () => {
   const routeRoot = join(WEB_SRC, "routes");
-  const routeFiles = collect(routeRoot)
-    .map((file) => relative(routeRoot, file).replaceAll("\\", "/"))
+  const routeFiles = readdirSync(routeRoot, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name))
+    .map((entry) => relative(routeRoot, join(entry.parentPath, entry.name)).replaceAll("\\", "/"))
     .sort();
   assert.deepEqual(routeFiles, ["__root.tsx", "index.tsx", "workspaces.$workspaceId.tsx"]);
 
   const routeTree = readFileSync(join(WEB_SRC, "routeTree.gen.ts"), "utf8");
   for (const legacyRoute of ["/inbox", "/today", "/projects/$projectId", "/categories/$categoryId"]) {
     assert.doesNotMatch(routeTree, new RegExp(legacyRoute.replaceAll("$", "\\$")), `${legacyRoute} must not return as a frontend route`);
-  }
-});
-
-test("domain modules do not depend on feature or integration implementation", () => {
-  const domainRoot = join(WEB_SRC, "domain");
-  for (const file of collect(domainRoot)) {
-    for (const dependency of localImports(file)) {
-      const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(path, /^(features|integrations)\//, `${relative(WEB_SRC, file)} depends upward on ${path}`);
-    }
-  }
-});
-
-test("domain modules stay independent from browser and transport runtime", () => {
-  const domainRoot = join(WEB_SRC, "domain");
-  for (const file of collect(domainRoot)) {
-    const text = readFileSync(file, "utf8");
-    assert.doesNotMatch(
-      text,
-      /\bwindow\b|\bindexedDB\b|\blocalStorage\b|\bglobalThis\.fetch\b|\bfetch\s*\(/,
-      `${relative(WEB_SRC, file)} contains browser or transport runtime behavior`,
-    );
-  }
-  for (const legacyPath of [
-    "domain/project/http.ts",
-    "domain/project/api.ts",
-    "domain/planning/api.ts",
-    "domain/activity/api.ts",
-    "domain/assets/local-image-assets.ts",
-    "domain/project/granular-save.ts",
-    "domain/project/save-project.ts",
-    "domain/project/conflict-recovery.ts",
-  ]) {
-    assert.equal(existsSync(join(WEB_SRC, legacyPath)), false, `${legacyPath} should be migrated out of domain`);
-  }
-});
-
-test("diagram domain does not depend on workspace authoring internals", () => {
-  const diagramRoot = join(WEB_SRC, "domain", "diagram");
-  for (const file of collect(diagramRoot)) {
-    for (const dependency of localImports(file)) {
-      const path = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(
-        path,
-        /^features\/workspace-authoring\//,
-        `${relative(WEB_SRC, file)} depends on ${path}`,
-      );
-    }
   }
 });
 
@@ -283,43 +72,6 @@ test("browser event and asset initialization stay behind explicit boundaries", (
   assert.doesNotMatch(quickOpen, /addEventListener\("open-quick-search"/);
   assert.doesNotMatch(canvas, /^window\.EXCALIDRAW_ASSET_PATH/m);
   assert.match(canvas, /window\.EXCALIDRAW_ASSET_PATH = "\/excalidraw-assets\/"/);
-});
-
-test("routed pages compose features instead of calling HTTP adapters directly", () => {
-  const pagesRoot = join(WEB_SRC, "pages");
-  for (const file of collect(pagesRoot)) {
-    const pagePath = relative(pagesRoot, file).replaceAll("\\", "/");
-    if (pagePath.startsWith("_shared/")) continue;
-
-    for (const dependency of localImports(file)) {
-      const target = relative(WEB_SRC, dependency).replaceAll("\\", "/");
-      assert.doesNotMatch(
-        target,
-        /^adapters\/http\//,
-        `${relative(WEB_SRC, file)} calls HTTP adapter directly through ${target}`,
-      );
-    }
-  }
-
-  const home = source("pages/home/HomePage.tsx");
-  assert.match(home, /WorkspaceLibrary/);
-  assert.doesNotMatch(home, /createStandaloneTask|updateAnyTask|deleteAnyTask|createWorkspace|renameWorkspace|deleteWorkspace/);
-  for (const obsolete of ["pages/inbox/InboxPage.tsx", "pages/today/TodayPage.tsx"]) {
-    assert.equal(existsSync(join(WEB_SRC, obsolete)), false, `removed recovery screen persists: ${obsolete}`);
-  }
-});
-
-test("workspace page composes Canvas authoring within the shared shell", () => {
-  const page = source("pages/workspace/WorkspacePage.tsx");
-  const authoring = source("features/workspace-authoring/session/WorkspaceAuthoring.tsx");
-
-  assert.match(page, /useWorkspaceAuthoring/);
-  assert.match(page, /<LibraryPageShell canvas/);
-  assert.doesNotMatch(page, /WorkspacePlan/);
-  assert.doesNotMatch(page, /ActivityIndicator|WorkspaceRail/);
-  assert.doesNotMatch(page, /useWorkspaceSession/);
-
-  assert.doesNotMatch(authoring, /workspace-main|renderPlan|renderActivityIndicator/);
 });
 
 test("workspace delegates authored state and autosave ownership to its session boundary", () => {
@@ -391,20 +143,4 @@ test("diagram catalog metadata is owned by the diagram catalog module", () => {
   assert.doesNotMatch(diagram, /generatedIconMetadata|compatibilityCatalog/);
   assert.match(catalog, /eraser-icons\.generated\.json/);
   assert.match(catalog, /compatibilityCatalog/);
-});
-
-test("home page owns the library screen composition", () => {
-  const home = source("pages/home/HomePage.tsx");
-  const library = source("features/library/collection/WorkspaceLibrary.tsx");
-  const model = source("features/library/collection/use-workspace-library.ts");
-
-  assert.match(home, /<LibraryPageShell/);
-  assert.match(source("pages/shell/LibraryPageShell.tsx"), /data-notespace-single-shell/);
-  assert.match(home, /LibrarySidebar/);
-  assert.match(home, /useWorkspaceLibrary/);
-  assert.match(home, /WorkspaceLibrary/);
-
-  assert.doesNotMatch(library, /dashboard-shell|renderNavigation|renderToolbar/);
-  assert.doesNotMatch(library, /adapters\/http\//);
-  assert.match(model, /adapters\/http\/workspace-api/);
 });

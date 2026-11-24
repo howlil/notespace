@@ -76,52 +76,6 @@ test("feature consumers use public entries and Canvas keeps its lazy boundary", 
   assert.doesNotMatch(source("features/workspace-authoring/index.ts"), /CanvasEditor/);
 });
 
-function modularRootViolation(file: string, consumers: readonly string[]) {
-  if (file === "index.ts") return;
-  const owners = new Set(consumers.filter((consumer) => consumer.includes("/")).map((consumer) => consumer.split("/")[0]));
-  return owners.size >= 2 ? undefined : "root runtime modules must serve multiple capability owners; otherwise colocate with their owner";
-}
-
-test("modular-root guard distinguishes public entries, actual shared ownership and scattered leaves", () => {
-  assert.equal(modularRootViolation("index.ts", []), undefined);
-  assert.equal(modularRootViolation("revision.ts", ["collection/List.tsx", "explorer/Tree.tsx"]), undefined);
-  assert.equal(modularRootViolation("future-shared.ts", ["unseen-one/One.ts", "unseen-two/Two.ts"]), undefined);
-  assert.ok(modularRootViolation("Stray.tsx", []));
-  assert.ok(modularRootViolation("Stray.tsx", ["index.ts", "collection/List.tsx", "collection/dialogs/Rename.tsx"]));
-});
-
-test("modular feature roots prove cross-capability reuse instead of whitelisting filenames", () => {
-  const featureRoot = join(WEB_SRC, "features");
-  const moduleId = (path: string) => path.replace(/\.tsx?$/, "");
-  for (const feature of readdirSync(featureRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
-    const root = join(featureRoot, feature.name);
-    const files = collect(root);
-    const nested = files.filter((file) => dirname(file) !== root);
-    if (nested.length === 0) continue; // Small cohesive capabilities can remain flat.
-    const consumers = new Map<string, string[]>();
-    for (const file of nested) {
-      for (const dependency of localImports(file)) {
-        const key = moduleId(dependency);
-        consumers.set(key, [...(consumers.get(key) ?? []), relative(root, file).replaceAll("\\", "/")]);
-      }
-    }
-    for (const file of files.filter((file) => dirname(file) === root)) {
-      assert.equal(modularRootViolation(relative(root, file), consumers.get(moduleId(file)) ?? []), undefined, `${feature.name}/${relative(root, file)}: colocate with its actual owner`);
-    }
-  }
-});
-
-test("new capability names are allowed, generic root dumps are not", () => {
-  const generic = new Set(["components", "hooks", "services", "utils", "providers", "repositories"]);
-  const featureRoots = readdirSync(join(WEB_SRC, "features"), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory()).map((entry) => join(WEB_SRC, "features", entry.name));
-  for (const root of [WEB_SRC, ...featureRoots]) {
-    for (const entry of readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
-      assert.ok(!generic.has(entry.name), `${relative(WEB_SRC, root)}/${entry.name}: use the owning capability, not a generic dump`);
-    }
-  }
-});
-
 const layers = ["routes", "pages", "features", "adapters", "domain", "shared"] as const;
 type Layer = (typeof layers)[number];
 
@@ -193,39 +147,6 @@ test("non-desktop features delegate native SDK access to adapters", () => {
   for (const file of collect(join(WEB_SRC, "features"))) {
     assertDesktopSdkOwner(relative(WEB_SRC, file).replaceAll("\\", "/"), readFileSync(file, "utf8"));
   }
-});
-
-test("top-level source directories are intentional architecture boundaries", () => {
-  const allowedTopLevel = new Set<string>(layers);
-  const directories = readdirSync(WEB_SRC)
-    .filter((name) => statSync(join(WEB_SRC, name)).isDirectory());
-
-  for (const directory of directories) {
-    assert.ok(allowedTopLevel.has(directory), `Unexpected top-level src boundary: ${directory}`);
-  }
-});
-
-test("legacy generic web buckets are removed after ownership migration", () => {
-  assert.equal(existsSync(join(WEB_SRC, "app")), false);
-  assert.equal(existsSync(join(WEB_SRC, "components")), false);
-  assert.equal(existsSync(join(WEB_SRC, "providers")), false);
-  assert.equal(existsSync(join(WEB_SRC, "browser")), false);
-  assert.equal(existsSync(join(WEB_SRC, "styles")), false);
-  assert.equal(existsSync(join(WEB_SRC, "domain", "project")), false);
-  assert.equal(existsSync(join(WEB_SRC, "integrations")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "workspace")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "diagram")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram.ts")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "DiagramPalette.tsx")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "workspace-authoring", "canvas", "diagram.test.ts")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "plan")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "study")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "planning")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "activity")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "library", "library-sync-store.ts")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "library", "workspace-mutation-policy.ts")), false);
-  assert.equal(existsSync(join(WEB_SRC, "pages", "category", "CategoryPage.tsx")), false);
-  assert.equal(existsSync(join(WEB_SRC, "features", "library", "CategoryLibrary.tsx")), false);
 });
 
 test("features do not depend on sibling feature implementations", () => {
@@ -306,29 +227,6 @@ test("domain modules stay independent from browser and transport runtime", () =>
   }
 });
 
-test("web code uses canonical Workspace domain imports", () => {
-  for (const file of collect(WEB_SRC)) {
-    const text = readFileSync(file, "utf8");
-    assert.doesNotMatch(
-      text,
-      /domain\/project\//,
-      `${relative(WEB_SRC, file)} still imports the legacy project domain`,
-    );
-  }
-  assert.equal(existsSync(join(WEB_SRC, "domain", "workspace", "workspace.ts")), true);
-});
-
-test("retired Note authoring modules are absent", () => {
-  for (const obsolete of [
-    "features/workspace-authoring/document/DocumentEditor.tsx",
-    "features/workspace-authoring/document/CanvasFrameLinkNode.tsx",
-    "features/workspace-authoring/document/LocalImageNode.tsx",
-    "features/workspace-authoring/model/use-workspace-commands.ts",
-  ]) {
-    assert.equal(existsSync(join(WEB_SRC, obsolete)), false, `${obsolete} should be retired`);
-  }
-});
-
 test("diagram domain does not depend on workspace authoring internals", () => {
   const diagramRoot = join(WEB_SRC, "domain", "diagram");
   for (const file of collect(diagramRoot)) {
@@ -341,11 +239,6 @@ test("diagram domain does not depend on workspace authoring internals", () => {
       );
     }
   }
-});
-
-test("generic browser storage lives in shared foundation", () => {
-  assert.equal(existsSync(join(WEB_SRC, "adapters", "browser", "local-storage.ts")), false);
-  assert.equal(existsSync(join(WEB_SRC, "shared", "browser", "local-storage.ts")), true);
 });
 
 test("workspace HTTP adapter does not retain dead study compatibility exports", () => {

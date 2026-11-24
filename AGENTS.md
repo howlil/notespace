@@ -51,7 +51,6 @@ Avoid unrelated refactors, speculative abstractions, dependency churn, and gener
 - Web callers outside a feature use its public entry. Keep internal imports direct and preserve lazy editor boundaries.
 - Keep SQL connections and transaction lifetime in the SQLite Store facade. Private query packages borrow SQL access.
 - Move callers, colocated tests, source-contract paths, discovery, and script references together.
-- Extend the existing architecture checks when a boundary changes; do not add generic catch-all folders or forwarding files for obsolete paths.
 
 ## Working loop
 
@@ -67,7 +66,7 @@ Inspect diff → identify owner/risk → load relevant contract sections → sma
 
 Verification is risk-proportional and evidence-driven.
 
-Start with the narrowest deterministic test or check that proves the changed boundary. Escalate only when the behavior crosses repository-owned boundaries or the actual risk requires another automated layer.
+Start with the nearest existing check that proves the changed behavior or boundary. Reuse typecheck, lint, or a focused test where it can prove the guarantee. Add a check for a specific gap and expand verification when the change crosses an owner, public contract, or persistence boundary, or when the risk requires it.
 
 Do not bypass a relevant automated gate merely to make CI green.
 

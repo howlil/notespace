@@ -64,9 +64,7 @@ S7: Browser theme, cache and local asset cache | owner shared/browser or asset a
 
 ## Structure and dependency direction
 
-Keep the six web layers: routes → pages → features → domain; routes/pages/features may use adapters, adapters may use domain/shared, shared imports shared only. Folder moves do not change authoritative state, routes, schemas, public HTTP/IPC contracts or process topology.
-
-These seams are implemented. Current source and executable architecture checks define their exact entries; changes move the owner, its callers, tests and operational references together.
+Every web production module belongs to one of six layers. The framework entry `router.tsx` and generated `routeTree.gen.ts` live at the source root. Routes load data and compose pages. Pages compose features. Features own workflows and call adapters for I/O. Adapters may use domain or shared modules. Domain and shared each depend only on their own layer. ESLint enforces dependency direction, feature entries, and domain isolation.
 
 | Owner | Target grouping / entry | Contract |
 |---|---|---|
@@ -85,13 +83,13 @@ These seams are implemented. Current source and executable architecture checks d
 | Browser proofs | tests/e2e/{canvas,library,settings,support} | One harness; recursive discovery, critical selection and fixture roots move together. |
 | CLI / landing | scripts/{dev,verify,release,assets}; Astro pages/layouts/components/styles/lib | Update Taskfile/package/workflow paths together. Small landing needs no additional hierarchy. |
 
-Outside feature callers use its public entry; internals use direct imports, not self-barrels. Root-owned stylesheet imports remain explicit and ordered in the managed head. Do not eagerly export CanvasEditor and collapse its lazy engine boundary. A directory needs a coherent owner/capability, not a mandatory file-count threshold.
+Outside callers use the feature's `index.ts`. Inside a feature, use direct imports. Compose sibling features in pages or the root route. Root-owned stylesheet imports stay explicit and ordered in the managed head. Keep the Excalidraw SDK inside Canvas and load CanvasEditor lazily through Workspace authoring.
 
 Go subfolders create packages; Store/API receiver methods cannot move there unchanged. Extract repositories/handlers behind existing facade signatures. Children must not import their parent facade; Go packages are the entries, not TypeScript-style index files.
 
 SQLite root coordinators begin/commit/rollback. Compound backup/restore/Trash/migration passes the same borrowed *sql.Tx through a minimal SQL-only DBTX interface. Children never begin transactions or use *sql.DB inside a borrowed transaction. Cross-capability recovery uses explicit transaction-bound snapshot/restore entries, not another repository's tables. Archive EncodeArchive/DecodeArchive in sqlite/internal/backup are SQL-free: Store takes the consistent snapshot, decodes/validates before restore, and alone owns atomic mutation. Preserve archive entry order, stored-blob/checksum/expansion bounds and supported formats. Canvas writes funnel through a single `applyCanvasTx` helper (both generic workspace updates and Canvas Note create/delete) that composes workspace.UpdateCanvasTx, canvasnote.SyncGeometryTx, search.AdvanceCanvasRevisionTx and search.InvalidateNotesInWorkspaceTx on that same borrowed transaction; search SyncIndexTx/ReplaceWorkspaceTx own projection SQL, not transaction lifetime. The per-Note FTS projection is lazy: canvas_note_search_meta tracks each Note's revision so syncCanvasNotesTx reindexes only stale Notes, with placement changes invalidating via the workspace hook. Preserve the single connection, paging-cache lifetime, non-fatal post-write search refresh and pre-upgrade snapshot ordering. Aggregate tests stay at the facade; repository tests follow their package.
 
-Place new files in the existing owning capability. Keep small cohesive capabilities flat; add a subfolder only for a distinct responsibility or dependency boundary. Do not introduce generic catch-all components/hooks/utils folders, unused barrels, or forwarding files for retired locations. Feature roots and operational script groups are checked automatically. New import aliases require resolver support in the architecture check.
+Put feature-specific state, actions, and UI with the owning capability. Keep shared code limited to primitives used across capabilities and group files by responsibility. Use relative paths for local web imports so lint can resolve their owners.
 
 Change one owner with its callers/tests/checks together. Keep public feature exports limited to consumed interfaces, and cross-feature composition in pages/root. Go children cannot reach parent facades; shared SQL contracts remain SQL-only. No schema/API/source-of-truth change belongs to a folder move.
 
@@ -177,14 +175,14 @@ DEC9 [one-way]: classify Canvas Note write errors at the Store boundary instead 
 
 ## Fitness rules
 
-F1: Web dependency allowlist and dynamic-import scan | `tests/architecture-boundaries.test.ts` | CI `bun run test` | routes/pages/features/adapters/domain/shared graph passes; no exception.
-F2: Web domain has no browser/HTTP/framework imports | same architecture test | CI | pass when all domain files remain pure; exception requires D#.
-F3: Features do not import sibling implementations; non-desktop features delegate native SDK access to adapters | same architecture test | CI | pass; compose siblings in pages, keep updater capability IPC in adapters/desktop.
+F1: Web module placement and dependency direction | `notespace/web-boundaries` in `eslint.config.mjs` | `bun run lint` checks imports, re-exports, and dynamic imports.
+F2: Web domain is independent of browser, HTTP, UI, editor, and desktop runtime | web boundary and restricted-global rules | `bun run lint`.
+F3: Features compose through pages or routes; non-desktop features delegate native SDK access to adapters | web boundary rule | `bun run lint`.
 F4: Server packages keep `httpapi → capability → sqlite` direction through consumer-owned ports | `internal/architecture` import checks | enforced in Go tests; exception requires D#.
 F5: Canvas Note authoring is only through Canvas; legacy Note fields/routes cannot become its canonical storage | source/route contract tests | CI | pass when Canvas ownership checks and legacy compatibility tests remain green under K7/K8.
 F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.
 
-F7: Feature outsiders use its public entry; no self-barrel or eager Canvas export. Modular feature roots hold entries or runtime modules with actual consumers in >=2 child capabilities; single-owner leaves colocate, small cohesive features may stay flat. New capability names need no filename-list update; generic root dumps are rejected | web import/ownership checks with negative cases | `bun run test`.
+F7: Feature outsiders use its public entry and internals import directly | web boundary rule | `bun run lint`. Canvas remains lazy | `tests/architecture-boundaries.test.ts` | `bun run test`.
 F8: Handler/query children cannot import root facades; query packages cannot open connections or own Begin/Commit/Rollback. Root roles, not filenames, identify HTTP routing/middleware and Store-signature/connection-lifetime files; capability decoding and ZIP codecs stay in their owners. Only Open constructs the writable Store pool; recovery handles are explicitly read-only | Go AST/import and negative role/dependency cases; real mid-write rollback proof | `go test -race ./...`.
 F9: Nested browser suites remain discovered exactly once; configured script entries exist in dev/verify/release/assets | `tests/browser-discovery.test.ts`, recursive all/critical/file selection | `bun run test`; script-specific suites retain existing CI owners.
 

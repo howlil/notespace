@@ -583,7 +583,7 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     );
     const arrowMenu = await openContextMenuAt(bounds.x + 525, bounds.y + 325);
     await visible(role("menuitem", /Arrow/, { scope: arrowMenu }));
-    await click(role("menuitem", /Style/, { scope: arrowMenu }));
+    await hover(role("menuitem", /Style/, { scope: arrowMenu }));
     await visible('.notespace-selection-actions input[aria-label="Opacity"]');
     await press("Escape");
 
@@ -593,7 +593,7 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     await click(role("button", "Select", { exact: true, scope: canvasTools() }));
     await drag({ x: bounds.x + 210, y: bounds.y + 420 }, { x: bounds.x + 500, y: bounds.y + 560 });
     const penMenu = await openContextMenuAt(bounds.x + 350, bounds.y + 450);
-    await click(role("menuitem", /Style/, { scope: penMenu }));
+    await hover(role("menuitem", /Style/, { scope: penMenu }));
     const styleSub = role("menu", "Style");
     await visible(role("region", "Pressure", { exact: true, scope: styleSub }));
     await click(role("button", "Constant pressure", { exact: true, scope: styleSub }));

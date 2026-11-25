@@ -1,7 +1,7 @@
 /* Production-safe navigation: category filtering, switching, direct entry, and reload safety. */
 import { after, before, test } from "node:test";
 import {
-  apiResponse, assert, back, capture, cleanupWorkspace, click, containsText, createCategory, createWorkspace,
+  apiResponse, assert, back, capture, cleanupWorkspace, click, createCategory, createWorkspace,
   currentUrl, deleteCategory, expectCount, fill, goto, injectFault, queryParam, reload, requestLog,
   rightClick, role, start, stop, visible, waitFor, waitUrl,
 } from "../support/harness.mjs";

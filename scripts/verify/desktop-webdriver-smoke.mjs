@@ -473,7 +473,8 @@ async function assertCodeModule(session) {
     await visibleElement(session, By.css("[data-canvas-code-block]"));
     assert.deepEqual(leaks, []);
 
-    await (await visibleElement(session, By.css('button[aria-label="Hide HTML preview"]'))).click();
+    await openCodeMenu();
+    await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[normalize-space()="Hide preview"]'))).click();
     assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
     await waitForWorkspaceSaved(session);
   } finally {

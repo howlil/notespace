@@ -2,7 +2,7 @@
 import { after, before, test } from "node:test";
 import {
   api, ariaLabel, assert, box, click, cleanupWorkspace, containsText, createWorkspace,
-  clickAt, dispatchClick, drag, doubleClick, evaluate, expectAttribute, expectCount, expectText, fill,
+  clickAt, drag, doubleClick, evaluate, expectAttribute, expectCount, expectText, fill, hover,
   movePointer, notVisible, openWorkspace, press, reload, role, sleep, start, stop, text,
   resetViewport, setViewport, visible, waitFor, waitSaved, within,
 } from "../support/harness.mjs";
@@ -176,7 +176,7 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     await containsText(menu, "JavaScript");
     await visible(role("button", "Run", { scope: menu }));
     await visible(role("menuitem", /Copy code/, { scope: menu }));
-    await click(role("menuitem", /Appearance/, { scope: menu }));
+    await hover(role("menuitem", /Appearance/, { scope: menu }));
     const appearanceMenu = role("menu", "Appearance");
     await visible(appearanceMenu);
     const themeSwitch = role("switch", "Dark code theme", { scope: appearanceMenu });

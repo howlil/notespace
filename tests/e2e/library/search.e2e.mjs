@@ -48,8 +48,9 @@ test("Quick Open does not report an empty result during pending search or retrya
   await visible(role("status", null, { scope: quickOpen, hasText: /Searching Notespace/ }));
   await expectCount(text("No matching knowledge.", { scope: quickOpen }), 0);
   await visible(role("alert", null, { scope: quickOpen, hasText: /Search could not be loaded\./ }));
+  const beforeRetry = (await requestLog()).filter((entry) => entry.path.startsWith("/api/search?q=")).length;
   await click(role("button", "Retry", { scope: quickOpen }));
   await visible(text("No matching knowledge.", { scope: quickOpen }));
-  const searches = (await requestLog()).filter((entry) => entry.path.startsWith("/api/search?q=")).length;
-  assert.equal(searches, 2, "Retry must issue exactly one additional search request");
+  const afterRetry = (await requestLog()).filter((entry) => entry.path.startsWith("/api/search?q=")).length;
+  assert.equal(afterRetry - beforeRetry, 1, "Retry must issue exactly one additional search request");
 });

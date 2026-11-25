@@ -227,23 +227,23 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     await expectCount(editor, 0);
 
     const langMenu = await openBlockMenu(block);
-    await click(role("menuitem", /Language/, { scope: langMenu }));
+    await hover(role("menuitem", /Language/, { scope: langMenu }));
     const languageSub = role("menu", "Language");
     await visible(languageSub);
     assert.ok((await box(languageSub)).height <= 385, "Language picker stays compact with internal list scrolling");
     await fill(role("textbox", "Search code languages"), "Python");
     await click(role("button", "Python", { exact: true, scope: languageSub }));
     await containsText(langMenu, "Python");
-    await click(role("menuitem", /Language/, { scope: langMenu }));
+    await hover(role("menuitem", /Language/, { scope: langMenu }));
     await click(role("button", "Auto / Detect", { scope: role("menu", "Language") }));
     await containsText(langMenu, "JavaScript");
-    await click(role("menuitem", /Appearance/, { scope: langMenu }));
+    await hover(role("menuitem", /Appearance/, { scope: langMenu }));
     await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
     await click(role("menuitem", "Fit to content / Auto height", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
     await waitFor(async () => (await box(block)).height < 40, "Fit must measure the visible unwrapped source, not hidden wrapped rows");
     const unwrapMenu = await openBlockMenu(block);
-    await click(role("menuitem", /Appearance/, { scope: unwrapMenu }));
+    await hover(role("menuitem", /Appearance/, { scope: unwrapMenu }));
     await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
     await doubleClick(block);
@@ -450,7 +450,7 @@ test("SVG export includes the Canvas code block overlay", { timeout: 120_000 }, 
     await fill(await within(block, '[aria-label="Edit code block"]'), `console.log("export-code-marker-${"abcdefghij".repeat(30)}")`);
     await press("Escape");
     const exportMenu = await openBlockMenu(block);
-    await click(role("menuitem", /Appearance/, { scope: exportMenu }));
+    await hover(role("menuitem", /Appearance/, { scope: exportMenu }));
     await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
 

@@ -17,7 +17,8 @@ test("schedule and manual runs always select every lane", () => {
 test("master push skips heavy lanes only for pure docs or landing diffs, and falls back to all lanes otherwise", () => {
   assert.deepEqual(selectLanes("push", null), allOn);
   assert.deepEqual(selectLanes("push", []), allOn);
-  assert.deepEqual(selected(selectLanes("push", ["docs/TESTING.md", "README.md", ".agents/engineering.md"])), []);
+  assert.deepEqual(selected(selectLanes("push", ["docs/TESTING.md", ".agents/engineering.md"])), []);
+  assert.deepEqual(selected(selectLanes("push", ["README.md", "docs/TESTING.md"])), ["landing"]);
   assert.deepEqual(selected(selectLanes("push", ["landing/src/pages/index.astro", "docs/TESTING.md"])), ["landing"]);
   assert.deepEqual(selectLanes("push", ["apps/web/src/features/settings/AppSettings.tsx"]), allOn);
   assert.deepEqual(selectLanes("push", ["docs/DESKTOP_BETA_RELEASE_0.1.0.md"]), allOn);
@@ -30,8 +31,19 @@ test("unknown pull request diff selects every lane instead of skipping proof", (
 });
 
 test("docs-only pull requests select no lanes", () => {
-  const plan = selectLanes("pull_request", ["docs/TESTING.md", "README.md", ".agents/engineering.md"]);
+  const plan = selectLanes("pull_request", ["docs/TESTING.md", ".agents/engineering.md"]);
   assert.deepEqual(selected(plan), []);
+});
+
+test("community health files are docs-only, but README runs landing contracts", () => {
+  const community = ["CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "SUPPORT.md", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/config.yml"];
+  for (const event of ["pull_request", "push"]) {
+    assert.deepEqual(selected(selectLanes(event, community)), []);
+    assert.deepEqual(selected(selectLanes(event, [...community, "README.md"])), ["landing"]);
+    assert.deepEqual(selectLanes(event, [...community, ".github/workflows/ci.yml"]), allOn);
+    assert.deepEqual(selectLanes(event, [...community, ".github/unknown.yml"]), allOn);
+  }
+  assert.deepEqual(selected(selectLanes("pull_request", [...community, "apps/web/src/features/workspace-authoring/canvas/CanvasEditor.tsx"])), ["web", "browser"]);
 });
 
 test("landing-only pull requests run only the landing lane", () => {

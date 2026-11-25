@@ -7,11 +7,11 @@ Notespace is a monorepo containing the Go/SQLite self-hosted application, its Ta
 ## Download Notespace Desktop (no GitHub knowledge needed)
 
 The **Download for Windows** buttons in the landing header, hero, mobile menu,
-and footer link directly to a released 64-bit Windows `.msi` from GitHub
+Windows section, and closing section link directly to a released 64-bit Windows `.msi` from GitHub
 Releases. The browser downloads the installer without visiting the GitHub
 release listing and without requiring a GitHub account.
 
-- Current known-good fallback (already published): [Notespace v0.1.0-beta.1 MSI](https://github.com/howlil/notespace/releases/download/v0.1.0-beta.1/Notespace_0.1.0-beta.1_x64_en-US.msi).
+- Current known-good fallback (already published): [Notespace v1.0.3 MSI](https://github.com/howlil/notespace/releases/download/v1.0.3/Notespace_1.0.3_x64_en-US.msi).
 - When JavaScript works, the landing queries the *public* GitHub releases list
   and picks the newest **published** Notespace Windows MSI. This includes
   prereleases, which GitHub's `/releases/latest/download/...` does not.
@@ -20,7 +20,7 @@ release listing and without requiring a GitHub account.
 - The actual installer is served directly by GitHub. The static Cloudflare
   Worker does **not** proxy binary traffic, carry release secrets, or need a
   new backend.
-- Until code signing is added, the Windows MSI beta is **unsigned** and may
+- Until code signing is added, the Windows MSI is **unsigned** and may
   display a publisher/SmartScreen warning; never claim that the file is
   signed or that this warning can be suppressed by the landing site.
 - After future releases, update the checked-in fallback URL periodically.
@@ -48,7 +48,7 @@ bun run dev
 ```sh
 cd landing
 bun run build
-bunx wrangler@4.148.0 dev
+bun x wrangler@4.148.0 dev
 ```
 
 Astro pre-renders this site into `landing/dist`. Cloudflare Workers serves these static assets; no Astro Cloudflare SSR adapter, API bindings, or D1 database are required for the landing page.
@@ -107,6 +107,6 @@ No `bun run deploy` wrapper is required for either method.
 
 Both Wrangler configurations deliberately use the same Worker name, `notespace-landing`. Check whether your existing Cloudflare Worker has this name before deployment; if it has another name, rename the configuration appropriately to update the existing service rather than create a separate one.
 
-The landing hero uses a static panoramic marketing illustration and has no app session, authentication, or cloud service. Running Notespace requires the separate Go API and persistent SQLite backend; see the [Docker self-host instructions](../README.md#self-host-with-docker).
+The landing uses static app screenshots and has no app session, authentication, or cloud service. Running Notespace requires the separate Go API and persistent SQLite backend; see the [Docker self-host instructions](../README.md#self-host-with-docker).
 
-The [Ambient Editorial Hero design contract](HERO-DESIGN-SYSTEM.md) describes the landing UI. Root deploy regression tests reside in `landing/tests/workers-root.test.mjs`.
+The [landing design contract](HERO-DESIGN-SYSTEM.md) describes the page and its screenshots. Root deploy regression tests reside in `landing/tests/workers-root.test.mjs`.

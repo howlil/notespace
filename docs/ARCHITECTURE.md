@@ -26,7 +26,7 @@ SQLite adapter
 one SQLite database
 ```
 
-Canonical user-owned state lives in SQLite. Browser storage is used for local UI preferences, activity recovery, and image compatibility caching; it is not the durable source of truth for authored Workspace content.
+Canonical user-owned state lives in SQLite. Browser storage is used for local UI preferences and image compatibility caching; it is not the durable source of truth for authored Workspace content.
 
 The production container serves both the built SPA and the API from one Go process.
 
@@ -45,9 +45,9 @@ Settings
 └── Data & backup (portable export, import, Trash, native backups)
 ```
 
-Historical Capture, Task, Milestone and Activity rows may still exist in SQLite and backup archives. They are not exposed through the retired Today/Inbox screens. Keeping their storage and API compatibility separate from UI ownership prevents destructive upgrades.
+The former Capture, Task, Milestone, Activity, legacy Notes and History domains are retired. Migration `0031_contract_retired_domains.sql` removes their schema objects; legacy backup decoding is distinct from current authored state. These capabilities no longer have active HTTP routes or UI owners.
 
-A Workspace is the main authored unit and Canvas is its only authored content. Planning, assets, activity, Trash, backup/restore, and workspace search are separate capabilities around that authored state.
+A Workspace is the main spatial unit and Canvas is the authoring surface. Canvas Notes have separate canonical content and placement identities. Assets, Trash, backup/restore and workspace search are separate capabilities around authored state.
 
 ## Repository map
 
@@ -163,7 +163,7 @@ adapters/
 └── assets/
 ```
 
-HTTP adapters map live frontend calls to the Go API. The frontend has no active planning, activity or capture client. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner; historical records and compatible backend APIs remain in Go/SQLite.
+HTTP adapters map live frontend calls to the Go API. The frontend has no active planning, activity or capture client. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner or current backend HTTP contracts.
 
 Browser adapters own process-local/browser-global events such as library revision notifications and Workspace conflict events.
 
@@ -199,12 +199,12 @@ SQLite transaction
 
 Canvas has its own optimistic version and Excalidraw-specific element reconciliation.
 
-The Note route, Note API, Note capture conversion, Note search projection and Note-containing backup payloads are retired. Migration `0025_remove_notes.sql` retires relational Note data; `0026_scrub_retired_note_artifacts.sql` and its transactional Go hook scrub hidden Canvas, history and Trash payloads. Explicit historical checksums remain supported.
+The original standalone Note model was retired by migrations `0025_remove_notes.sql` and `0026_scrub_retired_note_artifacts.sql`. Current Canvas Notes are a distinct canonical capability introduced by `0027_canvas_notes.sql` and extended by subsequent migrations through `0032_canvas_note_trash.sql`. Note content and placement identities are saved independently from Canvas geometry; current note APIs and library backup records are not the retired standalone Note contract. Historical migration checksums remain supported.
 
-### Aggregate compatibility save
+### Granular save conflict recovery
 
-The legacy/aggregate Workspace HTTP save path still exists for compatibility,
-but current authoring uses the granular Canvas save path. Its active
+The legacy aggregate Workspace HTTP save path is retired.
+Current authoring uses the granular Canvas save path. Its active
 orchestration lives in `features/workspace-authoring/session/granular-save-core.ts`:
 
 ```text
@@ -318,7 +318,6 @@ Owns transport concerns only:
 - query/path/header parsing;
 - body limits and content type;
 - HTTP status/error mapping;
-- compatibility headers;
 - same-origin mutation middleware;
 - request observability;
 - cache/security headers.
@@ -331,7 +330,7 @@ It should not own product transactions or cross-domain business state.
 
 `internal/sqlite` is one adapter and one transaction boundary for the single-owner application.
 
-It implements persistence ports for Workspace, planning, activity, assets, and Library operations.
+It implements persistence ports for Workspace, Canvas Notes, assets, and Library operations.
 
 SQLite is configured with:
 
@@ -343,27 +342,22 @@ SQLite is configured with:
 
 The single connection keeps transaction and concurrency behavior explicit for this workload.
 
-Private capability query packages borrow `DBTX` or a transaction. Store begins, commits and rolls back compound operations. Workspace snapshot/restore composes explicit workspace, planning and asset query entries using the same transaction. The paging snapshot cache remains attached to the Store lifetime. Architecture tests reject query-owned connections or transaction lifetime.
+Private capability query packages borrow `DBTX` or a transaction. Store begins, commits and rolls back compound operations. Workspace snapshot/restore composes explicit workspace, Canvas Note placement and asset query entries using the same transaction. The paging snapshot cache remains attached to the Store lifetime. Architecture tests reject query-owned connections or transaction lifetime.
 
 ## Persistence model
 
 Migration files remain append-only under `apps/server/migrations`.
 
-The schema started with legacy `projects` and `study_sessions` names. Application terminology has since moved to Workspace and Activity, but old table names are not renamed merely for naming consistency because schema renames would add migration risk without changing product behavior.
+The schema retains the historical `projects` table name for Workspaces. Migration `0031_contract_retired_domains.sql` removes the retired planning, activity, capture and history tables as well as obsolete authored columns. Historical migration names do not describe the current product.
 
 Current persistence covers:
 
 - Categories;
 - Workspaces;
-- legacy authored compatibility fields;
 - granular Canvas;
-- Workspace references;
-- planning milestones/tasks;
-- historical unassigned Tasks (no new creation);
-- activity sessions;
+- canonical Canvas Notes and note placements;
 - durable assets and asset lifecycle;
-- Trash snapshots;
-- legacy history compatibility;
+- Workspace Trash snapshots and Note Trash;
 - FTS/search projection;
 - migration metadata and integrity fingerprints.
 
@@ -382,7 +376,7 @@ Trash is not a raw delete.
 ```text
 Trash Workspace
   ↓
-snapshot authored Workspace + Plan + History + Assets
+snapshot authored Workspace + Note placements + Assets
   ↓
 write Trash record
   ↓
@@ -413,6 +407,8 @@ Canonical client terminology:
 /workspaces/:id
 /api/workspaces/*
 ```
+
+Current Canvas Notes use `/api/notes/*` and workspace-scoped `/api/workspaces/{id}/note-instances`; note Trash has its own endpoints. See the [HTTP router](../apps/server/internal/httpapi/router.go) for the authoritative route inventory.
 
 Legacy `/api/projects/*`, full-snapshot `PATCH /api/workspaces/{id}`, and retired `planning`, `capture`, and `activity` endpoints have been removed.
 

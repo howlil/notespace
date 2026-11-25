@@ -42,7 +42,7 @@ A native build does not publish an installer. Read [desktop distribution](DESKTO
 
 `task check` runs local static and unit/integration checks; `task verify` adds production builds and the PR browser smoke set (the same set the `ci` gate runs).
 
-The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. The single `ci` workflow selects lanes from the changed paths. Pull requests run web checks, Go tests, the browser journeys affected by the change plus the P0 smoke set, the landing lane when landing changes, and the native Windows lane when native paths change. Recognized docs-only changes select no app lanes; unfamiliar paths may conservatively select all lanes. App changes pushed to `master` run every lane, including the critical browser set, Docker persistence restart smoke, and the Windows Server 2022 native WebView2 journey, which covers UI routing and close/relaunch durability. See `TESTING.md` for the lane rules. Target-device visual acceptance is separate and is not inferred from CI.
+The browser suite is WebdriverIO standalone plus `node:test`; there is no Playwright dependency. The single `ci` workflow selects lanes from the changed paths. Pull requests run web checks, Go tests, the browser journeys affected by the change plus the P0 smoke set, the landing lane when landing changes, and the native Windows lane when native paths change. Recognized community and documentation-only changes select no app lanes except README changes, which run the landing contract checks; unfamiliar paths conservatively select all lanes. App changes pushed to `master` run every lane, including the critical browser set, Docker persistence restart smoke, and the Windows Server 2022 native WebView2 journey, which covers UI routing and close/relaunch durability. See `TESTING.md` for the lane rules. Target-device visual acceptance is separate and is not inferred from CI.
 
 For ownership and focused commands, read [testing and CI](TESTING.md).
 
@@ -53,7 +53,7 @@ For ownership and focused commands, read [testing and CI](TESTING.md).
 - Same-browser Canvas tab synchronization uses `BroadcastChannel`; durable persistence remains server-owned.
 - Go `net/http`, `database/sql`, pure-Go `modernc.org/sqlite`, explicit SQL and embedded transactional migrations.
 - SQLite uses WAL + FULL synchronous with one pooled connection.
-- Search, activity telemetry, durable assets, Trash, authored state, and legacy history compatibility data remain in the same self-hosted SQLite ownership boundary.
+- Search, durable assets, Trash, Canvas Notes and Workspace authored state remain in the same self-hosted SQLite ownership boundary.
 - No hosted service is required for core editing.
 
 For a current implementation map, read [`ARCHITECTURE.md`](ARCHITECTURE.md). For testing and CI ownership, read [`TESTING.md`](TESTING.md). Repository-local implementation rules start at [`AGENTS.md`](../AGENTS.md).

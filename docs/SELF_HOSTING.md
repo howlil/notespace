@@ -77,6 +77,7 @@ Development and production stores are deliberately separate:
 The runtime never moves or merges these SQLite stores automatically. Existing
 `apps/server/data` and desktop app-data databases stay untouched; use the
 application backup/restore flow for an intentional data transfer.
+
 ## Operational checklist
 
 - Keep the SQLite volume name and database location stable across upgrades.

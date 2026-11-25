@@ -1,40 +1,31 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/howlil/notespace/apps/server/internal/sqlite"
+	"github.com/howlil/notespace/apps/server/internal/app"
 )
 
 func main() {
+	cfg := app.ConfigFromEnv()
+
 	// The desktop backup worker runs as a separate read-only process, never
 	// starts the HTTP server and never runs migrations.
-	if os.Getenv("NOTESPACE_SNAPSHOT_ONLY") == "1" {
-		database := os.Getenv("NOTESPACE_DB")
-		if database == "" {
-			fmt.Fprintln(os.Stderr, "backup requires NOTESPACE_DB")
-			os.Exit(1)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		path, err := sqlite.CreateManualSnapshot(ctx, database)
-		if err != nil {
+	if cfg.SnapshotOnly {
+		if err := app.RunSnapshotOnly(cfg); err != nil {
 			slog.Error("create SQLite recovery backup", "error", err)
+			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("NOTESPACE_SNAPSHOT=" + path)
 		return
 	}
-	if err := run(); err != nil {
+
+	if err := app.Run(cfg); err != nil {
 		slog.Error("server stopped", "error", err)
-		// The desktop shell needs a specific failure cause before the sidecar
-		// exits; ordinary stdout logs are not part of the readiness protocol.
-		if os.Getenv("NOTESPACE_READY_STDOUT") == "1" {
+		if cfg.ReadyStdout {
 			detail := strings.NewReplacer("\r", " ", "\n", " ").Replace(err.Error())
 			fmt.Fprintln(os.Stderr, "NOTESPACE_STARTUP_ERROR="+detail)
 		}

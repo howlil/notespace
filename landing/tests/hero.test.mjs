@@ -24,14 +24,13 @@ const globalsPath = join(appDir, 'shared', 'styles', 'globals.css')
 
 // Control and state names the copy uses. Each must appear in the copy and in the app's own source.
 const APP_LABELS = [
-  'Undo', 'Redo', 'Fit canvas', 'Object snapping', 'Selection toolbar', 'Floating', 'Compact', 'Docked',
-  'General Components', 'Connect', 'Place existing Note', 'Info & backlinks', 'Move to Trash',
+  'Undo', 'Redo', 'Fit canvas', 'Object snapping', 'Compact', 'Docked',
+  'Connect', 'Place existing Note', 'Info & backlinks', 'Move to Trash',
   'Remove instance', 'Extract to Note', 'LaTeX',
-  'Run JavaScript', 'Preview HTML', 'Show code output', 'Copy code', 'Code language', 'Code theme',
-  'Line numbers', 'Fit to content', 'Duplicate code block', 'Delete code block',
-  'Categories', 'Explorer', 'Previous', 'Next', 'Quick Open', 'Trash', 'Restore a Workspace or Note',
-  'Delete permanently', 'Export ZIP', 'Restore backup', 'Includes Workspaces, Canvas content, images, Trash, and history.',
-  'Restoring a backup replaces your current library.', 'Retry merged save', 'Download draft',
+  'Run JavaScript', 'Preview HTML', 'Copy code', 'Code theme',
+  'Line numbers', 'Fit to content', 'Delete code block',
+  'Categories', 'Explorer', 'Previous', 'Next', 'Quick Open', 'Trash',
+  'Delete permanently', 'Export ZIP', 'Restore backup', 'Retry merged save', 'Download draft',
   'Use saved Canvas', 'Keep editing', 'Device recovery snapshots are available in the Windows desktop app.',
   'System', 'Light', 'Dark', 'Color theme', 'Paper', 'Stone', 'Sage', 'Amber', 'Graphite',
   'Saved in this browser', 'Saved on this device',
@@ -59,7 +58,6 @@ function readAppSource(dir) {
     })
     .join('\n')
 }
-
 test('hero names the product, both installs and the real canvas', () => {
   assert.match(html, /<h1 id="hero-title">Write, draw, and run code on one canvas\.<\/h1>/)
   assert.match(copy, /Install the Windows app, or run your own server\./)
@@ -67,7 +65,7 @@ test('hero names the product, both installs and the real canvas', () => {
   assert.match(html, /<img src="\/product\/canvas\.webp"/)
 })
 
-test('sections appear once, in scroll order, numbered 01 to 08 where numbered', () => {
+test('sections appear once, in scroll order, numbered 01 to 09 where numbered', () => {
   const positions = SECTIONS.map((id) => {
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) ?? []).length, 1, `#${id} must appear once`)
     return html.indexOf(`id="${id}"`)
@@ -118,11 +116,10 @@ test('every control name in the copy is spelled as the app spells it', { skip: !
 
 test('the behavior claims trace to the app code', { skip: !existsSync(appDir) }, () => {
   const read = (file) => readFileSync(join(appDir, file), 'utf8')
-  assert.match(read('features/workspace-authoring/canvas/code/preview/HtmlPreviewFrame.tsx'), /sandbox="allow-scripts"/)
-  assert.match(read('features/workspace-authoring/canvas/code/execution/code-runner.ts'), /new Worker\(/)
-  assert.match(read('features/workspace-authoring/canvas/sync/use-canvas-peer-channel.ts'), /new BroadcastChannel\(/)
+  assert.match(read('modules/canvas/objects/code-block/preview/HtmlPreviewFrame.tsx'), /sandbox="allow-scripts"/)
+  assert.match(read('modules/canvas/objects/code-block/execution/code-runner.ts'), /new Worker\(/)
+  assert.match(read('modules/canvas/core/sync/use-canvas-peer-channel.ts'), /new BroadcastChannel\(/)
 })
-
 test('every Windows download CTA links the verified MSI in the same tab', () => {
   const anchors = [...html.matchAll(/<a\b[^>]*\bdata-notespace-windows-download\b[^>]*>/g)].map((m) => m[0])
   assert.equal(anchors.length, 5, 'nav, hero, mobile menu, Windows section and closing CTA')

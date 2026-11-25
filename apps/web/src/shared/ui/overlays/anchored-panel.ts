@@ -9,7 +9,7 @@ interface PanelPosition {
 }
 
 interface AnchoredPanelOptions {
-  preferredAxis?: "vertical" | "horizontal";
+  preferredAxis?: "vertical" | "horizontal" | "rail";
   horizontalAlignment?: "start" | "end";
 }
 
@@ -42,6 +42,16 @@ export function useAnchoredPanelPosition(
     const aboveSpace = anchorBounds.top - anchorGap - viewportGap;
     const canOpenLeft = leftSpace >= width;
     const canOpenRight = rightSpace >= width;
+    if (options.preferredAxis === "rail") {
+      const rail = anchor.closest<HTMLElement>('[aria-label="Canvas tools"]')?.getBoundingClientRect();
+      const railIsHorizontal = rail ? rail.width > rail.height : false;
+      if (rail && !railIsHorizontal) {
+        const left = Math.min(Math.max(viewportGap, rail.right + anchorGap), Math.max(viewportGap, viewportWidth - width - viewportGap));
+        const top = Math.min(Math.max(viewportGap, rail.top), Math.max(viewportGap, viewportHeight - height - viewportGap));
+        setPosition({ top, left, vertical: "below", horizontal: "right", placement: "right" });
+        return;
+      }
+    }
     const useHorizontalPlacement = options.preferredAxis === "horizontal" && (canOpenLeft || canOpenRight);
     if (useHorizontalPlacement) {
       const openLeft = canOpenLeft || !canOpenRight;
@@ -114,7 +124,6 @@ export function useAnchoredPanelDismiss(
   onClose: () => void,
   options: { insideSelector?: string } = {},
 ) {
-  const closeTimer = useRef<number | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const insideSelector = options.insideSelector;
 
@@ -128,10 +137,6 @@ export function useAnchoredPanelDismiss(
       restoreFocusRef.current = document.activeElement;
     }
 
-    const clearCloseTimer = () => {
-      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    };
     const isInsideSurface = (target: EventTarget | null) => {
       const node = target instanceof Node ? target : null;
       const element = node instanceof Element ? node : null;
@@ -141,27 +146,13 @@ export function useAnchoredPanelDismiss(
         || (insideSelector && element?.closest(insideSelector))
       ));
     };
-    const handlePointerMove = (event: PointerEvent) => {
-      if (isInsideSurface(event.target)) {
-        clearCloseTimer();
-        return;
-      }
-      if (closeTimer.current === null) {
-        closeTimer.current = window.setTimeout(() => {
-          closeTimer.current = null;
-          onClose();
-        }, 160);
-      }
-    };
     const handlePointerDown = (event: PointerEvent) => {
       if (!isInsideSurface(event.target)) {
-        clearCloseTimer();
         onClose();
       }
     };
     const handleFocusIn = (event: FocusEvent) => {
       if (!isInsideSurface(event.target)) {
-        clearCloseTimer();
         onClose();
       }
     };
@@ -174,13 +165,10 @@ export function useAnchoredPanelDismiss(
       if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
     };
 
-    document.addEventListener("pointermove", handlePointerMove);
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      clearCloseTimer();
-      document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown, true);

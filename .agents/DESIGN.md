@@ -23,10 +23,18 @@ purpose per section, and no explanatory copy that does not change the next move.
 
 ## Guardrails
 
-- Prefer existing shared tokens and `Button`/`IconButton` primitives.
+- Follow strict UI composition order: **Global Tokens (`globals.css`) → Shared Blocks (`shared/ui/blocks/`) → Shared Primitives (`shared/ui/`) → custom markup only if unrepresented**.
+- Use semantic Tailwind utilities (`bg-surface`, `text-ink`, `border-line`, `text-xs`/`text-sm`/`text-2xs`), `no-scrollbar`, and `z-[var(--z-*)]` tokens; never add arbitrary `var()` classes, raw `[scrollbar-width:none]`, or magic numeric z-indices (`notespace/ui-tokens` enforces this).
+- Keep `LibraryPageShell` mounted once in `PersistentAppShell`; pages render content only. Avoid cross-module DOM scraping (`document.querySelector` into another module's internals) and remove dead UI flows immediately.
 - Avoid repeated rounded cards, decorative gradients, and large empty modal areas.
 - Distinguish portable library export/restore from device-local SQLite recovery.
 - Keep destructive restore and permanent deletion behind explicit confirmation.
+
+## Reusable UI Schema
+
+- **Tokens (`apps/web/src/shared/styles/globals.css`)**: semantic colors, typography (`text-2xs`, `text-xs`, `text-sm`, `text-nav`, `text-base`, `text-title`), `--sidebar-width`, `--z-*` strata, and `@utility no-scrollbar`.
+- **Shared Blocks (`shared/ui/blocks/`)**: `CommandListDialog`, `AsyncStateView`, `SettingSection`, `SettingRow`.
+- **Shared Primitives (`shared/ui/`)**: `Button`, `IconButton`, `Input`, `SearchInput`, `Switch`, `SegmentedControl`, `ColorSwatchPicker`, `Badge`, `Kbd`, `SectionLabel`, `Dialog` + `DialogHeader`, `AnchoredPopover`, `MenuItem` / `MenuSection` / `MenuDivider`, `ContextMenu`, `Skeleton`.
 
 ## State
 
@@ -47,11 +55,7 @@ short “No workspaces yet” copy, Create Workspace and secondary Restore backu
 Keep the art decorative, static and semantic-token-colored, with no sample records
 or empty-state gallery tabs. Loading, errors and empty categories stay distinct.
 
-The shared 38px shell keeps one Fox Home link and a separate labelled Explorer
-toggle in browser and Tauri. Search opens Quick Open; Settings stays in the
-Explorer footer and remains reachable through Quick Open when collapsed. Workspace switches keep the shell visible and remount only
-the authoring session after destination data is ready; only the active
-Workspace row morphs, while categories remain visually neutral.
+The sidebar-only single shell has no 38px top bar: one Fox Home link, a separate labelled Explorer toggle, and Search (`Ctrl/Cmd+K`) live in the Explorer header; Settings stays in the Explorer footer and remains reachable through Quick Open when collapsed. Desktop collapse uses Arc Edge-Peek (zero floating top-left button; left-edge hover peeks the Explorer overlay; `Ctrl+\` toggles); narrow viewports (`<=760px`) keep a quiet borderless ghost `Show Explorer` button. Desktop (Tauri) overlays adaptive frameless window controls (macOS stationary traffic lights top-left; Windows borderless `─ □ ×` top-right + top 10px drag strip). Workspace switches keep the shell visible and remount only the authoring session after destination data is ready; only the active Workspace row morphs, while categories remain visually neutral.
 
 Explorer contains Categories and Workspace rows, with no All workspaces or
 global New workspace entry. The Categories plus creates a category; each category
@@ -68,24 +72,9 @@ status remains accessible without permanent visual chrome; failures keep the
 existing visible recovery actions. On narrow screens, title and Search share
 the titlebar without overlapping.
 
-Canvas view, background, library, file, export, navigation, and help actions
-share one upper-right Canvas options panel. It opens vertically below the More
-trigger, right-aligned and scrollable without a visible scrollbar. Fit, zoom and
-history are compact labelled icon controls aligned directly with its More trigger. Selected-object actions form a horizontal toolbar
-4px above the selection bounds, clamped to the Canvas viewport; it moves below
-only when there is no room above. It exposes no more than three type-sensitive
-quick actions, keeps complete object commands behind its visible More entry,
-and hides without being recreated while the selected object is manipulated,
-edited, or has the native context menu open. Tool defaults use a compact vertical
-bar beside the active rail button, horizontal above the mobile rail. A round
-stroke swatch distinguishes Colors from shape creation. Popup positioning lives
-on a static outer container; only its contents animate. The native context menu is the full-command surface and
-shares Excalidraw's action manager with keyboard commands.
-More omits actions already visible in the three quick controls, but retains any
-applicable property that does not fit. Batch styles show Mixed per property;
-same-type selections retain Pressure/Corners. Overlay dismissal releases only
-its own scope; Escape restores its trigger without clearing selection, and a
-changed context closes stale properties without stealing pointer focus.
+Canvas zoom/fit/history, view, background, library, file, export, navigation, and help actions
+share one upper-right Canvas options panel. It opens vertically below the single borderless ghost **More canvas actions (`⋯`)**
+trigger, right-aligned and scrollable without a visible scrollbar; Canvas background is plain-only (Excalidraw snapping Grid remains in View). Object actions and styles open via right-click in a unified compact context menu (inline quick controls + max 1-level submenu) for Shapes, Frames (outline + 50% background), Note Cards, Code Blocks, and empty Canvas (including Full mode `Alt+Z` to hide Explorer). The left tool rail groups Navigate, Shapes, Lines, and Draw into compact flyouts (left-click opens group, right-click opens tool defaults aligned to the button), while Note, Code, Diagram, and More stay direct. Selection bounding boxes auto-hide while actively editing a Note or Code Block. All surfaces stay flat with zero drop shadows (`--shadow-float: none`, `--shadow-popup: none`) and hidden scrollbars on menus/dialogs/notes.
 
 Code Blocks are the selection-toolbar exception: remain visible during source
 editing, hide during manipulation/context menus, and expose Language, Output,

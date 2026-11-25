@@ -17,9 +17,9 @@ const README_CONTRACT = /^README\.md$/;
 const LANDING = /^(landing\/|wrangler\.jsonc$)/;
 const RELEASE_POLICY = /^(scripts\/|\.github\/workflows\/|Taskfile\.yml$|package\.json$)/;
 const DESKTOP_BETA_NOTE = /^docs\/DESKTOP_BETA_RELEASE_/;
-const WEB_UNIT_ONLY = /^(apps\/web\/.*\.test\.tsx?|tests\/[^/]+\.test\.tsx?|eslint\.config\.mjs|tsconfig\.base\.json)$/;
+const WEB_UNIT_ONLY = /^(apps\/web\/.*\.test\.tsx?|eslint\.config\.mjs|tsconfig\.base\.json)$/;
 const WEB_E2E = /^tests\/e2e\//;
-const WEB_SETTINGS = /^apps\/web\/src\/features\/settings\//;
+const WEB_SETTINGS = /^apps\/web\/src\/app\/settings\//;
 const WEB_APP = /^apps\/web\//;
 const SERVER_TEST_ONLY = /^apps\/server\/.*_test\.go$/;
 const SERVER_APP = /^apps\/server\//;
@@ -33,14 +33,14 @@ const WORKFLOW_CLOUDFLARE = /^\.github\/workflows\/deploy-cloudflare\.yml$/;
 const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\.yml$/;
 
 // Paths that can change the native Windows WebView2/sidecar/release proof.
-// Test-only Go files under internal/sqlite do not alter the compiled sidecar binary.
+// Test-only Go files under internal/{domain,infra} do not alter the compiled sidecar binary.
 const NATIVE_MATCH = new RegExp([
   "^docs/DESKTOP_BETA_RELEASE_",
   "^apps/desktop/",
   "^scripts/(release|dev|assets)/",
   "^scripts/verify/(desktop|native|smoke-desktop|assert-windows|check-desktop|test-desktop|prepare-native)",
-  "^apps/server/(cmd|migrations|internal/sqlite)/",
-  "^apps/web/src/(features/desktop|adapters/desktop|routes/__root)",
+  "^apps/server/(cmd|internal/app|internal/domain|internal/infra)/",
+  "^apps/web/src/(platform/desktop|platform/runtime|routes/__root|app/AppRoot)",
   "^apps/web/vite\\.config\\.",
   "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\\.yml$",
   "^Taskfile\\.yml$",

@@ -1,0 +1,694 @@
+/* Workspace authoring visual overrides. Imported once by the root route so feature CSS stays globally ordered without changing ownership. */
+
+/* Excalidraw adapter: the engine owns canvas rendering, while Notespace owns
+   the visual language of every UI surface rendered inside the canvas. Keep
+   this scoped to the host so Excalidraw never changes other app surfaces. */
+.notespace-canvas-surface .excalidraw {
+  --ui-font: var(--font-sans);
+  --color-on-surface: var(--ink);
+  --text-primary-color: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-darker: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  --color-primary-darkest: color-mix(in srgb, var(--accent) 68%, var(--ink));
+  --color-primary-light: var(--tint);
+  --color-primary-light-darker: color-mix(in srgb, var(--tint) 82%, var(--accent));
+  --color-primary-hover: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  --color-selection: var(--accent);
+  --color-gray-10: color-mix(in srgb, var(--surface) 96%, var(--ink));
+  --color-gray-20: color-mix(in srgb, var(--surface) 90%, var(--ink));
+  --color-gray-30: color-mix(in srgb, var(--surface) 78%, var(--ink));
+  --color-gray-40: color-mix(in srgb, var(--surface) 64%, var(--ink));
+  --color-gray-50: color-mix(in srgb, var(--surface) 50%, var(--ink));
+  --color-gray-60: var(--muted);
+  --color-gray-70: color-mix(in srgb, var(--muted) 74%, var(--ink));
+  --color-gray-80: color-mix(in srgb, var(--muted) 52%, var(--ink));
+  --color-gray-85: color-mix(in srgb, var(--muted) 42%, var(--ink));
+  --color-gray-90: color-mix(in srgb, var(--ink) 86%, var(--surface));
+  --color-gray-100: var(--ink);
+  --color-disabled: color-mix(in srgb, var(--muted) 55%, var(--surface));
+  --color-danger: var(--danger);
+  --color-danger-dark: var(--danger);
+  --color-danger-darker: color-mix(in srgb, var(--danger) 82%, var(--ink));
+  --color-danger-darkest: color-mix(in srgb, var(--danger) 68%, var(--ink));
+  --color-danger-background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  --color-danger-icon-background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  --color-danger-text: var(--danger);
+  --color-danger-color: var(--danger);
+  --color-danger-icon-color: var(--danger);
+  --color-surface-high: var(--tint);
+  --color-surface-mid: color-mix(in srgb, var(--surface) 92%, var(--ink));
+  --color-surface-low: var(--sidebar);
+  --color-surface-lowest: var(--surface);
+  --color-surface-primary-container: var(--tint);
+  --color-on-primary-container: var(--accent);
+  --color-border-outline: var(--accent);
+  --color-border-outline-variant: var(--line);
+  --default-bg-color: var(--canvas);
+  --input-bg-color: var(--surface);
+  --input-border-color: var(--line);
+  --input-hover-bg-color: var(--tint);
+  --island-bg-color: var(--surface);
+  --island-bg-color-alt: var(--surface);
+  --popup-bg-color: var(--surface);
+  --popup-secondary-bg-color: var(--surface);
+  --popup-text-color: var(--ink);
+  --popup-text-inverted-color: var(--surface);
+  --default-border-color: var(--line);
+  --dialog-border-color: var(--line);
+  --sidebar-border-color: var(--line);
+  --sidebar-bg-color: var(--surface);
+  --focus-highlight-color: var(--accent);
+  --button-gray-1: var(--tint);
+  --button-gray-2: var(--line);
+  --button-gray-3: var(--line);
+  --button-hover-bg: var(--tint);
+  --button-active-bg: var(--tint);
+  --button-active-border: var(--accent);
+  --select-highlight-color: var(--accent);
+  --border-radius-md: .5rem;
+  --border-radius-lg: .625rem;
+  --editor-container-padding: .75rem;
+  --shadow-island: none;
+  --shadow-island-stronger: none;
+  --modal-shadow: none;
+  --sidebar-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .App-toolbar,
+.notespace-canvas-surface .excalidraw .App-toolbar-container,
+.notespace-canvas-surface .excalidraw .mobile-toolbar,
+.notespace-canvas-surface .excalidraw .mobile-shape-actions,
+.notespace-canvas-surface .mobile-shape-actions,
+.notespace-canvas-surface .excalidraw .App-menu_top,
+.notespace-canvas-surface .excalidraw .App-menu_bottom,
+.notespace-canvas-surface .excalidraw .undo-redo-buttons,
+.notespace-canvas-surface .excalidraw .main-menu-trigger,
+.notespace-canvas-surface .excalidraw [data-testid="main-menu-trigger"],
+.notespace-canvas-surface .excalidraw .sidebar-trigger,
+.notespace-canvas-surface .excalidraw .library-button,
+.notespace-canvas-surface .excalidraw button[aria-label="Library"] {
+  display: none !important;
+}
+
+.notespace-canvas-surface[data-hide-selection-box="true"] .excalidraw__canvas.interactive {
+  opacity: 0;
+}
+
+.notespace-canvas-surface .notespace-selection-actions button[aria-label="Undo"],
+.notespace-canvas-surface .notespace-selection-actions button[aria-label="Redo"] {
+  display: none !important;
+}
+
+.notespace-code-theme .hljs-comment,
+.notespace-code-theme .hljs-quote { color: var(--code-comment); }
+.notespace-code-theme .hljs-keyword,
+.notespace-code-theme .hljs-selector-tag,
+.notespace-code-theme .hljs-literal { color: var(--code-keyword); }
+.notespace-code-theme .hljs-string,
+.notespace-code-theme .hljs-regexp,
+.notespace-code-theme .hljs-addition { color: var(--code-string); }
+.notespace-code-theme .hljs-number,
+.notespace-code-theme .hljs-symbol,
+.notespace-code-theme .hljs-bullet { color: var(--code-number); }
+.notespace-code-theme .hljs-title,
+.notespace-code-theme .hljs-section,
+.notespace-code-theme .hljs-function { color: var(--code-function); }
+.notespace-code-theme .hljs-type,
+.notespace-code-theme .hljs-built_in,
+.notespace-code-theme .hljs-class { color: var(--code-type); }
+.notespace-code-theme .hljs-attr,
+.notespace-code-theme .hljs-attribute,
+.notespace-code-theme .hljs-property { color: var(--code-property); }
+.notespace-code-theme .hljs-variable,
+.notespace-code-theme .hljs-template-variable { color: var(--code-variable); }
+.notespace-code-theme .hljs-deletion { color: var(--code-deletion); }
+
+.notespace-canvas-surface .excalidraw,
+.notespace-canvas-surface .excalidraw button,
+.notespace-canvas-surface .excalidraw input,
+.notespace-canvas-surface .excalidraw select,
+.notespace-canvas-surface .excalidraw textarea {
+  font-family: var(--font-sans);
+}
+
+.notespace-canvas-surface .excalidraw .Island,
+.notespace-canvas-surface .excalidraw .sidebar,
+.notespace-canvas-surface .excalidraw .dropdown-menu .dropdown-menu-container,
+.notespace-canvas-surface .excalidraw .context-menu,
+.notespace-canvas-surface .excalidraw .library-menu-dropdown-container,
+.notespace-canvas-surface .excalidraw .Modal__content,
+.notespace-canvas-surface .excalidraw .HelpDialog__island {
+  border: 1px solid var(--line);
+  border-radius: .625rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .Island {
+  box-shadow: none;
+}
+
+.notespace-canvas-surface .excalidraw .ToolIcon__icon,
+.notespace-canvas-surface .excalidraw .sidebar-trigger,
+.notespace-canvas-surface .excalidraw .zoom-button,
+.notespace-canvas-surface .excalidraw .library-button,
+.notespace-canvas-surface .excalidraw .Modal__close,
+.notespace-canvas-surface .excalidraw .HelpDialog__btn {
+  border-radius: .5rem;
+}
+
+.notespace-canvas-surface .excalidraw .ToolIcon__icon:hover,
+.notespace-canvas-surface .excalidraw .ToolIcon__icon:active,
+.notespace-canvas-surface .excalidraw .ToolIcon--checked .ToolIcon__icon,
+.notespace-canvas-surface .excalidraw .sidebar-trigger:hover,
+.notespace-canvas-surface .excalidraw .sidebar-trigger.active,
+.notespace-canvas-surface .excalidraw .zoom-button:hover,
+.notespace-canvas-surface .excalidraw .library-button:hover {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.notespace-canvas-surface .excalidraw input,
+.notespace-canvas-surface .excalidraw select,
+.notespace-canvas-surface .excalidraw textarea {
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw input:focus,
+.notespace-canvas-surface .excalidraw select:focus,
+.notespace-canvas-surface .excalidraw textarea:focus,
+.notespace-canvas-surface .excalidraw .ToolIcon_type_toggle:focus-visible,
+.notespace-canvas-surface .excalidraw .sidebar-trigger:focus-visible,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item:focus-visible,
+.notespace-canvas-surface .excalidraw .context-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu,
+.notespace-canvas-surface .excalidraw .context-menu,
+.notespace-canvas-surface .excalidraw .popover {
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .context-menu {
+  padding: 4px;
+  border-radius: 8px;
+  scrollbar-width: none;
+}
+
+.notespace-canvas-surface .excalidraw .context-menu::-webkit-scrollbar,
+.notespace-canvas-surface .excalidraw .sidebar__content::-webkit-scrollbar {
+  display: none;
+}
+
+.notespace-canvas-surface .excalidraw .sidebar__content {
+  scrollbar-width: none;
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu-item,
+.notespace-canvas-surface .excalidraw .context-menu-item,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item-bare {
+  min-height: 26px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .dropdown-menu-item:hover,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item--hovered,
+.notespace-canvas-surface .excalidraw .dropdown-menu-item--selected,
+.notespace-canvas-surface .excalidraw .context-menu-item:hover,
+.notespace-canvas-surface .excalidraw .color-picker__context-menu-item:hover,
+.notespace-canvas-surface .excalidraw .color-picker__context-menu-item[data-highlighted] {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.notespace-canvas-surface .excalidraw .Modal__background {
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+}
+
+.notespace-canvas-surface .excalidraw .Toast {
+  border: 1px solid var(--line);
+  border-radius: .625rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* Small interaction controls that need browser-native pseudo-element styling. */
+
+/* Canvas opacity: replace the browser's heavy default range treatment with
+   a thin track and a clear, theme-aware thumb. */
+.notespace-selection-actions input[type="range"][aria-label="Opacity"] {
+  width: 62px;
+  flex: 0 0 62px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible {
+  outline: none;
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--tint), 0 0 0 4px var(--accent);
+}
+
+.notespace-selection-actions input[type="range"][aria-label="Opacity"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--tint), 0 0 0 4px var(--accent);
+}
+
+.notespace-selection-actions section[aria-label="Opacity"] output {
+  width: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--canvas);
+  padding: 2px 3px;
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Canvas Note content: one typography for the editor and the read-only view (B9a). */
+.notespace-note-content {
+  padding: 10px 14px 12px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.notespace-note-content > :first-child { margin-top: 0; }
+.notespace-note-content > :last-child { margin-bottom: 0; }
+.notespace-note-markdown .cm-editor, .notespace-note-markdown .cm-scroller { font: inherit; }
+.notespace-note-markdown .cm-focused { outline: none; }
+.notespace-note-markdown .cm-content, .notespace-note-markdown .cm-line { padding: 0; }
+.notespace-note-markdown .cm-placeholder { color: var(--muted); }
+.notespace-note-markdown .cm-content { caret-color: var(--ink); }
+.note-md-heading-1, .note-md-heading-2, .note-md-heading-3,
+.note-md-heading-4, .note-md-heading-5, .note-md-heading-6 { font-weight: 600; }
+.note-md-heading-1 { font-size: 1.43em; }
+.note-md-heading-2 { font-size: 1.22em; }
+.note-md-heading-3 { font-size: 1.07em; }
+.note-md-strong { font-weight: 700; }
+.note-md-emphasis { font-style: italic; }
+.note-md-strike { text-decoration: line-through; }
+.note-md-link { color: var(--accent); text-decoration: underline; }
+.note-md-code { font-family: ui-monospace, monospace; background: var(--tint); }
+
+.notespace-note-content p { margin: 0 0 .5em; }
+.notespace-note-content h1,
+.notespace-note-content h2,
+.notespace-note-content h3 {
+  margin: .9em 0 .35em;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.notespace-note-content h1 { font-size: 1.43em; }
+.notespace-note-content h2 { font-size: 1.22em; }
+.notespace-note-content h3 { font-size: 1.07em; }
+.notespace-note-content ul,
+.notespace-note-content ol { margin: 0 0 .5em; padding-left: 1.35em; }
+.notespace-note-content ul { list-style: disc; }
+.notespace-note-content ol { list-style: decimal; }
+.notespace-note-content li { margin: .15em 0; }
+.notespace-note-content li > p { margin: 0; }
+.notespace-note-content ul[data-type="taskList"] { padding-left: .1em; list-style: none; }
+/* The editor's TaskItem node view omits data-type on <li>, so match by the list parent. */
+.notespace-note-content ul[data-type="taskList"] > li { display: flex; align-items: flex-start; gap: .45em; }
+.notespace-note-content ul[data-type="taskList"] > li > label { display: flex; flex: none; margin-top: .25em; }
+.notespace-note-content ul[data-type="taskList"] > li > label > span:empty { display: none; }
+.notespace-note-content ul[data-type="taskList"] > li > div { flex: 1 1 auto; min-width: 0; }
+.notespace-note-content ul[data-type="taskList"] > li[data-checked="true"] > div { color: var(--muted); text-decoration: line-through; }
+.notespace-note-content input[type="checkbox"] { accent-color: var(--accent); }
+.notespace-note-content blockquote {
+  margin: .5em 0;
+  border-left: 3px solid var(--line);
+  padding-left: .75em;
+  color: var(--muted);
+}
+.notespace-note-content code {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 60%, var(--surface));
+  padding: .1em .3em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .88em;
+}
+.notespace-note-content pre {
+  margin: .5em 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--canvas);
+  padding: .6em .75em;
+  line-height: 1.45;
+}
+.notespace-note-content pre code { background: none; padding: 0; font-size: .86em; }
+.notespace-note-content a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.notespace-note-content hr { margin: .9em 0; border: 0; border-top: 1px solid var(--line); }
+.notespace-note-content img { display: block; max-width: 100%; margin: .5em 0; border-radius: 6px; }
+.notespace-note-content table { width: 100%; margin: .5em 0; border-collapse: collapse; table-layout: fixed; }
+.notespace-note-content th,
+.notespace-note-content td { border: 1px solid var(--line); padding: .3em .5em; vertical-align: top; text-align: left; }
+.notespace-note-content th { background: var(--canvas); font-weight: 600; }
+.notespace-note-content .notespace-note-math .katex-display { margin: .5em 0; }
+
+.notespace-note-callout {
+  margin: .5rem 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+  padding: .5rem .75rem;
+}
+
+.notespace-note-callout p:first-child { margin-top: 0; }
+.notespace-note-callout p:last-child { margin-bottom: 0; }
+
+.notespace-note-callout-info {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.notespace-note-callout-tip {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+
+.notespace-note-callout-warning {
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.notespace-note-callout-danger {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+
+/*
+ * Adaptive Canvas Note card colors: paper-dyed calm tints in Light mode (>= 13:1 ink contrast)
+ * and deep atmospheric tinted surfaces in Dark mode (>= 12:1 ink contrast, zero night glare).
+ */
+[data-note-element][data-note-color="blue"] { background-color: #e4eef8; border-color: #bfd4ec; }
+[data-note-element][data-note-color="teal"] { background-color: #e1f1ee; border-color: #b6dbd4; }
+[data-note-element][data-note-color="green"] { background-color: #e7f1e3; border-color: #c2dab9; }
+[data-note-element][data-note-color="yellow"] { background-color: #f8efc9; border-color: #e2cf8a; }
+[data-note-element][data-note-color="orange"] { background-color: #f8e4d4; border-color: #e4be9f; }
+[data-note-element][data-note-color="pink"] { background-color: #f7e3e8; border-color: #e2bac4; }
+[data-note-element][data-note-color="purple"] { background-color: #ece6f8; border-color: #cdc0e9; }
+
+/* Text tones: one source for the text, the picker "A" glyphs, and the colored-card overrides. */
+:root {
+  --note-ink: #1f2128;
+  --note-tone-muted: #555b6b;
+  --note-tone-red: #c4162a;
+  --note-tone-orange: #a94700;
+  --note-tone-yellow: #8a5b00;
+  --note-tone-green: #0c6e33;
+  --note-tone-blue: #1b5bd8;
+  --note-tone-purple: #6d2bd1;
+}
+
+/* Light theme: crisp reading ink for Note cards. */
+:root [data-note-element] [data-note-scroll],
+:root [data-note-element] [data-note-label] {
+  --ink: var(--note-ink);
+  color: var(--ink);
+}
+
+/* Popups live outside [data-note-scroll]/[data-note-label], so only the card's own content adapts its local contrast tokens. */
+:root [data-note-element][data-note-color] [data-note-scroll],
+:root [data-note-element][data-note-color] [data-note-label] {
+  --ink: var(--note-ink);
+  --muted: color-mix(in srgb, var(--note-ink) 70%, transparent);
+  --line: rgba(31, 33, 40, 0.2);
+  --tint: rgba(255, 255, 255, 0.5);
+  --canvas: rgba(255, 255, 255, 0.52);
+  --surface: rgba(255, 255, 255, 0.65);
+  --accent: #0f44a8;
+  --danger: #9c2426;
+  --warning: #754500;
+  color: var(--ink);
+}
+
+:root [data-note-element][data-note-selected="true"],
+:root [data-note-element][data-note-editing="true"] {
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+/* Inline highlight marks: soft editorial washes in light mode and calm translucent washes in dark mode. */
+.notespace-note-content .notespace-note-hl {
+  color: var(--note-ink);
+  border-radius: 3px;
+  padding: 0 .15em;
+  box-shadow: inset 0 0 0 1px rgba(20, 21, 26, 0.09);
+}
+.notespace-note-content .notespace-note-hl-yellow { background-color: #fae588; }
+.notespace-note-content .notespace-note-hl-green { background-color: #b4e8bc; }
+.notespace-note-content .notespace-note-hl-blue { background-color: #b5d8fc; }
+.notespace-note-content .notespace-note-hl-pink { background-color: #f8c4d4; }
+.notespace-note-content .notespace-note-hl-purple { background-color: #e0c6fa; }
+.notespace-note-content .notespace-note-hl-orange { background-color: #fbd2a2; }
+
+/* Inline text color marks: >= 4.5:1 on white and on every card tint (light). */
+.notespace-note-content .notespace-note-tc-muted { color: var(--note-tone-muted); }
+.notespace-note-content .notespace-note-tc-red { color: var(--note-tone-red); }
+.notespace-note-content .notespace-note-tc-orange { color: var(--note-tone-orange); }
+.notespace-note-content .notespace-note-tc-yellow { color: var(--note-tone-yellow); }
+.notespace-note-content .notespace-note-tc-green { color: var(--note-tone-green); }
+.notespace-note-content .notespace-note-tc-blue { color: var(--note-tone-blue); }
+.notespace-note-content .notespace-note-tc-purple { color: var(--note-tone-purple); }
+
+/* Card color, highlight, and text-color picker swatches (WCAG AA non-text >= 3:1 against --surface). */
+[data-note-color-swatch="default"] { background-color: var(--surface); border-color: var(--muted); }
+[data-note-color-swatch="blue"] { background-color: #d0e4f7; border-color: #6fa0d4; }
+[data-note-color-swatch="teal"] { background-color: #cde9e4; border-color: #5ca89d; }
+[data-note-color-swatch="green"] { background-color: #d6ebd0; border-color: #74ac69; }
+[data-note-color-swatch="yellow"] { background-color: #f6e6a6; border-color: #c8a234; }
+[data-note-color-swatch="orange"] { background-color: #f6d8be; border-color: #d0884c; }
+[data-note-color-swatch="pink"] { background-color: #f5d6de; border-color: #cd7a8d; }
+[data-note-color-swatch="purple"] { background-color: #e1d7f6; border-color: #937bd0; }
+
+[data-note-highlight-swatch="yellow"] { background-color: #fae588; border-color: var(--muted); }
+[data-note-highlight-swatch="green"] { background-color: #b4e8bc; border-color: var(--muted); }
+[data-note-highlight-swatch="blue"] { background-color: #b5d8fc; border-color: var(--muted); }
+[data-note-highlight-swatch="pink"] { background-color: #f8c4d4; border-color: var(--muted); }
+[data-note-highlight-swatch="purple"] { background-color: #e0c6fa; border-color: var(--muted); }
+[data-note-highlight-swatch="orange"] { background-color: #fbd2a2; border-color: var(--muted); }
+
+/* Text color swatches render an "A" in the tone, so the picker previews the real text color. */
+[data-note-text-color-swatch="muted"] { color: var(--note-tone-muted); }
+[data-note-text-color-swatch="red"] { color: var(--note-tone-red); }
+[data-note-text-color-swatch="orange"] { color: var(--note-tone-orange); }
+[data-note-text-color-swatch="yellow"] { color: var(--note-tone-yellow); }
+[data-note-text-color-swatch="green"] { color: var(--note-tone-green); }
+[data-note-text-color-swatch="blue"] { color: var(--note-tone-blue); }
+[data-note-text-color-swatch="purple"] { color: var(--note-tone-purple); }
+
+/* Collapsible toggle block (Slice 4). */
+.notespace-note-content .notespace-note-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: .3rem;
+  margin: .45em 0;
+}
+
+.notespace-note-content .notespace-note-toggle-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: .1rem;
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+}
+
+.notespace-note-content .notespace-note-toggle-trigger:hover:not(:disabled) {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.notespace-note-content .notespace-note-toggle-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.notespace-note-content .notespace-note-toggle-summary {
+  font-weight: 600;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
+.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
+  display: none;
+}
+
+.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
+.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
+  margin-top: .25em;
+}
+
+/* Empty focused editor placeholder (CSS-only decoration; never stored as text). */
+.notespace-note-content .notespace-note-empty {
+  position: relative;
+}
+.notespace-note-content .notespace-note-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset: 0 auto auto 0;
+  color: var(--muted);
+  opacity: .75;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Target block highlight pulse when navigating to ?noteId=...&blockId=... */
+@keyframes notespace-block-highlight {
+  0% { background-color: color-mix(in srgb, var(--accent) 24%, transparent); }
+  100% { background-color: color-mix(in srgb, var(--accent) 10%, transparent); }
+}
+
+.notespace-note-content .notespace-note-block-highlight,
+.notespace-note-content [data-note-block-highlight="true"] {
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: notespace-block-highlight 1.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notespace-note-content .notespace-note-block-highlight,
+  .notespace-note-content [data-note-block-highlight="true"] {
+    animation: none;
+  }
+}
+
+/* Explorer can make the Canvas narrower than the browser viewport. */
+.notespace-canvas-surface {
+  container: notespace-canvas / inline-size;
+}
+
+@container notespace-canvas (max-width: 560px) {
+  [aria-label="Canvas tools"] {
+    flex-direction: row;
+    width: 100%;
+    max-width: 100%;
+    max-height: 40px;
+    min-width: 0;
+    gap: 2px;
+    overflow: hidden;
+    padding: 3px;
+  }
+
+  [aria-label="Canvas tools"] > div:first-child {
+    flex-direction: row;
+    min-width: 0;
+    flex: 1;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  [aria-label="Canvas tools"] > div:first-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  [aria-label="Canvas tools"] > span {
+    margin: 0 2px;
+    height: 20px;
+    width: 1px;
+  }
+
+  [aria-label="Canvas tools"] button {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  [aria-label="Canvas tools"] kbd {
+    display: none;
+  }
+
+  .notespace-canvas-tool-dock {
+    top: auto;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    width: auto;
+    transform: none;
+  }
+
+  .notespace-canvas-contextual-chrome {
+    bottom: auto;
+    max-width: calc(100% - 16px);
+  }
+
+  [aria-label="Canvas view controls"] {
+    right: calc(8px + var(--desktop-top-right-inset, 0px));
+    max-width: calc(100% - 16px);
+  }
+
+}

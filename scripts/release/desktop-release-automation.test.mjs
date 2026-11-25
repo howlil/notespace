@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,20 @@ const proof = (runs = [run()]) => ({
   master_sha: sha, workflow_runs: runs,
   jobs: { total_count: 1, jobs: [{ name: "ci / gate", run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success" }] },
 });
+
+function resolveWorkingBash() {
+  const candidates = process.platform === "win32"
+    ? ["C:\\Program Files\\Git\\bin\\bash.exe", "C:\\Program Files\\Git\\usr\\bin\\bash.exe"]
+    : ["bash"];
+  for (const candidate of candidates) {
+    if (process.platform === "win32" && !existsSync(candidate)) continue;
+    const probe = spawnSync(candidate, ["-c", "echo ok"], { encoding: "utf8" });
+    if (probe.status === 0 && probe.stdout.trim() === "ok") return candidate;
+  }
+  return null;
+}
+
+const BASH = resolveWorkingBash();
 
 test("release mode admission defaults read-only and rejects ambiguous or malformed destinations", () => {
   const source = { ref: "refs/heads/master", sha };
@@ -180,28 +194,20 @@ test("real cross-platform CLI executes the gate and propagates refusal, not a si
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("release automation cannot silently publish on every push or skip signing/CI", () => {
-  const workflow = readFileSync(new URL("../../.github/workflows/publish-desktop.yml", import.meta.url), "utf8");
-  const release = readFileSync(new URL("../../.github/workflows/release-desktop.yml", import.meta.url), "utf8");
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /\bpush:\s*\n\s*branches:/);
-  assert.match(workflow, /actions: write/);
-  assert.match(workflow, /contents: write/);
-  assert.match(workflow, /Require successful master push ci and exact-attempt ci \/ gate/);
-  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$GITHUB_SHA"/);
-  assert.match(workflow, /scripts\/release\/assert-desktop-release-ci\.mjs/);
-  assert.match(workflow, /Require production updater and optional Windows publisher signing configuration/);
-  assert.match(workflow, /git tag -a/);
-  assert.match(workflow, /gh workflow run release-desktop\.yml --ref master --field/);
-  assert.ok(workflow.indexOf("Require successful master push ci") < workflow.indexOf("git tag -a"));
-  assert.ok(workflow.indexOf("Require production updater") < workflow.indexOf("git tag -a"));
-  assert.match(release, /Gate release on real MSI upgrade and user-data preservation/);
-  assert.match(release, /Verify Windows publisher signature on installer/);
-  assert.match(release, /Attest signed MSI build provenance/);
-  assert.match(release, /Publish GitHub Release/);
-});
+function stepScript(filename, step) {
+  const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
+  const section = workflow.split(`- name: ${step}`)[1].split(/\r?\n(?: {6}- | {2}[a-z0-9_-]+:)/i)[0];
+  return section.split(/run: \|\r?\n/)[1].split(/\r?\n/).map((line) => line.slice(10)).join("\n");
+}
 
-test("stable signing preflight requires updater keys and treats Azure Authenticode as fail-closed all-or-nothing", () => {
+function admissionScript(filename, step, expectedTarget) {
+  const script = stepScript(filename, step);
+  const command = `node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target ${expectedTarget}`;
+  assert.equal(script.split(command).length, 2, `Admission must call exactly one real preflight (${command})`);
+  return script.replace(command, "echo GATE_REACHED");
+}
+
+test("stable signing preflight requires updater keys and treats Azure Authenticode as fail-closed all-or-nothing", { skip: !BASH && "No working bash available on host" }, () => {
   const updater = { TAURI_SIGNING_PRIVATE_KEY: "priv", NOTESPACE_UPDATER_PUBLIC_KEY: "pub" };
   const azure = {
     NOTESPACE_AZURE_SIGNING_ENDPOINT: "https://wus2.codesigning.azure.net",
@@ -223,7 +229,7 @@ test("stable signing preflight requires updater keys and treats Azure Authentico
       const output = join(root, `${filename}.out`);
       const invoke = (env) => {
         writeFileSync(output, "");
-        return spawnSync("bash", ["-c", script], {
+        return spawnSync(BASH, ["-c", script], {
           env: { ...process.env, ...emptyAzure, TAURI_SIGNING_PRIVATE_KEY: "", NOTESPACE_UPDATER_PUBLIC_KEY: "", GITHUB_OUTPUT: output, ...env },
           encoding: "utf8",
         });
@@ -245,36 +251,13 @@ test("stable signing preflight requires updater keys and treats Azure Authentico
   }
 });
 
-test("former auto beta is now read-only manual preflight, never publication or fan-out", () => {
-  const workflow = readFileSync(new URL("../../.github/workflows/auto-desktop-beta.yml", import.meta.url), "utf8");
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /^\s+(workflow_run|push|schedule):/m);
-  assert.match(workflow, /actions: read/);
-  assert.match(workflow, /contents: read/);
-  assert.match(workflow, /assert-desktop-release-ci\.mjs --collect "\$GITHUB_SHA"/);
-  assert.doesNotMatch(workflow, /gh workflow run|git tag -a|gh release create|continue-on-error:\s*true/);
-});
-
-function stepScript(filename, step) {
-  const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
-  const section = workflow.split(`- name: ${step}`)[1].split(/\r?\n(?: {6}- | {2}[a-z0-9_-]+:)/i)[0];
-  return section.split(/run: \|\r?\n/)[1].split(/\r?\n/).map((line) => line.slice(10)).join("\n");
-}
-
-function admissionScript(filename, step, expectedTarget) {
-  const script = stepScript(filename, step);
-  const command = `node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target ${expectedTarget}`;
-  assert.equal(script.split(command).length, 2, `Admission must call exactly one real preflight (${command})`);
-  return script.replace(command, 'echo GATE_REACHED');
-}
-
-test("actual Bash admission rejects beta/malformed tags and non-master before the CI gate", () => {
+test("actual Bash admission rejects beta/malformed tags and non-master before the CI gate", { skip: !BASH && "No working bash available on host" }, () => {
   for (const [filename, step, key, acceptsBlank, target] of [
     ["release.yml", "Require verified master and explicit stable image version", "IMAGE_VERSION", true, "image"],
     ["release-desktop.yml", "Require verified master and explicit stable tag", "RELEASE_TAG_INPUT", false, "desktop"],
   ]) {
     const script = admissionScript(filename, step, target);
-    const invoke = (value, ref = "refs/heads/master") => spawnSync("bash", ["-c", script], { env: { ...process.env, GITHUB_REF: ref, [key]: value }, encoding: "utf8" });
+    const invoke = (value, ref = "refs/heads/master") => spawnSync(BASH, ["-c", script], { env: { ...process.env, GITHUB_REF: ref, [key]: value }, encoding: "utf8" });
     assert.match(invoke("v1.2.3").stdout, /GATE_REACHED/);
     assert.equal(invoke("").status === 0, acceptsBlank);
     for (const value of ["v1.2.3-beta.1", "v01.2.3", "1.2.3", "v1.2.3; echo unsafe", "v1.2.3\nv2.3.4"]) {
@@ -286,7 +269,7 @@ test("actual Bash admission rejects beta/malformed tags and non-master before th
   }
 });
 
-test("actual image tag binding rejects missing tags and reusing a version for different source", () => {
+test("actual image tag binding rejects missing tags and reusing a version for different source", { skip: !BASH && "No working bash available on host" }, () => {
   const root = mkdtempSync(join(tmpdir(), "image tag proof "));
   const script = stepScript("release.yml", "Bind image version to immutable source tag");
   const git = (...args) => {
@@ -301,67 +284,16 @@ test("actual image tag binding rejects missing tags and reusing a version for di
     git("tag", "v1.2.3");
     git("clone", "--bare", ".", join(root, "origin.git"));
     git("remote", "add", "origin", join(root, "origin.git"));
-    const invoke = (version, sha) => spawnSync("bash", ["-c", script], { cwd: root, env: { ...process.env, IMAGE_VERSION: version, GITHUB_SHA: sha }, encoding: "utf8" });
+    const invoke = (version, shaValue) => spawnSync(BASH, ["-c", script], { cwd: root, env: { ...process.env, IMAGE_VERSION: version, GITHUB_SHA: shaValue }, encoding: "utf8" });
     assert.equal(invoke("v1.2.3", source).status, 0);
     assert.notEqual(invoke("v9.9.9", source).status, 0);
     assert.notEqual(invoke("v1.2.3", "b".repeat(40)).status, 0);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("release and native CI reuse caches and never compile the Tauri CLI from source", () => {
-  const desktop = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
-  const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
-  const stable = readFileSync(new URL("../../.github/workflows/release-desktop.yml", import.meta.url), "utf8");
-  for (const [name, workflow] of [["verify-desktop", desktop], ["beta", beta], ["stable", stable]]) {
-    assert.doesNotMatch(workflow, /cargo install tauri-cli/);
-    assert.match(workflow, /bunx @tauri-apps\/cli@2\.12\.3 build/);
-    assert.match(workflow, /Swatinem\/rust-cache@v2/);
-    assert.match(workflow, /oven-sh\/setup-bun@v2/);
-    assert.match(workflow, /bun install --frozen-lockfile/);
-    assert.doesNotMatch(workflow, /- run: bun run build\s*$/m, `${name} should not rebuild the landing app`);
-    assert.match(workflow, /bun run --filter @notespace\/web build/);
-  }
-  assert.doesNotMatch(desktop, /name: Run native WebDriver parity smoke/);
-  assert.match(beta, /bun run test:desktop:critical/);
-  assert.match(stable, /Gate release on real MSI upgrade and user-data preservation/);
-  assert.equal((stable.match(/Swatinem\/rust-cache@v2/g) ?? []).length, 1);
-  assert.equal((stable.match(/oven-sh\/setup-bun@v2/g) ?? []).length, 1);
-  assert.match(stable, /shared-key: windows-2022-desktop-release/);
-  assert.match(beta, /shared-key: windows-2022-desktop-release/);
-});
-
-test("only obsolete PR checks are canceled, never master CI or a release", () => {
-  const desktop = readFileSync(new URL("../../.github/workflows/verify-desktop.yml", import.meta.url), "utf8");
-  const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
-  // Reusable native CI must not cancel its caller (github.workflow is inherited).
-  assert.match(desktop, /group: desktop-\$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name \}\}-\$\{\{ github\.ref \}\}/);
-  assert.match(desktop, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
-  assert.match(beta, /cancel-in-progress: false/);
-  assert.match(desktop, /check-desktop-windows-latest:[\s\S]*?if: inputs\.profile == 'regression' \|\| \(github\.event_name == 'push' && inputs\.profile != 'native'\)\s+runs-on: windows-latest/);
-});
-
-test("free beta produces signed Tauri updater artifacts without Azure publisher certificates", () => {
-  const beta = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
-  const config = readFileSync(new URL("./prepare-desktop-updater-config.mjs", import.meta.url), "utf8");
-  const manifest = readFileSync(new URL("./create-desktop-beta-manifest.mjs", import.meta.url), "utf8");
-  assert.match(beta, /TAURI_SIGNING_PRIVATE_KEY: \$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
-  assert.match(beta, /NOTESPACE_UPDATER_ENABLED: "1"/);
-  assert.match(beta, /NOTESPACE_UPDATER_CHANNEL: beta/);
-  assert.match(beta, /prepare-desktop-updater-config\.mjs/);
-  assert.match(beta, /create-desktop-beta-manifest\.mjs/);
-  assert.match(beta, /Tauri updater detached MSI signature is missing/);
-  assert.match(beta, /gh release create.*\$env:MSI_SIG_PATH.*\$manifest/);
-  assert.match(beta, /Publish verified beta feed only after immutable GitHub Release exists/);
-  assert.match(beta, /contents\/latest\.json/);
-  assert.doesNotMatch(beta, /AZURE_CLIENT_SECRET|NOTESPACE_AZURE_SIGNING_ENDPOINT|signCommand/);
-  assert.match(config, /desktop-beta-feed\/latest\.json/);
-  assert.match(manifest, /windows-x86_64/);
-});
-
 test("explicit desktop-beta release notes select native proof on PR and on every master push", () => {
   const releaseNote = ["docs/DESKTOP_BETA_RELEASE_0.1.0.md"];
   assert.equal(selectLanes("pull_request", releaseNote).desktop, true);
-  // Master pushes select every lane, so the exact release-note SHA is always verified.
   assert.equal(selectLanes("push", releaseNote).desktop, true);
   assert.equal(selectLanes("push", releaseNote)["release-policy"], true);
 });

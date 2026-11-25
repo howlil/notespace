@@ -1,10 +1,9 @@
-/* Production-safe navigation: category detail shares the Library grid, and a
- * Workspace is reachable, switchable and reload-safe. */
+/* Production-safe navigation: category filtering, switching, direct entry, and reload safety. */
 import { after, before, test } from "node:test";
 import {
-  apiResponse, assert, cleanupWorkspace, click, createCategory, createWorkspace,
-  capture, containsText, currentUrl, deleteCategory, expectCount, fill, goto, injectFault,
-  reload, requestLog, role, start, stop, visible, waitFor, waitUrl,
+  apiResponse, assert, back, capture, cleanupWorkspace, click, createCategory, createWorkspace,
+  currentUrl, deleteCategory, expectCount, fill, goto, injectFault, queryParam, reload, requestLog,
+  rightClick, role, start, stop, visible, waitFor, waitUrl,
 } from "../support/harness.mjs";
 
 before(start);
@@ -24,19 +23,13 @@ test("category detail shares the Workspaces card grid and create action", async 
     const list = role("group", "Category workspaces");
     await visible(role("link", `Open ${names[0]}`, { scope: list }));
     await visible(role("link", `Open ${names[1]}`, { scope: list }));
-
     await visible(role("heading", category.title, { exact: true, level: 2 }));
-    await expectCount(role("searchbox", "Search category workspaces"), 0);
-    await expectCount(role("combobox", "Sort category workspaces"), 0);
-    await expectCount(role("button", "Has notes"), 0);
-    await expectCount(role("button", "Has canvas"), 0);
 
     await click(role("button", "New workspace", { scope: list }));
     const createdTitle = `Created in category ${stamp}`;
     await fill(role("textbox", "New workspace name", { scope: list }), createdTitle);
     await click(role("button", "Create", { exact: true, scope: list }));
 
-    // Creating from the category grid opens the new Workspace directly.
     await waitUrl(/\/workspaces\/[^/]+$/);
     const createdId = (await currentUrl()).pathname.split("/").at(-1);
     workspaces.push({ id: createdId });
@@ -50,6 +43,36 @@ test("category detail shares the Workspaces card grid and create action", async 
   }
 });
 
+test("Switching categories replaces the visible workspaces without stale results", async () => {
+  const suffix = Date.now();
+  const categoryA = await createCategory(`Filter Source ${suffix}`);
+  const categoryB = await createCategory(`Filter Target ${suffix}`);
+  const workspaceA = await createWorkspace(`Source Workspace ${suffix}`, { categoryId: categoryA.id });
+  const workspaceB = await createWorkspace(`Target Workspace ${suffix}`, { categoryId: categoryB.id });
+
+  try {
+    await goto(`/?category=${categoryA.id}`);
+    await visible(role("link", `Open ${workspaceA.title}`));
+    await visible(role("group", "Category workspaces"));
+    await expectCount(role("link", `Open ${workspaceB.title}`), 0);
+
+    await rightClick(role("button", categoryB.title, { exact: true }));
+    await click(role("menuitem", "View category"));
+    await waitFor(async () => (await queryParam("category")) === categoryB.id, "Selection switches category");
+    await visible(role("link", `Open ${workspaceB.title}`));
+    await expectCount(role("link", `Open ${workspaceA.title}`), 0);
+
+    await back();
+    await waitFor(async () => (await queryParam("category")) === categoryA.id, "Back restores the previous selection");
+    await visible(role("link", `Open ${workspaceA.title}`));
+  } finally {
+    await cleanupWorkspace(workspaceA.id);
+    await cleanupWorkspace(workspaceB.id);
+    await deleteCategory(categoryA.id);
+    await deleteCategory(categoryB.id);
+  }
+});
+
 test("direct navigation, sibling switching, and reload on workspace (/workspaces/:id)", async () => {
   const workspace = await createWorkspace(`Workspace Direct ${Date.now()}`);
   const sibling = await createWorkspace(`Workspace Sibling ${Date.now()}`, { categoryId: workspace.categoryId });
@@ -59,13 +82,8 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
   const assertWorkspaceLoaded = async (title) => {
     await visible(".excalidraw__canvas.interactive");
     await visible(role("link", "Notespace home", { exact: true }));
-    await visible(role("group", "Current workspace"));
-    await containsText(role("group", "Current workspace"), title);
-    await visible('header [aria-label="Current workspace"]');
-    await expectCount('main [aria-label="Current workspace"]', 0);
+    await visible(`main [aria-label="${title}"]`);
     await expectCount(role("status", "Workspace save status"), 1);
-    await expectCount(".workspace-header", 0);
-    await expectCount(role("navigation", "Workspace navigation"), 0);
   };
 
   try {
@@ -74,9 +92,7 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
     await assertWorkspaceLoaded(workspace.title);
     const explorer = role("navigation", "Categories");
     await visible(role("link", workspace.title, { exact: true, scope: explorer }));
-    // The active item remains reachable even beyond the category's five-item preview.
     await visible(role("button", "View all", { exact: true, scope: explorer }));
-    // Switch to an item from the cached preview rather than an omitted sibling.
     await click(role("button", "View all", { exact: true, scope: explorer }));
     await click(role("link", `Open ${sibling.title}`, { exact: true }));
     await waitUrl(new RegExp(`/workspaces/${sibling.id}$`));
@@ -86,8 +102,10 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
     await visible(role("link", previewSibling.title, { exact: true, scope: explorer }));
     const before = (await requestLog()).filter((entry) => entry.path.startsWith(`/api/categories/${workspace.categoryId}/workspaces`)).length;
 
-    // Switching keeps the cached Explorer and fetches fresh authored data only.
-    await injectFault({ method: "GET", path: `/api/workspaces/${previewSibling.id}`, times: 1,
+    await injectFault({
+      method: "GET",
+      path: `/api/workspaces/${previewSibling.id}`,
+      times: 1,
       respond: () => new Promise((resolve) => { finishLoad = () => resolve(null); }),
     });
     await click(role("link", previewSibling.title, { exact: true, scope: explorer }));
@@ -112,7 +130,6 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
     await goto(`/workspaces/${workspace.id}`);
     await reload();
     await assertWorkspaceLoaded(workspace.title);
-
   } finally {
     finishLoad?.();
     await cleanupWorkspace(workspace.id);

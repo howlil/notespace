@@ -2,7 +2,7 @@
 import { after, before, test } from "node:test";
 import {
   assert, box, cleanupWorkspace, click, createWorkspace, doubleClick, evaluate, expectAttribute, expectCount, fill,
-  openWorkspace, resetViewport, role, setViewport, start, stop, visible, waitFor, waitSaved, within,
+  openWorkspace, press, resetViewport, role, setViewport, start, stop, visible, waitFor, waitSaved, within,
 } from "../support/harness.mjs";
 
 before(start);
@@ -17,13 +17,16 @@ test("critical: Workspace uses one Canvas shell and has no retired view navigati
     assert.ok(geometry.width > 400, `Canvas width: ${geometry.width}`);
     assert.ok(geometry.height > 250, `Canvas height: ${geometry.height}`);
     await visible(role("toolbar", "Canvas tools"));
-    await expectCount(role("navigation", "Workspace navigation"), 0);
-    await expectCount('[data-testid="workspace-view-switcher"]', 0);
-    await expectCount(role("button", "Focus mode"), 0);
 
     await evaluate(canvas, (element) => element.setAttribute("data-shell-instance", "preserved"));
     await click(role("button", "Code block", { exact: true, scope: role("toolbar", "Canvas tools") }));
-    await click(role("button", "Zoom in", { exact: true, scope: role("toolbar", "Canvas view controls") }));
+    await evaluate(canvas, (element) => {
+      const rect = element.getBoundingClientRect();
+      element.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true, cancelable: true, ctrlKey: true, deltaY: -12, deltaMode: 0,
+        clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+      }));
+    });
     const block = "[data-canvas-code-block]";
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'const shellDraft = "retained";');
@@ -35,10 +38,9 @@ test("critical: Workspace uses one Canvas shell and has no retired view navigati
     await expectCount(role("complementary", "Category explorer"), 0);
     await waitFor(async () => (await box(canvas)).width > geometry.width + 220, "Dock collapse releases the full Canvas width");
     await expectAttribute(canvas, "data-shell-instance", "preserved");
-    await visible(role("toolbar", "Code block settings"));
     assert.ok((await evaluate(block, (element) => element.textContent)).includes('shellDraft = "retained"'));
     assert.ok(Math.abs((await box(block)).width - codeBounds.width) < 1, "Collapse preserves Canvas zoom");
-    await click(role("button", "Show Explorer", { exact: true }));
+    await press("Control+\\");
     await visible(role("complementary", "Category explorer"));
     await expectAttribute(canvas, "data-shell-instance", "preserved");
     assert.ok(Math.abs((await box(block)).width - codeBounds.width) < 1, "Expand preserves zoom and selection");

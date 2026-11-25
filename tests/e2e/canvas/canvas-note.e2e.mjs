@@ -107,6 +107,31 @@ async function visualBox(selector) {
   }, selector);
 }
 
+async function zoomInCanvas(steps = 2) {
+  await execute((countSteps) => {
+    const canvas = document.querySelector(".excalidraw__canvas.interactive");
+    const rect = canvas.getBoundingClientRect();
+    for (let i = 0; i < countSteps; i += 1) {
+      canvas.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true, cancelable: true, ctrlKey: true, deltaY: -12, deltaMode: 0,
+        clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+      }));
+    }
+  }, steps);
+}
+
+async function openNoteMenu(selector = "[data-note-element]") {
+  await waitFor(async () => (await count(selector)) > 0, `Note element exists: ${selector}`);
+  const rect = await execute((cssSelector) => {
+    const { x, y, width, height } = document.querySelector(cssSelector).getBoundingClientRect();
+    return { x, y, width, height };
+  }, selector);
+  await clickAt(rect.x + rect.width / 2, rect.y + 20, { button: 2 });
+  const menu = role("menu", "Object context menu");
+  await visible(menu);
+  return menu;
+}
+
 async function createNoteOnCanvas(workspaceId, { legacy = false } = {}) {
   const noteTool = '[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]';
   const rule = legacy ? await injectFault({
@@ -303,8 +328,7 @@ test("critical: Note moves and resizes at a non-default zoom and keeps its conte
     await waitSaved();
     await press("Escape");
     await expectCount(`${card} .cm-content`, 0);
-    await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
-    await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
+    await zoomInCanvas(2);
     const storedGeometry = async () => {
       const stored = await api(`/api/workspaces/${workspace.id}`);
       const element = (stored.canvas.data.elements ?? []).find((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
@@ -369,7 +393,6 @@ test("critical: multi-selected Notes stay intact and removing instances keeps ca
     const right = Math.max(...boxes.map((b) => b.x + b.width)) + 30;
     const bottom = Math.max(...boxes.map((b) => b.y + b.height)) + 30;
     await drag({ x: left, y: top }, { x: right, y: bottom });
-    await containsText(role("toolbar", "Selected shape actions"), "2 selected");
 
     await press("Delete");
     await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 0, "Removing the selected instances clears the Canvas references");
@@ -422,8 +445,7 @@ test("Note read view renders rich semantic content and scales as one surface wit
       return { cardWidth: surface.getBoundingClientRect().width, headingRatio: heading.getBoundingClientRect().height / surface.getBoundingClientRect().width };
     }, card);
     const before = await proportions();
-    await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
-    await click(role("button", "Zoom in", { scope: role("toolbar", "Canvas view controls") }));
+    await zoomInCanvas(2);
     await waitFor(async () => (await proportions()).cardWidth > before.cardWidth * 1.1, "Zooming in enlarges the card");
     const after = await proportions();
     assert.ok(Math.abs(after.headingRatio - before.headingRatio) / before.headingRatio < 0.03, `Content scales with the card (${before.headingRatio} vs ${after.headingRatio})`);
@@ -474,13 +496,13 @@ test("critical: duplicating a Note creates a new Note with the same content", { 
     await expectCount("[data-note-element] .cm-content", 0);
     await press("Enter");
     await visible("[data-note-element] .cm-content");
-    await expectCount(role("toolbar", "Canvas Note actions"), 0);
+    await expectCount(role("menu", "Object context menu"), 0);
     await press("Escape");
     await expectCount("[data-note-element] .cm-content", 0);
-    await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
+    const menu = await openNoteMenu();
     await expectCount(role("button", "AI writing"), 0);
     await expectCount(role("button", "Import .md"), 0);
-    await click(role("button", "Duplicate"));
+    await click(role("menuitem", /Duplicate/, { scope: menu }));
     await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 2, "Duplicate adds a second Canvas instance");
     const ids = await canvasNoteIds(workspace.id);
     assert.ok(ids.includes(sourceId), "The source Note keeps its identity");
@@ -490,8 +512,7 @@ test("critical: duplicating a Note creates a new Note with the same content", { 
     const source = await api(`/api/notes/${sourceId}`);
     assert.match(JSON.stringify(source.document), new RegExp(text), "Editing the copy later must not change the source; the source still has its text");
 
-    await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
-    await click(role("button", "Remove instance"));
+    await click(role("menuitem", /Remove instance/, { scope: await openNoteMenu() }));
     await waitFor(async () => (await canvasNoteIds(workspace.id)).length === 1, "Remove instance removes the selected card from Canvas");
     await containsText('[aria-label="Notifications"]', "Note removed from Canvas. The Note itself remains.");
     await click(role("button", "Undo", { scope: role("region", "Notifications") }));
@@ -547,7 +568,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
     await openWorkspace(workspaceB.id);
     await expectCount("[data-note-element]", 0);
     await click(role("button", "Search Notespace", { exact: true }));
-    await fill(placeholder("Open workspace or category…"), initialHeadline);
+    await fill(placeholder("Search workspaces, notes, or categories…"), initialHeadline);
     const dialog = role("dialog", "Quick Open");
     await visible(role("button", new RegExp(initialHeadline), { scope: dialog }));
     await click(role("button", "Place", { scope: dialog, exact: true }));
@@ -569,8 +590,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
     await visible(editor);
     await press("Escape");
     await expectCount(editor, 0);
-    await click(role("button", "More", { scope: role("toolbar", "Canvas Note actions") }));
-    await click(role("button", "Remove instance"));
+    await click(role("menuitem", /Remove instance/, { scope: await openNoteMenu() }));
     await waitFor(async () => (await canvasNoteIds(workspaceB.id)).length === 0, "Workspace B removes only its linked instance");
 
     const note = await api(`/api/notes/${noteId}`);
@@ -813,11 +833,9 @@ test("Note fold geometry, card colors, and Alt+DoubleClick placement persist acr
     const unfoldedBox = await visualBox(card);
     assert.ok(unfoldedBox.height >= 170, `Unfolded height starts at normal card height (got ${unfoldedBox.height})`);
 
-    const noteActions = role("toolbar", "Canvas Note actions");
-    await click(role("button", "Fold", { scope: noteActions }));
+    await click(role("menuitem", "Fold", { exact: true, scope: await openNoteMenu(card) }));
     await visible(`${card}[data-note-compact="true"]`);
     await waitFor(async () => Math.abs((await visualBox(card)).height - 48) < 4, "Folded card collapses to 48px");
-    await visible(role("button", "Unfold", { scope: noteActions }));
     await waitSaved();
 
     const storedFolded = await api(`/api/workspaces/${workspace.id}`);
@@ -825,7 +843,9 @@ test("Note fold geometry, card colors, and Alt+DoubleClick placement persist acr
     assert.equal(foldedEl?.customData?.notespaceNote?.compact, true);
     assert.equal(Math.round(foldedEl?.height ?? 0), 48);
 
-    await click(role("button", "Unfold", { scope: noteActions }));
+    const foldedMenu = await openNoteMenu(card);
+    await visible(role("menuitem", "Unfold", { exact: true, scope: foldedMenu }));
+    await click(role("menuitem", "Unfold", { exact: true, scope: foldedMenu }));
     await visible(`${card}:not([data-note-compact="true"])`);
     await waitFor(async () => (await visualBox(card)).height >= 170, "Unfolding restores original card height");
 
@@ -836,14 +856,12 @@ test("Note fold geometry, card colors, and Alt+DoubleClick placement persist acr
     await press("Control+Alt+Enter");
     await visible(`${card}:not([data-note-compact="true"])`);
 
-    await click(role("button", "More", { scope: noteActions }));
-    await click(role("button", "Card color blue"));
+    const styleMenu = await openNoteMenu(card);
+    await click(role("button", "Card color blue", { scope: styleMenu }));
     await visible(`${card}[data-note-color="blue"]`);
-    await waitSaved();
-
-    await click(role("button", "More", { scope: noteActions }));
-    await click(role("button", "Card shape square"));
+    await click(role("button", "Card shape square", { scope: styleMenu }));
     await visible(`${card}[data-note-shape="square"]`);
+    await press("Escape");
     await waitSaved();
 
     await openWorkspace(workspace.id);
@@ -973,15 +991,9 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
 
     await press("Escape");
     await expectCount(editor, 0);
-    await clickAt(
-      ...(await execute((id) => {
-        const rect = document.querySelector(`[data-note-element="${id}"]`).getBoundingClientRect();
-        return [rect.x + rect.width - 10, rect.y + 10];
-      }, sourceEl.id)),
-    );
-    const noteActions = role("toolbar", "Canvas Note actions");
-    await click(role("button", "More", { scope: noteActions }));
-    await click(role("button", "Expand"));
+    const sourceBox = await visualBox(`[data-note-element="${sourceEl.id}"]`);
+    await clickAt(sourceBox.x + sourceBox.width - 10, sourceBox.y + 10);
+    await click(role("menuitem", "Expand", { exact: true, scope: await openNoteMenu(`[data-note-element="${sourceEl.id}"]`) }));
     await visible("[data-note-focus-modal]");
     await visible("[data-note-focus-modal] .ProseMirror");
     await expectCount(`${card} .ProseMirror`, 0);
@@ -994,14 +1006,7 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
     await expectCount("[data-note-focus-modal]", 0);
     await containsText(`[data-note-element="${sourceEl.id}"]`, "modal-edit");
 
-    await clickAt(
-      ...(await execute((id) => {
-        const rect = document.querySelector(`[data-note-element="${id}"]`).getBoundingClientRect();
-        return [rect.x + rect.width - 10, rect.y + 10];
-      }, extractedEl.id)),
-    );
-    await click(role("button", "More", { scope: noteActions }));
-    await click(role("button", "Info & backlinks"));
+    await click(role("menuitem", "Info & backlinks", { exact: true, scope: await openNoteMenu(`[data-note-element="${extractedEl.id}"]`) }));
     await visible("[data-note-info-popover]");
     await containsText("[data-note-info-popover]", workspaceA.title);
     await containsText("[data-note-info-popover]", primaryHeading);
@@ -1010,8 +1015,10 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
 
     await openWorkspace(workspaceB.id);
     await expectCount(card, 0);
-    await click(role("button", "More tools", { exact: true, scope: role("toolbar", "Canvas tools") }));
-    await click(role("button", "Place existing Note"));
+    await createNoteOnCanvas(workspaceB.id);
+    await press("Escape");
+    await expectCount(`${card} .cm-content`, 0);
+    await click(role("menuitem", "Place existing Note", { exact: true, scope: await openNoteMenu(card) }));
     await visible("[data-note-picker-popover]");
     await fill(ariaLabel("Search Notes to place"), primaryHeading);
     // The picker clears its options while a search is in flight and then re-renders them.
@@ -1019,8 +1026,8 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
     await containsText("[data-note-picker-popover]", "1 Note");
     await expectCount(`[aria-label="Loading Notes"]`, 0);
     await click(role("option", new RegExp(primaryHeading)));
-    await expectCount(card, 1);
-    await containsText(card, "modal-edit");
+    await expectCount(card, 2);
+    await waitFor(async () => (await canvasNoteIds(workspaceB.id)).includes(sourceNoteId), "Placed existing Note persists on Workspace B");
     await waitSaved();
   } finally {
     await cleanupWorkspace(workspaceA.id);

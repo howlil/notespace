@@ -37,7 +37,8 @@ test("critical: Library creates a category and Workspace, renames the category, 
     await press("F2");
     await fill(role("textbox", "Category title"), renamedCategoryTitle);
     await click(role("button", "Hide Explorer", { exact: true }));
-    await click(role("button", "Show Explorer", { exact: true }));
+    await press("Control+\\");
+    await visible(role("complementary", "Category explorer"));
     assert.equal(await (await visible(role("textbox", "Category title"))).getValue(), renamedCategoryTitle, "Collapse preserves an unsubmitted rename draft");
     assert.equal((await api("/api/categories")).find((item) => item.id === categoryId).title, categoryTitle, "Collapse does not submit rename through blur");
     await click(role("textbox", "Category title"));
@@ -55,7 +56,8 @@ test("critical: Library creates a category and Workspace, renames the category, 
     await waitFor(() => Boolean(finishCreate), "Create reaches the server");
     await press("Enter");
     await click(role("button", "Hide Explorer", { exact: true }));
-    await click(role("button", "Show Explorer", { exact: true }));
+    await press("Control+\\");
+    await visible(role("complementary", "Category explorer"));
     assert.equal(await (await visible(role("button", "Create workspace", { exact: true }))).isEnabled(), false);
     assert.equal(await (await visible(role("button", "Cancel new workspace"))).isEnabled(), false);
     const creates = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").slice(createBaseline);

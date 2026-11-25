@@ -3,6 +3,7 @@ dist/
 .output/
 .tanstack/
 data/
+!apps/web/src/modules/canvas/objects/diagram/data/eraser-icons.generated.json
 *.db
 *.db-shm
 *.db-wal

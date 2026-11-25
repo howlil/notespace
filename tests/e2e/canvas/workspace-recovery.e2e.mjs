@@ -13,7 +13,7 @@ after(stop);
 
 test("critical: IndexedDB cache bounds confirmed copies and preserves legacy recovery", async () => {
   const { transpileModule, ModuleKind, ScriptTarget } = createRequire(new URL("../../../apps/web/package.json", import.meta.url))("typescript");
-  const source = readFileSync(new URL("../../../apps/web/src/adapters/assets/image-cache.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../../apps/web/src/platform/assets/image-cache.ts", import.meta.url), "utf8");
   const { outputText } = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 } });
   await goto("/");
   const result = await execute(async (compiled) => {

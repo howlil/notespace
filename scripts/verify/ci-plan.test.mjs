@@ -20,7 +20,7 @@ test("master push skips heavy lanes only for pure docs or landing diffs, and fal
   assert.deepEqual(selected(selectLanes("push", ["docs/TESTING.md", ".agents/engineering.md"])), []);
   assert.deepEqual(selected(selectLanes("push", ["README.md", "docs/TESTING.md"])), ["landing"]);
   assert.deepEqual(selected(selectLanes("push", ["landing/src/pages/index.astro", "docs/TESTING.md"])), ["landing"]);
-  assert.deepEqual(selectLanes("push", ["apps/web/src/features/settings/AppSettings.tsx"]), allOn);
+  assert.deepEqual(selectLanes("push", ["apps/web/src/app/settings/AppSettings.tsx"]), allOn);
   assert.deepEqual(selectLanes("push", ["docs/DESKTOP_BETA_RELEASE_0.1.0.md"]), allOn);
   assert.deepEqual(selectLanes("push", ["unknown-root-file.txt"]), allOn);
 });
@@ -52,22 +52,26 @@ test("landing-only pull requests run only the landing lane", () => {
 });
 
 test("web-only pull requests run web and affected browser proof, skipping server, compose, and desktop", () => {
-  const canvas = selectLanes("pull_request", ["apps/web/src/features/workspace-authoring/canvas/CanvasEditor.tsx"]);
+  const canvas = selectLanes("pull_request", ["apps/web/src/modules/canvas/core/CanvasEditor.tsx"]);
   assert.deepEqual(selected(canvas), ["web", "browser"]);
   // Settings changes also check landing hero label contracts.
-  const settings = selectLanes("pull_request", ["apps/web/src/features/settings/AppSettings.tsx"]);
+  const settings = selectLanes("pull_request", ["apps/web/src/app/settings/AppSettings.tsx"]);
   assert.deepEqual(selected(settings), ["web", "browser", "landing"]);
-  // Unit/contract test-only files run only the web lane.
-  const unitOnly = selectLanes("pull_request", ["apps/web/src/shared/ui/theme/theme-model.test.ts", "tests/design-system.test.ts"]);
+  // Colocated web unit test-only files run only the web lane.
+  const unitOnly = selectLanes("pull_request", ["apps/web/src/shared/ui/theme/theme-model.test.ts", "apps/web/src/shared/styles/design-tokens.test.ts"]);
   assert.deepEqual(selected(unitOnly), ["web"]);
 });
 
 test("server-only pull requests run server lanes without web; Go test-only files run only server", () => {
-  const api = selectLanes("pull_request", ["apps/server/internal/httpapi/handler.go"]);
+  const api = selectLanes("pull_request", ["apps/server/internal/httpapi/router.go"]);
   assert.deepEqual(selected(api), ["server", "browser", "compose"]);
-  const sqlite = selectLanes("pull_request", ["apps/server/internal/sqlite/store.go"]);
-  assert.deepEqual(selected(sqlite), ["server", "browser", "desktop", "compose"]);
-  const goTestOnly = selectLanes("pull_request", ["apps/server/internal/sqlite/store_test.go"]);
+  const storeFile = selectLanes("pull_request", ["apps/server/internal/infra/store/store.go"]);
+  assert.deepEqual(selected(storeFile), ["server", "browser", "desktop", "compose"]);
+  const domainFile = selectLanes("pull_request", ["apps/server/internal/domain/workspace.go"]);
+  assert.deepEqual(selected(domainFile), ["server", "browser", "desktop", "compose"]);
+  const sqliteFile = selectLanes("pull_request", ["apps/server/internal/infra/sqlite/open.go"]);
+  assert.deepEqual(selected(sqliteFile), ["server", "browser", "desktop", "compose"]);
+  const goTestOnly = selectLanes("pull_request", ["apps/server/internal/domain/document_test.go", "apps/server/tests/httpapi/workspace_test.go"]);
   assert.deepEqual(selected(goTestOnly), ["server"]);
 });
 
@@ -84,7 +88,7 @@ test("desktop, release, compose, and workflow changes select only their owning l
 });
 
 test("a mixed docs and app change is not treated as docs-only", () => {
-  const plan = selectLanes("pull_request", ["docs/TESTING.md", "apps/server/internal/httpapi/handler.go"]);
+  const plan = selectLanes("pull_request", ["docs/TESTING.md", "apps/server/internal/httpapi/router.go"]);
   assert.deepEqual(selected(plan), ["server", "browser", "compose"]);
 });
 

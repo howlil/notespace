@@ -1,30 +1,14 @@
-import { DesktopCloseBridge } from "../features/desktop";
 import {
   createRootRoute,
   HeadContent,
   Link,
-  Outlet,
   Scripts,
-  useRouterState,
 } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import { type ReactNode } from "react";
-import globalStyles from "../shared/styles/globals.css?inline";
-import workspaceAuthoringStyles from "../features/workspace-authoring/workspace-authoring.css?inline";
-import desktopTitlebarStyles from "../features/desktop/chrome/desktop-titlebar.css?inline";
+import { AppRoot } from "../app/AppRoot";
+import { APP_HEAD_STYLES } from "../app/styles";
 import { Button } from "../shared/ui";
 import { THEME_INIT_SCRIPT } from "../shared/ui/theme/theme-model";
-import { ThemeProvider } from "../shared/ui/theme/theme-provider";
-import { ToastProvider } from "../shared/ui/feedback/toast-provider";
-import { NativePopupManager } from "../shared/ui/overlays/dismissable";
-import { QuickOpen } from "../features/search";
-import { LibraryTools } from "../features/library";
-import { DesktopUpdateControl } from "../features/desktop";
-import { DesktopChromeProvider } from "../features/desktop";
-import { LibraryExplorerProvider } from "../features/library";
-import { AppSettings } from "../features/settings";
-import { DesktopRecoveryTools } from "../features/desktop";
-import { RoutePending } from "../pages/shell/RoutePending";
 
 const routeMessageClass = "flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center";
 
@@ -41,14 +25,10 @@ export const Route = createRootRoute({
       { rel: "dns-prefetch", href: "//storage.googleapis.com" },
     ],
     // Keep app styles in TanStack's managed head so they survive client head reconciliation.
-    styles: [
-      { children: globalStyles },
-      { children: workspaceAuthoringStyles },
-      { children: desktopTitlebarStyles },
-    ],
+    styles: APP_HEAD_STYLES,
   }),
   shellComponent: RootDocument,
-  component: RootApplication,
+  component: AppRoot,
   notFoundComponent: () => (
     <main className={routeMessageClass}>
       <h1 className="m-0 text-2xl font-medium tracking-tight text-ink">Workspace not found</h1>
@@ -64,32 +44,6 @@ export const Route = createRootRoute({
     </main>
   ),
 });
-
-function RootApplication() {
-  const initialRoutePending = useRouterState({
-    select: (state) => state.status === "pending" && state.resolvedLocation === undefined,
-  });
-
-  return (
-    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: "easeOut" }}>
-      <NativePopupManager>
-        <ToastProvider>
-          <ThemeProvider>
-              <DesktopCloseBridge />
-              <DesktopUpdateControl />
-              <AppSettings
-                renderLibraryTools={(onBusyChange, disabled, deviceRecovery) => <LibraryTools onBusyChange={onBusyChange} disabled={disabled} deviceRecovery={deviceRecovery} />}
-                renderDesktopRecovery={(onBusyChange) => <DesktopRecoveryTools onBusyChange={onBusyChange} />}
-              />
-              <QuickOpen />
-              {initialRoutePending && <RoutePending />}
-              <LibraryExplorerProvider><DesktopChromeProvider><Outlet /></DesktopChromeProvider></LibraryExplorerProvider>
-          </ThemeProvider>
-        </ToastProvider>
-      </NativePopupManager>
-    </MotionConfig>
-  );
-}
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (

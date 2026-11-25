@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listCategories, listCategoryWorkspaces } from "../adapters/http/workspace-api";
-import { HomePage } from "../pages/home/HomePage";
+import { listCategories, listCategoryWorkspaces } from "../platform/api/workspace-api";
+import { HomePage } from "../app/pages/HomePage";
 
 type DashboardSearch = {
   category?: string;

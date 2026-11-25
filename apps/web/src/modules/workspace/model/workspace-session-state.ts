@@ -1,0 +1,14 @@
+import type { WorkspaceContent, Snapshot } from "../../../entities/workspace";
+import { mergeCanvasSnapshots } from "./canvas-merge.ts";
+
+export function applyCanvasSnapshot(content: WorkspaceContent, canvas: Snapshot): WorkspaceContent {
+  return { ...content, canvas };
+}
+
+export function isStaleWorkspaceCanvasVersion(currentVersion: number, incomingVersion: number) {
+  return incomingVersion < currentVersion;
+}
+
+export function acknowledgeCanvasSnapshot(content: WorkspaceContent, saved: Snapshot): WorkspaceContent {
+  return applyCanvasSnapshot(content, mergeCanvasSnapshots(content.canvas, saved));
+}

@@ -40,18 +40,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastGlyph({ kind }: { kind: ToastKind }) {
-  const className = cn("mt-0.5 shrink-0",
+  const className = cn("shrink-0",
     kind === "error" ? "text-danger" : kind === "success" ? "text-success" :
     kind === "warning" ? "text-warning" : "text-accent");
-  if (kind === "loading") return <LoaderCircle size={18} className={cn(className, "animate-spin motion-reduce:animate-none")} aria-hidden="true" />;
-  if (kind === "error") return <AlertCircle size={18} className={className} aria-hidden="true" />;
-  if (kind === "warning") return <AlertTriangle size={18} className={className} aria-hidden="true" />;
-  if (kind === "success") return <CheckCircle2 size={18} className={className} aria-hidden="true" />;
-  return <Info size={18} className={className} aria-hidden="true" />;
+  if (kind === "loading") return <LoaderCircle size={14} className={cn(className, "animate-spin motion-reduce:animate-none")} aria-hidden="true" />;
+  if (kind === "error") return <AlertCircle size={14} className={className} aria-hidden="true" />;
+  if (kind === "warning") return <AlertTriangle size={14} className={className} aria-hidden="true" />;
+  if (kind === "success") return <CheckCircle2 size={14} className={className} aria-hidden="true" />;
+  return <Info size={14} className={className} aria-hidden="true" />;
 }
 
 function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string) => void }) {
   const kind = toast.kind;
+  const hasDescription = Boolean(toast.description);
   return <motion.article
     layout
     data-toast-id={toast.id}
@@ -59,19 +60,26 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
     role={kind === "error" ? "alert" : "status"}
     aria-live={kind === "error" ? "assertive" : "polite"}
     aria-atomic="true"
-    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+    initial={{ opacity: 0, y: 8, scale: 0.98 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={{ opacity: 0, y: 7, scale: 0.98 }}
-    transition={{ duration: 0.16, ease: "easeOut" }}
-    className="pointer-events-auto relative flex min-w-0 items-start gap-3 rounded-lg border border-line bg-surface px-3 py-3 text-ink shadow-[var(--shadow-popup)]"
+    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+    transition={{ duration: 0.14, ease: "easeOut" }}
+    className={cn(
+      "pointer-events-auto relative flex min-w-0 gap-2 rounded-lg border border-line bg-surface px-2.5 py-2 text-ink shadow-[var(--shadow-popup)]",
+      hasDescription ? "items-start" : "items-center",
+    )}
   >
-    <ToastGlyph kind={kind} />
+    <span className={cn("flex shrink-0 items-center", hasDescription && "mt-0.5")}>
+      <ToastGlyph kind={kind} />
+    </span>
     <div className="min-w-0 flex-1">
-      <p className="m-0 break-words text-xs font-semibold leading-[1.5]">{toast.message}</p>
-      {toast.description && <p className="m-0 mt-0.5 break-words text-[12px] leading-[1.55] text-muted">{toast.description}</p>}
+      <p className="m-0 break-words text-[12px] font-medium leading-[1.4] text-ink">{toast.message}</p>
+      {toast.description && <p className="m-0 mt-0.5 break-words text-[11px] leading-[1.4] text-muted">{toast.description}</p>}
+    </div>
+    <div className="flex shrink-0 items-center gap-1">
       {toast.action && <Button
-        type="button" variant="ghost" size="sm"
-        className="mt-1.5 min-h-7 border border-line px-2.5 py-1 text-[12px] font-semibold text-ink hover:bg-tint"
+        type="button" variant="ghost" size="xs"
+        className="border border-line bg-background/70 text-ink hover:bg-tint"
         onClick={(event) => {
           const action = toast.action;
           // Keyboard focus remains inside the notification after Retry morphs to Loading.
@@ -84,11 +92,11 @@ function ToastCard({ toast, dismiss }: { toast: ToastItem; dismiss: (id: string)
           if (action?.dismissOnClick !== false) dismiss(toast.id);
         }}
       >{toast.action.label}</Button>}
+      <IconButton type="button" variant="ghost" size="xs" className="shrink-0 text-muted hover:bg-tint hover:text-ink"
+        aria-label="Dismiss notification" title="Dismiss" onClick={() => dismiss(toast.id)}>
+        <X size={13} aria-hidden="true" />
+      </IconButton>
     </div>
-    <IconButton type="button" variant="ghost" className="!size-7 shrink-0 text-muted hover:bg-tint hover:text-ink"
-      aria-label="Dismiss notification" title="Dismiss" onClick={() => dismiss(toast.id)}>
-      <X size={15} aria-hidden="true" />
-    </IconButton>
   </motion.article>;
 }
 
@@ -160,7 +168,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
   const hiddenCount = toasts.length - visible.length;
 
   return <section ref={regionRef} aria-label="Notifications"
-    className="pointer-events-none fixed right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] z-[200] w-[min(360px,calc(100vw_-_32px))] max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-[max(12px,env(safe-area-inset-left))] max-[480px]:w-auto">
+    className="pointer-events-none fixed right-[max(14px,env(safe-area-inset-right))] bottom-[max(14px,env(safe-area-inset-bottom))] z-[var(--z-toast)] max-w-[min(360px,calc(100vw_-_28px))] max-[480px]:right-[max(12px,env(safe-area-inset-right))] max-[480px]:bottom-[max(12px,env(safe-area-inset-bottom))] max-[480px]:left-[max(12px,env(safe-area-inset-left))] max-[480px]:max-w-none">
     <div className="pointer-events-auto"
       onPointerEnter={(event) => { if (event.pointerType === "mouse") setHovered(true); }}
       onPointerLeave={() => setHovered(false)}
@@ -173,17 +181,17 @@ function ToastViewport({ toasts, dismiss }: { toasts: ToastItem[]; dismiss: (id:
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
       }}>
       {toasts.length > 1 && <button type="button"
-        className="mb-2 ml-auto block rounded-md bg-surface px-2 py-1 text-[12px] font-medium text-muted shadow-sm hover:text-ink focus-visible:text-accent"
+        className="mb-1.5 ml-auto block rounded-md border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted hover:text-ink focus-visible:text-accent"
         aria-expanded={expanded}
         aria-label={expanded ? "Collapse notifications" : `Expand ${toasts.length} notifications`}
         onClick={() => setExpandedByClick((open) => !open)}>
-        {expanded ? "Collapse notifications" : `${toasts.length} notifications`}
-        {hiddenCount > 0 ? ` · +${hiddenCount} queued` : ""}
+        {expanded ? "Collapse" : `${toasts.length} notifications`}
+        {hiddenCount > 0 ? ` · +${hiddenCount}` : ""}
       </button>}
       <div className="relative">
-        {!expanded && visible.length > 1 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-3 -top-3 h-10 rounded-lg border border-line bg-surface shadow-sm" />}
-        {!expanded && visible.length > 2 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-6 -top-6 h-10 rounded-lg border border-line bg-surface shadow-sm" />}
-        <div className={cn("relative flex flex-col gap-2", expanded && "flex-col-reverse")}>
+        {!expanded && visible.length > 1 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-2 -top-1.5 h-6 rounded-lg border border-line bg-surface" />}
+        {!expanded && visible.length > 2 && <div aria-hidden="true" className="pointer-events-none absolute inset-x-4 -top-3 h-6 rounded-lg border border-line bg-surface" />}
+        <div className={cn("relative flex flex-col gap-1.5", expanded && "flex-col-reverse")}>
           <AnimatePresence initial={false} mode="popLayout">
             {(expanded ? visible : visible.slice(0, 1)).map((toast) =>
               <ToastCard key={toast.id} toast={toast} dismiss={dismissWithFocus} />)}

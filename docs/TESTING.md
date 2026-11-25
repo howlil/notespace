@@ -1,388 +1,191 @@
 # Notespace Testing and Verification
 
-This document describes the current testing strategy and CI behavior.
+This document reflects the actual test layout, owners, commands, and CI gates in this repository.
 
-The goal is not maximum test count. The goal is to give each meaningful behavior one clear owner and to catch regressions at the lowest boundary that can explain the failure.
+The goal is one clear owner per behavior at the lowest layer that can prove it—not redundant test counts or regex-on-source checks.
 
-## Test ownership model
+## Ownership model
 
 ```text
-pure business rule / state transition
-→ Node or Go domain/service test
+web layer/module import & SDK boundaries
+→ ESLint (`notespace/web-boundaries` + `no-restricted-globals` in `eslint.config.mjs`)
 
-frontend orchestration with injectable side effects
-→ node:test
+pure frontend rules, state machines, token contrast, injectable orchestration
+→ colocated `node:test` under `apps/web/src/**/*.test.ts(x)`
 
-SQLite transaction / query / concurrency invariant
-→ real SQLite integration test
+Go capability/service rules & validation
+→ Go package tests under `apps/server/internal/*/*_test.go`
 
-HTTP decoding / status / headers
-→ Go httpapi contract test
+SQLite transactions, migrations, FTS search, concurrency, backup/restore
+→ real temporary SQLite integration tests under `apps/server/internal/sqlite/`
 
-browser-only interaction / race
-→ WebdriverIO journey
+HTTP transport, status codes, If-Match, headers, desktop loopback security
+→ Go tests under `apps/server/internal/httpapi/` and `apps/server/internal/app/`
 
-critical cross-system journey
-→ critical WebdriverIO journey
+browser-only interaction, DOM/focus/race, CSP sandbox, multi-tab sync
+→ WebdriverIO standalone journeys under `tests/e2e/`
 
-runtime persistence
-→ Docker restart smoke
+Rust runtime readiness, shutdown, recovery, preview isolation
+→ Rust `#[test]` under `apps/desktop/src-tauri/src/`
+
+Windows WebView2 close/flush/sidecar lifecycle & relaunch durability
+→ native desktop checks under `scripts/verify/`
+
+CI lane planning, workflow YAML security invariants, release CLI/manifest logic
+→ `scripts/verify/`, `scripts/release/`, `scripts/assets/` tests
+
+container restart durability
+→ Compose smoke (`scripts/verify/smoke-persistence.py`)
 ```
 
-Do not create one test per source file.
-
-A test is justified when it protects a business rule, state transition, failure boundary, transaction invariant, transport contract, browser behavior, or regression that would otherwise be hard to localize.
+Do not write regex/`readFileSync` tests that mirror JSX markup, Tailwind classes, internal function names, or deleted-file tombstones. Enforce import and layer boundaries in `eslint.config.mjs`.
 
 ## Frontend unit tests
 
-The frontend deliberately uses Node's built-in test runner instead of a jsdom/React Testing Library stack.
-
-Root command:
+The frontend uses Node's built-in test runner (`--experimental-strip-types --test`) without jsdom or React Testing Library.
 
 ```sh
 bun run test
+# or one focused file:
+task test:web TEST=apps/web/src/modules/canvas/objects/code-block/model/canvas-code-block-layout.test.ts
 ```
 
-The test runner discovers `*.test.ts` and `*.test.tsx` files under the application and repository test surfaces.
+`scripts/verify/run-node-tests.mjs` discovers all `*.test.ts` and `*.test.tsx` files colocated under `apps/web/src/`.
 
-Use `node:test` for:
+Good fits for `node:test`:
+- pure domain/model logic (`autosave`, `canvas-merge`, `canvas-conflict-retry`, `granular-save-core`, `note-store`, `note-extract`, `diagram`, `routing`);
+- serialization, export, and HTML preview CSP/escaping (`canvas-code-block-export`, `note-export`, `html-preview-frame`);
+- HTTP/cache/runtime orchestration with injected fakes (`workspace-api`, `image-store-core`, `durability-barrier`, `desktop-quiescence`);
+- mathematical WCAG AA contrast verification of CSS palette tokens (`apps/web/src/shared/styles/design-tokens.test.ts`).
 
-- pure domain rules;
-- serialization/HTTP adapter contracts through injected transports;
-- orchestration cores with injected dependencies;
-- cache/event primitives that can be exercised without mounting React;
-- third-party compatibility adapters that can be represented with small fakes.
+Static checks:
 
-Current examples include:
-
-- Workspace autosave and conflict rules;
-- Canvas merge and scene transformations;
-- Workspace naming and pagination rules;
-- `granular-save-core` Canvas conflict/rebase orchestration;
-- image-store remote/local fallback and concurrent-load deduplication;
-- image HTTP contract and Workspace-scoped cache behavior;
-- Canvas image persistence, cache eviction and legacy fallback;
-- Quick Open route mapping;
-- browser conflict/library-change event adapters;
-- Excalidraw native action compatibility.
-
-### Why orchestration cores exist
-
-React hooks/components should not be split solely to make tests easy.
-
-Extract a small core when the logic has an independent failure model.
-
-Example:
-
-```text
-React hook
-  ↓
-flush registered Canvas asset writes
-  ↓
-durable asset store
+```sh
+bun run typecheck
+bun run lint
 ```
 
-The core can prove:
-
-- accepted storage → authored Canvas reference may be committed;
-- ownership rejection → no broken durable reference;
-- storage error → error is surfaced.
-
-React remains responsible for wiring the result into the editor.
-
-The same pattern is used for Workspace save conflict handling and Canvas asset persistence.
-
-## Go tests
-
-Run all server checks with:
+## Go server tests
 
 ```sh
 task check:server
-```
-
-or directly inside `apps/server`:
-
-```sh
+# or inside apps/server:
 node ../../scripts/verify/check-gofmt.mjs
 go vet ./...
 go test -race ./...
+# focused package:
+task test:server PACKAGE=./internal/workspace
 ```
 
-The real server-process integration proof runs the built Go binary against a temporary SQLite database, waits for the
-readiness handshake, exercises Workspace/Canvas HTTP mutations, shuts the process down through its parent-lifecycle
-stdin protocol, relaunches it with the same database, and verifies durable state:
+Real server binary process-lifecycle & durability integration proof:
 
 ```sh
 bun run test:server:process
 ```
 
-This is intentionally separate from package tests because it proves command wiring, process lifecycle, HTTP routing, and
-SQLite durability together. It uses observable readiness/process-exit signals rather than arbitrary sleeps.
-
-### Application/service tests
-
-Application packages use small behavioral fakes for their consumer-owned ports.
-
-Examples:
-
-- Workspace validation, granular Canvas service behavior, aggregate compatibility updates;
-- planning Task/Milestone transitions and global Task operations;
-- activity recording/query normalization and reference resolution;
-- asset validation and ownership checks;
-- icon validation/cache/concurrent fetch behavior.
-
-Do not build fake databases for persistence semantics.
-
-### SQLite tests
-
-Use a real temporary SQLite database for:
-
-- transactions;
-- foreign keys;
-- optimistic concurrency;
-- Canvas versioning and legacy compatibility migration;
-- planning position concurrency and cardinality;
-- Today/Inbox projections;
-- asset lifecycle;
-- FTS/search repair;
-- Trash atomicity;
-- backup/restore rollback;
-- migration compatibility;
-- database integrity.
-
-These tests own SQLite-specific behavior; service tests should not duplicate it through mocks.
-
-### HTTP contract tests
-
-`internal/httpapi` tests own:
-
-- request decoding;
-- query/path/header semantics;
-- `If-Match`;
-- response status and error codes;
-- security/cache headers;
-- planning and backup transport;
-- icon transport;
-- same-origin mutation behavior;
-- request observability.
-
-They should use representative invalid domain input, not repeat every domain validation permutation.
+- `apps/server/internal/app/desktop/boundary_test.go` verifies runtime loopback security (DNS rebinding, Origin, Sec-Fetch-Site, non-loopback bind rejection, CSP/frame headers).
+- `apps/server/internal/sqlite/` uses real temporary SQLite files for transactions, rollback atomicity, optimistic concurrency, migrations, FTS search, Trash, and ZIP backup/restore. Do not mock SQLite for persistence semantics.
+- `apps/server/internal/httpapi/` tests HTTP decoding, `If-Match`, error codes, headers, and concurrency.
 
 ## Browser E2E — WebdriverIO standalone
 
-There is one browser runner: `scripts/verify/browser-e2e.mjs`. It is WebdriverIO standalone plus Node's built-in test runner against headless installed Chrome and a real isolated Go/SQLite server. No Mocha/Cucumber runner, no Playwright, no downloaded browser bundle.
-
-Suites are grouped by capability and discovered recursively. `tests/browser-discovery.test.ts` protects discovery and configured script entrypoints. ESLint checks web module placement, dependency direction, and feature entries. `tests/architecture-boundaries.test.ts` checks the lazy Canvas boundary. Go architecture checks cover private handler/query packages and transaction ownership. Aggregate SQLite rollback/restore proofs stay with Store.
-
-```sh
-bun run test:e2e            # build the web app, then every browser journey
-bun run test:e2e:critical   # existing build required; legacy `critical:` set
-bun run test:e2e:smoke      # existing build required; P0 + core create/navigation/search
-bun run test:e2e:affected --changed-files paths.json  # JSON array of repo-relative old/new paths
-task e2e:smoke              # builds first, then risk smoke (same set as the PR gate)
-task e2e:target SPEC=tests/e2e/library/search.e2e.mjs # builds first, then one journey file
-node scripts/verify/browser-e2e.mjs --mode smoke --list # inspect without starting fixtures
-node scripts/verify/browser-e2e.mjs --file tests/e2e/library/search.e2e.mjs   # one journey file
-```
-
-### Suite structure
+Runner: `scripts/verify/browser-e2e.mjs` (WebdriverIO standalone + `node:test` against installed headless Chrome and an isolated Go/SQLite server per file).
 
 ```text
 tests/e2e/
-├── canvas/, library/, settings/, compatibility/   owned *.e2e.mjs journeys
-└── support/
-    ├── harness.mjs     UI/API helpers and scoped fixture lifetime
-    ├── browser.mjs     Chrome session
-    ├── server.mjs      isolated Go/SQLite process
-    ├── proxy.mjs       transport fault injection (503, 409, abort, hold)
-    └── resolve.mjs     in-page role/name resolution
+├── canvas/     Canvas authoring, toolbar, code/HTML preview, Note cards (core/links/rich), persistence, recovery, peer sync
+├── library/    Home/Explorer shell, category workflows, pagination, races, navigation, search, edge constraints
+├── settings/   Settings/palette/backup modal lifecycle, Trash & ZIP restore
+└── support/    harness.mjs, browser.mjs, server.mjs, proxy.mjs (fault injection), resolve.mjs
 ```
 
-Rules for this suite:
+Commands:
 
-- each file starts its own Go server on an ephemeral port with its own SQLite file, so files are independent and run concurrently;
-- the browser talks to a local proxy in front of the real server; failures are injected there (`injectFault`), never by mocking the application or the database;
-- assertions read either the real DOM or the real HTTP API, so a simulated transport failure cannot hide durable state;
-- journeys are independent: no ordering dependency between files or tests;
-- `critical:` remains the legacy Verify set during #200 migration; the new PR ci lane uses affected + risk smoke.
-- `browser-proof-policy.mjs` maps every discovered case to its suite property/risk, with case-specific security/recovery overrides. P0 is loss/security/recovery, P1 functional, P2 interaction/layout, P3 cosmetic-only. Smoke includes all P0 cases and core creation/navigation/search; affected unions whole affected suites with that smoke floor. Full retains every case.
-- Shared/unknown changed paths, unclassified suites and unsupported/dynamic case registrations fall back to the full run rather than disappearing. Invalid paths/options, missing inputs, empty suites and empty selections fail. Supply both old/new paths for renames; complete diff collection belongs to the CI classifier.
-- `--file` still runs one complete suite within `tests/e2e`; `--list` validates/prints full, smoke, affected, master (legacy critical plus all P0 smoke) or legacy plans without acquiring browser/server resources.
+```sh
+bun run test:e2e                                  # builds @notespace/web, runs all browser suites
+bun run test:e2e:smoke                            # existing build required; P0 + core create/nav/search
+bun run test:e2e:critical                         # existing build required; legacy critical: set
+bun run test:e2e:affected --changed-files paths.json
+task e2e:smoke                                    # builds first, then runs risk smoke
+task e2e:target SPEC=tests/e2e/library/search.e2e.mjs
+node scripts/verify/browser-e2e.mjs --mode smoke --list   # inspect plan without starting fixtures
+```
 
-Coverage includes canonical Home/category/Workspace navigation, Library/first-run shell, Canvas authoring (flowchart spawn, bounded code execution, undo-safe output, PNG/SVG code-block export, opt-in isolated HTML preview, embeds), workspace/category search and Quick Open, Settings and backup lifecycle, pagination snapshots, category races, Library recovery, Canvas peer sync across tabs, and the retired Capture/Plan/Today/Inbox data boundaries that must stay readable while their UI stays gone. Isolated HTML preview behavior and adversarial sandbox containment are proved in Chromium by `tests/e2e/canvas/workspace-html-preview.e2e.mjs` and in native Windows WebView2 by `scripts/verify/desktop-webdriver-smoke.mjs`. Standalone Note routes remain absent; Canvas-native Note cards are covered by `tests/e2e/canvas/canvas-note.e2e.mjs`.
+Policy & discovery:
+- `scripts/verify/browser-proof-policy.mjs` maps every `tests/e2e/**/*.e2e.mjs` file to its risk tier (`P0` loss/security/recovery, `P1` functional, `P2` interaction/layout, `P3` cosmetic) and owner mapping for `--mode affected`.
+- Unknown paths, unclassified suites, or dynamic test registrations conservatively fall back to the full suite.
+- `scripts/verify/browser-discovery.test.mjs` verifies discovery, CLI validation, policy coverage, and configured script entrypoints.
+- Each `.e2e.mjs` file spawns its own isolated server, SQLite file, fault proxy, and Chrome session; inject transport failures via `injectFault` instead of mocking the app or DB.
 
-Only admit new browser tests for behavior that cannot be proven at a cheaper boundary. Prefer Node unit, HTTP integration and SQLite tests for ordinary rules, CRUD and failure cases. Avoid arbitrary waits; wait on observable state.
+## Scripts, CI, and release policy tests
 
-Removed with the Playwright migration, because the UI they asserted no longer exists: pane split/focus-mode/view-switcher geometry (`workspace/layout`, `workspace/m5-visual-acceptance`), the retired Activity dock popup ownership (`popup-behavior`, `study-history`), and Excalidraw-native chrome details (type-conversion popup, third-party "More tools" labels). Their Notespace-owned behaviors are covered by the Canvas, shell and Activity-retirement journeys.
+Run all script and policy tests directly:
+
+```sh
+node --test scripts/release/*.test.mjs scripts/assets/*.test.mjs scripts/verify/*.test.mjs
+python scripts/verify/test-desktop-workflow-yaml.py
+python scripts/verify/test-desktop-upgrade-inventory.py
+```
+
+- `scripts/verify/test-desktop-workflow-yaml.py` is the single parsed-YAML owner for `.github/workflows/*.yml` structure and security invariants (requires PyYAML).
+- `scripts/verify/ci-plan.test.mjs` verifies CI lane classification and gate enforcement.
+- `scripts/verify/check-desktop-webdriver-policy.test.mjs` verifies Tauri command ACL least-privilege parity (`lib.rs`, `build.rs`, `capabilities/*.json`) and Windows GUI subsystem flags.
+- `scripts/release/*.test.mjs` verify SemVer/beta resolution, release-request admission, exact-master CI gate verification, updater manifests, and signing config preparation.
+
+## Landing tests
+
+```sh
+bun run --cwd landing build
+node --test landing/tests/*.test.mjs
+```
+
+Landing tests verify built Astro HTML, WebP screenshot integrity/dimensions/alt text, MSI download links, README self-host parity, static Wrangler config, and GitHub release asset filtering (`windows-release.test.mjs`). They stay independent of `apps/web/src` internals.
 
 ## Native desktop verification
 
-The Tauri shell keeps the web application as the product-behavior owner. Native checks cover only WebView and
-sidecar-specific risks:
+```sh
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+```
+
+Full local desktop shell verification:
 
 ```sh
-bun run build
-node scripts/dev/prepare-desktop-sidecar.mjs
-bun run test:desktop:lifecycle
-cargo tauri build --debug --no-bundle -- --locked
+task desktop:check
+```
+
+Windows WebView2 native E2E (requires `tauri-driver` + matching EdgeDriver):
+
+```sh
 bun run test:desktop:native
+bun run test:desktop:critical   # requires isolated NOTESPACE_DESKTOP_TEST_DATA_DIR
 ```
 
-`test:desktop:native` requires `tauri-driver` and the matching Edge WebDriver on Windows. Its WebView2 capability sets
-an explicit user-data folder so the launch/relaunch persistence assertion uses the same profile. The production shell
-uses the stable Tauri `dataDirectory`; WebdriverIO owns every browser journey, including multi-tab Canvas peer sync.
+## CI lanes (`ci.yml`)
 
-The release lane also runs `bun run test:desktop:critical` against the release executable. This journey creates a
-Workspace through the UI, edits the Canvas while a save is active, closes the native
-window, relaunches the same executable, and verifies the latest authored data from the same SQLite data directory.
-The critical command requires an isolated
-`NOTESPACE_DESKTOP_TEST_DATA_DIR`; the desktop runtime uses that path only when the test environment provides it.
-The critical runner uses the Canvas save boundary so the close journey can deterministically exercise an in-flight
-Canvas save without synchronizing on arbitrary sleeps.
+`.github/workflows/ci.yml` runs `classify` (`scripts/verify/ci-plan.mjs`) to select lanes:
+- docs-only changes select no lanes;
+- landing-only changes select `landing`;
+- PRs run only owning lanes (`web`, `server`, `browser` affected+smoke, `landing`, `desktop`, `release-policy`, `compose`), falling back to all lanes for shared root config or unknown paths;
+- `master` pushes run all lanes for any non-docs, non-landing change;
+- scheduled/manual (`workflow_dispatch`) runs execute the full browser suite and extended desktop checks, reporting `regression / gate`;
+- `ci / gate` aggregates every selected lane and is the required check for `master` and publishers (`assert-desktop-release-ci.mjs --collect`).
 
-Windows release verification builds the MSI bundle with:
+## Docker persistence smoke & performance evidence
 
-```sh
-cargo tauri build -- --locked
-```
-
-## Browser and desktop CI
-
-### Pull requests and `master`
-
-`ci.yml` is the only PR/master workflow. Its `classify` job selects lanes from the changed paths with `scripts/verify/ci-plan.mjs`:
-
-- docs-only changes select no lanes (on both PR and `master` push), including the explicitly recognized community health files; root `README.md` changes select the landing lane because its self-hosting claims have a landing contract test;
-- landing-only changes select only the `landing` lane (on both PR and `master` push);
-- PRs split core lanes by owner:
-  - web changes run `web` + `browser` (affected proof; `features/settings/` also runs `landing`; unit/contract test-only files run `web` only);
-  - server changes run `server` + `browser` + `compose` (Go `*_test.go`-only files run `server` only; `cmd/`, `migrations/`, and `internal/sqlite/` non-test code also runs `desktop`);
-  - desktop/native and release script changes run `desktop` + `release-policy` only;
-  - container-only changes (`Dockerfile`, `compose*.yaml`) run `compose` only;
-  - shared root config (`package.json`, `bun.lock`, `Taskfile.yml`, `ci.yml`) or any unknown path falls back to every lane;
-- `master` pushes run every lane for any app, server, desktop, script, workflow, beta-release-note, or unreadable diff; scheduled and manual runs always run every lane.
-
-`ci / gate` runs with `always()` and fails when any selected lane did not succeed, or when an unselected lane failed. Master branch protection requires only `ci / gate`. Publishers require the current-master push `ci` run, its exact-attempt `ci / gate`, and target-specific lane proofs (`--target desktop | image | cloudflare`) via `scripts/release/assert-desktop-release-ci.mjs --collect <full-current-master-SHA> --target <target>`, so docs-only or landing-only `master` pushes can never bypass desktop/container proofs while landing-only pushes can deploy Cloudflare immediately.
-
-Scheduled and manual runs (`workflow_dispatch`, daily 03:17 UTC) run the full browser inventory and extended desktop checks (Linux, Windows-latest, and macOS compile/Rust tests). They report `regression / gate`, separate from required `ci / gate`, and have event-isolated concurrency so they cannot cancel master proof. Trigger manually with `gh workflow run ci.yml --ref master`; this performs verification only, never publication.
-
-`verify-desktop.yml` is a reusable workflow called by `ci.yml` only. It has no triggers of its own. Its `check-desktop` job runs the deterministic policy and YAML checks on Linux. `check-desktop-windows` runs one critical native navigation, pending-save close, and SQLite shutdown/relaunch journey on Windows Server 2022. Extended Windows-latest, Linux, and macOS desktop checks run in `regression` rather than blocking Windows MSI stable releases. Windows native caches restore on PRs and save only after a successful master proof; `release-desktop.yml` and `publish-desktop-beta.yml` share a dedicated `windows-2022-desktop-release` Rust cache restored before version sync.
-
-Focused policy proof: `node --test scripts/verify/ci-plan.test.mjs` (lane matrices and gate rules). Parsed workflow contract: `python scripts/verify/test-desktop-workflow-yaml.py` with the pinned PyYAML tooling.
-
-The retired `verify.yml` and `verify-landing-build.yml` workflows are gone; `ci.yml` covers their checks.
-
-## Local verification ladder
-
-The operating loop lives in `AGENTS.md`; this section owns command selection.
-Start with the nearest existing proof that can observe the risk. These are escalation
-options, not a mandatory sequence of every test layer:
-
-| Change boundary | First faithful proof | Escalate when |
-| --- | --- | --- |
-| Documentation/instructions only | Inspect changed text, links, referenced paths/commands and applicable existing contracts | Root README changes select the landing contract checks; no unrelated full app build for prose |
-| Web placement or import boundary | `bun run lint` or `bunx --no-install eslint <changed-file>` | Run the full lint pass when shared rules or module ownership change |
-| Web pure rule/orchestration | Existing colocated Node test | Use the affected existing browser journey for DOM, focus, rendering, or browser lifecycle behavior |
-| Go capability/validation | Existing package test | SQL/transaction/restore changes need real SQLite; concurrency needs race proof; process durability needs restart/readback |
-| Rust readiness/runtime rule | Filter the existing Rust tests for that module | Host/process/close/flush/security behavior requires matching runtime/PE/lifecycle and actual Windows native acceptance; a unit test is not that proof |
-| CI/release policy | Existing classifier/request/CLI and parsed workflow policy tests | Trigger/SHA/skip/permission/concurrency changes require real GitHub behavior; publication still needs separate authorization |
-
-Unrelated edits do not invalidate already observed proof. Rerun what the diff affects;
-keep the authoritative required CI gates and conservative unknown-impact fallback.
-Full/manual regression and release-artifact acceptance are separate stages, not
-per-iteration defaults. Do not add tests that lint Issues or documentation formatting.
-
-Useful commands (run from repository root unless shown otherwise):
-
-```sh
-# one frontend test file
-task test:web TEST=apps/web/src/features/workspace-authoring/canvas/code/canvas-code-block-layout.test.ts
-
-# one Go package (task includes race; plain package test is also available)
-task test:server PACKAGE=./internal/workspace
-(cd apps/server && go test ./internal/workspace)
-
-# one Rust module's existing tests; does not launch the app/native journey
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked runtime::readiness::tests
-
-# all frontend/backend static + unit/integration checks
-task check
-
-# production builds
-task build
-
-# full local release verification
-task verify
-```
-
-`task verify` builds production artifacts, runs frontend/server checks, and runs the PR browser smoke set. It does not authorize publication or replace signed MSI/installed-upgrade/release-binary native acceptance.
-
-## Docker persistence smoke
-
-CI starts the real Compose stack and runs:
-
-```text
-create durable state
-→ restart container
-→ read durable state back
-```
-
-This protects the deployment-level invariant that SQLite data survives an application restart with the configured persistent volume.
-
-It is not a substitute for transaction-level SQLite tests.
-
-## Performance evidence
-
-Scale/performance evidence is explicit rather than part of every inner-loop test.
+- Compose durability smoke: `python3 scripts/verify/smoke-persistence.py --compose-restart` (runs in the `compose` CI lane).
+- Explicit scale measurements (not part of default unit tests):
 
 ```sh
 task perf:evidence
 ```
 
-This currently includes focused frontend evidence plus SQLite persistence scale evidence gated behind `NOTESPACE_SCALE_EVIDENCE=1`.
+## Local verification ladder
 
-Use performance tests for a concrete performance question; do not turn the default test suite into a benchmark suite.
-
-## Bug-fix workflow
-
-For a regression:
-
-```text
-find the lowest owner
-→ add or identify a failing behavioral test
-→ confirm the failure mechanism
-→ make the smallest fix
-→ run the nearest test
-→ escalate verification according to blast radius
-```
-
-Examples:
-
-```text
-Workspace navigation loses a pending Canvas edit
-→ route loader freshness, autosave boundary, and critical WebdriverIO re-entry proof
-
-Workspace delete ID whitespace bug
-→ activity service query test
-
-stale Library category response overwrites current view
-→ request-generation fix + browser race regression
-
-asset rejected after Workspace ownership disappears
-→ asset orchestration unit test
-```
-
-## What not to do
-
-Do not:
-
-- require one test per file/function;
-- add React testing infrastructure only to chase coverage percentage;
-- mock SQLite for transaction behavior;
-- duplicate every domain invalid case at both HTTP and browser layers;
-- snapshot large objects when a behavioral assertion is clearer;
-- rely on sleeps for correctness when a deterministic signal can be used;
-- mark every browser journey `critical:`;
-- keep adding tests after the relevant risk has one clear owner and evidence.
-
-Stop when the behavior is protected at the correct boundary and the relevant gates are green.
+| Change area | First proof | Escalate when |
+| --- | --- | --- |
+| Docs only | Review changed paths/commands | Executable contract also changed |
+| Web import/layer boundary | `bun run lint` | Shared ESLint boundary rule changed |
+| Web logic/model/adapter | Focused `task test:web TEST=...` | DOM/browser lifecycle/race → `task e2e:target SPEC=...` |
+| Go capability/HTTP/SQLite | `task test:server PACKAGE=...` | Concurrency/tx/process → `task check:server`, `bun run test:server:process` |
+| Rust runtime | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked` | Close/flush/WebView2 → `task desktop:check` / Windows native acceptance |
+| CI/release scripts or workflows | `node --test scripts/.../*.test.mjs` + `test-desktop-workflow-yaml.py` | Actual GitHub Actions behavior on PR/master |

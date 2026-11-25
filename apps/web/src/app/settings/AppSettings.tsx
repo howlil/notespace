@@ -91,7 +91,7 @@ export function AppSettings({ renderLibraryTools, renderDesktopRecovery }: {
       <section aria-label="Device recovery" className="pt-3">
         <SettingRow
           title="Device recovery"
-          description="SQLite snapshots are available in the Windows desktop app."
+          description="Device recovery snapshots are available in the Windows desktop app."
           control={(
             <Badge variant="subtle" className="h-6 rounded-md px-2 text-xs">
               <Monitor size={11} aria-hidden="true" />

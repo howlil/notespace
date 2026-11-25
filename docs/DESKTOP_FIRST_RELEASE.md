@@ -192,10 +192,14 @@ must finish successfully before `gh release create` publishes any MSI.
   selection and tag creation.
 - If `master` changes while preparing a release, the launcher refuses
   tagging rather than tagging an unverified commit.
-- If tag creation succeeds but dispatch fails, **do not recreate or force
-  move the tag**. In [Actions → Release desktop](https://github.com/howlil/notespace/actions/workflows/release-desktop.yml),
-  choose **Run workflow** with the existing `release_tag`; that workflow
-  can retry as long as the tag still points at the current `master` HEAD.
+- If tag creation succeeds but the MSI build/publish fails on an unchanged
+  `master` HEAD, **do not recreate or force move the tag**. In
+  [Actions → Release](https://github.com/howlil/notespace/actions/workflows/release.yml),
+  choose **Run workflow**, branch **master**, mode **desktop-stable-resume**,
+  and enter the existing `version` (for example `v1.0.4`); that workflow can
+  retry only while the tag still points at the current verified `master` HEAD
+  and no GitHub Release exists for it. If `master` advances with a fix, run
+  **desktop-stable** to allocate the next free version.
 - Signed GitHub Releases are immutable: don't overwrite MSI assets after
   publishing. Produce a new version for any correction.
 - No release workflow listens to `push.tags`. A tag alone, whether pushed by
@@ -214,7 +218,7 @@ git checkout master
 git pull --ff-only origin master
 git tag -a v1.0.0 -m "Notespace Desktop v1.0.0"
 git push origin v1.0.0
-gh workflow run release-desktop.yml --ref master --field release_tag=v1.0.0
+gh workflow run release.yml --ref master -f mode=desktop-stable-resume -f version=v1.0.0
 ```
 
 Use an appropriate unused version and ensure the tag is at current

@@ -1,12 +1,22 @@
 name: ci
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_target != 'regression' && inputs.candidate_target != '' && format('ci candidate ({0})', inputs.candidate_target) || (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'ci regression' || format('ci ({0})', github.event_name) }}
 
-# Single PR/master gate plus the scheduled and manual full regression.
-# ci / gate is the required check; publishers require its exact master push run.
+# Single PR/master gate plus explicit exact-SHA candidate proof and scheduled/manual full regression.
+# ci / gate is the required check; publishers require exact master push ci / gate plus target lanes
+# (from that push run or an explicit exact-SHA candidate / <target> run, never generic regression).
 on:
   pull_request:
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      candidate_target:
+        description: "Regression (default) or explicit exact-SHA release candidate target"
+        type: choice
+        required: false
+        default: regression
+        options: [regression, desktop, image, cloudflare]
   schedule:
     - cron: "17 3 * * *"
 
@@ -17,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && (inputs.candidate_target || 'regression') || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -48,6 +58,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE_SHA: ${{ github.event.before }}
+          CANDIDATE_TARGET: ${{ inputs.candidate_target }}
         run: node scripts/verify/ci-plan.mjs plan
 
   web:
@@ -161,10 +172,11 @@ jobs:
       - run: bun install --frozen-lockfile
       # Fresh production build in the same checkout/process environment as proof.
       - run: bun run --filter @notespace/web build
-      - name: Run browser proof (PR affected + smoke, master critical + P0, regression full)
+      - name: Run browser proof (PR affected + smoke, master/candidate critical + P0, regression full)
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CHANGED_FILES: ${{ runner.temp }}/ci-browser-paths.json
+          CANDIDATE_TARGET: ${{ inputs.candidate_target }}
         run: |
           MODE="$(node scripts/verify/ci-plan.mjs mode)"
           if [ "$MODE" = affected ]; then
@@ -185,7 +197,7 @@ jobs:
     # Reuse real Windows native close/flush/shutdown/readback, not a green stub.
     uses: ./.github/workflows/verify-desktop.yml
     with:
-      profile: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression' || 'native' }}
+      profile: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.candidate_target == '' || inputs.candidate_target == 'regression'))) && 'regression' || 'native' }}
 
   compose:
     needs: classify
@@ -238,7 +250,7 @@ jobs:
       - run: node --test scripts/release/*.test.mjs scripts/assets/*.test.mjs scripts/verify/*.test.mjs
 
   gate:
-    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression / gate' || 'ci / gate' }}
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_target != 'regression' && inputs.candidate_target != '' && format('candidate / {0}', inputs.candidate_target) || (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'regression / gate' || 'ci / gate' }}
     if: always()
     needs: [classify, web, server, landing, browser, desktop, release-policy, compose]
     runs-on: ubuntu-24.04

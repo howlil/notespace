@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { appendFileSync } from "node:fs";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
 
-const modes = new Set(["preflight", "desktop-beta", "desktop-stable", "image", "cloudflare"]);
+const modes = new Set(["preflight", "desktop-beta", "desktop-stable", "desktop-stable-resume", "image", "cloudflare"]);
+const EXACT_STABLE_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export function releaseRequest({ mode = "preflight", bump = "patch", version = "", ref, sha }) {
   if (!modes.has(mode)) throw new Error("Unknown release mode");
@@ -21,11 +22,17 @@ function assertVersion(mode, version) {
     if (version) resolveDesktopVersion([], { requestedVersion: version });
     return;
   }
-  if (mode === "image") {
-    if (version && (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version) || version.trim() !== version)) throw new Error("Image version must be a stable source tag");
+  if (mode === "desktop-stable-resume") {
+    if (!EXACT_STABLE_TAG.test(version) || version.trim() !== version) {
+      throw new Error("desktop-stable-resume requires an explicit existing stable tag (vMAJOR.MINOR.PATCH)");
+    }
     return;
   }
-  if (version) throw new Error("Version input applies only to desktop-stable or image");
+  if (mode === "image") {
+    if (version && (!EXACT_STABLE_TAG.test(version) || version.trim() !== version)) throw new Error("Image version must be a stable source tag");
+    return;
+  }
+  if (version) throw new Error("Version input applies only to desktop-stable, desktop-stable-resume, or image");
 }
 
 if (import.meta.main) {

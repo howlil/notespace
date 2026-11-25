@@ -31,9 +31,17 @@ test("numeric MSI beta version does not exceed 65535", () => {
   assert.throws(() => nextFreeDesktopBetaTag([{ tagName: "v0.1.0-beta.65535", isDraft: false }]));
 });
 
-test("free beta only runs on explicit dispatch and preserves native/data safety gates", () => {
+test("failed beta tags are reserved and automatic sequence advances past them", () => {
+  const items = [{ tagName: "v0.1.0-beta.14", isDraft: false }];
+  assert.equal(nextFreeDesktopBetaTag(items, { existingTags: ["v0.1.0-beta.15", "v1.0.4", "unrelated"] }), "v0.1.0-beta.16");
+  assert.throws(() => nextFreeDesktopBetaTag(items, { existingTags: null }));
+});
+
+test("free beta is callable only via canonical release.yml and preserves native/data safety gates", () => {
   const wf = readFileSync(new URL("../../.github/workflows/publish-desktop-beta.yml", import.meta.url), "utf8");
-  assert.match(wf, /workflow_dispatch:/);
+  assert.match(wf, /workflow_call:/);
+  assert.doesNotMatch(wf, /workflow_dispatch:/);
+  assert.doesNotMatch(wf, /^concurrency:/m);
   assert.doesNotMatch(wf, /\bpush:\s*\n\s*branches:/);
   assert.match(wf, /assert-desktop-release-ci\.mjs/);
   assert.match(wf, /bunx @tauri-apps\/cli@2\.12\.3 build --config \$overlay -- --locked/);

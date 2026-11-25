@@ -1,5 +1,6 @@
-name: Deploy notespace to Cloudflare (manual)
+name: Deploy notespace to Cloudflare (reusable)
 
+# Invoked only via release.yml (which owns the notespace-release-cloudflare concurrency lock).
 on:
   workflow_call:
     secrets:
@@ -7,15 +8,10 @@ on:
         required: false
       CLOUDFLARE_API_TOKEN:
         required: false
-  workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
-
-concurrency:
-  group: cloudflare-notespace-production
-  cancel-in-progress: false
 
 jobs:
   deploy:

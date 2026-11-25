@@ -8,9 +8,9 @@ on:
         type: choice
         required: true
         default: preflight
-        options: [preflight, desktop-beta, desktop-stable, image, cloudflare]
+        options: [preflight, desktop-beta, desktop-stable, desktop-stable-resume, image, cloudflare]
       version:
-        description: "Stable desktop override, or existing stable image source tag; blank selects the lane default"
+        description: "Stable desktop override, existing unpublished tag for desktop-stable-resume, or existing stable image tag"
         type: string
         required: false
         default: ""
@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$RELEASE_MODE" in
-            desktop-beta|desktop-stable) TARGET="desktop" ;;
+            desktop-beta|desktop-stable|desktop-stable-resume) TARGET="desktop" ;;
             image) TARGET="image" ;;
             cloudflare) TARGET="cloudflare" ;;
             *) TARGET="gate" ;;
@@ -84,10 +84,9 @@ jobs:
     with:
       bump: ${{ inputs.bump }}
       version: ${{ inputs.version }}
-      prepare_only: true
     permissions:
       contents: write
-      actions: write
+      actions: read
     secrets:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -100,6 +99,25 @@ jobs:
     uses: ./.github/workflows/release-desktop.yml
     with:
       release_tag: ${{ needs.stable-prepare.outputs.release_tag }}
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+  stable-resume:
+    needs: preflight
+    if: needs.preflight.outputs.mode == 'desktop-stable-resume'
+    uses: ./.github/workflows/release-desktop.yml
+    with:
+      release_tag: ${{ inputs.version }}
     permissions:
       contents: write
       actions: read

@@ -3,6 +3,7 @@ name: Publish Desktop Beta (free)
 # Authenticode-unsigned Windows beta with FREE, mandatory Tauri updater signatures.
 # No Azure account or paid Windows publisher certificate. Fail closed on missing
 # signing configuration; do not ship updater builds that cannot verify signatures.
+# Invoked only via release.yml (which owns the notespace-release-desktop concurrency lock).
 on:
   workflow_call:
     secrets:
@@ -10,7 +11,6 @@ on:
         required: false
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
         required: false
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,10 +18,6 @@ permissions:
   id-token: write
   attestations: write
   artifact-metadata: write
-
-concurrency:
-  group: notespace-desktop-release-init
-  cancel-in-progress: false
 
 jobs:
   windows-msi-beta:
@@ -76,9 +72,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $releases = Join-Path $env:RUNNER_TEMP 'notespace-beta-releases.json'
+          $tagsFile = Join-Path $env:RUNNER_TEMP 'notespace-beta-tags.txt'
           gh release list --limit 100 --json tagName,isDraft,isPrerelease | Out-File -FilePath $releases -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "Could not list published versions" }
-          $tag = (Get-Content -Raw $releases | node scripts/release/resolve-desktop-beta-version.mjs).Trim()
+          (git ls-remote --tags --refs origin) | ForEach-Object { ($_ -split '\s+')[1] -replace '^refs/tags/', '' } | Set-Content -Path $tagsFile -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "Could not list remote tags" }
+          $tag = (Get-Content -Raw $releases | node scripts/release/resolve-desktop-beta-version.mjs $tagsFile).Trim()
           if ($LASTEXITCODE -ne 0 -or $tag -notmatch '^v0\.1\.0-beta\.[1-9][0-9]*$') {
             throw "Failed to select a valid unsigned beta tag"
           }

@@ -83,6 +83,18 @@ test("sort all published versions numerically and ignore drafts, prereleases, an
   assert.equal(resolveDesktopVersion(releases, { bump: "major" }), "v2.0.0");
 });
 
+test("failed release tags are reserved and automatic bumps advance past them", () => {
+  const releases = [{ tagName: "v1.0.3", isDraft: false, isPrerelease: false }];
+  const existingTags = ["v1.0.4", "v1.0.0-beta.14", "unrelated", "v1.0.9-rc.1"];
+  assert.equal(resolveDesktopVersion(releases, { existingTags }), "v1.0.5");
+  assert.equal(resolveDesktopVersion(releases, { existingTags, bump: "minor" }), "v1.1.0");
+  assert.equal(resolveDesktopVersion(releases, { existingTags, bump: "major" }), "v2.0.0");
+  assert.equal(resolveDesktopVersion([], { existingTags: ["v1.0.0"] }), "v1.0.1");
+  assert.equal(resolveDesktopVersion(releases, { existingTags, requestedVersion: "v1.0.5" }), "v1.0.5");
+  assert.throws(() => resolveDesktopVersion(releases, { existingTags, requestedVersion: "v1.0.4" }));
+  assert.throws(() => resolveDesktopVersion(releases, { existingTags: null }));
+});
+
 test("explicit version must advance stable SemVer and cannot inject shell syntax", () => {
   const releases = [{ tagName: "v1.2.3", isDraft: false, isPrerelease: false }];
   assert.equal(resolveDesktopVersion(releases, { requestedVersion: "v2.0.0" }), "v2.0.0");

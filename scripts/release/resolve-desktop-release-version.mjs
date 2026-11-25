@@ -1,5 +1,5 @@
 // Pure, deterministic SemVer selector for manually dispatched desktop releases.
-// Input: GitHub Releases JSON from gh release list; output: exactly one vX.Y.Z tag.
+// Input: GitHub Releases JSON from gh release list and optional remote tag refs; output: one vX.Y.Z tag.
 import { readFileSync } from "node:fs";
 
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -21,26 +21,31 @@ function compareVersions(a, b) {
   return 0;
 }
 
-export function resolveDesktopVersion(releases, { bump = "patch", requestedVersion = "" } = {}) {
+export function resolveDesktopVersion(releases, { bump = "patch", requestedVersion = "", existingTags = [] } = {}) {
   if (!Array.isArray(releases)) throw new Error("GitHub release listing must be an array");
   if (!["patch", "minor", "major"].includes(bump)) throw new Error(`Unsupported version increment: ${bump}`);
   const published = releases
     .filter((release) => release && !release.isDraft && !release.isPrerelease
       && typeof release.tagName === "string" && /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(release.tagName))
     .map((release) => release.tagName.slice(1));
-  published.sort(compareVersions);
-  const latest = published.at(-1);
+  if (!Array.isArray(existingTags) || existingTags.some((tag) => typeof tag !== "string")) {
+    throw new Error("Existing Git tags must be an array of strings");
+  }
+  const reserved = existingTags.filter((tag) => tag.startsWith("v") && VERSION.test(tag.slice(1)))
+    .map((tag) => tag.slice(1));
+  const occupied = [...published, ...reserved].sort(compareVersions);
+  const latest = occupied.at(-1);
 
   const override = requestedVersion.trim().replace(/^v/, "");
   if (override) {
     components(override);
     if (latest && compareVersions(override, latest) <= 0) {
-      throw new Error(`Requested ${override} must be newer than published release ${latest}`);
+      throw new Error(`Requested ${override} must be newer than existing stable version ${latest}`);
     }
     return `v${override}`;
   }
 
-  // No previous public stable release: begin at v1.0.0 irrespective of bump mode.
+  // No previous stable release or reserved tag: begin at v1.0.0 irrespective of bump mode.
   if (!latest) return "v1.0.0";
   let [major, minor, patch] = components(latest);
   if (bump === "major") { major++; minor = 0; patch = 0; }
@@ -53,9 +58,11 @@ export function resolveDesktopVersion(releases, { bump = "patch", requestedVersi
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const releases = JSON.parse(readFileSync(0, "utf8"));
+  const existingTags = process.argv[4] ? readFileSync(process.argv[4], "utf8").split(/\r?\n/).filter(Boolean) : [];
   const tag = resolveDesktopVersion(releases, {
     bump: process.argv[2] || "patch",
     requestedVersion: process.argv[3] || "",
+    existingTags,
   });
   process.stdout.write(`${tag}\n`);
 }

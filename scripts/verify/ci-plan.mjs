@@ -13,7 +13,6 @@ export const LANES = ["web", "server", "browser", "landing", "desktop", "release
 export const CANDIDATE_TARGET_LANES = {
   desktop: ["web", "server", "browser", "desktop", "release-policy"],
   image: ["web", "server", "browser", "compose"],
-  cloudflare: ["landing"],
 };
 
 const DOCS = /^(docs\/|\.agents\/|(README|AGENTS|DESIGN|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|SUPPORT)\.md$|\.github\/PULL_REQUEST_TEMPLATE\.md$|\.github\/ISSUE_TEMPLATE\/(bug_report|feature_request|config)\.yml$)/;
@@ -34,8 +33,7 @@ const NATIVE_SCRIPTS = /^(scripts\/(release|dev|assets)\/|scripts\/verify\/(desk
 const WEB_SCRIPTS = /^scripts\/verify\/(browser-|run-node-tests)/;
 const SERVER_SCRIPTS = /^scripts\/verify\/(check-gofmt|server-process-integration)/;
 const CI_PLAN_SCRIPTS = /^scripts\/verify\/ci-plan(\.test)?\.mjs$/;
-const WORKFLOW_CLOUDFLARE = /^\.github\/workflows\/deploy-cloudflare\.yml$/;
-const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\.yml$/;
+const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop)\.yml$/;
 
 // Paths that can change the native Windows WebView2/sidecar/release proof.
 // Test-only Go files under internal/{domain,infra} do not alter the compiled sidecar binary.
@@ -47,7 +45,7 @@ const NATIVE_MATCH = new RegExp([
   "^apps/server/(cmd|internal/app|internal/domain|internal/infra)/",
   "^apps/web/src/(platform/desktop|platform/runtime|routes/__root|app/AppRoot)",
   "^apps/web/vite\\.config\\.",
-  "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\\.yml$",
+  "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop)\\.yml$",
   "^Taskfile\\.yml$",
   "^package\\.json$",
   "^bun\\.lock$",
@@ -126,11 +124,6 @@ function addPathLanes(plan, path) {
     return true;
   }
   if (CI_PLAN_SCRIPTS.test(path)) {
-    plan["release-policy"] = true;
-    return true;
-  }
-  if (WORKFLOW_CLOUDFLARE.test(path)) {
-    plan.landing = true;
     plan["release-policy"] = true;
     return true;
   }

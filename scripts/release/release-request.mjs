@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { appendFileSync } from "node:fs";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
 
-const modes = new Set(["preflight", "desktop-beta", "desktop-stable", "desktop-stable-resume", "image", "cloudflare"]);
+const modes = new Set(["preflight", "desktop-stable", "desktop-stable-resume", "image"]);
 const EXACT_STABLE_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export function releaseRequest({ mode = "preflight", bump = "patch", version = "", ref, sha }) {

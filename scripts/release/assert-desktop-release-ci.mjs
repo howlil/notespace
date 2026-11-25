@@ -10,7 +10,6 @@ export const TARGET_REQUIRED_JOBS = {
   gate: ["ci / gate"],
   desktop: ["ci / gate", "web", "server", "browser", "desktop / check-desktop", "desktop / check-desktop-windows"],
   image: ["ci / gate", "web", "server", "browser", "compose"],
-  cloudflare: ["ci / gate", "landing"],
 };
 export const candidateRunTitle = (target) => `ci candidate (${target})`;
 export const candidateGateName = (target) => `candidate / ${target}`;
@@ -176,7 +175,7 @@ function parseCliArgs(argv) {
     }
     positional.push(args[i]);
   }
-  if (positional.length !== 2) throw new Error("Expected --collect <SHA> or <evidence.json> <SHA> [--target <gate|desktop|image|cloudflare>]");
+  if (positional.length !== 2) throw new Error("Expected --collect <SHA> or <evidence.json> <SHA> [--target <gate|desktop|image>]");
   return { source: positional[0], sha: positional[1], target };
 }
 

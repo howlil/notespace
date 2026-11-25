@@ -58,7 +58,7 @@ def check_ci(ci):
     assert ci["on"]["push"]["branches"] == ["master"]
     dispatch_inputs = ci["on"]["workflow_dispatch"]["inputs"]
     assert dispatch_inputs["candidate_target"]["default"] == "regression"
-    assert dispatch_inputs["candidate_target"]["options"] == ["regression", "desktop", "image", "cloudflare"]
+    assert dispatch_inputs["candidate_target"]["options"] == ["regression", "desktop", "image"]
     assert ci["permissions"] == {"contents": "read"}, "Untrusted PRs cannot receive write authority"
     assert ci["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
     assert "github.event_name" in ci["concurrency"]["group"]
@@ -110,9 +110,7 @@ def check_desktop_ci(desktop):
 def check_publishers():
     reusable_only = [
         "publish-desktop.yml",
-        "publish-desktop-beta.yml",
         "release-desktop.yml",
-        "deploy-cloudflare.yml",
     ]
     for filename in reusable_only:
         doc = check_workflow(WORKFLOWS / filename)
@@ -123,24 +121,15 @@ def check_publishers():
             f"{filename}: reusable publisher must not declare workflow-level concurrency (owned by release.yml)"
         )
 
-    for filename in ["auto-desktop-beta.yml", "release.yml"]:
-        doc = check_workflow(WORKFLOWS / filename)
-        assert list(doc["on"]) == ["workflow_dispatch"], (
-            f"{filename}: push/tag/schedule must never auto-publish"
-        )
-
-    auto = check_workflow(WORKFLOWS / "auto-desktop-beta.yml")
-    assert list(auto["on"]) == ["workflow_dispatch"]
-    assert auto["permissions"] == {"contents": "read", "actions": "read"}
-    assert "gh release create" not in step_runs(auto["jobs"]["preflight"])
+    release = check_workflow(WORKFLOWS / "release.yml")
+    assert list(release["on"]) == ["workflow_dispatch"], (
+        "release.yml: push/tag/schedule must never auto-publish"
+    )
 
     for filename, job_name, expected_target in [
-        ("auto-desktop-beta.yml", "preflight", "--target desktop"),
         ("publish-desktop.yml", "prepare-and-dispatch", "--target desktop"),
-        ("publish-desktop-beta.yml", "windows-msi-beta", "--target desktop"),
         ("release-desktop.yml", "release-credentials-preflight", "--target desktop"),
         ("release.yml", "image", "--target image"),
-        ("deploy-cloudflare.yml", "deploy", "--target cloudflare"),
     ]:
         workflow = check_workflow(WORKFLOWS / filename)
         steps = workflow["jobs"][job_name]["steps"]
@@ -150,10 +139,9 @@ def check_publishers():
             f"{filename}: must verify exact-master {expected_target} lane proofs"
         )
 
-    release = check_workflow(WORKFLOWS / "release.yml")
     mode_input = release["on"]["workflow_dispatch"]["inputs"]["mode"]
     assert mode_input["default"] == "preflight"
-    assert mode_input["options"] == ["preflight", "desktop-beta", "desktop-stable", "desktop-stable-resume", "image", "cloudflare"]
+    assert mode_input["options"] == ["preflight", "desktop-stable", "desktop-stable-resume", "image"]
     assert release["permissions"] == {"contents": "read", "actions": "read"}
     assert release["concurrency"]["cancel-in-progress"] == "false"
     assert "startsWith(inputs.mode, 'desktop-') && 'desktop'" in release["concurrency"]["group"]
@@ -174,15 +162,6 @@ def check_publishers():
     assert "gh attestation verify" in stable_runs
     assert stable_runs.index("gh attestation verify") < stable_runs.index("gh release create")
     assert "bun run test:desktop:critical" in stable_runs and "bun run test:desktop:native" not in stable_runs
-
-    beta = check_workflow(WORKFLOWS / "publish-desktop-beta.yml")
-    beta_runs = step_runs(beta["jobs"]["windows-msi-beta"])
-    assert "cargo install tauri-cli" not in beta_runs
-    assert beta_runs.index("bun run desktop:icons") < beta_runs.index("tauri-apps/cli")
-    assert "assert-windows-pe-subsystem.mjs" in beta_runs
-    assert "bun run test:desktop:critical" in beta_runs and "bun run test:desktop:native" not in beta_runs
-    assert "gh attestation verify" in beta_runs and "gh release create" in beta_runs
-    assert "AZURE_CLIENT_SECRET" not in beta_runs
 
 
 def main():

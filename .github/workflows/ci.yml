@@ -16,7 +16,7 @@ on:
         type: choice
         required: false
         default: regression
-        options: [regression, desktop, image, cloudflare]
+        options: [regression, desktop, image]
   schedule:
     - cron: "17 3 * * *"
 

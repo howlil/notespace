@@ -8,7 +8,7 @@ on:
         type: choice
         required: true
         default: preflight
-        options: [preflight, desktop-beta, desktop-stable, desktop-stable-resume, image, cloudflare]
+        options: [preflight, desktop-stable, desktop-stable-resume, image]
       version:
         description: "Stable desktop override, existing unpublished tag for desktop-stable-resume, or existing stable image tag"
         type: string
@@ -56,26 +56,11 @@ jobs:
         run: |
           set -euo pipefail
           case "$RELEASE_MODE" in
-            desktop-beta|desktop-stable|desktop-stable-resume) TARGET="desktop" ;;
+            desktop-stable|desktop-stable-resume) TARGET="desktop" ;;
             image) TARGET="image" ;;
-            cloudflare) TARGET="cloudflare" ;;
             *) TARGET="gate" ;;
           esac
           node scripts/release/assert-desktop-release-ci.mjs --collect "$GITHUB_SHA" --target "$TARGET"
-
-  beta:
-    needs: preflight
-    if: needs.preflight.outputs.mode == 'desktop-beta'
-    uses: ./.github/workflows/publish-desktop-beta.yml
-    permissions:
-      contents: write
-      actions: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
-    secrets:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   stable-prepare:
     needs: preflight
@@ -130,14 +115,6 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
-  cloudflare:
-    needs: preflight
-    if: needs.preflight.outputs.mode == 'cloudflare'
-    uses: ./.github/workflows/deploy-cloudflare.yml
-    secrets:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   image:
     needs: preflight

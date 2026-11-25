@@ -86,7 +86,6 @@ test("desktop, release, compose, and workflow changes select only their owning l
   assert.deepEqual(selected(selectLanes("pull_request", ["scripts/verify/desktop-webdriver-smoke.mjs"])), ["desktop", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", ["scripts/release/resolve-desktop-release-version.mjs"])), ["desktop", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", ["Dockerfile", "compose.ci.yaml"])), ["compose"]);
-  assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/deploy-cloudflare.yml"])), ["landing", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/release-desktop.yml"])), ["desktop", "release-policy"]);
   assert.deepEqual(selectLanes("pull_request", [".github/workflows/ci.yml"]), allOn);
   assert.deepEqual(selectLanes("pull_request", ["package.json"]), allOn);

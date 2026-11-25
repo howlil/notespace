@@ -10,7 +10,7 @@ test("critical: Welcome creates a Workspace and opens a drawable Canvas", { time
   await visible(role("heading", "No workspaces yet", { exact: true }));
   await click(role("button", "Restore backup", { exact: true }));
   await visible(role("dialog", "Settings", { exact: true }));
-  await visible(role("heading", "Portable library backup", { exact: true }));
+  await visible(role("region", "Portable library backup", { exact: true }));
   await press("Escape");
   const id = await createWorkspaceViaUI("Critical welcome Workspace");
   try {

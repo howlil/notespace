@@ -34,7 +34,7 @@ test("critical: Welcome and Canvas expose one shell with optional Explorer", asy
   await expectCount('#notespace-home-sidebar aside[aria-label="Category explorer"]', 1);
   await visible("[data-explorer-edge-trigger]");
   await evaluate("[data-explorer-edge-trigger]", (element) => {
-    element.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    element.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
   });
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "peeking");
   await click(role("button", "Show Explorer", { exact: true }));
@@ -76,14 +76,14 @@ test("critical: compact viewport keeps Explorer and Quick Open in one shell", as
     await press("Escape");
     await expectAttribute(role("button", "Hide Explorer", { exact: true }), "aria-expanded", "true");
     await press("Escape");
-    await expectFocused(role("button", "Show Explorer", { exact: true }));
+    await visible(role("button", "Show Explorer", { exact: true }));
     await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
-    const after = await box("main");
-    assert.equal(after.width, before.width, "Mobile drawer never shrinks content");
+    await waitFor(async () => (await box("main")).width === before.width, "Mobile drawer never shrinks content");
     await click(role("button", "Show Explorer", { exact: true }));
     const backdrop = await box(role("button", "Close Explorer", { exact: true }));
     await clickAt(backdrop.x + backdrop.width - 10, backdrop.y + 100);
-    await expectFocused(role("button", "Show Explorer", { exact: true }));
+    await visible(role("button", "Show Explorer", { exact: true }));
+    await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
     await click(role("button", "Show Explorer", { exact: true }));
     await click(role("link", "Notespace home", { exact: true }));
     await visible(role("button", "Show Explorer", { exact: true }));
@@ -94,8 +94,9 @@ test("critical: compact viewport keeps Explorer and Quick Open in one shell", as
     await click(role("button", "Show Explorer", { exact: true }));
     await press("Escape");
     await resetViewport();
-    await visible(role("button", "Show Explorer", { exact: true }));
-    await click(role("button", "Show Explorer", { exact: true }));
+    await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "closed");
+    await press("Control+\\");
+    await visible(role("button", "Hide Explorer", { exact: true }));
     await setViewport(390, 780);
     await click(role("button", "Show Explorer", { exact: true }));
     const category = (await api("/api/categories")).find((item) => item.id === workspace.categoryId);

@@ -96,14 +96,14 @@ export function NoteCardContextMenu({ note, onClose }: { note: CanvasContextMenu
 
       <MenuDivider />
 
-      <MenuActionRow icon={<Pencil className="size-3.5" />} label="Edit" shortcut="Enter" onClick={() => { note.onEdit(); onClose(); }} />
+      <MenuActionRow icon={<Pencil className="size-3.5" />} label="Edit" shortcut="Enter" onClick={() => { onClose(); note.onEdit(); }} />
       <MenuActionRow
         icon={note.folded ? <ChevronsUpDown className="size-3.5" /> : <ChevronsDownUp className="size-3.5" />}
         label={note.folded ? "Unfold" : "Fold"}
         onClick={() => { note.onToggleFold(); onClose(); }}
       />
-      <MenuActionRow icon={<Maximize2 className="size-3.5" />} label="Expand" onClick={() => { note.onExpand(); onClose(); }} />
-      <MenuActionRow icon={<Info className="size-3.5" />} label="Info & backlinks" onClick={() => { note.onOpenInfo(); onClose(); }} />
+      <MenuActionRow icon={<Maximize2 className="size-3.5" />} label="Expand" onClick={() => { onClose(); note.onExpand(); }} />
+      <MenuActionRow icon={<Info className="size-3.5" />} label="Info & backlinks" onClick={() => { onClose(); note.onOpenInfo(); }} />
       {note.fixedHeight && (
         <MenuActionRow icon={<Minimize2 className="size-3.5" />} label="Fit content" onClick={() => { note.onFitContent(); onClose(); }} />
       )}
@@ -113,7 +113,7 @@ export function NoteCardContextMenu({ note, onClose }: { note: CanvasContextMenu
       <MenuActionRow icon={<Copy className="size-3.5" />} label="Duplicate" shortcut="Ctrl+D" onClick={() => { note.onDuplicate(); onClose(); }} />
       <MenuActionRow icon={<Link2 className="size-3.5" />} label="Place linked" onClick={() => { note.onPlaceLinked(); onClose(); }} />
       {note.onOpenNotePicker && (
-        <MenuActionRow icon={<FilePlus2 className="size-3.5" />} label="Place existing Note" onClick={() => { note.onOpenNotePicker?.(); onClose(); }} />
+        <MenuActionRow icon={<FilePlus2 className="size-3.5" />} label="Place existing Note" onClick={() => { onClose(); note.onOpenNotePicker?.(); }} />
       )}
 
       <MenuDivider />

@@ -4,7 +4,9 @@ import { after, before, test } from "node:test";
 import {
   api,
   assert,
+  box,
   click,
+  clickAt,
   cleanupWorkspace,
   containsText,
   createWorkspace,
@@ -58,34 +60,44 @@ async function withTrapServer(run) {
   }
 }
 
+async function openCodeMenu(block) {
+  const rect = await box(block);
+  const y = Math.max(80, Math.min(rect.y + 20, rect.y + rect.height / 2, 500));
+  await clickAt(rect.x + rect.width / 2, y, { button: 2 });
+  const menu = role("menu", "Object context menu");
+  await visible(menu);
+  return menu;
+}
+
 async function createHtmlBlock(code) {
   await click(role("button", "Code block", { exact: true, scope: role("toolbar", "Canvas tools") }));
   const block = "[data-canvas-code-block]";
-  const actions = role("toolbar", "Code block settings");
   await visible(block);
-  await click(role("button", "Code language", { scope: actions }));
+  const menu = await openCodeMenu(block);
+  await click(role("menuitem", /Language/, { scope: menu }));
   await fill(role("textbox", "Search code languages"), "HTML");
-  await click(role("button", "HTML / XML", { exact: true, scope: role("dialog", "Code language") }));
-  await visible(role("button", "Preview HTML", { scope: actions }));
+  await click(role("button", "HTML / XML", { exact: true, scope: role("menu", "Language") }));
+  await visible(role("button", "Preview", { scope: menu }));
+  await press("Escape");
   await doubleClick(block);
   await fill(await within(block, '[aria-label="Edit code block"]'), code);
   await press("Escape");
-  return { block, actions };
+  return { block };
 }
 
 test("Canvas HTML preview is opt-in, interactive, ephemeral, and source-only in API persistence", async () => {
   const workspace = await createWorkspace(`HTML preview ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const { block, actions } = await createHtmlBlock(INTERACTIVE_HTML);
+    const { block } = await createHtmlBlock(INTERACTIVE_HTML);
 
     // Lazy execution: neither source editing nor opening code output runs HTML until opted in.
     await expectCount(HOST_FRAME, 0);
-    await click(role("button", "Show code output", { scope: actions }));
+    await click(role("button", "Output", { scope: await openCodeMenu(block) }));
     await containsText(await within(block, '[aria-label="Code output"]'), "Preview HTML to render isolated output");
     await expectCount(HOST_FRAME, 0);
 
-    await click(role("button", "Preview HTML", { scope: actions }));
+    await click(role("button", "Preview", { scope: await openCodeMenu(block) }));
     await expectAttribute(HOST_FRAME, "sandbox", "allow-scripts");
     await expectAttribute(HOST_FRAME, "referrerpolicy", "no-referrer");
 
@@ -99,7 +111,7 @@ test("Canvas HTML preview is opt-in, interactive, ephemeral, and source-only in 
     assert.equal((await execute(() => document.querySelector("#count").textContent)).trim(), "1");
     await parentFrame();
 
-    await click(role("button", "Hide HTML preview", { scope: actions }));
+    await click(role("button", "Hide preview", { scope: await openCodeMenu(block) }));
     await expectCount(HOST_FRAME, 0);
 
     await waitSaved();
@@ -112,7 +124,7 @@ test("Canvas HTML preview is opt-in, interactive, ephemeral, and source-only in 
     await reload();
     await visible(block);
     await expectCount(HOST_FRAME, 0);
-    await expectCount(role("button", "Preview HTML", { scope: role("toolbar", "Code block settings") }), 0);
+    await expectCount(role("menu", "Object context menu"), 0);
   } finally {
     await cleanupWorkspace(workspace.id);
   }
@@ -146,8 +158,8 @@ test("Canvas HTML preview blocks DOM, storage, worker, API fetch, popup, form, n
     try {
       await openWorkspace(workspace.id);
       const workspacePath = `/workspaces/${workspace.id}`;
-      const { block, actions } = await createHtmlBlock(escapeHtml);
-      await click(role("button", "Preview HTML", { scope: actions }));
+      const { block } = await createHtmlBlock(escapeHtml);
+      await click(role("button", "Preview", { scope: await openCodeMenu(block) }));
 
       await switchFrame(HOST_FRAME);
       await switchFrame(CONTENT_FRAME);

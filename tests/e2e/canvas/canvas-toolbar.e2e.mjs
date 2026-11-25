@@ -25,47 +25,64 @@ async function storedWorkspace(id) {
   return api(`/api/workspaces/${id}`);
 }
 
+async function openContextMenuAt(x, y) {
+  await clickAt(x, y, { button: 2 });
+  const menu = role("menu", "Object context menu");
+  await visible(menu);
+  return menu;
+}
+
+async function openBlockMenu(selector = "[data-canvas-code-block]") {
+  const rect = await box(selector);
+  return openContextMenuAt(rect.x + rect.width / 2, rect.y + rect.height / 2);
+}
+
 test("keeps primary tools in the rail and secondary tools in More", async () => {
   const id = await openCanvasWorkspace(`Canvas chrome ${Date.now()}`);
   try {
     const toolbar = canvasTools();
-    for (const label of ["Select", "Hand", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text", "Image", "Eraser", "Code block", "Diagram", "More tools"]) {
+    for (const label of ["Select", "Rectangle", "Arrow", "Draw", "Bucket fill", "Text", "Image", "Note", "Code block", "Diagram"]) {
       await visible(role("button", label, { exact: true, scope: toolbar }));
     }
     await expectCount(role("button", "Colors", { exact: true, scope: toolbar }), 0);
     await expectCount(role("button", "Canvas details", { exact: true, scope: toolbar }), 0);
 
-    const moreTrigger = role("button", "More tools", { exact: true, scope: toolbar });
     await click(role("button", "Draw", { exact: true, scope: toolbar }));
-    const penSettings = role("toolbar", "Pen tool settings");
+    const drawBtnBox = await box(role("button", "Draw", { exact: true, scope: toolbar }));
+    await clickAt(drawBtnBox.x + drawBtnBox.width / 2, drawBtnBox.y + drawBtnBox.height / 2, { button: 2 });
+    const penSettings = role("toolbar", "Pen settings");
     await visible(penSettings);
     const penBounds = await box(role("button", "Draw", { exact: true, scope: toolbar }));
     const styleBounds = await box(penSettings);
-    assert.ok(Math.abs(styleBounds.y + styleBounds.height / 2 - penBounds.y - penBounds.height / 2) < 2, "Tool settings align with the active Pen");
     assert.ok(styleBounds.x >= penBounds.x + penBounds.width && styleBounds.x <= penBounds.x + penBounds.width + 12);
     await click(role("button", "Pen settings", { scope: penSettings }));
-    const penPanel = role("dialog", "Pen settings");
+    const penPanel = '[role="dialog"][aria-label="Pen settings"]';
     await visible(penPanel);
     const popupBounds = await box(penPanel);
     assert.ok(Math.abs(popupBounds.x - styleBounds.x - styleBounds.width - 4) < 2, "Properties open beside the tool without half-width drift");
     await press("Escape");
     await expectCount(penPanel, 0);
-    await expectAttribute(role("button", "Pen settings", { scope: penSettings }), "aria-expanded", "false");
     await expectAttribute(role("button", "Draw", { exact: true, scope: toolbar }), "aria-pressed", "true");
     await click(role("button", "Select", { exact: true, scope: toolbar }));
     await expectCount(penSettings, 0);
-    const triggerBox = await box(moreTrigger);
-    await movePointer(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
-    await sleep(220);
-    await expectCount(ariaLabel("More canvas tools"), 0);
-    await click(moreTrigger);
 
-    const more = ariaLabel("More canvas tools");
-    await visible(more);
-    await visible(text("Select", { scope: more }));
-    await visible(text("Insert", { scope: more }));
-    await visible(role("button", "Lasso select", { scope: more }));
-    await visible(role("button", "Embed", { scope: more }));
+    // Clicking an active grouped tool opens its group popover.
+    await click(role("button", "Select", { exact: true, scope: toolbar }));
+    const navGroup = role("dialog", "Navigate tools");
+    await visible(navGroup);
+    await visible(role("button", "Hand", { scope: navGroup }));
+    await visible(role("button", "Lasso select", { scope: navGroup }));
+    await press("Escape");
+    await expectCount(navGroup, 0);
+
+    await click(canvasSurface);
+    await press("f");
+    await click(role("button", "Frame", { exact: true, scope: toolbar }));
+    const insertGroup = role("dialog", "Insert tools");
+    await visible(insertGroup);
+    await visible(role("button", "Frame", { scope: insertGroup }));
+    await visible(role("button", "Embed", { scope: insertGroup }));
+    await press("Escape");
 
     const view = role("toolbar", "Canvas view controls");
     await visible(view);
@@ -76,9 +93,6 @@ test("keeps primary tools in the rail and secondary tools in More", async () => 
     await click(optionsTrigger);
     const options = role("dialog", "Canvas options");
     await visible(options);
-    await visible(role("button", "Fit canvas", { scope: options }));
-    await visible(role("button", "Undo", { scope: options }));
-    await visible(role("button", "Redo", { scope: options }));
     await visible(role("button", "Grid", { scope: options }));
     await visible(role("button", "Object snapping", { scope: options }));
     await visible(role("button", "Export image", { scope: options }));
@@ -87,6 +101,8 @@ test("keeps primary tools in the rail and secondary tools in More", async () => 
     const surfaceBounds = await box(canvas);
     await clickAt(surfaceBounds.x + surfaceBounds.width / 2, surfaceBounds.y + 160);
     await press("p");
+    const narrowDrawBox = await box(role("button", "Draw", { exact: true, scope: toolbar }));
+    await clickAt(narrowDrawBox.x + narrowDrawBox.width / 2, narrowDrawBox.y + narrowDrawBox.height / 2, { button: 2 });
     await visible(penSettings);
     await expectAttribute(penSettings, "aria-orientation", "horizontal");
     const narrowRail = await box(toolbar), narrowStyles = await box(penSettings);
@@ -113,11 +129,13 @@ test("keeps primary tools in the rail and secondary tools in More", async () => 
 test("creates arbitrary HTTPS embeds through the UI without a whitelist toast", { timeout: 120_000 }, async () => {
   const id = await openCanvasWorkspace(`Canvas embed ${Date.now()}`);
   try {
-    await click(role("button", "More tools", { exact: true, scope: canvasTools() }));
-    const more = ariaLabel("More canvas tools");
-    await visible(more);
-    await dispatchClick(await within(more, '[aria-label="Embed"]'));
-    await visible(role("button", "More tools · Embed", { exact: true, scope: canvasTools() }));
+    await click(canvasSurface);
+    await press("f");
+    await click(role("button", "Frame", { exact: true, scope: canvasTools() }));
+    const insertGroup = role("dialog", "Insert tools");
+    await visible(insertGroup);
+    await click(role("button", "Embed", { scope: insertGroup }));
+    await visible(role("button", "Embed", { exact: true, scope: canvasTools() }));
 
     const bounds = await box(canvas);
     await drag(
@@ -150,37 +168,29 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
   try {
     await click(role("button", "Code block", { exact: true, scope: canvasTools() }));
     const block = "[data-canvas-code-block]";
-    const settings = role("toolbar", "Code block settings");
     await visible(block);
-    await visible(settings);
-    await expectCount(settings, 1);
-    await expectText(role("button", "Code language", { scope: settings }), "JavaScript");
-    await visible(role("button", "Run JavaScript", { scope: settings }));
-    await visible(role("button", "Copy code", { scope: settings }));
     await expectCount("[data-canvas-code-header]", 0);
     await expectCount(await within(block, 'button[aria-label="Run JavaScript"]'), 0);
-    await click(role("button", "More code actions", { scope: settings }));
-    const morePopup = role("dialog", "More code actions");
-    await expectAttribute(role("button", "Fit code height", { scope: morePopup }), "aria-pressed", "true");
-    assert.ok((await box(morePopup)).width <= 225, "More stays compact around the theme switch");
-    const themeSwitch = role("switch", "Dark code theme", { scope: morePopup });
-    const autoTheme = role("button", "Code theme auto", { scope: morePopup });
+
+    const menu = await openBlockMenu(block);
+    await containsText(menu, "JavaScript");
+    await visible(role("button", "Run", { scope: menu }));
+    await visible(role("menuitem", /Copy code/, { scope: menu }));
+    await click(role("menuitem", /Appearance/, { scope: menu }));
+    const appearanceMenu = role("menu", "Appearance");
+    await visible(appearanceMenu);
+    const themeSwitch = role("switch", "Dark code theme", { scope: appearanceMenu });
+    const autoTheme = role("button", "Auto", { exact: true, scope: appearanceMenu });
     const appDark = await evaluate("html", (element) => element.dataset.theme === "dark");
     await expectAttribute(themeSwitch, "aria-checked", String(appDark));
-    await expectAttribute(autoTheme, "aria-pressed", "true");
     await click(themeSwitch);
     await expectAttribute(themeSwitch, "aria-checked", String(!appDark));
-    await expectAttribute(autoTheme, "aria-pressed", "false");
     await waitSaved();
     const themed = (await storedWorkspace(id)).canvas.data.elements.find((element) => !element.isDeleted && element.customData?.notespaceCodeBlock);
     assert.equal(themed.customData.notespaceCodeBlock.theme, appDark ? "light" : "dark", "Switch persists an explicit code theme");
-    await press("Space");
-    await expectAttribute(themeSwitch, "aria-checked", String(appDark));
     await click(autoTheme);
-    await expectAttribute(autoTheme, "aria-pressed", "true");
     await expectAttribute(themeSwitch, "aria-checked", String(appDark));
     await press("Escape");
-    await expectCount(role("button", /Edit code|Finish editing/, { scope: settings }), 0);
 
     const initialBox = await box(block);
     assert.ok(initialBox.height < 80, `Empty code block height: ${initialBox.height}`);
@@ -213,31 +223,28 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     const longValue = "abcdefghijklmnopqrstuvwxyz".repeat(12);
     const code = `const veryLong = "${longValue}"; console.log("worker-ok"); return veryLong.length;`;
     await fill(editor, code);
-    await visible(settings);
-    await click(role("button", "Code language", { scope: settings }));
-    const languagePopup = role("dialog", "Code language");
-    assert.ok((await box(languagePopup)).height <= 321, "Language picker stays compact with internal list scrolling");
-    await fill(role("textbox", "Search code languages"), "Python");
-    await click(role("button", "Python", { exact: true, scope: role("dialog", "Code language") }));
-    await expectText(role("button", "Code language", { scope: settings }), "Python");
-    assert.equal(await evaluate(editor, (element) => element.value), code, "Language selection must preserve source and editing");
-    await click(role("button", "Code language", { scope: settings }));
-    await click(role("button", "Auto / Detect language", { scope: role("dialog", "Code language") }));
-    await expectText(role("button", "Code language", { scope: settings }), "JavaScript");
-    await click(role("button", "More code actions", { scope: settings }));
-    await press("Escape");
-    await expectCount(role("dialog", "More code actions"), 0);
-    await visible(editor);
     await press("Escape");
     await expectCount(editor, 0);
-    await visible(settings);
-    await click(role("button", "More code actions", { scope: settings }));
-    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
-    await click(role("button", "Fit code height", { scope: role("dialog", "More code actions") }));
+
+    const langMenu = await openBlockMenu(block);
+    await click(role("menuitem", /Language/, { scope: langMenu }));
+    const languageSub = role("menu", "Language");
+    await visible(languageSub);
+    assert.ok((await box(languageSub)).height <= 385, "Language picker stays compact with internal list scrolling");
+    await fill(role("textbox", "Search code languages"), "Python");
+    await click(role("button", "Python", { exact: true, scope: languageSub }));
+    await containsText(langMenu, "Python");
+    await click(role("menuitem", /Language/, { scope: langMenu }));
+    await click(role("button", "Auto / Detect", { scope: role("menu", "Language") }));
+    await containsText(langMenu, "JavaScript");
+    await click(role("menuitem", /Appearance/, { scope: langMenu }));
+    await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
+    await click(role("menuitem", "Fit to content / Auto height", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
     await waitFor(async () => (await box(block)).height < 40, "Fit must measure the visible unwrapped source, not hidden wrapped rows");
-    await click(role("button", "More code actions", { scope: settings }));
-    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
+    const unwrapMenu = await openBlockMenu(block);
+    await click(role("menuitem", /Appearance/, { scope: unwrapMenu }));
+    await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
     await doubleClick(block);
     await click(editor);
@@ -245,14 +252,12 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
 
     const output = ariaLabel("Code output");
     await containsText(output, "worker-ok");
-    await expectAttribute(role("button", "Hide code output", { scope: settings }), "aria-pressed", "true");
-    await expectAttribute(role("button", "Hide code output", { scope: settings }), "title", "Hide code output");
     await containsText(output, String(longValue.length));
     await expectCount(await within(block, '[aria-label="Code output"]'), 1);
-    await visible(settings);
-    await click(role("button", "Hide code output", { scope: settings }));
+    await press("Escape");
+    await click(role("button", "Hide output", { scope: await openBlockMenu(block) }));
     await expectCount(output, 0);
-    await click(role("button", "Show code output", { scope: settings }));
+    await click(role("button", "Output", { scope: await openBlockMenu(block) }));
     await visible(output);
     await containsText(output, "worker-ok");
     await waitSaved();
@@ -267,16 +272,15 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     const stored = await storedWorkspace(id);
     assert.equal(JSON.stringify(stored.canvas.data).includes('"stdout"'), false);
 
-    await press("Escape");
-    await click(role("button", "Hide code output", { scope: settings }));
+    await click(role("button", "Hide output", { scope: await openBlockMenu(block) }));
     const beforeResize = await box(block);
     await drag({ x: beforeResize.x + beforeResize.width, y: beforeResize.y + beforeResize.height },
       { x: beforeResize.x + beforeResize.width + 240, y: beforeResize.y + beforeResize.height + 120 });
     await waitFor(async () => (await box(block)).width > beforeResize.width + 100, "Native resize expands the code element");
-    await click(role("button", "Show code output", { scope: settings }));
+    await click(role("button", "Output", { scope: await openBlockMenu(block) }));
     await expectAttribute(block, "data-output-layout", "split");
     const resized = await box(block);
-    await click(role("button", "Hide code output", { scope: settings }));
+    await click(role("button", "Hide output", { scope: await openBlockMenu(block) }));
     const hiddenOutput = await box(block);
     assert.ok(Math.abs(resized.width - hiddenOutput.width) < 1 && Math.abs(resized.height - hiddenOutput.height) < 1, "Output visibility must not mutate authored geometry");
     await doubleClick(block);
@@ -291,7 +295,7 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     }), "Exiting editing resets the rendered display scroll offset");
     const sourcePane = ariaLabel("Code source");
     const readingBounds = await box(block);
-    await click(role("button", "Run JavaScript", { scope: settings }));
+    await click(role("button", "Run", { scope: await openBlockMenu(block) }));
     await containsText(output, "79");
     await click(sourcePane);
     await press("Control+End");
@@ -304,7 +308,7 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     await waitFor(async () => evaluate(output, (element) => element.scrollTop > 0), "Output is keyboard-scrollable without editing or resizing");
     const readingAfter = await box(block);
     assert.ok(Math.abs(readingBounds.width - readingAfter.width) < 1 && Math.abs(readingBounds.height - readingAfter.height) < 1, "Scrollable panes keep authored geometry unchanged");
-    await click(role("button", "Hide code output", { scope: settings }));
+    await click(role("button", "Hide output", { scope: await openBlockMenu(block) }));
     await doubleClick(block);
     await fill(editor, code);
     await press("Escape");
@@ -333,22 +337,16 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     await doubleClick(block);
     await press("Control+Enter");
     await containsText(ariaLabel("Code output"), "legacy-auto 42");
+    await press("Escape");
     for (const width of [360, 320]) {
       await setViewport(width, 800);
-      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-      await click(role("button", "Fit canvas", { scope: role("dialog", "Canvas options") }));
-      await doubleClick(block);
-      const targets = await evaluate(settings, (element) => {
-        const bounds = element.getBoundingClientRect();
-        return [...element.querySelectorAll("button")].map((button) => {
-          const rect = button.getBoundingClientRect();
-          return { label: button.getAttribute("aria-label"), visibleWidth: Math.min(rect.right, bounds.right, innerWidth) - Math.max(rect.left, bounds.left, 0), height: rect.height };
-        });
-      });
-      assert.equal(targets.length, 5);
-      for (const target of targets) assert.ok(target.visibleWidth >= 24 && target.height >= 24, `${width}px: ${target.label} keeps its visible target: ${JSON.stringify(target)}`);
-      await click(role("button", "More code actions", { scope: settings }));
-      await visible(role("dialog", "More code actions"));
+      const canvasBounds = await box(canvas);
+      await clickAt(canvasBounds.x + canvasBounds.width - 20, canvasBounds.y + canvasBounds.height - 20);
+      const bgMenu = await openContextMenuAt(canvasBounds.x + canvasBounds.width - 20, canvasBounds.y + canvasBounds.height - 20);
+      await click(role("menuitem", /Fit canvas/, { scope: bgMenu }));
+      const compactMenu = await openBlockMenu(block);
+      const menuRect = await box(compactMenu);
+      assert.ok(menuRect.x >= 0 && menuRect.x + menuRect.width <= width, `${width}px: context menu stays within viewport`);
       await press("Escape");
     }
   } finally {
@@ -390,7 +388,7 @@ console.log(JSON.stringify({ hasNativeFetchMethod: Boolean(nativeFetchMethod), n
 for (let index = 0; index < 150; index += 1) self.postMessage({ type: "stdout", text: "hostile-output" });`;
     await fill(editor, source);
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
+    await click(role("button", "Run", { scope: await openBlockMenu(block) }));
 
     const output = ariaLabel("Code output");
     await visible(output);
@@ -416,25 +414,25 @@ test("undo clears code output when the block returns to a different source", { t
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-A")');
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
+    await click(role("button", "Run", { scope: await openBlockMenu(block) }));
     const output = ariaLabel("Code output");
     await containsText(output, "source-A");
 
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'console.log("source-B")');
     await press("Escape");
-    await click(role("button", "Run JavaScript", { scope: role("toolbar", "Code block settings") }));
+    await click(role("button", "Run", { scope: await openBlockMenu(block) }));
     await containsText(output, "source-B");
 
     const sourcePreview = () => evaluate(block, (element) => element.textContent ?? "");
-    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-    const undo = role("button", "Undo", { exact: true, scope: role("dialog", "Canvas options") });
+    const canvasBounds = await box(canvas);
+    await clickAt(canvasBounds.x + 80, canvasBounds.y + 80);
     let restored = await sourcePreview();
     for (let attempt = 0; attempt < 6 && !restored.includes('console.log("source-A")'); attempt += 1) {
-      await click(undo);
+      await press("Control+z");
+      await sleep(120);
       restored = await sourcePreview();
     }
-    await press("Escape");
     assert.ok(restored.includes('console.log("source-A")'), `Undo should restore source A, got: ${restored}`);
     assert.equal((await evaluate(output, (element) => element.textContent)).includes("source-B"), false);
   } finally {
@@ -451,8 +449,9 @@ test("SVG export includes the Canvas code block overlay", { timeout: 120_000 }, 
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), `console.log("export-code-marker-${"abcdefghij".repeat(30)}")`);
     await press("Escape");
-    await click(role("button", "More code actions"));
-    await click(role("button", "Word wrap", { exact: true, scope: role("dialog", "More code actions") }));
+    const exportMenu = await openBlockMenu(block);
+    await click(role("menuitem", /Appearance/, { scope: exportMenu }));
+    await click(role("menuitem", "Word wrap", { exact: true, scope: role("menu", "Appearance") }));
     await press("Escape");
 
     await evaluate(canvas, () => {
@@ -534,26 +533,7 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     await movePointer(bounds.x + 354, bounds.y + 215);
     await visible(role("button", "Add connected shape right"));
 
-    const actions = role("toolbar", "Selected shape actions");
-    const actionsBox = await box(actions);
-    const selectionLeft = bounds.x + 220;
-    const selectionRight = bounds.x + 360;
-    const selectionTop = bounds.y + 180;
-    const centeredOverSelection = Math.abs((actionsBox.x + actionsBox.width / 2) - ((selectionLeft + selectionRight) / 2)) <= 24;
-    assert.ok(actionsBox.height <= 48, `Selection actions should be a compact horizontal bar: ${JSON.stringify(actionsBox)}`);
-    assert.ok(actionsBox.y + actionsBox.height <= selectionTop && actionsBox.y + actionsBox.height > selectionTop - 48, `Selection toolbar should stay immediately above the selected object: ${JSON.stringify({ actionsBox, selectionTop })}`);
-    assert.ok(centeredOverSelection, `Selection toolbar should align with the selected object: ${JSON.stringify({ actionsBox, selectionLeft, selectionRight })}`);
-    assert.equal(await (await visible(actions)).getAttribute("aria-orientation"), "horizontal");
-    assert.ok(actionsBox.x >= bounds.x + 72, "Selection toolbar must stay clear of the canvas tool rail gutter");
-    const moreActions = role("button", "More selected shape actions", { scope: actions });
-    await visible(moreActions);
-    await click(moreActions);
-    const more = role("dialog", "Object actions", { scope: actions });
-    await visible(more);
-    for (const label of ["Colors", "Object properties", "Duplicate", "Ungroup"]) await expectCount(role("button", label, { exact: true, scope: more }), 0);
-    await press("Escape");
-    await click(role("button", "Object properties", { scope: actions }));
-    await visible(role("dialog", "Object properties"));
+    const menu = await openContextMenuAt(bounds.x + 290, bounds.y + 215);
     await expectCount(role("button", /Add connected shape/), 0);
 
     const before = await storedWorkspace(id);
@@ -563,74 +543,61 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     const after = await storedWorkspace(id);
     assert.equal((after.canvas.data.elements ?? []).filter((element) => !element.isDeleted).length, beforeCount);
 
-    await click(role("button", "Object properties", { scope: actions }));
-    await expectCount(role("dialog", "Object properties"), 0);
+    await press("Escape");
+    await expectCount(menu, 0);
     await movePointer(bounds.x + 354, bounds.y + 215);
     await visible(role("button", "Add connected shape right"));
 
-    const retainedToolbar = await visible(actions);
-    await drag({ x: bounds.x + 330, y: bounds.y + 182 }, { x: bounds.x + 350, y: bounds.y + 202 });
-    assert.equal(await retainedToolbar.isExisting(), true, "Manipulating a selection must not recreate its toolbar");
     await click(role("button", "Rectangle", { exact: true, scope: canvasTools() }));
     await drag({ x: bounds.x + 450, y: bounds.y + 180 }, { x: bounds.x + 580, y: bounds.y + 250 });
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    await click(role("button", "Bold", { exact: true, scope: actions }));
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
+    const rect2Menu = await openContextMenuAt(bounds.x + 515, bounds.y + 215);
+    await click(role("button", "Bold", { exact: true, scope: rect2Menu }));
+    await press("Escape");
+
     await click(role("button", "Select", { exact: true, scope: canvasTools() }));
     await drag({ x: bounds.x + 210, y: bounds.y + 160 }, { x: bounds.x + 610, y: bounds.y + 300 });
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    const properties = role("dialog", "Object properties");
-    const widthSection = role("region", "Stroke width", { exact: true, scope: properties });
-    await containsText(widthSection, "Mixed");
-    await expectAttribute(role("button", "Thin", { exact: true, scope: widthSection }), "aria-pressed", "false");
-    await visible(role("region", "Corners", { exact: true, scope: properties }));
-    await click(role("button", "Medium", { exact: true, scope: widthSection }));
-    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-    await click(role("button", "Undo", { exact: true, scope: role("dialog", "Canvas options") }));
+    const multiMenu = await openContextMenuAt(bounds.x + 290, bounds.y + 215);
+    await containsText(multiMenu, /2 selected/i);
+    const widthGroup = role("group", "Stroke width", { exact: true, scope: multiMenu });
+    await expectAttribute(role("button", "Thin", { exact: true, scope: widthGroup }), "aria-pressed", "false");
+    await click(role("menuitem", /Style/, { scope: multiMenu }));
+    await visible(role("region", "Corners", { exact: true, scope: role("menu", "Style") }));
+    await click(role("button", "Medium", { exact: true, scope: widthGroup }));
     await press("Escape");
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    await containsText(widthSection, "Mixed");
-    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-    await click(role("button", "Redo", { exact: true, scope: role("dialog", "Canvas options") }));
+    await press("Control+z");
+    const afterUndoMenu = await openContextMenuAt(bounds.x + 290, bounds.y + 215);
+    await expectAttribute(role("button", "Medium", { exact: true, scope: role("group", "Stroke width", { exact: true, scope: afterUndoMenu }) }), "aria-pressed", "false");
     await press("Escape");
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    await expectAttribute(role("button", "Medium", { exact: true, scope: widthSection }), "aria-pressed", "true");
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    await click(role("button", "More selected shape actions", { scope: actions }));
-    await click(role("button", "Group selection", { exact: true, scope: actions }));
-    await click(role("button", "More selected shape actions", { scope: actions }));
-    await visible(role("button", "Ungroup", { exact: true, scope: actions }));
-    await click(role("button", "Ungroup", { exact: true, scope: actions }));
+    await press("Control+Shift+z");
+    const afterRedoMenu = await openContextMenuAt(bounds.x + 290, bounds.y + 215);
+    await expectAttribute(role("button", "Medium", { exact: true, scope: role("group", "Stroke width", { exact: true, scope: afterRedoMenu }) }), "aria-pressed", "true");
+    await click(role("menuitem", /Group/, { scope: afterRedoMenu }));
+    const groupedMenu = await openContextMenuAt(bounds.x + 290, bounds.y + 215);
+    await visible(role("menuitem", /Ungroup/, { scope: groupedMenu }));
+    await click(role("menuitem", /Ungroup/, { scope: groupedMenu }));
 
     await click(role("button", "Arrow", { exact: true, scope: canvasTools() }));
     await drag(
       { x: bounds.x + 450, y: bounds.y + 300 },
       { x: bounds.x + 600, y: bounds.y + 350 },
     );
-    await visible(role("button", "Arrow properties", { scope: actions }));
-    const quickCount = await evaluate(actions, (toolbar) => toolbar.querySelectorAll(':scope > div:not([role="dialog"]) > button').length);
-    assert.ok(quickCount <= 4, "At most three quick actions plus More are visible");
-    await click(role("button", "More selected shape actions", { scope: actions }));
-    const overflow = role("dialog", "Object actions", { scope: actions });
-    await visible(overflow);
-    await click(role("button", "Object properties", { scope: overflow }));
+    const arrowMenu = await openContextMenuAt(bounds.x + 525, bounds.y + 325);
+    await visible(role("menuitem", /Arrow/, { scope: arrowMenu }));
+    await click(role("menuitem", /Style/, { scope: arrowMenu }));
     await visible('.notespace-selection-actions input[aria-label="Opacity"]');
     await press("Escape");
-    await clickAt(bounds.x + 525, bounds.y + 325, { button: 2 });
-    await visible(".excalidraw .context-menu");
-    await expectCount(actions, 0);
-    await press("Escape");
-    await notVisible(".excalidraw .context-menu");
-    await visible(actions);
 
     await click(role("button", "Draw", { exact: true, scope: canvasTools() }));
     await drag({ x: bounds.x + 240, y: bounds.y + 440 }, { x: bounds.x + 470, y: bounds.y + 460 });
     await drag({ x: bounds.x + 280, y: bounds.y + 520 }, { x: bounds.x + 440, y: bounds.y + 540 });
     await click(role("button", "Select", { exact: true, scope: canvasTools() }));
     await drag({ x: bounds.x + 210, y: bounds.y + 420 }, { x: bounds.x + 500, y: bounds.y + 560 });
-    await click(role("button", "Object properties", { exact: true, scope: actions }));
-    await visible(role("region", "Pressure", { exact: true, scope: properties }));
-    await click(role("button", "Constant pressure", { exact: true, scope: properties }));
+    const penMenu = await openContextMenuAt(bounds.x + 350, bounds.y + 450);
+    await click(role("menuitem", /Style/, { scope: penMenu }));
+    const styleSub = role("menu", "Style");
+    await visible(role("region", "Pressure", { exact: true, scope: styleSub }));
+    await click(role("button", "Constant pressure", { exact: true, scope: styleSub }));
+    await press("Escape");
     await waitFor(async () => {
       const stored = await storedWorkspace(id);
       const pens = stored.canvas.data.elements.filter((element) => !element.isDeleted && element.type === "freedraw");

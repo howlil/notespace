@@ -20,8 +20,13 @@ test("critical: Workspace uses one Canvas shell and has no retired view navigati
 
     await evaluate(canvas, (element) => element.setAttribute("data-shell-instance", "preserved"));
     await click(role("button", "Code block", { exact: true, scope: role("toolbar", "Canvas tools") }));
-    await click(role("button", "More canvas actions", { exact: true, scope: role("toolbar", "Canvas view controls") }));
-    await click(role("button", "Zoom in", { exact: true, scope: role("dialog", "Canvas options") }));
+    await evaluate(canvas, (element) => {
+      const rect = element.getBoundingClientRect();
+      element.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true, cancelable: true, ctrlKey: true, deltaY: -12, deltaMode: 0,
+        clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+      }));
+    });
     const block = "[data-canvas-code-block]";
     await doubleClick(block);
     await fill(await within(block, '[aria-label="Edit code block"]'), 'const shellDraft = "retained";');
@@ -33,7 +38,6 @@ test("critical: Workspace uses one Canvas shell and has no retired view navigati
     await expectCount(role("complementary", "Category explorer"), 0);
     await waitFor(async () => (await box(canvas)).width > geometry.width + 220, "Dock collapse releases the full Canvas width");
     await expectAttribute(canvas, "data-shell-instance", "preserved");
-    await visible(role("toolbar", "Code block settings"));
     assert.ok((await evaluate(block, (element) => element.textContent)).includes('shellDraft = "retained"'));
     assert.ok(Math.abs((await box(block)).width - codeBounds.width) < 1, "Collapse preserves Canvas zoom");
     await press("Control+\\");

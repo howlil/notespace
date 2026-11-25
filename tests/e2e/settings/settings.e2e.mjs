@@ -22,12 +22,12 @@ test("Settings owns palette preferences, portable backup, and trash", async () =
   const settings = await openSettings();
   await visible(role("radiogroup", "Color theme", { scope: settings }));
   await click(role("button", "Data & backup", { scope: settings }));
-  await visible(role("heading", "Portable library backup", { scope: settings }));
+  await visible(role("region", "Portable library backup", { scope: settings }));
   const exportLink = role("link", "Export ZIP", { scope: settings });
   await visible(exportLink);
   assert.equal(await (await visible(exportLink)).getAttribute("href"), "/api/backup");
   await visible(role("button", "Restore library backup", { scope: settings }));
-  await visible(role("heading", "Trash", { scope: settings }));
+  await visible(role("region", "Trash", { scope: settings }));
   await visible(text(/Device recovery snapshots are available in the Windows desktop app\./, { scope: settings }));
 
   await click(role("button", "Close settings", { scope: settings }));

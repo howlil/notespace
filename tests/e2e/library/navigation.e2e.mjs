@@ -82,10 +82,7 @@ test("direct navigation, sibling switching, and reload on workspace (/workspaces
   const assertWorkspaceLoaded = async (title) => {
     await visible(".excalidraw__canvas.interactive");
     await visible(role("link", "Notespace home", { exact: true }));
-    await visible(role("group", "Current workspace"));
-    await containsText(role("group", "Current workspace"), title);
-    await visible('header [aria-label="Current workspace"]');
-    await expectCount('main [aria-label="Current workspace"]', 0);
+    await visible(`main [aria-label="${title}"]`);
     await expectCount(role("status", "Workspace save status"), 1);
   };
 

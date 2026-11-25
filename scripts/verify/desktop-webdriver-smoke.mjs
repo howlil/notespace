@@ -350,7 +350,11 @@ async function assertCodeModule(session) {
   await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Code block"]'))).click();
   const block = await visibleElement(session, By.css('[data-canvas-code-block]'));
   assert.equal((await session.findElements(By.css('[data-canvas-code-header]'))).length, 0);
-  assert.equal((await session.findElements(By.css('[role="toolbar"][aria-label="Code block settings"]'))).length, 1);
+  const openCodeMenu = async () => {
+    const target = await visibleElement(session, By.css('[data-canvas-code-block]'));
+    await session.actions().contextClick(target).perform();
+    return visibleElement(session, By.css('[role="menu"][aria-label="Object context menu"]'));
+  };
   const replaceEditorCode = async (nextCode, { commit = false } = {}) => {
     const existing = await session.findElements(By.css('textarea[aria-label="Edit code block"]'));
     if (!existing.length) {
@@ -383,11 +387,14 @@ async function assertCodeModule(session) {
   await editor.sendKeys(Key.chord(Key.CONTROL, Key.ENTER));
   const output = await visibleElement(session, By.css('[data-canvas-code-block] [aria-label="Code output"]'));
   await session.wait(async () => (await output.getText()).includes("desktop-code-module"), 10_000, "Native Worker output appears inside the card");
-  await (await visibleElement(session, By.css('[aria-label="Hide code output"]'))).click();
-  await (await visibleElement(session, By.css('[aria-label="Code language"]'))).click();
+  await openCodeMenu();
+  await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[normalize-space()="Hide output"]'))).click();
+  await openCodeMenu();
+  await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[@role="menuitem" and contains(normalize-space(), "Language")]'))).click();
   const search = await visibleElement(session, By.css('[aria-label="Search code languages"]'));
   await search.sendKeys("HTML");
-  await (await visibleElement(session, By.xpath('//div[@data-code-toolbar-popup]//button[normalize-space()="HTML / XML"]'))).click();
+  await (await visibleElement(session, By.xpath('//div[@data-object-context-submenu="code-language"]//button[normalize-space()="HTML / XML"]'))).click();
+  await session.actions().sendKeys(Key.ESCAPE).perform();
 
   const leaks = [];
   const trapServer = createServer((req, res) => {
@@ -404,7 +411,8 @@ async function assertCodeModule(session) {
 
     // Lazy execution: preview iframe must stay unmounted until user opts in.
     assert.equal((await session.findElements(By.css('iframe[name="notespace-html-preview-host"]'))).length, 0);
-    await (await visibleElement(session, By.css('button[aria-label="Preview HTML"]:not([disabled])'))).click();
+    await openCodeMenu();
+    await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[normalize-space()="Preview" and not(@disabled)]'))).click();
 
     const hostFrame = await visibleElement(session, By.css('iframe[name="notespace-html-preview-host"][sandbox="allow-scripts"][referrerpolicy="no-referrer"]'));
     await session.switchTo().frame(hostFrame);

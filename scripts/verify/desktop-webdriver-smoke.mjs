@@ -390,7 +390,8 @@ async function assertCodeModule(session) {
   await openCodeMenu();
   await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[normalize-space()="Hide output"]'))).click();
   await openCodeMenu();
-  await (await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[@role="menuitem" and contains(normalize-space(), "Language")]'))).click();
+  const langItem = await visibleElement(session, By.xpath('//div[@data-object-context-menu]//button[@role="menuitem" and contains(normalize-space(), "Language")]'));
+  await session.actions().move({ origin: langItem }).perform();
   const search = await visibleElement(session, By.css('[aria-label="Search code languages"]'));
   await search.sendKeys("HTML");
   await (await visibleElement(session, By.xpath('//div[@data-object-context-submenu="code-language"]//button[normalize-space()="HTML / XML"]'))).click();

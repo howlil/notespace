@@ -111,7 +111,7 @@ tasks:
     cmds:
       - task: test:web
         vars:
-          TEST: apps/web/src/features/workspace-authoring/canvas/state/canvas-scene-state.test.ts
+          TEST: apps/web/src/modules/canvas/core/canvas-scene-state.test.ts
       - task: perf:persistence
 
   perf:persistence:
@@ -120,7 +120,7 @@ tasks:
     env:
       NOTESPACE_SCALE_EVIDENCE: "1"
     cmds:
-      - go test ./internal/sqlite -run TestPersistenceScaleEvidence -count=1
+      - go test ./internal/infra/store -run TestPersistenceScaleEvidence -count=1
 
   up:
     desc: Build and start the self-hosted Docker Compose stack

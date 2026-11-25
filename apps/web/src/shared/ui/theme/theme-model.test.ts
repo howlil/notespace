@@ -13,53 +13,46 @@ import {
   themeModeLabel,
 } from "./theme-model.ts";
 
-test("parseThemeMode preserves legacy light/dark values and defaults unknown input to system", () => {
+test("parseThemeMode always resolves to light mode", () => {
   assert.equal(parseThemeMode("light"), "light");
-  assert.equal(parseThemeMode("dark"), "dark");
-  assert.equal(parseThemeMode("system"), "system");
+  assert.equal(parseThemeMode("dark"), "light");
+  assert.equal(parseThemeMode("system"), "light");
   assert.equal(parseThemeMode(null), DEFAULT_THEME_MODE);
   assert.equal(parseThemeMode(undefined), DEFAULT_THEME_MODE);
   assert.equal(parseThemeMode("invalid"), DEFAULT_THEME_MODE);
 });
 
-test("parseThemePalette accepts every curated palette and falls back to paper", () => {
+test("parseThemePalette accepts every curated palette and falls back to graphite", () => {
   for (const id of THEME_PALETTE_IDS) {
     assert.equal(parseThemePalette(id), id);
   }
+  assert.equal(DEFAULT_THEME_PALETTE, "graphite");
   assert.equal(parseThemePalette(null), DEFAULT_THEME_PALETTE);
   assert.equal(parseThemePalette("unknown"), DEFAULT_THEME_PALETTE);
 });
 
-test("resolveTheme follows OS preference only when mode is system", () => {
-  assert.equal(resolveTheme("system", false), "light");
-  assert.equal(resolveTheme("system", true), "dark");
+test("resolveTheme always resolves to light", () => {
+  assert.equal(resolveTheme("light", false), "light");
   assert.equal(resolveTheme("light", true), "light");
-  assert.equal(resolveTheme("dark", false), "dark");
 });
 
-test("palette catalog covers every palette id with distinct light and dark canvas colors", () => {
+test("palette catalog covers every palette id with valid light canvas colors", () => {
   assert.deepEqual(
     THEME_PALETTES.map((entry) => entry.id),
     [...THEME_PALETTE_IDS],
   );
   for (const id of THEME_PALETTE_IDS) {
     const light = paletteCanvasColor(id, false);
-    const dark = paletteCanvasColor(id, true);
     assert.match(light, /^#[0-9a-f]{6}$/i);
-    assert.match(dark, /^#[0-9a-f]{6}$/i);
-    assert.notEqual(light, dark);
   }
 });
 
-test("themeModeLabel explains active resolved theme in system mode", () => {
-  assert.equal(themeModeLabel("system", "dark"), "System (Dark)");
-  assert.equal(themeModeLabel("system", "light"), "System (Light)");
+test("themeModeLabel returns Light", () => {
   assert.equal(themeModeLabel("light", "light"), "Light");
-  assert.equal(themeModeLabel("dark", "dark"), "Dark");
 });
 
-test("bootstrap script initializes data-theme and data-palette cleanly", () => {
-  assert.match(THEME_INIT_SCRIPT, /dataset\.theme/);
+test("bootstrap script initializes data-theme to light and data-palette cleanly", () => {
+  assert.match(THEME_INIT_SCRIPT, /dataset\.theme="light"/);
   assert.match(THEME_INIT_SCRIPT, /dataset\.palette/);
-  assert.match(THEME_INIT_SCRIPT, /prefers-color-scheme: dark/);
+  assert.doesNotMatch(THEME_INIT_SCRIPT, /prefers-color-scheme: dark/);
 });

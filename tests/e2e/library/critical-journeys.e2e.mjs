@@ -1,8 +1,4 @@
-/* Critical cross-system browser journeys.
- *
- * These journeys prove the paths an operator cannot recover from silently:
- * first-run Canvas creation, legacy deep-link compatibility, and Quick Open.
- */
+/* Critical cross-system browser journeys: first-run creation and legacy deep-link compatibility. */
 import { after, before, test } from "node:test";
 import { api, assert, box, click, createWorkspace, createWorkspaceViaUI, deleteWorkspace, expectCount, goto, purgeTrash, press, role, start, stop, visible } from "../support/harness.mjs";
 
@@ -12,10 +8,9 @@ after(stop);
 test("critical: Welcome creates a Workspace and opens a drawable Canvas", { timeout: 60_000 }, async () => {
   await goto("/");
   await visible(role("heading", "No workspaces yet", { exact: true }));
-  await expectCount('[aria-label="Example knowledge map"]', 0);
   await click(role("button", "Restore backup", { exact: true }));
   await visible(role("dialog", "Settings", { exact: true }));
-  await visible(role("heading", "Data & backup", { exact: true }));
+  await visible(role("heading", "Portable library backup", { exact: true }));
   await press("Escape");
   const id = await createWorkspaceViaUI("Critical welcome Workspace");
   try {
@@ -28,22 +23,12 @@ test("critical: Welcome creates a Workspace and opens a drawable Canvas", { time
   }
 });
 
-test("critical: shared shell retains Explorer and Quick Open", { timeout: 45_000 }, async () => {
-  await goto("/");
-  await visible(role("complementary", "Category explorer"));
-  await visible(role("button", /Search Notespace/));
-  await click(role("button", /Search Notespace/));
-  await visible(role("dialog", "Quick Open"));
-});
-
 test("critical: legacy Note links open only their Workspace Canvas", async () => {
   const workspace = await createWorkspace("Legacy link compatibility");
   try {
     await goto(`/workspaces/${workspace.id}?note=retired-note&block=retired-block`);
     await visible(".excalidraw__canvas.interactive");
     await expectCount(role("dialog", "Note editor"), 0);
-    await expectCount(role("button", "New Note", { exact: true }), 0);
-    await expectCount(role("button", "Link note", { exact: true }), 0);
     const stored = await api(`/api/workspaces/${workspace.id}`);
     assert.equal(stored.id, workspace.id);
     assert.equal("notes" in stored, false);

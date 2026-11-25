@@ -71,11 +71,14 @@ test("keeps primary tools in the rail and secondary tools in More", async () => 
     await visible(view);
     const optionsTrigger = role("button", "More canvas actions", { scope: view });
     await visible(optionsTrigger);
-    await visible(role("button", "Fit canvas", { scope: view }));
-    await visible(role("button", "Undo", { scope: view }));
+    await expectCount(role("button", "Fit canvas", { scope: view }), 0);
+    await expectCount(role("button", "Undo", { scope: view }), 0);
     await click(optionsTrigger);
     const options = role("dialog", "Canvas options");
     await visible(options);
+    await visible(role("button", "Fit canvas", { scope: options }));
+    await visible(role("button", "Undo", { scope: options }));
+    await visible(role("button", "Redo", { scope: options }));
     await visible(role("button", "Grid", { scope: options }));
     await visible(role("button", "Object snapping", { scope: options }));
     await visible(role("button", "Export image", { scope: options }));
@@ -332,7 +335,8 @@ test("critical: unified code toolbar keeps editing and output inside a headerles
     await containsText(ariaLabel("Code output"), "legacy-auto 42");
     for (const width of [360, 320]) {
       await setViewport(width, 800);
-      await click(role("button", "Fit canvas"));
+      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+      await click(role("button", "Fit canvas", { scope: role("dialog", "Canvas options") }));
       await doubleClick(block);
       const targets = await evaluate(settings, (element) => {
         const bounds = element.getBoundingClientRect();
@@ -423,12 +427,14 @@ test("undo clears code output when the block returns to a different source", { t
     await containsText(output, "source-B");
 
     const sourcePreview = () => evaluate(block, (element) => element.textContent ?? "");
-    const undo = role("button", "Undo", { exact: true, scope: role("toolbar", "Canvas view controls") });
+    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+    const undo = role("button", "Undo", { exact: true, scope: role("dialog", "Canvas options") });
     let restored = await sourcePreview();
     for (let attempt = 0; attempt < 6 && !restored.includes('console.log("source-A")'); attempt += 1) {
       await click(undo);
       restored = await sourcePreview();
     }
+    await press("Escape");
     assert.ok(restored.includes('console.log("source-A")'), `Undo should restore source A, got: ${restored}`);
     assert.equal((await evaluate(output, (element) => element.textContent)).includes("source-B"), false);
   } finally {
@@ -579,10 +585,14 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     await expectAttribute(role("button", "Thin", { exact: true, scope: widthSection }), "aria-pressed", "false");
     await visible(role("region", "Corners", { exact: true, scope: properties }));
     await click(role("button", "Medium", { exact: true, scope: widthSection }));
-    await click(role("button", "Undo", { exact: true, scope: role("toolbar", "Canvas view controls") }));
+    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+    await click(role("button", "Undo", { exact: true, scope: role("dialog", "Canvas options") }));
+    await press("Escape");
     await click(role("button", "Object properties", { exact: true, scope: actions }));
     await containsText(widthSection, "Mixed");
-    await click(role("button", "Redo", { exact: true, scope: role("toolbar", "Canvas view controls") }));
+    await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
+    await click(role("button", "Redo", { exact: true, scope: role("dialog", "Canvas options") }));
+    await press("Escape");
     await click(role("button", "Object properties", { exact: true, scope: actions }));
     await expectAttribute(role("button", "Medium", { exact: true, scope: widthSection }), "aria-pressed", "true");
     await click(role("button", "Object properties", { exact: true, scope: actions }));
@@ -648,82 +658,20 @@ test("slash opens Diagram search and Escape closes it", async () => {
   }
 });
 
-test("selection toolbar can be compact or docked, and Escape hides it until the selection changes", { timeout: 120_000 }, async () => {
-  const id = await openCanvasWorkspace(`Canvas toolbar mode ${Date.now()}`);
-  try {
-    const bounds = await box(canvas);
-    await click(role("button", "Rectangle", { exact: true, scope: canvasTools() }));
-    await drag({ x: bounds.x + 220, y: bounds.y + 180 }, { x: bounds.x + 360, y: bounds.y + 250 });
-    const actions = role("toolbar", "Selected shape actions");
-    await visible(actions);
-
-    const setMode = async (label) => {
-      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-      await click(role("button", label, { scope: role("dialog", "Canvas options") }));
-      await click(role("button", "More canvas actions", { scope: role("toolbar", "Canvas view controls") }));
-      await notVisible(role("dialog", "Canvas options"));
-    };
-
-    await setMode("Compact");
-    await visible(role("button", "Show tools"));
-    await expectCount(actions, 0);
-    await click(role("button", "Show tools"));
-    await visible(actions);
-
-    await setMode("Docked");
-    await visible(actions);
-    await waitFor(async () => {
-      const dock = await box(actions);
-      return dock.y > bounds.y + 250 && Math.abs(dock.x + dock.width / 2 - (bounds.x + bounds.width / 2)) <= 24;
-    }, "Docked toolbar sits at the bottom center instead of over the selection");
-
-    await setMode("Floating");
-    await visible(actions);
-    await press("Escape");
-    await notVisible(actions);
-    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.contextualToolbarMode")), "floating");
-  } finally {
-    await cleanupWorkspace(id);
-  }
-});
-
-test("canvas background pattern switches between dots, plain, and grid and persists across reload", { timeout: 120_000 }, async () => {
-  const id = await openCanvasWorkspace(`Canvas pattern ${Date.now()}`);
+test("canvas uses plain background and right-click context menu without mode picker", { timeout: 120_000 }, async () => {
+  const id = await openCanvasWorkspace(`Canvas plain mode ${Date.now()}`);
   try {
     const view = role("toolbar", "Canvas view controls");
     const optionsTrigger = role("button", "More canvas actions", { scope: view });
     const options = role("dialog", "Canvas options");
 
-    await expectCount('[data-canvas-background-pattern="dots"]', 1);
+    await expectCount("[data-canvas-dot-grid]", 0);
     await click(optionsTrigger);
     await visible(options);
-    await expectAttribute(role("button", "Dots background pattern", { exact: true, scope: options }), "aria-pressed", "true");
-
-    await click(role("button", "Plain background pattern", { exact: true, scope: options }));
-    await expectAttribute(role("button", "Plain background pattern", { exact: true, scope: options }), "aria-pressed", "true");
-    await expectCount("[data-canvas-dot-grid]", 0);
-    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.backgroundPattern")), "none");
-
-    await click(role("button", "Grid background pattern", { exact: true, scope: options }));
-    await expectAttribute(role("button", "Grid background pattern", { exact: true, scope: options }), "aria-pressed", "true");
-    await expectCount('[data-canvas-background-pattern="grid"]', 1);
-    assert.equal(await evaluate(canvas, () => window.localStorage.getItem("notespace.canvas.backgroundPattern")), "grid");
-
-    // Excalidraw's snapping Grid hides the passive pattern so two grids do not overlap.
-    await click(role("button", "Grid", { exact: true, scope: options }));
-    await expectCount("[data-canvas-dot-grid]", 0);
-    await click(role("button", "Grid", { exact: true, scope: options }));
-    await expectCount('[data-canvas-background-pattern="grid"]', 1);
-
+    await expectCount('[data-canvas-background-pattern-option]', 0);
+    await expectCount('[aria-label="Selection toolbar style"]', 0);
     await press("Escape");
-    await reload();
-    await visible(canvas);
-    await expectCount('[data-canvas-background-pattern="grid"]', 1);
-
-    await click(optionsTrigger);
-    await click(role("button", "Dots background pattern", { exact: true, scope: options }));
-    await expectCount('[data-canvas-background-pattern="dots"]', 1);
-    await press("Escape");
+    await notVisible(options);
   } finally {
     await cleanupWorkspace(id);
   }

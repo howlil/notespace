@@ -1,0 +1,132 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+formatters:
+  enable:
+    - gofmt
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - errorlint
+    - forbidigo
+    - gocritic
+    - misspell
+    - nilerr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+
+  settings:
+    depguard:
+      rules:
+        apperr-leaf:
+          files:
+            - "**/internal/apperr/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: "github.com/howlil/notespace/apps/server/internal/"
+              desc: "internal/apperr is a zero-internal-dependency leaf package"
+
+        migrations-leaf:
+          files:
+            - "**/internal/library/migrations/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: "github.com/howlil/notespace/apps/server/internal/"
+              desc: "internal/library/migrations is a pure DDL runner and must not import internal packages"
+
+        library-isolation:
+          list-mode: lax
+          files:
+            - "**/internal/library/**"
+            - "!**/*_test.go"
+          allow:
+            - "github.com/howlil/notespace/apps/server/internal/apperr"
+          deny:
+            - pkg: "net/http"
+              desc: "internal/library must stay transport-agnostic and not import net/http"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/httpapi"
+              desc: "internal/library must not depend on HTTP handlers"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/app"
+              desc: "internal/library must not depend on the composition root"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/icon"
+              desc: "internal/library must not depend on icon proxy packages"
+
+        icon-isolation:
+          list-mode: lax
+          files:
+            - "**/internal/icon/**"
+            - "!**/*_test.go"
+          allow:
+            - "github.com/howlil/notespace/apps/server/internal/apperr"
+          deny:
+            - pkg: "database/sql"
+              desc: "internal/icon must not depend on SQL storage"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/library"
+              desc: "internal/icon must not depend on internal/library"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/httpapi"
+              desc: "internal/icon must not depend on HTTP handlers"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/app"
+              desc: "internal/icon must not depend on the composition root"
+
+        httpapi-isolation:
+          list-mode: lax
+          files:
+            - "**/internal/httpapi/**"
+            - "!**/*_test.go"
+          allow:
+            - "github.com/howlil/notespace/apps/server/internal/apperr"
+          deny:
+            - pkg: "database/sql"
+              desc: "internal/httpapi must not access database/sql directly"
+            - pkg: "archive/zip"
+              desc: "internal/httpapi must delegate ZIP archive handling to internal/library"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/icon/eraser"
+              desc: "internal/httpapi must depend on the icon.Source interface, not a concrete icon vendor"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/app"
+              desc: "internal/httpapi must not depend on the composition root"
+
+        thin-cmd:
+          files:
+            - "**/cmd/notespace/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: "net/http"
+              desc: "cmd/notespace must stay a thin entrypoint delegating HTTP wiring to internal/app"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/httpapi"
+              desc: "cmd/notespace must delegate HTTP API wiring to internal/app"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/library"
+              desc: "cmd/notespace must delegate library wiring to internal/app"
+            - pkg: "github.com/howlil/notespace/apps/server/internal/icon"
+              desc: "cmd/notespace must delegate icon wiring to internal/app"
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^os\.(Getenv|LookupEnv)$'
+          msg: "parse process environment variables once in internal/app/config.go"
+        - pattern: '^http\.DefaultClient$'
+          msg: "construct an explicit *http.Client with a Timeout"
+
+    rowserrcheck:
+      packages:
+        - modernc.org/sqlite
+
+  exclusions:
+    rules:
+      - path: internal/app/config\.go$
+        linters:
+          - forbidigo
+      - path: _test\.go$
+        linters:
+          - errcheck
+          - forbidigo
+          - noctx
+          - bodyclose
+          - gocritic

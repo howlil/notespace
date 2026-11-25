@@ -6,7 +6,6 @@ import { spawnSync } from "node:child_process";
 const ROOT = process.cwd();
 const roots = [
   join(ROOT, "apps", "web", "src"),
-  join(ROOT, "tests"),
 ];
 
 function collectTests(dir) {

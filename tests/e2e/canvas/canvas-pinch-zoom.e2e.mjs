@@ -13,8 +13,11 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
     await openWorkspace(workspace.id);
     const canvas = ".excalidraw__canvas.interactive";
     const view = role("toolbar", "Canvas view controls");
-    const reset = role("button", "Reset zoom", { exact: true, scope: view });
-    await click(reset);
+    const resetZoom = async () => {
+      await click(role("button", "More canvas actions", { scope: view }));
+      await click(role("button", "Reset zoom", { exact: true, scope: role("dialog", "Canvas options") }));
+    };
+    await resetZoom();
     await click(role("button", "Code block", { exact: true, scope: role("toolbar", "Canvas tools") }));
     const overlay = "[data-canvas-code-block]";
     await visible(overlay);
@@ -35,7 +38,7 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
     await zoomIs(1);
     assert.equal(await wheel(overlay, -8, true), false);
     await zoomIs(1.08);
-    await click(reset);
+    await resetZoom();
     await zoomIs(1);
 
     // Consecutive touchpad events arriving inside one frame must accumulate.
@@ -52,7 +55,7 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
     });
     assert.deepEqual(burst, [false, false]);
     await zoomIs(1.08);
-    await click(reset);
+    await resetZoom();
     await zoomIs(1);
 
     // Pinching while editing a code block still zooms the Canvas.
@@ -62,7 +65,7 @@ test("trackpad-style pinch zooms only the Canvas; plain wheel keeps the zoom unc
     assert.equal(await wheel(editor, -8, true), false);
     await zoomIs(1.08);
     await press("Escape");
-    await click(reset);
+    await resetZoom();
     await zoomIs(1);
   } finally {
     await cleanupWorkspace(workspace.id);

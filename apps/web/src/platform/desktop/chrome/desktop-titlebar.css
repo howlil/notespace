@@ -1,0 +1,179 @@
+/* Scoped to the Tauri-only React shell. The web app retains its original layout. */
+.desktop-shell-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.desktop-shell--native .desktop-shell-content { height: 100dvh; }
+
+.desktop-shell--custom {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  --desktop-top-left-inset: 0px;
+  --desktop-top-right-inset: 0px;
+}
+.desktop-shell--custom[data-desktop-platform="macos"] {
+  --desktop-top-left-inset: 68px;
+  --desktop-top-right-inset: 0px;
+}
+.desktop-shell--custom[data-desktop-platform="windows"] {
+  --desktop-top-left-inset: 0px;
+  --desktop-top-right-inset: 112px;
+}
+.desktop-shell--custom [data-notespace-single-shell] {
+  height: 100% !important;
+  min-height: 0;
+}
+.desktop-shell--custom .desktop-page-viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.desktop-shell--custom .desktop-page-viewport > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.desktop-shell--custom .desktop-page-viewport > div > main {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* Thin top drag strip for frameless desktop windows without a top bar. */
+.desktop-drag-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  z-index: 45;
+  user-select: none;
+}
+
+/* Windows / Linux: borderless ghost caption buttons pinned top-right. */
+.desktop-window-controls--windows {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 32px;
+  z-index: 55;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  background: transparent;
+  user-select: none;
+}
+.desktop-window-controls--windows > button {
+  display: grid;
+  width: 36px;
+  height: 32px;
+  place-items: center;
+  border: none;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  transition: background-color 100ms ease-out, color 100ms ease-out, transform 100ms ease-out;
+}
+.desktop-window-controls--windows > button:active:not(:disabled) { transform: scale(.97); }
+.desktop-window-controls--windows > button:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+.desktop-window-controls--windows > button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.desktop-window-controls--windows > button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+.desktop-window-controls--windows > button.desktop-window-close:hover {
+  background: var(--danger);
+  color: white;
+}
+
+/* macOS: stationary traffic lights pinned top-left. */
+.desktop-window-controls--macos {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 36px;
+  padding-left: 12px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+.desktop-tl {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  color: rgba(0, 0, 0, 0.72);
+  transition: background-color 120ms ease-out, transform 100ms ease-out, opacity 120ms ease-out;
+}
+.desktop-tl:active:not(:disabled) { transform: scale(.92); }
+.desktop-tl:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.desktop-tl:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+.desktop-tl svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+.desktop-window-controls--macos:hover .desktop-tl svg,
+.desktop-window-controls--macos:focus-within .desktop-tl svg {
+  opacity: 1;
+}
+.desktop-tl--close { background: #FF5F57; }
+.desktop-tl--min   { background: #FEBC2E; }
+.desktop-tl--max   { background: #28C840; }
+
+.desktop-window-controls--macos.desktop-window-controls--unfocused .desktop-tl {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+}
+.desktop-window-controls--macos.desktop-window-controls--unfocused:hover .desktop-tl--close,
+.desktop-window-controls--macos.desktop-window-controls--unfocused:focus-within .desktop-tl--close {
+  background: #FF5F57;
+}
+.desktop-window-controls--macos.desktop-window-controls--unfocused:hover .desktop-tl--min,
+.desktop-window-controls--macos.desktop-window-controls--unfocused:focus-within .desktop-tl--min {
+  background: #FEBC2E;
+}
+.desktop-window-controls--macos.desktop-window-controls--unfocused:hover .desktop-tl--max,
+.desktop-window-controls--macos.desktop-window-controls--unfocused:focus-within .desktop-tl--max {
+  background: #28C840;
+}
+
+.desktop-window-controls--windows.desktop-window-controls--unfocused {
+  opacity: .72;
+}
+
+.desktop-window-error {
+  position: fixed;
+  right: 8px;
+  top: 38px;
+  max-width: 320px;
+  padding: 8px;
+  border: 1px solid var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 11px;
+  z-index: 80;
+}

@@ -1,6 +1,5 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
-export const CLOSE_POPUPS_EVENT = "notespace:close-popups";
 const POPUP_OPEN_EVENT = "notespace:popup-open";
 
 type DismissableRef = RefObject<HTMLElement | null>;
@@ -62,63 +61,4 @@ export function useDismissablePopup(ref: DismissableRef, open: boolean, onDismis
       document.removeEventListener("keydown", dismissOnEscape, true);
     };
   }, [additionalRefs, onDismiss, open, ref]);
-}
-
-export function NativePopupManager({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    function closeDetails(except?: HTMLDetailsElement) {
-      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
-        if (details !== except) details.open = false;
-      });
-    }
-
-    function handlePopupOpened(event: Event) {
-      const owner = (event as CustomEvent<{ owner?: unknown }>).detail?.owner;
-      const nativeOwner = owner instanceof HTMLDetailsElement ? owner : undefined;
-      if (nativeOwner) popupClosers.forEach((close) => close());
-      closeDetails(nativeOwner);
-    }
-
-    function handleCloseRequest() {
-      closeDetails();
-    }
-
-    function handleNativePopupToggle(event: Event) {
-      const details = event.target;
-      if (!(details instanceof HTMLDetailsElement) || !details.open) return;
-      popupClosers.forEach((close) => close());
-      document.dispatchEvent(new CustomEvent(POPUP_OPEN_EVENT, { detail: { owner: details } }));
-    }
-
-    function closeDetailsOnOutsideInteraction(event: PointerEvent | FocusEvent) {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
-        if (!details.contains(target)) details.open = false;
-      });
-    }
-
-    function closeDetailsAfterAction(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element) || target.closest("summary")) return;
-      target.closest("details")?.removeAttribute("open");
-    }
-
-    document.addEventListener(CLOSE_POPUPS_EVENT, handleCloseRequest);
-    document.addEventListener(POPUP_OPEN_EVENT, handlePopupOpened);
-    document.addEventListener("toggle", handleNativePopupToggle, true);
-    document.addEventListener("pointerdown", closeDetailsOnOutsideInteraction, true);
-    document.addEventListener("focusin", closeDetailsOnOutsideInteraction, true);
-    document.addEventListener("click", closeDetailsAfterAction, true);
-    return () => {
-      document.removeEventListener(CLOSE_POPUPS_EVENT, handleCloseRequest);
-      document.removeEventListener(POPUP_OPEN_EVENT, handlePopupOpened);
-      document.removeEventListener("toggle", handleNativePopupToggle, true);
-      document.removeEventListener("pointerdown", closeDetailsOnOutsideInteraction, true);
-      document.removeEventListener("focusin", closeDetailsOnOutsideInteraction, true);
-      document.removeEventListener("click", closeDetailsAfterAction, true);
-    };
-  }, []);
-
-  return children;
 }

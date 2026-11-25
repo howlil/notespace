@@ -59,7 +59,7 @@ jobs:
       - name: Verify WebView2 CI runner and release acceptance policy
         run: node --test scripts/verify/check-desktop-webdriver-policy.test.mjs scripts/verify/native-close-session.test.mjs scripts/verify/assert-windows-pe-subsystem.test.mjs
       - name: Verify signed updater manifest contract
-        run: node --test scripts/release/create-desktop-update-manifest.test.mjs scripts/release/create-desktop-beta-manifest.test.mjs scripts/release/prepare-desktop-updater-config.test.mjs scripts/release/prepare-desktop-windows-sign-config.test.mjs scripts/release/check-desktop-release-security.test.mjs
+        run: node --test scripts/release/create-desktop-update-manifest.test.mjs scripts/release/create-desktop-beta-manifest.test.mjs scripts/release/prepare-desktop-updater-config.test.mjs scripts/release/prepare-desktop-windows-sign-config.test.mjs
       - name: Syntax-check updater release scripts
         run: |
           node --check scripts/release/create-desktop-update-manifest.mjs

@@ -61,14 +61,13 @@ apps/
 │   ├── adapters/            HTTP, browser, assets, desktop
 │   └── shared/              reusable foundations
 ├── server/
-│   ├── cmd/notespace/        process bootstrap
-│   ├── internal/
-│   │   ├── workspace/ note/ asset/ icon/ library/
-│   │   ├── httpapi/          facade, capability handlers, internal/transport
-│   │   └── sqlite/           Store facade and transaction coordinators
-│   │       └── internal/    dbtx, workspace, canvasnote, assets,
-│   │                       search, backup query packages
-│   └── migrations/
+│   ├── cmd/notespace/        process entrypoint
+│   ├── internal/             strict 4-tier architecture
+│   │   ├── app/              Tier 1: composition root, config, auth, SPA web, desktop/
+│   │   ├── httpapi/          Tier 2: router facade + middleware/, transport/, handler/
+│   │   ├── domain/           Tier 3: pure models, apperr/, archive/, icon contract, parsers
+│   │   └── infra/            Tier 4: sqlite/ (+ migrations/sql/), store/ (+ paging/), eraser/
+│   └── tests/                AST architecture guard + black-box httpapi/ integration suite
 └── desktop/src-tauri/src/
     ├── lib.rs               Tauri assembly and command registration
     ├── runtime.rs           crate-private runtime facade
@@ -253,101 +252,59 @@ This is a frontend consistency rule, not a backend caching mechanism.
 
 ## Server architecture
 
-The server dependency graph is:
+The server enforces a strict 4-tier one-way DAG (`app` → `httpapi` → `domain` / `infra`):
 
 ```text
 cmd/notespace
     ↓
-httpapi
-    ↓
-workspace / note / asset / library / icon
-    ↓
-consumer-owned ports
-    ↓
-sqlite
+Tier 1: internal/app (+ desktop/)
+    ├──→ Tier 2: internal/httpapi (router.go)
+    │       ├──→ httpapi/middleware ──→ httpapi/transport
+    │       ├──→ httpapi/handler    ──→ httpapi/transport, infra/store, domain
+    │       └──→ httpapi/transport  ──→ domain, domain/apperr
+    ├──→ Tier 4: internal/infra/store
+    │       ├──→ infra/sqlite (+ migrations/sql/)
+    │       ├──→ infra/store/paging ──→ domain
+    │       ├──→ domain/archive     ──→ domain, domain/apperr
+    │       └──→ Tier 3: internal/domain ──→ domain/apperr
+    ├──→ Tier 4: internal/infra/sqlite (read-only manual snapshot worker)
+    └──→ Tier 4: internal/infra/eraser ──→ domain, domain/apperr
 ```
 
-`cmd/notespace` is the composition root. It selects concrete adapters and wires services.
+`cmd/notespace` delegates directly to `internal/app`, which is the composition root: it parses configuration, opens `store.Store`, wires `httpapi`, wraps owner auth / SPA serving / desktop sidecar boundaries, and manages graceful shutdown.
 
-### Application packages
+### Tier 2 — `internal/httpapi`
 
-#### `workspace`
+Owns HTTP transport concerns only and never imports `database/sql`, `infra/sqlite`, or `infra/eraser`:
 
-Owns:
+- `router.go` — public `New(Dependencies)` facade, route table, and middleware exports;
+- `httpapi/middleware` — same-origin mutation guard and request observability (consuming a consumer-owned `PoolStats` snapshot);
+- `httpapi/transport` — JSON/binary body decoding, bounded body limits, `apperr` → HTTP status mapping, and `If-Match` / query parsing;
+- `httpapi/handler` — thin capability handlers (`workspace`, `note`, `asset`, `backup`, `search`, `icon`, `health`) delegating directly to `store.Store` or `domain.IconSource`.
 
-- Workspace;
-- Canvas;
-- category behavior;
-- authored-state validation;
-- granular authoring use-cases.
+### Tier 3 — `internal/domain` (`+ domain/apperr`, `domain/archive`)
 
-#### `note`
+Owns pure product models, structured error taxonomy (`domain/apperr`), external icon contract (`icon.go`), validation rules, and format codecs with **zero** `database/sql` and **zero** `net/http` dependencies:
 
-Owns:
+- `workspace.go`, `note.go`, `asset.go`, `search.go`, `backup.go`, `errors.go`, `icon.go` — canonical structs, invariants, and query normalization;
+- `document.go` — single-pass ProseMirror AST validator, plain-text/label/excerpt summarizer, and backlink extractor;
+- `scene.go` — single-pass Excalidraw scene validator, Note placement extractor, and retired-artifact scrubber;
+- `domain/archive` — SQL-free ZIP backup manifest/blob codec and compressed Trash envelope codec.
 
-- canonical Canvas Notes and placements;
-- ProseMirror document validation and plain-text indexing extraction;
-- optimistic version checks for Note documents and Canvas placements.
+### Tier 4 — `internal/infra` (`sqlite`, `store`, `eraser`)
 
-#### `asset`
+- **`infra/sqlite` (`+ sqlite/migrations/sql/`):** pure SQLite infrastructure with **zero** domain imports — dual-pool connection lifecycle (serialized writer `MaxOpenConns=1`, WAL, `synchronous=FULL`, `foreign_keys=1`, `busy_timeout=5000`, `BEGIN IMMEDIATE` + concurrent `mode=ro` reader pool), `DBTX`/`WithTx`/`WithReadTx`, verified `VACUUM INTO` snapshots (`snapshot.go`), and append-only SQL migrations embedded via `sql/*.sql`.
+- **`infra/store` (`+ store/paging/`):** single transactional persistence coordinator (`Store`) composing `*sqlite.DB` and the SQL-free `store/paging` cache, executing atomic cross-entity transactions across `workspace.go`, `note.go`, `asset.go`, `search.go`, and `backup.go`.
+- **`infra/eraser`:** external Eraser SVG retrieval, sanitization, bounded caching, and singleflight deduplication implementing `domain.IconSource`.
 
-Owns durable binary asset validation and asset use-cases.
+### `apps/server/tests`
 
-#### `icon`
-
-Owns Eraser icon retrieval, SVG trust validation, bounded cache behavior, and concurrent fetch deduplication.
-
-#### `library`
-
-Owns destructive/recovery and portability use-cases:
-
-- Trash;
-- restore;
-- permanent deletion from Trash;
-- backup;
-- full-library restore.
-
-The package is intentionally thin because SQLite owns the atomic implementation of these operations.
-
-### `httpapi`
-
-Owns transport concerns only:
-
-- route registration;
-- request decoding;
-- query/path/header parsing;
-- body limits and content type;
-- HTTP status/error mapping;
-- compatibility headers;
-- same-origin mutation middleware;
-- request observability;
-- cache/security headers.
-
-The root `New(Dependencies)` facade registers routes and middleware. Capability handler packages receive application services; shared codecs and error mapping live in `httpapi/internal/transport`. Handler children cannot import the root facade or persistence.
-
-It should not own product transactions or cross-domain business state.
-
-### `sqlite`
-
-`internal/sqlite` is one adapter and one transaction boundary for the single-owner application.
-
-It implements persistence ports for Workspace, planning, activity, assets, and Library operations.
-
-SQLite is configured with:
-
-- WAL;
-- `synchronous=FULL`;
-- foreign keys enabled;
-- 5-second busy timeout;
-- one open/idle pooled connection.
-
-The single connection keeps transaction and concurrency behavior explicit for this workload.
-
-Private capability query packages borrow `DBTX` or a transaction. Store begins, commits and rolls back compound operations. Workspace snapshot/restore composes explicit workspace, planning and asset query entries using the same transaction. The paging snapshot cache remains attached to the Store lifetime. Architecture tests reject query-owned connections or transaction lifetime.
+- `tests/architecture_test.go` enforces the exact 4 top-level folders in `internal/` (`app`, `domain`, `httpapi`, `infra`) and the dependency DAG via Go AST inspection.
+- `tests/httpapi/` houses the consolidated black-box HTTP integration suite (`package httpapi_test`).
 
 ## Persistence model
 
-Migration files remain append-only under `apps/server/migrations`.
+Migration files remain append-only under `apps/server/internal/infra/sqlite/migrations/sql`.
 
 The schema started with legacy `projects` and `study_sessions` names. Application terminology has since moved to Workspace and Activity, but old table names are not renamed merely for naming consistency because schema renames would add migration risk without changing product behavior.
 

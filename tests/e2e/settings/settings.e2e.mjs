@@ -1,8 +1,8 @@
-/* Settings owns theme, data and backup; the modal cannot dismiss mid-restore. */
+/* Settings owns color palette, backup, and trash; the modal cannot dismiss mid-restore. */
 import { after, before, test } from "node:test";
 import {
   assert, click, createWorkspace, deleteWorkspace, execute, expectCount,
-  expectDisabled, expectEnabled, goto, hidden, injectFault, press, purgeTrash, role,
+  expectDisabled, expectEnabled, goto, hidden, injectFault, press, purgeTrash, reload, role,
   start, stop, text, uploadFile, visible, waitFor, within,
 } from "../support/harness.mjs";
 
@@ -18,32 +18,24 @@ async function openSettings() {
   return settingsDialog();
 }
 
-test("Settings owns the single Data & Backup surface in Navigation v8", async () => {
+test("Settings owns palette preferences, portable backup, and trash", async () => {
   await goto("/");
-  await expectCount(role("button", "Backups", { exact: true }), 0);
-  await expectCount(role("radiogroup", "Theme"), 0);
-
   const settings = await openSettings();
-  await visible(role("heading", "Appearance", { scope: settings }));
-  await visible(role("radiogroup", "Theme", { scope: settings }));
   await visible(role("radiogroup", "Color theme", { scope: settings }));
   await click(role("button", "Data & backup", { scope: settings }));
-  await visible(role("heading", "Data & backup", { scope: settings }));
+  await visible(role("heading", "Portable library backup", { scope: settings }));
   const exportLink = role("link", "Export ZIP", { scope: settings });
   await visible(exportLink);
   assert.equal(await (await visible(exportLink)).getAttribute("href"), "/api/backup");
   await visible(role("button", "Restore library backup", { scope: settings }));
-  await expectCount(role("heading", "Import Markdown vault", { scope: settings }), 0);
   await visible(role("heading", "Trash", { scope: settings }));
-  await visible(text(/Device recovery snapshots are available in the Windows desktop app\./, { scope: settings }));
-  await expectCount(role("dialog", "Data & Recovery"), 0);
-  await expectCount(role("button", "Data and recovery"), 0);
+  await visible(text(/SQLite snapshots are available in the Windows desktop app\./, { scope: settings }));
 
   await click(role("button", "Close settings", { scope: settings }));
   await expectCount(settings, 0);
 
   const reopened = await openSettings();
-  await visible(role("heading", "Appearance", { scope: reopened }));
+  await visible(role("radiogroup", "Color theme", { scope: reopened }));
   await click(role("button", "Close settings", { scope: reopened }));
   await expectCount(reopened, 0);
 });
@@ -54,8 +46,6 @@ test("critical: Settings cannot dismiss while portable restore is in flight", as
   await click(role("button", "Data & backup", { scope: settings }));
   await expectEnabled(role("button", "Restore library backup", { scope: settings }));
 
-  // The request is held at the transport boundary. It must never reach SQLite:
-  // this proves modal ownership and mutation lifecycle, not backup semantics.
   let restoreStarted = false;
   let release = () => {};
   const pending = new Promise((resolve) => { release = resolve; });
@@ -83,8 +73,6 @@ test("critical: Settings cannot dismiss while portable restore is in flight", as
   try {
     await waitFor(() => restoreStarted, "Restore reaches the server");
     await expectDisabled(role("button", "Close settings", { scope: settings }));
-    await expectCount(role("heading", "Historical recovery", { scope: settings }), 0);
-    await expectCount(role("link", "Review scheduled Tasks", { scope: settings }), 0);
     await visible(settings);
     await press("Escape");
     await visible(settings);
@@ -99,13 +87,12 @@ test("critical: Settings cannot dismiss while portable restore is in flight", as
   await hidden(settings);
 });
 
-test("Workspace keeps Settings in Library without duplicating the Workspace rail", async () => {
+test("Settings remains accessible from Home after navigating back from a Workspace", async () => {
   const workspace = await createWorkspace(`Settings navigation ${Date.now()}`);
   try {
     await goto(`/workspaces/${workspace.id}`);
     await visible(".excalidraw__canvas.interactive");
     await expectCount(role("button", "Settings", { exact: true }), 0);
-    await expectCount('[aria-label="Desktop backup and recovery"]', 0);
     await click(role("link", "Notespace home", { exact: true }));
     await goto("/");
     await openSettings();
@@ -116,22 +103,24 @@ test("Workspace keeps Settings in Library without duplicating the Workspace rail
   }
 });
 
-test("Theme mode and color palette live inside Settings and persist immediately", async () => {
+test("Color palette lives inside Settings and persists across reload", async () => {
   await goto("/");
-  await expectCount(role("radiogroup", "Theme"), 0);
   const settings = await openSettings();
-  await visible(role("heading", "Appearance", { scope: settings }));
-
-  const darkOption = await within(settings, 'button[role="radio"][data-theme-mode="dark"]');
-  await click(darkOption);
-  await waitFor(async () => (await execute(() => document.documentElement.dataset.theme)) === "dark", "Dark mode applies to document root");
+  await visible(role("radiogroup", "Color theme", { scope: settings }));
 
   const sageOption = await within(settings, 'button[role="radio"][data-theme-palette="sage"]');
   await click(sageOption);
   await waitFor(async () => (await execute(() => document.documentElement.dataset.palette)) === "sage", "Selected color theme applies to document root");
 
-  await click(await within(settings, 'button[role="radio"][data-theme-mode="system"]'));
-  await click(await within(settings, 'button[role="radio"][data-theme-palette="paper"]'));
   await click(role("button", "Close settings", { scope: settings }));
   await expectCount(settings, 0);
+
+  await reload();
+  await waitFor(async () => (await execute(() => document.documentElement.dataset.palette)) === "sage", "Selected color theme persists after reload");
+
+  const reopened = await openSettings();
+  await click(await within(reopened, 'button[role="radio"][data-theme-palette="graphite"]'));
+  await waitFor(async () => (await execute(() => document.documentElement.dataset.palette)) === "graphite", "Default palette can be restored");
+  await click(role("button", "Close settings", { scope: reopened }));
+  await expectCount(reopened, 0);
 });

@@ -9,11 +9,12 @@ Notespace is a browser product with an optional Windows Tauri shell around the s
 ```text
 browser / Tauri WebView
         ↓ same-origin HTTP
-httpapi + desktop boundary
-        ↓ application capabilities
-workspace  note  asset  icon  library
-        ↓ consumer-owned ports
-SQLite adapter + migrations
+internal/app (+ desktop) → internal/httpapi (router, middleware, transport, handler)
+        ↓                          ↓
+internal/infra/store (+ paging)    internal/infra/eraser
+        ↓              ↓           ↓
+internal/infra/sqlite  internal/domain (+ apperr, archive)
+ (+ migrations/sql)
 ```
 
 The desktop path is:
@@ -36,11 +37,11 @@ R4 (Domain): own pure Workspace, Canvas, diagram, autosave, merge and validation
 
 R5 (Adapters): own HTTP transport/mapping, browser events/storage, durable assets and third-party editor integration. Adapters do not become product orchestrators.
 
-R6 (Application packages): own server use-cases and invariants. `workspace` owns Workspace/category/Canvas semantics; `note` owns canonical Canvas Notes and placements; `library` owns Trash, ZIP backup and restore; `asset` and `icon` retain their explicit contracts.
+R6 (Server domain & transactional store): `internal/domain` (`+ domain/apperr, domain/archive, icon.go`) owns pure product models, error taxonomy, validation rules, ProseMirror/Excalidraw parsers, external `IconSource` contract, and ZIP/Trash codecs with zero SQL/HTTP imports. `internal/infra/store` (`+ store/paging`) owns atomic cross-entity SQLite persistence across Workspace, Canvas, Notes, Assets, Search, Trash, and Backup; `internal/infra/eraser` implements `domain.IconSource`.
 
-R7 (HTTP controller): own routing, decoding, transport validation, authorization/middleware, and status/error mapping. It calls one application use-case and does not perform transactions.
+R7 (HTTP transport): `internal/httpapi` owns routing (`router.go`), cross-cutting wrappers (`middleware/`), wire codecs/error mapping/query parsing (`transport/`), and thin capability handlers (`handler/`). It never imports `database/sql`, `internal/infra/sqlite`, or `internal/infra/eraser` and does not own transactions.
 
-R8 (SQLite adapter): own SQL, scanning, transactions, derived projections, connection configuration and migration execution. It implements ports; it is not imported by application packages.
+R8 (SQLite infra): `internal/infra/sqlite` (`+ sqlite/migrations/sql`) owns dual-pool SQLite handles (serialized writer `MaxOpenConns=1` + concurrent read-only pool), PRAGMAs, `DBTX`/`WithTx`/`WithReadTx`, verified `VACUUM INTO` snapshots, and migration execution with zero domain imports.
 
 ## State and ownership
 
@@ -75,10 +76,11 @@ Every web production module belongs to one of six layers. The framework entry `r
 | R1 web desktop | features/desktop/index.ts; chrome/lifecycle/recovery/updates | Native UI and close bridge leave generic shared UI/root route bodies; root still composes cross-feature slots. |
 | R4 rules | domain/{workspace,diagram,code} | Small cohesive modules stay flat; framework/HTTP/browser/editor dependencies stay outside. |
 | R5 adapters | adapters/{http,browser,assets,desktop} | IPC/quiescence is distinct from generic browser events. Adapters never import features. |
-| Generic UI | shared/ui/{controls,overlays,feedback,theme,brand} | Export consumed primitives; native chrome belongs to R1. |
-| R6 Go use-cases | Existing internal/{workspace,note,asset,icon,library} | Keep small packages flat; consumer-owned ports remain here. |
-| R7 HTTP | httpapi.New(Dependencies) facade; capability handler packages; httpapi/internal/transport | Root mounts middleware once. Children cannot import root API or persistence. |
-| R8 SQLite | Root Store/connection/transaction facade; sqlite/internal/{dbtx,workspace,canvasnote,assets,search,backup} | One adapter/pool/transaction authority, not one database per capability. |
+| Generic UI | shared/ui/{primitives,controls,overlays,blocks,feedback,theme,brand} | Export consumed primitives and composite blocks; native chrome belongs to R1; `PersistentAppShell` owns single-shell mounting and `CanvasControllerContext` owns Canvas slice distribution. |
+| R6 Go domain | `internal/domain` (`+ apperr, archive, icon.go`) | Pure models, validation, AST/scene parsers, ZIP/Trash codecs, `IconSource` contract; zero `database/sql` or `net/http`. |
+| R6 Go store | `internal/infra/store` (`store/workspace/note/asset/search/backup`) + `store/paging` | Single transactional `Store` coordinator; `store/paging` stays SQL-free. |
+| R7 HTTP | `internal/httpapi/router.go`; `httpapi/{middleware,transport,handler}` | Router composes middleware + handler; zero `database/sql`, `sqlite`, or `eraser` imports in `httpapi`. |
+| R8 SQLite | `internal/infra/sqlite` (`open/tx/snapshot`) + `migrations/sql`; `internal/app` (+ `desktop`) | Pure dual-pool SQLite infra & migrations with zero domain imports; `app` is the composition root. |
 | R1 Rust | Thin lib.rs; runtime.rs + runtime/{state,sidecar,readiness,shutdown}.rs; window/recovery/updates/diagnostics.rs | Crate-private facade; one RuntimeProcess owns child generation and close/backup locks. |
 | Browser proofs | tests/e2e/{canvas,library,settings,support} | One harness; recursive discovery, critical selection and fixture roots move together. |
 | CLI / landing | scripts/{dev,verify,release,assets}; Astro pages/layouts/components/styles/lib | Update Taskfile/package/workflow paths together. Small landing needs no additional hierarchy. |
@@ -87,7 +89,7 @@ Outside callers use the feature's `index.ts`. Inside a feature, use direct impor
 
 Go subfolders create packages; Store/API receiver methods cannot move there unchanged. Extract repositories/handlers behind existing facade signatures. Children must not import their parent facade; Go packages are the entries, not TypeScript-style index files.
 
-SQLite root coordinators begin/commit/rollback. Compound backup/restore/Trash/migration passes the same borrowed *sql.Tx through a minimal SQL-only DBTX interface. Children never begin transactions or use *sql.DB inside a borrowed transaction. Cross-capability recovery uses explicit transaction-bound snapshot/restore entries, not another repository's tables. Archive EncodeArchive/DecodeArchive in sqlite/internal/backup are SQL-free: Store takes the consistent snapshot, decodes/validates before restore, and alone owns atomic mutation. Preserve archive entry order, stored-blob/checksum/expansion bounds and supported formats. Canvas writes funnel through a single `applyCanvasTx` helper (both generic workspace updates and Canvas Note create/delete) that composes workspace.UpdateCanvasTx, canvasnote.SyncGeometryTx, search.AdvanceCanvasRevisionTx and search.InvalidateNotesInWorkspaceTx on that same borrowed transaction; search SyncIndexTx/ReplaceWorkspaceTx own projection SQL, not transaction lifetime. The per-Note FTS projection is lazy: canvas_note_search_meta tracks each Note's revision so syncCanvasNotesTx reindexes only stale Notes, with placement changes invalidating via the workspace hook. Preserve the single connection, paging-cache lifetime, non-fatal post-write search refresh and pre-upgrade snapshot ordering. Aggregate tests stay at the facade; repository tests follow their package.
+`internal/infra/store.Store` coordinates atomic SQLite transactions via `internal/infra/sqlite.DB` (`WithTx`/`WithReadTx`) and passes borrowed `sqlite.DBTX` / `*sql.Tx` across internal helpers. Pure archive codecs (`domain/archive`) and document/scene parsers (`domain`) remain SQL-free: `Store` takes the consistent snapshot, decodes/validates before restore, and alone owns atomic mutation. Canvas writes funnel through a single `applyCanvasTx` helper (both generic workspace updates and Canvas Note create/delete) that composes Canvas update, `syncNoteGeometryTx`, `advanceCanvasSearchRevisionTx`, and `invalidateNotesInWorkspaceSearchTx` on that same transaction. The per-Note FTS projection is lazy via `canvas_note_search_meta`. Dual-pool SQLite serializes writes (`MaxOpenConns=1`, `BEGIN IMMEDIATE`) while reads and clean search run on the concurrent `mode=ro` reader pool without blocking autosave. Pre-migration snapshots run in `internal/infra/sqlite` before executing `sqlite/migrations` with the injected `store` scrub hook.
 
 Put feature-specific state, actions, and UI with the owning capability. Keep shared code limited to primitives used across capabilities and group files by responsibility. Use relative paths for local web imports so lint can resolve their owners.
 
@@ -178,13 +180,14 @@ DEC9 [one-way]: classify Canvas Note write errors at the Store boundary instead 
 F1: Web module placement and dependency direction | `notespace/web-boundaries` in `eslint.config.mjs` | `bun run lint` checks imports, re-exports, and dynamic imports.
 F2: Web domain is independent of browser, HTTP, UI, editor, and desktop runtime | web boundary and restricted-global rules | `bun run lint`.
 F3: Features compose through pages or routes; non-desktop features delegate native SDK access to adapters | web boundary rule | `bun run lint`.
-F4: Server packages keep `httpapi → capability → sqlite` direction through consumer-owned ports | `internal/architecture` import checks | enforced in Go tests; exception requires D#.
+F4: Server `internal/` keeps exact 4 tiers (`app`, `httpapi`, `domain`, `infra`) and enforces strict one-way DAG (`app → httpapi → {domain, infra/store}`, `infra → domain`, `domain` free of `sql`/`http`, `infra/sqlite` free of `domain`/`http`) | `tests/architecture_test.go` AST checks | enforced in Go tests; exception requires D#.
 F5: Canvas Note authoring is only through Canvas; legacy Note fields/routes cannot become its canonical storage | source/route contract tests | CI | pass when Canvas ownership checks and legacy compatibility tests remain green under K7/K8.
 F6: Generated/bundled output is excluded from architecture analysis | `.gitignore`/index scope plus source-only checks | CI | never use `target-codex-check`, `dist`, or generated assets as design evidence.
 
-F7: Feature outsiders use its public entry and internals import directly | web boundary rule | `bun run lint`. Canvas remains lazy | `tests/architecture-boundaries.test.ts` | `bun run test`.
-F8: Handler/query children cannot import root facades; query packages cannot open connections or own Begin/Commit/Rollback. Root roles, not filenames, identify HTTP routing/middleware and Store-signature/connection-lifetime files; capability decoding and ZIP codecs stay in their owners. Only Open constructs the writable Store pool; recovery handles are explicitly read-only | Go AST/import and negative role/dependency cases; real mid-write rollback proof | `go test -race ./...`.
-F9: Nested browser suites remain discovered exactly once; configured script entries exist in dev/verify/release/assets | `tests/browser-discovery.test.ts`, recursive all/critical/file selection | `bun run test`; script-specific suites retain existing CI owners.
+F7: Feature outsiders use its public entry, internals import directly, and `CanvasEditor` stays lazy via dynamic import | `notespace/web-boundaries` in `eslint.config.mjs` | `bun run lint`.
+F8: Subpackage boundaries hold across `httpapi/{middleware,transport,handler}`, `infra/store/paging`, `domain/archive`, `infra/sqlite`, and `infra/eraser`; pure domain/archive/paging packages never import `database/sql`, and `httpapi` never touches SQL, SQLite, or Eraser directly | `tests/architecture_test.go` + mid-write rollback proof | `go test -race ./...`.
+F9: Nested browser suites remain discovered exactly once; configured script entries exist | `scripts/verify/browser-discovery.test.mjs`, recursive all/critical/file selection | `node --test scripts/verify/browser-discovery.test.mjs`.
+F10: Web UI tokens (`bg-surface`, `no-scrollbar`, `z-[var(--z-*)]`) and single persistent shell ownership (`LibraryPageShell` only in `PersistentAppShell`) | `notespace/ui-tokens` & `notespace/web-boundaries` in `eslint.config.mjs` | `bun run lint`.
 
 ## Debt and risks
 

@@ -1,6 +1,6 @@
 import { createFileRoute, useLocation } from "@tanstack/react-router";
-import { getWorkspace, listCategories } from "../adapters/http/workspace-api";
-import { WorkspacePage } from "../pages/workspace/WorkspacePage";
+import { getWorkspace, listCategories } from "../platform/api/workspace-api";
+import { WorkspacePage } from "../app/pages/WorkspacePage";
 
 type WorkspaceSearch = {
   noteId?: string;

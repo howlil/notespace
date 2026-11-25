@@ -1,9 +1,10 @@
-/* Global search opens the matching Workspace Canvas. */
+/* Global search opens the matching Workspace Canvas and recovers from pending/failed queries. */
 import { after, before, test } from "node:test";
 import {
-  api, assert, click, cleanupWorkspace, createWorkspace, fill, goto,
-  placeholder, role, start, stop, visible, waitUrl,
+  api, assert, click, cleanupWorkspace, createWorkspace, expectCount, fill, goto,
+  injectFault, placeholder, requestLog, role, sleep, start, stop, text, visible, waitUrl,
 } from "../support/harness.mjs";
+
 before(start);
 after(stop);
 
@@ -22,4 +23,33 @@ test("critical: global search finds a Workspace and opens its Canvas", async () 
   } finally {
     await cleanupWorkspace(workspace.id);
   }
+});
+
+test("Quick Open does not report an empty result during pending search or retryable failure", async () => {
+  await injectFault({
+    method: "GET",
+    path: /\/api\/search\?q=/,
+    times: 1,
+    respond: async () => {
+      await sleep(600);
+      return { status: 503, body: '{"error":"offline"}' };
+    },
+  });
+
+  await goto("/");
+  await click(role("button", /Search Notespace/));
+
+  const quickOpen = role("dialog", "Quick Open");
+  await visible(quickOpen);
+  const search = placeholder("Open workspace or category…");
+  await visible(search);
+  await fill(search, "no-results-for-quick-open-query");
+
+  await visible(role("status", null, { scope: quickOpen, hasText: /Searching Notespace/ }));
+  await expectCount(text("No matching knowledge.", { scope: quickOpen }), 0);
+  await visible(role("alert", null, { scope: quickOpen, hasText: /Search could not be loaded\./ }));
+  await click(role("button", "Retry", { scope: quickOpen }));
+  await visible(text("No matching knowledge.", { scope: quickOpen }));
+  const searches = (await requestLog()).filter((entry) => entry.path.startsWith("/api/search?q=")).length;
+  assert.equal(searches, 2, "Retry must issue exactly one additional search request");
 });

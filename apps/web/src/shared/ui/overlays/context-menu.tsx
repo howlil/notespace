@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "../class-names";
-import { CLOSE_POPUPS_EVENT } from "./dismissable";
 
 export const ContextMenu = ContextMenuPrimitive.Root;
 export const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
@@ -18,7 +17,7 @@ export function ContextMenuContent({ className, children, ...props }: ComponentP
           animate={{ opacity: 1 }}
           transition={{ duration: 0.12, ease: "easeOut" }}
           className={cn(
-            "z-50 min-w-44 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[12px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
+            "z-[var(--z-context-menu)] min-w-44 overflow-hidden rounded-lg border border-line bg-surface p-1 text-sm text-ink [box-shadow:var(--shadow-popup)]",
             className,
           )}
         >
@@ -33,11 +32,10 @@ export function ContextMenuItem({ className, children, onSelect, ...props }: Com
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "flex min-h-8 cursor-default select-none items-center gap-2 rounded-md px-2.5 outline-none transition-[color,background-color] duration-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
+        "flex min-h-[26px] cursor-default select-none items-center gap-2 rounded-md px-2 py-0.5 outline-none transition-[color,background-color] duration-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-tint data-[highlighted]:text-accent",
         className,
       )}
       onSelect={(event) => {
-        document.dispatchEvent(new Event(CLOSE_POPUPS_EVENT));
         onSelect?.(event);
       }}
       {...props}
@@ -51,7 +49,7 @@ export function ContextMenuSubTrigger({ className, children, ...props }: Compone
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex min-h-8 cursor-default select-none items-center justify-between gap-2 rounded-md px-2.5 outline-none transition-[color,background-color] duration-100 data-[state=open]:bg-[var(--tint)] data-[state=open]:text-[var(--accent)] data-[highlighted]:bg-[var(--tint)] data-[highlighted]:text-[var(--accent)]",
+        "flex min-h-[26px] cursor-default select-none items-center justify-between gap-2 rounded-md px-2 py-0.5 outline-none transition-[color,background-color] duration-100 data-[state=open]:bg-tint data-[state=open]:text-accent data-[highlighted]:bg-tint data-[highlighted]:text-accent",
         className,
       )}
       {...props}
@@ -71,7 +69,7 @@ export function ContextMenuSubContent({ className, children, ...props }: Compone
           animate={{ opacity: 1 }}
           transition={{ duration: 0.12, ease: "easeOut" }}
           className={cn(
-            "z-50 min-w-48 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[12px] text-[var(--ink)] [box-shadow:var(--shadow-popup)]",
+            "z-[var(--z-context-menu)] min-w-44 overflow-hidden rounded-lg border border-line bg-surface p-1 text-sm text-ink [box-shadow:var(--shadow-popup)]",
             className,
           )}
         >

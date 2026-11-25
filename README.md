@@ -44,7 +44,7 @@ cd notespace
 docker compose -f compose.yaml -f compose.local.yaml up --build -d --wait
 ```
 
-Open **http://localhost:8080**. The named volume retains your library between restarts. For remote access, configure an owner password and HTTPS before exposing the service. See [self-hosting](docs/SELF_HOSTING.md) for configuration, security and recovery.
+Open **http://localhost:8080**. The named `notespace-data` volume retains your library between restarts. For remote access, configure `NOTESPACE_PASSWORD` and HTTPS before exposing the service. The `/api/health` endpoint remains unauthenticated for health checks. See [self-hosting](docs/SELF_HOSTING.md) for configuration, security and recovery.
 
 ## Documentation
 

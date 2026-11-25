@@ -47,7 +47,7 @@ Settings
 
 Historical Capture, Task, Milestone and Activity rows may still exist in SQLite and backup archives. They are not exposed through the retired Today/Inbox screens. Keeping their storage and API compatibility separate from UI ownership prevents destructive upgrades.
 
-A Workspace is the main authored unit and Canvas is its only authored content. Planning, assets, activity, Trash, backup/restore, and workspace search are separate capabilities around that authored state.
+A Workspace is the main spatial unit and Canvas is the authoring surface. Canvas Notes have separate canonical content and placement identities. Assets, Trash, backup/restore and workspace search are separate capabilities around authored state.
 
 ## Repository map
 
@@ -199,12 +199,12 @@ SQLite transaction
 
 Canvas has its own optimistic version and Excalidraw-specific element reconciliation.
 
-The Note route, Note API, Note capture conversion, Note search projection and Note-containing backup payloads are retired. Migration `0025_remove_notes.sql` retires relational Note data; `0026_scrub_retired_note_artifacts.sql` and its transactional Go hook scrub hidden Canvas, history and Trash payloads. Explicit historical checksums remain supported.
+The original standalone Note model was retired by migrations `0025_remove_notes.sql` and `0026_scrub_retired_note_artifacts.sql`. Current Canvas Notes are a distinct canonical capability introduced by `0027_canvas_notes.sql` and extended by subsequent migrations through `0032_canvas_note_trash.sql`. Note content and placement identities are saved independently from Canvas geometry; current note APIs and library backup records are not the retired standalone Note contract. Historical migration checksums remain supported.
 
 ### Aggregate compatibility save
 
-The legacy/aggregate Workspace HTTP save path still exists for compatibility,
-but current authoring uses the granular Canvas save path. Its active
+The legacy aggregate Workspace HTTP save path is retired.
+Current authoring uses the granular Canvas save path. Its active
 orchestration lives in `features/workspace-authoring/session/granular-save-core.ts`:
 
 ```text
@@ -413,6 +413,8 @@ Canonical client terminology:
 /workspaces/:id
 /api/workspaces/*
 ```
+
+Current Canvas Notes use `/api/notes/*` and workspace-scoped `/api/workspaces/{id}/note-instances`; note Trash has its own endpoints. See the [HTTP router](../apps/server/internal/httpapi/router.go) for the authoritative route inventory.
 
 Legacy `/api/projects/*`, full-snapshot `PATCH /api/workspaces/{id}`, and retired `planning`, `capture`, and `activity` endpoints have been removed.
 

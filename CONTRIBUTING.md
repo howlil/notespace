@@ -21,7 +21,7 @@ Thank you for helping improve Notespace. Feedback, reproducible bug reports, doc
 ```sh
 bun install --frozen-lockfile
 task dev
-# Select the applicable focused checks from docs/TESTING.md.
+# Example for frontend/backend code changes (not required for prose-only edits):
 task check
 ```
 

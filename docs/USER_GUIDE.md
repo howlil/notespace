@@ -12,7 +12,7 @@ A workspace contains a canvas for spatial authoring. Use shapes, arrows, diagram
 
 Notes are authored on the canvas as cards, not separate note pages. Create a Note card, type content, and use canvas connections to relate it to other ideas. Select a card to move or resize it; use Enter or double-click to edit. A linked placement references the same note content, while Duplicate creates a separate note. Removing a placement is not the same as deleting the note: use Trash for intentional note deletion and recovery. See the [product contract](../.agents/product.md) for detailed interaction semantics.
 
-The former standalone note navigation, Split View and Focus Mode are retired. Legacy browser links with `?note=...` or `?block=...` still open the workspace canvas. This does not mean current Canvas Note cards are retired.
+The former standalone note navigation, Split View and Focus Mode are retired. Current workspace links can use `noteId` or `blockId` query parameters to focus canvas content.
 
 ## Save and consistency behavior
 
@@ -20,7 +20,7 @@ Edits update immediately and durable Canvas saves are coalesced through the gran
 
 For the same Workspace opened in multiple tabs in one browser, Canvas element changes are exchanged directly through `BroadcastChannel` and reconciled with Excalidraw element version semantics. This local path is coalesced separately from server autosave, so sibling tabs can converge quickly without sending an HTTP request for every pointer movement.
 
-Granular durable Canvas writes carry the version of the resource they mutate and use the Excalidraw-specific reconciliation boundary. Legacy whole-workspace update routes remain compatibility surfaces, not the primary authoring path.
+Granular durable Canvas writes carry the version of the resource they mutate and use the Excalidraw-specific reconciliation boundary. The retired full-workspace update routes are not available.
 
 Pan and zoom are per-tab view state and are not persisted as authored Canvas changes. This prevents ordinary navigation from generating unnecessary saves or false conflicts.
 
@@ -38,18 +38,17 @@ The Library tools surface exposes:
 
 - **Backup** — downloads a versioned `notespace-backup.zip` containing library data and deduplicated binary blobs;
 - **Restore** — transactionally replaces the current library from a compatible Notespace ZIP backup or legacy JSON backup;
-- **Trash** — restores accidentally deleted Workspaces or deletes them permanently;
-- **Import Markdown vault** — selects a Markdown directory/vault and imports files into a chosen Category.
+- **Trash** — restores deleted Workspaces and Notes or deletes them permanently.
 
-The library backup contains authored library data and compatibility records as supported by the archive version. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
+The library backup contains categories, workspace snapshots, image assets, Canvas Notes and note placements as supported by the archive version. FTS/search projection rows are intentionally excluded because they are derived and rebuilt from authored state.
 
-The application backup/restore path is currently intentionally capped at **64 MiB** because the archive adapter still assembles a round trip in memory. For a larger installation, use infrastructure-level backup until archive streaming is implemented: stop the container and copy the complete SQLite volume, or use an equivalent SQLite-safe snapshot procedure. Include SQLite WAL files when copying a live data directory.
+The application backup/restore path is currently intentionally capped at **64 MiB** because the archive adapter still assembles a round trip in memory. For a larger installation, use infrastructure-level backup until archive streaming is implemented: stop the container and copy the complete SQLite volume, or use an equivalent SQLite-safe snapshot procedure. Do not copy a live database directory file-by-file as a substitute for a consistent SQLite snapshot.
 
 Restore replaces the current library. Export a fresh backup first, keep it outside the application data directory, and verify the restored content before discarding the original copy.
 
 ## Compatibility
 
-Historical Capture, Task, Milestone and Activity records and HTTP contracts remain for compatibility, not as promises of active navigation features. Historical activity accounting uses explicit start/pause/end events; a logical session spanning midnight may be stored as multiple daily segments.
+Historical Capture, Task, Milestone and Activity interfaces are retired. Legacy archive and migration handling does not imply those HTTP routes or screens remain available.
 
 ## API compatibility
 
@@ -60,6 +59,6 @@ Workspace terminology is canonical for new clients:
 /api/workspaces/*
 ```
 
-Legacy browser `/projects/:id` URLs redirect to `/workspaces/:id`. Legacy `/api/projects/*` routes remain temporarily available for compatibility and advertise deprecation; new application code should not introduce new Project-named HTTP consumers.
+Legacy `/api/projects/*`, full-workspace PATCH and retired planning, capture and activity endpoints are not available. Current note content uses `/api/notes/*`, with placements managed under `/api/workspaces/{id}/note-instances`.
 
 For deployment-specific database paths and safe volume handling, see [Self-hosting](SELF_HOSTING.md). Report ordinary issues via [Support](../SUPPORT.md).

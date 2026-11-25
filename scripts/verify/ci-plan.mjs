@@ -10,6 +10,10 @@ import { pathToFileURL } from "node:url";
 import process from "node:process";
 
 export const LANES = ["web", "server", "browser", "landing", "desktop", "release-policy", "compose"];
+export const CANDIDATE_TARGET_LANES = {
+  desktop: ["web", "server", "browser", "desktop", "release-policy"],
+  image: ["web", "server", "browser", "compose"],
+};
 
 const DOCS = /^(docs\/|\.agents\/|(README|AGENTS|DESIGN|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|SUPPORT)\.md$|\.github\/PULL_REQUEST_TEMPLATE\.md$|\.github\/ISSUE_TEMPLATE\/(bug_report|feature_request|config)\.yml$)/;
 // Landing tests assert published self-host commands against the root README.
@@ -29,8 +33,7 @@ const NATIVE_SCRIPTS = /^(scripts\/(release|dev|assets)\/|scripts\/verify\/(desk
 const WEB_SCRIPTS = /^scripts\/verify\/(browser-|run-node-tests)/;
 const SERVER_SCRIPTS = /^scripts\/verify\/(check-gofmt|server-process-integration)/;
 const CI_PLAN_SCRIPTS = /^scripts\/verify\/ci-plan(\.test)?\.mjs$/;
-const WORKFLOW_CLOUDFLARE = /^\.github\/workflows\/deploy-cloudflare\.yml$/;
-const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\.yml$/;
+const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop)\.yml$/;
 
 // Paths that can change the native Windows WebView2/sidecar/release proof.
 // Test-only Go files under internal/{domain,infra} do not alter the compiled sidecar binary.
@@ -42,7 +45,7 @@ const NATIVE_MATCH = new RegExp([
   "^apps/server/(cmd|internal/app|internal/domain|internal/infra)/",
   "^apps/web/src/(platform/desktop|platform/runtime|routes/__root|app/AppRoot)",
   "^apps/web/vite\\.config\\.",
-  "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop|publish-desktop-beta|auto-desktop-beta)\\.yml$",
+  "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop)\\.yml$",
   "^Taskfile\\.yml$",
   "^package\\.json$",
   "^bun\\.lock$",
@@ -124,11 +127,6 @@ function addPathLanes(plan, path) {
     plan["release-policy"] = true;
     return true;
   }
-  if (WORKFLOW_CLOUDFLARE.test(path)) {
-    plan.landing = true;
-    plan["release-policy"] = true;
-    return true;
-  }
   if (WORKFLOW_DESKTOP_OR_RELEASE.test(path)) {
     plan.desktop = true;
     plan["release-policy"] = true;
@@ -139,8 +137,17 @@ function addPathLanes(plan, path) {
 }
 
 // Pure decision: `paths` is the changed-path list for PR or master push, or null when unknown.
-export function selectLanes(event, paths) {
-  if (event === "schedule" || event === "workflow_dispatch") return allLanes(true);
+export function selectLanes(event, paths, { candidateTarget = "" } = {}) {
+  if (event === "schedule") return allLanes(true);
+  if (event === "workflow_dispatch") {
+    const target = typeof candidateTarget === "string" ? candidateTarget.trim() : "";
+    if (!target || target === "regression") return allLanes(true);
+    if (!Object.hasOwn(CANDIDATE_TARGET_LANES, target)) {
+      throw new Error(`Unknown CI candidate target: ${target}`);
+    }
+    const targetLanes = new Set(CANDIDATE_TARGET_LANES[target]);
+    return Object.fromEntries(LANES.map((lane) => [lane, targetLanes.has(lane)]));
+  }
   if (event === "push") {
     if (!Array.isArray(paths) || paths.length === 0) return allLanes(true);
     if (paths.every(isPureDocsPath)) {
@@ -162,17 +169,41 @@ export function selectLanes(event, paths) {
 }
 
 // Browser proof mode for this run. Unknown pull request diffs fall back to the full inventory.
-export function browserMode(event, paths) {
+export function browserMode(event, paths, { candidateTarget = "" } = {}) {
   if (event === "push") return "master";
+  if (event === "workflow_dispatch") {
+    const target = typeof candidateTarget === "string" ? candidateTarget.trim() : "";
+    if (Object.hasOwn(CANDIDATE_TARGET_LANES, target)) return "master";
+    return "full";
+  }
   if (event !== "pull_request") return "full";
   return Array.isArray(paths) && paths.length > 0 ? "affected" : "full";
 }
 
-// Every selected lane must succeed; an unselected lane may only be skipped.
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Strict gate schema: exact known lane keys, boolean selections, successful classifier,
+// and every selected lane must succeed while unselected lanes may only be skipped or succeed.
 export function assertGate(plan, needs) {
-  if (needs?.classify?.result !== "success") throw new Error("Lane classifier did not succeed");
+  if (!isPlainObject(plan)) throw new Error("Invalid lane plan: expected plain object");
+  if (!isPlainObject(needs)) throw new Error("Invalid job needs: expected plain object");
+  for (const key of Object.keys(plan)) {
+    if (!LANES.includes(key)) throw new Error(`Unknown lane in plan: ${key}`);
+  }
   for (const lane of LANES) {
-    const result = needs[lane]?.result ?? "missing";
+    if (!Object.hasOwn(plan, lane)) throw new Error(`Missing lane in plan: ${lane}`);
+    if (typeof plan[lane] !== "boolean") throw new Error(`Invalid lane selection for ${lane}: expected boolean`);
+  }
+  if (!isPlainObject(needs.classify) || needs.classify.result !== "success") {
+    throw new Error(`Lane classifier did not succeed (result=${isPlainObject(needs.classify) ? (needs.classify.result ?? "missing") : "missing"})`);
+  }
+  for (const lane of LANES) {
+    const result = isPlainObject(needs[lane]) ? needs[lane].result : undefined;
+    if (typeof result !== "string" || !result) {
+      throw new Error(`${lane}: ${plan[lane] ? "selected" : "unselected"} lane ended missing`);
+    }
     if (plan[lane] && result !== "success") throw new Error(`${lane}: selected lane ended ${result}`);
     if (!plan[lane] && !["skipped", "success"].includes(result)) throw new Error(`${lane}: unselected lane ended ${result}`);
   }
@@ -202,10 +233,11 @@ function changedPaths() {
 }
 
 function main(command) {
+  const candidateTarget = (process.env.CANDIDATE_TARGET ?? "").trim();
   switch (command) {
     case "plan": {
       const paths = event === "pull_request" || event === "push" ? changedPaths() : null;
-      const plan = selectLanes(event, paths);
+      const plan = selectLanes(event, paths, { candidateTarget });
       output("plan", JSON.stringify(plan));
       for (const [lane, selected] of Object.entries(plan)) output(lane.replaceAll("-", "_"), String(selected));
       console.log(JSON.stringify(plan));
@@ -213,15 +245,17 @@ function main(command) {
     }
     case "mode": {
       const paths = event === "pull_request" ? changedPaths() : null;
-      const mode = browserMode(event, paths);
+      const mode = browserMode(event, paths, { candidateTarget });
       if (mode === "affected") writeFileSync(process.env.CHANGED_FILES, JSON.stringify(paths));
       console.log(mode);
       break;
     }
     case "gate": {
+      if (!process.env.NEEDS) throw new Error("Missing NEEDS job context");
       const needs = JSON.parse(process.env.NEEDS);
-      const plan = JSON.parse(needs.classify?.outputs?.plan ?? "null");
-      if (!plan) throw new Error("Missing lane plan");
+      const rawPlan = needs?.classify?.outputs?.plan;
+      if (typeof rawPlan !== "string" || !rawPlan.trim()) throw new Error("Missing lane plan");
+      const plan = JSON.parse(rawPlan);
       assertGate(plan, needs);
       console.log(`CI gate passed: ${LANES.filter((lane) => plan[lane]).join(", ") || "docs only"}`);
       break;

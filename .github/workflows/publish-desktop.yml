@@ -1,8 +1,9 @@
 name: Publish Desktop Stable
 
+# Reusable version-allocation and immutable-tag stage called only by release.yml.
 # Production releases remain opt-in: never publish on every master commit.
-# Creating a tag with GITHUB_TOKEN does NOT trigger push workflows. Dispatch
-# release-desktop.yml explicitly in this same workflow, using actions:write.
+# Concurrency is owned by the caller (release.yml: notespace-release-desktop) across
+# allocate -> build -> publish to prevent competing releases or parent/child deadlocks.
 on:
   workflow_call:
     inputs:
@@ -12,9 +13,6 @@ on:
       version:
         type: string
         default: ""
-      prepare_only:
-        type: boolean
-        default: false
     outputs:
       release_tag:
         value: ${{ jobs.prepare-and-dispatch.outputs.release_tag }}
@@ -27,30 +25,10 @@ on:
         required: false
       AZURE_TENANT_ID:
         required: false
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Release increment (ignored when version is set)"
-        type: choice
-        required: true
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
-      version:
-        description: "Optional exact stable version (e.g. 1.2.0). Blank = auto."
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: write
-  actions: write
-
-concurrency:
-  group: notespace-desktop-release-init
-  cancel-in-progress: false
+  actions: read
 
 jobs:
   prepare-and-dispatch:
@@ -181,29 +159,3 @@ jobs:
           git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "Notespace Desktop $RELEASE_TAG"
           git push origin "refs/tags/$RELEASE_TAG"
           echo "Created $RELEASE_TAG at $GITHUB_SHA"
-
-      - name: Dispatch signed MSI release workflow
-        if: ${{ !inputs.prepare_only }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          set -euo pipefail
-          # GITHUB_TOKEN tag pushes don't trigger push workflows. A direct
-          # workflow_dispatch is the documented exception and needs no PAT.
-          gh workflow run release-desktop.yml --ref master --field "release_tag=$RELEASE_TAG"
-          {
-            echo "## Desktop release dispatched"
-            echo ""
-            echo "Tag: \`$RELEASE_TAG\` (on verified master commit \`$GITHUB_SHA\`)."
-            echo ""
-            echo "Follow the signed build: https://github.com/$GITHUB_REPOSITORY/actions/workflows/release-desktop.yml"
-            echo ""
-            echo "Once signed, tested and published: https://github.com/$GITHUB_REPOSITORY/releases"
-            echo ""
-            echo "**Dispatch is not publication.** The release must pass every MSI, data, provenance, and signing gate."
-            echo ""
-            echo "If dispatch fails after the tag is created, use the existing"
-            echo "Release desktop workflow_dispatch with the same \`release_tag\`."
-          } >> "$GITHUB_STEP_SUMMARY"

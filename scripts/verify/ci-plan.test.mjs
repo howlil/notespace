@@ -2,16 +2,22 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { LANES, assertGate, browserMode, selectLanes } from "./ci-plan.mjs";
+import { CANDIDATE_TARGET_LANES, LANES, assertGate, browserMode, selectLanes } from "./ci-plan.mjs";
 
 const cli = fileURLToPath(new URL("./ci-plan.mjs", import.meta.url));
 const allOn = Object.fromEntries(LANES.map((lane) => [lane, true]));
 const selected = (plan) => LANES.filter((lane) => plan[lane]);
 
-test("schedule and manual runs always select every lane", () => {
+test("schedule and manual regression runs select every lane; explicit candidate targets select only their required lanes", () => {
   for (const event of ["schedule", "workflow_dispatch"]) {
     assert.deepEqual(selectLanes(event, ["docs/TESTING.md"]), allOn, event);
   }
+  assert.deepEqual(selectLanes("workflow_dispatch", ["docs/TESTING.md"], { candidateTarget: "regression" }), allOn);
+  for (const [target, expectedLanes] of Object.entries(CANDIDATE_TARGET_LANES)) {
+    const plan = selectLanes("workflow_dispatch", ["docs/TESTING.md"], { candidateTarget: target });
+    assert.deepEqual(selected(plan), expectedLanes, target);
+  }
+  assert.throws(() => selectLanes("workflow_dispatch", null, { candidateTarget: "unknown" }), /Unknown CI candidate target/);
 });
 
 test("master push skips heavy lanes only for pure docs or landing diffs, and falls back to all lanes otherwise", () => {
@@ -80,7 +86,6 @@ test("desktop, release, compose, and workflow changes select only their owning l
   assert.deepEqual(selected(selectLanes("pull_request", ["scripts/verify/desktop-webdriver-smoke.mjs"])), ["desktop", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", ["scripts/release/resolve-desktop-release-version.mjs"])), ["desktop", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", ["Dockerfile", "compose.ci.yaml"])), ["compose"]);
-  assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/deploy-cloudflare.yml"])), ["landing", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/release-desktop.yml"])), ["desktop", "release-policy"]);
   assert.deepEqual(selectLanes("pull_request", [".github/workflows/ci.yml"]), allOn);
   assert.deepEqual(selectLanes("pull_request", ["package.json"]), allOn);
@@ -92,11 +97,15 @@ test("a mixed docs and app change is not treated as docs-only", () => {
   assert.deepEqual(selected(plan), ["server", "browser", "compose"]);
 });
 
-test("browser mode is affected only for pull requests with a readable diff", () => {
+test("browser mode is affected only for pull requests with a readable diff; candidate targets use master mode", () => {
   assert.equal(browserMode("pull_request", ["apps/web/src/a.ts"]), "affected");
   assert.equal(browserMode("pull_request", null), "full");
   assert.equal(browserMode("push", null), "master");
   assert.equal(browserMode("schedule", null), "full");
+  assert.equal(browserMode("workflow_dispatch", null), "full");
+  assert.equal(browserMode("workflow_dispatch", null, { candidateTarget: "regression" }), "full");
+  assert.equal(browserMode("workflow_dispatch", null, { candidateTarget: "desktop" }), "master");
+  assert.equal(browserMode("workflow_dispatch", null, { candidateTarget: "image" }), "master");
 });
 
 test("gate accepts selected lanes that succeeded and unselected lanes that were skipped", () => {
@@ -106,13 +115,38 @@ test("gate accepts selected lanes that succeeded and unselected lanes that were 
   assert.doesNotThrow(() => assertGate(plan, needs));
 });
 
-test("gate rejects a failed, canceled or missing selected lane", () => {
+test("gate rejects a failed, canceled, skipped or missing selected lane", () => {
   const plan = { ...allOn };
-  for (const result of ["failure", "cancelled", undefined]) {
+  for (const result of ["failure", "cancelled", "skipped", undefined]) {
     const needs = { classify: { result: "success" } };
     for (const lane of LANES) needs[lane] = { result: "success" };
     needs.web = { result };
     assert.throws(() => assertGate(plan, needs), /web: selected lane ended/, String(result));
+  }
+});
+
+test("gate rejects malformed, incomplete, unknown-key or non-boolean plans and invalid needs", () => {
+  const okNeeds = { classify: { result: "success" } };
+  for (const lane of LANES) okNeeds[lane] = { result: "success" };
+
+  for (const badPlan of [
+    null,
+    undefined,
+    "all",
+    [],
+    {},
+    Object.fromEntries(LANES.slice(1).map((lane) => [lane, true])),
+    { ...allOn, bogus: true },
+    { ...allOn, web: "true" },
+    { ...allOn, web: "false" },
+    { ...allOn, web: 1 },
+    { ...allOn, web: null },
+  ]) {
+    assert.throws(() => assertGate(badPlan, okNeeds), JSON.stringify(badPlan));
+  }
+
+  for (const badNeeds of [null, undefined, [], { classify: { result: "cancelled" } }, { classify: { result: "skipped" } }]) {
+    assert.throws(() => assertGate(allOn, badNeeds), JSON.stringify(badNeeds));
   }
 });
 
@@ -129,7 +163,7 @@ test("gate fails when the classifier itself did not succeed", () => {
   assert.throws(() => assertGate(allOn, needs), /classifier did not succeed/);
 });
 
-test("CLI gate command exits non-zero when a selected lane failed", () => {
+test("CLI gate command exits non-zero when a selected lane failed or plan is malformed", () => {
   const plan = { ...allOn };
   const needs = { classify: { result: "success", outputs: { plan: JSON.stringify(plan) } } };
   for (const lane of LANES) needs[lane] = { result: "success" };
@@ -138,4 +172,11 @@ test("CLI gate command exits non-zero when a selected lane failed", () => {
   needs.server = { result: "failure" };
   const bad = spawnSync(process.execPath, [cli, "gate"], { env: { ...process.env, NEEDS: JSON.stringify(needs) }, encoding: "utf8" });
   assert.notEqual(bad.status, 0);
+
+  for (const badPlan of ["{}", JSON.stringify({ ...allOn, web: "true" }), JSON.stringify({ ...allOn, unknown: false })]) {
+    const malformed = { classify: { result: "success", outputs: { plan: badPlan } } };
+    for (const lane of LANES) malformed[lane] = { result: "success" };
+    const res = spawnSync(process.execPath, [cli, "gate"], { env: { ...process.env, NEEDS: JSON.stringify(malformed) }, encoding: "utf8" });
+    assert.notEqual(res.status, 0, badPlan);
+  }
 });

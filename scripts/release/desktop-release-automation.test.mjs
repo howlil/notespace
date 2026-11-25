@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { resolveDesktopVersion } from "./resolve-desktop-release-version.mjs";
-import { assertDesktopReleaseChecks } from "./assert-desktop-release-ci.mjs";
+import { assertDesktopReleaseChecks, candidateGateName, candidateRunTitle } from "./assert-desktop-release-ci.mjs";
 import { selectLanes } from "../verify/ci-plan.mjs";
 import { releaseRequest } from "./release-request.mjs";
 
@@ -39,14 +39,18 @@ const BASH = resolveWorkingBash();
 test("release mode admission defaults read-only and rejects ambiguous or malformed destinations", () => {
   const source = { ref: "refs/heads/master", sha };
   assert.equal(releaseRequest(source), "preflight");
-  for (const mode of ["preflight", "desktop-beta", "desktop-stable", "image", "cloudflare"]) assert.equal(releaseRequest({ ...source, mode }), mode);
+  for (const mode of ["preflight", "desktop-stable", "image"]) assert.equal(releaseRequest({ ...source, mode }), mode);
   assert.equal(releaseRequest({ ...source, mode: "desktop-stable", version: "1.2.3", bump: "minor" }), "desktop-stable");
+  assert.equal(releaseRequest({ ...source, mode: "desktop-stable-resume", version: "v1.0.4" }), "desktop-stable-resume");
   assert.equal(releaseRequest({ ...source, mode: "image", version: "v1.2.3" }), "image");
   for (const invalid of [
-    { mode: "unknown" }, { mode: "desktop-beta\nimage" }, { mode: "" },
+    { mode: "unknown" }, { mode: "desktop-beta" }, { mode: "cloudflare" }, { mode: "desktop-stable\nimage" }, { mode: "" },
     { ref: "refs/tags/v1.2.3" }, { ref: "refs/heads/feature" }, { sha: "short" },
-    { mode: "desktop-beta", version: "v1.2.3" }, { version: "v1.2.3" },
-    { mode: "cloudflare", bump: "minor" }, { mode: "desktop-stable", bump: "skip" },
+    { version: "v1.2.3" },
+    { mode: "desktop-stable-resume" }, { mode: "desktop-stable-resume", version: "1.0.4" },
+    { mode: "desktop-stable-resume", version: "v1.0.4-beta.1" },
+    { mode: "desktop-stable-resume", version: "v1.0.4", bump: "minor" },
+    { mode: "image", bump: "minor" }, { mode: "desktop-stable", bump: "skip" },
     { mode: "desktop-stable", version: "1.2.3; echo unsafe" },
     ...["v1.2.3-beta.1", "v01.2.3", "1.2.3", "v1.2.3\n"].map((version) => ({ mode: "image", version })),
   ]) assert.throws(() => releaseRequest({ ...source, ...invalid }), JSON.stringify(invalid));
@@ -171,13 +175,12 @@ test("target-specific release preflight blocks docs/landing-only master runs fro
   ]);
 
   assert.doesNotThrow(() => assertDesktopReleaseChecks(docsOnly, sha, repository, { target: "gate" }));
-  for (const target of ["desktop", "image", "cloudflare"]) {
+  for (const target of ["desktop", "image"]) {
     assert.throws(() => assertDesktopReleaseChecks(docsOnly, sha, repository, { target }), `docs-only must block ${target}`);
   }
-  assert.doesNotThrow(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "cloudflare" }));
   assert.throws(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "desktop" }));
   assert.throws(() => assertDesktopReleaseChecks(landingOnly, sha, repository, { target: "image" }));
-  for (const target of ["gate", "desktop", "image", "cloudflare"]) {
+  for (const target of ["gate", "desktop", "image"]) {
     assert.doesNotThrow(() => assertDesktopReleaseChecks(full, sha, repository, { target }), `full must pass ${target}`);
   }
   const skippedDesktop = withJobs([
@@ -186,6 +189,62 @@ test("target-specific release preflight blocks docs/landing-only master runs fro
   ]);
   assert.throws(() => assertDesktopReleaseChecks(skippedDesktop, sha, repository, { target: "desktop" }));
   assert.throws(() => assertDesktopReleaseChecks(full, sha, repository, { target: "unknown" }));
+});
+
+test("explicit exact-SHA candidate proof unblocks docs/landing-only master without accepting generic regression or stale evidence", () => {
+  const pushJob = (name, overrides = {}) => ({
+    name, run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success", ...overrides,
+  });
+  const candRun = (target, overrides = {}) => run("ci", "success", {
+    id: 20, run_attempt: 1, event: "workflow_dispatch", display_title: candidateRunTitle(target), ...overrides,
+  });
+  const candJob = (name, overrides = {}) => ({
+    name, run_id: 20, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success", ...overrides,
+  });
+  const desktopCandJobs = [
+    candJob(candidateGateName("desktop")),
+    candJob("web"), candJob("server"), candJob("browser"),
+    candJob("desktop / check-desktop"), candJob("desktop / check-desktop-windows"),
+  ];
+  const imageCandJobs = [
+    candJob(candidateGateName("image")),
+    candJob("web"), candJob("server"), candJob("browser"), candJob("compose"),
+  ];
+
+  const makePayload = (pushJobs, candidateRuns, candidateJobs, pushRun = run()) => ({
+    master_sha: sha,
+    workflow_runs: [pushRun],
+    jobs: { total_count: pushJobs.length, jobs: pushJobs },
+    candidate_runs: candidateRuns,
+    candidate_jobs: { total_count: candidateJobs.length, jobs: candidateJobs },
+  });
+
+  // Positive: docs-only and landing-only green master pushes succeed when exact-SHA candidate proof passes.
+  const docsPush = [pushJob("ci / gate")];
+  const landingPush = [pushJob("ci / gate"), pushJob("landing")];
+  assert.equal(assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs), sha, repository, { target: "desktop" }).source, "candidate");
+  assert.equal(assertDesktopReleaseChecks(makePayload(landingPush, [candRun("desktop")], desktopCandJobs), sha, repository, { target: "desktop" }).source, "candidate");
+  assert.equal(assertDesktopReleaseChecks(makePayload(docsPush, [candRun("image")], imageCandJobs), sha, repository, { target: "image" }).source, "candidate");
+
+  // Negative: generic regression (workflow_dispatch or schedule) cannot substitute for candidate proof.
+  const regressionRun = run("ci", "success", { id: 20, event: "workflow_dispatch", display_title: "ci regression" });
+  const regressionJobs = [candJob("regression / gate"), ...desktopCandJobs.slice(1)];
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [regressionRun], regressionJobs), sha, repository, { target: "desktop" }), /no passing candidate \/ desktop/);
+  const scheduledRun = run("ci", "success", { id: 20, event: "schedule", display_title: candidateRunTitle("desktop") });
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [scheduledRun], desktopCandJobs), sha, repository, { target: "desktop" }), /no passing candidate \/ desktop/);
+
+  // Negative: wrong target, stale SHA, wrong repo/workflow, stale attempt, newer failed candidate, missing/skipped lane, failed push gate.
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("image")], imageCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop", { head_sha: "b".repeat(40) })], desktopCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop", { repository: { full_name: "other/repo" } })], desktopCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop", { path: ".github/workflows/other.yml" })], desktopCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop", { run_attempt: 2 })], desktopCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop"), candRun("desktop", { id: 25, conclusion: "failure" })], desktopCandJobs), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs.slice(1)), sha, repository, { target: "desktop" }), /candidate \/ desktop/);
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], [...desktopCandJobs.slice(0, -1), candJob("desktop / check-desktop-windows", { conclusion: "skipped" })]), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs, run("ci", "failure")), sha, repository, { target: "desktop" }));
+  const failedPushLane = [pushJob("ci / gate"), pushJob("web", { conclusion: "failure" })];
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(failedPushLane, [candRun("desktop")], desktopCandJobs), sha, repository, { target: "desktop" }));
 });
 
 test("real cross-platform CLI executes the gate and propagates refusal, not a silent no-op", () => {

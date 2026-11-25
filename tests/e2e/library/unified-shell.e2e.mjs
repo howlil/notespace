@@ -20,7 +20,7 @@ test("critical: Welcome and Canvas expose one shell with optional Explorer", asy
   await visible(role("button", "Open Notespace settings"));
 
   await press("Control+K");
-  await expectFocused(placeholder("Open workspace or category…"));
+  await expectFocused(placeholder("Search workspaces, notes, or categories…"));
   await press("Escape");
 
   await click(role("button", "New category"));
@@ -166,12 +166,9 @@ test("sidebar tree preserves inline category rename drafts across responsive col
   }
 });
 
-test("critical: Quick Open can open Settings in the shared shell", async () => {
+test("critical: Settings opens in the shared shell", async () => {
   await goto("/");
-  await click(role("button", "Search Notespace"));
-  const quick = role("dialog", "Quick Open");
-  await visible(quick);
-  await click(role("button", "Settings & Data", { scope: quick }));
+  await click(role("button", "Open Notespace settings"));
   const settings = role("dialog", "Settings", { exact: true });
   await visible(settings);
   await click(role("button", "Data & backup", { scope: settings }));

@@ -12,8 +12,7 @@ after(stop);
 const settingsDialog = () => role("dialog", "Settings", { exact: true });
 
 async function openSettings() {
-  await click(role("button", /Search Notespace/));
-  await click(role("button", "Settings & Data"));
+  await click(role("button", "Open Notespace settings"));
   await visible(settingsDialog());
   return settingsDialog();
 }
@@ -29,7 +28,7 @@ test("Settings owns palette preferences, portable backup, and trash", async () =
   assert.equal(await (await visible(exportLink)).getAttribute("href"), "/api/backup");
   await visible(role("button", "Restore library backup", { scope: settings }));
   await visible(role("heading", "Trash", { scope: settings }));
-  await visible(text(/SQLite snapshots are available in the Windows desktop app\./, { scope: settings }));
+  await visible(text(/Device recovery snapshots are available in the Windows desktop app\./, { scope: settings }));
 
   await click(role("button", "Close settings", { scope: settings }));
   await expectCount(settings, 0);

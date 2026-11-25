@@ -200,7 +200,9 @@ async function assertExplorerCollapse(session) {
   assert.equal(closed.state, "closed");
   assert.equal(await session.executeScript('return arguments[0] === document.querySelector(".excalidraw__canvas.interactive")', canvas), true, "Collapse keeps the same Canvas instance");
   await session.executeScript(`
-    document.querySelector('[data-explorer-edge-trigger]')?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+    const trigger = document.querySelector('[data-explorer-edge-trigger]');
+    trigger?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+    trigger?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
   `);
   await session.wait(async () => (await positions()).state === "peeking", 5_000, "Arc Edge-Peek reveals Explorer on left-edge hover");
   await (await visibleElement(session, By.css('[data-explorer-toggle][aria-expanded="false"]'))).click();

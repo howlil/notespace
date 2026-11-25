@@ -2,7 +2,7 @@ import { renderToReactElement } from "@tiptap/static-renderer/pm/react";
 import type { Mark as PMMark, Node as PMNode } from "@tiptap/pm/model";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import { isSafeNoteLink, type NoteDocument } from "../../entities/note";
+import { isSafeNoteLink, type NoteDocument, type RichNoteDocument } from "../../entities/note";
 import { createNoteExtensions } from "./extensions/create-note-extensions";
 import { InternalNoteLink, NoteBlockReferenceCard, NoteEmbedCard } from "./extensions/note-links";
 import {
@@ -17,6 +17,7 @@ import {
   type NoteTaskToggleTarget,
 } from "./model/note-extract";
 import { renderNoteLatex, upgradeLatexDelimitersInDocument } from "./lib/note-math";
+import { notePreviewDocument } from "./model/note-markdown";
 
 export { toggleNoteToggleInDocument, toggleTaskInDocument, type NoteTaskToggleTarget };
 
@@ -79,19 +80,20 @@ const markMapping = {
   },
 };
 
-function plainText(document: NoteDocument): string {
-  const walk = (nodes: NoteDocument["content"]): string[] => nodes.flatMap((node) => [...(node.text ? [node.text] : []), ...(node.content ? walk(node.content) : [])]);
+function plainText(document: RichNoteDocument): string {
+  const walk = (nodes: RichNoteDocument["content"]): string[] => nodes.flatMap((node) => [...(node.text ? [node.text] : []), ...(node.content ? walk(node.content) : [])]);
   return walk(document.content).join(" ").trim();
 }
 
 /** Read-only semantic rendering of a Note; it never mounts an editor (B9a). */
 export function NoteReadView({
-  document,
+  document: source,
   onToggleTask,
   onToggleCollapse,
   highlightBlockId,
 }: NoteReadViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const document = useMemo(() => notePreviewDocument(source), [source]);
 
   const rendered = useMemo(() => {
     let taskIndex = 0;

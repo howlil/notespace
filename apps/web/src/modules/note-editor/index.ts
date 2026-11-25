@@ -36,6 +36,7 @@ export { ensureNoteBlockIds } from "./extensions/block-identity";
 export { createNoteExtensions, type CreateNoteExtensionsOptions, type NoteMathEditRequest } from "./extensions/create-note-extensions";
 export { InternalNoteLink, NoteEmbedCard, NoteBlockReferenceCard } from "./extensions/note-links";
 export { normalizeHighlightTone, normalizeTextColorTone } from "./extensions/note-marks";
+export { MarkdownNoteEditor } from "./MarkdownNoteEditor";
 export { NoteEditor, type NoteEditorProps } from "./NoteEditor";
 export { type NoteActivationPoint, type NoteCreatedConnection } from "./toolbar/editor-positioning";
 export { NoteFocusModal } from "./NoteFocusModal";

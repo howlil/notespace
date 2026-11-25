@@ -1,4 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -17,6 +19,23 @@ const copy = html
 const MSI = 'https://github.com/howlil/notespace/releases/download/v1.0.3/Notespace_1.0.3_x64_en-US.msi'
 const SECTIONS = ['code', 'diagrams', 'notes', 'saving', 'library', 'backup', 'themes', 'features', 'windows', 'self-host']
 const productDir = new URL('../public/product/', import.meta.url)
+const appDir = fileURLToPath(new URL('../../apps/web/src/', import.meta.url))
+const globalsPath = join(appDir, 'shared', 'styles', 'globals.css')
+
+// Control and state names the copy uses. Each must appear in the copy and in the app's own source.
+const APP_LABELS = [
+  'Undo', 'Redo', 'Fit canvas', 'Object snapping', 'Selection toolbar', 'Floating', 'Compact', 'Docked',
+  'General Components', 'Connect', 'Place existing Note', 'Info & backlinks', 'Move to Trash',
+  'Remove instance', 'Extract to Note', 'LaTeX',
+  'Run JavaScript', 'Preview HTML', 'Show code output', 'Copy code', 'Code language', 'Code theme',
+  'Line numbers', 'Fit to content', 'Duplicate code block', 'Delete code block',
+  'Categories', 'Explorer', 'Previous', 'Next', 'Quick Open', 'Trash', 'Restore a Workspace or Note',
+  'Delete permanently', 'Export ZIP', 'Restore backup', 'Includes Workspaces, Canvas content, images, Trash, and history.',
+  'Restoring a backup replaces your current library.', 'Retry merged save', 'Download draft',
+  'Use saved Canvas', 'Keep editing', 'Device recovery snapshots are available in the Windows desktop app.',
+  'System', 'Light', 'Dark', 'Color theme', 'Paper', 'Stone', 'Sage', 'Amber', 'Graphite',
+  'Saved in this browser', 'Saved on this device',
+]
 
 // Pixel size from the WebP header: simple (VP8), extended (VP8X) or lossless (VP8L) container.
 function webpSize(bytes) {
@@ -30,6 +49,16 @@ function webpSize(bytes) {
   throw new Error(`unknown WebP chunk "${type}"`)
 }
 
+// Source of every app component and style file, tests excluded, so each label is checked where the UI defines it.
+function readAppSource(dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .map((entry) => {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) return readAppSource(path)
+      return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? readFileSync(path, 'utf8') : ''
+    })
+    .join('\n')
+}
 test('hero names the product, both installs and the real canvas', () => {
   assert.match(html, /<h1 id="hero-title">Write, draw, and run code on one canvas\.<\/h1>/)
   assert.match(copy, /Install the Windows app, or run your own server\./)
@@ -74,9 +103,24 @@ test('copy names only shipped capability', () => {
   assert.doesNotMatch(copy, /Notes page|Notes app|Split View|Focus Mode|Tiptap|Markdown|Sixteen languages/)
   assert.doesNotMatch(copy, /\bAI\b|Sign in|open source|Join for Free|Get started free/i)
   assert.doesNotMatch(copy, /↗/)
+  // Present in the tool catalog, but their behavior is not verified, so the page must not claim them.
   assert.doesNotMatch(copy, /magic frame|auto shape/i)
 })
 
+test('every control name in the copy is spelled as the app spells it', { skip: !existsSync(appDir) }, () => {
+  const source = readAppSource(appDir).replaceAll('&amp;', '&')
+  const misses = APP_LABELS
+    .map((label) => ({ label, inCopy: copy.includes(label), inApp: source.includes(label) }))
+    .filter(({ inCopy, inApp }) => !inCopy || !inApp)
+  assert.deepEqual(misses, [], 'every label must appear in the copy and in apps/web/src')
+})
+
+test('the behavior claims trace to the app code', { skip: !existsSync(appDir) }, () => {
+  const read = (file) => readFileSync(join(appDir, file), 'utf8')
+  assert.match(read('features/workspace-authoring/canvas/code/preview/HtmlPreviewFrame.tsx'), /sandbox="allow-scripts"/)
+  assert.match(read('features/workspace-authoring/canvas/code/execution/code-runner.ts'), /new Worker\(/)
+  assert.match(read('features/workspace-authoring/canvas/sync/use-canvas-peer-channel.ts'), /new BroadcastChannel\(/)
+})
 test('every Windows download CTA links the verified MSI in the same tab', () => {
   const anchors = [...html.matchAll(/<a\b[^>]*\bdata-notespace-windows-download\b[^>]*>/g)].map((m) => m[0])
   assert.equal(anchors.length, 5, 'nav, hero, mobile menu, Windows section and closing CTA')
@@ -121,7 +165,11 @@ test('showcase styles stay flat, scoped and honor reduced motion', () => {
   assert.match(css, /\.nx \[hidden\]\s*\{[^}]*display:\s*none !important/)
 })
 
-test('navbar and footer use the canonical brand asset', () => {
+test('navbar and footer use the canonical brand asset, and the accent is the app Paper accent', () => {
   assert.ok(existsSync(new URL('../public/brand/notespace-fox-head.svg', import.meta.url)), 'canonical logo missing')
   assert.match(html, /src="\/brand\/notespace-fox-head\.svg"/)
+  if (!existsSync(globalsPath)) return
+  const accent = readFileSync(globalsPath, 'utf8').match(/:root\s*\{[^}]*--accent:\s*([^;]+);/)?.[1]?.trim()
+  assert.ok(accent, 'globals.css defines --accent for :root')
+  assert.ok(css.includes(`--nx-accent: ${accent};`), 'the landing accent must equal the app Paper accent')
 })

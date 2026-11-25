@@ -7,6 +7,7 @@ import { findBlockPreview } from "../model/note-extract";
 import { noteFirstLine, type NoteDocument, type NoteNode } from "../../../entities/note";
 
 function documentPreview(document: NoteDocument): string {
+  if (document.type === "markdown") return noteFirstLine(document);
   const walk = (nodes: NoteNode[]): string[] => nodes.flatMap((node) => [
     ...(typeof node.text === "string" ? [node.text] : []),
     ...(node.content ? walk(node.content) : []),

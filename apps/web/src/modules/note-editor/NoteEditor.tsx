@@ -5,7 +5,8 @@ import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { Note } from "../../platform/api/note-api";
 import { storeImageAsset } from "../../platform/assets/image-store";
-import { isSafeNoteLink, noteFirstLine, type NoteDocument } from "../../entities/note";
+import { isSafeNoteLink, noteFirstLine, type NoteDocument, type RichNoteDocument } from "../../entities/note";
+import { MarkdownNoteEditor } from "./MarkdownNoteEditor";
 import { ensureNoteBlockIds } from "./extensions/block-identity";
 import { createNoteExtensions, type NoteMathEditRequest } from "./extensions/create-note-extensions";
 import { extractBlocksFromDocument } from "./model/note-extract";
@@ -52,6 +53,26 @@ export type NoteEditorProps = {
 };
 
 export function NoteEditor(props: NoteEditorProps) {
+  const { note, elementId, minHeight = 96, activationPoint, bodyMaxHeight, readDocument, onDocumentChange, onAutoResize, onEscape } = props;
+  if (note.document.type === "markdown") {
+    return (
+      <MarkdownNoteEditor
+        noteId={note.id}
+        document={note.document}
+        minHeight={minHeight}
+        activationPoint={activationPoint}
+        bodyMaxHeight={bodyMaxHeight}
+        readDocument={readDocument}
+        onDocumentChange={onDocumentChange}
+        onResize={(height) => onAutoResize(elementId, height)}
+        onEscape={onEscape}
+      />
+    );
+  }
+  return <LegacyNoteEditor {...props} note={{ ...note, document: note.document }} />;
+}
+
+function LegacyNoteEditor(props: NoteEditorProps & { note: Note & { document: RichNoteDocument } }) {
   const {
     note,
     elementId,
@@ -147,7 +168,7 @@ export function NoteEditor(props: NoteEditorProps) {
     immediatelyRender: false,
     editorProps,
     onUpdate: ({ editor: value }) => {
-      onDocumentChangeRef.current(value.getJSON() as NoteDocument);
+      onDocumentChangeRef.current(value.getJSON() as RichNoteDocument);
       syncTriggersRef.current(value);
     },
     onSelectionUpdate: ({ editor: value }) => {
@@ -160,7 +181,7 @@ export function NoteEditor(props: NoteEditorProps) {
       syncTriggersRef.current(value);
     },
     onCreate: ({ editor: value }) => {
-      const normalized = ensureNoteBlockIds(upgradeLatexDelimitersInDocument(value.getJSON() as NoteDocument));
+      const normalized = ensureNoteBlockIds(upgradeLatexDelimitersInDocument(value.getJSON() as RichNoteDocument));
       if (JSON.stringify(normalized) !== JSON.stringify(value.getJSON())) {
         value.commands.setContent(normalized, { emitUpdate: false });
         onDocumentChangeRef.current(normalized);
@@ -263,7 +284,7 @@ export function NoteEditor(props: NoteEditorProps) {
     const serverRevisionChanged = appliedRevisionRef.current !== note.revision;
     if (noteIdentityChanged || serverRevisionChanged) {
       const current = readDocument(note.id) ?? note.document;
-      if (JSON.stringify(editor.getJSON()) !== JSON.stringify(current)) editor.commands.setContent(current, { emitUpdate: false });
+      if (current.type === "doc" && JSON.stringify(editor.getJSON()) !== JSON.stringify(current)) editor.commands.setContent(current, { emitUpdate: false });
       appliedNoteIdRef.current = note.id;
       appliedRevisionRef.current = note.revision;
     }
@@ -274,7 +295,7 @@ export function NoteEditor(props: NoteEditorProps) {
     const { $from, $to } = editor.state.selection;
     const startIndex = $from.index(0);
     const endIndex = $to.depth === 0 ? Math.max(startIndex, $to.index(0) - 1) : $to.index(0);
-    const currentDoc = editor.getJSON() as NoteDocument;
+    const currentDoc = editor.getJSON() as RichNoteDocument;
     const preview = extractBlocksFromDocument(currentDoc, { startIndex, endIndex });
     if (!preview) {
       onError("Select non-empty content to extract to a Note.");
@@ -287,8 +308,8 @@ export function NoteEditor(props: NoteEditorProps) {
       if (!created) return;
       const label = noteFirstLine(extractedDoc) || "Extracted Note";
       const href = `/workspaces/${encodeURIComponent(workspaceId)}?noteId=${encodeURIComponent(created.noteId)}`;
-      const liveDoc = editor.isDestroyed ? (readDocument(note.id) ?? currentDoc) : (editor.getJSON() as NoteDocument);
-      const extractedResult = extractBlocksFromDocument(liveDoc, { startIndex, endIndex }, {
+      const liveDoc = editor.isDestroyed ? readDocument(note.id) : (editor.getJSON() as RichNoteDocument);
+      const extractedResult = extractBlocksFromDocument(liveDoc?.type === "doc" ? liveDoc : currentDoc, { startIndex, endIndex }, {
         leaveLink: { href, label },
       }) ?? extractBlocksFromDocument(currentDoc, { startIndex, endIndex }, {
         leaveLink: { href, label },

@@ -186,6 +186,7 @@ function NoteCardBody({
   if (folded) return <NoteLabel document={entry.note.document} zoom={zoom} lines={1} />;
   if (detail === "label") return <NoteLabel document={entry.note.document} zoom={zoom} lines={2} />;
   const readyNote = entry.note;
+  const document = readyNote.document;
   return (
     <div
       ref={readScrollRef}
@@ -194,16 +195,16 @@ function NoteCardBody({
       style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
     >
       <NoteReadView
-        document={readyNote.document}
+        document={document}
         highlightBlockId={highlightBlockId}
-        onToggleTask={(target) => {
-          const nextDoc = toggleTaskInDocument(readyNote.document, target);
-          if (nextDoc !== readyNote.document) onDocumentChange(readyNote.id, nextDoc);
-        }}
-        onToggleCollapse={(blockId, open) => {
-          const nextDoc = toggleNoteToggleInDocument(readyNote.document, blockId, open);
-          if (nextDoc !== readyNote.document) onDocumentChange(readyNote.id, nextDoc);
-        }}
+        onToggleTask={document.type === "doc" ? (target) => {
+          const nextDoc = toggleTaskInDocument(document, target);
+          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
+        } : undefined}
+        onToggleCollapse={document.type === "doc" ? (blockId, open) => {
+          const nextDoc = toggleNoteToggleInDocument(document, blockId, open);
+          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
+        } : undefined}
       />
     </div>
   );

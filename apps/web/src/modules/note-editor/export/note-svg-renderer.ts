@@ -5,6 +5,7 @@ import {
   type NoteNode,
 } from "../../../entities/note.ts";
 import { findBlockPreview } from "../model/note-extract.ts";
+import { notePreviewDocument } from "../model/note-markdown.ts";
 import {
   escapeXml,
   estimateTextWidth,
@@ -560,7 +561,7 @@ export function renderNoteDocumentSvgBody(options: {
     theme,
     noteDocuments,
   };
-  renderBlocks(state, doc.content, contentX, contentWidth);
+  renderBlocks(state, notePreviewDocument(doc).content, contentX, contentWidth);
   if (!state.hasContent) {
     const baseline = cardY + paddingY + 13.5;
     state.parts.push(

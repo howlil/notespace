@@ -73,7 +73,22 @@ func ParseDocument(raw json.RawMessage) (ParsedDocument, error) {
 		return ParsedDocument{}, ErrNoteInvalid
 	}
 	var root pmNode
-	if err := decodeStrictObject(raw, &root); err != nil || root.Type != "doc" {
+	if err := decodeStrictObject(raw, &root); err != nil {
+		return ParsedDocument{}, ErrNoteInvalid
+	}
+	if root.Type == "markdown" {
+		rawMap, ok := decodeMap(raw)
+		if !ok || len(rawMap) != 2 {
+			return ParsedDocument{}, ErrNoteInvalid
+		}
+		text, ok := rawMap["text"].(string)
+		if !ok || !utf8.ValidString(text) {
+			return ParsedDocument{}, ErrNoteInvalid
+		}
+		root.textValue = text
+		return ParsedDocument{raw: raw, root: root}, nil
+	}
+	if root.Type != "doc" {
 		return ParsedDocument{}, ErrNoteInvalid
 	}
 	if len(bytes.TrimSpace(root.Content)) == 0 {
@@ -91,6 +106,9 @@ func ParseDocument(raw json.RawMessage) (ParsedDocument, error) {
 func (d ParsedDocument) Raw() json.RawMessage { return d.raw }
 
 func (d ParsedDocument) IsEmpty() bool {
+	if d.root.Type == "markdown" {
+		return strings.TrimSpace(d.root.textValue) == ""
+	}
 	return emptyPMContent(d.root.childNodes)
 }
 
@@ -121,7 +139,14 @@ func SummarizeDocument(raw json.RawMessage) DocumentSummary {
 // or non-paragraph content.
 func IsEmptyDocument(raw json.RawMessage) bool {
 	root, ok := decodeLenientNode(raw)
-	if !ok || root.Type != "doc" {
+	if !ok {
+		return false
+	}
+	if root.Type == "markdown" {
+		var text string
+		return len(root.Text) > 0 && json.Unmarshal(root.Text, &text) == nil && strings.TrimSpace(text) == ""
+	}
+	if root.Type != "doc" {
 		return false
 	}
 	return emptyPMContent(root.childNodes)
@@ -304,6 +329,18 @@ func hydrateLenientNode(node *pmNode) {
 
 func summarizeRoot(root pmNode) DocumentSummary {
 	lines := []string{}
+	if root.Type == "markdown" {
+		appendNormalizedLines(root.textValue, &lines)
+		plainText := strings.Join(lines, "\n")
+		var text string
+		isEmpty := len(root.Text) > 0 && json.Unmarshal(root.Text, &text) == nil && strings.TrimSpace(text) == ""
+		return DocumentSummary{
+			PlainText: plainText,
+			Label:     markdownFirstLine(root.textValue),
+			Excerpt:   TruncateRunes(plainText, MaxExcerptRunes),
+			IsEmpty:   isEmpty,
+		}
+	}
 	collectTextLines(root, &lines)
 	plainText := strings.Join(lines, "\n")
 	var label string
@@ -318,6 +355,20 @@ func summarizeRoot(root pmNode) DocumentSummary {
 		Excerpt:   TruncateRunes(plainText, MaxExcerptRunes),
 		IsEmpty:   isEmpty,
 	}
+}
+
+func markdownFirstLine(text string) string {
+	for _, raw := range strings.Split(text, "\n") {
+		line := collapseWhitespace(raw)
+		prefix := strings.TrimLeft(line, "#")
+		if size := len(line) - len(prefix); size > 0 && size <= 6 && (prefix == "" || strings.HasPrefix(prefix, " ")) {
+			line = strings.TrimSpace(prefix)
+		}
+		if line != "" {
+			return TruncateRunes(line, MaxLabelRunes)
+		}
+	}
+	return ""
 }
 
 func backlinkInfoFromRoot(root pmNode, targetNoteID string) (string, []string) {

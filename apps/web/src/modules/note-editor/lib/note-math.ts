@@ -1,5 +1,5 @@
 import katex from "katex";
-import type { NoteDocument, NoteNode } from "../../../entities/note";
+import type { NoteNode, RichNoteDocument } from "../../../entities/note";
 
 type NoteLatexValidation =
   | { ok: true; html: string }
@@ -205,7 +205,7 @@ function upgradeBlockList(blocks: NoteNode[]): { blocks: NoteNode[]; changed: bo
  * Converts raw LaTeX delimiters (`\[...\]`, `$$...$$`, and `\(...\)`) in plain Note paragraphs
  * into native `blockMath` / `inlineMath` nodes whenever KaTeX validates them.
  */
-export function upgradeLatexDelimitersInDocument(document: NoteDocument): NoteDocument {
+export function upgradeLatexDelimitersInDocument(document: RichNoteDocument): RichNoteDocument {
   if (!Array.isArray(document.content) || document.content.length === 0) return document;
   const { blocks, changed } = upgradeBlockList(document.content);
   return changed ? { ...document, content: blocks } : document;

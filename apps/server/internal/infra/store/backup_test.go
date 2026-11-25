@@ -374,6 +374,21 @@ func TestArchiveRestoreRejectsDomainInvalidWorkspaceWithoutReplacingLibrary(t *t
 }
 
 func TestCanvasNotesRoundTripThroughArchive(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		document json.RawMessage
+	}{
+		{"legacy", json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"round trip"}]}]}`)},
+		{"markdown", json.RawMessage(`{"type":"markdown","text":"# Round trip\n\n- [x] done\n  **tetap utuh**  "}`)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assertCanvasNoteBackupRoundTrip(t, tc.document)
+		})
+	}
+}
+
+func assertCanvasNoteBackupRoundTrip(t *testing.T, document json.RawMessage) {
+	t.Helper()
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "notes-backup.db"))
 	if err != nil {
@@ -384,7 +399,6 @@ func TestCanvasNotesRoundTripThroughArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"round trip"}]}]}`)
 	created, err := store.CreateNoteInstance(ctx, workspace.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "backup-request", ClientNoteID: "backup-note", ClientInstanceID: "backup-instance",
 		ElementID: "backup-element", ExpectedCanvasVersion: workspace.CanvasVersion, Document: document,

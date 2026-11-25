@@ -4,8 +4,8 @@ import {
   isValidNoteBlockId,
   NOTE_BLOCK_NODE_TYPES,
   noteBlockIdRepairs,
-  type NoteDocument,
   type NoteNode,
+  type RichNoteDocument,
 } from "../../../entities/note";
 
 const blockNodeTypes = NOTE_BLOCK_NODE_TYPES;
@@ -14,7 +14,7 @@ function createBlockId() {
   return globalThis.crypto?.randomUUID?.() ?? `block-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function ensureNoteBlockIds(document: NoteDocument): NoteDocument {
+export function ensureNoteBlockIds(document: RichNoteDocument): RichNoteDocument {
   let changed = false;
   const seen = new Set<string>();
   const needsId = (node: NoteNode) => {

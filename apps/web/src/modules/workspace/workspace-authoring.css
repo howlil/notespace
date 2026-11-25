@@ -334,6 +334,22 @@
 
 .notespace-note-content > :first-child { margin-top: 0; }
 .notespace-note-content > :last-child { margin-bottom: 0; }
+.notespace-note-markdown .cm-editor, .notespace-note-markdown .cm-scroller { font: inherit; }
+.notespace-note-markdown .cm-focused { outline: none; }
+.notespace-note-markdown .cm-content, .notespace-note-markdown .cm-line { padding: 0; }
+.notespace-note-markdown .cm-placeholder { color: var(--muted); }
+.notespace-note-markdown .cm-content { caret-color: var(--ink); }
+.note-md-heading-1, .note-md-heading-2, .note-md-heading-3,
+.note-md-heading-4, .note-md-heading-5, .note-md-heading-6 { font-weight: 600; }
+.note-md-heading-1 { font-size: 1.43em; }
+.note-md-heading-2 { font-size: 1.22em; }
+.note-md-heading-3 { font-size: 1.07em; }
+.note-md-strong { font-weight: 700; }
+.note-md-emphasis { font-style: italic; }
+.note-md-strike { text-decoration: line-through; }
+.note-md-link { color: var(--accent); text-decoration: underline; }
+.note-md-code { font-family: ui-monospace, monospace; background: var(--tint); }
+
 .notespace-note-content p { margin: 0 0 .5em; }
 .notespace-note-content h1,
 .notespace-note-content h2,

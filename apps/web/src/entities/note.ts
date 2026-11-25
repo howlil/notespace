@@ -8,7 +8,9 @@ export type NoteNode = {
   text?: string;
 };
 
-export type NoteDocument = { type: "doc"; content: NoteNode[] };
+export type RichNoteDocument = { type: "doc"; content: NoteNode[] };
+export type MarkdownNoteDocument = { type: "markdown"; text: string };
+export type NoteDocument = RichNoteDocument | MarkdownNoteDocument;
 
 export const NOTE_CARD_COLORS = ["default", "blue", "teal", "green", "yellow", "orange", "pink", "purple"] as const;
 export type NoteCardColor = (typeof NOTE_CARD_COLORS)[number];
@@ -53,8 +55,8 @@ const CANVAS_NOTE_DATA_KEY = "notespaceNote";
 const MIN_EXPANDED_HEIGHT = 48;
 const MAX_EXPANDED_HEIGHT = 10000;
 
-export function emptyNoteDocument(): NoteDocument {
-  return { type: "doc", content: [] };
+export function emptyNoteDocument(): MarkdownNoteDocument {
+  return { type: "markdown", text: "" };
 }
 
 export function readCanvasNoteReference(element: { customData?: unknown; isDeleted?: boolean } | null | undefined): CanvasNoteReference | null {
@@ -155,8 +157,11 @@ export function noteFirstLine(document: NoteDocument): string {
     }
     return "";
   };
-  const line = firstText(document.content);
-  return line.length > NOTE_LABEL_MAX_LENGTH ? `${line.slice(0, NOTE_LABEL_MAX_LENGTH - 1).trimEnd()}…` : line;
+  const line = document.type === "markdown"
+    ? document.text.split(/\r?\n/).map((value) => value.trim().replace(/^#{1,6}(?:\s+|$)/, "").replace(/\s+/g, " ")).find(Boolean) ?? ""
+    : firstText(document.content);
+  const characters = Array.from(line);
+  return characters.length > NOTE_LABEL_MAX_LENGTH ? `${characters.slice(0, NOTE_LABEL_MAX_LENGTH - 1).join("").trimEnd()}…` : line;
 }
 
 /** Block nodes that carry a stable `blockId` for block references (mirrors the server contract). */

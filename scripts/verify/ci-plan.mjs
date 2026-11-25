@@ -11,7 +11,9 @@ import process from "node:process";
 
 export const LANES = ["web", "server", "browser", "landing", "desktop", "release-policy", "compose"];
 
-const DOCS = /^(docs\/|\.agents\/|(README|AGENTS|DESIGN|CHANGELOG)\.md$)/;
+const DOCS = /^(docs\/|\.agents\/|(README|AGENTS|DESIGN|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|SUPPORT)\.md$|\.github\/PULL_REQUEST_TEMPLATE\.md$|\.github\/ISSUE_TEMPLATE\/(bug_report|feature_request|config)\.yml$)/;
+// Landing tests assert published self-host commands against the root README.
+const README_CONTRACT = /^README\.md$/;
 const LANDING = /^(landing\/|wrangler\.jsonc$)/;
 const RELEASE_POLICY = /^(scripts\/|\.github\/workflows\/|Taskfile\.yml$|package\.json$)/;
 const DESKTOP_BETA_NOTE = /^docs\/DESKTOP_BETA_RELEASE_/;
@@ -54,6 +56,10 @@ function addPathLanes(plan, path) {
   if (isNativePath(path)) plan.desktop = true;
   if (RELEASE_POLICY.test(path)) plan["release-policy"] = true;
 
+  if (README_CONTRACT.test(path)) {
+    plan.landing = true;
+    return true;
+  }
   if (isPureDocsPath(path)) return true;
   if (DESKTOP_BETA_NOTE.test(path)) {
     plan.desktop = true;
@@ -137,7 +143,9 @@ export function selectLanes(event, paths) {
   if (event === "schedule" || event === "workflow_dispatch") return allLanes(true);
   if (event === "push") {
     if (!Array.isArray(paths) || paths.length === 0) return allLanes(true);
-    if (paths.every(isPureDocsPath)) return allLanes(false);
+    if (paths.every(isPureDocsPath)) {
+      return { ...allLanes(false), landing: paths.some((path) => README_CONTRACT.test(path)) };
+    }
     if (paths.every((path) => isPureDocsPath(path) || LANDING.test(path))) {
       return { ...allLanes(false), landing: true };
     }

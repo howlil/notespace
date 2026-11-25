@@ -122,6 +122,11 @@ function ToolGroupSlot({
         ariaControls={isGrouped ? `canvas-tool-group-${group.id}` : undefined}
         onClick={() => {
           if (isGrouped) {
+            if (!isActive) {
+              onClose();
+              onSelectTool(current.type);
+              return;
+            }
             onToggleOpen();
             return;
           }

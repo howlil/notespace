@@ -5,13 +5,7 @@ const suite = (risk, property, overrides = [], smoke = null) => ({ risk, propert
 const override = (match, risk, property) => ({ match, risk, property });
 
 export const browserProofPolicy = {
-  "canvas/canvas-note-core.e2e.mjs": suite("P0", "Canvas-native Note creation, focus, persistence, undo, conflict recovery, and geometry"),
-  "canvas/canvas-note-links.e2e.mjs": suite("P1", "Canvas Note duplication, cross-workspace linking, embedding, connectors, and extraction", [
-    override(/duplicating a Note|native Ctrl\+D|spawns a connected/, "P0", "Canvas Note duplication and connector creation preserve canonical Note identity"),
-  ]),
-  "canvas/canvas-note-rich.e2e.mjs": suite("P1", "Canvas Note rich formatting, read-mode interactivity, fold geometry, and media", [
-    override(/unique block identities/, "P0", "Typed rich formatting saves deterministic unique block identities"),
-  ]),
+  "canvas/canvas-note.e2e.mjs": suite("P0", "Canvas-native Note creation, focus, persistence, undo, conflict recovery, and geometry"),
   "canvas/canvas-peer-sync.e2e.mjs": suite("P1", "Same-browser peer delivery and durable scene readback"),
   "canvas/canvas-pinch-zoom.e2e.mjs": suite("P1", "Canvas gesture ownership across native and HTML surfaces"),
   "canvas/canvas-toolbar.e2e.mjs": suite("P1", "Canvas creation, source/output lifecycle, selection and source-only export", [

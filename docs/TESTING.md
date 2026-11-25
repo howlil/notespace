@@ -252,7 +252,7 @@ cargo tauri build -- --locked
 
 `ci.yml` is the only PR/master workflow. Its `classify` job selects lanes from the changed paths with `scripts/verify/ci-plan.mjs`:
 
-- docs-only changes select no lanes (on both PR and `master` push);
+- docs-only changes select no lanes (on both PR and `master` push), including the explicitly recognized community health files; root `README.md` changes select the landing lane because its self-hosting claims have a landing contract test;
 - landing-only changes select only the `landing` lane (on both PR and `master` push);
 - PRs split core lanes by owner:
   - web changes run `web` + `browser` (affected proof; `features/settings/` also runs `landing`; unit/contract test-only files run `web` only);
@@ -280,7 +280,7 @@ options, not a mandatory sequence of every test layer:
 
 | Change boundary | First faithful proof | Escalate when |
 | --- | --- | --- |
-| Documentation/instructions only | Inspect changed text, links, referenced paths/commands and applicable existing contracts | A documented executable boundary also changes; no local product build/full suite just for prose |
+| Documentation/instructions only | Inspect changed text, links, referenced paths/commands and applicable existing contracts | Root README changes select the landing contract checks; no unrelated full app build for prose |
 | Web placement or import boundary | `bun run lint` or `bunx --no-install eslint <changed-file>` | Run the full lint pass when shared rules or module ownership change |
 | Web pure rule/orchestration | Existing colocated Node test | Use the affected existing browser journey for DOM, focus, rendering, or browser lifecycle behavior |
 | Go capability/validation | Existing package test | SQL/transaction/restore changes need real SQLite; concurrency needs race proof; process durability needs restart/readback |

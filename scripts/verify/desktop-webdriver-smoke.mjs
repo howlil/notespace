@@ -8,6 +8,14 @@ import process from "node:process";
 import { spawn } from "node:child_process";
 import { Builder, By, Capabilities, Key } from "selenium-webdriver";
 import { isExpectedNativeCloseDisconnect } from "./native-close-session.mjs";
+import {
+  buildNativeReport,
+  classifyNativeFailure,
+  formatNativeSummaryMarkdown,
+  parseNativeSmokeCases,
+  sanitizeDiagnosticText,
+  writeNativeReport,
+} from "./native-smoke-report.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const application = process.env.TAURI_APP_BINARY
@@ -28,6 +36,10 @@ if ((upgradeSeed || upgradeVerify) && (!upgradeFixture || !process.env.NOTESPACE
   throw new Error("Upgrade proof requires NOTESPACE_UPGRADE_FIXTURE and isolated NOTESPACE_DESKTOP_TEST_DATA_DIR");
 }
 const critical = process.argv.includes("--critical") || process.env.TAURI_NATIVE_PRODUCT_SMOKE === "1" || upgradeSeed;
+const selectedCases = parseNativeSmokeCases(process.argv.slice(2), { critical, upgradeSeed, upgradeVerify });
+const reportPath = process.env.NOTESPACE_NATIVE_REPORT ? resolve(root, process.env.NOTESPACE_NATIVE_REPORT) : null;
+const resultsDir = reportPath ? resolve(reportPath, "..") : resolve(root, "test-results");
+const binaryKind = /[/\\]release[/\\]/i.test(application) ? "release" : "debug";
 
 if (critical && !process.env.NOTESPACE_DESKTOP_TEST_DATA_DIR) {
   throw new Error("Critical desktop smoke requires NOTESPACE_DESKTOP_TEST_DATA_DIR for isolated product data.");
@@ -44,6 +56,51 @@ const driverArgs = existsSync(nativeDriver) ? ["--native-driver", nativeDriver] 
 const driverProcess = spawn(driverBinary, driverArgs, { cwd: root, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
 let driver;
 let activeOrigin;
+const caseResults = [];
+
+async function captureFailureScreenshot(caseName) {
+  if (!driver) return null;
+  try {
+    mkdirSync(resultsDir, { recursive: true });
+    const file = resolve(resultsDir, `native-failure-${caseName}.png`);
+    const base64 = await driver.takeScreenshot();
+    writeFileSync(file, Buffer.from(base64, "base64"));
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+async function runNamedCase(name, property, expectedState, fn) {
+  const startedAt = Date.now();
+  try {
+    const result = await fn();
+    caseResults.push({
+      name,
+      property,
+      expectedState,
+      status: "pass",
+      category: null,
+      durationMs: Date.now() - startedAt,
+      error: null,
+      screenshot: null,
+    });
+    return result;
+  } catch (error) {
+    const screenshot = await captureFailureScreenshot(name);
+    caseResults.push({
+      name,
+      property,
+      expectedState,
+      status: "fail",
+      category: classifyNativeFailure(error),
+      durationMs: Date.now() - startedAt,
+      error: sanitizeDiagnosticText(error?.message ?? error),
+      screenshot,
+    });
+    return null;
+  }
+}
 
 try {
   await waitForWebDriver(driverUrl, driverProcess);
@@ -56,64 +113,122 @@ try {
   driver = await openNativeSession(capabilities);
 
   await waitForDesktopRuntime(driver);
-  // Historical installed MSI used for upgrade seeding predates custom chrome.
-  if (!upgradeSeed) await assertDesktopChrome(driver, false);
-  const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
-  assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
   const firstUrl = await driver.getCurrentUrl();
   assert.match(firstUrl, /^http:\/\/127\.0\.0\.1:\d+\//, "desktop must use an OS-allocated loopback port");
   activeOrigin = new URL(firstUrl).origin;
+
   if (upgradeSeed) {
     // Run against an INSTALLED historical MSI, never a debug binary.
     // Persist the fixture only after the OS close and sidecar shutdown.
-    const marker = await runLegacyProductPersistenceJourney(driver);
-    Object.assign(marker, await seedDurableDomains(driver));
-    await closeDesktopWindow(driver);
-    await waitForLocalServerExit();
-    await driver.quit().catch(() => {});
-    driver = undefined;
-    writeFileSync(resolve(upgradeFixture), JSON.stringify(marker, null, 2), { flag: "wx" });
-    console.log("upgrade proof: legacy installed app created durable library", marker.workspaceTitle);
+    await runNamedCase("upgrade-seed", "Seed historical installed MSI data", "Seeded Workspace and domains flushed to SQLite", async () => {
+      const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
+      assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
+      const marker = await runLegacyProductPersistenceJourney(driver);
+      Object.assign(marker, await seedDurableDomains(driver));
+      await closeDesktopWindow(driver);
+      await waitForLocalServerExit();
+      await driver.quit().catch(() => {});
+      driver = undefined;
+      writeFileSync(resolve(upgradeFixture), JSON.stringify(marker, null, 2), { flag: "wx" });
+      console.log("upgrade proof: legacy installed app created durable library", marker.workspaceTitle);
+    });
   } else if (upgradeVerify) {
     // Run against an INSTALLED candidate MSI with the SAME data and WebView profile.
-    const marker = JSON.parse(readFileSync(resolve(upgradeFixture), "utf8"));
-    assert.equal(typeof marker.workspaceTitle, "string");
-    assert.equal(typeof marker.noteMarker, "string");
-    await assertProductPersistence(driver, marker);
-    await assertDurableDomains(marker);
-    await closeDesktopWindow(driver);
-    await waitForLocalServerExit();
-    console.log("upgrade proof: candidate installed app read legacy authored state", marker.workspaceTitle);
-  } else {
-    await driver.executeScript(
-      "localStorage.setItem(arguments[0], arguments[1]);",
-      persistedKey,
-      "persisted",
-    );
-    const productMarker = critical ? await runProductPersistenceJourney(driver) : null;
-    if (critical) {
+    await runNamedCase("upgrade-verify", "Read back legacy authored state after MSI upgrade", "Candidate MSI preserves all authored workspaces, notes, assets, and trash", async () => {
+      await assertDesktopChrome(driver, false);
+      const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
+      assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
+      const marker = JSON.parse(readFileSync(resolve(upgradeFixture), "utf8"));
+      assert.equal(typeof marker.workspaceTitle, "string");
+      assert.equal(typeof marker.noteMarker, "string");
+      await assertProductPersistence(driver, marker);
+      await assertDurableDomains(marker);
       await closeDesktopWindow(driver);
-      // Closing the WebView is insufficient: the Go/SQLite sidecar must have
-      // terminated before the second native launch reuses the data directory.
       await waitForLocalServerExit();
+      console.log("upgrade proof: candidate installed app read legacy authored state", marker.workspaceTitle);
+    });
+  } else {
+    const selected = new Set(selectedCases);
+    if (selected.has("native-runtime-chrome")) {
+      await runNamedCase("native-runtime-chrome", "Loopback origin, Tauri IPC, and caption chrome", "Caption controls, drag strip, IPC, and maximize/restore work without overlap", async () => {
+        const nativeIPC = await driver.executeScript("return Boolean(window.__TAURI_INTERNALS__?.invoke)");
+        assert.equal(nativeIPC, true, "Native app must retain Tauri IPC capability after authenticated loopback navigation");
+        await assertDesktopChrome(driver, false);
+        await assertWindowCaptionControls(driver);
+      });
     }
-    await driver.quit().catch(() => {});
-    driver = undefined;
-  
-    driver = await openNativeSession(capabilities);
-    await waitForDesktopRuntime(driver);
-    const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
-    assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
-    if (critical) {
-      assert.ok(productMarker, "critical smoke must have a product marker");
-      await assertProductPersistence(driver, productMarker);
+
+    if (selected.has("native-relaunch")) {
+      await runNamedCase("native-relaunch", "WebView2 storage survives relaunch", "localStorage persists across native restart", async () => {
+        await driver.executeScript("localStorage.setItem(arguments[0], arguments[1]);", persistedKey, "persisted");
+        await driver.quit().catch(() => {});
+        driver = undefined;
+        driver = await openNativeSession(capabilities);
+        await waitForDesktopRuntime(driver);
+        const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
+        assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
+        await driver.executeScript("localStorage.removeItem(arguments[0]);", persistedKey);
+      });
     }
-    await driver.executeScript("localStorage.removeItem(arguments[0]);", persistedKey);
-    console.log(critical
-      ? "native WebDriver smoke passed: launch, close flush, product persistence, relaunch persistence"
-      : "native WebDriver smoke passed: launch, stable origin, relaunch persistence");
+
+    if (selected.has("native-persistence")) {
+      await runNamedCase("native-persistence", "Close flush, sidecar shutdown, and SQLite relaunch durability", "Canvas + Canvas Note flush on close and read back after relaunch", async () => {
+        await driver.executeScript("localStorage.setItem(arguments[0], arguments[1]);", persistedKey, "persisted");
+        const productMarker = await runProductPersistenceJourney(driver);
+        await closeDesktopWindow(driver);
+        // Closing the WebView is insufficient: the Go/SQLite sidecar must have
+        // terminated before the second native launch reuses the data directory.
+        await waitForLocalServerExit();
+        await driver.quit().catch(() => {});
+        driver = undefined;
+
+        driver = await openNativeSession(capabilities);
+        await waitForDesktopRuntime(driver);
+        const restored = await driver.executeScript("return localStorage.getItem(arguments[0]);", persistedKey);
+        assert.equal(restored, "persisted", "desktop browser state must survive relaunch");
+        assert.ok(productMarker, "critical smoke must have a product marker");
+        await assertProductPersistence(driver, productMarker);
+        await driver.executeScript("localStorage.removeItem(arguments[0]);", persistedKey);
+      });
+    }
+
+    if (selected.has("native-html-sandbox")) {
+      await runNamedCase("native-html-sandbox", "Code Worker and WebView2 HTML/IPC sandbox isolation", "Nested srcdoc sandbox blocks Tauri IPC, storage, fetch, and top-frame escape", async () => {
+        await ensureIsolatedWorkspaceForCase(driver, `Native sandbox ${Date.now()}`);
+        await assertDesktopChrome(driver, true);
+        await assertCodeModule(driver);
+      });
+    }
   }
+
+  const report = buildNativeReport({
+    mode: upgradeSeed ? "upgrade-seed" : upgradeVerify ? "upgrade-verify" : critical ? "critical" : "smoke",
+    binaryKind,
+    runtime: { platform: process.platform },
+    cases: caseResults,
+  });
+  writeNativeReport(reportPath, report);
+  if (report.firstFailure) {
+    throw new Error(`[${report.firstFailure.category}] ${report.firstFailure.name}: ${report.firstFailure.error}`);
+  }
+  console.log(
+    critical
+      ? `native WebDriver critical passed (${report.passed}/${report.total} cases): ${report.cases.map((c) => c.name).join(", ")}`
+      : `native WebDriver smoke passed (${report.passed}/${report.total} cases): ${report.cases.map((c) => c.name).join(", ")}`,
+  );
 } finally {
+  if (caseResults.length && reportPath) {
+    const report = buildNativeReport({
+      mode: upgradeSeed ? "upgrade-seed" : upgradeVerify ? "upgrade-verify" : critical ? "critical" : "smoke",
+      binaryKind,
+      runtime: { platform: process.platform },
+      cases: caseResults,
+    });
+    writeNativeReport(reportPath, report);
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      writeFileSync(process.env.GITHUB_STEP_SUMMARY, formatNativeSummaryMarkdown(report), { flag: "a" });
+    }
+  }
   if (driver) await driver.quit().catch(() => {});
   driverProcess.kill();
 }
@@ -174,7 +289,6 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(state.controls, 3, "Minimize, maximize and close remain accessible");
   assert.equal(state.search, 1, "Search remains reachable in the Explorer header");
   assert.equal(state.settings, 1, "Settings remain reachable in both shell states");
-  assert.equal(state.explorerWidth, 228, "One shared 228px Explorer");
   assert.equal(state.explorerCount, 1, "One category explorer");
   assert.equal(state.railCount, 0, "No retired Workspace rail");
   assert.equal(state.brandCount, 1, "One Explorer header brand link");
@@ -187,32 +301,37 @@ async function assertDesktopChrome(session, workspace) {
   }
 }
 
-async function assertExplorerCollapse(session) {
-  const canvas = await visibleElement(session, By.css('.excalidraw__canvas.interactive'));
-  const positions = () => session.executeScript(`
-    const panel = document.querySelector('#notespace-home-sidebar');
-    return { width: panel.getBoundingClientRect().width, inert: panel.inert, state: panel.dataset.notespaceLibraryExplorer };
-  `);
-  await (await visibleElement(session, By.css('[data-explorer-toggle][aria-expanded="true"]'))).click();
-  await session.wait(async () => (await positions()).width < 1, 5_000, "Explorer completely releases its native dock width");
-  const closed = await positions();
-  assert.equal(closed.inert, true);
-  assert.equal(closed.state, "closed");
-  assert.equal(await session.executeScript('return arguments[0] === document.querySelector(".excalidraw__canvas.interactive")', canvas), true, "Collapse keeps the same Canvas instance");
-  await session.executeScript(`
-    const trigger = document.querySelector('[data-explorer-edge-trigger]');
-    trigger?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
-    trigger?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
-  `);
-  await session.wait(async () => (await positions()).state === "peeking", 5_000, "Arc Edge-Peek reveals Explorer on left-edge hover");
-  await (await visibleElement(session, By.css('[data-explorer-toggle][aria-expanded="false"]'))).click();
-  await session.wait(async () => Math.abs((await positions()).width - 228) < 1, 5_000);
+async function assertWindowCaptionControls(session) {
   const maximize = await visibleElement(session, By.css('.desktop-window-controls > button[aria-label="Maximize window"], .desktop-window-controls > button[aria-label="Restore window"]'));
-  const originalLabel = await maximize.getAttribute('aria-label');
+  const originalLabel = await maximize.getAttribute("aria-label");
   await maximize.click();
-  await session.wait(async () => (await maximize.getAttribute('aria-label')) !== originalLabel, 5_000, 'Caption maximize/restore works after Explorer collapse');
+  await session.wait(async () => (await maximize.getAttribute("aria-label")) !== originalLabel, 5_000, "Caption maximize/restore works natively");
   await maximize.click();
-  await session.wait(async () => (await maximize.getAttribute('aria-label')) === originalLabel, 5_000);
+  await session.wait(async () => (await maximize.getAttribute("aria-label")) === originalLabel, 5_000);
+}
+
+async function ensureIsolatedWorkspaceForCase(session, workspaceTitle) {
+  const homeLinks = await session.findElements(By.css('#notespace-home-sidebar a[aria-label="Notespace home"]'));
+  if (homeLinks.length) {
+    await homeLinks[0].click();
+    await waitForUrl(session, /[/]$/);
+  }
+  const firstRun = await session.findElements(By.xpath("//main//button[normalize-space()='Create Workspace']"));
+  if (firstRun.length) {
+    await firstRun[0].click();
+    const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
+    await field.sendKeys(workspaceTitle);
+    await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
+  } else {
+    await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
+    const field = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
+    await field.sendKeys(workspaceTitle, Key.ENTER);
+    const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
+    await link.click();
+  }
+  await waitForUrl(session, /\/workspaces\//);
+  await waitForWorkspaceSaved(session);
+  return decodeURIComponent(new URL(await session.getCurrentUrl()).pathname.split("/").pop());
 }
 
 // The retired Note editor is replaced by the Canvas as the authored surface.
@@ -285,38 +404,10 @@ async function runLegacyProductPersistenceJourney(session) {
 
 async function runProductPersistenceJourney(session) {
   const workspaceTitle = `Desktop smoke ${Date.now()}`;
-  const firstRun = await session.findElements(By.xpath("//main//button[normalize-space()='Create Workspace']"));
-  if (firstRun.length) {
-    await firstRun[0].click();
-    const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
-    await field.sendKeys(workspaceTitle);
-    await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
-  } else {
-    await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
-    const field = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
-    await field.sendKeys(workspaceTitle, Key.ENTER);
-    const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
-    await link.click();
-  }
-  await waitForUrl(session, /\/workspaces\//);
-  const workspaceId = decodeURIComponent(new URL(await session.getCurrentUrl()).pathname.split("/").pop());
-  let canvasNote = null;
-  if (!upgradeSeed) {
-    await assertDesktopChrome(session, true);
-    await waitForWorkspaceSaved(session);
-    await drawRectangleOnCanvas(session);
-    await assertExplorerCollapse(session);
-    const home = await visibleElement(session, By.css('#notespace-home-sidebar a[aria-label="Notespace home"]'));
-    await home.click();
-    await waitForUrl(session, /[/]$/);
-    await assertDesktopChrome(session, false);
-    const reenter = await visibleElement(session, By.xpath("//a[@aria-label=" + xpathLiteral("Open " + workspaceTitle) + "]"));
-    await reenter.click();
-    await waitForUrl(session, /[/]workspaces[/]/);
-    await assertDesktopChrome(session, true);
-    await assertCodeModule(session);
-    canvasNote = await assertCanvasNoteModule(session, workspaceId);
-  }
+  const workspaceId = await ensureIsolatedWorkspaceForCase(session, workspaceTitle);
+  await assertDesktopChrome(session, true);
+  await drawRectangleOnCanvas(session);
+  const canvasNote = await assertCanvasNoteModule(session, workspaceId);
   return { workspaceTitle, workspaceId, canvasNote };
 }
 

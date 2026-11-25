@@ -120,6 +120,19 @@ test("new or unsupported browser registrations cannot become an empty green smok
   }
 });
 
+test("renamed or orphaned P0/smoke override fails closed instead of silently downgrading risk", () => {
+  withSuites({
+    "tests/e2e/canvas/canvas-toolbar.e2e.mjs": 'test("renamed worker test without expected marker", () => {});',
+  }, (directory) => {
+    assert.throws(() => selectBrowserRun(directory, { mode: "smoke" }), /Orphaned browser proof override/);
+  });
+  withSuites({
+    "tests/e2e/library/search.e2e.mjs": 'test("renamed search journey", () => {});',
+  }, (directory) => {
+    assert.throws(() => selectBrowserRun(directory, { mode: "smoke" }), /Orphaned browser smoke matcher/);
+  });
+});
+
 test("case matching escapes punctuation and anchors the entire Node test name", () => {
   const name = "save (v1) + [draft].?";
   withSuites({ "tests/e2e/canvas/workspace-persistence.e2e.mjs": `test(${JSON.stringify(name)}, () => {});` }, (directory) => {

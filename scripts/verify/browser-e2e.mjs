@@ -3,13 +3,13 @@
  * --critical retains the legacy critical set; --file runs one complete suite.
  * --list validates and prints the plan without starting any browser/server.
  */
-import { readFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { selectBrowserRun } from "./browser-discovery.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
-const valueFlags = new Set(["--mode", "--file", "--changed-files", "--concurrency", "--test-timeout"]);
+const valueFlags = new Set(["--mode", "--file", "--changed-files", "--concurrency", "--test-timeout", "--summary-out"]);
 const booleanFlags = new Set(["--critical", "--list"]);
 
 function flagValue(name, inline, next) {
@@ -57,7 +57,21 @@ if (options["--list"]) {
   if (plan.pattern) nodeArgs.push(`--test-name-pattern=${plan.pattern}`);
   console.error(`Browser proof: ${plan.files.length} file(s), ${plan.proofs.length} case(s), ${plan.reason}, concurrency ${concurrency}`);
   for (const file of plan.files) console.error(`  ${relative(root, file)}`);
+  const startedAt = Date.now();
   const result = spawnSync(process.execPath, [...nodeArgs, ...plan.files], { cwd: root, stdio: "inherit" });
   if (result.error) throw result.error;
+  const summaryOut = options["--summary-out"] ?? process.env.NOTESPACE_BROWSER_SUMMARY;
+  if (summaryOut) {
+    const outPath = resolve(root, summaryOut);
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, JSON.stringify({
+      mode,
+      reason: plan.reason,
+      files: plan.files.map((file) => relative(root, file)),
+      cases: plan.proofs.length,
+      exitCode: result.status ?? 1,
+      durationMs: Date.now() - startedAt,
+    }, null, 2));
+  }
   process.exit(result.status ?? 1);
 }

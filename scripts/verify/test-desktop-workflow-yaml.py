@@ -90,6 +90,11 @@ def check_desktop_ci(desktop):
     assert "github.workflow" in desktop["concurrency"]["group"], "Reusable desktop CI must not cancel its caller"
     assert desktop["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
 
+    linux = desktop["jobs"]["check-desktop"]
+    assert "inputs.profile == 'regression'" in linux.get("if", ""), (
+        "Extended Linux desktop job must not duplicate release-policy on normal PR/master native runs"
+    )
+
     win = desktop["jobs"]["check-desktop-windows"]
     assert "needs" not in win and "if" not in win
     assert win["runs-on"] == "windows-2022"
@@ -101,6 +106,16 @@ def check_desktop_ci(desktop):
     assert "cargo install tauri-cli" not in runs
     assert runs.index("bun run desktop:icons") < runs.index("tauri-apps/cli")
     assert "assert-windows-pe-subsystem.mjs" in runs
+    assert any(
+        s.get("env", {}).get("NOTESPACE_NATIVE_REPORT") == "test-results/native-report.json"
+        for s in win["steps"]
+        if isinstance(s, dict) and "test:desktop:critical" in s.get("run", "")
+    )
+    assert any(
+        s.get("if") == "failure()" and "upload-artifact" in s.get("uses", "")
+        for s in win["steps"]
+        if isinstance(s, dict)
+    )
 
     for step in win["steps"]:
         if step.get("uses") == "actions/cache/save@v4":

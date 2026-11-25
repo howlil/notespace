@@ -30,13 +30,14 @@ const SERVER_APP = /^apps\/server\//;
 const DESKTOP_APP = /^apps\/desktop\//;
 const COMPOSE = /^(Dockerfile|\.dockerignore|compose(\.[a-z0-9_-]+)?\.ya?ml|scripts\/verify\/smoke-persistence\.py)$/;
 const NATIVE_SCRIPTS = /^(scripts\/(release|dev|assets)\/|scripts\/verify\/(desktop|native|smoke-desktop|assert-windows|check-desktop|test-desktop|prepare-native))/;
+const RELEASE_POLICY_ONLY = /^(scripts\/release\/(resolve-desktop-release-version|assert-desktop-release-ci|release-request)\.mjs|scripts\/(release|verify|assets)\/.*\.test\.mjs)$/;
 const WEB_SCRIPTS = /^scripts\/verify\/(browser-|run-node-tests)/;
 const SERVER_SCRIPTS = /^scripts\/verify\/(check-gofmt|server-process-integration)/;
 const CI_PLAN_SCRIPTS = /^scripts\/verify\/ci-plan(\.test)?\.mjs$/;
 const WORKFLOW_DESKTOP_OR_RELEASE = /^\.github\/workflows\/(verify-desktop|release|release-desktop|publish-desktop)\.yml$/;
 
 // Paths that can change the native Windows WebView2/sidecar/release proof.
-// Test-only Go files under internal/{domain,infra} do not alter the compiled sidecar binary.
+// Test-only Go/web files and pure SemVer/admission scripts do not alter the native binary.
 const NATIVE_MATCH = new RegExp([
   "^docs/DESKTOP_BETA_RELEASE_",
   "^apps/desktop/",
@@ -44,6 +45,8 @@ const NATIVE_MATCH = new RegExp([
   "^scripts/verify/(desktop|native|smoke-desktop|assert-windows|check-desktop|test-desktop|prepare-native)",
   "^apps/server/(cmd|internal/app|internal/domain|internal/infra)/",
   "^apps/web/src/(platform/desktop|platform/runtime|routes/__root|app/AppRoot)",
+  "^apps/web/src/modules/canvas/objects/code-block/(CodeBlockContextMenu\\.tsx|preview/)",
+  "^apps/web/src/modules/workspace/session/",
   "^apps/web/vite\\.config\\.",
   "^\\.github/workflows/(ci|verify-desktop|release|release-desktop|publish-desktop)\\.yml$",
   "^Taskfile\\.yml$",
@@ -51,7 +54,7 @@ const NATIVE_MATCH = new RegExp([
   "^bun\\.lock$",
 ].join("|"));
 
-const isNativePath = (path) => NATIVE_MATCH.test(path) && !SERVER_TEST_ONLY.test(path);
+const isNativePath = (path) => NATIVE_MATCH.test(path) && !SERVER_TEST_ONLY.test(path) && !WEB_UNIT_ONLY.test(path) && !RELEASE_POLICY_ONLY.test(path);
 const isPureDocsPath = (path) => DOCS.test(path) && !DESKTOP_BETA_NOTE.test(path);
 const allLanes = (value) => Object.fromEntries(LANES.map((lane) => [lane, value]));
 
@@ -105,6 +108,10 @@ function addPathLanes(plan, path) {
   }
   if (COMPOSE.test(path)) {
     plan.compose = true;
+    return true;
+  }
+  if (RELEASE_POLICY_ONLY.test(path)) {
+    plan["release-policy"] = true;
     return true;
   }
   if (NATIVE_SCRIPTS.test(path)) {

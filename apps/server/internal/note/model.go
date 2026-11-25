@@ -173,10 +173,13 @@ type Store interface {
 // non-paragraph content. Only such Notes may be deleted without losing data.
 func IsEmptyDocument(document json.RawMessage) bool {
 	var root emptyNode
-	if err := json.Unmarshal(document, &root); err != nil || root.Type != "doc" {
+	if err := json.Unmarshal(document, &root); err != nil {
 		return false
 	}
-	return emptyContent(root.Content)
+	if root.Type == "markdown" {
+		return root.Text != nil && strings.TrimSpace(*root.Text) == ""
+	}
+	return root.Type == "doc" && emptyContent(root.Content)
 }
 
 type emptyNode struct {
@@ -221,7 +224,16 @@ func ValidateDocument(document json.RawMessage) error {
 	decoder := json.NewDecoder(bytes.NewReader(document))
 	decoder.UseNumber()
 	var root map[string]any
-	if err := decoder.Decode(&root); err != nil || root["type"] != "doc" {
+	if err := decoder.Decode(&root); err != nil {
+		return ErrInvalid
+	}
+	if root["type"] == "markdown" {
+		if _, ok := root["text"].(string); ok && len(root) == 2 {
+			return nil
+		}
+		return ErrInvalid
+	}
+	if root["type"] != "doc" {
 		return ErrInvalid
 	}
 	content, ok := root["content"].([]any)
@@ -582,16 +594,17 @@ type pmMark struct {
 	Attrs map[string]any `json:"attrs"`
 }
 
-// ExtractSearchText extracts only user-authored plain text from a ProseMirror
-// Note document (text nodes and non-empty noteImage alt text), joining inline
-// text within blocks and separating text blocks with "\n". Non-JSON input falls
-// back to the raw string.
+// ExtractSearchText returns authored Markdown or the text and alt text of a legacy Note.
 func ExtractSearchText(document json.RawMessage) string {
 	var root pmNode
 	if err := json.Unmarshal(document, &root); err != nil {
 		return string(document)
 	}
 	lines := []string{}
+	if root.Type == "markdown" {
+		appendNormalizedLines(root.Text, &lines)
+		return strings.Join(lines, "\n")
+	}
 	collectTextLines(root, &lines)
 	return strings.Join(lines, "\n")
 }
@@ -661,7 +674,20 @@ func TruncateRunes(value string, maxRunes int) string {
 // collapsed and capped at 120 runes with "…" when truncated, mirroring web noteFirstLine.
 func ExtractFirstLine(document json.RawMessage) string {
 	var root pmNode
-	if err := json.Unmarshal(document, &root); err != nil || root.Type != "doc" {
+	if err := json.Unmarshal(document, &root); err != nil {
+		return ""
+	}
+	if root.Type == "markdown" {
+		for _, raw := range strings.Split(root.Text, "\n") {
+			line := collapseWhitespace(raw)
+			prefix := strings.TrimLeft(line, "#")
+			if size := len(line) - len(prefix); size > 0 && size <= 6 && (prefix == "" || strings.HasPrefix(prefix, " ")) {
+				line = strings.TrimSpace(prefix)
+			}
+			if line != "" {
+				return TruncateRunes(line, MaxLabelRunes)
+			}
+		}
 		return ""
 	}
 	line := firstTextBlock(root.Content)

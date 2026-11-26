@@ -13,6 +13,11 @@ import (
 
 // --- merged from canvas_note_test.go ---
 
+func mdDoc(text string) json.RawMessage {
+	raw, _ := json.Marshal(map[string]string{"type": "markdown", "text": text})
+	return raw
+}
+
 func TestCanvasNoteCompactModeFollowsCanonicalScene(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-note-compact.db"))
@@ -31,7 +36,7 @@ func TestCanvasNoteCompactModeFollowsCanonicalScene(t *testing.T) {
 		ClientInstanceID:      "compact-instance",
 		ElementID:             "compact-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: compactNoteScene(false)},
 		X:                     40,
 		Y:                     64,
@@ -122,7 +127,7 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 
 	// Target note placed twice in wsA and once in wsB.
 	longBody := strings.Repeat("word ", 70)
-	targetDoc := json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":1,"blockId":"target-blk-1"},"content":[{"type":"text","text":"Target Design"}]},{"type":"paragraph","content":[{"type":"text","text":"` + longBody + `"}]}]}`)
+	targetDoc := mdDoc("# Target Design ^target-blk-1\n\n" + longBody)
 	resA1, err := store.CreateNoteInstance(ctx, wsA.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "req-a1", ClientNoteID: "note-target", ClientInstanceID: "inst-a1", ElementID: "el-a1",
 		ExpectedCanvasVersion: wsA.CanvasVersion, Document: targetDoc,
@@ -152,18 +157,9 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 	}
 
 	// Referencing note placed in wsB with duplicate links + embed + blockRef to note-target.
-	refDoc := json.RawMessage(`{
-		"type":"doc",
-		"content":[
-			{"type":"paragraph","content":[
-				{"type":"text","text":"Referencing Note "},
-				{"type":"text","text":"link1","marks":[{"type":"link","attrs":{"href":"/workspaces/` + wsA.ID + `?noteId=note-target"}}]},
-				{"type":"text","text":"link2","marks":[{"type":"link","attrs":{"href":"/workspaces/` + wsB.ID + `?noteId=note-target&blockId=target-blk-1"}}]}
-			]},
-			{"type":"noteEmbed","attrs":{"noteId":"note-target","workspaceId":"` + wsA.ID + `"}},
-			{"type":"noteBlockReference","attrs":{"noteId":"note-target","workspaceId":"` + wsA.ID + `","blockId":"target-blk-1"}}
-		]
-	}`)
+	refDoc := mdDoc("Referencing Note [link1](/workspaces/" + wsA.ID + "?noteId=note-target)[link2](/workspaces/" + wsB.ID + "?noteId=note-target&blockId=target-blk-1)\n\n" +
+		"![Embedded Note](/workspaces/" + wsA.ID + "?noteId=note-target)\n\n" +
+		"[Block reference](/workspaces/" + wsA.ID + "?noteId=note-target&blockId=target-blk-1)")
 	if _, err := store.CreateNoteInstance(ctx, wsB.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "req-ref", ClientNoteID: "note-ref", ClientInstanceID: "inst-ref", ElementID: "el-ref",
 		ExpectedCanvasVersion: resB1.Canvas.Version, Document: refDoc,
@@ -174,7 +170,7 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 	}
 
 	// Note placed only in wsTrashed (which also links to note-target), then wsTrashed is trashed.
-	trashedNoteDoc := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Orphaned Backlink","marks":[{"type":"link","attrs":{"href":"/workspaces/` + wsA.ID + `?noteId=note-target"}}]}]}]}`)
+	trashedNoteDoc := mdDoc("[Orphaned Backlink](/workspaces/" + wsA.ID + "?noteId=note-target)")
 	if _, err := store.CreateNoteInstance(ctx, wsTrashed.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "req-trashed", ClientNoteID: "note-unplaced-after-trash", ClientInstanceID: "inst-trashed", ElementID: "el-trashed",
 		ExpectedCanvasVersion: wsTrashed.CanvasVersion, Document: trashedNoteDoc,
@@ -195,7 +191,7 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 	if _, err := store.CreateNoteInstance(ctx, wsA.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "req-toggle", ClientNoteID: "note-toggle", ClientInstanceID: "inst-toggle", ElementID: "el-toggle",
 		ExpectedCanvasVersion: resA2.Canvas.Version,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":false}}]}`),
+		Document:              mdDoc("<details>\n<summary></summary>\n\n</details>"),
 		Canvas:                makeScene([3]string{"el-a1", "note-target", "inst-a1"}, [3]string{"el-a2", "note-target", "inst-a2"}, [3]string{"el-toggle", "note-toggle", "inst-toggle"}),
 		X:                     780, Y: 20, Width: 320, Height: 180,
 	}); err != nil {
@@ -299,7 +295,7 @@ func TestDeleteEmptyNoteRefusesPlacedOrContentfulNotesAndClearsUndoneOrphans(t *
 		ClientInstanceID:      "empty-instance",
 		ElementID:             "empty-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: noteDeleteScene("empty-element", "empty-note", "empty-instance", false)},
 		X:                     40, Y: 64, Width: 320, Height: 180,
 	})
@@ -342,7 +338,7 @@ func TestDeleteEmptyNoteRefusesPlacedOrContentfulNotesAndClearsUndoneOrphans(t *
 		ClientInstanceID:      "contentful-instance",
 		ElementID:             "contentful-element",
 		ExpectedCanvasVersion: undone.Version,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"kept"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"kept"}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: noteDeleteScene("contentful-element", "contentful-note", "contentful-instance", true)},
 		X:                     40, Y: 64, Width: 320, Height: 180,
 	})
@@ -385,7 +381,7 @@ func TestCanvasNoteTrashLifecycle(t *testing.T) {
 	created, err := store.CreateNoteInstance(ctx, workspace.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "trash-request", ClientNoteID: "trash-note", ClientInstanceID: "trash-instance",
 		ElementID: "trash-element", ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document: json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"zebrafinch research"}]}]}`),
+		Document: json.RawMessage(`{"type":"markdown","text":"zebrafinch research"}`),
 		Canvas:   domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: noteDeleteScene("trash-element", "trash-note", "trash-instance", false)},
 		X:        40, Y: 64, Width: 320, Height: 180,
 	})

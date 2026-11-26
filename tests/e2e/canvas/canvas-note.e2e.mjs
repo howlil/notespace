@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import {
   api, apiResponse, ariaLabel, assert, cleanupWorkspace, clearFault, click, clickAt, count, createWorkspace, doubleClick, drag, execute,
   containsText, expectFocused, expectCount, fill, injectFault, movePointer, openWorkspace, placeholder, press, role, sleep, start, stop, textOf, visible,
-  requestLog, typeText, uploadFile, value, waitFor, waitSaved as harnessWaitSaved, waitUrl,
+  requestLog, typeText, waitFor, waitSaved as harnessWaitSaved, waitUrl,
 } from "../support/harness.mjs";
 
 /**
@@ -132,33 +132,17 @@ async function openNoteMenu(selector = "[data-note-element]") {
   return menu;
 }
 
-async function createNoteOnCanvas(workspaceId, { legacy = false } = {}) {
+async function createNoteOnCanvas(workspaceId) {
   const noteTool = '[role="toolbar"][aria-label="Canvas tools"] button[aria-label="Note"]';
-  const rule = legacy ? await injectFault({
-    method: "POST",
-    path: `/api/workspaces/${workspaceId}/note-instances`,
-    times: 1,
-    respond: ({ body }) => ({
-      replaceBody: JSON.stringify({ ...JSON.parse(body), document: { type: "doc", content: [] } }),
-    }),
-  }) : null;
-  try {
-    await visible(noteTool);
-    await click(noteTool);
-    await visible(`[data-note-editing="true"] ${legacy ? ".ProseMirror" : ".cm-content"}`);
-    await waitSaved();
-    const elementId = await execute(() => document.querySelector('[data-note-editing="true"]').getAttribute("data-note-element"));
-    const stored = await api(`/api/workspaces/${workspaceId}`);
-    const element = (stored.canvas.data.elements ?? []).find((candidate) => candidate.id === elementId && !candidate.isDeleted);
-    assert.ok(element?.customData?.notespaceNote, "Canvas stores the created Note reference");
-    return element.customData.notespaceNote.noteId;
-  } finally {
-    if (rule !== null) await clearFault(rule);
-  }
-}
-
-function createLegacyNoteOnCanvas(workspaceId) {
-  return createNoteOnCanvas(workspaceId, { legacy: true });
+  await visible(noteTool);
+  await click(noteTool);
+  await visible('[data-note-editing="true"] .cm-content');
+  await waitSaved();
+  const elementId = await execute(() => document.querySelector('[data-note-editing="true"]').getAttribute("data-note-element"));
+  const stored = await api(`/api/workspaces/${workspaceId}`);
+  const element = (stored.canvas.data.elements ?? []).find((candidate) => candidate.id === elementId && !candidate.isDeleted);
+  assert.ok(element?.customData?.notespaceNote, "Canvas stores the created Note reference");
+  return element.customData.notespaceNote.noteId;
 }
 
 test("critical: failed Note save keeps the draft and the retry persists it", { timeout: 180_000 }, async () => {
@@ -230,27 +214,21 @@ test("critical: checklist state persists after reload", { timeout: 180_000 }, as
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createLegacyNoteOnCanvas(workspace.id);
+    const noteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await expectFocused(editor);
-    await typeText("/checklist");
-    await press("Enter");
-    await typeText("buy milk");
+    await fill(editor, "- [ ] buy milk");
     await waitSaved();
     await press("Escape");
     await expectCount(editor, 0);
-    await doubleClick(card);
-    await visible(editor);
-    await click(`${card} ul[data-type="taskList"] input[type="checkbox"]`);
+    await click(`${card} [data-note-read-view] ul[data-type="taskList"] input[type="checkbox"]`);
     await waitSaved();
-    await press("Escape");
-    await expectCount(editor, 0);
 
     await openWorkspace(workspace.id);
     await visible(card);
     await expectCount(`${card} [data-type="taskItem"][data-checked="true"]`, 1);
-    assert.match(JSON.stringify((await api(`/api/notes/${noteId}`)).document), /"checked":true/, "checked state is saved in the canonical Note");
+    assert.deepEqual((await api(`/api/notes/${noteId}`)).document, { type: "markdown", text: "- [x] buy milk" }, "checked state is saved in the Markdown source");
   } finally {
     await cleanupWorkspace(workspace.id);
   }
@@ -407,28 +385,21 @@ test("critical: multi-selected Notes stay intact and removing instances keeps ca
   }
 });
 
-test("Note read view renders rich semantic content and scales as one surface with zoom", { timeout: 180_000 }, async () => {
+test("Note read view renders Markdown semantics and scales as one surface with zoom", { timeout: 180_000 }, async () => {
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createLegacyNoteOnCanvas(workspace.id);
+    const noteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
     await press("Escape");
-    await expectCount(`${card} .ProseMirror`, 0);
+    await expectCount(`${card} .cm-content`, 0);
     const stored = await api(`/api/workspaces/${workspace.id}`);
     const carrier = (stored.canvas.data.elements ?? []).find((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
     assert.equal(carrier.opacity, 0, "The scene carrier is invisible; the card surface is drawn with theme tokens");
 
     const current = await api(`/api/notes/${noteId}`);
-    const richDocument = { type: "doc", content: [
-      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Rich heading" }] },
-      { type: "bulletList", content: ["first item", "second item"].map((text) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text }] }] })) },
-      { type: "paragraph", content: [
-        { type: "text", text: "bold", marks: [{ type: "bold" }] },
-        { type: "text", text: " external", marks: [{ type: "link", attrs: { href: "https://example.com/docs" } }] },
-      ] },
-    ] };
-    await api(`/api/notes/${noteId}`, { method: "PUT", body: { document: richDocument, expectedRevision: current.revision } });
+    const text = "## Rich heading\n\n- first item\n- second item\n\n**bold** [external](https://example.com/docs)";
+    await api(`/api/notes/${noteId}`, { method: "PUT", body: { document: { type: "markdown", text }, expectedRevision: current.revision } });
 
     await openWorkspace(workspace.id);
     await visible(`${card} [data-note-read-view] h2`);
@@ -436,7 +407,7 @@ test("Note read view renders rich semantic content and scales as one surface wit
     await expectCount(`${card} ul li`, 2);
     await expectCount(`${card} strong`, 1);
     await expectCount(`${card} a[href="https://example.com/docs"][target="_blank"][rel~="noopener"]`, 1);
-    await expectCount(`${card} .ProseMirror`, 0);
+    await expectCount(`${card} .cm-content`, 0);
 
     const proportions = () => execute((selector) => {
       const surface = document.querySelector(selector);
@@ -454,31 +425,25 @@ test("Note read view renders rich semantic content and scales as one surface wit
   }
 });
 
-test("critical: rich formatting typed in a Note saves with unique block identities", { timeout: 180_000 }, async () => {
+test("critical: typed Markdown source survives save and reload exactly", { timeout: 180_000 }, async () => {
   const workspace = await createWorkspace(`Canvas Note ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createLegacyNoteOnCanvas(workspace.id);
-    await typeText("## Plan");
-    await press("Enter");
-    await typeText("- first");
-    await press("Enter");
-    await typeText("second");
-    await press("Enter");
-    await press("Enter");
-    await typeText("closing paragraph");
+    const noteId = await createNoteOnCanvas(workspace.id);
+    const card = "[data-note-element]";
+    const editor = `${card} .cm-content`;
+    const source = "## Plan\n- first\n- second\n\nclosing paragraph\n\n```js\nconst small = 1 < 2;\n```";
+    await expectFocused(editor);
+    await fill(editor, source);
     await waitSaved();
-    const stored = await api(`/api/notes/${noteId}`);
-    const blocks = [];
-    const walk = (nodes = []) => nodes.forEach((node) => {
-      if (node.attrs && "blockId" in node.attrs) blocks.push({ type: node.type, blockId: node.attrs.blockId });
-      walk(node.content);
-    });
-    walk(stored.document.content);
-    const types = blocks.map(({ type }) => type);
-    assert.ok(types.includes("heading") && types.includes("bulletList"), `Input rules produce semantic blocks: ${types.join(",")}`);
-    assert.ok(blocks.every(({ blockId }) => typeof blockId === "string" && blockId.length > 0), "Every block has an identity");
-    assert.equal(new Set(blocks.map(({ blockId }) => blockId)).size, blocks.length, "Split blocks never share an identity");
+    assert.deepEqual((await api(`/api/notes/${noteId}`)).document, { type: "markdown", text: source }, "Saved text equals what was typed");
+
+    await press("Escape");
+    await openWorkspace(workspace.id);
+    await visible(`${card} [data-note-read-view] h2`);
+    await expectCount(`${card} ul li`, 2);
+    await containsText(`${card} pre code`, "const small = 1 < 2;");
+    assert.deepEqual((await api(`/api/notes/${noteId}`)).document, { type: "markdown", text: source }, "Reload does not rewrite the source");
   } finally {
     await cleanupWorkspace(workspace.id);
   }
@@ -602,14 +567,18 @@ test("cross-workspace linked Note instances share canonical content and keep ins
   }
 });
 
-test("embedded Note opens target via SPA navigation in edit and read views and renders missing targets", { timeout: 180_000 }, async () => {
+test("embedded Note opens its target through SPA navigation and renders missing targets", { timeout: 180_000 }, async () => {
   const token = `Embed${Date.now()}`;
   const workspaceA = await createWorkspace(`Embed Target ${token}`);
   const workspaceB = await createWorkspace(`Embed Host ${token}`);
+  const editor = "[data-note-element] .cm-content";
+  const putHost = async (hostId, text) => {
+    const current = await api(`/api/notes/${hostId}`);
+    await api(`/api/notes/${hostId}`, { method: "PUT", body: { document: { type: "markdown", text }, expectedRevision: current.revision } });
+  };
   try {
     await openWorkspace(workspaceA.id);
-    const targetId = await createLegacyNoteOnCanvas(workspaceA.id);
-    const editor = "[data-note-element] .ProseMirror";
+    const targetId = await createNoteOnCanvas(workspaceA.id);
     const targetTitle = `${token} target architecture`;
     await fill(editor, targetTitle);
     await waitSaved();
@@ -617,49 +586,23 @@ test("embedded Note opens target via SPA navigation in edit and read views and r
     await expectCount(editor, 0);
 
     await openWorkspace(workspaceB.id);
-    const hostId = await createLegacyNoteOnCanvas(workspaceB.id);
-    await expectFocused(editor);
-    await typeText("/embed");
-    await press("Enter");
-    const embedSearch = 'input[aria-label="Search Note to embed"]';
-    await visible(embedSearch);
-    await fill(embedSearch, targetTitle);
-    await click(role("button", new RegExp(targetTitle), { scope: role("listbox", "Canvas Note references") }));
-    await visible(`[data-note-embed="${targetId}"]`);
+    const hostId = await createNoteOnCanvas(workspaceB.id);
+    await fill(editor, "Host note");
     await waitSaved();
-
-    const unsavedTrail = `flush before leaving ${token}`;
-    await expectFocused(editor);
-    await press("Enter");
-    await typeText(unsavedTrail);
-    await click(`[data-note-embed="${targetId}"] a`);
-    await waitUrl(new RegExp(`/workspaces/${workspaceA.id}\\?noteId=${targetId}$`));
-    await visible("[data-note-element]");
+    await press("Escape");
     await expectCount(editor, 0);
-    assert.match(JSON.stringify((await api(`/api/notes/${hostId}`)).document), new RegExp(unsavedTrail), "SPA navigation from Edit view flushes unsaved edits");
+    await putHost(hostId, `Host note\n\n![Embedded](/workspaces/${workspaceA.id}?noteId=${targetId})`);
 
     await openWorkspace(workspaceB.id);
-    await expectCount(editor, 0);
-    await visible(`[data-note-element] [data-note-read-view] [data-note-embed="${targetId}"] a`);
-    await click(`[data-note-element] [data-note-read-view] [data-note-embed="${targetId}"] a`);
+    const embedLink = `[data-note-element] [data-note-read-view] [data-note-embed="${targetId}"] a`;
+    await visible(embedLink);
+    await containsText(`[data-note-embed="${targetId}"]`, targetTitle);
+    await click(embedLink);
     await waitUrl(new RegExp(`/workspaces/${workspaceA.id}\\?noteId=${targetId}$`));
     await visible("[data-note-element]");
 
-    const currentHost = await api(`/api/notes/${hostId}`);
     const missingId = `missing-note-${Date.now()}`;
-    await api(`/api/notes/${hostId}`, {
-      method: "PUT",
-      body: {
-        expectedRevision: currentHost.revision,
-        document: {
-          type: "doc",
-          content: [
-            ...(currentHost.document?.content ?? []),
-            { type: "noteEmbed", attrs: { noteId: missingId, workspaceId: workspaceA.id, label: "Missing reference" } },
-          ],
-        },
-      },
-    });
+    await putHost(hostId, `Host note\n\n![Missing reference](/workspaces/${workspaceA.id}?noteId=${missingId})`);
     await openWorkspace(workspaceB.id);
     await containsText(`[data-note-embed="${missingId}"]`, `Missing Note: ${missingId}`);
   } finally {
@@ -668,61 +611,46 @@ test("embedded Note opens target via SPA navigation in edit and read views and r
   }
 });
 
-test("advanced rich content supports image upload, math validation recovery, tables, and callouts", { timeout: 180_000 }, async () => {
+test("advanced Markdown supports image paste, math validation recovery, tables, and callouts", { timeout: 180_000 }, async () => {
   const workspace = await createWorkspace(`Canvas Note Rich ${Date.now()}`);
   const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", "base64");
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createLegacyNoteOnCanvas(workspace.id);
-    const editor = "[data-note-element] .ProseMirror";
-
-    await uploadFile('input[aria-label="Insert image"]', {
-      name: "diagram.png",
-      mimeType: "image/png",
-      buffer: tinyPng,
-    });
-    await visible('[data-note-element] img[src*="/assets/"]');
-
+    const noteId = await createNoteOnCanvas(workspace.id);
+    const card = "[data-note-element]";
+    const editor = `${card} .cm-content`;
+    const readView = `${card} [data-note-read-view]`;
     await expectFocused(editor);
-    await press("Enter");
-    await typeText("/math");
-    await press("Enter");
-    const mathDialog = role("dialog", "Insert Math formula");
-    await visible(mathDialog);
-    await fill('input[aria-label="LaTeX formula"]', "\\frac{1");
-    await click(role("button", "Insert", { scope: mathDialog }));
-    await visible('[role="dialog"][aria-label="Insert Math formula"] [role="alert"]');
-    assert.ok(!JSON.stringify((await api(`/api/notes/${noteId}`)).document).includes("frac"), "Invalid LaTeX error leaves stored Note unchanged");
 
-    await fill('input[aria-label="LaTeX formula"]', "a^2 + b^2 = c^2");
-    await click(role("button", "Block", { scope: mathDialog }));
-    await click(role("button", "Insert", { scope: mathDialog }));
-    await waitFor(async () => JSON.stringify((await api(`/api/notes/${noteId}`)).document).includes("a^2 + b^2 = c^2"), "Valid math block saves to Note");
+    await execute((selector, base64) => {
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      const data = new DataTransfer();
+      data.items.add(new File([bytes], "diagram.png", { type: "image/png" }));
+      document.querySelector(selector).dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, editor, tinyPng.toString("base64"));
+    await waitFor(async () => /!\[diagram\.png\]\(\/api\/workspaces\/[^)]+\/assets\/[^)]+\)/.exec((await api(`/api/notes/${noteId}`)).document.text) !== null, "Pasted image is stored as a Markdown image");
+    const imageLine = (await api(`/api/notes/${noteId}`)).document.text.trim();
 
-    await expectFocused(editor);
     await press("Enter");
-    await typeText("/table");
+    await typeText("$$");
     await press("Enter");
-    await visible("[data-note-element] table");
-    await typeText("Header 1");
+    await typeText("\\frac{1");
+    await press("Enter");
+    await typeText("$$");
     await waitSaved();
     await press("Escape");
-    await expectCount(editor, 0);
+    await visible(`${readView} [data-math-error="true"]`);
+    assert.ok((await api(`/api/notes/${noteId}`)).document.text.includes("\\frac{1"), "An invalid formula is shown as an error and never discarded");
 
-    await createLegacyNoteOnCanvas(workspace.id);
-    await visible(editor);
-    await typeText("/callout");
-    await press("Enter");
-    await typeText("Important callout reminder");
-    await waitSaved();
-    await press("Escape");
-    await expectCount(editor, 0);
+    const current = await api(`/api/notes/${noteId}`);
+    const text = `${imageLine}\n\n$$\na^2 + b^2 = c^2\n$$\n\n| Header 1 | Header 2 |\n| --- | --- |\n| a | b |\n\n> [!note]\n> Important callout reminder`;
+    await api(`/api/notes/${noteId}`, { method: "PUT", body: { document: { type: "markdown", text }, expectedRevision: current.revision } });
 
     await openWorkspace(workspace.id);
-    await visible('[data-note-element] [data-note-read-view] img[src*="/assets/"]');
-    await visible('[data-note-element] [data-note-read-view] .notespace-note-math[data-latex="a^2 + b^2 = c^2"] .katex');
-    await containsText("[data-note-element] [data-note-read-view] table", "Header 1");
-    await containsText('[data-note-element] [data-note-read-view] aside[data-note-callout="note"]', "Important callout reminder");
+    await visible(`${readView} img[src*="/assets/"]`);
+    await visible(`${readView} .notespace-note-math[data-latex="a^2 + b^2 = c^2"] .katex`);
+    await containsText(`${readView} table`, "Header 1");
+    await containsText(`${readView} [data-note-callout="note"]`, "Important callout reminder");
   } finally {
     await cleanupWorkspace(workspace.id);
   }
@@ -902,20 +830,11 @@ test("read-mode checklist and toggle stay interactive without editing and Delete
   const workspace = await createWorkspace(`Canvas Note Read Interactive ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    const noteId = await createLegacyNoteOnCanvas(workspace.id);
+    const noteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
+    const editor = `${card} .cm-content`;
     await expectFocused(editor);
-    await typeText("/checklist");
-    await press("Enter");
-    await typeText("Read-mode task");
-    await press("Enter");
-    await press("Enter");
-    await typeText("/toggle");
-    await press("Enter");
-    await typeText("Toggle summary");
-    await press("Enter");
-    await typeText("Toggle hidden body");
+    await fill(editor, "- [ ] Read-mode task\n\n<details open>\n<summary>Toggle summary</summary>\n\nToggle hidden body\n\n</details>");
     await waitSaved();
     await press("Escape");
     await expectCount(editor, 0);
@@ -935,9 +854,9 @@ test("read-mode checklist and toggle stay interactive without editing and Delete
     await openWorkspace(workspace.id);
     await visible(`${card} [data-type="taskItem"][data-checked="true"]`);
     await visible(`${card} [data-note-read-view] div[data-note-toggle][data-open="false"]`);
-    const savedDoc = JSON.stringify((await api(`/api/notes/${noteId}`)).document);
-    assert.match(savedDoc, /"checked":true/);
-    assert.match(savedDoc, /"open":false/);
+    const savedText = (await api(`/api/notes/${noteId}`)).document.text;
+    assert.match(savedText, /^- \[x\] Read-mode task$/m);
+    assert.match(savedText, /^<details>$/m);
 
     const cardBox = await visualBox(card);
     await clickAt(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
@@ -952,61 +871,52 @@ test("read-mode checklist and toggle stay interactive without editing and Delete
   }
 });
 
-test("Note supports Expand modal, Info & backlinks, Place existing picker, and Extract to Note", { timeout: 180_000 }, async () => {
+test("Note supports Expand modal, Info & backlinks, and the Place existing picker", { timeout: 180_000 }, async () => {
   const token = `Slice23${Date.now()}`;
   const workspaceA = await createWorkspace(`Note Modal A ${token}`);
   const workspaceB = await createWorkspace(`Note Modal B ${token}`);
   try {
     await openWorkspace(workspaceA.id);
-    const sourceNoteId = await createLegacyNoteOnCanvas(workspaceA.id);
+    const sourceNoteId = await createNoteOnCanvas(workspaceA.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
-    await expectFocused(editor);
+    const editor = `${card} .cm-content`;
     const primaryHeading = `Primary heading ${token}`;
-    const extractedBody = `Extracted paragraph ${token}`;
-    await typeText(primaryHeading);
-    await press("Enter");
-    await typeText(extractedBody);
+    await expectFocused(editor);
+    await fill(editor, primaryHeading);
     await waitSaved();
-
-    await press("Shift+Home");
-    const formattingToolbar = role("toolbar", "Note formatting");
-    await visible(formattingToolbar);
-    await click(role("button", "Extract", { scope: formattingToolbar }));
-
-    await expectCount(card, 2);
-    await waitSaved();
-    const afterExtract = await api(`/api/workspaces/${workspaceA.id}`);
-    const live = (afterExtract.canvas.data.elements ?? []).filter((candidate) => !candidate.isDeleted);
-    const extractedEl = live.find((candidate) => candidate.customData?.notespaceNote && candidate.customData.notespaceNote.noteId !== sourceNoteId);
-    const sourceEl = live.find((candidate) => candidate.customData?.notespaceNote?.noteId === sourceNoteId);
-    assert.ok(extractedEl && sourceEl, "Extract creates a distinct connected Note");
-    const extractedNoteId = extractedEl.customData.notespaceNote.noteId;
-    assert.ok(
-      live.some((candidate) => candidate.type === "arrow" && candidate.startBinding?.elementId === sourceEl.id && candidate.endBinding?.elementId === extractedEl.id),
-      "Extract connects the source Note and extracted Note with an arrow",
-    );
-    const sourceAfterExtract = await api(`/api/notes/${sourceNoteId}`);
-    assert.match(JSON.stringify(sourceAfterExtract.document), new RegExp(`noteId=${extractedNoteId}`), "Source Note leaves a link to the extracted Note");
-
     await press("Escape");
     await expectCount(editor, 0);
-    const sourceBox = await visualBox(`[data-note-element="${sourceEl.id}"]`);
-    await clickAt(sourceBox.x + sourceBox.width - 10, sourceBox.y + 10);
+
+    const linkedNoteId = await createNoteOnCanvas(workspaceA.id);
+    await fill(editor, `Linked target ${token}`);
+    await waitSaved();
+    await press("Escape");
+    await expectCount(editor, 0);
+    const source = await api(`/api/notes/${sourceNoteId}`);
+    await api(`/api/notes/${sourceNoteId}`, {
+      method: "PUT",
+      body: { document: { type: "markdown", text: `${primaryHeading}\n\n[Linked](/workspaces/${workspaceA.id}?noteId=${linkedNoteId})` }, expectedRevision: source.revision },
+    });
+    await openWorkspace(workspaceA.id);
+    await expectCount(card, 2);
+    const elements = (await api(`/api/workspaces/${workspaceA.id}`)).canvas.data.elements.filter((candidate) => !candidate.isDeleted && candidate.customData?.notespaceNote);
+    const sourceEl = elements.find((candidate) => candidate.customData.notespaceNote.noteId === sourceNoteId);
+    const linkedEl = elements.find((candidate) => candidate.customData.notespaceNote.noteId === linkedNoteId);
+
     await click(role("menuitem", "Expand", { exact: true, scope: await openNoteMenu(`[data-note-element="${sourceEl.id}"]`) }));
     await visible("[data-note-focus-modal]");
-    await visible("[data-note-focus-modal] .ProseMirror");
-    await expectCount(`${card} .ProseMirror`, 0);
+    await visible("[data-note-focus-modal] .cm-content");
+    await expectCount(`${card} .cm-content`, 0);
 
-    await click("[data-note-focus-modal] .ProseMirror");
-    await press("End");
+    await click("[data-note-focus-modal] .cm-content");
+    await press("Control+End");
     await typeText(" modal-edit");
     await waitSaved();
     await click(role("button", "Close focused Note"));
     await expectCount("[data-note-focus-modal]", 0);
     await containsText(`[data-note-element="${sourceEl.id}"]`, "modal-edit");
 
-    await click(role("menuitem", "Info & backlinks", { exact: true, scope: await openNoteMenu(`[data-note-element="${extractedEl.id}"]`) }));
+    await click(role("menuitem", "Info & backlinks", { exact: true, scope: await openNoteMenu(`[data-note-element="${linkedEl.id}"]`) }));
     await visible("[data-note-info-popover]");
     await containsText("[data-note-info-popover]", workspaceA.title);
     await containsText("[data-note-info-popover]", primaryHeading);
@@ -1035,112 +945,32 @@ test("Note supports Expand modal, Info & backlinks, Place existing picker, and E
   }
 });
 
-test("Note formatting supports highlight, text color, toggle, table Row-/Col-, click-to-edit math, and @/[[ Create & link", { timeout: 180_000 }, async () => {
-  const token = `Rich4${Date.now()}`;
-  const workspace = await createWorkspace(`Canvas Note Rich4 ${token}`);
+test("Note renders the inline HTML allowlist and shows anything else as literal text", { timeout: 180_000 }, async () => {
+  const workspace = await createWorkspace(`Canvas Note Inline HTML ${Date.now()}`);
   try {
     await openWorkspace(workspace.id);
-    await createLegacyNoteOnCanvas(workspace.id);
+    const noteId = await createNoteOnCanvas(workspace.id);
     const card = "[data-note-element]";
-    const editor = `${card} .ProseMirror`;
-    const targetTitle = `AlphaTarget ${token}`;
-    await fill(editor, targetTitle);
-    await waitSaved();
     await press("Escape");
-    await expectCount(editor, 0);
+    await expectCount(`${card} .cm-content`, 0);
+    const current = await api(`/api/notes/${noteId}`);
+    const text = [
+      '<mark data-tone="yellow">Marked</mark> <span data-color="blue">Colored</span> <u>Underlined</u>',
+      "",
+      "<script>window.__noteXss = 1</script>",
+      "",
+      'Inline <img src=x onerror="window.__noteXss = 2"> and [bad](javascript:window.__noteXss=3)',
+    ].join("\n");
+    await api(`/api/notes/${noteId}`, { method: "PUT", body: { document: { type: "markdown", text }, expectedRevision: current.revision } });
 
-    await createLegacyNoteOnCanvas(workspace.id);
-    await visible(editor);
-    await expectFocused(editor);
-
-    await typeText("HighlightWord");
-    await press("Shift+Home");
-    const formattingToolbar = role("toolbar", "Note formatting");
-    await visible(formattingToolbar);
-    await click(role("button", "Highlight", { scope: formattingToolbar }));
-    await click(role("button", "Highlight yellow", { scope: formattingToolbar }));
-    await visible(`${card} mark[data-note-highlight="yellow"]`);
-
-    await press("ArrowRight");
-    await press("Enter");
-    await typeText("ColoredWord");
-    await press("Shift+Home");
-    await visible(formattingToolbar);
-    await click(role("button", "Text color", { scope: formattingToolbar }));
-    await click(role("button", "Text color blue", { scope: formattingToolbar }));
-    await visible(`${card} span[data-note-text-color="blue"]`);
-
-    await press("ArrowRight");
-    await press("Enter");
-    await typeText("/math");
-    await press("Enter");
-    const insertMath = role("dialog", "Insert Math formula");
-    await visible(insertMath);
-    await fill(ariaLabel("LaTeX formula"), "x^2");
-    await click(role("button", "Insert", { scope: insertMath }));
-    await visible(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
-
-    await click(`${card} .tiptap-mathematics-render[data-latex="x^2"]`);
-    const editMath = role("dialog", "Edit Math formula");
-    await visible(editMath);
-    assert.equal(await value(ariaLabel("LaTeX formula")), "x^2");
-    await fill(ariaLabel("LaTeX formula"), "y^3");
-    await click(role("button", "Update", { scope: editMath }));
-    await visible(`${card} .tiptap-mathematics-render[data-latex="y^3"]`);
-
-    await press("End");
-    await press("Enter");
-    await typeText("See @AlphaTarget");
-    const refList = role("listbox", "Canvas Note references");
-    await visible(role("button", new RegExp(targetTitle), { scope: refList }));
-    await press("Enter");
-    await containsText(editor, targetTitle);
-
-    const freshTitle = `FreshIdea ${token}`;
-    await typeText(` and [[${freshTitle}`);
-    const createAndLinkBtn = role("button", `Create & link "${freshTitle}"`, { scope: refList });
-    await visible(createAndLinkBtn);
-    await click(createAndLinkBtn);
-    await expectCount(card, 3);
-
-    await press("Enter");
-    await typeText("/toggle");
-    await press("Enter");
-    await visible(`${card} div[data-note-toggle]`);
-    await typeText("Toggle title");
-    await press("Enter");
-    await typeText("Toggle content");
-
-    await click(`${card} .notespace-note-toggle-trigger`);
-    await visible(`${card} div[data-note-toggle][data-open="false"]`);
-    await visible(`${card} [data-note-toggle-summary]`);
-    await containsText(`${card} [data-note-toggle-summary]`, "Toggle title");
-    assert.ok(!(await textOf(`${card} div[data-note-toggle]`)).includes("Toggle content"), "Collapsed edit-mode toggle hides body while keeping summary visible");
-    await click(`${card} .notespace-note-toggle-trigger`);
-    await visible(`${card} div[data-note-toggle][data-open="true"]`);
-    await containsText(`${card} div[data-note-toggle]`, "Toggle content");
-
-    await press("Enter");
-    await typeText("/table");
-    await press("Enter");
-    await visible(`${card} table`);
-    await expectCount(`${card} table tr`, 2);
-    await click(ariaLabel("Add table row"));
-    await expectCount(`${card} table tr`, 3);
-    await click(ariaLabel("Delete table row"));
-    await expectCount(`${card} table tr`, 2);
-    await click(ariaLabel("Add table column"));
-    await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 3);
-    await click(ariaLabel("Delete table column"));
-    await expectCount(`${card} table tr:first-child th, ${card} table tr:first-child td`, 2);
-
-    await waitSaved();
     await openWorkspace(workspace.id);
-    await expectCount(card, 3);
-    await visible(`${card} [data-note-read-view] mark[data-note-highlight="yellow"]`);
-    await visible(`${card} [data-note-read-view] span[data-note-text-color="blue"]`);
-    await visible(`${card} [data-note-read-view] div[data-note-toggle]`);
-    await visible(`${card} [data-note-read-view] .notespace-note-math[data-latex="y^3"] .katex`);
+    const readView = `${card} [data-note-read-view]`;
+    await visible(`${readView} mark[data-note-highlight="yellow"]`);
+    await visible(`${readView} span[data-note-text-color="blue"]`);
+    await visible(`${readView} u`);
+    await containsText(readView, "<script>window.__noteXss = 1</script>");
+    await expectCount(`${readView} script, ${readView} img[onerror], ${readView} a[href^="javascript:"]`, 0);
+    assert.equal(await execute(() => window.__noteXss ?? null), null, "No authored HTML or link ran script");
   } finally {
     await cleanupWorkspace(workspace.id);
   }

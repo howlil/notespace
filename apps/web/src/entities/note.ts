@@ -1,16 +1,5 @@
-type NoteMark = { type: string; attrs?: Record<string, unknown> };
-
-export type NoteNode = {
-  type: string;
-  attrs?: Record<string, unknown>;
-  content?: NoteNode[];
-  marks?: NoteMark[];
-  text?: string;
-};
-
-export type RichNoteDocument = { type: "doc"; content: NoteNode[] };
-export type MarkdownNoteDocument = { type: "markdown"; text: string };
-export type NoteDocument = RichNoteDocument | MarkdownNoteDocument;
+/** Markdown is the only Note content format; every derived view is rebuilt from `text`. */
+export type NoteDocument = { type: "markdown"; text: string };
 
 export const NOTE_CARD_COLORS = ["default", "blue", "teal", "green", "yellow", "orange", "pink", "purple"] as const;
 export type NoteCardColor = (typeof NOTE_CARD_COLORS)[number];
@@ -55,7 +44,7 @@ const CANVAS_NOTE_DATA_KEY = "notespaceNote";
 const MIN_EXPANDED_HEIGHT = 48;
 const MAX_EXPANDED_HEIGHT = 10000;
 
-export function emptyNoteDocument(): MarkdownNoteDocument {
+export function emptyNoteDocument(): NoteDocument {
   return { type: "markdown", text: "" };
 }
 
@@ -146,35 +135,56 @@ export function notePlacement({
 
 const NOTE_LABEL_MAX_LENGTH = 120;
 
-/** Derived label: the first non-empty text block, never a stored title field (C2). */
+const MARKDOWN_PUNCTUATION_ESCAPE = /\\([!-/:-@[-`{-~])/g;
+
+/**
+ * Derived label: the first line that has readable text once Markdown syntax is dropped, never
+ * a stored title field (C2). Mirrors the server's `readableLines` so both sides agree.
+ */
 export function noteFirstLine(document: NoteDocument): string {
-  const textOf = (node: NoteNode): string => (node.text ?? "") + (node.content ?? []).map(textOf).join("");
-  const firstText = (nodes: readonly NoteNode[]): string => {
-    for (const node of nodes) {
-      const isTextBlock = node.content?.some((child) => child.type === "text") ?? false;
-      const text = isTextBlock ? textOf(node).replace(/\s+/g, " ").trim() : firstText(node.content ?? []);
-      if (text) return text;
+  let fence = "";
+  let line = "";
+  for (const raw of document.text.split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    const opener = /^(`{3,}|~{3,})/.exec(trimmed)?.[1] ?? "";
+    if (opener) {
+      if (!fence) fence = opener;
+      else if (opener[0] === fence[0] && opener.length >= fence.length) fence = "";
+      continue;
     }
-    return "";
-  };
-  const line = document.type === "markdown"
-    ? document.text.split(/\r?\n/).map((value) => value.trim().replace(/^#{1,6}(?:\s+|$)/, "").replace(/\s+/g, " ")).find(Boolean) ?? ""
-    : firstText(document.content);
+    const readable = (fence
+      ? trimmed
+      : /^\$\$$/.test(trimmed) || /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(trimmed)
+        ? ""
+        : trimmed
+          .replace(/(^|\s)\^[A-Za-z0-9_-]+\s*$/, "")
+          .replace(/^(?:>\s*)+/, "")
+          .replace(/^\[![A-Za-z0-9_-]+\]\s*/, "")
+          .replace(/^#+/, "")
+          .trim()
+          .replace(/^(?:[-+*]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/, "")
+          .replace(/!?\[((?:\\.|[^\]\\\n])*)\]\(\s*<?[^)\s>]*>?(?:\s+"[^"]*")?\s*\)/g, "$1")
+          .replace(/<\/?[A-Za-z][^>\n]*>/g, "")
+          .replace(/\*\*|~~|`/g, "")
+          .replace(/\|/g, " ")
+          .replace(MARKDOWN_PUNCTUATION_ESCAPE, "$1")).replace(/\s+/g, " ").trim();
+    if (readable) {
+      line = readable;
+      break;
+    }
+  }
   const characters = Array.from(line);
   return characters.length > NOTE_LABEL_MAX_LENGTH ? `${characters.slice(0, NOTE_LABEL_MAX_LENGTH - 1).join("").trimEnd()}…` : line;
 }
 
-/** Block nodes that carry a stable `blockId` for block references (mirrors the server contract). */
-export const NOTE_BLOCK_NODE_TYPES: ReadonlySet<string> = new Set([
-  "paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList", "taskList", "table",
-  "horizontalRule", "noteImage", "noteEmbed", "noteBlockReference", "noteCallout", "noteToggle",
-]);
-
-const NOTE_BLOCK_ID_MAX_LENGTH = 128;
-
+/** Block ids are `^id` markers in Markdown; the server accepts the same characters. */
 export function isValidNoteBlockId(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= NOTE_BLOCK_ID_MAX_LENGTH
-    && value.trim() === value && !value.includes("/") && !value.includes("\\");
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+}
+
+/** Image destinations a Note may render: only the library's own asset route. */
+export function isNoteAssetSrc(src: string): boolean {
+  return /^\/api\/workspaces\/[^/?#\s]+\/assets\/[^/?#\s]+$/.test(src.trim());
 }
 
 export function isSafeNoteLink(url: string): boolean {
@@ -202,24 +212,6 @@ export function isSafeNoteLink(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * Every block keeps a present, valid and unique identity. Returns the keys (in document order)
- * of blocks that need a fresh id: missing/invalid ids and every later duplicate of an id.
- */
-export function noteBlockIdRepairs<Key>(blocks: Iterable<{ key: Key; type: string; blockId: unknown }>): Key[] {
-  const seen = new Set<string>();
-  const repairs: Key[] = [];
-  for (const block of blocks) {
-    if (!NOTE_BLOCK_NODE_TYPES.has(block.type)) continue;
-    if (!isValidNoteBlockId(block.blockId) || seen.has(block.blockId)) {
-      repairs.push(block.key);
-      continue;
-    }
-    seen.add(block.blockId);
-  }
-  return repairs;
 }
 
 /**

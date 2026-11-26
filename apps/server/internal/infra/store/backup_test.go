@@ -378,7 +378,6 @@ func TestCanvasNotesRoundTripThroughArchive(t *testing.T) {
 		name     string
 		document json.RawMessage
 	}{
-		{"legacy", json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"round trip"}]}]}`)},
 		{"markdown", json.RawMessage(`{"type":"markdown","text":"# Round trip\n\n- [x] done\n  **tetap utuh**  "}`)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -593,7 +592,7 @@ func TestTrashedWorkspaceRestoresAndExportsAfterPlacedNoteDeleted(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"temporary note"}]}]}`)
+	document := json.RawMessage(`{"type":"markdown","text":"temporary note"}`)
 	created, err := store.CreateNoteInstance(ctx, workspace.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID:       "req-trash-note",
 		ClientNoteID:          "note-deleted-while-trashed",
@@ -784,7 +783,7 @@ func TestRestoreRollsBackAfterBorrowedAssetQueryFails(t *testing.T) {
 		ClientInstanceID:      "instance-rollback",
 		ElementID:             "el-rollback",
 		ExpectedCanvasVersion: 1,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Keep on rollback"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"Keep on rollback"}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[{"id":"el-rollback","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-rollback","instanceId":"instance-rollback"}}}],"appState":{},"files":{}}`)},
 		Width:                 240,
 		Height:                120,

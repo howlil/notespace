@@ -88,10 +88,17 @@ func (s *Store) SnapshotLibrary(ctx context.Context) (domain.LibraryBackup, erro
 }
 
 func (s *Store) restoreLibrary(ctx context.Context, value domain.LibraryBackup) error {
+	// Older archives carry rich Notes. Convert them before validation and before
+	// any DELETE so an archive that cannot be converted never touches the library.
+	notes, err := upgradeLegacyNotes(value.Notes)
+	if err != nil {
+		return err
+	}
+	value.Notes = notes
 	if err := domain.ValidateLibraryBackup(value); err != nil {
 		return err
 	}
-	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
+	err = s.db.WithTx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range []string{
 			`DELETE FROM workspace_search`,
 			`DELETE FROM workspace_search_meta`,
@@ -379,7 +386,7 @@ func readTrashTx(ctx context.Context, tx sqlite.DBTX, id string) (domain.TrashRe
 	return record, nil
 }
 
-// --- Pre-0026/0031 retired-artifact migration hook ---
+// --- Migration hook: retired-artifact scrubs (0026, 0031) and rich Note conversion (0033) ---
 
 func scrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx, name string) error {
 	switch name {
@@ -410,6 +417,8 @@ func scrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx, name string) e
 			return err
 		}
 		return scrubRetiredTrashTx(ctx, tx)
+	case migrations.NoteMarkdownMigration:
+		return convertNotesToMarkdownTx(ctx, tx)
 	default:
 		return nil
 	}

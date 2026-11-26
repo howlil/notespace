@@ -26,7 +26,7 @@ Screenshots live in `landing/public/product/`. Each is 2160×1350 (a 1440×900 w
 
 ## Copy rules
 
-- Describe shipped capability only. No Notes page, Split View, Focus Mode, Markdown import, Tiptap, AI, sign-in, or "open source".
+- Describe shipped capability only. No Notes page, Split View, Focus Mode, Markdown import, AI, sign-in, or "open source".
 - Control names are the app's own labels. `hero.test.mjs` checks each one against `apps/web/src`.
 - Canvas notes are shown because they ship. Whether to market them is an open product decision.
 - Multi-tab sync is same-browser only. Make no multiplayer or cross-device claims.

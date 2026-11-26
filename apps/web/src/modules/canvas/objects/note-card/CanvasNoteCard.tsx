@@ -1,16 +1,15 @@
 import { Maximize2 } from "lucide-react";
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { Note } from "../../../../platform/api/note-api";
 import { noteFirstLine, type CanvasNoteReference, type NoteDocument } from "../../../../entities/note";
 import {
-  NoteEditor,
+  MarkdownNoteEditor,
   NoteReadView,
-  toggleNoteToggleInDocument,
-  toggleTaskInDocument,
+  toggleNoteDetails,
+  toggleNoteTask,
   type CanvasNoteEntry,
   type NoteActivationPoint,
-  type NoteCreatedConnection,
   type NoteSaveState,
 } from "../../../note-editor";
 import {
@@ -126,10 +125,6 @@ export type CanvasNoteCardProps = {
   onRestore?: (noteId: string) => void;
   onRemoveMissing?: (elementId: string) => void;
   onAutoResize: (elementId: string, height: number) => void;
-  onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
-  onExtractToNote?: (sourceElementId: string, extractedDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
-  onCreateAndLinkNote?: (sourceElementId: string, initialDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
-  onSuccess?: (message: string) => void;
   onError: (message: string) => void;
 };
 
@@ -165,6 +160,17 @@ function NoteCardBody({
   renderEditor: (note: Note) => ReactNode;
 }) {
   const readScrollRef = useRef<HTMLDivElement>(null);
+  const noteId = entry.status === "ready" ? entry.note.id : "";
+  const noteText = entry.status === "ready" ? entry.note.document.text : "";
+  // Clicks write straight back to the Markdown source; callbacks stay stable so reads do not re-render.
+  const onToggleTask = useCallback((index: number, checked: boolean) => {
+    const text = toggleNoteTask(noteText, index, checked);
+    if (text !== noteText) onDocumentChange(noteId, { type: "markdown", text });
+  }, [noteId, noteText, onDocumentChange]);
+  const onToggleDetails = useCallback((index: number, open: boolean) => {
+    const text = toggleNoteDetails(noteText, index, open);
+    if (text !== noteText) onDocumentChange(noteId, { type: "markdown", text });
+  }, [noteId, noteText, onDocumentChange]);
   const readAutoFitActive = !editable && !folded && detail !== "label" && entry.status === "ready";
   const readyDocument = entry.status === "ready" ? entry.note.document : null;
 
@@ -185,8 +191,6 @@ function NoteCardBody({
   if (editable) return renderEditor(entry.note);
   if (folded) return <NoteLabel document={entry.note.document} zoom={zoom} lines={1} />;
   if (detail === "label") return <NoteLabel document={entry.note.document} zoom={zoom} lines={2} />;
-  const readyNote = entry.note;
-  const document = readyNote.document;
   return (
     <div
       ref={readScrollRef}
@@ -195,16 +199,10 @@ function NoteCardBody({
       style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
     >
       <NoteReadView
-        document={document}
+        document={entry.note.document}
         highlightBlockId={highlightBlockId}
-        onToggleTask={document.type === "doc" ? (target) => {
-          const nextDoc = toggleTaskInDocument(document, target);
-          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
-        } : undefined}
-        onToggleCollapse={document.type === "doc" ? (blockId, open) => {
-          const nextDoc = toggleNoteToggleInDocument(document, blockId, open);
-          if (nextDoc !== document) onDocumentChange(readyNote.id, nextDoc);
-        } : undefined}
+        onToggleTask={onToggleTask}
+        onToggleDetails={onToggleDetails}
       />
     </div>
   );
@@ -230,10 +228,6 @@ export function CanvasNoteCard({
   onRestore,
   onRemoveMissing,
   onAutoResize,
-  onPlaceLinkedNote,
-  onExtractToNote,
-  onCreateAndLinkNote,
-  onSuccess,
   onError,
 }: CanvasNoteCardProps) {
   const folded = reference.compact === true;
@@ -299,20 +293,16 @@ export function CanvasNoteCard({
         onRemoveMissing={onRemoveMissing ? () => onRemoveMissing(element.id) : undefined}
         onRestore={onRestore ? () => onRestore(reference.noteId) : undefined}
         renderEditor={(note) => (
-          <NoteEditor
-            note={note}
-            elementId={element.id}
+          <MarkdownNoteEditor
+            noteId={note.id}
             workspaceId={workspaceId}
+            document={note.document}
             minHeight={NOTE_CARD_MIN_HEIGHT}
             activationPoint={activationPoint}
             bodyMaxHeight={bodyMaxHeight}
             onDocumentChange={(document) => onDocumentChange(note.id, document)}
             readDocument={readDocument}
-            onAutoResize={onAutoResize}
-            onPlaceLinkedNote={onPlaceLinkedNote}
-            onExtractToNote={onExtractToNote}
-            onCreateAndLinkNote={onCreateAndLinkNote}
-            onSuccess={onSuccess}
+            onResize={(height) => onAutoResize(element.id, height)}
             onError={onError}
             onEscape={() => onEditingChange(null)}
           />

@@ -26,7 +26,7 @@ const globalsPath = join(appDir, 'shared', 'styles', 'globals.css')
 const APP_LABELS = [
   'Undo', 'Redo', 'Fit canvas', 'Object snapping', 'Compact', 'Docked',
   'Connect', 'Place existing Note', 'Info & backlinks', 'Move to Trash',
-  'Remove instance', 'Extract to Note', 'LaTeX',
+  'Remove instance', 'LaTeX',
   'Run JavaScript', 'Preview HTML', 'Copy code', 'Code theme',
   'Line numbers', 'Fit to content', 'Delete code block',
   'Categories', 'Explorer', 'Previous', 'Next', 'Quick Open', 'Trash',
@@ -99,7 +99,7 @@ test('every screenshot is a real 2160x1350 capture with a descriptive alt', () =
 })
 
 test('copy names only shipped capability', () => {
-  assert.doesNotMatch(copy, /Notes page|Notes app|Split View|Focus Mode|Tiptap|Markdown|Sixteen languages/)
+  assert.doesNotMatch(copy, /Notes page|Notes app|Split View|Focus Mode|Markdown import|Sixteen languages/)
   assert.doesNotMatch(copy, /\bAI\b|Sign in|open source|Join for Free|Get started free/i)
   assert.doesNotMatch(copy, /↗/)
   // Present in the tool catalog, but their behavior is not verified, so the page must not claim them.

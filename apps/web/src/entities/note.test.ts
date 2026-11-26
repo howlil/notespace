@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { duplicatedNoteInstanceIds, emptyNoteDocument, isSafeNoteLink, isValidNoteBlockId, NOTE_BLOCK_NODE_TYPES, NOTE_CARD_COLORS, NOTE_HIGHLIGHT_TONES, NOTE_TEXT_COLOR_TONES, noteBlockIdRepairs, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference, withoutCanvasNoteReference } from "./note.ts";
+import { duplicatedNoteInstanceIds, emptyNoteDocument, isNoteAssetSrc, isSafeNoteLink, isValidNoteBlockId, NOTE_CARD_COLORS, NOTE_HIGHLIGHT_TONES, NOTE_TEXT_COLOR_TONES, noteFirstLine, notePlacement, readCanvasNoteReference, withCanvasNoteReference, withoutCanvasNoteReference } from "./note.ts";
 
 test("Dropping a Canvas Note reference keeps other metadata and never mutates the input", () => {
     const customData = withCanvasNoteReference({ source: "canvas" }, { noteId: "note-1", instanceId: "instance-1" });
@@ -38,31 +38,27 @@ test("Canvas Note moves a new card to a free center slot", () => {
     assert.notDeepEqual(placement, { x: 240, y: 210 });
   });
 
-test("Canvas Note label is the first non-empty text block, trimmed and bounded", () => {
-  const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
-  assert.equal(noteFirstLine({ type: "doc", content: [] }), "");
-  assert.equal(noteFirstLine({ type: "doc", content: [{ type: "paragraph" }, { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "  Plan " }, { type: "text", text: "A", marks: [{ type: "bold" }] }] }, paragraph("body")] }), "Plan A");
-  assert.equal(noteFirstLine({ type: "doc", content: [{ type: "bulletList", content: [{ type: "listItem", content: [paragraph("nested item")] }] }] }), "nested item");
-  const long = noteFirstLine({ type: "doc", content: [paragraph("x".repeat(300))] });
+test("Canvas Note label is the first readable line, without Markdown syntax, trimmed and bounded", () => {
+  const label = (text: string) => noteFirstLine({ type: "markdown", text });
+  assert.equal(label(""), "");
+  assert.equal(label("\n  \n## **Plan** A ^h1\nbody"), "Plan A");
+  assert.equal(label("- [x] nested item"), "nested item");
+  assert.equal(label("> [!tip]\n> remember [the spec](/workspaces/w?noteId=n)"), "remember the spec");
+  assert.equal(label("```go\nx := 1\n```"), "x := 1");
+  assert.equal(label("$$\nE=mc^2\n$$"), "E=mc^2");
+  assert.equal(label("\\# literal hash"), "# literal hash");
+  const long = label("x".repeat(300));
   assert.equal(long.length, 120);
   assert.ok(long.endsWith("…"));
 });
 
-test("Canvas Note block identities are repaired when missing, invalid or duplicated", () => {
-  const blocks = [
-    { key: "a", type: "heading", blockId: null },
-    { key: "b", type: "paragraph", blockId: "p-1" },
-    { key: "c", type: "paragraph", blockId: "p-1" },
-    { key: "d", type: "text", blockId: undefined },
-    { key: "e", type: "listItem", blockId: null },
-    { key: "f", type: "bulletList", blockId: "bad/id" },
-    { key: "g", type: "taskList", blockId: " padded" },
-    { key: "h", type: "codeBlock", blockId: "x".repeat(129) },
-    { key: "i", type: "blockquote", blockId: "q-1" },
-  ];
-  assert.deepEqual(noteBlockIdRepairs(blocks), ["a", "c", "f", "g", "h"]);
-  assert.equal(isValidNoteBlockId("2f1c-uuid"), true);
-  assert.equal(isValidNoteBlockId(""), false);
+test("Block ids and asset sources accept only the shapes the server and renderer agree on", () => {
+  assert.equal(isValidNoteBlockId("2f1c-uuid_9"), true);
+  for (const bad of ["", "bad/id", " padded", "x".repeat(129), "has space", null]) assert.equal(isValidNoteBlockId(bad), false);
+  assert.equal(isNoteAssetSrc("/api/workspaces/ws-1/assets/img-1"), true);
+  for (const bad of ["https://example.com/a.png", "//evil/x", "/api/workspaces/ws-1/assets/", "/api/workspaces/ws-1/assets/a/b", "javascript:alert(1)"]) {
+    assert.equal(isNoteAssetSrc(bad), false);
+  }
 });
 
 test("Canvas Note placement never overlaps an occupied card, even when the center is crowded", () => {
@@ -116,8 +112,7 @@ test("safe Note links allow internal workspace links, http/https, and mailto whi
   assert.equal(isSafeNoteLink("/workspaces/ws-1/extra"), false);
 });
 
-test("Canvas Note reference validates expandedHeight, color, and noteToggle block identity", () => {
-  assert.ok(NOTE_BLOCK_NODE_TYPES.has("noteToggle"));
+test("Canvas Note reference validates expandedHeight and color", () => {
   assert.ok(NOTE_CARD_COLORS.includes("blue"));
   assert.ok(NOTE_CARD_COLORS.includes("teal"));
   assert.ok(NOTE_HIGHLIGHT_TONES.includes("yellow"));

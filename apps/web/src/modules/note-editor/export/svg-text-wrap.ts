@@ -1,5 +1,3 @@
-import type { NoteNode } from "../../../entities/note.ts";
-
 export function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -120,24 +118,4 @@ export function truncateLine(text: string, maxWidthPx: number, fontSize: number)
     width += charWidth;
   }
   return `${output.trimEnd()}…`;
-}
-
-export function extractInlineText(node: NoteNode): string {
-  if (node.type === "text") return typeof node.text === "string" ? node.text : "";
-  if (node.type === "hardBreak") return "\n";
-  if (node.type === "inlineMath") {
-    return typeof node.attrs?.latex === "string" ? node.attrs.latex : "";
-  }
-  if (!node.content?.length) return "";
-  return node.content.map(extractInlineText).join("");
-}
-
-export function extractCollapsedText(node: NoteNode): string {
-  if (node.type === "text") return typeof node.text === "string" ? node.text : "";
-  if (node.type === "hardBreak") return " ";
-  if (node.type === "inlineMath" || node.type === "blockMath") {
-    return typeof node.attrs?.latex === "string" ? node.attrs.latex : "";
-  }
-  if (!node.content?.length) return "";
-  return node.content.map(extractCollapsedText).join(" ").replace(/\s+/g, " ").trim();
 }

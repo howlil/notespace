@@ -64,10 +64,7 @@ test("critical: full-library ZIP backup restores an active workspace", async () 
       clientInstanceId: instanceId,
       elementId,
       expectedCanvasVersion: workspace.canvasVersion ?? 0,
-      document: {
-        type: "doc",
-        content: [{ type: "paragraph", attrs: { blockId: "block-backup-1" }, content: [{ type: "text", text: noteText }] }],
-      },
+      document: { type: "markdown", text: `${noteText} ^block-backup-1` },
       canvas,
       x: 40,
       y: 64,
@@ -101,7 +98,7 @@ test("critical: full-library ZIP backup restores an active workspace", async () 
       .map((element) => element.customData.notespaceNote);
     assert.deepEqual(liveRefs, [{ noteId, instanceId }]);
     const restoredNote = await api(`/api/notes/${noteId}`);
-    assert.match(JSON.stringify(restoredNote.document), new RegExp(noteText));
+    assert.deepEqual(restoredNote.document, { type: "markdown", text: `${noteText} ^block-backup-1` }, "The Markdown source survives backup and restore exactly");
   } finally {
     const active = await apiResponse(`/api/workspaces/${workspace.id}`);
     if (active.ok) await deleteWorkspace(workspace.id).catch(() => undefined);

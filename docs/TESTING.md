@@ -53,7 +53,7 @@ task test:web TEST=apps/web/src/modules/canvas/objects/code-block/model/canvas-c
 `scripts/verify/run-node-tests.mjs` discovers all `*.test.ts` and `*.test.tsx` files colocated under `apps/web/src/`.
 
 Good fits for `node:test`:
-- pure domain/model logic (`autosave`, `canvas-merge`, `canvas-conflict-retry`, `granular-save-core`, `note-store`, `note-extract`, `diagram`, `routing`);
+- pure domain/model logic (`autosave`, `canvas-merge`, `canvas-conflict-retry`, `granular-save-core`, `note-store`, `note-markdown`, `diagram`, `routing`);
 - serialization, export, and HTML preview CSP/escaping (`canvas-code-block-export`, `note-export`, `html-preview-frame`);
 - HTTP/cache/runtime orchestration with injected fakes (`workspace-api`, `image-store-core`, `durability-barrier`, `desktop-quiescence`);
 - mathematical WCAG AA contrast verification of CSS palette tokens (`apps/web/src/shared/styles/design-tokens.test.ts`).
@@ -85,6 +85,7 @@ bun run test:server:process
 
 - `apps/server/internal/app/desktop/boundary_test.go` verifies runtime loopback security (DNS rebinding, Origin, Sec-Fetch-Site, non-loopback bind rejection, CSP/frame headers).
 - `apps/server/internal/infra/sqlite/` and `apps/server/internal/infra/store/` use real temporary SQLite files for transactions, rollback atomicity, optimistic concurrency, migrations, FTS search, Trash, and ZIP backup/restore. Do not mock SQLite for persistence semantics.
+- Markdown Note proof: `domain/document_test.go` (envelope, summary, backlinks), `domain/legacynote/convert_test.go` (rich → Markdown, loss guard), `infra/store/note_markdown_migration_test.go` (0033 conversion, rollback, backup import and rejection) and `infra/sqlite/migrations/note_markdown_assets_test.go` (assets survive the rewrite); `apps/web/src/modules/note-editor/model/note-markdown.test.ts` and `note-export.test.ts` cover tokens, toggles and export.
 - `apps/server/tests/httpapi/` (and `apps/server/internal/httpapi/`) test HTTP decoding, `If-Match`, error codes, headers, and concurrency.
 
 ## Browser E2E — WebdriverIO standalone
@@ -93,7 +94,7 @@ Runner: `scripts/verify/browser-e2e.mjs` (WebdriverIO standalone + `node:test` a
 
 ```text
 tests/e2e/
-├── canvas/     Canvas authoring, toolbar, code/HTML preview, Note cards (core/links/rich), persistence, recovery, peer sync
+├── canvas/     Canvas authoring, toolbar, code/HTML preview, Note cards (Markdown editing, read view, embeds, images), persistence, recovery, peer sync
 ├── library/    Home/Explorer shell, category workflows, pagination, races, navigation, search, edge constraints
 ├── settings/   Settings/palette/backup modal lifecycle, Trash & ZIP restore
 └── support/    harness.mjs, browser.mjs, server.mjs, proxy.mjs (fault injection), resolve.mjs

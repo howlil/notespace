@@ -523,23 +523,9 @@
 [data-note-color-swatch="pink"] { background-color: #f5d6de; border-color: #cd7a8d; }
 [data-note-color-swatch="purple"] { background-color: #e1d7f6; border-color: #937bd0; }
 
-[data-note-highlight-swatch="yellow"] { background-color: #fae588; border-color: var(--muted); }
-[data-note-highlight-swatch="green"] { background-color: #b4e8bc; border-color: var(--muted); }
-[data-note-highlight-swatch="blue"] { background-color: #b5d8fc; border-color: var(--muted); }
-[data-note-highlight-swatch="pink"] { background-color: #f8c4d4; border-color: var(--muted); }
-[data-note-highlight-swatch="purple"] { background-color: #e0c6fa; border-color: var(--muted); }
-[data-note-highlight-swatch="orange"] { background-color: #fbd2a2; border-color: var(--muted); }
 
-/* Text color swatches render an "A" in the tone, so the picker previews the real text color. */
-[data-note-text-color-swatch="muted"] { color: var(--note-tone-muted); }
-[data-note-text-color-swatch="red"] { color: var(--note-tone-red); }
-[data-note-text-color-swatch="orange"] { color: var(--note-tone-orange); }
-[data-note-text-color-swatch="yellow"] { color: var(--note-tone-yellow); }
-[data-note-text-color-swatch="green"] { color: var(--note-tone-green); }
-[data-note-text-color-swatch="blue"] { color: var(--note-tone-blue); }
-[data-note-text-color-swatch="purple"] { color: var(--note-tone-purple); }
 
-/* Collapsible toggle block (Slice 4). */
+/* Collapsible toggle block: `<details>` in the Note's Markdown. */
 .notespace-note-content .notespace-note-toggle {
   display: flex;
   align-items: flex-start;
@@ -578,31 +564,8 @@
   list-style: none;
 }
 
-.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
-.notespace-note-content .notespace-note-toggle[data-open="false"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
-  display: none;
-}
-
-.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > :not([data-note-toggle-summary]):not([data-node-view-content-react]),
-.notespace-note-content .notespace-note-toggle[data-open="true"] > .notespace-note-toggle-content > [data-node-view-content-react] > :not([data-note-toggle-summary]) {
+.notespace-note-content .notespace-note-toggle-content > :not([data-note-toggle-summary]) {
   margin-top: .25em;
-}
-
-/* Empty focused editor placeholder (CSS-only decoration; never stored as text). */
-.notespace-note-content .notespace-note-empty {
-  position: relative;
-}
-.notespace-note-content .notespace-note-empty::before {
-  content: attr(data-placeholder);
-  position: absolute;
-  inset: 0 auto auto 0;
-  color: var(--muted);
-  opacity: .75;
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 /* Target block highlight pulse when navigating to ?noteId=...&blockId=... */

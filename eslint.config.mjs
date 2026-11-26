@@ -47,9 +47,7 @@ const webBoundaries = {
           report(node, "Use a relative import for a local web module.");
         } else if (specifier.startsWith("@excalidraw/") && !from.startsWith("modules/canvas/")) {
           report(node, "Keep the Excalidraw SDK inside modules/canvas/.");
-        } else if (specifier.startsWith("@tiptap/") && !from.startsWith("modules/note-editor/")) {
-          report(node, "Keep the TipTap SDK inside modules/note-editor/.");
-        } else if (isModelFile && /^(?:react(?:-dom)?(?:\/|$)|motion(?:\/|$)|@(?:tanstack|tiptap|excalidraw|tauri-apps|radix-ui)\/)/.test(specifier)) {
+        } else if (isModelFile && /^(?:react(?:-dom)?(?:\/|$)|motion(?:\/|$)|@(?:tanstack|excalidraw|tauri-apps|radix-ui)\/)/.test(specifier)) {
           report(node, "Entities and model modules cannot depend on UI, editor, or desktop packages.");
         } else if (specifier.startsWith("@tauri-apps/") && !(layer === "platform" && (owner === "desktop" || owner === "runtime"))) {
           report(node, "Keep native Tauri IPC inside platform/desktop or platform/runtime.");

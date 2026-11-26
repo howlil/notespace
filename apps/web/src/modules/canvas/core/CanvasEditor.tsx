@@ -348,7 +348,6 @@ export default function CanvasEditor({
     finishNoteEditing,
     insertNote,
     insertNoteAt,
-    createConnectedNoteFrom,
     spawnConnectedNote,
     placeLinkedNote,
     deleteSelectedNote,
@@ -608,9 +607,6 @@ export default function CanvasEditor({
           onUpdateNote={onUpdateNote ?? (async () => { throw new Error("Note editing is unavailable."); })}
           onAutoResizeNote={resizeNote}
           onRemoveMissingNote={removeMissingNote}
-          onPlaceLinkedNote={placeLinkedNote}
-          onExtractToNote={(sourceElementId, extractedDocument) => createConnectedNoteFrom(sourceElementId, extractedDocument, { connectArrow: true, selectTarget: false, autoEdit: false })}
-          onCreateAndLinkNote={(sourceElementId, initialDocument) => createConnectedNoteFrom(sourceElementId, initialDocument, { connectArrow: true, selectTarget: false, autoEdit: false })}
           onSuccess={reportCanvasSuccess}
           onError={reportCanvasAssetError}
         />

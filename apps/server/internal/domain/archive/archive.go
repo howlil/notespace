@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	Version          = 3
+	Version          = 4
 	SchemaVersion    = 16
 	ManifestPath     = "manifest.json"
 	MaxManifestBytes = 16 << 20
@@ -221,7 +221,7 @@ func readArchiveManifest(entries map[string]*zip.File) (Manifest, error) {
 	if err := json.Unmarshal(manifestJSON, &manifest); err != nil {
 		return Manifest{}, invalidArchive("invalid backup manifest")
 	}
-	if manifest.Format != domain.LibraryBackupFormat || (manifest.Version != 2 && manifest.Version != Version) || manifest.SchemaVersion > SchemaVersion {
+	if manifest.Format != domain.LibraryBackupFormat || (manifest.Version < 2 || manifest.Version > Version) || manifest.SchemaVersion > SchemaVersion {
 		return Manifest{}, invalidArchive("unsupported backup format")
 	}
 	return manifest, nil

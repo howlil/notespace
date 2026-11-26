@@ -30,7 +30,7 @@ func TestCanvasNoteCreateUpdateConflictRetryAndRemove(t *testing.T) {
 		ClientInstanceID:      "instance-1",
 		ElementID:             "element-1",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas:                canvas,
 		X:                     40,
 		Y:                     64,
@@ -58,7 +58,7 @@ func TestCanvasNoteCreateUpdateConflictRetryAndRemove(t *testing.T) {
 		t.Fatalf("idempotent retry changed identity: first=%+v retry=%+v", created, retried)
 	}
 
-	updatedDocument := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"edited"}]}]}`)
+	updatedDocument := json.RawMessage(`{"type":"markdown","text":"edited"}`)
 	updated := call(t, api, http.MethodPut, "/api/notes/"+created.Note.ID, domain.UpdateNoteRequest{Document: updatedDocument, ExpectedRevision: created.Note.Revision})
 	expect(t, updated, http.StatusOK)
 	var updatedNote domain.Note
@@ -145,7 +145,7 @@ func TestCanvasNoteCreateRollsBackOnUnknownWorkspace(t *testing.T) {
 		ClientInstanceID:      "orphan-instance",
 		ElementID:             "orphan-element",
 		ExpectedCanvasVersion: 1,
-		Document:              json.RawMessage(`{"type":"doc","content":[]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas:                testNoteCanvas("orphan-element", "orphan-note", "orphan-instance", false),
 		X:                     40,
 		Y:                     64,
@@ -169,7 +169,7 @@ func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
 	ws2 := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Secondary Space"}))
 
 	// Create note-1 placed in ws1.
-	doc1 := json.RawMessage(`{"type":"doc","content":[{"type":"heading","attrs":{"level":1,"blockId":"blk-h1"},"content":[{"type":"text","text":"HTTP Target Note"}]},{"type":"paragraph","content":[{"type":"text","text":"Detailed body text"}]}]}`)
+	doc1 := mdDoc("# HTTP Target Note ^blk-h1\n\nDetailed body text")
 	res1 := call(t, api, http.MethodPost, "/api/workspaces/"+ws1.ID+"/note-instances", domain.CreateNoteInstanceRequest{
 		ClientRequestID: "http-req-1", ClientNoteID: "http-note-1", ClientInstanceID: "http-inst-1", ElementID: "http-el-1",
 		ExpectedCanvasVersion: ws1.CanvasVersion, Document: doc1,
@@ -179,17 +179,8 @@ func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
 	expect(t, res1, http.StatusOK)
 
 	// Create note-2 in ws2 referencing note-1 via link + embed, plus self-link (must be excluded from note-2 info).
-	doc2 := json.RawMessage(`{
-		"type":"doc",
-		"content":[
-			{"type":"paragraph","content":[
-				{"type":"text","text":"Linker Note "},
-				{"type":"text","text":"ref","marks":[{"type":"link","attrs":{"href":"/workspaces/` + ws1.ID + `?noteId=http-note-1&blockId=blk-h1"}}]},
-				{"type":"text","text":"self","marks":[{"type":"link","attrs":{"href":"/workspaces/` + ws2.ID + `?noteId=http-note-2"}}]}
-			]},
-			{"type":"noteEmbed","attrs":{"noteId":"http-note-1","workspaceId":"` + ws1.ID + `"}}
-		]
-	}`)
+	doc2 := mdDoc("Linker Note [ref](/workspaces/" + ws1.ID + "?noteId=http-note-1&blockId=blk-h1)[self](/workspaces/" + ws2.ID + "?noteId=http-note-2)\n\n" +
+		"![Embedded Note](/workspaces/" + ws1.ID + "?noteId=http-note-1)")
 	res2 := call(t, api, http.MethodPost, "/api/workspaces/"+ws2.ID+"/note-instances", domain.CreateNoteInstanceRequest{
 		ClientRequestID: "http-req-2", ClientNoteID: "http-note-2", ClientInstanceID: "http-inst-2", ElementID: "http-el-2",
 		ExpectedCanvasVersion: ws2.CanvasVersion, Document: doc2,
@@ -293,7 +284,7 @@ func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
 	expect(t, call(t, api, http.MethodGet, "/api/notes/unknown-note/info", nil), http.StatusNotFound)
 }
 
-func TestUpdateNoteValidatesSlice4ExtensionsOverHTTP(t *testing.T) {
+func TestUpdateNoteAcceptsOnlyMarkdownOverHTTP(t *testing.T) {
 	ctx := context.Background()
 	store, err := store.Open(ctx, filepath.Join(t.TempDir(), "note-http-slice4.db"))
 	if err != nil {
@@ -305,34 +296,28 @@ func TestUpdateNoteValidatesSlice4ExtensionsOverHTTP(t *testing.T) {
 	ws := decodeWorkspace(t, call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": "Slice 4"}))
 	createRes := call(t, api, http.MethodPost, "/api/workspaces/"+ws.ID+"/note-instances", domain.CreateNoteInstanceRequest{
 		ClientRequestID: "s4-req-1", ClientNoteID: "s4-note-1", ClientInstanceID: "s4-inst-1", ElementID: "s4-el-1",
-		ExpectedCanvasVersion: ws.CanvasVersion, Document: json.RawMessage(`{"type":"doc","content":[]}`),
+		ExpectedCanvasVersion: ws.CanvasVersion, Document: json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas: testNoteCanvas("s4-el-1", "s4-note-1", "s4-inst-1", false),
 		X:      20, Y: 30, Width: 320, Height: 180,
 	})
 	expect(t, createRes, http.StatusOK)
 
-	validDoc := json.RawMessage(`{
-		"type":"doc",
-		"content":[{
-			"type":"noteToggle",
-			"attrs":{"open":true,"blockId":"toggle-blk-1"},
-			"content":[
-				{"type":"noteToggleSummary","content":[{"type":"text","text":"Details"}]},
-				{"type":"paragraph","content":[
-					{"type":"text","text":"Important","marks":[{"type":"noteHighlight","attrs":{"tone":"blue"}},{"type":"noteTextColor","attrs":{"tone":"purple"}}]}
-				]}
-			]
-		}]
-	}`)
+	validDoc := mdDoc("<details open>\n<summary>Details</summary>\n\n<mark data-tone=\"blue\">Important</mark>\n\n</details>")
 	expect(t, call(t, api, http.MethodPut, "/api/notes/s4-note-1", domain.UpdateNoteRequest{Document: validDoc, ExpectedRevision: 1}), http.StatusOK)
 
 	for _, badDoc := range []string{
-		`{"type":"doc","content":[{"type":"noteToggle","attrs":{"open":"yes"}}]}`,
-		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteHighlight","attrs":{"tone":"neon"}}]}]}]}`,
-		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"noteTextColor","attrs":{"tone":"gold"}}]}]}]}`,
+		`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"retired rich document"}]}]}`,
+		`{"type":"markdown","text":"x","html":"<b>x</b>"}`,
+		`{"type":"markdown","text":42}`,
+		`{"type":"markdown","text":"a\u0000b"}`,
 	} {
 		expect(t, call(t, api, http.MethodPut, "/api/notes/s4-note-1", domain.UpdateNoteRequest{Document: json.RawMessage(badDoc), ExpectedRevision: 2}), http.StatusBadRequest)
 	}
+}
+
+func mdDoc(text string) json.RawMessage {
+	raw, _ := json.Marshal(map[string]string{"type": "markdown", "text": text})
+	return raw
 }
 
 func testNoteCanvas(elementID, noteID, instanceID string, deleted bool) domain.CanvasSnapshot {
@@ -368,7 +353,7 @@ func TestDeleteNoteRequiresEmptyUnplacedNote(t *testing.T) {
 		ClientInstanceID:      "delete-instance",
 		ElementID:             "delete-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":""}`),
 		Canvas:                testNoteCanvas("delete-element", "delete-note", "delete-instance", false),
 		X:                     40, Y: 64, Width: 320, Height: 180,
 	})
@@ -410,7 +395,7 @@ func TestNoteTrashRoutesCoexistWithWorkspaceTrash(t *testing.T) {
 	created := call(t, api, http.MethodPost, "/api/workspaces/"+workspace.ID+"/note-instances", domain.CreateNoteInstanceRequest{
 		ClientRequestID: "r1", ClientNoteID: "trash-note", ClientInstanceID: "trash-instance", ElementID: "trash-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"keep me"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"keep me"}`),
 		Canvas:                testNoteCanvas("trash-element", "trash-note", "trash-instance", false),
 		X:                     40, Y: 64, Width: 320, Height: 180,
 	})

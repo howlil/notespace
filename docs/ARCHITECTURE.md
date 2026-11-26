@@ -13,9 +13,9 @@ Browser
   ↓
 React / TanStack Start SPA
   ↓
-Notespace feature + domain code
+Notespace modules + entities
   ↓
-HTTP adapters
+platform clients
   ↓
 Go net/http API
   ↓
@@ -55,10 +55,10 @@ A Workspace is the main spatial unit and Canvas is the authoring surface. Canvas
 apps/
 ├── web/src/
 │   ├── routes/              URL boundary
-│   ├── pages/               home, workspace, shell composition
-│   ├── features/            capability-owned user workflows
-│   ├── domain/              pure product rules
-│   ├── adapters/            HTTP, browser, assets, desktop
+│   ├── app/                 page, shell, Quick Open and Settings composition
+│   ├── modules/             capability-owned workflows: library, workspace, canvas, note-editor
+│   ├── platform/            HTTP clients, assets, desktop IPC, runtime barriers
+│   ├── entities/            pure Workspace and Note rules
 │   └── shared/              reusable foundations
 ├── server/
 │   ├── cmd/notespace/        process entrypoint
@@ -84,89 +84,52 @@ The web and server are both capability-oriented. Notespace deliberately avoids g
 
 ### Routes
 
-`apps/web/src/routes` owns URL parsing, route loading, redirects, and page selection.
+`apps/web/src/routes` owns URL parsing, route loading, redirects, and page selection. Routed surfaces are Home / Library and Workspace. Routes do not own editor workflows or mutation orchestration.
 
-Current routed surfaces include:
+### App
 
-- Home / Library
-- Workspace
+`apps/web/src/app` composes pages (`pages/home`, `pages/workspace`), the persistent shell (`shell/PersistentAppShell.tsx` is the only mount of `LibraryPageShell`), Settings and Quick Open from modules. Product logic stays in the owning module or entity.
 
-Routes should not own editor workflows or mutation orchestration.
-
-### Pages
-
-`apps/web/src/pages` composes routed screens.
-
-Examples:
-
-- `pages/home/HomePage.tsx`
-- `pages/workspace/WorkspacePage.tsx`
-- `pages/shell/LibraryPageShell.tsx`
-- `features/library/explorer/LibrarySidebar.tsx`
-
-A page may combine sibling features through props or render slots. Product logic should remain in the owning feature or domain module.
-
-### Features
-
-Current feature owners are:
+### Modules
 
 ```text
-features/
-├── library/                 collection, explorer, backup
-├── search/
-├── workspace-authoring/     session, canvas
-├── settings/
-└── desktop/                 chrome, lifecycle, recovery, updates
+modules/
+├── library/         collection, explorer, backup
+├── workspace/       session, save orchestration, authoring composition
+├── canvas/          core (Excalidraw orchestrator), chrome, objects, selection
+└── note-editor/     Markdown editor, read view, SVG export, Note store
 ```
 
-`workspace-authoring` owns the Canvas session, Canvas behavior, and granular save orchestration.
+Outside callers use a module's `index.ts`; internals import each other directly. `workspace` may use `canvas` and `note-editor`, and `canvas` may use `note-editor`; other modules compose in `app`. CanvasEditor stays lazy and the Explorer provider stays mounted at the root across route changes.
 
-Pages and routes consume feature `index.ts` entries. Feature internals import their own modules directly. CanvasEditor remains lazy; public authoring exports do not eagerly load the editor engine. The Explorer provider stays mounted in the root application across route changes.
+Important orchestration boundaries:
 
-Important orchestration boundaries include:
+- `modules/workspace/model/granular-save-core.ts` — Canvas conflict/rebase behavior for the active save path;
+- `modules/canvas/core/assets/canvas-assets.ts` — durable Canvas-image persistence boundary.
 
-- `features/workspace-authoring/session/granular-save-core.ts` — Canvas conflict/rebase behavior for the active authoring save path;
-- `features/workspace-authoring/canvas/assets/canvas-assets.ts` — durable Canvas-image persistence boundary.
+These exist so behavior with meaningful failure modes can be tested without mounting the React tree.
 
-These modules exist so behavior with meaningful failure modes can be tested without mounting the full React tree.
+### Notes
 
-### Domain
+A Note is Markdown text in `{ type: "markdown", text }` and nothing else. `modules/note-editor` holds one CodeMirror editor for it and one token model, `model/note-markdown.ts`, that lexes the text with marked and feeds both the React read view and the SVG export. The read view never mounts an editor, builds React elements instead of HTML strings (KaTeX output is the only injected markup), and re-lexes only when the text changes. The same text drives the label, search text, excerpt and backlinks on the server. The Markdown conventions are listed in the [user guide](USER_GUIDE.md#writing-in-markdown); the format decision is `K8` in [`.agents/engineering.md`](../.agents/engineering.md).
 
-`apps/web/src/domain` contains framework-independent Notespace rules:
+### Entities
+
+`apps/web/src/entities` holds framework-independent rules: Workspace and Canvas shapes, and Note rules such as the Canvas reference, derived label, link and asset-source safety. Entities must not depend on React, browser APIs or HTTP. Pure rules inside modules live in `model/` folders under the same restriction.
+
+### Platform
 
 ```text
-domain/
-├── code/
-├── diagram/
-└── workspace/
+platform/
+├── api/        typed HTTP clients and library invalidation
+├── assets/     image normalization, durable API, local cache, image-store facade
+├── desktop/    native chrome, lifecycle, recovery, updates
+└── runtime/    quiescence and durability barriers, external links
 ```
 
-Examples of domain-owned behavior:
+The frontend has no planning, activity or capture client. Platform code never imports modules.
 
-- Workspace and Canvas shapes;
-- autosave state transitions;
-- Canvas merge/conflict rules;
-- diagram routing/layout rules;
-- code language/theme behavior.
-
-Domain code must not depend on React, browser APIs, HTTP, or feature implementation.
-
-### Adapters
-
-`apps/web/src/adapters` owns side-effect boundaries:
-
-```text
-adapters/
-├── http/
-├── browser/
-└── assets/
-```
-
-HTTP adapters map live frontend calls to the Go API. The frontend has no active planning, activity or capture client. Retired Capture, Today, Inbox and Plan UI clients have no frontend owner or current backend HTTP contracts.
-
-Browser adapters own process-local/browser-global events such as library revision notifications and Workspace conflict events.
-
-Asset adapters split responsibility between:
+Asset handling splits responsibility between:
 
 ```text
 image normalization
@@ -198,13 +161,13 @@ SQLite transaction
 
 Canvas has its own optimistic version and Excalidraw-specific element reconciliation.
 
-The original standalone Note model was retired by migrations `0025_remove_notes.sql` and `0026_scrub_retired_note_artifacts.sql`. Current Canvas Notes are a distinct canonical capability introduced by `0027_canvas_notes.sql` and extended by subsequent migrations through `0032_canvas_note_trash.sql`. Note content and placement identities are saved independently from Canvas geometry; current note APIs and library backup records are not the retired standalone Note contract. Historical migration checksums remain supported.
+The original standalone Note model was retired by migrations `0025_remove_notes.sql` and `0026_scrub_retired_note_artifacts.sql`. Current Canvas Notes are a distinct canonical capability introduced by `0027_canvas_notes.sql` and extended by subsequent migrations through `0034_note_markdown_assets.sql`; `0033_note_markdown_only.sql` converts every earlier rich Note to Markdown in one transaction and keeps each original in `canvas_note_legacy_documents`. Note content and placement identities are saved independently from Canvas geometry; current note APIs and library backup records are not the retired standalone Note contract. Historical migration checksums remain supported.
 
 ### Granular save conflict recovery
 
 The legacy aggregate Workspace HTTP save path is retired.
 Current authoring uses the granular Canvas save path. Its active
-orchestration lives in `features/workspace-authoring/session/granular-save-core.ts`:
+orchestration lives in `modules/workspace/model/granular-save-core.ts`:
 
 ```text
 save candidate
@@ -287,9 +250,10 @@ Owns HTTP transport concerns only and never imports `database/sql`, `infra/sqlit
 Owns pure product models, structured error taxonomy (`domain/apperr`), external icon contract (`icon.go`), validation rules, and format codecs with **zero** `database/sql` and **zero** `net/http` dependencies:
 
 - `workspace.go`, `note.go`, `asset.go`, `search.go`, `backup.go`, `errors.go`, `icon.go` — canonical structs, invariants, and query normalization;
-- `document.go` — single-pass ProseMirror AST validator, plain-text/label/excerpt summarizer, and backlink extractor;
+- `document.go` — Markdown Note envelope validator, plain-text/label/excerpt summarizer, and text-based backlink extractor;
 - `scene.go` — single-pass Excalidraw scene validator, Note placement extractor, and retired-artifact scrubber;
-- `domain/archive` — SQL-free ZIP backup manifest/blob codec and compressed Trash envelope codec.
+- `domain/archive` — SQL-free ZIP backup manifest/blob codec and compressed Trash envelope codec;
+- `domain/legacynote` — the only reader of the retired rich Note document, used by the 0033 migration hook and backup import.
 
 ### Tier 4 — `internal/infra` (`sqlite`, `store`, `eraser`)
 

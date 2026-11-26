@@ -120,72 +120,62 @@ func getAssetByIDTx(ctx context.Context, db sqlite.DBTX, id string) (domain.Stor
 	return value, err
 }
 
+// noteAssetRef matches a Note's Markdown image destination for one asset id.
+// The boundary after the id keeps "a1" from matching "a12". Arguments: id, id.
+const noteAssetRef = `(instr(n.document_state, '/assets/'||?||')') > 0 OR instr(n.document_state, '/assets/'||?||' ') > 0)`
+
 func noteReferencesAssetTx(ctx context.Context, db sqlite.DBTX, assetID string) (bool, error) {
 	var referenced int
-	err := db.QueryRowContext(ctx, `SELECT EXISTS(
-		SELECT 1 FROM canvas_notes n, json_tree(n.document_state) j
-		WHERE instr(n.document_state, ?) > 0 AND j.type='text' AND j.key IN ('assetId','fileId') AND CAST(j.value AS TEXT)=?
-	)`, assetID, assetID).Scan(&referenced)
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM canvas_notes n WHERE `+noteAssetRef+`)`, assetID, assetID).Scan(&referenced)
 	return referenced != 0, err
 }
 
-// rehomeNoteAssetsFromTrashTx scans live Note asset references in a single SQL
-// pass when permanently deleting a trashed workspace.
+// rehomeNoteAssetsFromTrashTx copies assets that live Notes still reference into
+// a surviving workspace when a trashed workspace is permanently deleted.
 func rehomeNoteAssetsFromTrashTx(ctx context.Context, tx sqlite.DBTX, assets []domain.StoredAsset) error {
-	if len(assets) == 0 {
-		return nil
-	}
 	byID := make(map[string]domain.StoredAsset, len(assets))
-	placeholders := make([]string, 0, len(assets))
-	args := make([]any, 0, len(assets))
 	for _, stored := range assets {
-		if stored.ID == "" || len(stored.Data) == 0 {
-			continue
+		if stored.ID != "" && len(stored.Data) > 0 {
+			byID[stored.ID] = stored
 		}
-		if _, seen := byID[stored.ID]; seen {
-			continue
-		}
-		byID[stored.ID] = stored
-		placeholders = append(placeholders, "?")
-		args = append(args, stored.ID)
 	}
-	if len(args) == 0 {
-		return nil
-	}
-
-	rows, err := tx.QueryContext(ctx, `
-		SELECT DISTINCT
-			CAST(j.value AS TEXT) AS asset_id,
-			COALESCE(
+	targets := make(map[string]string, len(byID))
+	for assetID := range byID {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT COALESCE(
 				(SELECT i.workspace_id
 				 FROM canvas_note_instances i
 				 INNER JOIN projects p ON p.id = i.workspace_id
 				 WHERE i.note_id = n.id
 				 ORDER BY i.created_at ASC LIMIT 1),
 				''
-			) AS target_ws
-		FROM canvas_notes n, json_tree(n.document_state) j
-		WHERE j.type='text' AND j.key IN ('assetId','fileId') AND CAST(j.value AS TEXT) IN (`+strings.Join(placeholders, ",")+`)
-	`, args...)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = rows.Close() }()
-	targets := make(map[string]string)
-	for rows.Next() {
-		var assetID, targetWS string
-		if err := rows.Scan(&assetID, &targetWS); err != nil {
+			)
+			FROM canvas_notes n
+			WHERE `+noteAssetRef, assetID, assetID)
+		if err != nil {
 			return err
 		}
-		if existing, ok := targets[assetID]; !ok || (existing == "" && targetWS != "") {
-			targets[assetID] = targetWS
+		referenced := false
+		for rows.Next() {
+			var targetWS string
+			if err := rows.Scan(&targetWS); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			referenced = true
+			if targets[assetID] == "" {
+				targets[assetID] = targetWS
+			}
 		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if err := rows.Close(); err != nil {
-		return err
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if !referenced {
+			delete(targets, assetID)
+		}
 	}
 	if len(targets) == 0 {
 		return nil

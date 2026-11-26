@@ -89,24 +89,6 @@ function foldedTargetPatch(
   };
 }
 
-function besideSourcePosition(
-  source: { x: number; y: number; width: number; height: number },
-  width: number,
-  height: number,
-  occupied: ReadonlyArray<{ x: number; y: number; width: number; height: number; isDeleted?: boolean }>,
-): { x: number; y: number } {
-  const baseX = source.x + source.width + 80;
-  const overlaps = (x: number, y: number) => occupied.some((item) => {
-    if (item.isDeleted) return false;
-    return x < item.x + item.width && x + width > item.x && y < item.y + item.height && y + height > item.y;
-  });
-  for (let step = 0; step < 12; step += 1) {
-    const candidateY = source.y + step * (height + 24);
-    if (!overlaps(baseX, candidateY)) return { x: baseX, y: candidateY };
-  }
-  return { x: baseX, y: source.y };
-}
-
 export function useCanvasNotes({
   apiRef,
   surfaceRef,
@@ -619,112 +601,6 @@ export function useCanvasNotes({
     await insertNote(undefined, { position: { x: sceneX, y: sceneY } });
   }, [insertNote]);
 
-  const createConnectedNoteFrom = useCallback(async (
-    sourceElementId: string,
-    initialDocument: NoteDocument,
-    options?: { connectArrow?: boolean; selectTarget?: boolean; autoEdit?: boolean },
-  ): Promise<{ noteId: string; elementId: string } | null> => {
-    const value = apiRef.current;
-    const createNote = onCreateNoteRef.current;
-    if (!value || !createNote) return null;
-    const currentElements = value.getSceneElementsIncludingDeleted();
-    const source = currentElements.find((element) => element.id === sourceElementId && !element.isDeleted);
-    if (!source) return null;
-    const width = 320;
-    const height = NOTE_CARD_MIN_HEIGHT;
-    const pos = besideSourcePosition(source, width, height, currentElements);
-    const noteId = crypto.randomUUID();
-    const instanceId = crypto.randomUUID();
-    const targetSkeleton: ExcalidrawElementSkeleton = {
-      type: "rectangle",
-      x: pos.x,
-      y: pos.y,
-      width,
-      height,
-      strokeColor: source.strokeColor,
-      backgroundColor: source.backgroundColor,
-      fillStyle: "solid",
-      strokeWidth: source.strokeWidth,
-      roughness: 0,
-      roundness: source.roundness,
-      opacity: 0,
-    };
-    const provisionalTarget = (convertToExcalidrawElements([targetSkeleton]) as OrderedExcalidrawElement[])[0];
-    if (!provisionalTarget) return null;
-
-    const connectArrow = options?.connectArrow !== false;
-    let arrowElement: OrderedExcalidrawElement | null = null;
-    if (connectArrow) {
-      const startX = source.x + source.width;
-      const startY = source.y + source.height / 2;
-      const endX = pos.x;
-      const endY = pos.y + height / 2;
-      const provisionalArrow = (convertToExcalidrawElements([{
-        type: "arrow",
-        x: startX,
-        y: startY,
-        width: endX - startX,
-        height: endY - startY,
-        strokeColor: dark ? "#91b1ff" : "#636979",
-        strokeWidth: 1,
-        roughness: 0,
-        roundness: { type: 2 },
-        endArrowhead: "arrow",
-        opacity: 100,
-      } as ExcalidrawElementSkeleton]) as OrderedExcalidrawElement[])[0];
-      if (provisionalArrow && provisionalArrow.type === "arrow") {
-        arrowElement = newElementWith(provisionalArrow, {
-          startBinding: { elementId: source.id, fixedPoint: [1, 0.5], mode: "orbit" },
-          endBinding: { elementId: provisionalTarget.id, fixedPoint: [0, 0.5], mode: "orbit" },
-        });
-      }
-    }
-
-    const noteElement = newElementWith(provisionalTarget, {
-      customData: withCanvasNoteReference(provisionalTarget.customData, { noteId, instanceId }),
-      ...(arrowElement ? { boundElements: [{ id: arrowElement.id, type: "arrow" as const }] } : {}),
-    });
-
-    const updatedBase = arrowElement
-      ? currentElements.map((element) => (
-        element.id === source.id
-          ? newElementWith(element, {
-            boundElements: [...(element.boundElements ?? []), { id: arrowElement!.id, type: "arrow" as const }],
-          })
-          : element
-      ))
-      : currentElements;
-    const elements = [
-      ...updatedBase,
-      noteElement,
-      ...(arrowElement ? [arrowElement] : []),
-    ] as OrderedExcalidrawElement[];
-    const state = value.getAppState();
-    const data = { elements, appState: persistedAppState(state), files: {}, [DIAGRAM_DATA_KEY]: diagramsRef.current };
-    try {
-      const created = await createNote({
-        clientRequestId: crypto.randomUUID(),
-        clientNoteId: noteId,
-        clientInstanceId: instanceId,
-        elementId: noteElement.id,
-        expectedCanvasVersion: canvasVersionRef.current,
-        document: initialDocument,
-        canvas: { format: "excalidraw", version: 1, data },
-        x: pos.x,
-        y: pos.y,
-        width,
-        height,
-      });
-      canvasVersionRef.current = Math.max(canvasVersionRef.current, created.canvas.version);
-      syncNoteCanvas(created.canvas.canvas, elements, options?.selectTarget ? noteElement.id : undefined);
-      if (options?.autoEdit) startNoteEditing(noteElement.id, null);
-      return { noteId: created.note.id, elementId: noteElement.id };
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not create the connected Note." });
-      return null;
-    }
-  }, [apiRef, dark, diagramsRef, showToast, startNoteEditing, syncNoteCanvas]);
-
   const placeLinkedNote = useCallback(async (noteId: string) => {
     await insertNote(noteId);
   }, [insertNote]);
@@ -1064,7 +940,6 @@ export function useCanvasNotes({
     finishNoteEditing,
     insertNote,
     insertNoteAt,
-    createConnectedNoteFrom,
     spawnConnectedNote,
     placeLinkedNote,
     deleteSelectedNote,

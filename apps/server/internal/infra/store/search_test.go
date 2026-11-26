@@ -114,7 +114,7 @@ func TestIndexedSearchFindsCanvasNoteContent(t *testing.T) {
 		ClientInstanceID:      "instance-indexed",
 		ElementID:             "note-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Indexed canvas note content"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"Indexed canvas note content"}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData},
 		X:                     0, Y: 0, Width: 320, Height: 180,
 	})
@@ -153,7 +153,7 @@ func TestIndexedSearchReindexesUpdatedNoteContent(t *testing.T) {
 		ClientInstanceID:      "instance-reindex",
 		ElementID:             "note-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Initial body"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"Initial body"}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData},
 		X:                     0, Y: 0, Width: 320, Height: 180,
 	})
@@ -167,7 +167,7 @@ func TestIndexedSearchReindexesUpdatedNoteContent(t *testing.T) {
 	// Content update bumps revision; the next search must reindex and find it.
 	updated, err := store.UpdateNote(ctx, created.Note.ID, domain.UpdateNoteRequest{
 		ExpectedRevision: created.Note.Revision,
-		Document:         json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Freshly updated body"}]}]}`),
+		Document:         json.RawMessage(`{"type":"markdown","text":"Freshly updated body"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +226,7 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 		ClientInstanceID:      "instance-move",
 		ElementID:             "note-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Distributed consensus invariant"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"Distributed consensus invariant"}`),
 		Canvas:                domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: canvasData},
 		X:                     0, Y: 0, Width: 320, Height: 180,
 	})
@@ -310,7 +310,7 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 	}
 }
 
-func TestIndexedSearchExcludesProseMirrorMetadataAndUUIDs(t *testing.T) {
+func TestIndexedSearchExcludesMarkdownSyntaxAndReferenceIDs(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "canvas-note-clean-search.db"))
 	if err != nil {
@@ -323,20 +323,10 @@ func TestIndexedSearchExcludesProseMirrorMetadataAndUUIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	canvasData := json.RawMessage(`{"elements":[{"id":"el-clean","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-clean","instanceId":"inst-clean"}}}],"appState":{},"files":{}}`)
-	doc := json.RawMessage(`{
-		"type":"doc",
-		"content":[
-			{"type":"heading","attrs":{"level":1,"blockId":"550e8400-e29b-41d4-a716-446655440000"},"content":[{"type":"text","text":"Quarterly Architecture Review"}]},
-			{"type":"paragraph","attrs":{"blockId":"660e8400-e29b-41d4-a716-446655440001"},"content":[
-				{"type":"text","text":"Ship "},
-				{"type":"text","text":"vector search","marks":[{"type":"link","attrs":{"href":"https://internal.example/hiddenpath"}}]}
-			]},
-			{"type":"noteCallout","attrs":{"tone":"warning","blockId":"770e8400-e29b-41d4-a716-446655440002"},"content":[
-				{"type":"paragraph","content":[{"type":"text","text":"Keep latency predictable"}]}
-			]},
-			{"type":"noteImage","attrs":{"src":"/api/workspaces/w1/assets/asset-secret","assetId":"asset-secret","alt":"Topology diagram"}}
-		]
-	}`)
+	doc := mdDoc("# Quarterly Architecture Review ^550e8400-e29b-41d4-a716-446655440000\n\n" +
+		"Ship [vector search](https://internal.example/hiddenpath) ^660e8400-e29b-41d4-a716-446655440001\n\n" +
+		"> [!warning]\n> Keep latency predictable\n\n" +
+		"![Topology diagram](/api/workspaces/w1/assets/asset-secret)")
 	if _, err := store.CreateNoteInstance(ctx, workspace.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID:       "req-clean",
 		ClientNoteID:          "note-clean",
@@ -349,7 +339,7 @@ func TestIndexedSearchExcludesProseMirrorMetadataAndUUIDs(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, noise := range []string{"paragraph", "doc", "noteCallout", "550e8400", "660e8400", "hiddenpath", "asset", "Canvas"} {
+	for _, noise := range []string{"warning", "https", "550e8400", "660e8400", "hiddenpath", "asset", "Canvas"} {
 		results, err := store.Search(ctx, noise)
 		if err != nil {
 			t.Fatalf("search(%q) error: %v", noise, err)

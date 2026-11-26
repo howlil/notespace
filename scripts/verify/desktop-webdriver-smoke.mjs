@@ -411,9 +411,12 @@ async function runProductPersistenceJourney(session) {
 
 async function assertCanvasNoteModule(session, workspaceId) {
   await (await visibleElement(session, By.css('[aria-label="Canvas tools"] button[aria-label="Note"]'))).click();
-  const editor = await visibleElement(session, By.css("[data-note-element] [data-note-markdown-editor] .cm-content"));
+  // The upgrade seed drives the previously released app, whose Notes use the ProseMirror editor
+  // and a rich document; every later release uses the CodeMirror Markdown editor.
+  const editor = await visibleElement(session, By.css("[data-note-element] [data-note-markdown-editor] .cm-content, [data-note-element] .ProseMirror"));
+  const markdownEditor = (await editor.getAttribute("class")).split(/\s+/).includes("cm-content");
   const text = `desktop-note-module-${Date.now()}`;
-  await editor.sendKeys(`# ${text}`);
+  await editor.sendKeys(markdownEditor ? `# ${text}` : text);
   await waitForWorkspaceSaved(session);
   let noteId = null;
   await session.wait(async () => {
@@ -422,7 +425,7 @@ async function assertCanvasNoteModule(session, workspaceId) {
     const candidate = elements.find((element) => !element.isDeleted && element.customData?.notespaceNote?.noteId)?.customData?.notespaceNote?.noteId;
     if (!candidate) return false;
     const note = await requestLocal(`/api/notes/${encodeURIComponent(candidate)}`).catch(() => null);
-    if (note?.document?.type !== "markdown" || note.document.text !== `# ${text}`) return false;
+    if (markdownEditor ? note?.document?.type !== "markdown" || note.document.text !== `# ${text}` : !JSON.stringify(note?.document ?? {}).includes(text)) return false;
     noteId = candidate;
     return true;
   }, 15_000, "Native Canvas Note instance and canonical document must persist");

@@ -14,13 +14,13 @@ pure frontend rules, state machines, token contrast, injectable orchestration
 → colocated `node:test` under `apps/web/src/**/*.test.ts(x)`
 
 Go capability/service rules & validation
-→ Go package tests under `apps/server/internal/*/*_test.go`
+→ Go package tests under `apps/server/internal/.../*_test.go` and `apps/server/tests/`
 
 SQLite transactions, migrations, FTS search, concurrency, backup/restore
-→ real temporary SQLite integration tests under `apps/server/internal/sqlite/`
+→ real temporary SQLite integration tests under `apps/server/internal/infra/sqlite/` and `apps/server/internal/infra/store/`
 
 HTTP transport, status codes, If-Match, headers, desktop loopback security
-→ Go tests under `apps/server/internal/httpapi/` and `apps/server/internal/app/`
+→ Go tests under `apps/server/tests/httpapi/`, `apps/server/internal/httpapi/`, and `apps/server/internal/app/`
 
 browser-only interaction, DOM/focus/race, CSP sandbox, multi-tab sync
 → WebdriverIO standalone journeys under `tests/e2e/`
@@ -74,7 +74,7 @@ node ../../scripts/verify/check-gofmt.mjs
 go vet ./...
 go test -race ./...
 # focused package:
-task test:server PACKAGE=./internal/workspace
+task test:server PACKAGE=./internal/infra/store
 ```
 
 Real server binary process-lifecycle & durability integration proof:
@@ -84,8 +84,8 @@ bun run test:server:process
 ```
 
 - `apps/server/internal/app/desktop/boundary_test.go` verifies runtime loopback security (DNS rebinding, Origin, Sec-Fetch-Site, non-loopback bind rejection, CSP/frame headers).
-- `apps/server/internal/sqlite/` uses real temporary SQLite files for transactions, rollback atomicity, optimistic concurrency, migrations, FTS search, Trash, and ZIP backup/restore. Do not mock SQLite for persistence semantics.
-- `apps/server/internal/httpapi/` tests HTTP decoding, `If-Match`, error codes, headers, and concurrency.
+- `apps/server/internal/infra/sqlite/` and `apps/server/internal/infra/store/` use real temporary SQLite files for transactions, rollback atomicity, optimistic concurrency, migrations, FTS search, Trash, and ZIP backup/restore. Do not mock SQLite for persistence semantics.
+- `apps/server/tests/httpapi/` (and `apps/server/internal/httpapi/`) test HTTP decoding, `If-Match`, error codes, headers, and concurrency.
 
 ## Browser E2E — WebdriverIO standalone
 

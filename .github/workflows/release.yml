@@ -163,11 +163,6 @@ jobs:
             exit 1
           fi
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
@@ -177,11 +172,85 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }}
             type=raw,value=latest,enable=${{ inputs.version != '' }}
             type=sha
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+      - name: Build candidate image once
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          push: false
+          load: true
+          tags: notespace:release-candidate
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Verify loaded candidate image with Compose persistence smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          OVERRIDE="$RUNNER_TEMP/compose.release-candidate.yaml"
+          cat <<'EOF' > "$OVERRIDE"
+          services:
+            notespace:
+              image: notespace:release-candidate
+              ports:
+                - "127.0.0.1:8080:8080"
+          EOF
+          export COMPOSE_FILE="compose.yaml:$OVERRIDE"
+          docker compose config >/dev/null
+          docker compose up --no-build -d --wait
+          python3 scripts/verify/smoke-persistence.py --compose-restart
+      - name: Collect Compose logs and tear down candidate container
+        if: always() && steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          OVERRIDE="$RUNNER_TEMP/compose.release-candidate.yaml"
+          if [[ -f "$OVERRIDE" ]]; then
+            export COMPOSE_FILE="compose.yaml:$OVERRIDE"
+            docker compose logs || true
+            docker compose down -v
+          fi
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote verified candidate image digest and tags
+        shell: bash
+        env:
+          METADATA_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          candidate_id="$(docker image inspect --format '{{.Id}}' notespace:release-candidate)"
+          mapfile -t all_tags < <(printf '%s\n' "$METADATA_TAGS" | awk 'NF')
+          immutable_tags=()
+          latest_tag=""
+          for tag in "${all_tags[@]}"; do
+            if [[ "$tag" == *:latest ]]; then
+              latest_tag="$tag"
+            else
+              immutable_tags+=("$tag")
+            fi
+          done
+          if [[ "${#immutable_tags[@]}" -eq 0 ]]; then
+            echo "::error::Expected at least one immutable tag for candidate promotion"
+            exit 1
+          fi
+          first_tag="${immutable_tags[0]}"
+          docker tag notespace:release-candidate "$first_tag"
+          docker push "$first_tag"
+          digest_ref="$(docker image inspect --format '{{index .RepoDigests 0}}' "$first_tag")"
+          if [[ ! "$digest_ref" =~ ^ghcr\.io/.+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Failed to resolve pushed candidate digest from $first_tag ($digest_ref)"
+            exit 1
+          fi
+          if [[ "$(docker image inspect --format '{{.Id}}' notespace:release-candidate)" != "$candidate_id" ]]; then
+            echo "::error::Candidate image mutated during promotion"
+            exit 1
+          fi
+          for tag in "${immutable_tags[@]:1}"; do
+            docker buildx imagetools create --tag "$tag" "$digest_ref"
+          done
+          if [[ -n "$latest_tag" ]]; then
+            docker buildx imagetools create --tag "$latest_tag" "$digest_ref"
+          fi
+          echo "Promoted verified candidate digest $digest_ref"

@@ -208,7 +208,38 @@ def check_publishers():
         str(s.get("uses", "")).startswith("actions/attest@") and "sbom-path" in (s.get("with") or {})
         for s in stable_steps
     ), "release-desktop.yml must attest the generated SBOM"
+    publish_idx = next(i for i, s in enumerate(stable_steps) if "gh release create" in str(s.get("run", "")))
+    post_pub_steps = stable_steps[publish_idx + 1:]
+    post_pub_runs = "\n".join(str(s.get("run", "")) for s in post_pub_steps if isinstance(s, dict))
+    assert "gh release download" in post_pub_runs, "release-desktop.yml must re-download published assets after gh release create"
+    assert "verify-desktop-release-assets.mjs" in post_pub_runs, "release-desktop.yml must run verify-desktop-release-assets.mjs after gh release create"
+    assert post_pub_runs.index("gh release download") < post_pub_runs.index("verify-desktop-release-assets.mjs"), (
+        "release-desktop.yml must download published assets before running verify-desktop-release-assets.mjs"
+    )
     assert "bun run test:desktop:critical" in stable_runs and "bun run test:desktop:native" not in stable_runs
+
+    image_steps = release["jobs"]["image"]["steps"]
+    build_steps = [s for s in image_steps if str(s.get("uses", "")).startswith("docker/build-push-action@")]
+    assert len(build_steps) == 1, "image job must build candidate exactly once"
+    build_with = build_steps[0].get("with", {})
+    assert build_with.get("load") == "true", "image job must load candidate image locally before promotion"
+    assert build_with.get("push") != "true", "image job must not push directly during candidate build"
+    assert build_with.get("tags") == "notespace:release-candidate", "image job must tag candidate build as notespace:release-candidate"
+
+    image_runs = step_runs(release["jobs"]["image"])
+    assert "compose.yaml" in image_runs and "--no-build" in image_runs, "image job must verify loaded candidate via compose.yaml --no-build"
+    assert "smoke-persistence.py --compose-restart" in image_runs, "image job must run smoke-persistence.py --compose-restart"
+    assert "docker push" in image_runs and "docker buildx imagetools create" in image_runs, "image job must push and promote digest"
+    login_idx = next(i for i, s in enumerate(image_steps) if str(s.get("uses", "")).startswith("docker/login-action@"))
+    build_idx = image_steps.index(build_steps[0])
+    smoke_idx = next(i for i, s in enumerate(image_steps) if "smoke-persistence.py --compose-restart" in str(s.get("run", "")))
+    promote_idx = next(i for i, s in enumerate(image_steps) if "docker push" in str(s.get("run", "")))
+    assert build_idx < smoke_idx < login_idx < promote_idx, (
+        "image job must build once, verify loaded candidate with Compose smoke, then login and promote digest"
+    )
+    assert image_runs.index("docker push") < image_runs.index("docker buildx imagetools create"), (
+        "image job must push immutable tag before promoting digest tags"
+    )
 
 
 def check_supply_chain_configs():

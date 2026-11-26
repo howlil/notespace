@@ -4,7 +4,10 @@ import { syntaxTree } from "@codemirror/language";
 import { Annotation, EditorState, Transaction, type Range } from "@codemirror/state";
 import { Decoration, EditorView, keymap, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { useEffect, useRef } from "react";
-import type { MarkdownNoteDocument, NoteDocument } from "../../entities/note";
+import type { NoteDocument } from "../../entities/note";
+import { storeImageAsset } from "../../platform/assets/image-store";
+
+export type NoteActivationPoint = { clientX: number; clientY: number };
 
 const delimiter = Decoration.replace({});
 const syncSource = Annotation.define<boolean>();
@@ -51,15 +54,39 @@ const preview = ViewPlugin.fromClass(class {
   }
 }, { decorations: (value) => value.decorations });
 
+function droppedImages(data: DataTransfer | null) {
+  return [...(data?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+}
+
+/** Stores each image as a workspace asset and writes its Markdown image at `at`. */
+async function insertImages(view: EditorView, workspaceId: string, files: File[], at: number, onError: (message: string) => void) {
+  let position = at;
+  for (const file of files) {
+    try {
+      const assetId = crypto.randomUUID();
+      await storeImageAsset(workspaceId, assetId, file);
+      const src = `/api/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(assetId)}`;
+      const markup = `![${file.name.replace(/[[\]\\\r\n]/g, " ")}](${src})\n`;
+      position = Math.min(position, view.state.doc.length);
+      view.dispatch({ changes: { from: position, insert: markup }, selection: { anchor: position + markup.length } });
+      position += markup.length;
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Could not add this image to the Note.");
+    }
+  }
+}
+
 export function MarkdownNoteEditor(props: {
   noteId: string;
-  document: MarkdownNoteDocument;
+  workspaceId: string;
+  document: NoteDocument;
   minHeight?: number;
-  activationPoint?: { clientX: number; clientY: number } | null;
+  activationPoint?: NoteActivationPoint | null;
   bodyMaxHeight?: number;
-  onDocumentChange: (document: MarkdownNoteDocument) => void;
+  onDocumentChange: (document: NoteDocument) => void;
   readDocument: (noteId: string) => NoteDocument | undefined;
   onResize: (height: number) => void;
+  onError: (message: string) => void;
   onEscape: () => void;
 }) {
   const { document, noteId, bodyMaxHeight } = props;
@@ -80,6 +107,23 @@ export function MarkdownNoteEditor(props: {
         extensions: [
           markdown(), preview, history(), EditorView.lineWrapping, placeholder("Write in Markdown…"),
           EditorView.contentAttributes.of({ "aria-label": "Note Markdown editor" }),
+          EditorView.domEventHandlers({
+            paste(event, editor) {
+              const files = droppedImages(event.clipboardData);
+              if (!files.length) return false;
+              event.preventDefault();
+              void insertImages(editor, latest.current.workspaceId, files, editor.state.selection.main.head, latest.current.onError);
+              return true;
+            },
+            drop(event, editor) {
+              const files = droppedImages(event.dataTransfer);
+              if (!files.length) return false;
+              event.preventDefault();
+              const at = editor.posAtCoords({ x: event.clientX, y: event.clientY }) ?? editor.state.selection.main.head;
+              void insertImages(editor, latest.current.workspaceId, files, at, latest.current.onError);
+              return true;
+            },
+          }),
           keymap.of([
             { key: "Escape", run: (editor) => {
               if (editor.composing) return false;

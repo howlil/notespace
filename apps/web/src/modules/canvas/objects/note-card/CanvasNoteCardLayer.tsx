@@ -4,19 +4,18 @@ import type { Note } from "../../../../platform/api/note-api";
 import { noteFirstLine, readCanvasNoteReference, type NoteDocument } from "../../../../entities/note";
 import {
   CanvasNoteStoreProvider,
-  NoteEditor,
+  MarkdownNoteEditor,
   NoteFocusModal,
   NoteInfoPopover,
   useCanvasNoteSnapshot,
   useCanvasNoteStore,
   type CanvasNoteStore,
   type NoteActivationPoint,
-  type NoteCreatedConnection,
   type NoteSaveStatus,
 } from "../../../note-editor";
 import { CanvasNoteCard, NoteCardStatus, type CanvasViewport } from "./CanvasNoteCard";
 
-export type { NoteActivationPoint, NoteCreatedConnection };
+export type { NoteActivationPoint };
 
 const ignoreAutoResize = () => {};
 
@@ -44,9 +43,6 @@ export function CanvasNoteCardLayer({
   onSaveState,
   onAutoResize,
   onRemoveMissing,
-  onPlaceLinkedNote,
-  onExtractToNote,
-  onCreateAndLinkNote,
   onSuccess,
   onError,
 }: {
@@ -73,9 +69,6 @@ export function CanvasNoteCardLayer({
   onSaveState?: (status: NoteSaveStatus) => void;
   onAutoResize?: (elementId: string, height: number) => void;
   onRemoveMissing?: (elementId: string) => void;
-  onPlaceLinkedNote?: (noteId: string) => Promise<void> | void;
-  onExtractToNote?: (sourceElementId: string, extractedDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
-  onCreateAndLinkNote?: (sourceElementId: string, initialDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
   onSuccess?: (message: string) => void;
   onError: (message: string) => void;
 }) {
@@ -151,10 +144,6 @@ export function CanvasNoteCardLayer({
             onRestore={restoreNote}
             onRemoveMissing={onRemoveMissing}
             onAutoResize={onAutoResize ?? ignoreAutoResize}
-            onPlaceLinkedNote={onPlaceLinkedNote}
-            onExtractToNote={onExtractToNote}
-            onCreateAndLinkNote={onCreateAndLinkNote}
-            onSuccess={onSuccess}
             onError={onError}
           />
         ))}
@@ -170,19 +159,14 @@ export function CanvasNoteCardLayer({
           onOpenInfo={onInfoNoteChange && expandedReadyNote ? () => onInfoNoteChange(expandedReadyNote.id) : undefined}
         >
           {expandedEntry.status === "ready" ? (
-            <NoteEditor
+            <MarkdownNoteEditor
               key={expandedTarget.element.id}
-              note={expandedEntry.note}
-              elementId={expandedTarget.element.id}
+              noteId={expandedEntry.note.id}
               workspaceId={workspaceId}
-              bodyMaxHeight={undefined}
+              document={expandedEntry.note.document}
               onDocumentChange={(document) => store.queue(expandedEntry.note.id, document)}
               readDocument={store.readDocument}
-              onAutoResize={ignoreAutoResize}
-              onPlaceLinkedNote={onPlaceLinkedNote}
-              onExtractToNote={onExtractToNote}
-              onCreateAndLinkNote={onCreateAndLinkNote}
-              onSuccess={onSuccess}
+              onResize={ignoreAutoResize}
               onError={onError}
               onEscape={() => onExpandedChange?.(null)}
             />

@@ -46,7 +46,7 @@ func TestCanvasNoteImageAssetFollowsCanonicalDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 	canvasData := json.RawMessage(`{"elements":[{"id":"note-image-element","isDeleted":false,"customData":{"notespaceNote":{"noteId":"note-image-doc","instanceId":"note-image-instance"}}}],"appState":{},"files":{}}`)
-	document := json.RawMessage(`{"type":"doc","content":[{"type":"noteImage","attrs":{"src":"/api/workspaces/` + workspace.ID + `/assets/note-image","assetId":"note-image","alt":"photo"}}]}`)
+	document := json.RawMessage(`{"type":"markdown","text":"![photo](/api/workspaces/` + workspace.ID + `/assets/note-image)"}`)
 	created, err := store.CreateNoteInstance(ctx, workspace.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "note-image-request", ClientNoteID: "note-image-doc", ClientInstanceID: "note-image-instance", ElementID: "note-image-element",
 		ExpectedCanvasVersion: workspace.CanvasVersion, Document: document,
@@ -68,7 +68,7 @@ func TestCanvasNoteImageAssetFollowsCanonicalDocument(t *testing.T) {
 	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); err != nil {
 		t.Fatalf("note image asset was deleted when removing an instance even though the canonical Note still references it: %v", err)
 	}
-	if _, err := store.UpdateNote(ctx, created.Note.ID, domain.UpdateNoteRequest{Document: json.RawMessage(`{"type":"doc","content":[]}`), ExpectedRevision: created.Note.Revision}); err != nil {
+	if _, err := store.UpdateNote(ctx, created.Note.ID, domain.UpdateNoteRequest{Document: json.RawMessage(`{"type":"markdown","text":""}`), ExpectedRevision: created.Note.Revision}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.GetAsset(ctx, workspace.ID, "note-image"); !errors.Is(err, domain.ErrAssetNotFound) {
@@ -94,7 +94,7 @@ func TestCanvasNoteImageSurvivesOriginWorkspaceTrashAndPermanentDelete(t *testin
 	if _, err := store.PutAsset(ctx, domain.StoredAsset{ID: "shared-img", WorkspaceID: origin.ID, MimeType: "image/png", Data: []byte("shared-png")}); err != nil {
 		t.Fatal(err)
 	}
-	document := json.RawMessage(`{"type":"doc","content":[{"type":"noteImage","attrs":{"src":"/api/workspaces/` + origin.ID + `/assets/shared-img","assetId":"shared-img","alt":"shared"}}]}`)
+	document := json.RawMessage(`{"type":"markdown","text":"![shared](/api/workspaces/` + origin.ID + `/assets/shared-img)"}`)
 	originCanvas := json.RawMessage(`{"elements":[{"id":"el-origin","isDeleted":false,"customData":{"notespaceNote":{"noteId":"shared-note","instanceId":"inst-origin"}}}],"appState":{},"files":{}}`)
 	created, err := store.CreateNoteInstance(ctx, origin.ID, domain.CreateNoteInstanceRequest{
 		ClientRequestID: "req-origin", ClientNoteID: "shared-note", ClientInstanceID: "inst-origin", ElementID: "el-origin",

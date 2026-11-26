@@ -12,6 +12,8 @@ import {
   type NoteSceneElement,
 } from "./note-export.ts";
 
+const md = (...lines: string[]): NoteDocument => ({ type: "markdown", text: lines.join("\n") });
+
 function noteElement(
   overrides: Partial<NoteSceneElement> = {},
   reference: Partial<CanvasNoteReference> = {},
@@ -33,20 +35,11 @@ function noteElement(
 }
 
 test("folded compact Note card renders a rounded frame with a bold truncated first line", () => {
-  const doc: NoteDocument = {
-    type: "doc",
-    content: [
-      {
-        type: "heading",
-        attrs: { level: 1 },
-        content: [{ type: "text", text: "Distributed Consensus Protocol Architecture Overview For Production Clusters" }],
-      },
-      {
-        type: "paragraph",
-        content: [{ type: "text", text: "Body paragraph that must not appear while compact." }],
-      },
-    ],
-  };
+  const doc = md(
+    "# Distributed Consensus Protocol Architecture Overview For Production Clusters",
+    "",
+    "Body paragraph that must not appear while compact.",
+  );
   const element = noteElement({ width: 220, height: 48 }, { compact: true });
   const markup = canvasNotesSvgMarkup([element], false, { "note-1": doc });
 
@@ -59,89 +52,50 @@ test("folded compact Note card renders a rounded frame with a bold truncated fir
   assert.match(markup, /notespace-note-export-clip-0/);
 });
 
-test("rich unfolded Note card renders headings, lists, checklists, callouts, toggles, code, math, tables, images, and color", () => {
-  const doc: NoteDocument = {
-    type: "doc",
-    content: [
-      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Architecture Plan" }] },
-      {
-        type: "paragraph",
-        content: [
-          { type: "text", text: "Latency scales with " },
-          { type: "inlineMath", attrs: { latex: "O(n \\log n)" } },
-          { type: "text", text: " in steady state." },
-        ],
-      },
-      {
-        type: "bulletList",
-        content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Bullet point" }] }] }],
-      },
-      {
-        type: "orderedList",
-        attrs: { start: 1 },
-        content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "First step" }] }] }],
-      },
-      {
-        type: "taskList",
-        content: [
-          { type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "Pending task" }] }] },
-          { type: "taskItem", attrs: { checked: true }, content: [{ type: "paragraph", content: [{ type: "text", text: "Completed task" }] }] },
-        ],
-      },
-      {
-        type: "blockquote",
-        content: [{ type: "paragraph", content: [{ type: "text", text: "Quoted principle" }] }],
-      },
-      {
-        type: "noteCallout",
-        attrs: { tone: "warning" },
-        content: [{ type: "paragraph", content: [{ type: "text", text: "Watch lock contention" }] }],
-      },
-      {
-        type: "noteToggle",
-        attrs: { open: true },
-        content: [
-          { type: "noteToggleSummary", content: [{ type: "text", text: "Expanded section" }] },
-          { type: "paragraph", content: [{ type: "text", text: "Visible toggle detail" }] },
-        ],
-      },
-      {
-        type: "noteToggle",
-        attrs: { open: false },
-        content: [
-          { type: "noteToggleSummary", content: [{ type: "text", text: "Collapsed section" }] },
-          { type: "paragraph", content: [{ type: "text", text: "Hidden toggle detail" }] },
-        ],
-      },
-      {
-        type: "codeBlock",
-        content: [{ type: "text", text: "const quorum = Math.floor(n / 2) + 1;" }],
-      },
-      {
-        type: "table",
-        content: [
-          {
-            type: "tableRow",
-            content: [
-              { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "Node" }] }] },
-              { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "Role" }] }] },
-            ],
-          },
-          {
-            type: "tableRow",
-            content: [
-              { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "n1" }] }] },
-              { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "Leader" }] }] },
-            ],
-          },
-        ],
-      },
-      {
-        type: "noteImage",
-        attrs: { src: "https://example.invalid/diagram.png", alt: "Cluster topology" },
-      },
-    ],
-  };
+test("unfolded Note card renders headings, lists, checklists, callouts, toggles, code, math, tables, images, and color", () => {
+  const doc = md(
+    "# Architecture Plan",
+    "",
+    "Latency scales with $O(n \\log n)$ in steady state.",
+    "",
+    "- Bullet point",
+    "",
+    "1. First step",
+    "",
+    "- [ ] Pending task",
+    "- [x] Completed task",
+    "",
+    "> Quoted principle",
+    "",
+    "> [!warning]",
+    "> Watch lock contention",
+    "",
+    "<details open>",
+    "<summary>Expanded section</summary>",
+    "",
+    "Visible toggle detail",
+    "",
+    "</details>",
+    "",
+    "<details>",
+    "<summary>Collapsed section</summary>",
+    "",
+    "Hidden toggle detail",
+    "",
+    "</details>",
+    "",
+    "```",
+    "const quorum = Math.floor(n / 2) + 1;",
+    "```",
+    "",
+    "| Node | Role |",
+    "| --- | --- |",
+    "| n1 | Leader |",
+    "",
+    "![Cluster topology](/api/workspaces/w1/assets/a1)",
+    "",
+    "![Remote](https://example.invalid/diagram.png)",
+  );
 
   const element = noteElement({ width: 360, height: 900, angle: Math.PI / 4 }, { color: "blue" });
   const markup = canvasNotesSvgMarkup([element], false, { "note-1": doc });
@@ -166,15 +120,27 @@ test("rich unfolded Note card renders headings, lists, checklists, callouts, tog
   assert.match(markup, /Node \| Role/);
   assert.match(markup, /n1 \| Leader/);
   assert.match(markup, /\[Image: Cluster topology\]/);
-  assert.doesNotMatch(markup, /https:\/\/example\.invalid/);
+  assert.doesNotMatch(markup, /https:\/\/example\.invalid|\/api\/workspaces/);
   assert.doesNotMatch(markup, /<foreignObject\b|<image\b|<img\b/i);
 });
 
+test("embedded Notes and block references export their live titles and previews", () => {
+  const doc = md(
+    "![stale label](/workspaces/w1?noteId=other)",
+    "",
+    "[Block reference](/workspaces/w1?noteId=other&blockId=b1)",
+    "",
+    "[Block reference](/workspaces/w1?noteId=gone&blockId=b9)",
+  );
+  const other = md("# Other Note", "", "The quoted block ^b1");
+  const markup = canvasNotesSvgMarkup([noteElement({ height: 400 })], false, { "note-1": doc, other });
+  assert.match(markup, /\[Note: Other Note\]/);
+  assert.match(markup, /The quoted block/);
+  assert.match(markup, /\[Block reference\]/);
+});
+
 test("dark mode renders distinct dark surfaces and borders for every card color", () => {
-  const doc: NoteDocument = {
-    type: "doc",
-    content: [{ type: "paragraph", content: [{ type: "text", text: "Dark card content" }] }],
-  };
+  const doc = md("Dark card content");
 
   for (const color of NOTE_CARD_COLORS) {
     const lightSurface = noteCardSurfaceColors(color, false);
@@ -188,7 +154,7 @@ test("dark mode renders distinct dark surfaces and borders for every card color"
 });
 
 test("square cards export with sharp corners and rounded cards keep the default radius", () => {
-  const doc: NoteDocument = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Shape" }] }] };
+  const doc = md("Shape");
   const rounded = canvasNotesSvgMarkup([noteElement({}, {})], false, { "note-1": doc });
   const square = canvasNotesSvgMarkup([noteElement({}, { shape: "square" })], false, { "note-1": doc });
   assert.match(rounded, /rx="8" fill="#FFFDF9"/);
@@ -197,19 +163,11 @@ test("square cards export with sharp corners and rounded cards keep the default 
 });
 
 test("SVG export escapes XML special characters and skips deleted, plain, and malformed elements", () => {
-  const doc: NoteDocument = {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: [{ type: "text", text: `<script>alert("xss" & '1')</script>` }],
-      },
-      {
-        type: "noteImage",
-        attrs: { alt: `<img src=x onerror="alert(1)">` },
-      },
-    ],
-  };
+  const doc = md(
+    `<script>alert("xss" & '1')</script>`,
+    "",
+    `![<img src=x onerror="alert(1)">](/api/workspaces/w1/assets/a1)`,
+  );
 
   const valid = noteElement({}, {});
   const plain: NoteSceneElement = { id: "rect", x: 0, y: 0, width: 100, height: 80, angle: 0 };
@@ -231,8 +189,7 @@ test("missing or empty Note documents render clean card frames with muted fallba
   assert.match(missingMarkup, /rx="8"/);
   assert.match(missingMarkup, /<tspan>Note<\/tspan>/);
 
-  const emptyDoc: NoteDocument = { type: "doc", content: [{ type: "paragraph", content: [] }] };
-  const emptyMarkup = canvasNotesSvgMarkup([noteElement()], false, { "note-1": emptyDoc });
+  const emptyMarkup = canvasNotesSvgMarkup([noteElement()], false, { "note-1": md("") });
   assert.match(emptyMarkup, /rx="8"/);
   assert.match(emptyMarkup, /<tspan>Empty note<\/tspan>/);
 
@@ -241,18 +198,7 @@ test("missing or empty Note documents render clean card frames with muted fallba
 });
 
 test("word wrapping splits long paragraphs to card inner width and applies export offset", () => {
-  const doc: NoteDocument = {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: [{
-          type: "text",
-          text: "Word wrapping keeps narrow Note cards readable without overflowing outside the clipped SVG frame.",
-        }],
-      },
-    ],
-  };
+  const doc = md("Word wrapping keeps narrow Note cards readable without overflowing outside the clipped SVG frame.");
   const element = noteElement({ x: 500, y: 300, width: 180, height: 200 });
   const markup = canvasNotesSvgMarkup([element], false, { "note-1": doc }, { x: -490, y: -290 });
 

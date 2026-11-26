@@ -1,16 +1,22 @@
+import type { Token, Tokens } from "marked";
 import {
+  isNoteAssetSrc,
   noteFirstLine,
   type NoteCardColor,
   type NoteDocument,
-  type NoteNode,
 } from "../../../entities/note.ts";
-import { findBlockPreview } from "../model/note-extract.ts";
-import { notePreviewDocument } from "../model/note-markdown.ts";
+import {
+  blockText,
+  findBlockPreview,
+  inlineText,
+  lexNote,
+  noteBlocks,
+  parseNoteRoute,
+  type NoteToken,
+} from "../model/note-markdown.ts";
 import {
   escapeXml,
   estimateTextWidth,
-  extractCollapsedText,
-  extractInlineText,
   truncateLine,
   wrapText,
 } from "./svg-text-wrap.ts";
@@ -170,9 +176,11 @@ function calloutColors(tone: unknown, theme: NoteThemePalette): { bg: string; ac
   return { bg: theme.tint, accent: theme.accent };
 }
 
+const collapsed = (token: Token) => blockText(token).replace(/\s+/g, " ").trim();
+
 function renderListItem(
   state: LayoutState,
-  item: NoteNode,
+  item: Tokens.ListItem,
   prefix: string,
   prefixFill: string,
   indent: number,
@@ -180,7 +188,7 @@ function renderListItem(
   textFill: string,
   strikeThrough: boolean,
 ) {
-  const children = item.content ?? [];
+  const children = item.tokens as NoteToken[];
   if (!children.length) {
     emitWrappedText(state, {
       text: "",
@@ -197,7 +205,7 @@ function renderListItem(
   }
   const [first, ...rest] = children;
   emitWrappedText(state, {
-    text: first.type === "paragraph" ? extractInlineText(first).trim() : extractCollapsedText(first),
+    text: first.type === "text" || first.type === "paragraph" ? inlineText(first.tokens).trim() : collapsed(first),
     x: indent,
     availWidth,
     fontSize: 13.5,
@@ -212,9 +220,80 @@ function renderListItem(
   }
 }
 
+function boxedLine(state: LayoutState, indent: number, availWidth: number, text: string, options: { fontWeight?: number; fill: string; padX: number }) {
+  if (state.hasContent) state.y += 3;
+  const insertIndex = state.parts.length;
+  const boxTop = state.y;
+  state.y += 6;
+  emitWrappedText(state, {
+    text,
+    x: indent + options.padX,
+    availWidth: Math.max(24, availWidth - options.padX * 2),
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: options.fontWeight,
+    fill: options.fill,
+  });
+  const boxHeight = Math.max(26, state.y - boxTop + 5);
+  state.parts.splice(
+    insertIndex,
+    0,
+    `<rect x="${indent}" y="${boxTop}" width="${availWidth}" height="${boxHeight}" rx="5" fill="${state.theme.codeBg}" stroke="${state.theme.border}" stroke-width="1" />`,
+  );
+  state.y = boxTop + boxHeight + 6;
+}
+
+/** A paragraph that is only an image or a reference link stands for an image, embed or block reference. */
+function renderStandaloneInline(state: LayoutState, token: NoteToken, indent: number, availWidth: number): boolean {
+  const only = token.tokens?.length === 1 ? token.tokens[0] : null;
+  if (only?.type === "image") {
+    const image = only as Tokens.Image;
+    const route = parseNoteRoute(image.href);
+    if (route) {
+      const referenced = state.noteDocuments?.[route.noteId];
+      const label = (referenced ? noteFirstLine(referenced) : "") || image.text.trim() || "Embedded Note";
+      boxedLine(state, indent, availWidth, `[Note: ${label}]`, { fontWeight: 600, fill: state.theme.ink, padX: 8 });
+      return true;
+    }
+    if (isNoteAssetSrc(image.href)) {
+      const alt = image.text.replace(/\s+/g, " ").trim();
+      boxedLine(state, indent, availWidth, alt ? `[Image: ${alt}]` : "[Image]", { fill: state.theme.muted, padX: 8 });
+      return true;
+    }
+    return false;
+  }
+  if (only?.type === "link") {
+    const route = parseNoteRoute((only as Tokens.Link).href);
+    if (!route?.blockId) return false;
+    if (state.hasContent) state.y += 3;
+    const preview = findBlockPreview(state.noteDocuments?.[route.noteId], route.blockId);
+    const insertIndex = state.parts.length;
+    const boxTop = state.y;
+    state.y += 5;
+    emitWrappedText(state, {
+      text: preview ?? "[Block reference]",
+      x: indent + 12,
+      availWidth: Math.max(24, availWidth - 18),
+      fontSize: 12.5,
+      lineHeight: 18,
+      fill: preview ? state.theme.ink : state.theme.muted,
+    });
+    const boxHeight = Math.max(24, state.y - boxTop + 4);
+    state.parts.splice(
+      insertIndex,
+      0,
+      `<rect x="${indent}" y="${boxTop}" width="${availWidth}" height="${boxHeight}" rx="4" fill="${state.theme.tint}" />`
+      + `<rect x="${indent}" y="${boxTop}" width="3" height="${boxHeight}" rx="1.5" fill="${state.theme.accent}" />`,
+    );
+    state.y = boxTop + boxHeight + 5;
+    return true;
+  }
+  return false;
+}
+
 function renderBlock(
   state: LayoutState,
-  node: NoteNode,
+  node: NoteToken,
   indent: number,
   availWidth: number,
   inheritedFill?: string,
@@ -224,10 +303,10 @@ function renderBlock(
 
   switch (node.type) {
     case "heading": {
-      const level = typeof node.attrs?.level === "number" ? node.attrs.level : 2;
+      const level = node.depth;
       const fontSize = level <= 1 ? 18 : level === 2 ? 16 : 14.5;
       const lineHeight = level <= 1 ? 23 : level === 2 ? 21 : 19;
-      const text = extractInlineText(node).trim();
+      const text = inlineText(node.tokens).trim();
       if (!text) return;
       if (state.hasContent) state.y += 6;
       emitWrappedText(state, { text, x: indent, availWidth, fontSize, lineHeight, fontWeight: 600, fill });
@@ -235,8 +314,10 @@ function renderBlock(
       return;
     }
 
-    case "paragraph": {
-      const text = extractInlineText(node);
+    case "paragraph":
+    case "text": {
+      if (renderStandaloneInline(state, node, indent, availWidth)) return;
+      const text = inlineText(node.tokens);
       if (!text.trim()) {
         if (state.hasContent) state.y += 6;
         return;
@@ -246,37 +327,17 @@ function renderBlock(
       return;
     }
 
-    case "bulletList": {
-      for (const item of node.content ?? []) {
+    case "list": {
+      const list = node as Tokens.List;
+      const start = typeof list.start === "number" && Number.isFinite(list.start) ? Math.floor(list.start) : 1;
+      for (const [index, item] of list.items.entries()) {
         if (state.y > state.maxY + 24) break;
-        renderListItem(state, item, "• ", state.theme.muted, indent, availWidth, fill, false);
-        state.y += 2;
-      }
-      state.y += 3;
-      return;
-    }
-
-    case "orderedList": {
-      const start = typeof node.attrs?.start === "number" && Number.isFinite(node.attrs.start)
-        ? Math.floor(node.attrs.start)
-        : 1;
-      for (const [index, item] of (node.content ?? []).entries()) {
-        if (state.y > state.maxY + 24) break;
-        renderListItem(state, item, `${start + index}. `, state.theme.muted, indent, availWidth, fill, false);
-        state.y += 2;
-      }
-      state.y += 3;
-      return;
-    }
-
-    case "taskList": {
-      for (const item of node.content ?? []) {
-        if (state.y > state.maxY + 24) break;
-        const checked = item.attrs?.checked === true;
-        const prefix = checked ? "☑ " : "☐ ";
-        const prefixFill = checked ? state.theme.accent : state.theme.muted;
-        const itemFill = checked ? state.theme.muted : fill;
-        renderListItem(state, item, prefix, prefixFill, indent, availWidth, itemFill, checked);
+        if (item.task) {
+          const checked = Boolean(item.checked);
+          renderListItem(state, item, checked ? "☑ " : "☐ ", checked ? state.theme.accent : state.theme.muted, indent, availWidth, checked ? state.theme.muted : fill, checked);
+        } else {
+          renderListItem(state, item, list.ordered ? `${start + index}. ` : "• ", state.theme.muted, indent, availWidth, fill, false);
+        }
         state.y += 2;
       }
       state.y += 3;
@@ -287,7 +348,7 @@ function renderBlock(
       if (state.hasContent) state.y += 3;
       const insertIndex = state.parts.length;
       const startY = state.y;
-      renderBlocks(state, node.content ?? [], indent + 12, Math.max(24, availWidth - 12), state.theme.muted);
+      renderBlocks(state, node.tokens as NoteToken[], indent + 12, Math.max(24, availWidth - 12), state.theme.muted);
       const barHeight = Math.max(16, state.y - startY - 4);
       state.parts.splice(
         insertIndex,
@@ -298,13 +359,13 @@ function renderBlock(
       return;
     }
 
-    case "noteCallout": {
+    case "callout": {
       if (state.hasContent) state.y += 4;
-      const colors = calloutColors(node.attrs?.tone, state.theme);
+      const colors = calloutColors(node.tone, state.theme);
       const insertIndex = state.parts.length;
       const boxTop = state.y;
       state.y += 8;
-      renderBlocks(state, node.content ?? [], indent + 14, Math.max(24, availWidth - 22), state.theme.ink);
+      renderBlocks(state, node.tokens as NoteToken[], indent + 14, Math.max(24, availWidth - 22), state.theme.ink);
       const boxBottom = Math.max(boxTop + 28, state.y + 3);
       const boxHeight = boxBottom - boxTop;
       state.parts.splice(
@@ -318,14 +379,10 @@ function renderBlock(
       return;
     }
 
-    case "noteToggle": {
-      const open = node.attrs?.open !== false;
-      const children = node.content ?? [];
-      const summaryNode = children.find((child) => child.type === "noteToggleSummary");
-      const bodyNodes = children.filter((child) => child !== summaryNode);
-      const summaryText = summaryNode ? extractInlineText(summaryNode).replace(/\s+/g, " ").trim() : "";
+    case "details": {
+      const open = node.open !== false;
       emitWrappedText(state, {
-        text: summaryText || "Toggle",
+        text: String(node.summary).replace(/\s+/g, " ").trim() || "Toggle",
         x: indent,
         availWidth,
         fontSize: 13.5,
@@ -335,17 +392,17 @@ function renderBlock(
         prefix: open ? "▾ " : "▸ ",
         prefixFill: state.theme.muted,
       });
-      if (open && bodyNodes.length) {
+      if (open && node.tokens?.length) {
         state.y += 2;
-        renderBlocks(state, bodyNodes, indent + 16, Math.max(24, availWidth - 16), inheritedFill);
+        renderBlocks(state, node.tokens as NoteToken[], indent + 16, Math.max(24, availWidth - 16), inheritedFill);
       }
       state.y += 4;
       return;
     }
 
-    case "codeBlock": {
+    case "code": {
       if (state.hasContent) state.y += 4;
-      const rawCode = extractInlineText(node);
+      const rawCode = String(node.text);
       const codeWidth = Math.max(24, availWidth - 16);
       const lines = wrapText(rawCode || " ", codeWidth, 11.5, true);
       const boxTop = state.y;
@@ -369,11 +426,11 @@ function renderBlock(
 
     case "table": {
       if (state.hasContent) state.y += 4;
-      for (const row of node.content ?? []) {
+      const table = node as Tokens.Table;
+      const rows = [{ cells: table.header, isHeader: true }, ...table.rows.map((cells) => ({ cells, isHeader: false }))];
+      for (const row of rows) {
         if (state.y > state.maxY + 24) break;
-        const cells = row.content ?? [];
-        const isHeader = cells.some((cell) => cell.type === "tableHeader");
-        const rowText = cells.map((cell) => extractCollapsedText(cell)).join(" | ");
+        const rowText = row.cells.map((cell) => inlineText(cell.tokens).replace(/\s+/g, " ").trim()).join(" | ");
         const insertIndex = state.parts.length;
         const rowTop = state.y;
         state.y += 3;
@@ -383,11 +440,11 @@ function renderBlock(
           availWidth: Math.max(24, availWidth - 12),
           fontSize: 12.5,
           lineHeight: 18,
-          fontWeight: isHeader ? 600 : 400,
+          fontWeight: row.isHeader ? 600 : 400,
           fill,
         });
         const rowBottom = state.y + 3;
-        if (isHeader) {
+        if (row.isHeader) {
           state.parts.splice(
             insertIndex,
             0,
@@ -401,41 +458,16 @@ function renderBlock(
       return;
     }
 
-    case "horizontalRule": {
+    case "hr": {
       state.parts.push(`<rect x="${indent}" y="${state.y + 5}" width="${availWidth}" height="1" fill="${state.theme.border}" />`);
       state.y += 12;
       state.hasContent = true;
       return;
     }
 
-    case "noteImage": {
-      if (state.hasContent) state.y += 3;
-      const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt.replace(/\s+/g, " ").trim() : "";
-      const placeholder = alt ? `[Image: ${alt}]` : "[Image]";
-      const insertIndex = state.parts.length;
-      const boxTop = state.y;
-      state.y += 6;
-      emitWrappedText(state, {
-        text: placeholder,
-        x: indent + 8,
-        availWidth: Math.max(24, availWidth - 16),
-        fontSize: 12,
-        lineHeight: 17,
-        fill: state.theme.muted,
-      });
-      const boxHeight = Math.max(26, state.y - boxTop + 5);
-      state.parts.splice(
-        insertIndex,
-        0,
-        `<rect x="${indent}" y="${boxTop}" width="${availWidth}" height="${boxHeight}" rx="5" fill="${state.theme.codeBg}" stroke="${state.theme.border}" stroke-width="1" />`,
-      );
-      state.y = boxTop + boxHeight + 6;
-      return;
-    }
-
     case "blockMath": {
       if (state.hasContent) state.y += 3;
-      const latex = typeof node.attrs?.latex === "string" ? node.attrs.latex.replace(/\s+/g, " ").trim() : "";
+      const latex = String(node.text).replace(/\s+/g, " ").trim();
       emitWrappedText(state, {
         text: latex || "[Math]",
         x: indent + 6,
@@ -449,64 +481,8 @@ function renderBlock(
       return;
     }
 
-    case "noteEmbed": {
-      if (state.hasContent) state.y += 3;
-      const refId = typeof node.attrs?.noteId === "string" ? node.attrs.noteId : "";
-      const referenced = refId ? state.noteDocuments?.[refId] : undefined;
-      const liveTitle = referenced ? noteFirstLine(referenced) : "";
-      const attrLabel = typeof node.attrs?.label === "string" ? node.attrs.label.trim() : "";
-      const label = liveTitle || attrLabel || "Embedded Note";
-      const insertIndex = state.parts.length;
-      const boxTop = state.y;
-      state.y += 6;
-      emitWrappedText(state, {
-        text: `[Note: ${label}]`,
-        x: indent + 8,
-        availWidth: Math.max(24, availWidth - 16),
-        fontSize: 12.5,
-        lineHeight: 18,
-        fontWeight: 600,
-        fill: state.theme.ink,
-      });
-      const boxHeight = Math.max(26, state.y - boxTop + 5);
-      state.parts.splice(
-        insertIndex,
-        0,
-        `<rect x="${indent}" y="${boxTop}" width="${availWidth}" height="${boxHeight}" rx="5" fill="${state.theme.codeBg}" stroke="${state.theme.border}" stroke-width="1" />`,
-      );
-      state.y = boxTop + boxHeight + 6;
-      return;
-    }
-
-    case "noteBlockReference": {
-      if (state.hasContent) state.y += 3;
-      const refId = typeof node.attrs?.noteId === "string" ? node.attrs.noteId : "";
-      const blockId = typeof node.attrs?.blockId === "string" ? node.attrs.blockId : "";
-      const preview = findBlockPreview(refId ? state.noteDocuments?.[refId] : undefined, blockId);
-      const insertIndex = state.parts.length;
-      const boxTop = state.y;
-      state.y += 5;
-      emitWrappedText(state, {
-        text: preview ?? "[Block reference]",
-        x: indent + 12,
-        availWidth: Math.max(24, availWidth - 18),
-        fontSize: 12.5,
-        lineHeight: 18,
-        fill: preview ? state.theme.ink : state.theme.muted,
-      });
-      const boxHeight = Math.max(24, state.y - boxTop + 4);
-      state.parts.splice(
-        insertIndex,
-        0,
-        `<rect x="${indent}" y="${boxTop}" width="${availWidth}" height="${boxHeight}" rx="4" fill="${state.theme.tint}" />`
-        + `<rect x="${indent}" y="${boxTop}" width="3" height="${boxHeight}" rx="1.5" fill="${state.theme.accent}" />`,
-      );
-      state.y = boxTop + boxHeight + 5;
-      return;
-    }
-
     default: {
-      const fallback = extractCollapsedText(node);
+      const fallback = String(node.raw).replace(/\s+/g, " ").trim();
       if (fallback) {
         emitWrappedText(state, { text: fallback, x: indent, availWidth, fontSize: 13.5, lineHeight: 19.5, fill });
         state.y += 5;
@@ -517,7 +493,7 @@ function renderBlock(
 
 function renderBlocks(
   state: LayoutState,
-  nodes: readonly NoteNode[],
+  nodes: readonly NoteToken[],
   indent: number,
   availWidth: number,
   inheritedFill?: string,
@@ -561,7 +537,7 @@ export function renderNoteDocumentSvgBody(options: {
     theme,
     noteDocuments,
   };
-  renderBlocks(state, notePreviewDocument(doc).content, contentX, contentWidth);
+  renderBlocks(state, noteBlocks(lexNote(doc)), contentX, contentWidth);
   if (!state.hasContent) {
     const baseline = cardY + paddingY + 13.5;
     state.parts.push(

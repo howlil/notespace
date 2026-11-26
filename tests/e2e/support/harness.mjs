@@ -656,7 +656,7 @@ export async function fill(target, next) {
     }, selector, String(next));
     return;
   }
-  // Tiptap/ProseMirror: replace the whole document through the input pipeline so
+  // Rich-text surfaces (CodeMirror): replace the whole document through the input pipeline so
   // editor state, history and autosave observe one authored change.
   await found.click();
   await browser.execute((cssSelector, text) => {

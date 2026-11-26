@@ -14,31 +14,10 @@ export {
   useCanvasNoteStore,
   useReferencedCanvasNote,
 } from "./use-note-store";
-export {
-  extractBlocksFromDocument,
-  findBlockById,
-  findBlockPreview,
-  listNoteBlocks,
-  toggleNoteToggleInDocument,
-  toggleTaskInDocument,
-  type NoteBlockSummary,
-} from "./model/note-extract";
-export {
-  filterNoteSlashCommands,
-  noteMentionQuery,
-  noteSlashQuery,
-  type NoteSlashCommandId,
-} from "./model/note-slash";
-export { renderNoteLatex, upgradeLatexDelimitersInDocument } from "./lib/note-math";
-export { sanitizePastedHTML } from "./lib/note-sanitize";
-export { syncPendingNoteDOMSelection } from "./lib/note-selection-sync";
-export { ensureNoteBlockIds } from "./extensions/block-identity";
-export { createNoteExtensions, type CreateNoteExtensionsOptions, type NoteMathEditRequest } from "./extensions/create-note-extensions";
-export { InternalNoteLink, NoteEmbedCard, NoteBlockReferenceCard } from "./extensions/note-links";
-export { normalizeHighlightTone, normalizeTextColorTone } from "./extensions/note-marks";
-export { MarkdownNoteEditor } from "./MarkdownNoteEditor";
-export { NoteEditor, type NoteEditorProps } from "./NoteEditor";
-export { type NoteActivationPoint, type NoteCreatedConnection } from "./toolbar/editor-positioning";
+export { findBlockPreview, toggleNoteDetails, toggleNoteTask } from "./model/note-markdown";
+export { renderNoteLatex } from "./lib/note-math";
+export { InternalNoteLink, NoteEmbedCard, NoteBlockReferenceCard } from "./NoteReferenceCards";
+export { MarkdownNoteEditor, type NoteActivationPoint } from "./MarkdownNoteEditor";
 export { NoteFocusModal } from "./NoteFocusModal";
 export { NoteInfoPopover } from "./NoteInfoPopover";
 export { NotePickerPopover } from "./NotePickerPopover";

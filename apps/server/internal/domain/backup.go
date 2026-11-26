@@ -4,7 +4,7 @@ import "github.com/howlil/notespace/apps/server/internal/domain/apperr"
 
 const (
 	LibraryBackupFormat  = "notespace-backup"
-	LibraryBackupVersion = 3
+	LibraryBackupVersion = 4
 )
 
 type WorkspaceEnvelope struct {
@@ -58,7 +58,7 @@ func ValidateWorkspaceEnvelope(envelope WorkspaceEnvelope, categoryID string) er
 }
 
 func ValidateLibraryBackup(value LibraryBackup) error {
-	if value.Format != LibraryBackupFormat || (value.Version != 2 && value.Version != LibraryBackupVersion) {
+	if value.Format != LibraryBackupFormat || (value.Version < 2 || value.Version > LibraryBackupVersion) {
 		return ErrBackupInvalid
 	}
 	if len(value.Categories) == 0 {

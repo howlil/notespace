@@ -302,7 +302,7 @@ func TestDualPoolReadsBypassActiveWriterLock(t *testing.T) {
 		ClientInstanceID:      "inst-dual-pool",
 		ElementID:             "el-dual-pool",
 		ExpectedCanvasVersion: ws.CanvasVersion,
-		Document:              json.RawMessage(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"wal concurrent reader verification"}]}]}`),
+		Document:              json.RawMessage(`{"type":"markdown","text":"wal concurrent reader verification"}`),
 		Canvas:                backupNoteCanvas("el-dual-pool", "note-dual-pool", "inst-dual-pool"),
 		X:                     10,
 		Y:                     20,

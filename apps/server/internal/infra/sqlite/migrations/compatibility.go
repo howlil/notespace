@@ -12,6 +12,9 @@ import (
 const (
 	RetiredNotesMigration           = "0026_scrub_retired_note_artifacts.sql"
 	ContractRetiredDomainsMigration = "0031_contract_retired_domains.sql"
+	// NoteMarkdownMigration retires the rich Note document; infra/store runs the
+	// document conversion in this migration's transaction.
+	NoteMarkdownMigration = "0033_note_markdown_only.sql"
 )
 
 // These exact 0025 variants were already applied by local Notespace builds.

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Note } from "../../../platform/api/note-api";
 import type { NoteDocument } from "../../../entities/note";
 import { useStore } from "../../../shared/lib/use-store";
-import type { CanvasNoteStore, NoteActivationPoint, NoteCreatedConnection } from "../../note-editor";
+import type { CanvasNoteStore, NoteActivationPoint } from "../../note-editor";
 import { CanvasFrameStyleLayer } from "../objects/frame/CanvasFrameStyleLayer";
 import { CanvasCodeBlockLayer, type CodeBlockViewOptions } from "../objects/code-block/CanvasCodeBlockLayer";
 import type { CanvasCodeBlockData } from "../objects/code-block/model/canvas-code-block";
@@ -35,9 +35,6 @@ export function CanvasOverlayLayers({
   onUpdateNote,
   onAutoResizeNote,
   onRemoveMissingNote,
-  onPlaceLinkedNote,
-  onExtractToNote,
-  onCreateAndLinkNote,
   onSuccess,
   onError,
 }: {
@@ -60,9 +57,6 @@ export function CanvasOverlayLayers({
   onUpdateNote: (noteId: string, document: NoteDocument, expectedRevision: number) => Promise<Note>;
   onAutoResizeNote: (elementId: string, height: number) => void;
   onRemoveMissingNote: (elementId: string) => void;
-  onPlaceLinkedNote: (noteId: string) => Promise<void> | void;
-  onExtractToNote: (sourceElementId: string, extractedDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
-  onCreateAndLinkNote: (sourceElementId: string, initialDocument: NoteDocument) => Promise<NoteCreatedConnection | null>;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }) {
@@ -128,9 +122,6 @@ export function CanvasOverlayLayers({
         onUpdateNote={onUpdateNote}
         onAutoResize={onAutoResizeNote}
         onRemoveMissing={onRemoveMissingNote}
-        onPlaceLinkedNote={onPlaceLinkedNote}
-        onExtractToNote={onExtractToNote}
-        onCreateAndLinkNote={onCreateAndLinkNote}
         onSuccess={onSuccess}
         onError={onError}
       />

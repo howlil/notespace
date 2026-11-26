@@ -37,7 +37,7 @@
     "@tiptap/static-renderer": "3.30.3",
     "katex": "0.16.47",
     "lowlight": "3.3.0",
-    "lucide-react": "^1.41.0",
+    "lucide-react": "^1.77.0",
     "marked": "17.0.6",
     "motion": "13.2.0",
     "react": "^18.3.1",

@@ -12,7 +12,7 @@ import { releaseRequest } from "./release-request.mjs";
 
 const sha = "a".repeat(40);
 const repository = "howlil/notespace";
-const run = (name = "ci", conclusion = "success", overrides = {}) => ({
+const run = (name = "ci (push)", conclusion = "success", overrides = {}) => ({
   name, head_sha: sha, head_branch: "master", id: 8, run_attempt: 1, event: "push",
   path: ".github/workflows/ci.yml", repository: { full_name: repository },
   head_repository: { full_name: repository }, status: "completed", conclusion, ...overrides,
@@ -110,25 +110,25 @@ test("explicit version must advance stable SemVer and cannot inject shell syntax
 
 test("publication requires the latest exact-master push ci, never legacy or full regression", () => {
   assert.doesNotThrow(() => assertDesktopReleaseChecks(proof(), sha, repository));
-  assert.doesNotThrow(() => assertDesktopReleaseChecks(proof([run(), run("ci", "failure", { id: 14, event: "workflow_dispatch" })]), sha, repository));
-  const rerun = proof([run("ci", "success", { run_attempt: 2 })]);
+  assert.doesNotThrow(() => assertDesktopReleaseChecks(proof([run(), run("ci (push)", "failure", { id: 14, event: "workflow_dispatch" })]), sha, repository));
+  const rerun = proof([run("ci (push)", "success", { run_attempt: 2 })]);
   rerun.jobs.jobs[0].run_attempt = 2;
   assert.doesNotThrow(() => assertDesktopReleaseChecks(rerun, sha, repository));
   for (const runs of [
     [], [run("Verify"), run("Verify Desktop")],
-    [run("ci", "failure")], [run("ci", "cancelled")], [run("ci", "skipped")],
-    [run("ci", null, { status: "in_progress" })],
-    [run("ci", "success", { event: "pull_request" })],
-    [run("ci", "success", { event: "workflow_dispatch" })],
-    [run("ci", "success", { event: "schedule" })],
-    [run("ci", "success", { head_sha: "b".repeat(40) })],
-    [run("ci", "success", { head_branch: "other" })],
-    [run("ci", "success", { path: ".github/workflows/other.yml" })],
-    [run("ci", "success", { repository: { full_name: "other/repo" } })],
-    [run("ci", "success", { head_repository: { full_name: "other/repo" } })],
-    [run(), run()], [run("ci", "success", { id: 0 })],
-    [run(), run("ci", "failure", { id: 14 })],
-    [run(), run("ci", null, { id: 14, status: "queued" })],
+    [run("ci (push)", "failure")], [run("ci (push)", "cancelled")], [run("ci (push)", "skipped")],
+    [run("ci (push)", null, { status: "in_progress" })],
+    [run("ci (push)", "success", { event: "pull_request" })],
+    [run("ci (push)", "success", { event: "workflow_dispatch" })],
+    [run("ci (push)", "success", { event: "schedule" })],
+    [run("ci (push)", "success", { head_sha: "b".repeat(40) })],
+    [run("ci (push)", "success", { head_branch: "other" })],
+    [run("ci (push)", "success", { path: ".github/workflows/other.yml" })],
+    [run("ci (push)", "success", { repository: { full_name: "other/repo" } })],
+    [run("ci (push)", "success", { head_repository: { full_name: "other/repo" } })],
+    [run(), run()], [run("ci (push)", "success", { id: 0 })],
+    [run(), run("ci (push)", "failure", { id: 14 })],
+    [run(), run("ci (push)", null, { id: 14, status: "queued" })],
   ]) assert.throws(() => assertDesktopReleaseChecks(proof(runs), sha, repository), JSON.stringify(runs));
 });
 
@@ -145,7 +145,7 @@ test("successful run cannot hide a missing, skipped, duplicate or stale-attempt 
     (p) => { p.jobs.jobs[0].run_id = 7; },
     (p) => { p.jobs.jobs[0].head_sha = "b".repeat(40); },
     (p) => { p.workflow_runs[0].run_attempt = 2; },
-    (p) => { p.workflow_runs = [run("ci", "success", { id: 9 })]; },
+    (p) => { p.workflow_runs = [run("ci (push)", "success", { id: 9 })]; },
   ]) {
     const payload = proof(); change(payload);
     assert.throws(() => assertDesktopReleaseChecks(payload, sha, repository), change.toString());
@@ -170,7 +170,6 @@ test("target-specific release preflight blocks docs/landing-only master runs fro
     job("browser"),
     job("landing"),
     job("compose"),
-    job("desktop / check-desktop"),
     job("desktop / check-desktop-windows"),
   ]);
 
@@ -185,7 +184,7 @@ test("target-specific release preflight blocks docs/landing-only master runs fro
   }
   const skippedDesktop = withJobs([
     job("ci / gate"), job("web"), job("server"), job("browser"),
-    job("desktop / check-desktop"), job("desktop / check-desktop-windows", { conclusion: "skipped" }),
+    job("desktop / check-desktop-windows", { conclusion: "skipped" }),
   ]);
   assert.throws(() => assertDesktopReleaseChecks(skippedDesktop, sha, repository, { target: "desktop" }));
   assert.throws(() => assertDesktopReleaseChecks(full, sha, repository, { target: "unknown" }));
@@ -195,7 +194,7 @@ test("explicit exact-SHA candidate proof unblocks docs/landing-only master witho
   const pushJob = (name, overrides = {}) => ({
     name, run_id: 8, run_attempt: 1, head_sha: sha, status: "completed", conclusion: "success", ...overrides,
   });
-  const candRun = (target, overrides = {}) => run("ci", "success", {
+  const candRun = (target, overrides = {}) => run(candidateRunTitle(target), "success", {
     id: 20, run_attempt: 1, event: "workflow_dispatch", display_title: candidateRunTitle(target), ...overrides,
   });
   const candJob = (name, overrides = {}) => ({
@@ -204,7 +203,7 @@ test("explicit exact-SHA candidate proof unblocks docs/landing-only master witho
   const desktopCandJobs = [
     candJob(candidateGateName("desktop")),
     candJob("web"), candJob("server"), candJob("browser"),
-    candJob("desktop / check-desktop"), candJob("desktop / check-desktop-windows"),
+    candJob("desktop / check-desktop-windows"),
   ];
   const imageCandJobs = [
     candJob(candidateGateName("image")),
@@ -227,10 +226,10 @@ test("explicit exact-SHA candidate proof unblocks docs/landing-only master witho
   assert.equal(assertDesktopReleaseChecks(makePayload(docsPush, [candRun("image")], imageCandJobs), sha, repository, { target: "image" }).source, "candidate");
 
   // Negative: generic regression (workflow_dispatch or schedule) cannot substitute for candidate proof.
-  const regressionRun = run("ci", "success", { id: 20, event: "workflow_dispatch", display_title: "ci regression" });
+  const regressionRun = run("ci (push)", "success", { id: 20, event: "workflow_dispatch", display_title: "ci regression" });
   const regressionJobs = [candJob("regression / gate"), ...desktopCandJobs.slice(1)];
   assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [regressionRun], regressionJobs), sha, repository, { target: "desktop" }), /no passing candidate \/ desktop/);
-  const scheduledRun = run("ci", "success", { id: 20, event: "schedule", display_title: candidateRunTitle("desktop") });
+  const scheduledRun = run("ci (push)", "success", { id: 20, event: "schedule", display_title: candidateRunTitle("desktop") });
   assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [scheduledRun], desktopCandJobs), sha, repository, { target: "desktop" }), /no passing candidate \/ desktop/);
 
   // Negative: wrong target, stale SHA, wrong repo/workflow, stale attempt, newer failed candidate, missing/skipped lane, failed push gate.
@@ -242,7 +241,7 @@ test("explicit exact-SHA candidate proof unblocks docs/landing-only master witho
   assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop"), candRun("desktop", { id: 25, conclusion: "failure" })], desktopCandJobs), sha, repository, { target: "desktop" }));
   assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs.slice(1)), sha, repository, { target: "desktop" }), /candidate \/ desktop/);
   assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], [...desktopCandJobs.slice(0, -1), candJob("desktop / check-desktop-windows", { conclusion: "skipped" })]), sha, repository, { target: "desktop" }));
-  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs, run("ci", "failure")), sha, repository, { target: "desktop" }));
+  assert.throws(() => assertDesktopReleaseChecks(makePayload(docsPush, [candRun("desktop")], desktopCandJobs, run("ci (push)", "failure")), sha, repository, { target: "desktop" }));
   const failedPushLane = [pushJob("ci / gate"), pushJob("web", { conclusion: "failure" })];
   assert.throws(() => assertDesktopReleaseChecks(makePayload(failedPushLane, [candRun("desktop")], desktopCandJobs), sha, repository, { target: "desktop" }));
 });

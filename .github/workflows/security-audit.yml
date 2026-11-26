@@ -1,0 +1,74 @@
+name: Security Audit and SBOM
+
+# Read-only scheduled and manual supply-chain vulnerability scan + CycloneDX SBOM.
+# Uses zero paid services (Bun audit, Go govulncheck, RustSec cargo-audit, Anchore Syft).
+on:
+  schedule:
+    - cron: "29 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-and-sbom:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - name: Audit Bun dependencies (root and landing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Supply-Chain Vulnerability Audit"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          for scope in "." "landing"; do
+            label=$([ "$scope" = "." ] && echo "root" || echo "$scope")
+            if (cd "$scope" && bun audit --audit-level=high); then
+              echo "- **Bun ($label)**: 0 high/critical advisories" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::warning::Bun ($label) reported high/critical advisories (see job log)"
+              echo "- **Bun ($label)**: high/critical advisories detected (see job log)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+      - name: Audit Go dependencies (govulncheck)
+        working-directory: apps/server
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+      - name: Audit Rust dependencies (cargo-audit)
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          manifest-path: apps/desktop/src-tauri/Cargo.toml
+          token: ${{ github.token }}
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/notespace-source.cdx.json
+          upload-artifact: "false"
+          upload-release-assets: "false"
+      - name: Upload CycloneDX SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: notespace-source-sbom
+          path: ${{ runner.temp }}/notespace-source.cdx.json
+          retention-days: 30
+          if-no-files-found: error

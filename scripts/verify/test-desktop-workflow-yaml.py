@@ -4,11 +4,14 @@
 Requires PyYAML (installed by CI). BaseLoader avoids YAML 1.1 boolean coercion on `on:`.
 """
 from pathlib import Path
+import re
 import sys
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
+SHA_PINNED_ACTION = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$")
+DOCKER_DIGEST_PINNED = re.compile(r"^FROM\s+\S+@sha256:[0-9a-f]{64}(?:\s+AS\s+\S+)?$")
 
 
 class NoDuplicateKeys(yaml.BaseLoader):
@@ -40,10 +43,29 @@ def check_workflow(path):
     assert isinstance(doc.get("jobs"), dict) and doc["jobs"], f"{path}: missing runnable jobs"
     for name, job in doc["jobs"].items():
         assert isinstance(job, dict), f"{path}: job {name} is not a mapping"
+        uses = job.get("uses")
+        if uses is not None:
+            assert isinstance(uses, str) and (uses.startswith("./") or SHA_PINNED_ACTION.match(uses)), (
+                f"{path}: job {name} uses unpinned action {uses!r}"
+            )
         steps = job.get("steps", [])
         assert isinstance(steps, list), f"{path}: invalid steps in {name}"
         names = [step["name"] for step in steps if isinstance(step, dict) and "name" in step]
         assert len(names) == len(set(names)), f"{path}: duplicate step names in {name}"
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            step_uses = step.get("uses")
+            if step_uses is not None:
+                assert isinstance(step_uses, str) and (
+                    step_uses.startswith("./") or SHA_PINNED_ACTION.match(step_uses)
+                ), f"{path}: job {name} step uses unpinned third-party action {step_uses!r}"
+                if step_uses.startswith("actions/checkout@"):
+                    persist = (step.get("with") or {}).get("persist-credentials")
+                    if path.name == "publish-desktop.yml" and name == "prepare-and-dispatch":
+                        assert persist == "true", f"{path}: {name} pushes release tags and must keep persist-credentials: true"
+                    else:
+                        assert persist == "false", f"{path}: {name} checkout must set persist-credentials: false"
     return doc
 
 
@@ -118,7 +140,7 @@ def check_desktop_ci(desktop):
     )
 
     for step in win["steps"]:
-        if step.get("uses") == "actions/cache/save@v4":
+        if str(step.get("uses", "")).startswith("actions/cache/save@"):
             assert "github.ref == 'refs/heads/master'" in step.get("if", ""), "Only master builds may seed native caches"
 
 
@@ -175,8 +197,48 @@ def check_publishers():
     assert "assert-windows-pe-subsystem.mjs" in stable_runs
     assert "verify-desktop-msi-upgrade.ps1" in stable_runs
     assert "gh attestation verify" in stable_runs
+    assert "https://cyclonedx.org/bom" in stable_runs
     assert stable_runs.index("gh attestation verify") < stable_runs.index("gh release create")
+    assert stable_runs.index("https://cyclonedx.org/bom") < stable_runs.index("gh release create")
+    stable_steps = stable["jobs"]["windows-installer"]["steps"]
+    assert any(str(s.get("uses", "")).startswith("anchore/sbom-action@") for s in stable_steps), (
+        "release-desktop.yml must generate a CycloneDX SBOM"
+    )
+    assert any(
+        str(s.get("uses", "")).startswith("actions/attest@") and "sbom-path" in (s.get("with") or {})
+        for s in stable_steps
+    ), "release-desktop.yml must attest the generated SBOM"
     assert "bun run test:desktop:critical" in stable_runs and "bun run test:desktop:native" not in stable_runs
+
+
+def check_supply_chain_configs():
+    dependabot_path = ROOT / ".github" / "dependabot.yml"
+    assert dependabot_path.is_file(), "Missing .github/dependabot.yml"
+    dependabot = yaml.load(dependabot_path.read_text(encoding="utf-8"), Loader=NoDuplicateKeys)
+    assert dependabot.get("version") == "2", "dependabot.yml must declare version: 2"
+    updates = dependabot.get("updates")
+    assert isinstance(updates, list) and updates, "dependabot.yml must declare updates"
+    ecosystems = set()
+    for entry in updates:
+        eco = entry.get("package-ecosystem")
+        directory = entry.get("directory")
+        assert eco and directory, f"Invalid dependabot entry: {entry!r}"
+        target_dir = ROOT if directory == "/" else ROOT / directory.lstrip("/")
+        assert target_dir.is_dir(), f"dependabot.yml references missing directory {directory!r}"
+        ecosystems.add(eco)
+    assert {"github-actions", "docker", "bun", "gomod", "cargo"} <= ecosystems, (
+        f"dependabot.yml missing required ecosystems: {ecosystems!r}"
+    )
+
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    from_lines = [line.strip() for line in dockerfile.splitlines() if line.strip().startswith("FROM ")]
+    assert len(from_lines) == 3, f"Expected 3 Dockerfile FROM stages, found {len(from_lines)}"
+    for line in from_lines:
+        assert DOCKER_DIGEST_PINNED.match(line), f"Dockerfile stage must pin sha256 digest: {line!r}"
+
+    audit = check_workflow(WORKFLOWS / "security-audit.yml")
+    assert audit["permissions"] == {"contents": "read"}, "security-audit.yml must remain read-only"
+    assert set(audit["on"]) == {"schedule", "workflow_dispatch"}, "security-audit.yml must stay scheduled/manual"
 
 
 def main():
@@ -188,6 +250,7 @@ def main():
     check_ci(check_workflow(WORKFLOWS / "ci.yml"))
     check_desktop_ci(check_workflow(WORKFLOWS / "verify-desktop.yml"))
     check_publishers()
+    check_supply_chain_configs()
     print(f"Validated {len(paths)} GitHub Actions workflows")
 
 

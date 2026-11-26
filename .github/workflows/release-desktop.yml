@@ -475,3 +475,27 @@ jobs:
             gh release create $env:RELEASE_TAG $paths --verify-tag --title "Notespace $env:RELEASE_TAG" --notes $unsignedNotice --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw "GitHub Release publishing failed" }
+      - name: Verify published GitHub Release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $candidates = @(Get-ChildItem "apps/desktop/src-tauri/target/release/bundle" -Filter "*.msi" -File -Recurse)
+          if ($candidates.Count -ne 1) { throw "Expected one candidate MSI, got $($candidates.Count)" }
+          $verifyDir = Join-Path $env:RUNNER_TEMP "notespace-published-release"
+          if (Test-Path $verifyDir) { Remove-Item -Recurse -Force $verifyDir }
+          $assetsDir = Join-Path $verifyDir "assets"
+          New-Item -ItemType Directory -Force -Path $assetsDir | Out-Null
+          $releaseJsonPath = Join-Path $verifyDir "release.json"
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets | Set-Content -Path $releaseJsonPath -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "Cannot fetch published release metadata for $env:RELEASE_TAG" }
+          gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --dir $assetsDir
+          if ($LASTEXITCODE -ne 0) { throw "Cannot download published release assets for $env:RELEASE_TAG" }
+          node scripts/release/verify-desktop-release-assets.mjs `
+            --release-json $releaseJsonPath `
+            --assets-dir $assetsDir `
+            --tag $env:RELEASE_TAG `
+            --repository $env:GITHUB_REPOSITORY `
+            --candidate-msi $candidates[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Published release asset verification failed" }

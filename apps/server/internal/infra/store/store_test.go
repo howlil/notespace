@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/howlil/notespace/apps/server/internal/domain"
+	"github.com/howlil/notespace/apps/server/internal/infra/sqlite"
 	"github.com/howlil/notespace/apps/server/internal/infra/sqlite/migrations"
 	"os"
 	"path/filepath"
@@ -84,7 +85,7 @@ func TestWorkspaceTrashReturnsStorageErrorWithoutPanicking(t *testing.T) {
 	}
 }
 
-func seedPre0026Database(t *testing.T, dbPath string, seed func(context.Context, *sql.DB) error) {
+func seedDatabaseBeforeMigration(t *testing.T, dbPath, stopBefore string, seed func(context.Context, *sql.DB) error) {
 	t.Helper()
 	ctx := context.Background()
 	dsn := filepath.ToSlash(dbPath) + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=synchronous(FULL)"
@@ -108,7 +109,7 @@ func seedPre0026Database(t *testing.T, dbPath string, seed func(context.Context,
 	}
 	names := []string{}
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") && entry.Name() < migrations.RetiredNotesMigration {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") && entry.Name() < stopBefore {
 			names = append(names, entry.Name())
 		}
 	}
@@ -130,6 +131,11 @@ func seedPre0026Database(t *testing.T, dbPath string, seed func(context.Context,
 	if err := seed(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func seedPre0026Database(t *testing.T, dbPath string, seed func(context.Context, *sql.DB) error) {
+	t.Helper()
+	seedDatabaseBeforeMigration(t, dbPath, migrations.RetiredNotesMigration, seed)
 }
 
 func TestOpenUpgradesFromPre0026ScrubbingRetiredArtifactsWhileKeepingCanvasNotes(t *testing.T) {
@@ -489,5 +495,195 @@ func TestRestoreAndPurgeTrashHaveSingleWinner(t *testing.T) {
 	}
 	if winner == "purge" && !errors.Is(err, domain.ErrWorkspaceNotFound) {
 		t.Fatalf("purged winner workspace error = %v, want not found", err)
+	}
+}
+
+func TestMigrationRecoveryRehearsalPreservesAuthoredDataAndAssets(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "rehearsal.db")
+
+	const (
+		targetMigration = "0032_canvas_note_trash.sql"
+		catID           = "cat-rehearsal"
+		wsID            = "ws-rehearsal"
+		wsTitle         = "Authored Rehearsal Workspace"
+		noteID          = "note-rehearsal"
+		instID          = "inst-rehearsal"
+		assetID         = "asset-rehearsal"
+		assetMime       = "image/png"
+	)
+	wantAssetBytes := []byte("png-rehearsal-payload-\x00\x01\x02")
+	wantCanvas := `{"format":"excalidraw","version":1,"data":{"elements":[{"id":"el-rect","type":"rectangle"},{"id":"el-note","type":"rectangle","customData":{"notespaceNote":{"noteId":"note-rehearsal","instanceId":"inst-rehearsal","version":2}}}],"appState":{},"files":{}}}`
+	wantDoc := `{"type":"markdown","text":"Rehearsal authored note content"}`
+
+	seedDatabaseBeforeMigration(t, dbPath, targetMigration, func(ctx context.Context, db *sql.DB) error {
+		if _, err := db.ExecContext(ctx, `INSERT INTO categories(id,title,created_at,updated_at) VALUES (?,'Rehearsal','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`, catID); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO projects(id,title,created_at,updated_at,version,category_id) VALUES (?,?,'2026-01-01T00:00:00Z','2026-01-02T00:00:00Z',3,?)`, wsID, wsTitle, catID); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO workspace_canvas(workspace_id,canvas_state,updated_at,version,element_count) VALUES (?,?,'2026-01-02T00:00:00Z',4,2)`, wsID, wantCanvas); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO canvas_notes(id,schema_version,document_state,revision,created_at,updated_at) VALUES (?,1,?,2,'2026-01-01T00:00:00Z','2026-01-02T00:00:00Z')`, noteID, wantDoc); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO canvas_note_instances(id,note_id,workspace_id,element_id,x,y,width,height,compact,created_at,updated_at) VALUES (?,?,?,'el-note',10,20,280,160,0,'2026-01-01T00:00:00Z','2026-01-02T00:00:00Z')`, instID, noteID, wsID); err != nil {
+			return err
+		}
+		_, err := db.ExecContext(ctx, `INSERT INTO workspace_assets(workspace_id,id,mime_type,data,created_at,staged) VALUES (?,?,?,?,'2026-01-01T00:00:00Z',0)`, wsID, assetID, assetMime, wantAssetBytes)
+		return err
+	})
+
+	injectedErr := errors.New("injected migration failure")
+	_, err := sqlite.Open(ctx, dbPath, sqlite.OpenOptions{
+		MigrationHook: func(_ context.Context, _ *sql.Tx, name string) error {
+			if name == targetMigration {
+				return injectedErr
+			}
+			return nil
+		},
+	})
+	if err == nil || !errors.Is(err, injectedErr) || !strings.Contains(err.Error(), ".recovery") {
+		t.Fatalf("Open() error = %v, want injected error referencing .recovery snapshot", err)
+	}
+
+	recoveryEntries, err := os.ReadDir(dbPath + ".recovery")
+	if err != nil {
+		t.Fatalf("read recovery dir: %v", err)
+	}
+	var snapshotPaths []string
+	for _, entry := range recoveryEntries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".db") {
+			snapshotPaths = append(snapshotPaths, filepath.Join(dbPath+".recovery", entry.Name()))
+		}
+	}
+	if len(snapshotPaths) != 1 {
+		t.Fatalf("expected 1 pre-migration recovery snapshot, got %v", snapshotPaths)
+	}
+
+	assertPre0032Intact := func(label, targetPath string) {
+		t.Helper()
+		raw, err := sql.Open("sqlite", "file:"+sqlite.EscapeURIPath(filepath.ToSlash(targetPath))+"?mode=ro&_pragma=foreign_keys(1)")
+		if err != nil {
+			t.Fatalf("%s open: %v", label, err)
+		}
+		defer raw.Close()
+		if err := migrations.Validate(ctx, raw); err != nil {
+			t.Fatalf("%s failed quick_check/foreign_key_check: %v", label, err)
+		}
+		var targetCount int
+		if err := raw.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE name=?`, targetMigration).Scan(&targetCount); err != nil || targetCount != 0 {
+			t.Fatalf("%s recorded rolled-back migration: count=%d err=%v", label, targetCount, err)
+		}
+		var gotTitle, gotCategory, gotCanvas, gotDoc, gotMime string
+		var gotVersion, gotCanvasVer, gotNoteRev int
+		var gotAsset []byte
+		if err := raw.QueryRowContext(ctx, `SELECT title,version,category_id FROM projects WHERE id=?`, wsID).Scan(&gotTitle, &gotVersion, &gotCategory); err != nil {
+			t.Fatalf("%s read workspace: %v", label, err)
+		}
+		if err := raw.QueryRowContext(ctx, `SELECT canvas_state,version FROM workspace_canvas WHERE workspace_id=?`, wsID).Scan(&gotCanvas, &gotCanvasVer); err != nil {
+			t.Fatalf("%s read canvas: %v", label, err)
+		}
+		if err := raw.QueryRowContext(ctx, `SELECT document_state,revision FROM canvas_notes WHERE id=?`, noteID).Scan(&gotDoc, &gotNoteRev); err != nil {
+			t.Fatalf("%s read note: %v", label, err)
+		}
+		if err := raw.QueryRowContext(ctx, `SELECT mime_type,data FROM workspace_assets WHERE workspace_id=? AND id=?`, wsID, assetID).Scan(&gotMime, &gotAsset); err != nil {
+			t.Fatalf("%s read asset: %v", label, err)
+		}
+		if gotTitle != wsTitle || gotVersion != 3 || gotCategory != catID || gotCanvas != wantCanvas || gotCanvasVer != 4 || gotDoc != wantDoc || gotNoteRev != 2 || gotMime != assetMime || string(gotAsset) != string(wantAssetBytes) {
+			t.Fatalf("%s authored data mismatch: title=%q ver=%d cat=%q canvasVer=%d noteRev=%d mime=%q assetLen=%d", label, gotTitle, gotVersion, gotCategory, gotCanvasVer, gotNoteRev, gotMime, len(gotAsset))
+		}
+	}
+
+	assertPre0032Intact("original DB after rollback", dbPath)
+	assertPre0032Intact("pre-migration recovery snapshot", snapshotPaths[0])
+
+	snapshotBytes, err := os.ReadFile(snapshotPaths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	recoveredPath := filepath.Join(dir, "recovered.db")
+	if err := os.WriteFile(recoveredPath, snapshotBytes, 0600); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := Open(ctx, recoveredPath)
+	if err != nil {
+		t.Fatalf("Open(recovered snapshot) failed: %v", err)
+	}
+	defer recovered.Close()
+	if err := migrations.Validate(ctx, recovered.db.Writer()); err != nil {
+		t.Fatalf("recovered DB failed integrity checks: %v", err)
+	}
+	ws, err := recovered.GetWorkspace(ctx, wsID)
+	if err != nil || ws.Title != wsTitle || ws.Version != 3 || ws.CanvasVersion != 4 {
+		t.Fatalf("recovered workspace = %+v, err=%v", ws, err)
+	}
+	note, err := recovered.GetNote(ctx, noteID)
+	if err != nil || note.Revision != 2 || string(note.Document) != wantDoc {
+		t.Fatalf("recovered note = %+v, err=%v", note, err)
+	}
+	asset, err := recovered.GetAsset(ctx, wsID, assetID)
+	if err != nil || asset.MimeType != assetMime || string(asset.Data) != string(wantAssetBytes) {
+		t.Fatalf("recovered asset = %+v, err=%v", asset, err)
+	}
+}
+
+func TestFutureSchemaRejectionPreservesAuthoredDataWithoutDowngrade(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "future-schema.db")
+
+	store, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := store.CreateWorkspace(ctx, "Future Schema Preserved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAsset := []byte("future-asset-bytes-\x00\xff")
+	if _, err := store.PutAsset(ctx, domain.StoredAsset{
+		ID:          "asset-future",
+		WorkspaceID: ws.ID,
+		MimeType:    "image/png",
+		Data:        wantAsset,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Writer().ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES ('9999_future_schema.sql','future-checksum','2026-11-26T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Open(ctx, dbPath); err == nil || !strings.Contains(err.Error(), "unsupported database schema") {
+		t.Fatalf("Open() error = %v, want unsupported database schema rejection", err)
+	}
+	if _, err := os.Stat(dbPath + ".recovery"); !os.IsNotExist(err) {
+		t.Fatalf("future schema rejection must not generate recovery snapshot, stat err=%v", err)
+	}
+
+	raw, err := sql.Open("sqlite", "file:"+sqlite.EscapeURIPath(filepath.ToSlash(dbPath))+"?mode=ro&_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	if err := migrations.Validate(ctx, raw); err != nil {
+		t.Fatalf("rejected future DB failed quick_check/foreign_key_check: %v", err)
+	}
+	var futureCount int
+	if err := raw.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE name='9999_future_schema.sql'`).Scan(&futureCount); err != nil || futureCount != 1 {
+		t.Fatalf("future migration row altered: count=%d err=%v", futureCount, err)
+	}
+	var gotTitle string
+	if err := raw.QueryRowContext(ctx, `SELECT title FROM projects WHERE id=?`, ws.ID).Scan(&gotTitle); err != nil || gotTitle != "Future Schema Preserved" {
+		t.Fatalf("authored workspace lost/altered: %q, %v", gotTitle, err)
+	}
+	var gotAsset []byte
+	if err := raw.QueryRowContext(ctx, `SELECT data FROM workspace_assets WHERE workspace_id=? AND id='asset-future'`, ws.ID).Scan(&gotAsset); err != nil || string(gotAsset) != string(wantAsset) {
+		t.Fatalf("authored asset lost/altered: len=%d, %v", len(gotAsset), err)
 	}
 }

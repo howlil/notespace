@@ -33,7 +33,7 @@
     "@tiptap/markdown": "3.30.3",
     "@tiptap/pm": "3.30.3",
     "@tiptap/react": "3.30.3",
-    "@tiptap/starter-kit": "3.30.3",
+    "@tiptap/starter-kit": "3.35.0",
     "@tiptap/static-renderer": "3.30.3",
     "katex": "0.16.47",
     "lowlight": "3.3.0",

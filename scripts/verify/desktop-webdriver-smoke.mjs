@@ -321,14 +321,12 @@ async function ensureIsolatedWorkspaceForCase(session, workspaceTitle) {
     await firstRun[0].click();
     const field = await visibleElement(session, By.css('input[aria-label="Workspace name"]'));
     await field.sendKeys(workspaceTitle);
-    await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
   } else {
     await (await visibleElement(session, By.css('main button[aria-label="New workspace"]'))).click();
     const field = await visibleElement(session, By.css('input[aria-label="New workspace name"]'));
-    await field.sendKeys(workspaceTitle, Key.ENTER);
-    const link = await visibleElement(session, By.xpath(`//a[@aria-label=${xpathLiteral(`Open ${workspaceTitle}`)}]`));
-    await link.click();
+    await field.sendKeys(workspaceTitle);
   }
+  await (await visibleElement(session, By.xpath("//main//button[normalize-space()='Create']"))).click();
   await waitForUrl(session, /\/workspaces\//);
   await waitForWorkspaceSaved(session);
   return decodeURIComponent(new URL(await session.getCurrentUrl()).pathname.split("/").pop());

@@ -23,6 +23,30 @@ IDENTITIES = {
 }
 
 
+def field_digest(value):
+    if isinstance(value, bytes):
+        raw = b"binary\0" + value
+    else:
+        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                pass
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def note_key(note_id):
+    return json.dumps([note_id], separators=(",", ":"), ensure_ascii=False)
+
+
+# Migration 0033 rewrites a rich Note as Markdown and advances its revision, keeping
+# the original document in canvas_note_legacy_documents. Those two fields may change
+# only when the original is preserved there unchanged and the Note is now Markdown.
+CONVERTED_NOTE_FIELDS = ("document_state", "revision")
+
+
 def snapshot(database):
     path = Path(database).resolve(strict=True)
     con = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
@@ -66,22 +90,7 @@ def snapshot(database):
             for row in cursor:
                 key = json.dumps([row[columns.index(field)] for field in identity],
                                  separators=(",", ":"), ensure_ascii=False)
-                field_digests = {}
-                for name, value in zip(columns, row):
-                    if name in identity:
-                        continue
-                    if isinstance(value, bytes):
-                        raw = b"binary\0" + value
-                    else:
-                        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
-                            try:
-                                value = json.loads(value)
-                            except ValueError:
-                                pass
-                        raw = json.dumps(value, sort_keys=True, separators=(",", ":"),
-                                         ensure_ascii=False).encode("utf-8")
-                    field_digests[name] = hashlib.sha256(raw).hexdigest()
-                records[key] = field_digests
+                records[key] = {name: field_digest(value) for name, value in zip(columns, row) if name not in identity}
             fields[table] = records
 
         assets = {}
@@ -93,7 +102,20 @@ def snapshot(database):
         schema_history = sorted(
             row[0] for row in con.execute("SELECT name FROM schema_migrations")
         ) if "schema_migrations" in available else []
-        return {"identities": results, "field_sha256": fields, "asset_sha256": assets, "schema_migrations": schema_history}
+        legacy_notes = {}
+        markdown_notes = []
+        if "canvas_note_legacy_documents" in available:
+            for note_id, document in con.execute("SELECT note_id,document_state FROM canvas_note_legacy_documents"):
+                legacy_notes[note_key(note_id)] = field_digest(document)
+        if "canvas_notes" in available:
+            for note_id, document in con.execute("SELECT id,document_state FROM canvas_notes"):
+                try:
+                    if json.loads(document).get("type") == "markdown":
+                        markdown_notes.append(note_key(note_id))
+                except (ValueError, AttributeError):
+                    pass
+        return {"identities": results, "field_sha256": fields, "asset_sha256": assets, "schema_migrations": schema_history,
+                "legacy_note_sha256": legacy_notes, "markdown_notes": sorted(markdown_notes)}
     finally:
         con.close()
 
@@ -111,9 +133,17 @@ def verify(before, after, database):
         for identity, previous_fields in rows.items():
             if identity not in current:
                 raise AssertionError(f"User data missing in {table}: {identity}")
+            converted = (
+                table == "canvas_notes"
+                and after.get("legacy_note_sha256", {}).get(identity) == previous_fields.get("document_state")
+                and identity in after.get("markdown_notes", [])
+            )
             for column, digest in previous_fields.items():
-                if current[identity].get(column) != digest:
-                    raise AssertionError(f"User data content changed in {table} field {column}: {identity}")
+                if current[identity].get(column) == digest:
+                    continue
+                if converted and column in CONVERTED_NOTE_FIELDS:
+                    continue
+                raise AssertionError(f"User data content changed in {table} field {column}: {identity}")
     for key, digest in before["asset_sha256"].items():
         if after["asset_sha256"].get(key) != digest:
             raise AssertionError(f"Durable binary asset changed or disappeared: {key}")

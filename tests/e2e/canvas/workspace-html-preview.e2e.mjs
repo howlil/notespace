@@ -15,6 +15,7 @@ import {
   expectAttribute,
   expectCount,
   fill,
+  hover,
   openWorkspace,
   parentFrame,
   press,
@@ -74,7 +75,7 @@ async function createHtmlBlock(code) {
   const block = "[data-canvas-code-block]";
   await visible(block);
   const menu = await openCodeMenu(block);
-  await click(role("menuitem", /Language/, { scope: menu }));
+  await hover(role("menuitem", /Language/, { scope: menu }));
   await fill(role("textbox", "Search code languages"), "HTML");
   await click(role("button", "HTML / XML", { exact: true, scope: role("menu", "Language") }));
   await visible(role("button", "Preview", { scope: menu }));

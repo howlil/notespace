@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { affectedBrowserSuites, classifyBrowserProof } from "./browser-proof-policy.mjs";
+import { affectedBrowserSuites, browserProofPolicy, classifyBrowserProof } from "./browser-proof-policy.mjs";
 
 export function discoverBrowserSuites(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -36,8 +36,30 @@ function suiteProofs(root, file) {
   });
 }
 
-export function browserProofInventory(root, files = discoverBrowserSuites(join(root, "tests", "e2e"))) {
-  return files.flatMap((file) => suiteProofs(root, file));
+export function browserProofInventory(root, files = discoverBrowserSuites(join(root, "tests", "e2e")), { validatePolicy = false } = {}) {
+  const proofs = files.flatMap((file) => suiteProofs(root, file));
+  if (validatePolicy && !proofs.some(({ risk }) => risk === "unknown")) {
+    const byKey = new Map();
+    for (const proof of proofs) {
+      const key = slash(relative(join(root, "tests", "e2e"), proof.file));
+      const list = byKey.get(key) ?? [];
+      list.push(proof);
+      byKey.set(key, list);
+    }
+    for (const [key, suitePolicy] of Object.entries(browserProofPolicy)) {
+      const suiteCases = byKey.get(key);
+      if (!suiteCases) continue;
+      for (const rule of suitePolicy.overrides) {
+        if (!suiteCases.some(({ name }) => rule.match.test(name))) {
+          throw new Error(`Orphaned browser proof override ${rule.match} in ${key} (${rule.risk})`);
+        }
+      }
+      if (suitePolicy.smoke && !suiteCases.some(({ name }) => suitePolicy.smoke.test(name))) {
+        throw new Error(`Orphaned browser smoke matcher ${suitePolicy.smoke} in ${key}`);
+      }
+    }
+  }
+  return proofs;
 }
 
 function changedPaths(values) {
@@ -77,7 +99,7 @@ export function selectBrowserRun(root, options = {}) {
   const paths = mode === "affected" ? changedPaths(changedFiles) : null;
   const files = file !== null ? [explicitSuite(root, file)] : discoverBrowserSuites(join(root, "tests", "e2e"));
   if (!files.length) throw new Error("No browser journeys were discovered");
-  const proofs = browserProofInventory(root, files);
+  const proofs = browserProofInventory(root, files, { validatePolicy: file === null });
   const full = { files, proofs, pattern: null, reason: "full" };
   if (mode === "full") return full;
   if (proofs.some(({ risk }) => risk === "unknown")) return { ...full, reason: "unclassified proof: conservative full run" };

@@ -64,8 +64,20 @@ test("web-only pull requests run web and affected browser proof, skipping server
   const settings = selectLanes("pull_request", ["apps/web/src/app/settings/AppSettings.tsx"]);
   assert.deepEqual(selected(settings), ["web", "browser", "landing"]);
   // Colocated web unit test-only files run only the web lane.
-  const unitOnly = selectLanes("pull_request", ["apps/web/src/shared/ui/theme/theme-model.test.ts", "apps/web/src/shared/styles/design-tokens.test.ts"]);
+  const unitOnly = selectLanes("pull_request", [
+    "apps/web/src/shared/ui/theme/theme-model.test.ts",
+    "apps/web/src/shared/styles/design-tokens.test.ts",
+    "apps/web/src/modules/canvas/objects/code-block/preview/html-preview-frame.test.ts",
+  ]);
   assert.deepEqual(selected(unitOnly), ["web"]);
+  // Native-impacting web UI (HTML preview, code context menu, workspace session flush) selects desktop too.
+  for (const nativeWeb of [
+    "apps/web/src/modules/canvas/objects/code-block/CodeBlockContextMenu.tsx",
+    "apps/web/src/modules/canvas/objects/code-block/preview/HtmlPreviewFrame.tsx",
+    "apps/web/src/modules/workspace/session/useWorkspaceSession.ts",
+  ]) {
+    assert.deepEqual(selected(selectLanes("pull_request", [nativeWeb])), ["web", "browser", "desktop"], nativeWeb);
+  }
 });
 
 test("server-only pull requests run server lanes without web; Go test-only files run only server", () => {
@@ -84,7 +96,24 @@ test("server-only pull requests run server lanes without web; Go test-only files
 test("desktop, release, compose, and workflow changes select only their owning lanes with fail-closed fallback", () => {
   assert.deepEqual(selected(selectLanes("pull_request", ["apps/desktop/src-tauri/src/lib.rs"])), ["desktop", "release-policy"]);
   assert.deepEqual(selected(selectLanes("pull_request", ["scripts/verify/desktop-webdriver-smoke.mjs"])), ["desktop", "release-policy"]);
-  assert.deepEqual(selected(selectLanes("pull_request", ["scripts/release/resolve-desktop-release-version.mjs"])), ["desktop", "release-policy"]);
+  // Pure SemVer/admission/test-only scripts run release-policy without triggering the Windows job.
+  for (const policyOnly of [
+    "scripts/release/resolve-desktop-release-version.mjs",
+    "scripts/release/assert-desktop-release-ci.mjs",
+    "scripts/release/release-request.mjs",
+    "scripts/release/desktop-release-automation.test.mjs",
+    "scripts/verify/native-smoke-report.test.mjs",
+  ]) {
+    assert.deepEqual(selected(selectLanes("pull_request", [policyOnly])), ["release-policy"], policyOnly);
+  }
+  // Packaging, MSI upgrade, and unknown release scripts conservatively select desktop + release-policy.
+  for (const nativeRelease of [
+    "scripts/release/sync-desktop-version.mjs",
+    "scripts/release/verify-desktop-msi-upgrade.ps1",
+    "scripts/release/unknown-new-script.mjs",
+  ]) {
+    assert.deepEqual(selected(selectLanes("pull_request", [nativeRelease])), ["desktop", "release-policy"], nativeRelease);
+  }
   assert.deepEqual(selected(selectLanes("pull_request", ["Dockerfile", "compose.ci.yaml"])), ["compose"]);
   assert.deepEqual(selected(selectLanes("pull_request", [".github/workflows/release-desktop.yml"])), ["desktop", "release-policy"]);
   assert.deepEqual(selectLanes("pull_request", [".github/workflows/ci.yml"]), allOn);

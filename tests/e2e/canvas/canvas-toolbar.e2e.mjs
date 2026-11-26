@@ -560,7 +560,7 @@ test("property editing suppresses directional spawn affordances and hotkeys", { 
     await containsText(multiMenu, /2 selected/i);
     const widthGroup = role("group", "Stroke width", { exact: true, scope: multiMenu });
     await expectAttribute(role("button", "Thin", { exact: true, scope: widthGroup }), "aria-pressed", "false");
-    await click(role("menuitem", /Style/, { scope: multiMenu }));
+    await hover(role("menuitem", /Style/, { scope: multiMenu }));
     await visible(role("region", "Corners", { exact: true, scope: role("menu", "Style") }));
     await click(role("button", "Medium", { exact: true, scope: widthGroup }));
     await press("Escape");

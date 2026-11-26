@@ -11,6 +11,7 @@ import { appShellStore, openQuickOpen, setCanvasFullMode } from "./app-shell-sto
 
 type Props = {
   sidebar: ReactNode;
+  rightDock?: ReactNode;
   children: ReactNode;
   canvas?: boolean;
 };
@@ -299,7 +300,7 @@ function ExplorerPanel({
 }
 
 /** One mounted Explorer and authoring surface; only their presentation changes. */
-export function LibraryPageShell({ sidebar, children, canvas = false }: Props) {
+export function LibraryPageShell({ sidebar, rightDock, children, canvas = false }: Props) {
   const fullMode = useStore(appShellStore, (state) => state.canvasFullMode);
   const hideShell = canvas && fullMode;
   const explorer = useExplorerPresentation(hideShell);
@@ -369,6 +370,7 @@ export function LibraryPageShell({ sidebar, children, canvas = false }: Props) {
         >
           {children}
         </main>
+        {!hideShell && rightDock}
       </div>
     </div>
   );

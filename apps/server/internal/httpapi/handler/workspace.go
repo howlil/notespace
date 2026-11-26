@@ -7,71 +7,8 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/httpapi/transport"
 )
 
-func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
-	data, err := h.deps.Library.ListCategories(r.Context())
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.SendJSON(w, http.StatusOK, data)
-}
-
-func (h *Handler) ListCategoryWorkspaces(w http.ResponseWriter, r *http.Request) {
-	categoryID := r.PathValue("id")
-	query, err := transport.ParseWorkspaceQuery(r, categoryID)
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	page, err := h.deps.Library.ListCategoryWorkspaces(r.Context(), categoryID, query)
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.SendJSON(w, http.StatusOK, page)
-}
-
-func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Title string `json:"title"`
-	}
-	if !transport.DecodeJSON(w, r, &body) {
-		return
-	}
-	category, err := h.deps.Library.CreateCategory(r.Context(), body.Title)
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	w.Header().Set("Location", "/api/categories/"+category.ID)
-	transport.SendJSON(w, http.StatusCreated, category)
-}
-
-func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Title string `json:"title"`
-	}
-	if !transport.DecodeJSON(w, r, &body) {
-		return
-	}
-	category, err := h.deps.Library.UpdateCategory(r.Context(), r.PathValue("id"), body.Title)
-	if err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.SendJSON(w, http.StatusOK, category)
-}
-
-func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
-	if err := h.deps.Library.DeleteCategory(r.Context(), r.PathValue("id")); err != nil {
-		transport.Fail(w, err)
-		return
-	}
-	transport.SendNoContent(w)
-}
-
 func (h *Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
-	query, err := transport.ParseWorkspaceQuery(r, "")
+	query, err := transport.ParseWorkspaceQuery(r)
 	if err != nil {
 		transport.Fail(w, err)
 		return
@@ -86,14 +23,14 @@ func (h *Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ID         string `json:"id"`
-		Title      string `json:"title"`
-		CategoryID string `json:"categoryId"`
+		ID       string  `json:"id"`
+		Title    string  `json:"title"`
+		ParentID *string `json:"parentId"`
 	}
 	if !transport.DecodeJSON(w, r, &body) {
 		return
 	}
-	p, err := h.deps.Library.CreateWorkspaceWithID(r.Context(), body.ID, body.Title, body.CategoryID)
+	p, err := h.deps.Library.CreateWorkspaceWithID(r.Context(), body.ID, body.Title, body.ParentID)
 	if err != nil {
 		transport.Fail(w, err)
 		return
@@ -127,20 +64,35 @@ func (h *Handler) RenameWorkspace(w http.ResponseWriter, r *http.Request) {
 	transport.SendJSON(w, http.StatusOK, p)
 }
 
-func (h *Handler) MoveWorkspace(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) MoveWorkspaceParent(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		CategoryID         string  `json:"categoryId"`
-		ExpectedCategoryID *string `json:"expectedCategoryId"`
+		ParentID         *string               `json:"parentId"`
+		ExpectedParentID domain.OptionalString `json:"expectedParentId"`
 	}
 	if !transport.DecodeJSON(w, r, &body) {
 		return
 	}
-	p, err := h.deps.Library.MoveWorkspace(r.Context(), r.PathValue("id"), body.CategoryID, body.ExpectedCategoryID)
+	p, err := h.deps.Library.MoveWorkspaceParent(r.Context(), r.PathValue("id"), body.ParentID, body.ExpectedParentID)
 	if err != nil {
 		transport.Fail(w, err)
 		return
 	}
 	transport.SendJSON(w, http.StatusOK, p)
+}
+
+func (h *Handler) ReparentWorkspaceChildren(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TargetParentID *string `json:"targetParentId"`
+	}
+	if !transport.DecodeJSON(w, r, &body) {
+		return
+	}
+	moved, err := h.deps.Library.ReparentWorkspaceChildren(r.Context(), r.PathValue("id"), body.TargetParentID)
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	transport.SendJSON(w, http.StatusOK, map[string]int{"moved": moved})
 }
 
 func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -180,6 +132,19 @@ func (h *Handler) DeleteTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transport.SendNoContent(w)
+}
+
+func (h *Handler) ResolveLegacyCategory(w http.ResponseWriter, r *http.Request) {
+	workspaceID, found, err := h.deps.Library.ResolveLegacyCategory(r.Context(), r.PathValue("id"))
+	if err != nil {
+		transport.Fail(w, err)
+		return
+	}
+	if !found {
+		transport.Fail(w, domain.ErrWorkspaceNotFound)
+		return
+	}
+	transport.SendJSON(w, http.StatusOK, map[string]*string{"workspaceId": workspaceID})
 }
 
 func (h *Handler) GetCanvas(w http.ResponseWriter, r *http.Request) {

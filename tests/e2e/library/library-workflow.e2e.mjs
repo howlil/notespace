@@ -1,135 +1,96 @@
-/* Library flow: create a Category and Workspace, rename the Category, survive reload. */
+/* Library flow: create root and sub-workspace via Workspace Map, rename, and guard parent delete. */
 import { after, before, test } from "node:test";
 import {
-  api, assert, click, createWorkspace, deleteCategory, deleteWorkspace, doubleClick, expectCount, fill, goto,
-  currentUrl, injectFault, press, purgeTrash, reload, requestLog, role, start, stop, text,
-  visible, waitFor, waitUrl,
+  api, assert, cleanupWorkspace, click, createWorkspace, currentUrl, expectCount, fill,
+  goto, injectFault, press, reload, requestLog, rightClick, role, start, stop, text, visible, waitAny, waitFor, waitUrl,
 } from "../support/harness.mjs";
 
 before(start);
 after(stop);
 
-test("critical: Library creates a category and Workspace, renames the category, and restores the tree after reload", async () => {
+test("critical: Library creates root and child Workspaces, renames inline, and guards parent delete", async () => {
   const suffix = Date.now();
-  const categoryTitle = `E2E Category ${suffix}`;
-  const renamedCategoryTitle = `${categoryTitle} renamed`;
-  const workspaceTitle = `E2E Workspace ${suffix}`;
-  let categoryId = "";
-  let workspaceId = "";
-  let existingId = "";
+  const rootTitle = `E2E Root ${suffix}`;
+  const renamedRootTitle = `${rootTitle} renamed`;
+  const childTitle = `E2E Child ${suffix}`;
+  let rootId = "";
+  let childId = "";
   let finishCreate;
-  let finishRename;
 
   try {
-    await goto("/");
-    await click(role("button", "New category"));
-    await fill(role("textbox", "Category title"), categoryTitle);
+    await goto("/map");
+    const emptyBtn = role("button", "Create Workspace", { exact: true });
+    const gridBtn = role("button", "New workspace", { exact: true, scope: role("group", "Root workspaces") });
+    const which = await waitAny([emptyBtn, gridBtn]);
+    if (which === 0) {
+      await click(emptyBtn);
+      await fill(role("textbox", "Workspace name"), rootTitle);
+    } else {
+      await click(gridBtn);
+      await fill(role("textbox", "New workspace name", { scope: role("group", "Root workspaces") }), rootTitle);
+    }
     await press("Enter");
-    await visible(text(categoryTitle));
-
-    const categories = await api("/api/categories");
-    categoryId = categories.find((item) => item.title === categoryTitle)?.id ?? "";
-    assert.notEqual(categoryId, "", "Category must be persisted through the Library UI");
-
-    const existing = await createWorkspace(`Existing ${suffix}`, { categoryId });
-    existingId = existing.id;
-    await click(role("button", categoryTitle, { exact: true }));
-    await press("F2");
-    await fill(role("textbox", "Category title"), renamedCategoryTitle);
-    await click(role("button", "Hide Explorer", { exact: true }));
-    await press("Control+\\");
-    await visible(role("complementary", "Category explorer"));
-    assert.equal(await (await visible(role("textbox", "Category title"))).getValue(), renamedCategoryTitle, "Collapse preserves an unsubmitted rename draft");
-    assert.equal((await api("/api/categories")).find((item) => item.id === categoryId).title, categoryTitle, "Collapse does not submit rename through blur");
-    await click(role("textbox", "Category title"));
-    await press("Enter");
-    await visible(text(renamedCategoryTitle));
-
-    await click(role("button", `New workspace in ${renamedCategoryTitle}`, { exact: true }));
-    await visible(role("link", existing.title, { exact: true }));
-    await fill(role("textbox", "Workspace title"), workspaceTitle);
-    const createBaseline = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").length;
-    await injectFault({ method: "POST", path: "/api/workspaces", times: 1,
-      respond: () => new Promise((resolve) => { finishCreate = () => resolve({ status: 503, body: JSON.stringify({ error: "Creation temporarily unavailable" }) }); }),
-    });
-    await press("Enter");
-    await waitFor(() => Boolean(finishCreate), "Create reaches the server");
-    await press("Enter");
-    await click(role("button", "Hide Explorer", { exact: true }));
-    await press("Control+\\");
-    await visible(role("complementary", "Category explorer"));
-    assert.equal(await (await visible(role("button", "Create workspace", { exact: true }))).isEnabled(), false);
-    assert.equal(await (await visible(role("button", "Cancel new workspace"))).isEnabled(), false);
-    const creates = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").slice(createBaseline);
-    assert.equal(creates.length, 1, "Pending Enter cannot send a duplicate create");
-    finishCreate();
-    await visible(text("Creation temporarily unavailable"));
-    assert.equal(await (await visible(role("textbox", "Workspace title"))).getValue(), workspaceTitle);
-
-    await injectFault({ method: "GET", path: `/api/categories/${categoryId}/workspaces`, times: 1,
-      respond: () => ({ status: 503, body: JSON.stringify({ error: "Listing temporarily unavailable" }) }),
-    });
-    await click(role("button", "Create workspace", { exact: true }));
-
     await waitUrl(/\/workspaces\/[^/]+$/);
-    workspaceId = (await currentUrl()).pathname.split("/").at(-1) ?? "";
-    assert.notEqual(workspaceId, "", "Workspace link must address a Workspace id");
-    const retriedCreates = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").slice(createBaseline);
-    assert.equal(JSON.parse(retriedCreates[0].body).id, JSON.parse(retriedCreates[1].body).id, "Retry reuses the same Workspace identity");
-    await visible(text("Could not load Workspaces."));
-    await visible(role("link", existing.title, { exact: true }));
-    await click(role("button", "Retry", { exact: true }));
-    await expectCount(text("Could not load Workspaces."), 0);
-    await visible(role("link", workspaceTitle, { exact: true }));
-    await visible(role("toolbar", "Canvas tools"));
+    rootId = (await currentUrl()).pathname.split("/").at(-1) ?? "";
+    assert.notEqual(rootId, "", "Root workspace must be created via Workspace Map");
 
-    // Enter and blur before the response belong to one rename operation.
-    const renamedWorkspaceTitle = `${workspaceTitle} renamed`;
-    await doubleClick(role("link", workspaceTitle, { exact: true }));
-    await fill(role("textbox", "Workspace title", { exact: true }), renamedWorkspaceTitle);
-    const renamePath = `/api/workspaces/${workspaceId}/title`;
-    const renameBaseline = (await requestLog()).filter((entry) => entry.method === "PATCH" && entry.path === renamePath).length;
-    await injectFault({ method: "PATCH", path: renamePath, times: 1,
-      respond: () => new Promise((resolve) => { finishRename = () => resolve(null); }),
-    });
-    await press("Enter");
-    await waitFor(() => Boolean(finishRename), "Rename reaches the server");
-    await press("Tab");
-    const renames = (await requestLog()).filter((entry) => entry.method === "PATCH" && entry.path === renamePath).slice(renameBaseline);
-    assert.equal(renames.length, 1, "Enter followed by blur must send only one rename");
-    assert.equal(JSON.parse(renames[0].body).expectedTitle, workspaceTitle);
-    finishRename();
-    await visible(role("link", renamedWorkspaceTitle, { exact: true }));
+    const existingSibling = await createWorkspace(`Existing Child ${suffix}`, { parentId: rootId });
+    try {
+      await goto("/map");
+      await visible(role("link", existingSibling.title, { exact: true }));
 
-    await doubleClick(role("link", renamedWorkspaceTitle, { exact: true }));
-    const retryTitle = `${renamedWorkspaceTitle} retry`;
-    await fill(role("textbox", "Workspace title", { exact: true }), retryTitle);
-    await injectFault({ method: "PATCH", path: renamePath, times: 1,
-      respond: () => ({ status: 503, body: JSON.stringify({ error: "Rename temporarily unavailable" }) }),
-    });
-    await press("Enter");
-    await visible(text("Rename temporarily unavailable"));
-    const draft = await visible(role("textbox", "Workspace title", { exact: true }));
-    assert.equal(await draft.getValue(), retryTitle);
-    assert.equal((await api(`/api/workspaces/${workspaceId}`)).title, renamedWorkspaceTitle);
-    await draft.click();
-    await press("Enter");
-    await visible(role("link", retryTitle, { exact: true }));
+      await rightClick(role("link", `Open ${rootTitle}`));
+      await click(role("menuitem", "New sub-workspace"));
+      await fill(role("textbox", "Sub-workspace name"), childTitle);
 
-    await reload();
-    await visible(text(renamedCategoryTitle));
-    await visible(role("link", retryTitle, { exact: true }));
+      const createBaseline = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").length;
+      await injectFault({
+        method: "POST",
+        path: "/api/workspaces",
+        times: 1,
+        respond: () => new Promise((resolve) => {
+          finishCreate = () => resolve({ status: 503, body: JSON.stringify({ error: "Creation temporarily unavailable" }) });
+        }),
+      });
+      await press("Enter");
+      await waitFor(() => Boolean(finishCreate), "Create reaches the server");
+      await press("Enter");
+      assert.equal(await (await visible(role("button", "Creating…", { exact: true }))).isEnabled(), false);
+      const creates = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").slice(createBaseline);
+      assert.equal(creates.length, 1, "Pending Enter cannot send a duplicate create");
+      finishCreate();
+      await visible(text("Creation temporarily unavailable"));
+      assert.equal(await (await visible(role("textbox", "Sub-workspace name"))).getValue(), childTitle);
+
+      await click(role("button", "Create", { exact: true }));
+      await waitUrl(/\/workspaces\/[^/]+$/);
+      await waitFor(async () => ((await currentUrl()).pathname.split("/").at(-1) ?? "") !== rootId, "Navigates to created child workspace");
+      childId = (await currentUrl()).pathname.split("/").at(-1) ?? "";
+      const retriedCreates = (await requestLog()).filter((entry) => entry.method === "POST" && entry.path === "/api/workspaces").slice(createBaseline);
+      assert.equal(JSON.parse(retriedCreates[0].body).id, JSON.parse(retriedCreates[1].body).id, "Retry reuses the same Workspace identity");
+
+      // Deleting a non-empty parent prompts to move sub-workspaces first.
+      await goto("/map");
+      await rightClick(role("link", `Open ${rootTitle}`));
+      await click(role("menuitem", "Delete"));
+      await visible(role("heading", "Move sub-workspaces first"));
+      await click(role("button", "Move sub-workspaces to top level"));
+      await expectCount(role("heading", "Move sub-workspaces first"), 0);
+      assert.equal((await api(`/api/workspaces/${childId}`)).parentId, null);
+
+      // Rename root and reload to confirm persistence.
+      await rightClick(role("link", `Open ${rootTitle}`));
+      await click(role("menuitem", "Edit title"));
+      await fill(role("textbox", "Workspace title"), renamedRootTitle);
+      await press("Enter");
+      await reload();
+      await visible(role("link", `Open ${renamedRootTitle}`));
+    } finally {
+      await cleanupWorkspace(existingSibling.id);
+    }
   } finally {
     finishCreate?.();
-    finishRename?.();
-    if (workspaceId) {
-      await deleteWorkspace(workspaceId).catch(() => undefined);
-      await purgeTrash(workspaceId);
-    }
-    if (existingId) {
-      await deleteWorkspace(existingId).catch(() => undefined);
-      await purgeTrash(existingId);
-    }
-    if (categoryId) await deleteCategory(categoryId);
+    if (childId) await cleanupWorkspace(childId);
+    if (rootId) await cleanupWorkspace(rootId);
   }
 });

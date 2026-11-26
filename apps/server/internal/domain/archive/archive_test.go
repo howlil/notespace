@@ -14,12 +14,12 @@ func sampleBackup() domain.LibraryBackup {
 	now := "2026-11-25T00:00:00Z"
 	ws := domain.Workspace{
 		WorkspaceSummary: domain.WorkspaceSummary{
-			ID:         "ws-1",
-			CategoryID: domain.UncategorizedCategoryID,
-			Title:      "Architecture",
-			CreatedAt:  now,
-			UpdatedAt:  now,
-			Version:    1,
+			ID:        "ws-1",
+			ParentID:  nil,
+			Title:     "Architecture",
+			CreatedAt: now,
+			UpdatedAt: now,
+			Version:   1,
 		},
 		Canvas: domain.CanvasSnapshot{
 			Format:  "excalidraw",
@@ -32,9 +32,6 @@ func sampleBackup() domain.LibraryBackup {
 		Format:      domain.LibraryBackupFormat,
 		Version:     domain.LibraryBackupVersion,
 		GeneratedAt: now,
-		Categories: []domain.CategorySummary{{
-			ID: domain.UncategorizedCategoryID, Title: "Uncategorized", CreatedAt: now, UpdatedAt: now,
-		}},
 		Workspaces: []domain.WorkspaceEnvelope{{
 			Project: ws,
 			Assets: []domain.StoredAsset{{
@@ -77,11 +74,97 @@ func TestArchiveDecodeRejectsUnsafeEntryPaths(t *testing.T) {
 	}
 }
 
-func TestValidateLibraryBackupRequiresUncategorizedCategory(t *testing.T) {
+func TestValidateLibraryBackupRejectsMissingParentAndCycles(t *testing.T) {
 	b := sampleBackup()
-	b.Categories[0].ID = "custom"
-	b.Workspaces[0].Project.CategoryID = "custom"
+	missing := "missing-parent"
+	b.Workspaces[0].Project.ParentID = &missing
 	if err := domain.ValidateLibraryBackup(b); !errors.Is(err, domain.ErrBackupInvalid) {
-		t.Fatalf("error = %v, want ErrBackupInvalid", err)
+		t.Fatalf("missing parent error = %v, want ErrBackupInvalid", err)
+	}
+
+	b = sampleBackup()
+	ws2 := b.Workspaces[0]
+	ws2.Project.ID = "ws-2"
+	ws2.Assets = nil
+	p1 := "ws-2"
+	p2 := "ws-1"
+	b.Workspaces[0].Project.ParentID = &p1
+	ws2.Project.ParentID = &p2
+	b.Workspaces = append(b.Workspaces, ws2)
+	if err := domain.ValidateLibraryBackup(b); !errors.Is(err, domain.ErrBackupInvalid) {
+		t.Fatalf("cycle error = %v, want ErrBackupInvalid", err)
+	}
+}
+
+func TestArchiveV6RoundTripWithTagsAndNoteTags(t *testing.T) {
+	now := "2026-11-26T00:00:00Z"
+	b := sampleBackup()
+	b.Notes = []domain.Note{{
+		ID:            "note-1",
+		SchemaVersion: domain.NoteSchemaVersion,
+		Revision:      1,
+		Document:      json.RawMessage(`{"type":"markdown","text":"# Hello"}`),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}}
+	b.Tags = []domain.Tag{{
+		ID:            "tag-1",
+		Name:          "Design",
+		NormalizedKey: "design",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}}
+	b.NoteTags = []domain.NoteTag{{
+		NoteID:    "note-1",
+		TagID:     "tag-1",
+		CreatedAt: now,
+	}}
+
+	raw, err := Encode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := domain.ValidateLibraryBackup(decoded); err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Tags) != 1 || decoded.Tags[0].NormalizedKey != "design" {
+		t.Fatalf("decoded tags = %+v", decoded.Tags)
+	}
+	if len(decoded.NoteTags) != 1 || decoded.NoteTags[0].NoteID != "note-1" || decoded.NoteTags[0].TagID != "tag-1" {
+		t.Fatalf("decoded noteTags = %+v", decoded.NoteTags)
+	}
+}
+
+func TestArchiveDecodesV5ManifestWithoutTags(t *testing.T) {
+	now := "2026-11-25T00:00:00Z"
+	manifest := Manifest{
+		Format:        domain.LibraryBackupFormat,
+		Version:       5,
+		SchemaVersion: 17,
+		GeneratedAt:   now,
+		Workspaces: []WorkspaceEnvelope{{
+			Project: sampleBackup().Workspaces[0].Project,
+			Assets:  []Asset{},
+		}},
+		Trash: []TrashRecord{},
+		Blobs: []Blob{},
+	}
+	raw, err := writeArchive(manifest, map[string][]byte{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Decode(raw)
+	if err != nil {
+		t.Fatalf("Decode v5 failed: %v", err)
+	}
+	if err := domain.ValidateLibraryBackup(decoded); err != nil {
+		t.Fatalf("Validate v5 failed: %v", err)
+	}
+	if len(decoded.Workspaces) != 1 || len(decoded.Tags) != 0 || len(decoded.NoteTags) != 0 {
+		t.Fatalf("unexpected v5 decoded backup: %+v", decoded)
 	}
 }

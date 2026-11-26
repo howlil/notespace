@@ -12,10 +12,10 @@ import (
 )
 
 type staleSearchWorkspace struct {
-	id         string
-	categoryID string
-	title      string
-	version    int
+	id       string
+	parentID string
+	title    string
+	version  int
 }
 
 type staleNotePlacement struct {
@@ -23,7 +23,7 @@ type staleNotePlacement struct {
 	instanceID     string
 	workspaceID    string
 	workspaceTitle string
-	categoryID     string
+	parentID       string
 	document       string
 }
 
@@ -63,7 +63,7 @@ func (s *Store) searchIndexIsStale(ctx context.Context) (bool, error) {
 	err := s.db.ReadPool().QueryRowContext(ctx, `SELECT (
 		EXISTS(
 			SELECT 1 FROM projects p LEFT JOIN workspace_search_meta m ON m.workspace_id=p.id
-			WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title
+			WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.parent_id<>COALESCE(p.parent_id,'') OR m.title<>p.title
 		)
 		OR EXISTS(
 			SELECT 1 FROM workspace_search_meta m WHERE m.workspace_id NOT IN (SELECT id FROM projects)
@@ -90,44 +90,29 @@ func (s *Store) syncSearchIndex(ctx context.Context) error {
 
 func querySearchTx(ctx context.Context, db sqlite.DBTX, query string) ([]domain.SearchResult, error) {
 	results := []domain.SearchResult{}
-	categoryRows, err := db.QueryContext(ctx, `SELECT id,title FROM categories WHERE LOWER(title) LIKE ? ESCAPE '\' ORDER BY updated_at DESC LIMIT 20`, sqlite.ContainsLikeLiteral(query))
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = categoryRows.Close() }()
-	for categoryRows.Next() {
-		var id, title string
-		if err := categoryRows.Scan(&id, &title); err != nil {
-			return nil, err
-		}
-		results = append(results, domain.SearchResult{Type: "category", CategoryID: id, CategoryTitle: title, Excerpt: title})
-	}
-	if err := categoryRows.Err(); err != nil {
-		return nil, err
-	}
-	if err := categoryRows.Close(); err != nil {
-		return nil, err
-	}
-
 	match := safeFTSQuery(query)
 	if match == "" {
 		return results, nil
 	}
-	rows, err := db.QueryContext(ctx, `SELECT s.type,s.category_id,COALESCE(c.title,''),s.workspace_id,s.workspace_title,s.note_id,s.note_title,s.block_id,s.title,s.content
-FROM workspace_search s LEFT JOIN categories c ON c.id=s.category_id
+	rows, err := db.QueryContext(ctx, `SELECT s.type,s.parent_id,COALESCE(parent.title,''),s.workspace_id,s.workspace_title,s.note_id,s.note_title,s.block_id,s.title,s.content
+FROM workspace_search s LEFT JOIN projects parent ON parent.id=s.parent_id
 WHERE workspace_search MATCH ? ORDER BY bm25(workspace_search) LIMIT 100`, match)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
-		var kind, categoryID, categoryTitle, workspaceID, workspaceTitle, noteID, noteTitle, blockID, title, content string
-		if err := rows.Scan(&kind, &categoryID, &categoryTitle, &workspaceID, &workspaceTitle, &noteID, &noteTitle, &blockID, &title, &content); err != nil {
+		var kind, parentID, parentTitle, workspaceID, workspaceTitle, noteID, noteTitle, blockID, title, content string
+		if err := rows.Scan(&kind, &parentID, &parentTitle, &workspaceID, &workspaceTitle, &noteID, &noteTitle, &blockID, &title, &content); err != nil {
 			return nil, err
 		}
 		result := domain.SearchResult{
-			Type: kind, CategoryID: categoryID, CategoryTitle: categoryTitle,
+			Type: kind, ParentTitle: parentTitle,
 			WorkspaceID: workspaceID, WorkspaceTitle: workspaceTitle, NoteID: noteID, Excerpt: title,
+		}
+		if parentID != "" {
+			val := parentID
+			result.ParentID = &val
 		}
 		if kind == "note" {
 			result.InstanceID = blockID
@@ -166,17 +151,17 @@ func replaceWorkspaceSearchTx(ctx context.Context, tx sqlite.DBTX, value staleSe
 	if err := invalidateNotesInWorkspaceSearchTx(ctx, tx, value.id); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.categoryID, value.id, value.title, "", "", "", value.title, ""); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,parent_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('workspace',?,?,?,?,?,?,?,?)`, value.parentID, value.id, value.title, "", "", "", value.title, ""); err != nil {
 		return err
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,category_id,title) VALUES (?,?,?,?)
-ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,category_id=excluded.category_id,title=excluded.title`, value.id, value.version, value.categoryID, value.title)
+	_, err := tx.ExecContext(ctx, `INSERT INTO workspace_search_meta(workspace_id,version,parent_id,title) VALUES (?,?,?,?)
+ON CONFLICT(workspace_id) DO UPDATE SET version=excluded.version,parent_id=excluded.parent_id,title=excluded.title`, value.id, value.version, value.parentID, value.title)
 	return err
 }
 
 func syncCanvasNotesSearchTx(ctx context.Context, tx sqlite.DBTX) error {
 	rows, err := tx.QueryContext(ctx, `
-SELECT n.id,COALESCE(i.id,''),COALESCE(i.workspace_id,''),COALESCE(p.title,''),COALESCE(p.category_id,''),n.document_state
+SELECT n.id,COALESCE(i.id,''),COALESCE(i.workspace_id,''),COALESCE(p.title,''),COALESCE(p.parent_id,''),n.document_state
 FROM canvas_notes n
 LEFT JOIN canvas_note_search_meta m ON m.note_id=n.id
 LEFT JOIN canvas_note_instances i ON i.note_id=n.id
@@ -192,7 +177,7 @@ ORDER BY n.updated_at DESC,n.id,i.id`)
 	seenNoteIDs := map[string]bool{}
 	for rows.Next() {
 		var item staleNotePlacement
-		if err := rows.Scan(&item.noteID, &item.instanceID, &item.workspaceID, &item.workspaceTitle, &item.categoryID, &item.document); err != nil {
+		if err := rows.Scan(&item.noteID, &item.instanceID, &item.workspaceID, &item.workspaceTitle, &item.parentID, &item.document); err != nil {
 			return err
 		}
 		placements = append(placements, item)
@@ -218,7 +203,7 @@ ORDER BY n.updated_at DESC,n.id,i.id`)
 	}
 	for _, item := range placements {
 		parsed := domain.SummarizeDocument(json.RawMessage(item.document))
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,category_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, item.categoryID, item.workspaceID, item.workspaceTitle, item.noteID, parsed.Label, item.instanceID, parsed.Label, parsed.PlainText); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspace_search(type,parent_id,workspace_id,workspace_title,note_id,note_title,block_id,title,content) VALUES ('note',?,?,?,?,?,?,?,?)`, item.parentID, item.workspaceID, item.workspaceTitle, item.noteID, parsed.Label, item.instanceID, parsed.Label, parsed.PlainText); err != nil {
 			return err
 		}
 	}
@@ -237,9 +222,9 @@ ON CONFLICT(note_id) DO UPDATE SET revision=excluded.revision,updated_at=exclude
 }
 
 func syncSearchIndexTx(ctx context.Context, tx sqlite.DBTX) error {
-	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.version
+	rows, err := tx.QueryContext(ctx, `SELECT p.id,COALESCE(p.parent_id,''),p.title,p.version
 FROM projects p LEFT JOIN workspace_search_meta m ON m.workspace_id=p.id
-WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.category_id OR m.title<>p.title`)
+WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.parent_id<>COALESCE(p.parent_id,'') OR m.title<>p.title`)
 	if err != nil {
 		return err
 	}
@@ -247,7 +232,7 @@ WHERE m.workspace_id IS NULL OR m.version<>p.version OR m.category_id<>p.categor
 	stale := []staleSearchWorkspace{}
 	for rows.Next() {
 		var value staleSearchWorkspace
-		if err := rows.Scan(&value.id, &value.categoryID, &value.title, &value.version); err != nil {
+		if err := rows.Scan(&value.id, &value.parentID, &value.title, &value.version); err != nil {
 			return err
 		}
 		stale = append(stale, value)

@@ -10,12 +10,36 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CardsRouteImport } from './routes/cards'
+import { Route as MapRouteImport } from './routes/map'
+import { Route as CardsIndexRouteImport } from './routes/cards.index'
+import { Route as CardsNoteIdRouteImport } from './routes/cards.$noteId'
 import { Route as WorkspacesWorkspaceIdRouteImport } from './routes/workspaces.$workspaceId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CardsRoute = CardsRouteImport.update({
+  id: '/cards',
+  path: '/cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CardsIndexRoute = CardsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CardsRoute,
+} as any)
+const CardsNoteIdRoute = CardsNoteIdRouteImport.update({
+  id: '/$noteId',
+  path: '/$noteId',
+  getParentRoute: () => CardsRoute,
 } as any)
 const WorkspacesWorkspaceIdRoute = WorkspacesWorkspaceIdRouteImport.update({
   id: '/workspaces/$workspaceId',
@@ -25,27 +49,53 @@ const WorkspacesWorkspaceIdRoute = WorkspacesWorkspaceIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cards': typeof CardsRouteWithChildren
+  '/map': typeof MapRoute
+  '/cards/$noteId': typeof CardsNoteIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
+  '/cards/': typeof CardsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/map': typeof MapRoute
+  '/cards/$noteId': typeof CardsNoteIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
+  '/cards': typeof CardsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cards': typeof CardsRouteWithChildren
+  '/map': typeof MapRoute
+  '/cards/$noteId': typeof CardsNoteIdRoute
   '/workspaces/$workspaceId': typeof WorkspacesWorkspaceIdRoute
+  '/cards/': typeof CardsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/workspaces/$workspaceId'
+  fullPaths:
+    | '/'
+    | '/cards'
+    | '/map'
+    | '/cards/$noteId'
+    | '/workspaces/$workspaceId'
+    | '/cards/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/workspaces/$workspaceId'
-  id: '__root__' | '/' | '/workspaces/$workspaceId'
+  to: '/' | '/map' | '/cards/$noteId' | '/workspaces/$workspaceId' | '/cards'
+  id:
+    | '__root__'
+    | '/'
+    | '/cards'
+    | '/map'
+    | '/cards/$noteId'
+    | '/workspaces/$workspaceId'
+    | '/cards/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CardsRoute: typeof CardsRouteWithChildren
+  MapRoute: typeof MapRoute
   WorkspacesWorkspaceIdRoute: typeof WorkspacesWorkspaceIdRoute
 }
 
@@ -58,6 +108,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cards': {
+      id: '/cards'
+      path: '/cards'
+      fullPath: '/cards'
+      preLoaderRoute: typeof CardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cards/': {
+      id: '/cards/'
+      path: '/'
+      fullPath: '/cards/'
+      preLoaderRoute: typeof CardsIndexRouteImport
+      parentRoute: typeof CardsRoute
+    }
+    '/cards/$noteId': {
+      id: '/cards/$noteId'
+      path: '/$noteId'
+      fullPath: '/cards/$noteId'
+      preLoaderRoute: typeof CardsNoteIdRouteImport
+      parentRoute: typeof CardsRoute
+    }
     '/workspaces/$workspaceId': {
       id: '/workspaces/$workspaceId'
       path: '/workspaces/$workspaceId'
@@ -68,8 +146,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CardsRouteChildren {
+  CardsNoteIdRoute: typeof CardsNoteIdRoute
+  CardsIndexRoute: typeof CardsIndexRoute
+}
+
+const CardsRouteChildren: CardsRouteChildren = {
+  CardsNoteIdRoute: CardsNoteIdRoute,
+  CardsIndexRoute: CardsIndexRoute,
+}
+
+const CardsRouteWithChildren = CardsRoute._addFileChildren(CardsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CardsRoute: CardsRouteWithChildren,
+  MapRoute: MapRoute,
   WorkspacesWorkspaceIdRoute: WorkspacesWorkspaceIdRoute,
 }
 export const routeTree = rootRouteImport

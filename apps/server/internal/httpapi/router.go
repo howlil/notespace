@@ -37,25 +37,20 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/health", h.Health)
 	mux.HandleFunc("GET /api/icons/eraser/{slug}", h.ServeEraserIcon)
 
-	// Categories
-	mux.HandleFunc("GET /api/categories", h.ListCategories)
-	mux.HandleFunc("GET /api/categories/{id}/workspaces", h.ListCategoryWorkspaces)
-	mux.HandleFunc("POST /api/categories", h.CreateCategory)
-	mux.HandleFunc("PATCH /api/categories/{id}", h.UpdateCategory)
-	mux.HandleFunc("DELETE /api/categories/{id}", h.DeleteCategory)
-
 	// Workspaces, Canvas & Workspace Trash
 	mux.HandleFunc("GET /api/workspaces", h.ListWorkspaces)
 	mux.HandleFunc("POST /api/workspaces", h.CreateWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{id}", h.GetWorkspace)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/title", h.RenameWorkspace)
-	mux.HandleFunc("PATCH /api/workspaces/{id}/category", h.MoveWorkspace)
+	mux.HandleFunc("PATCH /api/workspaces/{id}/parent", h.MoveWorkspaceParent)
+	mux.HandleFunc("POST /api/workspaces/{id}/reparent-children", h.ReparentWorkspaceChildren)
 	mux.HandleFunc("DELETE /api/workspaces/{id}", h.DeleteWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{id}/canvas", h.GetCanvas)
 	mux.HandleFunc("PATCH /api/workspaces/{id}/canvas", h.UpdateCanvas)
 	mux.HandleFunc("GET /api/trash", h.ListTrash)
 	mux.HandleFunc("POST /api/trash/{id}", h.RestoreTrash)
 	mux.HandleFunc("DELETE /api/trash/{id}", h.DeleteTrash)
+	mux.HandleFunc("GET /api/legacy/categories/{id}", h.ResolveLegacyCategory)
 
 	// Assets
 	mux.HandleFunc("GET /api/workspaces/{id}/assets/{assetId}", h.GetAsset)
@@ -73,6 +68,15 @@ func New(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/trash/notes", h.ListTrashedNotes)
 	mux.HandleFunc("POST /api/trash/notes/{id}", h.RestoreTrashedNote)
 	mux.HandleFunc("DELETE /api/trash/notes/{id}", h.DeleteTrashedNote)
+
+	// Tags & Note Tags
+	mux.HandleFunc("GET /api/tags", h.ListTags)
+	mux.HandleFunc("POST /api/tags", h.CreateTag)
+	mux.HandleFunc("PATCH /api/tags/{id}", h.RenameTag)
+	mux.HandleFunc("DELETE /api/tags/{id}", h.DeleteTag)
+	mux.HandleFunc("POST /api/notes/{id}/tags", h.AssignNoteTag)
+	mux.HandleFunc("DELETE /api/notes/{id}/tags/{tagId}", h.RemoveNoteTag)
+	mux.HandleFunc("POST /api/notes/batch-tags", h.BatchUpdateNoteTags)
 
 	// Portable Backup
 	mux.HandleFunc("GET /api/backup", h.ExportBackup)

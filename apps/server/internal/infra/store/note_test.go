@@ -199,10 +199,11 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 	}
 
 	// Verify ListNotes summary fields.
-	all, err := store.ListNotes(ctx, domain.NoteListQuery{Limit: 50})
+	allRes, err := store.ListNotes(ctx, domain.NoteListQuery{Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
+	all := allRes.Notes
 	byID := map[string]domain.NoteSummary{}
 	for _, s := range all {
 		byID[s.ID] = s
@@ -219,28 +220,38 @@ func TestListNotesAndGetNoteInfoSQLite(t *testing.T) {
 	}
 
 	// Unplaced filter returns note-unplaced-after-trash (its workspace is trashed).
-	unplaced, err := store.ListNotes(ctx, domain.NoteListQuery{Unplaced: true, Limit: 50})
+	unplacedRes, err := store.ListNotes(ctx, domain.NoteListQuery{Unplaced: true, Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
+	unplaced := unplacedRes.Notes
 	if len(unplaced) != 1 || unplaced[0].ID != "note-unplaced-after-trash" || unplaced[0].PlacementCount != 0 || len(unplaced[0].WorkspaceIDs) != 0 {
 		t.Fatalf("unplaced notes = %+v", unplaced)
 	}
 
+	// Placed filter, title sort, and pagination.
+	placedRes, err := store.ListNotes(ctx, domain.NoteListQuery{Placed: "placed", Sort: "title", Limit: 1, Offset: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if placedRes.Total != 3 || !placedRes.HasMore || len(placedRes.Notes) != 1 {
+		t.Fatalf("placed page 0 = %+v", placedRes)
+	}
+
 	// Clean query filter does not match JSON metadata or blockId.
-	noise, err := store.ListNotes(ctx, domain.NoteListQuery{Query: "paragraph", Limit: 50})
+	noiseRes, err := store.ListNotes(ctx, domain.NoteListQuery{Query: "paragraph", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(noise) != 0 {
-		t.Fatalf("noise query matched notes: %+v", noise)
+	if len(noiseRes.Notes) != 0 {
+		t.Fatalf("noise query matched notes: %+v", noiseRes.Notes)
 	}
-	matched, err := store.ListNotes(ctx, domain.NoteListQuery{Query: "target design", Limit: 50})
+	matchedRes, err := store.ListNotes(ctx, domain.NoteListQuery{Query: "target design", Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(matched) != 1 || matched[0].ID != "note-target" {
-		t.Fatalf("query match = %+v", matched)
+	if len(matchedRes.Notes) != 1 || matchedRes.Notes[0].ID != "note-target" {
+		t.Fatalf("query match = %+v", matchedRes.Notes)
 	}
 
 	// Verify GetNoteInfo placements + backlinks.
@@ -427,7 +438,7 @@ func TestCanvasNoteTrashLifecycle(t *testing.T) {
 	}
 
 	listed, err := store.ListNotes(ctx, domain.NoteListQuery{Limit: 50})
-	if err != nil || len(listed) != 0 {
+	if err != nil || len(listed.Notes) != 0 {
 		t.Fatalf("library list with only a trashed note = %+v, %v; want empty", listed, err)
 	}
 	if hits := searchHits(); hits != 0 {

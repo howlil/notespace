@@ -62,9 +62,16 @@ type DeleteNoteInstanceRequest struct {
 }
 
 type NoteListQuery struct {
-	Query    string
-	Unplaced bool
-	Limit    int
+	Query          string
+	Placed         string
+	Unplaced       bool
+	WorkspaceID    string
+	TagIDs         []string
+	Scope          string
+	SelectedNoteID string
+	Sort           string
+	Offset         int
+	Limit          int
 }
 
 type NoteSummary struct {
@@ -73,13 +80,17 @@ type NoteSummary struct {
 	Excerpt        string   `json:"excerpt"`
 	PlacementCount int      `json:"placementCount"`
 	WorkspaceIDs   []string `json:"workspaceIds"`
+	Tags           []Tag    `json:"tags,omitempty"`
+	RelatedReason  string   `json:"relatedReason,omitempty"`
 	IsEmpty        bool     `json:"isEmpty"`
 	CreatedAt      string   `json:"createdAt"`
 	UpdatedAt      string   `json:"updatedAt"`
 }
 
 type NoteListResult struct {
-	Notes []NoteSummary `json:"notes"`
+	Notes   []NoteSummary `json:"notes"`
+	Total   int           `json:"total"`
+	HasMore bool          `json:"hasMore"`
 }
 
 type NotePlacementInfo struct {
@@ -96,12 +107,23 @@ type NoteBacklinkInfo struct {
 	WorkspaceID    string `json:"workspaceId"`
 	WorkspaceTitle string `json:"workspaceTitle"`
 	Kind           string `json:"kind"`
+	Excerpt        string `json:"excerpt,omitempty"`
+}
+
+type NoteOutgoingRefInfo struct {
+	NoteID     string `json:"noteId"`
+	Label      string `json:"label"`
+	Excerpt    string `json:"excerpt,omitempty"`
+	Kind       string `json:"kind"`
+	Unresolved bool   `json:"unresolved"`
 }
 
 type NoteInfo struct {
-	NoteID     string              `json:"noteId"`
-	Placements []NotePlacementInfo `json:"placements"`
-	Backlinks  []NoteBacklinkInfo  `json:"backlinks"`
+	NoteID     string                `json:"noteId"`
+	Placements []NotePlacementInfo   `json:"placements"`
+	Backlinks  []NoteBacklinkInfo    `json:"backlinks"`
+	Outgoing   []NoteOutgoingRefInfo `json:"outgoing"`
+	Tags       []Tag                 `json:"tags"`
 }
 
 type TrashedNote struct {

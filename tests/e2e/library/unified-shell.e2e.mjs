@@ -1,9 +1,9 @@
 /* One shell: Welcome and Canvas share Explorer, inline tree editing, Quick Open, and Settings. */
 import { after, before, test } from "node:test";
 import {
-  api, assert, back, box, click, clickAt, cleanupWorkspace, createCategory, createWorkspace, createWorkspaceViaUI,
-  deleteCategory, deleteWorkspace, evaluate, expectAttribute, expectCount, expectFocused, fill, goto, injectFault,
-  placeholder, press, purgeTrash, queryParam, reload, requestLog, resetViewport, rightClick, role, setViewport,
+  assert, back, box, click, clickAt, cleanupWorkspace, createWorkspace, createWorkspaceViaUI,
+  deleteWorkspace, evaluate, expectAttribute, expectCount, expectFocused, goto, injectFault,
+  placeholder, press, purgeTrash, reload, resetViewport, role, setViewport,
   start, stop, visible, waitFor, waitUrl,
 } from "../support/harness.mjs";
 
@@ -12,26 +12,26 @@ after(stop);
 
 test("critical: Welcome and Canvas expose one shell with optional Explorer", async () => {
   await goto("/");
-  await visible(role("complementary", "Category explorer"));
+  await visible(role("complementary", "Workspace explorer"));
   const home = role("link", "Notespace home", { exact: true });
   await visible(home);
   await expectCount('#notespace-home-sidebar a[href="/"]', 1);
+  await expectCount('#notespace-home-sidebar a[href="/map"]', 1);
+  await expectCount('#notespace-home-sidebar a[href="/cards"]', 1);
   await expectCount('#notespace-home-sidebar button[aria-label="New workspace"]', 0);
+  await expectCount(role("navigation", "Workspace context"), 0);
   await visible(role("button", "Open Notespace settings"));
 
   await press("Control+K");
-  await expectFocused(placeholder("Search workspaces, notes, or categories…"));
+  await expectFocused(placeholder("Search workspaces or notes…"));
   await press("Escape");
 
-  await click(role("button", "New category"));
-  await fill(role("textbox", "Category title"), "Preserved category draft");
-  await press("Control+\\");
   await expectAttribute(role("button", "Hide Explorer", { exact: true }), "aria-expanded", "true");
   await click(role("button", "Hide Explorer", { exact: true }));
   await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "closed");
   assert.equal(await evaluate("html", () => document.querySelector("#notespace-home-sidebar").inert), true);
-  await expectCount('#notespace-home-sidebar aside[aria-label="Category explorer"]', 1);
+  await expectCount('#notespace-home-sidebar aside[aria-label="Workspace explorer"]', 1);
   await visible("[data-explorer-edge-trigger]");
   await evaluate("[data-explorer-edge-trigger]", (element) => {
     element.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
@@ -39,10 +39,8 @@ test("critical: Welcome and Canvas expose one shell with optional Explorer", asy
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "peeking");
   await waitFor(async () => (await box("#notespace-home-sidebar")).width >= 220, "Peeked Explorer finishes expanding");
   await click(role("button", "Show Explorer", { exact: true, scope: "#notespace-home-sidebar" }));
-  await visible(role("complementary", "Category explorer"));
+  await visible(role("complementary", "Workspace explorer"));
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "open");
-  assert.equal(await evaluate(role("textbox", "Category title"), (element) => element.value), "Preserved category draft");
-  await click(role("button", "Cancel new category"));
   await press("Control+\\");
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "closed");
   await press("Control+\\");
@@ -54,7 +52,7 @@ test("critical: Welcome and Canvas expose one shell with optional Explorer", asy
   const id = await createWorkspaceViaUI(`One shell ${Date.now()}`);
   try {
     await visible(".excalidraw__canvas.interactive");
-    await visible(role("complementary", "Category explorer"));
+    await visible(role("complementary", "Workspace explorer"));
     await click(home);
     await waitUrl(/\/$/);
   } finally {
@@ -69,7 +67,7 @@ test("critical: compact viewport keeps Explorer and Quick Open in one shell", as
   try {
     await goto("/");
     await click(role("button", "Show Explorer", { exact: true }));
-    await visible(role("complementary", "Category explorer"));
+    await visible(role("complementary", "Workspace explorer"));
     await expectCount(role("dialog", "Workspace explorer"), 0);
     const before = await box("main");
     await click(role("button", /Search Notespace/));
@@ -100,9 +98,9 @@ test("critical: compact viewport keeps Explorer and Quick Open in one shell", as
     await visible(role("button", "Hide Explorer", { exact: true }));
     await setViewport(390, 780);
     await click(role("button", "Show Explorer", { exact: true }));
-    const category = (await api("/api/categories")).find((item) => item.id === workspace.categoryId);
-    await click(role("button", category.title, { exact: true }));
-    await click(role("link", workspace.title, { exact: true }));
+    await click(role("link", "Workspace Map", { exact: true, scope: "#notespace-home-sidebar" }));
+    await waitUrl(/\/map$/);
+    await click(role("link", `Open ${workspace.title}`, { exact: true }));
     await waitUrl(new RegExp(`/workspaces/${workspace.id}$`));
     await visible(role("button", "Show Explorer", { exact: true }));
     await expectAttribute("#notespace-home-sidebar", "aria-hidden", "true");
@@ -114,57 +112,31 @@ test("critical: compact viewport keeps Explorer and Quick Open in one shell", as
   }
 });
 
-test("critical: category disclosure stays local; View category owns URL", async () => {
-  const categories = await api("/api/categories");
-  const category = categories[0];
-  assert.ok(category);
-  await goto("/");
-  const explorer = role("navigation", "Categories");
-  const beforeFetches = (await requestLog()).filter((entry) => entry.path.startsWith(`/api/categories/${category.id}/workspaces`)).length;
-  await click(role("button", `Expand ${category.title}`, { scope: explorer }));
-  await waitFor(async () => (await queryParam("category")) === null, "Disclosure must not change the URL");
-  await visible(role("button", `Collapse ${category.title}`, { scope: explorer }));
-  await expectCount(role("status", `Loading ${category.title}`), 0);
-  const afterFetches = (await requestLog()).filter((entry) => entry.path.startsWith(`/api/categories/${category.id}/workspaces`)).length;
-  assert.equal(afterFetches - beforeFetches, 1, "One expansion must issue exactly one Workspace fetch");
-
-  const categoryName = role("button", category.title, { exact: true, scope: explorer });
-  await click(categoryName);
-  assert.equal(await queryParam("category"), null, "Category name only discloses");
-  await rightClick(categoryName);
-  await click(role("menuitem", "View category"));
-  await waitFor(async () => (await queryParam("category")) === category.id, "Explicit View category owns the URL");
-  await visible(role("heading", "No workspaces in this category", { exact: true }));
-  await expectCount(role("heading", "No workspaces yet", { exact: true }), 0);
-  await back();
-  await waitFor(async () => (await queryParam("category")) === null, "Back clears the category filter");
-});
-
-test("sidebar tree preserves inline category rename drafts across responsive collapse", async () => {
-  const title = `Inline Category ${Date.now()}`;
-  const category = await createCategory(title);
+test("critical: Heptabase sidebar links to Workspace Map and Cards while Canvas breadcrumb tracks ancestors", async () => {
+  const stamp = Date.now();
+  const root = await createWorkspace(`CS ${stamp}`);
+  const child = await createWorkspace(`Networking ${stamp}`, { parentId: root.id });
+  const unrelated = await createWorkspace(`Biology ${stamp}`);
   try {
-    await goto("/");
-    const button = role("button", new RegExp(title), { exclude: /^(Expand|Collapse)/ });
-    await visible(button);
-    await click(button);
-    await press("F2");
-    await visible(role("textbox", "Category title"));
-    await fill(role("textbox", "Category title"), `${title} draft`);
-    await setViewport(390, 780);
-    await click(role("button", "Show Explorer", { exact: true }));
-    assert.equal(await (await visible(role("textbox", "Category title"))).getValue(), `${title} draft`);
-    assert.equal((await api("/api/categories")).find((item) => item.id === category.id).title, title, "Breakpoint collapse does not submit rename through blur");
-    await resetViewport();
-    await click(role("textbox", "Category title"));
-    await press("Escape");
+    await goto(`/workspaces/${child.id}`);
+    await expectCount(role("navigation", "Workspace context"), 0);
+    const breadcrumb = role("navigation", "Workspace breadcrumb");
+    await visible(role("link", "Workspace Map", { exact: true, scope: breadcrumb }));
+    await visible(role("link", root.title, { exact: true, scope: breadcrumb }));
 
-    await rightClick(button);
-    await visible(role("menuitem", "New workspace"));
-    await visible(role("menuitem", "Delete"));
+    await click(role("link", "Workspace Map", { exact: true, scope: "#notespace-home-sidebar" }));
+    await waitUrl(/\/map$/);
+    await click(role("link", `Open ${unrelated.title}`, { exact: true }));
+    await waitUrl(new RegExp(`/workspaces/${unrelated.id}$`));
+    await back();
+    await waitUrl(/\/map$/);
+
+    await goto("/?category=legacy");
+    await waitUrl(/\/$/);
   } finally {
-    await resetViewport();
-    await deleteCategory(category.id);
+    await cleanupWorkspace(child.id);
+    await cleanupWorkspace(root.id);
+    await cleanupWorkspace(unrelated.id);
   }
 });
 
@@ -197,7 +169,7 @@ test("titlebar activation failure keeps one visible Home and Explorer toggle", a
     await click(role("button", "Hide Explorer", { exact: true }));
     await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "closed");
     await press("Control+\\");
-    await visible(role("complementary", "Category explorer"));
+    await visible(role("complementary", "Workspace explorer"));
   } finally {
     await script.remove();
     await reload();
@@ -221,7 +193,7 @@ test("critical: failed library load remains recoverable, not first-run", async (
     },
   });
 
-  await goto("/");
+  await goto("/map");
   const alert = role("alert", null, { hasText: /Workspaces could not be loaded/ });
   await visible(alert);
   await expectCount(role("heading", "No workspaces yet", { exact: true }), 0);

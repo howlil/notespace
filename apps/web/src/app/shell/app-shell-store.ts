@@ -6,6 +6,7 @@ export interface AppShellState {
   settingsOpen: boolean;
   settingsTab: SettingsTab;
   quickOpen: boolean;
+  workspaceMapOpen: boolean;
   canvasFullMode: boolean;
 }
 
@@ -13,6 +14,7 @@ const initialAppShellState: AppShellState = {
   settingsOpen: false,
   settingsTab: "general",
   quickOpen: false,
+  workspaceMapOpen: false,
   canvasFullMode: false,
 };
 
@@ -47,6 +49,18 @@ export function openQuickOpen() {
 export function setQuickOpen(open: boolean) {
   appShellStore.setState((current) => (
     current.quickOpen === open ? current : { ...current, quickOpen: open }
+  ));
+}
+
+export function openWorkspaceMap() {
+  appShellStore.setState((current) => (
+    current.workspaceMapOpen ? current : { ...current, workspaceMapOpen: true }
+  ));
+}
+
+export function setWorkspaceMapOpen(open: boolean) {
+  appShellStore.setState((current) => (
+    current.workspaceMapOpen === open ? current : { ...current, workspaceMapOpen: open }
   ));
 }
 

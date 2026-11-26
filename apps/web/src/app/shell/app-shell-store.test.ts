@@ -24,6 +24,7 @@ test("appShellStore coordinates settings, quick open, and canvas full mode witho
       settingsOpen: false,
       settingsTab: "general",
       quickOpen: false,
+      workspaceMapOpen: false,
       canvasFullMode: false,
     });
 

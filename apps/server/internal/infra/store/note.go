@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/howlil/notespace/apps/server/internal/domain"
@@ -23,25 +23,65 @@ func (s *Store) GetNote(ctx context.Context, id string) (domain.Note, error) {
 	return getNoteTx(ctx, s.db.ReadPool(), id)
 }
 
-func (s *Store) ListNotes(ctx context.Context, query domain.NoteListQuery) ([]domain.NoteSummary, error) {
+func (s *Store) ListNotes(ctx context.Context, query domain.NoteListQuery) (domain.NoteListResult, error) {
 	query.Query = strings.TrimSpace(query.Query)
+	query.Placed = strings.TrimSpace(query.Placed)
+	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.Scope = strings.TrimSpace(query.Scope)
+	query.SelectedNoteID = strings.TrimSpace(query.SelectedNoteID)
+	query.Sort = strings.TrimSpace(query.Sort)
+	if query.Unplaced {
+		if query.Placed == "placed" {
+			return domain.NoteListResult{}, domain.ErrNoteInvalid
+		}
+		query.Placed = "unplaced"
+	}
+	switch query.Placed {
+	case "", "all", "placed", "unplaced":
+	default:
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	if query.WorkspaceID != "" && !domain.ValidID(query.WorkspaceID, domain.MaxNoteIDLength) {
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	switch query.Scope {
+	case "", "all", "related":
+	default:
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	if query.SelectedNoteID != "" && !domain.ValidID(query.SelectedNoteID, domain.MaxNoteIDLength) {
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	tagIDs, ok := normalizeIDList(query.TagIDs, domain.MaxIDLength)
+	if !ok {
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	query.TagIDs = tagIDs
+	switch query.Sort {
+	case "", "updated", "created", "title":
+	default:
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
+	if query.Offset < 0 {
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
+	}
 	if query.Limit == 0 {
 		query.Limit = domain.DefaultNoteLimit
 	}
 	if query.Limit < 0 || query.Limit > domain.MaxNoteLimit {
-		return nil, domain.ErrNoteInvalid
+		return domain.NoteListResult{}, domain.ErrNoteInvalid
 	}
-	var out []domain.NoteSummary
+	var out domain.NoteListResult
 	err := s.db.WithReadTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		out, err = listNotesTx(ctx, tx, query)
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return domain.NoteListResult{}, err
 	}
-	if out == nil {
-		return []domain.NoteSummary{}, nil
+	if out.Notes == nil {
+		out.Notes = []domain.NoteSummary{}
 	}
 	return out, nil
 }
@@ -89,6 +129,9 @@ func (s *Store) UpdateNote(ctx context.Context, id string, request domain.Update
 			return domain.ErrNoteConflict
 		}
 		if err != nil {
+			return err
+		}
+		if err := syncNoteReferencesTx(ctx, tx, id, value.Document); err != nil {
 			return err
 		}
 		out = value
@@ -159,6 +202,9 @@ func (s *Store) CreateNoteInstance(ctx context.Context, workspaceID string, requ
 				canonical.ID, canonical.SchemaVersion, string(canonical.Document), canonical.Revision, canonical.CreatedAt, canonical.UpdatedAt,
 			); err != nil {
 				return normalizeNoteWriteError(err)
+			}
+			if err := syncNoteReferencesTx(ctx, tx, canonical.ID, canonical.Document); err != nil {
+				return err
 			}
 		} else {
 			canonical, err = getNoteTx(ctx, tx, request.ExistingNoteID)
@@ -346,6 +392,13 @@ func (s *Store) RestoreTrashedNote(ctx context.Context, id string) error {
 		}
 		if count != 1 {
 			return domain.ErrNoteNotFound
+		}
+		note, err := getNoteTx(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if err := syncNoteReferencesTx(ctx, tx, id, note.Document); err != nil {
+			return err
 		}
 		return invalidateNoteSearchTx(ctx, tx, id)
 	})
@@ -541,91 +594,365 @@ func loadLivePlacementsByNoteIDsTx(ctx context.Context, tx sqlite.DBTX, noteIDs 
 	return result, nil
 }
 
-func listNotesTx(ctx context.Context, tx sqlite.DBTX, query domain.NoteListQuery) ([]domain.NoteSummary, error) {
+type relatedSets struct {
+	selectedOutgoing map[string]bool
+	selectedIncoming map[string]bool
+	workspaceNotes   map[string]bool
+	linkedToBoard    map[string]bool
+	descendantNotes  map[string]bool
+	sharedTagNotes   map[string]bool
+}
+
+func loadRelatedSetsTx(ctx context.Context, tx sqlite.DBTX, workspaceID, selectedNoteID string) (relatedSets, error) {
+	sets := relatedSets{
+		selectedOutgoing: map[string]bool{},
+		selectedIncoming: map[string]bool{},
+		workspaceNotes:   map[string]bool{},
+		linkedToBoard:    map[string]bool{},
+		descendantNotes:  map[string]bool{},
+		sharedTagNotes:   map[string]bool{},
+	}
+	if selectedNoteID != "" {
+		rows, err := tx.QueryContext(ctx, `SELECT target_note_id FROM note_references WHERE source_note_id=?`, selectedNoteID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.selectedOutgoing[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+
+		rows, err = tx.QueryContext(ctx, `SELECT source_note_id FROM note_references WHERE target_note_id=?`, selectedNoteID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.selectedIncoming[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+	}
+
+	if workspaceID != "" {
+		rows, err := tx.QueryContext(ctx, `SELECT DISTINCT note_id FROM canvas_note_instances WHERE workspace_id=?`, workspaceID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.workspaceNotes[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+
+		rows, err = tx.QueryContext(ctx, `
+			SELECT DISTINCT r.target_note_id
+			FROM note_references r
+			INNER JOIN canvas_note_instances i ON i.note_id = r.source_note_id
+			WHERE i.workspace_id = ?
+			UNION
+			SELECT DISTINCT r.source_note_id
+			FROM note_references r
+			INNER JOIN canvas_note_instances i ON i.note_id = r.target_note_id
+			WHERE i.workspace_id = ?`, workspaceID, workspaceID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.linkedToBoard[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+
+		rows, err = tx.QueryContext(ctx, `
+			WITH RECURSIVE desc_ws(id) AS (
+				SELECT id FROM projects WHERE parent_id = ?
+				UNION ALL
+				SELECT p.id FROM projects p INNER JOIN desc_ws d ON p.parent_id = d.id
+			)
+			SELECT DISTINCT i.note_id
+			FROM canvas_note_instances i
+			INNER JOIN desc_ws d ON d.id = i.workspace_id`, workspaceID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.descendantNotes[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+	}
+
+	if selectedNoteID != "" || workspaceID != "" {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT DISTINCT nt2.note_id
+			FROM note_tags nt2
+			WHERE nt2.tag_id IN (
+				SELECT nt.tag_id FROM note_tags nt WHERE nt.note_id = ?
+				UNION
+				SELECT nt.tag_id FROM note_tags nt
+				INNER JOIN canvas_note_instances i ON i.note_id = nt.note_id
+				WHERE i.workspace_id = ?
+			)`, selectedNoteID, workspaceID)
+		if err != nil {
+			return sets, err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return sets, err
+			}
+			sets.sharedTagNotes[id] = true
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return sets, err
+		}
+		_ = rows.Close()
+	}
+	return sets, nil
+}
+
+func (s relatedSets) classify(noteID, selectedNoteID string) (int, string, bool) {
+	if selectedNoteID != "" && noteID == selectedNoteID {
+		return 0, "", false
+	}
+	switch {
+	case s.selectedIncoming[noteID]:
+		return 1, "References selected", true
+	case s.selectedOutgoing[noteID]:
+		return 1, "Backlink", true
+	case s.workspaceNotes[noteID]:
+		return 2, "On this workspace", true
+	case s.linkedToBoard[noteID]:
+		return 3, "Linked to board", true
+	case s.descendantNotes[noteID]:
+		return 4, "Subtopic", true
+	case s.sharedTagNotes[noteID]:
+		return 5, "Shared tag", true
+	default:
+		return 0, "", false
+	}
+}
+
+func listNotesTx(ctx context.Context, tx sqlite.DBTX, query domain.NoteListQuery) (domain.NoteListResult, error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = domain.DefaultNoteLimit
 	}
+	offset := max(query.Offset, 0)
 	filter := strings.TrimSpace(query.Query)
+	placedMode := query.Placed
+	if query.Unplaced && placedMode == "" {
+		placedMode = "unplaced"
+	}
+
+	relatedMode := query.Scope == "related"
+	var relSets relatedSets
+	if relatedMode {
+		if query.WorkspaceID == "" && query.SelectedNoteID == "" {
+			return domain.NoteListResult{Notes: []domain.NoteSummary{}, Total: 0, HasMore: false}, nil
+		}
+		var err error
+		relSets, err = loadRelatedSetsTx(ctx, tx, query.WorkspaceID, query.SelectedNoteID)
+		if err != nil {
+			return domain.NoteListResult{}, err
+		}
+	}
 
 	var sb strings.Builder
 	sb.WriteString(`SELECT n.id, n.document_state, n.created_at, n.updated_at FROM canvas_notes n WHERE n.deleted_at IS NULL`)
 	var args []any
-	if query.Unplaced {
+	switch placedMode {
+	case "unplaced":
 		sb.WriteString(` AND NOT EXISTS (
 			SELECT 1 FROM canvas_note_instances i
 			INNER JOIN projects p ON p.id = i.workspace_id
 			WHERE i.note_id = n.id
 		)`)
+	case "placed":
+		sb.WriteString(` AND EXISTS (
+			SELECT 1 FROM canvas_note_instances i
+			INNER JOIN projects p ON p.id = i.workspace_id
+			WHERE i.note_id = n.id
+		)`)
 	}
-	sb.WriteString(` ORDER BY n.updated_at DESC, n.id ASC`)
-	if filter == "" {
-		sb.WriteString(` LIMIT ?`)
-		args = append(args, limit)
+	if !relatedMode && query.WorkspaceID != "" {
+		sb.WriteString(` AND EXISTS (
+			SELECT 1 FROM canvas_note_instances i
+			INNER JOIN projects p ON p.id = i.workspace_id
+			WHERE i.note_id = n.id AND i.workspace_id = ?
+		)`)
+		args = append(args, query.WorkspaceID)
+	}
+	for _, tagID := range query.TagIDs {
+		sb.WriteString(` AND EXISTS (SELECT 1 FROM note_tags nt WHERE nt.note_id = n.id AND nt.tag_id = ?)`)
+		args = append(args, tagID)
+	}
+	if query.Sort == "created" && !relatedMode {
+		sb.WriteString(` ORDER BY n.created_at DESC, n.id ASC`)
+	} else {
+		sb.WriteString(` ORDER BY n.updated_at DESC, n.id ASC`)
 	}
 
 	rows, err := tx.QueryContext(ctx, sb.String(), args...)
 	if err != nil {
-		return nil, err
+		return domain.NoteListResult{}, err
 	}
 	defer func() { _ = rows.Close() }()
-	summaries := []domain.NoteSummary{}
-	noteIDs := []string{}
+	type rankedSummary struct {
+		summary domain.NoteSummary
+		tier    int
+	}
+	ranked := []rankedSummary{}
 	for rows.Next() {
 		var id, docStr, createdAt, updatedAt string
 		if err := rows.Scan(&id, &docStr, &createdAt, &updatedAt); err != nil {
-			return nil, err
+			return domain.NoteListResult{}, err
+		}
+		var tier int
+		var reason string
+		if relatedMode {
+			var ok bool
+			tier, reason, ok = relSets.classify(id, query.SelectedNoteID)
+			if !ok {
+				continue
+			}
 		}
 		parsed := domain.SummarizeDocument(json.RawMessage(docStr))
 		if filter != "" && !domain.MatchesSearchQuery(parsed.PlainText, filter) && !domain.MatchesSearchQuery(parsed.Label, filter) {
 			continue
 		}
-		summaries = append(summaries, domain.NoteSummary{
-			ID:           id,
-			Label:        parsed.Label,
-			Excerpt:      parsed.Excerpt,
-			WorkspaceIDs: []string{},
-			IsEmpty:      parsed.IsEmpty,
-			CreatedAt:    createdAt,
-			UpdatedAt:    updatedAt,
+		ranked = append(ranked, rankedSummary{
+			tier: tier,
+			summary: domain.NoteSummary{
+				ID:            id,
+				Label:         parsed.Label,
+				Excerpt:       parsed.Excerpt,
+				WorkspaceIDs:  []string{},
+				RelatedReason: reason,
+				IsEmpty:       parsed.IsEmpty,
+				CreatedAt:     createdAt,
+				UpdatedAt:     updatedAt,
+			},
 		})
-		noteIDs = append(noteIDs, id)
-		if len(summaries) >= limit {
-			break
-		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return domain.NoteListResult{}, err
 	}
 	if err := rows.Close(); err != nil {
-		return nil, err
+		return domain.NoteListResult{}, err
 	}
 
-	if query.Unplaced || len(noteIDs) == 0 {
-		return summaries, nil
+	if relatedMode {
+		sort.SliceStable(ranked, func(i, j int) bool {
+			if ranked[i].tier != ranked[j].tier {
+				return ranked[i].tier < ranked[j].tier
+			}
+			if ranked[i].summary.UpdatedAt != ranked[j].summary.UpdatedAt {
+				return ranked[i].summary.UpdatedAt > ranked[j].summary.UpdatedAt
+			}
+			return ranked[i].summary.ID < ranked[j].summary.ID
+		})
+	} else if query.Sort == "title" {
+		sort.SliceStable(ranked, func(i, j int) bool {
+			li := strings.ToLower(ranked[i].summary.Label)
+			lj := strings.ToLower(ranked[j].summary.Label)
+			if li != lj {
+				return li < lj
+			}
+			return ranked[i].summary.ID < ranked[j].summary.ID
+		})
 	}
 
-	placementsByNote, err := loadLivePlacementsByNoteIDsTx(ctx, tx, noteIDs)
-	if err != nil {
-		return nil, err
+	total := len(ranked)
+	if offset >= total {
+		return domain.NoteListResult{Notes: []domain.NoteSummary{}, Total: total, HasMore: false}, nil
 	}
-	for i := range summaries {
-		placements := placementsByNote[summaries[i].ID]
-		summaries[i].PlacementCount = len(placements)
-		if len(placements) == 0 {
-			continue
+	end := min(offset+limit, total)
+	page := make([]domain.NoteSummary, end-offset)
+	noteIDs := make([]string, end-offset)
+	for i := offset; i < end; i++ {
+		page[i-offset] = ranked[i].summary
+		noteIDs[i-offset] = ranked[i].summary.ID
+	}
+	hasMore := end < total
+
+	if placedMode != "unplaced" && len(page) > 0 {
+		placementsByNote, err := loadLivePlacementsByNoteIDsTx(ctx, tx, noteIDs)
+		if err != nil {
+			return domain.NoteListResult{}, err
 		}
-		seen := make(map[string]bool, len(placements))
-		workspaceIDs := make([]string, 0, len(placements))
-		for _, placement := range placements {
-			if !seen[placement.workspaceID] {
-				seen[placement.workspaceID] = true
-				workspaceIDs = append(workspaceIDs, placement.workspaceID)
+		for i := range page {
+			placements := placementsByNote[page[i].ID]
+			page[i].PlacementCount = len(placements)
+			if len(placements) == 0 {
+				continue
+			}
+			seen := make(map[string]bool, len(placements))
+			workspaceIDs := make([]string, 0, len(placements))
+			for _, placement := range placements {
+				if !seen[placement.workspaceID] {
+					seen[placement.workspaceID] = true
+					workspaceIDs = append(workspaceIDs, placement.workspaceID)
+				}
+			}
+			page[i].WorkspaceIDs = workspaceIDs
+		}
+	}
+	if len(page) > 0 {
+		tagsByNote, err := loadTagsByNoteIDsTx(ctx, tx, noteIDs)
+		if err != nil {
+			return domain.NoteListResult{}, err
+		}
+		for i := range page {
+			if tags := tagsByNote[page[i].ID]; len(tags) > 0 {
+				page[i].Tags = tags
 			}
 		}
-		summaries[i].WorkspaceIDs = workspaceIDs
 	}
-	return summaries, nil
+	return domain.NoteListResult{Notes: page, Total: total, HasMore: hasMore}, nil
 }
 
 func getNoteInfoTx(ctx context.Context, tx sqlite.DBTX, targetID string) (domain.NoteInfo, error) {
@@ -649,11 +976,11 @@ func getNoteInfoTx(ctx context.Context, tx sqlite.DBTX, targetID string) (domain
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT id, document_state
-		FROM canvas_notes
-		WHERE id <> ? AND deleted_at IS NULL
-		  AND (instr(document_state, ?) > 0 OR instr(document_state, ?) > 0)
-		ORDER BY updated_at DESC, id ASC`, targetID, targetID, url.QueryEscape(targetID))
+		SELECT src.id, src.document_state, r.kind, r.context_excerpt
+		FROM note_references r
+		INNER JOIN canvas_notes src ON src.id = r.source_note_id
+		WHERE r.target_note_id = ? AND r.source_note_id <> ? AND src.deleted_at IS NULL
+		ORDER BY src.updated_at DESC, src.id ASC, r.occurrence_index ASC`, targetID, targetID)
 	if err != nil {
 		return domain.NoteInfo{}, err
 	}
@@ -661,26 +988,28 @@ func getNoteInfoTx(ctx context.Context, tx sqlite.DBTX, targetID string) (domain
 	backlinks := []domain.NoteBacklinkInfo{}
 	refNoteIDs := []string{}
 	seenRefNotes := map[string]bool{}
+	seenBacklinkKind := map[string]bool{}
 	for rows.Next() {
-		var refID, docStr string
-		if err := rows.Scan(&refID, &docStr); err != nil {
+		var refID, docStr, kind, excerpt string
+		if err := rows.Scan(&refID, &docStr, &kind, &excerpt); err != nil {
 			return domain.NoteInfo{}, err
 		}
-		label, kinds := domain.ExtractBacklinkInfo(json.RawMessage(docStr), targetID)
-		if len(kinds) == 0 {
+		key := refID + "\x00" + kind
+		if seenBacklinkKind[key] {
 			continue
 		}
+		seenBacklinkKind[key] = true
 		if !seenRefNotes[refID] {
 			seenRefNotes[refID] = true
 			refNoteIDs = append(refNoteIDs, refID)
 		}
-		for _, kind := range kinds {
-			backlinks = append(backlinks, domain.NoteBacklinkInfo{
-				NoteID: refID,
-				Label:  label,
-				Kind:   kind,
-			})
-		}
+		label := domain.SummarizeDocument(json.RawMessage(docStr)).Label
+		backlinks = append(backlinks, domain.NoteBacklinkInfo{
+			NoteID:  refID,
+			Label:   label,
+			Kind:    kind,
+			Excerpt: excerpt,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return domain.NoteInfo{}, err
@@ -702,9 +1031,63 @@ func getNoteInfoTx(ctx context.Context, tx sqlite.DBTX, targetID string) (domain
 		}
 	}
 
+	outRows, err := tx.QueryContext(ctx, `
+		SELECT r.target_note_id, r.kind, r.context_excerpt, tgt.document_state
+		FROM note_references r
+		LEFT JOIN canvas_notes tgt ON tgt.id = r.target_note_id AND tgt.deleted_at IS NULL
+		WHERE r.source_note_id = ?
+		ORDER BY r.occurrence_index ASC`, targetID)
+	if err != nil {
+		return domain.NoteInfo{}, err
+	}
+	defer func() { _ = outRows.Close() }()
+	outgoing := []domain.NoteOutgoingRefInfo{}
+	seenOutgoing := map[string]bool{}
+	for outRows.Next() {
+		var tgtID, kind, excerpt string
+		var tgtDoc sql.NullString
+		if err := outRows.Scan(&tgtID, &kind, &excerpt, &tgtDoc); err != nil {
+			return domain.NoteInfo{}, err
+		}
+		key := tgtID + "\x00" + kind
+		if seenOutgoing[key] {
+			continue
+		}
+		seenOutgoing[key] = true
+		label := ""
+		unresolved := !tgtDoc.Valid
+		if tgtDoc.Valid {
+			label = domain.SummarizeDocument(json.RawMessage(tgtDoc.String)).Label
+		}
+		outgoing = append(outgoing, domain.NoteOutgoingRefInfo{
+			NoteID:     tgtID,
+			Label:      label,
+			Excerpt:    excerpt,
+			Kind:       kind,
+			Unresolved: unresolved,
+		})
+	}
+	if err := outRows.Err(); err != nil {
+		return domain.NoteInfo{}, err
+	}
+	if err := outRows.Close(); err != nil {
+		return domain.NoteInfo{}, err
+	}
+
+	tagsMap, err := loadTagsByNoteIDsTx(ctx, tx, []string{targetID})
+	if err != nil {
+		return domain.NoteInfo{}, err
+	}
+	tags := tagsMap[targetID]
+	if tags == nil {
+		tags = []domain.Tag{}
+	}
+
 	return domain.NoteInfo{
 		NoteID:     targetID,
 		Placements: placements,
 		Backlinks:  backlinks,
+		Outgoing:   outgoing,
+		Tags:       tags,
 	}, nil
 }

@@ -43,8 +43,14 @@ func newDevelopmentWebProxy(rawTarget string) (http.Handler, error) {
 }
 
 func isClientNavigationRoute(clean string) bool {
-	if clean == "/" {
+	if clean == "/" || clean == "/map" || clean == "/cards" {
 		return true
+	}
+	if strings.HasPrefix(clean, "/cards/") {
+		rest := strings.TrimPrefix(clean, "/cards/")
+		if rest != "" && !strings.Contains(rest, "/") {
+			return true
+		}
 	}
 	if strings.HasPrefix(clean, "/workspaces/") {
 		rest := strings.TrimPrefix(clean, "/workspaces/")

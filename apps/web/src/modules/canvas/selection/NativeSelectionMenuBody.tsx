@@ -4,11 +4,15 @@ import {
   AlignHorizontalJustifyCenter,
   ArrowUpRight,
   Check,
+  FolderPlus,
   Layers,
+  LayoutGrid,
   Maximize2,
   Minimize2,
   Palette,
+  ScanSearch,
   Type,
+  Ungroup,
 } from "lucide-react";
 import { useState } from "react";
 import { openExternalUrl } from "../../../platform/runtime/external-links";
@@ -63,6 +67,7 @@ export function SelectionMenuBody({
   api,
   activeTool,
   selectedElementCount,
+  sectionActions,
   openSub,
   setOpenSub,
   onAction,
@@ -71,6 +76,12 @@ export function SelectionMenuBody({
   api: ExcalidrawImperativeAPI;
   activeTool: AppState["activeTool"]["type"];
   selectedElementCount: number;
+  sectionActions?: {
+    onCreateSection: () => void;
+    onFitSection: (frameId: string) => void;
+    onTidySection: (frameId: string) => void;
+    onUngroupSection: (frameId: string) => void;
+  };
   openSub: string | null;
   setOpenSub: (id: string | null) => void;
   onAction: (name: CanvasRuntimeActionName) => void;
@@ -184,6 +195,29 @@ export function SelectionMenuBody({
               <ColorSwatches colors={fillColorOptions} current={frameBgColor} label="Frame background color" onChange={(color) => updateFrameStyle({ backgroundColor: color })} />
             </div>
           </div>
+          {sectionActions && selectedElements.length === 1 && (
+            <>
+              <MenuDivider />
+              <MenuActionRow
+                icon={<LayoutGrid className="size-3.5" />}
+                label="Tidy section"
+                onHover={() => setOpenSub(null)}
+                onClick={() => { sectionActions.onTidySection(selectedElements[0].id); onClose(); }}
+              />
+              <MenuActionRow
+                icon={<ScanSearch className="size-3.5" />}
+                label="Fit section to content"
+                onHover={() => setOpenSub(null)}
+                onClick={() => { sectionActions.onFitSection(selectedElements[0].id); onClose(); }}
+              />
+              <MenuActionRow
+                icon={<Ungroup className="size-3.5" />}
+                label="Ungroup section"
+                onHover={() => setOpenSub(null)}
+                onClick={() => { sectionActions.onUngroupSection(selectedElements[0].id); onClose(); }}
+              />
+            </>
+          )}
           <MenuDivider />
         </>
       )}
@@ -414,9 +448,17 @@ export function SelectionMenuBody({
         <NativeMenuRow api={api} name="pasteStyles" label="Paste styles" shortcut="Ctrl+Alt+V" onHover={() => setOpenSub(null)} onRun={runAndClose} />
       )}
 
-      {(selectedElementCount > 1 || nativeActionAvailable(api, "ungroup")) && (
+      {(selectedElementCount > 1 || nativeActionAvailable(api, "ungroup") || (!allFrames && sectionActions)) && (
         <>
           <MenuDivider />
+          {!allFrames && sectionActions && (
+            <MenuActionRow
+              icon={<FolderPlus className="size-3.5" />}
+              label="Group into Section"
+              onHover={() => setOpenSub(null)}
+              onClick={() => { sectionActions.onCreateSection(); onClose(); }}
+            />
+          )}
           {selectedElementCount >= 2 && <NativeMenuRow api={api} name="group" label="Group" shortcut="Ctrl+G" onHover={() => setOpenSub(null)} onRun={runAndClose} />}
           {nativeActionAvailable(api, "ungroup") && <NativeMenuRow api={api} name="ungroup" label="Ungroup" shortcut="Ctrl+Shift+G" onHover={() => setOpenSub(null)} onRun={runAndClose} />}
         </>

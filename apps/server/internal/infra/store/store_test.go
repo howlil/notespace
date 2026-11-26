@@ -153,7 +153,7 @@ func TestOpenUpgradesFromPre0026ScrubbingRetiredArtifactsWhileKeepingCanvasNotes
 		// Legacy pre-binary JSON trash envelope with a retired note artifact + kept shape.
 		legacyTrash := domain.WorkspaceEnvelope{
 			Project: domain.Workspace{
-				WorkspaceSummary: domain.WorkspaceSummary{ID: "ws-json-trash", CategoryID: "legacy", Title: "JSON Trash", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z", Version: 1},
+				WorkspaceSummary: domain.WorkspaceSummary{ID: "ws-json-trash", Title: "JSON Trash", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z", Version: 1},
 				CanvasVersion:    1,
 				Canvas: domain.CanvasSnapshot{
 					Format:  "excalidraw",
@@ -407,34 +407,29 @@ func TestVersionedTrashRejectsStaleDelete(t *testing.T) {
 	}
 }
 
-func TestDeleteCategoryRejectsTrashedWorkspace(t *testing.T) {
+func TestDeleteParentBlockedByChildWorkspace(t *testing.T) {
 	ctx := context.Background()
-	store, err := Open(ctx, filepath.Join(t.TempDir(), "category-trash.db"))
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "parent-child-trash.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	category, err := store.CreateCategory(ctx, "Concurrency")
+	parent, err := store.CreateWorkspace(ctx, "Concurrency")
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := store.CreateWorkspace(ctx, "Owned workspace", category.ID)
+	child, err := store.CreateWorkspace(ctx, "Owned workspace", &parent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TrashWorkspace(ctx, workspace.ID, workspace.Version); err != nil {
+	if err := store.TrashWorkspace(ctx, parent.ID, parent.Version); !errors.Is(err, domain.ErrWorkspaceHasChildren) {
+		t.Fatalf("nonempty parent delete error = %v, want ErrWorkspaceHasChildren", err)
+	}
+	if err := store.TrashWorkspace(ctx, child.ID, child.Version); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := store.DeleteCategory(ctx, category.ID); !errors.Is(err, domain.ErrCategoryNotEmpty) {
-		t.Fatalf("category delete error = %v, want not empty", err)
-	}
-	var count int
-	if err := store.db.Writer().QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, category.ID).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("category count = %d, want 1", count)
+	if err := store.TrashWorkspace(ctx, parent.ID, parent.Version); err != nil {
+		t.Fatalf("empty parent delete error = %v", err)
 	}
 }
 

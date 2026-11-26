@@ -533,7 +533,7 @@ test("cross-workspace linked Note instances share canonical content and keep ins
     await openWorkspace(workspaceB.id);
     await expectCount("[data-note-element]", 0);
     await click(role("button", "Search Notespace", { exact: true }));
-    await fill(placeholder("Search workspaces, notes, or categories…"), initialHeadline);
+    await fill(placeholder("Search workspaces or notes…"), initialHeadline);
     const dialog = role("dialog", "Quick Open");
     await visible(role("button", new RegExp(initialHeadline), { scope: dialog }));
     await click(role("button", "Place", { scope: dialog, exact: true }));

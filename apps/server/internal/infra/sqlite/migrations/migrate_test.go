@@ -61,26 +61,19 @@ func TestCategoriesMigrationPreservesLegacyProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var categoryID string
-	if err := db.QueryRowContext(ctx, `SELECT category_id FROM projects WHERE id='legacy-project'`).Scan(&categoryID); err != nil {
+	var parentID sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT parent_id FROM projects WHERE id='legacy-project'`).Scan(&parentID); err != nil {
 		t.Fatal(err)
 	}
-	if categoryID != "legacy" {
-		t.Fatalf("legacy project category_id = %q, want legacy", categoryID)
-	}
-	var notNull int
-	if err := db.QueryRowContext(ctx, `SELECT "notnull" FROM pragma_table_info('projects') WHERE name='category_id'`).Scan(&notNull); err != nil {
-		t.Fatal(err)
-	}
-	if notNull != 1 {
-		t.Fatalf("category_id notnull = %d, want 1", notNull)
+	if parentID.Valid {
+		t.Fatalf("legacy project parent_id = %q, want NULL", parentID.String)
 	}
 	var foreignKeyCount int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_list('projects') WHERE "table"='categories'`).Scan(&foreignKeyCount); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_list('projects') WHERE "table"='projects'`).Scan(&foreignKeyCount); err != nil {
 		t.Fatal(err)
 	}
 	if foreignKeyCount != 1 {
-		t.Fatalf("projects foreign keys to categories = %d, want 1", foreignKeyCount)
+		t.Fatalf("projects self foreign keys = %d, want 1", foreignKeyCount)
 	}
 	var duplicateAuthoredColumns int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name IN ('document_state','notes_state','canvas_state','references_state','split_ratio','notes_revision')`).Scan(&duplicateAuthoredColumns); err != nil {

@@ -275,7 +275,7 @@ async function assertDesktopChrome(session, workspace) {
       search: explorer?.querySelectorAll('button[aria-label="Search Notespace"]').length ?? 0,
       settings: explorer?.querySelectorAll('button[aria-label="Open Notespace settings"]').length ?? 0,
       explorerWidth: Math.round(explorer?.getBoundingClientRect().width ?? 0),
-      explorerCount: shell?.querySelectorAll('aside[aria-label="Category explorer"]').length ?? 0,
+      explorerCount: shell?.querySelectorAll('aside[aria-label="Workspace explorer"]').length ?? 0,
       canvasWidth: rect?.width ?? 0,
       canvasHeight: rect?.height ?? 0,
       railCount: document.querySelectorAll(".workspace-rail, .desktop-workspace-rail-slot").length,
@@ -289,7 +289,7 @@ async function assertDesktopChrome(session, workspace) {
   assert.equal(state.controls, 3, "Minimize, maximize and close remain accessible");
   assert.equal(state.search, 1, "Search remains reachable in the Explorer header");
   assert.equal(state.settings, 1, "Settings remain reachable in both shell states");
-  assert.equal(state.explorerCount, 1, "One category explorer");
+  assert.equal(state.explorerCount, 1, "One workspace explorer");
   assert.equal(state.railCount, 0, "No retired Workspace rail");
   assert.equal(state.brandCount, 1, "One Explorer header brand link");
   assert.equal(state.toggleCount, 1, "One independent Explorer toggle in the Explorer header");

@@ -15,6 +15,12 @@ const (
 	// NoteMarkdownMigration retires the rich Note document; infra/store runs the
 	// document conversion in this migration's transaction.
 	NoteMarkdownMigration = "0033_note_markdown_only.sql"
+	// WorkspaceHierarchyMigration replaces mandatory Categories with recursive
+	// parent_id Workspaces; infra/store verifies hierarchy and upgrades trash payloads.
+	WorkspaceHierarchyMigration = "0035_workspace_hierarchy.sql"
+	// NoteReferencesAndTagsMigration adds tags, note_tags, and note_references;
+	// infra/store rebuilds note_references in this migration's transaction.
+	NoteReferencesAndTagsMigration = "0036_note_references_and_tags.sql"
 )
 
 // These exact 0025 variants were already applied by local Notespace builds.

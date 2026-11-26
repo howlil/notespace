@@ -30,7 +30,11 @@ export function SegmentedControl<T extends string>({
       role={variant === "tabs" ? "tablist" : "group"}
       aria-label={ariaLabel}
       className={cn(
-        variant === "buttons" ? "grid gap-1" : "inline-flex items-center gap-1",
+        variant === "buttons"
+          ? "grid gap-1"
+          : variant === "tabs"
+            ? "inline-flex h-7 items-center gap-0.5 rounded-md border border-line bg-sidebar/70 p-0.5"
+            : "inline-flex h-8 items-center gap-0.5 rounded-lg border border-line bg-sidebar/70 p-0.5",
         className,
       )}
     >
@@ -50,14 +54,16 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               "inline-flex items-center justify-center gap-1 font-medium transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50",
-              variant === "pills" && "min-h-7 rounded-full border px-2.5 text-xs",
-              variant === "tabs" && "h-6 shrink-0 rounded-md px-2 text-xs",
+              variant === "pills" && "h-full rounded-md px-2.5 text-xs",
+              variant === "tabs" && "h-full shrink-0 rounded px-2 text-xs",
               variant === "buttons" && "h-7 rounded-lg border px-2 text-xs",
               active
-                ? "border-accent bg-tint text-accent"
+                ? variant === "buttons"
+                  ? "border-accent bg-tint text-accent"
+                  : "bg-surface text-ink ring-1 ring-inset ring-line/80"
                 : variant === "buttons"
                   ? "border-line bg-canvas text-ink hover:bg-tint hover:text-accent"
-                  : "border-transparent text-muted hover:bg-tint hover:text-ink",
+                  : "text-muted hover:text-ink",
             )}
           >
             {option.icon}

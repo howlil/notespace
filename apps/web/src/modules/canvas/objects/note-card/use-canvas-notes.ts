@@ -601,9 +601,20 @@ export function useCanvasNotes({
     await insertNote(undefined, { position: { x: sceneX, y: sceneY } });
   }, [insertNote]);
 
-  const placeLinkedNote = useCallback(async (noteId: string) => {
+  const placeLinkedNote = useCallback(async (
+    noteId: string,
+    options?: { clientPoint?: { x: number; y: number } },
+  ) => {
+    if (options?.clientPoint && apiRef.current && surfaceRef.current) {
+      const rect = surfaceRef.current.getBoundingClientRect();
+      const appState = apiRef.current.getAppState();
+      const sceneX = (options.clientPoint.x - rect.left) / appState.zoom.value - appState.scrollX;
+      const sceneY = (options.clientPoint.y - rect.top) / appState.zoom.value - appState.scrollY;
+      await insertNote(noteId, { position: { x: sceneX, y: sceneY } });
+      return;
+    }
     await insertNote(noteId);
-  }, [insertNote]);
+  }, [apiRef, insertNote, surfaceRef]);
 
   const applyNoteHeight = useCallback((elementId: string, height: number, forceAuto: boolean) => {
     const value = apiRef.current;

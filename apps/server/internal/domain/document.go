@@ -35,6 +35,14 @@ type DocumentSummary struct {
 	IsEmpty   bool
 }
 
+// ExtractedNoteReference describes a single internal Note link, embed, or
+// block reference extracted from a Note's Markdown document.
+type ExtractedNoteReference struct {
+	TargetNoteID string
+	Kind         string
+	Excerpt      string
+}
+
 // ParsedDocument is a validated Markdown Note document: the canonical
 // {"type":"markdown","text":string} envelope and nothing else.
 type ParsedDocument struct {
@@ -109,6 +117,17 @@ func ExtractBacklinkInfo(raw json.RawMessage, targetNoteID string) (string, []st
 		return "", nil
 	}
 	return backlinkInfo(text, targetNoteID)
+}
+
+// ExtractNoteReferences returns all internal Note references in document order
+// with their classified kind and human-readable line excerpt, ignoring fenced
+// code, inline code, escaped links, and external URLs.
+func ExtractNoteReferences(raw json.RawMessage) []ExtractedNoteReference {
+	text, ok := markdownText(raw, false)
+	if !ok {
+		return nil
+	}
+	return extractNoteReferences(text)
 }
 
 var (
@@ -214,6 +233,49 @@ func summarizeMarkdown(text string) DocumentSummary {
 		summary.Label = TruncateRunes(lines[0], MaxLabelRunes)
 	}
 	return summary
+}
+
+func extractNoteReferences(text string) []ExtractedNoteReference {
+	stripped := stripCode(strings.ReplaceAll(text, "\r\n", "\n"))
+	indices := markdownLink.FindAllStringSubmatchIndex(stripped, -1)
+	if len(indices) == 0 {
+		return nil
+	}
+	refs := make([]ExtractedNoteReference, 0, len(indices))
+	for _, idx := range indices {
+		bang := stripped[idx[4]:idx[5]]
+		href := stripped[idx[6]:idx[7]]
+		query, ok := internalNoteQuery(href)
+		if !ok {
+			continue
+		}
+		targetID := strings.TrimSpace(query.Get("noteId"))
+		if !ValidID(targetID, MaxNoteIDLength) {
+			continue
+		}
+		kind := BacklinkKindLink
+		switch {
+		case bang == "!":
+			kind = BacklinkKindEmbed
+		case query.Get("blockId") != "":
+			kind = BacklinkKindBlockRef
+		}
+		lineStart := strings.LastIndexByte(stripped[:idx[0]], '\n') + 1
+		lineEnd := strings.IndexByte(stripped[idx[1]:], '\n')
+		if lineEnd < 0 {
+			lineEnd = len(stripped)
+		} else {
+			lineEnd += idx[1]
+		}
+		line := stripped[lineStart:lineEnd]
+		excerpt := TruncateRunes(strings.Join(readableLines(line), " "), MaxExcerptRunes)
+		refs = append(refs, ExtractedNoteReference{
+			TargetNoteID: targetID,
+			Kind:         kind,
+			Excerpt:      excerpt,
+		})
+	}
+	return refs
 }
 
 func backlinkInfo(text, targetNoteID string) (string, []string) {

@@ -29,7 +29,7 @@ test("workspace client owns the Canvas route with optimistic concurrency headers
   assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { canvas, version: 5 });
 });
 
-test("workspace client owns category queries, search encoding, Trash, and Workspace delete preconditions", async () => {
+test("workspace client owns hierarchy queries, move/reparent, search encoding, Trash, and Workspace delete preconditions", async () => {
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
   const transport: HttpTransport = {
     fetch: async (input, init) => {
@@ -42,13 +42,16 @@ test("workspace client owns category queries, search encoding, Trash, and Worksp
   };
   const client = createWorkspaceHttpClient(transport);
 
-  await client.listCategoryWorkspaces("category/1", {
+  await client.listChildWorkspaces("parent/1", {
     query: "system design",
     sort: "name",
     hasCanvas: true,
     offset: 25,
     limit: 50,
   });
+  await client.listRootWorkspaces({ limit: 50, snapshot: "start" });
+  await client.moveWorkspaceParent("workspace/1", null, "parent/1");
+  await client.reparentWorkspaceChildren("parent/1", null);
   await client.searchNotespace("C++ / Go?");
   await client.deleteWorkspace("workspace/1", 8);
   await client.restoreTrashedWorkspace("workspace/1");
@@ -56,14 +59,20 @@ test("workspace client owns category queries, search encoding, Trash, and Worksp
 
   assert.equal(
     calls[0]?.input,
-    "/api/categories/category%2F1/workspaces?q=system+design&sort=name&hasCanvas=true&offset=25&limit=50",
+    "/api/workspaces?parentId=parent%2F1&q=system+design&sort=name&hasCanvas=true&offset=25&limit=50",
   );
-  assert.equal(calls[1]?.input, "/api/search?q=C%2B%2B%20%2F%20Go%3F");
-  assert.equal(calls[2]?.input, "/api/workspaces/workspace%2F1");
-  assert.equal(new Headers(calls[2]?.init?.headers).get("If-Match"), `"8"`);
-  assert.equal(calls[3]?.input, "/api/trash/workspace%2F1");
+  assert.equal(calls[1]?.input, "/api/workspaces?rootOnly=true&snapshot=start&limit=50");
+  assert.equal(calls[2]?.input, "/api/workspaces/workspace%2F1/parent");
+  assert.equal(calls[2]?.init?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), { parentId: null, expectedParentId: "parent/1" });
+  assert.equal(calls[3]?.input, "/api/workspaces/parent%2F1/reparent-children");
   assert.equal(calls[3]?.init?.method, "POST");
-  assert.equal(calls[4]?.init?.method, "DELETE");
+  assert.equal(calls[4]?.input, "/api/search?q=C%2B%2B%20%2F%20Go%3F");
+  assert.equal(calls[5]?.input, "/api/workspaces/workspace%2F1");
+  assert.equal(new Headers(calls[5]?.init?.headers).get("If-Match"), `"8"`);
+  assert.equal(calls[6]?.input, "/api/trash/workspace%2F1");
+  assert.equal(calls[6]?.init?.method, "POST");
+  assert.equal(calls[7]?.init?.method, "DELETE");
 });
 
 test("workspace client restores ZIP and JSON backups with explicit media types", async () => {

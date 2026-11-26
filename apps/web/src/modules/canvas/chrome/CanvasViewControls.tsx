@@ -1,4 +1,4 @@
-import { Copy, FolderOpen, ImageDown, Save } from "lucide-react";
+import { Copy, FolderOpen, ImageDown, PanelRight, Save } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -104,7 +104,7 @@ function CanvasCommandMenu({ api, anchorRef, open, backgroundColor, gridModeEnab
     </AnchoredPopover>
   );
 }
-export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen }: {
+export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnabled, onAction, onToolOverlayOpen, onOverlayOpen, overlayActive = true, toolOverlayOpen, rightPanelOpen = false, onToggleRightPanel }: {
   api: ExcalidrawImperativeAPI | null;
   gridModeEnabled: boolean;
   objectsSnapModeEnabled: boolean;
@@ -113,6 +113,8 @@ export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnable
   onOverlayOpen?: () => void;
   overlayActive?: boolean;
   toolOverlayOpen?: boolean;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
 }) {
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
@@ -143,15 +145,31 @@ export function CanvasViewControls({ api, gridModeEnabled, objectsSnapModeEnable
       initial={{ opacity: 0, y: -3 }}
       animate={{ opacity: 1, y: 0 }}
       transition={motionTransition}
-      className="pointer-events-auto absolute top-2 z-20 flex items-center"
+      className="pointer-events-auto absolute top-0 z-20 flex h-8 items-center gap-0.5"
       style={{ right: "calc(8px + var(--desktop-top-right-inset, 0px))" }}
       role="toolbar"
       aria-label="Canvas view controls"
       aria-orientation="horizontal"
       onPointerDown={(event) => event.stopPropagation()}
     >
+      {onToggleRightPanel && (
+        <IconButton
+          type="button"
+          variant="ghost"
+          aria-label="Toggle side panel"
+          aria-pressed={rightPanelOpen}
+          title={rightPanelOpen ? "Hide side panel · ⌘1" : "Side panel · ⌘1"}
+          className={cn(
+            "!size-7 rounded-md text-ink/70 hover:bg-ink/[0.06] hover:text-ink",
+            rightPanelOpen && "!bg-tint !text-accent",
+          )}
+          onClick={onToggleRightPanel}
+        >
+          <PanelRight size={15} aria-hidden="true" />
+        </IconButton>
+      )}
       <div ref={commandMenuRef} className="relative">
-        <IconButton id="canvas-options-trigger" type="button" variant="ghost" className={cn("!size-8 rounded-md text-ink/65 hover:bg-tint hover:text-accent", commandMenuOpen && "!bg-tint !text-accent ring-1 ring-accent/15")} aria-label="More canvas actions" aria-haspopup="dialog" aria-expanded={commandMenuOpen} aria-controls="canvas-command-menu" title="Canvas options" onClick={() => { if (!commandMenuOpen) { onToolOverlayOpen(); onOverlayOpen?.(); } setCommandMenuOpen((open) => !open); }}><NativeDotsHorizontalIcon className="size-5" /></IconButton>
+        <IconButton id="canvas-options-trigger" type="button" variant="ghost" className={cn("!size-7 rounded-md text-ink/70 hover:bg-ink/[0.06] hover:text-ink", commandMenuOpen && "!bg-tint !text-accent")} aria-label="More canvas actions" aria-haspopup="dialog" aria-expanded={commandMenuOpen} aria-controls="canvas-command-menu" title="Canvas options" onClick={() => { if (!commandMenuOpen) { onToolOverlayOpen(); onOverlayOpen?.(); } setCommandMenuOpen((open) => !open); }}><NativeDotsHorizontalIcon className="size-4" /></IconButton>
         <CanvasCommandMenu api={api} anchorRef={commandMenuRef} open={commandMenuOpen} backgroundColor={backgroundColor} gridModeEnabled={gridModeEnabled} objectsSnapModeEnabled={objectsSnapModeEnabled} onBackgroundChange={changeBackground} onAction={onAction} onClose={closeCommandMenu} />
       </div>
     </motion.aside>

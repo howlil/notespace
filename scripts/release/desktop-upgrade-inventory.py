@@ -99,7 +99,10 @@ def snapshot(database):
 
 
 def verify(before, after, database):
+    upgraded_to_hierarchy = "categories" in before["identities"] and "categories" not in after["identities"]
     for table, keys in before["identities"].items():
+        if table == "categories" and upgraded_to_hierarchy:
+            continue
         present = after["identities"].get(table)
         if present is None:
             raise AssertionError(f"Data table {table} disappeared during upgrade")
@@ -107,11 +110,15 @@ def verify(before, after, database):
         if missing:
             raise AssertionError(f"Data lost from {table}: {sorted(missing)[:5]}")
     for table, rows in before.get("field_sha256", {}).items():
+        if table == "categories" and upgraded_to_hierarchy:
+            continue
         current = after.get("field_sha256", {}).get(table, {})
         for identity, previous_fields in rows.items():
             if identity not in current:
                 raise AssertionError(f"User data missing in {table}: {identity}")
             for column, digest in previous_fields.items():
+                if upgraded_to_hierarchy and column == "category_id" and table in ("projects", "workspace_trash"):
+                    continue
                 if current[identity].get(column) != digest:
                     raise AssertionError(f"User data content changed in {table} field {column}: {identity}")
     for key, digest in before["asset_sha256"].items():

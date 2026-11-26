@@ -1,6 +1,4 @@
-import { UNCATEGORIZED_CATEGORY_ID } from "../../entities/workspace.ts";
 import type {
-  CategorySummary,
   Workspace,
   Snapshot,
   WorkspacePage,
@@ -15,23 +13,64 @@ import {
 export { APIError } from "./client.ts";
 
 export type CanvasState = { canvas: Snapshot; version: number; updatedAt: string };
-export type SearchResult = { type: "category" | "workspace" | "note"; categoryId?: string; categoryTitle?: string; workspaceId: string; workspaceTitle: string; excerpt: string; noteId?: string; instanceId?: string; elementId?: string };
-export type TrashWorkspace = { id: string; categoryId: string; title: string; deletedAt: string };
+export type SearchResult = {
+  type: "workspace" | "note";
+  parentId?: string | null;
+  parentTitle?: string;
+  workspaceId: string;
+  workspaceTitle: string;
+  excerpt: string;
+  noteId?: string;
+  instanceId?: string;
+  elementId?: string;
+};
+export type TrashWorkspace = {
+  id: string;
+  parentId: string | null;
+  parentTitle?: string;
+  title: string;
+  deletedAt: string;
+};
+
+export type WorkspaceListParams = {
+  rootOnly?: boolean;
+  parentId?: string;
+  query?: string;
+  sort?: string;
+  hasCanvas?: boolean;
+  offset?: number;
+  limit?: number;
+  snapshot?: string;
+};
+
+function buildWorkspaceListPath(params: WorkspaceListParams = {}) {
+  const search = new URLSearchParams();
+  if (params.rootOnly) search.set("rootOnly", "true");
+  if (params.parentId) search.set("parentId", params.parentId);
+  if (params.query) search.set("q", params.query);
+  if (params.sort) search.set("sort", params.sort);
+  if (params.hasCanvas) search.set("hasCanvas", "true");
+  if (params.snapshot) search.set("snapshot", params.snapshot);
+  if (params.offset) search.set("offset", String(params.offset));
+  if (params.limit) search.set("limit", String(params.limit));
+  const qs = search.toString();
+  return qs ? `/api/workspaces?${qs}` : "/api/workspaces";
+}
 
 interface WorkspaceHttpClient {
   getWorkspace(id: string): Promise<Workspace>;
   getWorkspaceCanvas(workspaceId: string): Promise<CanvasState>;
   updateWorkspaceCanvas(workspaceId: string, canvas: Snapshot, version: number): Promise<CanvasState>;
-  listAllWorkspaces(params?: { query?: string; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
-  listCategories(): Promise<CategorySummary[]>;
-  listCategoryWorkspaces(categoryId: string, params?: { query?: string; sort?: string; hasCanvas?: boolean; offset?: number; limit?: number; snapshot?: string }): Promise<WorkspacePage>;
-  createWorkspace(title: string, categoryId?: string, creationId?: string): Promise<Workspace>;
-  createCategory(title: string): Promise<CategorySummary>;
-  updateCategory(id: string, title: string): Promise<CategorySummary>;
-  deleteCategory(id: string): Promise<void>;
+  listWorkspaces(params?: WorkspaceListParams): Promise<WorkspacePage>;
+  listAllWorkspaces(params?: Omit<WorkspaceListParams, "rootOnly" | "parentId">): Promise<WorkspacePage>;
+  listRootWorkspaces(params?: Omit<WorkspaceListParams, "rootOnly" | "parentId">): Promise<WorkspacePage>;
+  listChildWorkspaces(parentId: string, params?: Omit<WorkspaceListParams, "rootOnly" | "parentId">): Promise<WorkspacePage>;
+  createWorkspace(title: string, parentId?: string | null, creationId?: string): Promise<Workspace>;
   renameWorkspace(id: string, title: string, expectedTitle?: string): Promise<Workspace>;
+  moveWorkspaceParent(id: string, parentId: string | null, expectedParentId?: string | null): Promise<Workspace>;
+  reparentWorkspaceChildren(id: string, targetParentId: string | null): Promise<{ moved: number }>;
   deleteWorkspace(id: string, expectedVersion: number): Promise<void>;
-  moveWorkspace(id: string, categoryId: string, expectedCategoryId?: string): Promise<Workspace>;
+  resolveLegacyCategory(id: string): Promise<{ workspaceId: string | null }>;
   searchNotespace(query: string): Promise<SearchResult[]>;
   listTrash(): Promise<TrashWorkspace[]>;
   restoreTrashedWorkspace(id: string): Promise<Workspace>;
@@ -42,6 +81,9 @@ interface WorkspaceHttpClient {
 export function createWorkspaceHttpClient(
   transport: HttpTransport = fetchTransport,
 ): WorkspaceHttpClient {
+  const listWorkspaces = (params: WorkspaceListParams = {}) =>
+    request<WorkspacePage>(buildWorkspaceListPath(params), undefined, transport);
+
   return {
     getWorkspace: (id) =>
       request<Workspace>(
@@ -59,43 +101,22 @@ export function createWorkspaceHttpClient(
         ...json({ canvas, version }),
       }, transport),
 
-    listAllWorkspaces: (params = {}) => {
-      const search = new URLSearchParams();
-      if (params.query) search.set("q", params.query);
-      if (params.offset) search.set("offset", String(params.offset));
-      if (params.limit) search.set("limit", String(params.limit));
-      if (params.snapshot) search.set("snapshot", params.snapshot);
-      return request<WorkspacePage>(`/api/workspaces?${search}`, undefined, transport);
-    },
+    listWorkspaces,
+    listAllWorkspaces: (params = {}) => listWorkspaces(params),
+    listRootWorkspaces: (params = {}) => listWorkspaces({ ...params, rootOnly: true }),
+    listChildWorkspaces: (parentId, params = {}) => listWorkspaces({ ...params, parentId }),
 
-    listCategories: () =>
-      request<CategorySummary[]>("/api/categories", undefined, transport),
-
-    listCategoryWorkspaces: (categoryId, params = {}) => {
-      const search = new URLSearchParams();
-      if (params.query) search.set("q", params.query);
-      if (params.sort) search.set("sort", params.sort);
-      if (params.hasCanvas) search.set("hasCanvas", "true");
-      if (params.snapshot) search.set("snapshot", params.snapshot);
-      if (params.offset) search.set("offset", String(params.offset));
-      if (params.limit) search.set("limit", String(params.limit));
-      return request<WorkspacePage>(
-        `/api/categories/${encodeURIComponent(categoryId)}/workspaces?${search}`,
-        undefined,
-        transport,
-      );
-    },
-
-    createWorkspace: async (title, categoryId, creationId = crypto.randomUUID()) => {
+    createWorkspace: async (title, parentId = null, creationId = crypto.randomUUID()) => {
+      const normalizedParent = parentId ?? null;
       try {
         return await request<Workspace>("/api/workspaces", {
           method: "POST",
-          ...json({ id: creationId, title, ...(categoryId ? { categoryId } : {}) }),
+          ...json({ id: creationId, title, ...(normalizedParent ? { parentId: normalizedParent } : {}) }),
         }, transport);
       } catch (error) {
         try {
           const saved = await request<Workspace>(`/api/workspaces/${encodeURIComponent(creationId)}`, undefined, transport);
-          if (saved.title === title.trim() && saved.categoryId === (categoryId || UNCATEGORIZED_CATEGORY_ID)) {
+          if (saved.title === title.trim() && (saved.parentId ?? null) === normalizedParent) {
             return saved;
           }
         } catch { /* Unknown read: caller must keep its creation ID for retry. */ }
@@ -103,27 +124,22 @@ export function createWorkspaceHttpClient(
       }
     },
 
-    createCategory: (title) =>
-      request<CategorySummary>("/api/categories", {
-        method: "POST",
-        ...json({ title }),
-      }, transport),
-
-    updateCategory: (id, title) =>
-      request<CategorySummary>(`/api/categories/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        ...json({ title }),
-      }, transport),
-
-    deleteCategory: (id) =>
-      request<void>(`/api/categories/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      }, transport),
-
     renameWorkspace: (id, title, expectedTitle) =>
       request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/title`, {
         method: "PATCH",
         ...json({ title, ...(expectedTitle === undefined ? {} : { expectedTitle }) }),
+      }, transport),
+
+    moveWorkspaceParent: (id, parentId, expectedParentId) =>
+      request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/parent`, {
+        method: "PATCH",
+        ...json({ parentId, ...(expectedParentId === undefined ? {} : { expectedParentId }) }),
+      }, transport),
+
+    reparentWorkspaceChildren: (id, targetParentId) =>
+      request<{ moved: number }>(`/api/workspaces/${encodeURIComponent(id)}/reparent-children`, {
+        method: "POST",
+        ...json({ targetParentId }),
       }, transport),
 
     deleteWorkspace: (id, expectedVersion) =>
@@ -132,11 +148,8 @@ export function createWorkspaceHttpClient(
         headers: { "If-Match": `"${expectedVersion}"` },
       }, transport),
 
-    moveWorkspace: (id, categoryId, expectedCategoryId) =>
-      request<Workspace>(`/api/workspaces/${encodeURIComponent(id)}/category`, {
-        method: "PATCH",
-        ...json({ categoryId, ...(expectedCategoryId === undefined ? {} : { expectedCategoryId }) }),
-      }, transport),
+    resolveLegacyCategory: (id) =>
+      request<{ workspaceId: string | null }>(`/api/legacy/categories/${encodeURIComponent(id)}`, undefined, transport),
 
     searchNotespace: (query) =>
       request<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`, undefined, transport),
@@ -173,16 +186,16 @@ const defaultWorkspaceClient = createWorkspaceHttpClient();
 export const getWorkspace = defaultWorkspaceClient.getWorkspace;
 export const getWorkspaceCanvas = defaultWorkspaceClient.getWorkspaceCanvas;
 export const updateWorkspaceCanvas = defaultWorkspaceClient.updateWorkspaceCanvas;
+export const listWorkspaces = defaultWorkspaceClient.listWorkspaces;
 export const listAllWorkspaces = defaultWorkspaceClient.listAllWorkspaces;
-export const listCategories = defaultWorkspaceClient.listCategories;
-export const listCategoryWorkspaces = defaultWorkspaceClient.listCategoryWorkspaces;
+export const listRootWorkspaces = defaultWorkspaceClient.listRootWorkspaces;
+export const listChildWorkspaces = defaultWorkspaceClient.listChildWorkspaces;
 export const createWorkspace = defaultWorkspaceClient.createWorkspace;
-export const createCategory = defaultWorkspaceClient.createCategory;
-export const updateCategory = defaultWorkspaceClient.updateCategory;
-export const deleteCategory = defaultWorkspaceClient.deleteCategory;
 export const renameWorkspace = defaultWorkspaceClient.renameWorkspace;
+export const moveWorkspaceParent = defaultWorkspaceClient.moveWorkspaceParent;
+export const reparentWorkspaceChildren = defaultWorkspaceClient.reparentWorkspaceChildren;
 export const deleteWorkspace = defaultWorkspaceClient.deleteWorkspace;
-export const moveWorkspace = defaultWorkspaceClient.moveWorkspace;
+export const resolveLegacyCategory = defaultWorkspaceClient.resolveLegacyCategory;
 export const searchNotespace = defaultWorkspaceClient.searchNotespace;
 export const listTrash = defaultWorkspaceClient.listTrash;
 export const restoreTrashedWorkspace = defaultWorkspaceClient.restoreTrashedWorkspace;

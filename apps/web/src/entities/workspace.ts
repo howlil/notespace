@@ -1,5 +1,3 @@
-// Stable persisted category key used by older SQLite libraries and backups.
-// This is a schema identifier, not a user-facing product label.
 export const UNCATEGORIZED_CATEGORY_ID = "legacy";
 
 export interface Snapshot {
@@ -10,11 +8,12 @@ export interface Snapshot {
 
 export interface WorkspaceSummary {
   id: string;
-  categoryId: string;
+  parentId: string | null;
   title: string;
   createdAt: string;
   updatedAt: string;
   version: number;
+  childCount: number;
   noteCount?: number;
   hasCanvas?: boolean;
 }
@@ -28,17 +27,11 @@ export interface WorkspacePage {
   snapshot?: string;
 }
 
-export interface CategorySummary {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  workspaceCount: number;
-}
-
 export interface Workspace extends WorkspaceSummary {
   canvas: Snapshot;
   canvasVersion: number;
+  ancestors?: WorkspaceSummary[];
+  restoredToRoot?: boolean;
 }
 
 export type WorkspaceContent = Pick<

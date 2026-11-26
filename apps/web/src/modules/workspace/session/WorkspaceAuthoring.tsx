@@ -18,20 +18,48 @@ const CanvasEditor = lazy(() => import("../../canvas/core/CanvasEditor"));
 
 export function useWorkspaceAuthoring({
   workspace,
+  workspaceTitles,
   focusNoteId,
   focusBlockId,
+  focusSectionId,
   focusNonce,
   fullMode = false,
   onToggleFullMode,
+  rightPanelOpen = false,
+  onToggleRightPanel,
   onRegisterNotePlacer,
+  onRegisterFocusHandlers,
+  onSelectNoteId,
+  onOpenInSideCards,
+  onOpenWorkspaceShortcut,
+  onOutlineChange,
 }: {
   workspace: Workspace;
+  workspaceTitles?: ReadonlyMap<string, string>;
   focusNoteId?: string;
   focusBlockId?: string;
+  focusSectionId?: string;
   focusNonce?: string;
   fullMode?: boolean;
   onToggleFullMode?: () => void;
-  onRegisterNotePlacer?: (placer: (noteId: string) => Promise<void> | void) => (() => void) | void;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
+  onRegisterNotePlacer?: (placer: (noteId: string, options?: { clientPoint?: { x: number; y: number } }) => Promise<void> | void) => (() => void) | void;
+  onRegisterFocusHandlers?: (handlers: { focusNote: (noteId: string) => void; focusElement: (elementId: string) => void }) => (() => void) | void;
+  onSelectNoteId?: (noteId: string | null) => void;
+  onOpenInSideCards?: (noteId: string) => void;
+  onOpenWorkspaceShortcut?: (workspaceId: string, options?: { background?: boolean }) => void;
+  onOutlineChange?: (
+    items: Array<{ elementId: string; noteId?: string; label: string; kind: "note" | "frame" | "shortcut" | "object" }>,
+    tree?: {
+      sections: Array<{
+        elementId: string;
+        label: string;
+        children: Array<{ elementId: string; noteId?: string; label: string; kind: "note" | "frame" | "shortcut" | "object" }>;
+      }>;
+      ungrouped: Array<{ elementId: string; noteId?: string; label: string; kind: "note" | "frame" | "shortcut" | "object" }>;
+    },
+  ) => void;
 }) {
   const { dark, palette } = useTheme();
   const { showToast, dismissToast } = useToast();
@@ -240,15 +268,24 @@ export function useWorkspaceAuthoring({
       <Suspense fallback={<div className="grid h-full place-items-center text-xs text-muted" role="status">Opening Canvas…</div>}>
         <CanvasEditor
           workspaceId={workspace.id}
+          workspaceTitles={workspaceTitles}
           focusNoteId={focusNoteId}
           focusBlockId={focusBlockId}
+          focusSectionId={focusSectionId}
           focusNonce={focusNonce}
           canvasVersion={canvasVersion}
           initial={current.current.canvas}
           noteStore={noteStore}
           fullMode={fullMode}
           onToggleFullMode={onToggleFullMode}
+          rightPanelOpen={rightPanelOpen}
+          onToggleRightPanel={onToggleRightPanel}
           onRegisterNotePlacer={onRegisterNotePlacer}
+          onRegisterFocusHandlers={onRegisterFocusHandlers}
+          onSelectNoteId={onSelectNoteId}
+          onOpenInSideCards={onOpenInSideCards}
+          onOpenWorkspaceShortcut={onOpenWorkspaceShortcut}
+          onOutlineChange={onOutlineChange}
           onChange={updateCanvas}
           onCreateNote={createCanvasNote}
           onUpdateNote={updateNote}

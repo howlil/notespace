@@ -24,12 +24,12 @@ func TestValidateWorkspaceOwnsAggregateInvariants(t *testing.T) {
 	valid := func() Workspace {
 		return Workspace{
 			WorkspaceSummary: WorkspaceSummary{
-				ID:         "ws-1",
-				CategoryID: UncategorizedCategoryID,
-				Title:      "Valid Workspace",
-				CreatedAt:  now,
-				UpdatedAt:  now,
-				Version:    1,
+				ID:        "ws-1",
+				ParentID:  nil,
+				Title:     "Valid Workspace",
+				CreatedAt: now,
+				UpdatedAt: now,
+				Version:   1,
 			},
 			Canvas: CanvasSnapshot{
 				Format:  "excalidraw",
@@ -39,12 +39,15 @@ func TestValidateWorkspaceOwnsAggregateInvariants(t *testing.T) {
 			CanvasVersion: 1,
 		}
 	}
+	self := "ws-1"
+	slash := "bad/parent"
 	tests := []struct {
 		name   string
 		mutate func(*Workspace)
 	}{
 		{"missing id", func(w *Workspace) { w.ID = "" }},
-		{"missing category", func(w *Workspace) { w.CategoryID = "" }},
+		{"self parent", func(w *Workspace) { w.ParentID = &self }},
+		{"invalid parent id", func(w *Workspace) { w.ParentID = &slash }},
 		{"blank title", func(w *Workspace) { w.Title = "   " }},
 		{"title over limit", func(w *Workspace) { w.Title = strings.Repeat("x", 161) }},
 		{"zero version", func(w *Workspace) { w.Version = 0 }},
@@ -69,6 +72,7 @@ func TestNormalizeWorkspaceQueryRejectsInvalidSortAndBounds(t *testing.T) {
 		t.Fatalf("NormalizeWorkspaceQuery(name) = (%+v, %v)", got, err)
 	}
 	for _, bad := range []WorkspaceQuery{
+		{RootOnly: true, ParentID: "ws-1"},
 		{Sort: "invalid"},
 		{Offset: -1},
 		{Limit: -5},

@@ -1,85 +1,67 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useLibraryExplorer } from "./library-explorer-provider";
+import { contextKeyForParent, useLibraryExplorer } from "./library-explorer-provider";
 import {
-  createCategory,
+  APIError,
   createWorkspace,
-  deleteCategory,
   deleteWorkspace,
-  moveWorkspace,
+  moveWorkspaceParent,
   renameWorkspace,
-  updateCategory,
+  reparentWorkspaceChildren,
 } from "../../../platform/api/workspace-api";
 import { notifyLibraryChanged } from "../../../platform/api/library-invalidation";
-import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary } from "../../../entities/workspace";
+import type { Workspace, WorkspaceSummary } from "../../../entities/workspace";
 import { workspaceRenameTitle } from "../model/naming";
 import { errorMessage } from "../../../shared/lib/error-message";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
 
-type CreateTarget = { kind: "category" | "workspace"; categoryId?: string };
-type DeleteTarget = { kind: "category"; item: CategorySummary } | { kind: "workspace"; item: WorkspaceSummary };
+type CreateTarget = { parentId: string | null };
 export type LibraryChange = { kind: "workspace-deleted"; workspaceId: string };
 
 type Options = {
-  categories: CategorySummary[];
-  selectedCategoryId?: string;
+  activeWorkspace?: Workspace;
   onChanged?: (change?: LibraryChange) => void;
   onBeforeDeleteWorkspace?: (workspaceId: string) => Promise<boolean | number>;
 };
 
-export function useLibraryNavigation({ categories, selectedCategoryId, onChanged, onBeforeDeleteWorkspace }: Options) {
+export function useLibraryNavigation({ activeWorkspace, onChanged, onBeforeDeleteWorkspace }: Options) {
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { expandedCategories: expanded, setExpandedCategories: setExpanded,
-    categoryPages, loadingCategories: loading, categoryErrors, loadCategory } = useLibraryExplorer();
-  const children = useMemo(() => Object.fromEntries(
-    Object.entries(categoryPages).map(([id, page]) => [id, page.items]),
-  ), [categoryPages]);
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const { childrenPages, loadingKeys, errorKeys, loadChildren } = useLibraryExplorer();
+
+  const contextParentId = activeWorkspace?.id ?? null;
+  const contextKey = contextKeyForParent(contextParentId);
+
+  useEffect(() => {
+    void loadChildren(contextParentId);
+  }, [contextParentId, loadChildren]);
+
+  const items = useMemo(() => childrenPages[contextKey]?.items ?? [], [childrenPages, contextKey]);
+  const hasMore = childrenPages[contextKey]?.nextOffset !== undefined;
+  const isLoading = loadingKeys.has(contextKey);
+  const hasError = errorKeys.has(contextKey);
+
   const [editingWorkspace, setEditingWorkspace] = useState<string | null>(null);
   const [creating, setCreating] = useState<CreateTarget | null>(null);
-  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
-  const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; parentId: string | null } | null>(null);
+  const [deleting, setDeleting] = useState<WorkspaceSummary | null>(null);
+  const [blockedDeleteParent, setBlockedDeleteParent] = useState<WorkspaceSummary | null>(null);
+  const [movingWorkspace, setMovingWorkspace] = useState<WorkspaceSummary | null>(null);
   const [title, setTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const createSubmitting = useRef(false);
   const pendingRenames = useRef(new Set<string>());
-  const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null);
   const [savingWorkspaceId, setSavingWorkspaceId] = useState<string | null>(null);
-  const uncategorized =
-    categories.find((category) => category.id === UNCATEGORIZED_CATEGORY_ID) ??
-    categories.find((category) => category.title.toLowerCase() === "uncategorized");
 
   function signalLibraryChanged(change?: LibraryChange) {
     notifyLibraryChanged();
     onChanged?.(change);
   }
 
-  useEffect(() => {
-    if (selectedCategoryId) setExpanded((current) => current.has(selectedCategoryId)
-      ? current : new Set(current).add(selectedCategoryId));
-  }, [selectedCategoryId, setExpanded]);
-
-  async function toggleCategory(category: CategorySummary) {
-    if (expanded.has(category.id)) {
-      setExpanded((current) => {
-        const next = new Set(current);
-        next.delete(category.id);
-        return next;
-      });
-      return;
-    }
-    setExpanded((current) => new Set(current).add(category.id));
-    if (categoryErrors.has(category.id)) await loadCategory(category.id, true);
-  }
-
-  function startCreate(kind: CreateTarget["kind"], categoryId?: string) {
+  function startCreate(parentId: string | null) {
     if (createSubmitting.current) return;
     setTitle("");
-    setCreating({ kind, categoryId });
-    if (categoryId) {
-      setExpanded((current) => new Set(current).add(categoryId));
-    }
+    setCreating({ parentId });
   }
 
   async function submitCreate() {
@@ -89,55 +71,28 @@ export function useLibraryNavigation({ categories, selectedCategoryId, onChanged
     setCreateLoading(true);
 
     try {
-      const target = creating;
-      let createdWorkspace: WorkspaceSummary | undefined;
-      if (target.kind === "category") await createCategory(next);
-      else {
-        const pending = pendingWorkspaceCreate.current;
-        const draft = pending?.title === next && pending.categoryId === target.categoryId
-          ? pending : { id: crypto.randomUUID(), title: next, categoryId: target.categoryId };
-        pendingWorkspaceCreate.current = draft;
-        createdWorkspace = await createWorkspace(next, target.categoryId, draft.id);
-        pendingWorkspaceCreate.current = null;
-      }
+      const targetParent = creating.parentId;
+      const pending = pendingWorkspaceCreate.current;
+      const draft = pending?.title === next && pending.parentId === targetParent
+        ? pending
+        : { id: crypto.randomUUID(), title: next, parentId: targetParent };
+      pendingWorkspaceCreate.current = draft;
+      const created = await createWorkspace(next, targetParent, draft.id);
+      pendingWorkspaceCreate.current = null;
 
       setTitle("");
       setCreating(null);
-      if (target.kind === "workspace" && target.categoryId) {
-        setExpanded((current) => new Set(current).add(target.categoryId!));
-      }
-      if (createdWorkspace) {
-        await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: createdWorkspace.id }, search: { noteId: undefined } });
-        notifyLibraryChanged();
-      } else signalLibraryChanged();
+      await navigate({
+        to: "/workspaces/$workspaceId",
+        params: { workspaceId: created.id },
+        search: { noteId: undefined },
+      });
+      notifyLibraryChanged();
     } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not create this item." });
+      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not create this workspace." });
     } finally {
       createSubmitting.current = false;
       setCreateLoading(false);
-    }
-  }
-
-  async function saveCategory(category: CategorySummary, value: string) {
-    const key = `category:${category.id}`;
-    if (pendingRenames.current.has(key)) return;
-    const nextTitle = value.trim();
-    if (!nextTitle || nextTitle === category.title) {
-      setEditingCategory(null);
-      return;
-    }
-
-    pendingRenames.current.add(key);
-    setSavingCategoryId(category.id);
-    try {
-      await updateCategory(category.id, nextTitle);
-      setEditingCategory((current) => current === category.id ? null : current);
-      signalLibraryChanged();
-    } catch (error) {
-      showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not rename category." });
-    } finally {
-      pendingRenames.current.delete(key);
-      setSavingCategoryId((current) => current === category.id ? null : current);
     }
   }
 
@@ -164,79 +119,98 @@ export function useLibraryNavigation({ categories, selectedCategoryId, onChanged
     }
   }
 
+  function requestDelete(workspace: WorkspaceSummary) {
+    if (workspace.childCount > 0) {
+      setBlockedDeleteParent(workspace);
+      return;
+    }
+    setDeleting(workspace);
+  }
+
   async function confirmDelete() {
     if (!deleting) return;
     const target = deleting;
 
     try {
-      if (target.kind === "category") {
-        await deleteCategory(target.item.id);
-        setExpanded((current) => {
-          const next = new Set(current);
-          next.delete(target.item.id);
-          return next;
-        });
-      } else {
-        const prepared = onBeforeDeleteWorkspace ? await onBeforeDeleteWorkspace(target.item.id) : true;
-        if (!prepared) return;
-        const expectedVersion = typeof prepared === "number"
-          ? Math.max(target.item.version, prepared)
-          : target.item.version;
-        await deleteWorkspace(target.item.id, expectedVersion);
-      }
+      const prepared = onBeforeDeleteWorkspace ? await onBeforeDeleteWorkspace(target.id) : true;
+      if (!prepared) return;
+      const expectedVersion = typeof prepared === "number"
+        ? Math.max(target.version, prepared)
+        : target.version;
+      await deleteWorkspace(target.id, expectedVersion);
       setDeleting(null);
-      signalLibraryChanged(target.kind === "workspace" ? { kind: "workspace-deleted", workspaceId: target.item.id } : undefined);
+      signalLibraryChanged({ kind: "workspace-deleted", workspaceId: target.id });
     } catch (error) {
+      if (error instanceof APIError && error.code === "workspace_has_children") {
+        setDeleting(null);
+        setBlockedDeleteParent(target);
+        return;
+      }
       setDeleting(target);
       showToast({
         kind: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : target.kind === "category"
-              ? "Delete the workspaces in this category first."
-              : "Could not delete workspace.",
+        message: error instanceof Error ? error.message : "Could not delete workspace.",
       });
     }
   }
 
-  async function moveWorkspaceToCategory(categoryId: string, workspaceId: string) {
+  async function reparentChildrenToParent(parent: WorkspaceSummary) {
     try {
-      const source = Object.values(children).flat().find((item) => item.id === workspaceId);
-      await moveWorkspace(workspaceId, categoryId, source?.categoryId);
+      const targetParentId = parent.parentId ?? null;
+      await reparentWorkspaceChildren(parent.id, targetParentId);
+      setBlockedDeleteParent(null);
       signalLibraryChanged();
+      showToast({
+        kind: "success",
+        message: targetParentId ? "Sub-workspaces moved to parent." : "Sub-workspaces moved to top level.",
+      });
+    } catch (error) {
+      showToast({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not move sub-workspaces.",
+      });
+    }
+  }
+
+  async function moveWorkspaceToParent(workspace: WorkspaceSummary, targetParentId: string | null) {
+    if (workspace.parentId === targetParentId) return;
+    try {
+      await moveWorkspaceParent(workspace.id, targetParentId, workspace.parentId ?? null);
+      signalLibraryChanged();
+      showToast({ kind: "success", message: "Workspace moved." });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not move workspace." });
     }
   }
 
   return {
-    children,
-    categoryErrors,
+    contextKey,
+    contextParentId,
+    items,
+    hasMore,
+    isLoading,
+    hasError,
     creating,
     createLoading,
-    hasMore: (categoryId: string) => categoryPages[categoryId]?.nextOffset !== undefined,
     deleting,
-    editingCategory,
+    blockedDeleteParent,
+    movingWorkspace,
     editingWorkspace,
-    savingCategoryId,
     savingWorkspaceId,
-    expanded,
-    loading,
     title,
-    uncategorized,
     confirmDelete,
-    moveWorkspaceToCategory,
-    saveCategory,
+    moveWorkspaceToParent,
+    reparentChildrenToParent,
+    requestDelete,
     saveWorkspace,
+    setBlockedDeleteParent,
     setCreating,
     setDeleting,
-    setEditingCategory,
     setEditingWorkspace,
+    setMovingWorkspace,
     setTitle,
     startCreate,
     submitCreate,
-    toggleCategory,
-    retryCategory: (categoryId: string) => loadCategory(categoryId, true),
+    retryContext: () => loadChildren(contextParentId, true),
   };
 }

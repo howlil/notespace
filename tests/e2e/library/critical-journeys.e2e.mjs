@@ -7,7 +7,7 @@ after(stop);
 
 test("critical: Welcome creates a Workspace and opens a drawable Canvas", { timeout: 60_000 }, async () => {
   await goto("/");
-  await visible(role("heading", "No workspaces yet", { exact: true }));
+  await visible(role("heading", "Welcome to Notespace", { exact: true }));
   await click(role("button", "Restore backup", { exact: true }));
   await visible(role("dialog", "Settings", { exact: true }));
   await visible(role("region", "Portable library backup", { exact: true }));

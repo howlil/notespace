@@ -122,3 +122,20 @@ func TestParseSceneDataReadsActivePlacementsAndRejectsMalformedJSON(t *testing.T
 		t.Fatalf("malformed scene error = %v, want ErrNoteInvalid", err)
 	}
 }
+
+func TestExtractNoteReferencesClassifiesAndExtractsExcerpts(t *testing.T) {
+	text := "# Source\n\nSee [spec](/workspaces/w1?noteId=target-1) and ![diagram](/workspaces/w1?noteId=target-2)\n\n" +
+		"Jump to [section](/workspaces/w1?noteId=target-1&blockId=b1).\n\n" +
+		"`[ignored](/workspaces/w1?noteId=ignored)`\n\n```\n[fenced](/workspaces/w1?noteId=ignored)\n```\n\n" +
+		"\\[escaped](/workspaces/w1?noteId=ignored) and [ext](https://example.com/workspaces/w1?noteId=ignored)"
+
+	refs := ExtractNoteReferences(md(text))
+	want := []ExtractedNoteReference{
+		{TargetNoteID: "target-1", Kind: BacklinkKindLink, Excerpt: "See spec and diagram"},
+		{TargetNoteID: "target-2", Kind: BacklinkKindEmbed, Excerpt: "See spec and diagram"},
+		{TargetNoteID: "target-1", Kind: BacklinkKindBlockRef, Excerpt: "Jump to section."},
+	}
+	if !reflect.DeepEqual(refs, want) {
+		t.Fatalf("ExtractNoteReferences = %+v\nwant %+v", refs, want)
+	}
+}

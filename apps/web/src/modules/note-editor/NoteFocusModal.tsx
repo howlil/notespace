@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Info } from "lucide-react";
+import { Info, PanelRight } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -17,6 +17,7 @@ export type NoteFocusModalProps = {
   label?: string;
   saveState?: NoteSaveState;
   onOpenInfo?: () => void;
+  onDockToSideCards?: () => void;
   children: ReactNode;
 };
 
@@ -38,6 +39,7 @@ export function NoteFocusModal({
   label,
   saveState = "saved",
   onOpenInfo,
+  onDockToSideCards,
   children,
 }: NoteFocusModalProps) {
   const displayLabel = label?.trim() || "Canvas Note";
@@ -70,6 +72,18 @@ export function NoteFocusModal({
                 <span className={cn("size-1.5 rounded-full", status.dotClass)} aria-hidden="true" />
                 <span>{status.label}</span>
               </span>
+              {onDockToSideCards && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Open in Side Cards"
+                  onClick={onDockToSideCards}
+                >
+                  <PanelRight size={14} aria-hidden="true" />
+                  <span>Side Panel</span>
+                </Button>
+              )}
               {onOpenInfo && (
                 <Button
                   type="button"

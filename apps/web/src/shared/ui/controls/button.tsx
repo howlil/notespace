@@ -32,10 +32,10 @@ const sizes: Record<ButtonSize, string> = {
 function buttonClassName(variant: ButtonVariant, size: ButtonSize, active?: boolean, className?: string) {
   return cn(
     "inline-flex items-center justify-center gap-1.5 border font-medium transition-[color,background-color,border-color,opacity,filter,transform] duration-100 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
-    variants[variant],
+    active && variant === "ghost" ? "bg-tint text-accent hover:bg-tint" : variants[variant],
     sizes[size],
     variant === "secondary" ? "border" : "border-transparent",
-    active && "bg-tint text-accent",
+    active && variant !== "ghost" && "bg-tint text-accent",
     className,
   );
 }

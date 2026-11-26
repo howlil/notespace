@@ -4,6 +4,7 @@ import type { NoteDocument } from "../../../entities/note";
 import { useStore } from "../../../shared/lib/use-store";
 import type { CanvasNoteStore, NoteActivationPoint } from "../../note-editor";
 import { CanvasFrameStyleLayer } from "../objects/frame/CanvasFrameStyleLayer";
+import { CanvasWorkspaceShortcutLayer } from "../objects/shortcut/CanvasWorkspaceShortcutLayer";
 import { CanvasCodeBlockLayer, type CodeBlockViewOptions } from "../objects/code-block/CanvasCodeBlockLayer";
 import type { CanvasCodeBlockData } from "../objects/code-block/model/canvas-code-block";
 import type { CodeRunView } from "../objects/code-block/execution/use-code-runner";
@@ -29,7 +30,11 @@ export function CanvasOverlayLayers({
   onAutoFitCodeBlock,
   onEditingNoteChange,
   onTrashNoteChange,
+  onDockToSideCards,
   onFocusNote,
+  workspaceTitles,
+  onOpenWorkspaceShortcut,
+  onRemoveMissingShortcut,
   onRegisterNoteFlush,
   onRegisterNoteDocuments,
   onUpdateNote,
@@ -51,7 +56,11 @@ export function CanvasOverlayLayers({
   onAutoFitCodeBlock: (elementId: string, height: number) => void;
   onEditingNoteChange: (elementId: string | null) => void;
   onTrashNoteChange: (noteId: string | null) => void;
+  onDockToSideCards?: (noteId: string) => void;
   onFocusNote: (noteId: string) => void;
+  workspaceTitles?: ReadonlyMap<string, string>;
+  onOpenWorkspaceShortcut?: (workspaceId: string, options?: { background?: boolean }) => void;
+  onRemoveMissingShortcut?: (elementId: string) => void;
   onRegisterNoteFlush: (flush: () => Promise<void>) => (() => void) | void;
   onRegisterNoteDocuments: (read: () => Record<string, NoteDocument>) => (() => void) | void;
   onUpdateNote: (noteId: string, document: NoteDocument, expectedRevision: number) => Promise<Note>;
@@ -86,6 +95,16 @@ export function CanvasOverlayLayers({
   return (
     <>
       <CanvasFrameStyleLayer elements={scene.elements} viewport={viewport} appDark={dark} />
+      {workspaceTitles && onOpenWorkspaceShortcut && (
+        <CanvasWorkspaceShortcutLayer
+          elements={scene.elements}
+          viewport={viewport}
+          workspaceTitles={workspaceTitles}
+          selectedElementId={selection.selectedElementId}
+          onOpenWorkspace={onOpenWorkspaceShortcut}
+          onRemoveMissing={onRemoveMissingShortcut}
+        />
+      )}
       <CanvasCodeBlockLayer
         elements={scene.overlayElements}
         viewport={viewport}
@@ -116,6 +135,7 @@ export function CanvasOverlayLayers({
         onExpandedChange={handleExpandedNoteChange}
         onInfoNoteChange={handleInfoNoteChange}
         onTrashNoteChange={onTrashNoteChange}
+        onDockToSideCards={onDockToSideCards}
         onFocusNote={onFocusNote}
         onRegisterFlush={onRegisterNoteFlush}
         onRegisterDocuments={onRegisterNoteDocuments}

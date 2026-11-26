@@ -33,15 +33,15 @@ test("critical: Workspace uses one Canvas shell and has no retired view navigati
     await waitSaved();
     const codeBounds = await box(block);
     // The separate toggle changes layout without replacing the Canvas session.
-    await visible(role("complementary", "Category explorer"));
+    await visible(role("complementary", "Workspace explorer"));
     await click(role("button", "Hide Explorer", { exact: true }));
-    await expectCount(role("complementary", "Category explorer"), 0);
+    await expectCount(role("complementary", "Workspace explorer"), 0);
     await waitFor(async () => (await box(canvas)).width > geometry.width + 220, "Dock collapse releases the full Canvas width");
     await expectAttribute(canvas, "data-shell-instance", "preserved");
     assert.ok((await evaluate(block, (element) => element.textContent)).includes('shellDraft = "retained"'));
     assert.ok(Math.abs((await box(block)).width - codeBounds.width) < 1, "Collapse preserves Canvas zoom");
     await press("Control+\\");
-    await visible(role("complementary", "Category explorer"));
+    await visible(role("complementary", "Workspace explorer"));
     await expectAttribute(canvas, "data-shell-instance", "preserved");
     assert.ok(Math.abs((await box(block)).width - codeBounds.width) < 1, "Expand preserves zoom and selection");
   } finally {
@@ -55,7 +55,7 @@ test("critical: narrow Canvas shell has no horizontal page overflow", async () =
   try {
     await openWorkspace(workspace.id);
     const surface = await box(".excalidraw__canvas.interactive");
-    await expectCount(role("complementary", "Category explorer"), 0);
+    await expectCount(role("complementary", "Workspace explorer"), 0);
     assert.ok(surface.width > 350, `Canvas width on compact: ${surface.width}`);
     assert.ok(surface.height > 400, `Canvas height on compact: ${surface.height}`);
     assert.equal(await evaluate("html", (element) => element.scrollWidth <= innerWidth), true);

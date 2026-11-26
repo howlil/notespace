@@ -131,12 +131,6 @@ export async function createWorkspace(title, extra = {}) {
   return response.json();
 }
 
-export async function createCategory(title) {
-  const response = await apiResponse("/api/categories", { method: "POST", body: { title } });
-  assert.equal(response.status, 201, `create Category ${title}`);
-  return response.json();
-}
-
 export async function workspaceState(id) {
   return api(`/api/workspaces/${id}`);
 }
@@ -162,11 +156,6 @@ export async function deleteWorkspace(id) {
 export async function purgeTrash(id) {
   if (!id) return;
   await apiResponse(`/api/trash/${id}`, { method: "DELETE" }).catch(() => undefined);
-}
-
-export async function deleteCategory(id) {
-  if (!id) return;
-  await apiResponse(`/api/categories/${id}`, { method: "DELETE" }).catch(() => undefined);
 }
 
 export async function cleanupWorkspace(id) {

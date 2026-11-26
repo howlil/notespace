@@ -13,6 +13,13 @@ export type ContextMenuSlotContext = {
   onClose: () => void;
 };
 
+export type CanvasSectionActions = {
+  onCreateSection: () => void;
+  onFitSection: (frameId: string) => void;
+  onTidySection: (frameId: string) => void;
+  onUngroupSection: (frameId: string) => void;
+};
+
 type Props = {
   point: MenuPoint | null;
   api: ExcalidrawImperativeAPI | null;
@@ -22,6 +29,7 @@ type Props = {
   gridModeEnabled?: boolean;
   objectsSnapModeEnabled?: boolean;
   viewModeEnabled?: boolean;
+  sectionActions?: CanvasSectionActions;
   renderCustomBody?: (ctx: ContextMenuSlotContext) => ReactNode;
   onToggleFullMode?: () => void;
   onAction: (name: CanvasRuntimeActionName) => void;
@@ -37,6 +45,7 @@ export function CanvasObjectContextMenu({
   gridModeEnabled = false,
   objectsSnapModeEnabled = false,
   viewModeEnabled = false,
+  sectionActions,
   renderCustomBody,
   onToggleFullMode,
   onAction,
@@ -119,6 +128,7 @@ export function CanvasObjectContextMenu({
           api={api}
           activeTool={activeTool}
           selectedElementCount={selectedElementCount}
+          sectionActions={sectionActions}
           openSub={openSub}
           setOpenSub={setOpenSub}
           onAction={onAction}

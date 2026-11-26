@@ -3,8 +3,8 @@ import { Folder, StickyNote } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button, CommandListDialog, Kbd, SectionLabel, cn } from "../../shared/ui";
 import { useStore } from "../../shared/lib/use-store";
-import type { CategorySummary, WorkspaceSummary } from "../../entities/workspace";
-import { listCategories, listRecentWorkspaces, searchNotespace } from "../../platform/api/workspace-api";
+import type { WorkspaceSummary } from "../../entities/workspace";
+import { listRecentWorkspaces, searchNotespace } from "../../platform/api/workspace-api";
 import type { SearchResult } from "../../platform/api/workspace-api";
 import { useToast } from "../../shared/ui/feedback/toast-provider";
 import {
@@ -30,7 +30,6 @@ export function QuickOpen() {
   const open = useStore(appShellStore, (state) => state.quickOpen);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<WorkspaceSummary[]>([]);
-  const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [searchState, setSearchState] = useState<{
     query: string;
     status: "loading" | "ready" | "error";
@@ -67,11 +66,10 @@ export function QuickOpen() {
     setRecentStatus("loading");
     setSelected(0);
     let active = true;
-    void Promise.all([listRecentWorkspaces(8), listCategories()])
-      .then(([nextRecent, nextCategories]) => {
+    void listRecentWorkspaces(8)
+      .then((nextRecent) => {
         if (!active) return;
         setRecent(nextRecent);
-        setCategories(nextCategories);
         setRecentStatus("ready");
       })
       .catch((error) => {
@@ -115,16 +113,15 @@ export function QuickOpen() {
         : [];
     }
     if (recentStatus !== "ready") return [];
-    const categoryNames = new Map(categories.map((category) => [category.id, category.title]));
     return recent.map((workspace) => ({
       key: `recent-${workspace.id}`,
       title: workspace.title,
-      context: categoryNames.get(workspace.categoryId) ?? "Recent workspace",
+      context: workspace.parentId ? "Sub-workspace" : "Root workspace",
       href: `/workspaces/${encodeURIComponent(workspace.id)}`,
       kind: "workspace" as const,
       workspaceId: workspace.id,
     }));
-  }, [categories, query, recent, recentStatus, searchState]);
+  }, [query, recent, recentStatus, searchState]);
 
   function openDestination(destination: QuickOpenDestination | undefined) {
     const action = resolveQuickOpenAction(destination, { canPlaceOnCanvas });
@@ -136,10 +133,6 @@ export function QuickOpen() {
     setQuickOpen(false);
     if (action.type === "toast-unplaced-note") {
       showToast({ kind: "info", message: action.message });
-      return;
-    }
-    if (action.type === "navigate-category") {
-      void navigate({ to: "/", search: { category: action.categoryId } });
       return;
     }
     void navigate({
@@ -160,11 +153,11 @@ export function QuickOpen() {
       open={open}
       onOpenChange={setQuickOpen}
       title="Quick Open"
-      description="Open recent work or search workspaces and categories."
+      description="Open recent work or search workspaces and notes."
       size="md"
       query={query}
       onQueryChange={setQuery}
-      placeholder="Search workspaces, notes, or categories…"
+      placeholder="Search workspaces or notes…"
       searchRightSlot={<Kbd>Esc</Kbd>}
       status={resultStatus}
       loadingFallback={(

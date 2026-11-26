@@ -10,48 +10,30 @@ import type { SearchResult } from "../../platform/api/workspace-api.ts";
 
 const result = (overrides: Partial<SearchResult> = {}): SearchResult => ({
   type: "workspace",
-  categoryId: "category-1",
-  categoryTitle: "Backend",
+  parentId: "parent-1",
+  parentTitle: "Backend",
   workspaceId: "workspace/a",
   workspaceTitle: "Distributed Systems",
   excerpt: "Raft",
   ...overrides,
 });
 
-test("Quick Open maps category and workspace results to canonical routes", () => {
-  assert.equal(
-    searchResultHref(result({ type: "category", categoryId: "category/a" })),
-    "/?category=category%2Fa",
-  );
+test("Quick Open maps workspace results to canonical routes", () => {
   assert.equal(
     searchResultHref(result({ type: "workspace", workspaceId: "workspace/a" })),
     "/workspaces/workspace%2Fa",
   );
 });
 
-test("Quick Open routes search results to the owning workspace", () => {
-  assert.equal(
-    searchResultHref(result()),
-    "/workspaces/workspace%2Fa",
-  );
-});
-
-test("Quick Open destination preserves display context", () => {
+test("Quick Open destination preserves parent context", () => {
   const destination = destinationFromSearchResult(result());
   assert.equal(destination.kind, "workspace");
   assert.equal(destination.title, "Distributed Systems");
   assert.equal(destination.context, "Backend");
   assert.equal(destination.workspaceId, "workspace/a");
-});
 
-test("Quick Open category destinations carry the category route identity", () => {
-  const destination = destinationFromSearchResult(result({
-    type: "category",
-    categoryId: "category/a",
-  }));
-  assert.equal(destination.kind, "category");
-  assert.equal(destination.categoryId, "category/a");
-  assert.equal(destination.workspaceId, "workspace/a");
+  const rootDest = destinationFromSearchResult(result({ parentId: null, parentTitle: "" }));
+  assert.equal(rootDest.context, "Root workspace");
 });
 
 test("Quick Open keeps unplaced Note search results on a safe route", () => {
@@ -104,7 +86,7 @@ test("Quick Open places unplaced Notes when on Canvas and explains why when no W
   );
 });
 
-test("Quick Open navigates placed Notes, Workspaces, and Categories to their canonical routes", () => {
+test("Quick Open navigates placed Notes and Workspaces to their canonical routes", () => {
   const placedNote = destinationFromSearchResult(result({
     type: "note",
     noteId: "note-9",
@@ -115,16 +97,6 @@ test("Quick Open navigates placed Notes, Workspaces, and Categories to their can
   assert.deepEqual(
     resolveQuickOpenAction(placedNote, { canPlaceOnCanvas: true }),
     { type: "navigate-workspace", workspaceId: "ws-2", noteId: "note-9" },
-  );
-
-  const category = destinationFromSearchResult(result({
-    type: "category",
-    categoryId: "cat-3",
-    categoryTitle: "Systems",
-  }));
-  assert.deepEqual(
-    resolveQuickOpenAction(category, { canPlaceOnCanvas: false }),
-    { type: "navigate-category", categoryId: "cat-3" },
   );
 
   const workspace = destinationFromSearchResult(result({

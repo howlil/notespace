@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 )
@@ -11,28 +13,23 @@ const (
 	MaxWorkspaceLimit      = 100
 )
 
-type CategorySummary struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	CreatedAt      string `json:"createdAt"`
-	UpdatedAt      string `json:"updatedAt"`
-	WorkspaceCount int    `json:"workspaceCount"`
-}
-
 type WorkspaceSummary struct {
-	ID         string `json:"id"`
-	CategoryID string `json:"categoryId"`
-	Title      string `json:"title"`
-	CreatedAt  string `json:"createdAt"`
-	UpdatedAt  string `json:"updatedAt"`
-	Version    int    `json:"version"`
-	HasCanvas  bool   `json:"hasCanvas,omitempty"`
+	ID         string  `json:"id"`
+	ParentID   *string `json:"parentId"`
+	Title      string  `json:"title"`
+	CreatedAt  string  `json:"createdAt"`
+	UpdatedAt  string  `json:"updatedAt"`
+	Version    int     `json:"version"`
+	ChildCount int     `json:"childCount"`
+	HasCanvas  bool    `json:"hasCanvas,omitempty"`
 }
 
 type Workspace struct {
 	WorkspaceSummary
-	Canvas        CanvasSnapshot `json:"canvas"`
-	CanvasVersion int            `json:"canvasVersion,omitempty"`
+	Canvas         CanvasSnapshot     `json:"canvas"`
+	CanvasVersion  int                `json:"canvasVersion,omitempty"`
+	Ancestors      []WorkspaceSummary `json:"ancestors,omitempty"`
+	RestoredToRoot bool               `json:"restoredToRoot,omitempty"`
 }
 
 type WorkspacePage struct {
@@ -45,20 +42,47 @@ type WorkspacePage struct {
 }
 
 type WorkspaceQuery struct {
-	CategoryID string
-	Query      string
-	Sort       string
-	HasCanvas  bool
-	Offset     int
-	Limit      int
-	Snapshot   string
+	RootOnly  bool
+	ParentID  string
+	Query     string
+	Sort      string
+	HasCanvas bool
+	Offset    int
+	Limit     int
+	Snapshot  string
 }
 
 type TrashItem struct {
-	ID         string `json:"id"`
-	CategoryID string `json:"categoryId"`
-	Title      string `json:"title"`
-	DeletedAt  string `json:"deletedAt"`
+	ID          string  `json:"id"`
+	ParentID    *string `json:"parentId"`
+	ParentTitle string  `json:"parentTitle,omitempty"`
+	Title       string  `json:"title"`
+	DeletedAt   string  `json:"deletedAt"`
+}
+
+type CategoryRedirect struct {
+	LegacyCategoryID string `json:"legacyCategoryId"`
+	WorkspaceID      string `json:"workspaceId"`
+}
+
+// OptionalString distinguishes an omitted JSON field from an explicit null or string.
+type OptionalString struct {
+	Set   bool
+	Value *string
+}
+
+func (o *OptionalString) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		o.Value = nil
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	o.Value = &value
+	return nil
 }
 
 func ValidTitle(title string) bool {
@@ -66,8 +90,14 @@ func ValidTitle(title string) bool {
 }
 
 func ValidateWorkspace(p Workspace) error {
-	if strings.TrimSpace(p.ID) == "" || strings.TrimSpace(p.CategoryID) == "" || !ValidTitle(p.Title) || p.Version < 1 {
+	if !ValidID(strings.TrimSpace(p.ID), MaxIDLength) || !ValidTitle(p.Title) || p.Version < 1 {
 		return ErrWorkspaceInvalid
+	}
+	if p.ParentID != nil {
+		parent := strings.TrimSpace(*p.ParentID)
+		if !ValidID(parent, MaxIDLength) || parent == p.ID {
+			return ErrWorkspaceInvalid
+		}
 	}
 	if _, err := ParseScene(p.Canvas); err != nil {
 		return ErrWorkspaceInvalid
@@ -78,8 +108,11 @@ func ValidateWorkspace(p Workspace) error {
 // NormalizeWorkspaceQuery enforces a single validation contract across HTTP,
 // live queries, and snapshot-cursor queries (eliminating sort/limit drift).
 func NormalizeWorkspaceQuery(query WorkspaceQuery) (WorkspaceQuery, error) {
-	query.CategoryID = strings.TrimSpace(query.CategoryID)
+	query.ParentID = strings.TrimSpace(query.ParentID)
 	query.Snapshot = strings.TrimSpace(query.Snapshot)
+	if query.RootOnly && query.ParentID != "" {
+		return WorkspaceQuery{}, ErrWorkspaceInvalid
+	}
 	if query.Limit == 0 {
 		query.Limit = DefaultWorkspaceLimit
 	}
@@ -87,7 +120,7 @@ func NormalizeWorkspaceQuery(query WorkspaceQuery) (WorkspaceQuery, error) {
 		return WorkspaceQuery{}, ErrWorkspaceInvalid
 	}
 	switch query.Sort {
-	case "", "created", "name":
+	case "", "updated", "created", "name":
 	default:
 		return WorkspaceQuery{}, ErrWorkspaceInvalid
 	}

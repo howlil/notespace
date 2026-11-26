@@ -19,16 +19,17 @@ export const browserProofPolicy = {
     override(/narrow Canvas/, "P2", "Narrow Canvas has no horizontal page overflow"),
   ]),
   "canvas/workspace-recovery.e2e.mjs": suite("P0", "Protect unconfirmed local assets and recover version conflicts without losing drafts"),
+  "library/cards-right-dock.e2e.mjs": suite("P1", "Global Card Library filtering, Far-Right Icon Rail, and Docked Right Drawer workflows"),
   "library/critical-journeys.e2e.mjs": suite("P1", "First-run creation and legacy Workspace deep-link compatibility", [], /Welcome creates/),
   "library/edge-constraints.e2e.mjs": suite("P1", "Invalid Workspace titles cannot create partial records"),
-  "library/library-race.e2e.mjs": suite("P1", "Stale category responses cannot replace the newest selection"),
-  "library/library-workflow.e2e.mjs": suite("P1", "Category-targeted create/rename, pending dedupe and recoverable retries"),
-  "library/navigation.e2e.mjs": suite("P1", "Category routes, category switching, and cached sibling navigation survive reload", [], /direct navigation/),
+  "library/library-race.e2e.mjs": suite("P1", "Stale library scope responses cannot replace the newest selection"),
+  "library/library-workflow.e2e.mjs": suite("P1", "Root/child create/rename, pending dedupe, parent delete guard, and recoverable retries"),
+  "library/navigation.e2e.mjs": suite("P1", "Home roots/all views, hierarchy navigation, Canvas breadcrumb, and reload safety", [], /direct navigation/),
   "library/search.e2e.mjs": suite("P1", "Global search opens the selected Workspace Canvas and handles pending/error retries", [], /global search/),
   "library/unified-shell.e2e.mjs": suite("P1", "Persistent shell, mounted drafts, native fallback and recoverable load failure", [
-    override(/compact viewport|category disclosure|Quick Open can open Settings|inline category rename/, "P2", "Drawer/focus/utility/tree interaction and explicit category routing"),
+    override(/compact viewport|contextual Explorer|Quick Open can open Settings|inline workspace rename/, "P2", "Drawer/focus/utility/tree interaction and contextual Explorer routing"),
   ]),
-  "library/workspace-pagination.e2e.mjs": suite("P1", "Category traversal keeps its snapshot during a remote rename"),
+  "library/workspace-pagination.e2e.mjs": suite("P1", "Root workspace traversal keeps its snapshot during a remote rename"),
   "settings/recovery.e2e.mjs": suite("P0", "Trash restore and ZIP backup restore preserve authored Workspaces"),
   "settings/settings.e2e.mjs": suite("P2", "Settings/data/palette have one accessible owner", [
     override(/cannot dismiss while portable restore/, "P0", "An in-flight portable restore cannot be abandoned through dialog dismissal"),
@@ -48,7 +49,9 @@ export function affectedBrowserSuites(path, suites) {
     const matches = suites.filter((file) => `tests/e2e/${file}` === path);
     return matches.length ? matches : null;
   }
-  if (/^apps\/web\/src\/modules\/(canvas|note-editor)\//.test(path)) return suites.filter((file) => file.startsWith("canvas/"));
+  if (/^apps\/web\/src\/modules\/canvas\//.test(path)) return suites.filter((file) => file.startsWith("canvas/"));
+  if (/^apps\/web\/src\/modules\/note-editor\//.test(path)) return suites.filter((file) => file.startsWith("canvas/") || file === "library/cards-right-dock.e2e.mjs");
+  if (/^apps\/web\/src\/app\/pages\/CardsPage/.test(path)) return suites.filter((file) => file === "library/cards-right-dock.e2e.mjs");
   if (/^apps\/web\/src\/(modules\/library|app\/pages\/HomePage)/.test(path)) {
     return suites.filter((file) => /^(library\/|settings\/|canvas\/workspace-(persistence|rail|recovery))/.test(file));
   }

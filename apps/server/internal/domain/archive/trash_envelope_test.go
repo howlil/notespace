@@ -29,7 +29,7 @@ func TestTrashCodecReadsPreExtractionGobType(t *testing.T) {
 	}
 	legacy := workspaceEnvelope{
 		Project: domain.Workspace{
-			WorkspaceSummary: domain.WorkspaceSummary{ID: "legacy", CategoryID: "legacy", Title: "Existing trash", Version: 1},
+			WorkspaceSummary: domain.WorkspaceSummary{ID: "legacy", Title: "Existing trash", Version: 1},
 			Canvas:           domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[]}`)},
 		},
 		Plan:    legacyPlan{WorkspaceID: "legacy"},
@@ -57,7 +57,7 @@ func TestTrashCodecReadsPreExtractionGobType(t *testing.T) {
 func TestTrashCodecRoundTripsV2ZlibJSON(t *testing.T) {
 	envelope := domain.WorkspaceEnvelope{
 		Project: domain.Workspace{
-			WorkspaceSummary: domain.WorkspaceSummary{ID: "v2-ws", CategoryID: "legacy", Title: "V2 Trash", Version: 1},
+			WorkspaceSummary: domain.WorkspaceSummary{ID: "v2-ws", Title: "V2 Trash", Version: 1},
 			Canvas:           domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[]}`)},
 		},
 		Assets: []domain.StoredAsset{{ID: "img-v2", WorkspaceID: "v2-ws", MimeType: "image/png", Data: []byte("png-bytes")}},
@@ -84,7 +84,7 @@ func TestTrashCodecRoundTripsV2ZlibJSON(t *testing.T) {
 func TestTrashCodecReadsLegacyJSONEnvelope(t *testing.T) {
 	legacy := domain.WorkspaceEnvelope{
 		Project: domain.Workspace{
-			WorkspaceSummary: domain.WorkspaceSummary{ID: "legacy-json", CategoryID: "legacy", Title: "Pre-binary trash", Version: 1},
+			WorkspaceSummary: domain.WorkspaceSummary{ID: "legacy-json", Title: "Pre-binary trash", Version: 1},
 			Canvas:           domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[]}`)},
 		},
 		Assets: []domain.StoredAsset{{ID: "img-1", WorkspaceID: "legacy-json", MimeType: "image/png", Data: []byte("png")}},

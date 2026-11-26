@@ -26,11 +26,11 @@ func TestWorkspaceTrashRestoresIdentityAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	category, err := store.CreateCategory(ctx, "Distributed Systems")
+	parent, err := store.CreateWorkspace(ctx, "Distributed Systems")
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := store.CreateWorkspace(ctx, "Consensus", category.ID)
+	workspace, err := store.CreateWorkspace(ctx, "Consensus", &parent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestWorkspaceTrashRestoresIdentityAndAssets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored.ID != workspace.ID || restored.CategoryID != category.ID || restored.Title != workspace.Title {
+	if restored.ID != workspace.ID || restored.ParentID == nil || *restored.ParentID != parent.ID || restored.Title != workspace.Title || restored.RestoredToRoot {
 		t.Fatalf("restored workspace = %+v", restored)
 	}
 	storedAsset, err := store.GetAsset(ctx, workspace.ID, "diagram")
@@ -148,11 +148,11 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	category, err := store.CreateCategory(ctx, "Backend")
+	parent, err := store.CreateWorkspace(ctx, "Backend")
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := store.CreateWorkspace(ctx, "Postgres", category.ID)
+	workspace, err := store.CreateWorkspace(ctx, "Postgres", &parent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestFullLibraryArchiveRestoreRoundTrip(t *testing.T) {
 		t.Fatalf("temporary workspace survived restore: %v", err)
 	}
 	restored, err := store.GetWorkspace(ctx, workspace.ID)
-	if err != nil || restored.Title != "Postgres" || restored.CategoryID != category.ID {
+	if err != nil || restored.Title != "Postgres" || restored.ParentID == nil || *restored.ParentID != parent.ID {
 		t.Fatalf("restored workspace = %+v err=%v", restored, err)
 	}
 	storedAsset, err := store.GetAsset(ctx, workspace.ID, "schema")
@@ -517,12 +517,18 @@ func TestArchiveRestoreAcceptsLegacyV2AndScrubsRetiredArtifacts(t *testing.T) {
 			raw["schemaVersion"] = 15
 			raw["studySessions"] = []any{}
 			raw["captures"] = []any{}
+			raw["categories"] = []map[string]any{
+				{"id": "legacy", "title": "Uncategorized", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+			}
 			workspaces := raw["workspaces"].([]any)
 			wsProject := workspaces[0].(map[string]any)["project"].(map[string]any)
+			wsProject["categoryId"] = "legacy"
 			wsProject["canvas"].(map[string]any)["data"] = retiredCanvas
 			wsProject["splitRatio"] = 0.5
 			trash := raw["trash"].([]any)
+			trash[0].(map[string]any)["categoryId"] = "legacy"
 			trProject := trash[0].(map[string]any)["payload"].(map[string]any)["project"].(map[string]any)
+			trProject["categoryId"] = "legacy"
 			trProject["canvas"].(map[string]any)["data"] = retiredCanvas
 			body, err = json.Marshal(raw)
 			if err != nil {

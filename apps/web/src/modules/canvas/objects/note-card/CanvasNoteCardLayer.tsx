@@ -36,6 +36,7 @@ export function CanvasNoteCardLayer({
   onExpandedChange,
   onInfoNoteChange,
   onTrashNoteChange,
+  onDockToSideCards,
   onFocusNote,
   onRegisterFlush,
   onRegisterDocuments,
@@ -62,6 +63,7 @@ export function CanvasNoteCardLayer({
   onExpandedChange?: (elementId: string | null) => void;
   onInfoNoteChange?: (noteId: string | null) => void;
   onTrashNoteChange?: (noteId: string | null) => void;
+  onDockToSideCards?: (noteId: string) => void;
   onFocusNote?: (noteId: string) => void;
   onRegisterFlush?: (flush: () => Promise<void>) => (() => void) | void;
   onRegisterDocuments?: (read: () => Record<string, NoteDocument>) => (() => void) | void;
@@ -157,6 +159,10 @@ export function CanvasNoteCardLayer({
           label={expandedReadyNote ? noteFirstLine(expandedReadyNote.document) : undefined}
           saveState={expandedReadyNote ? (snapshot.saves[expandedReadyNote.id] ?? "saved") : "saved"}
           onOpenInfo={onInfoNoteChange && expandedReadyNote ? () => onInfoNoteChange(expandedReadyNote.id) : undefined}
+          onDockToSideCards={onDockToSideCards && expandedReadyNote ? () => {
+            onExpandedChange?.(null);
+            onDockToSideCards(expandedReadyNote.id);
+          } : undefined}
         >
           {expandedEntry.status === "ready" ? (
             <MarkdownNoteEditor

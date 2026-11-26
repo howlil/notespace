@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Download, FileText, Folder, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Button, IconButton, SettingRow, SettingSection } from "../../../shared/ui";
 import { ConfirmDialog } from "../../../shared/ui/overlays/confirm-dialog";
-import type { CategorySummary } from "../../../entities/workspace";
 import {
   deleteTrashedWorkspace,
   exportLibraryBackup,
-  listCategories,
   listTrash,
   restoreLibraryBackup,
   restoreTrashedWorkspace,
@@ -32,7 +30,6 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
     onBusyChange(mutationBusy);
     return () => onBusyChange(false);
   }, [mutationBusy, onBusyChange]);
-  const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [trash, setTrash] = useState<TrashWorkspace[]>([]);
   const [permanentTarget, setPermanentTarget] = useState<TrashWorkspace | null>(null);
   const [trashedNotes, setTrashedNotes] = useState<TrashedNote[]>([]);
@@ -40,15 +37,12 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
   const [pendingBackupRestore, setPendingBackupRestore] = useState<File | null>(null);
   const restoreInput = useRef<HTMLInputElement>(null);
 
-  const categoryNames = useMemo(() => new Map(categories.map((category) => [category.id, category.title])), [categories]);
-
   useEffect(() => {
     let active = true;
     setLoading(true);
-    void Promise.all([listCategories(), listTrash(), listTrashedNotes()])
-      .then(([nextCategories, nextTrash, nextTrashedNotes]) => {
+    void Promise.all([listTrash(), listTrashedNotes()])
+      .then(([nextTrash, nextTrashedNotes]) => {
         if (!active) return;
-        setCategories(nextCategories);
         setTrash(nextTrash);
         setTrashedNotes(nextTrashedNotes);
       })
@@ -83,10 +77,15 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
     setMutationBusy(true);
     setLoading(true);
     try {
-      await restoreTrashedWorkspace(item.id);
+      const restored = await restoreTrashedWorkspace(item.id);
       setTrash((current) => current.filter((candidate) => candidate.id !== item.id));
       notifyLibraryChanged();
-      showToast({ kind: "success", message: `Restored ${item.title}.` });
+      showToast({
+        kind: "success",
+        message: restored.restoredToRoot
+          ? `Restored ${item.title} to top level (original parent was removed).`
+          : `Restored ${item.title}.`,
+      });
     } catch (error) {
       showToast({ kind: "error", message: error instanceof Error ? error.message : "Could not restore workspace." });
     } finally {
@@ -210,7 +209,7 @@ export function LibraryTools({ onBusyChange, disabled = false, deviceRecovery }:
                   <Folder size={13} className="shrink-0 text-muted" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <strong className="block truncate text-sm font-medium text-ink">{item.title}</strong>
-                    <span className="text-xs text-muted">{categoryNames.get(item.categoryId) ?? "Category unavailable"} · deleted {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.deletedAt))}</span>
+                    <span className="text-xs text-muted">{item.parentTitle || (item.parentId ? "Original parent removed" : "Top level")} · deleted {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.deletedAt))}</span>
                   </div>
                   <Button variant="secondary" size="xs" aria-label={`Restore ${item.title}`} onClick={() => void restoreWorkspace(item)} disabled={loading || disabled}><RotateCcw size={11} /> Restore</Button>
                   <IconButton variant="ghost" size="xs" className="text-muted hover:text-danger" aria-label={`Permanently delete ${item.title}`} title={`Permanently delete ${item.title}`} onClick={() => setPermanentTarget(item)} disabled={loading || disabled}><Trash2 size={12} /></IconButton>

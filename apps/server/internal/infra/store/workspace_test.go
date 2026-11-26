@@ -16,7 +16,7 @@ import (
 
 // --- merged from scene_test.go ---
 
-func TestCreateWorkspaceWithIDAtomicIdempotencyAndCategoryListing(t *testing.T) {
+func TestCreateWorkspaceWithIDAtomicIdempotencyAndChildListing(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "atomic-ws.db"))
 	if err != nil {
@@ -24,19 +24,19 @@ func TestCreateWorkspaceWithIDAtomicIdempotencyAndCategoryListing(t *testing.T) 
 	}
 	defer store.Close()
 
-	first, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Alpha", "")
+	first, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Alpha", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	same, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Alpha", "")
+	same, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Alpha", nil)
 	if err != nil || same.ID != first.ID || same.Version != first.Version {
 		t.Fatalf("idempotent create = (%+v, %v)", same, err)
 	}
-	if _, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Different Title", ""); !errors.Is(err, domain.ErrWorkspaceConflict) {
+	if _, err := store.CreateWorkspaceWithID(ctx, "ws-fixed", "Different Title", nil); !errors.Is(err, domain.ErrWorkspaceConflict) {
 		t.Fatalf("conflicting create error = %v, want ErrWorkspaceConflict", err)
 	}
-	if _, err := store.ListCategoryWorkspaces(ctx, "missing-category", domain.WorkspaceQuery{}); !errors.Is(err, domain.ErrWorkspaceNotFound) {
-		t.Fatalf("missing category listing error = %v, want ErrWorkspaceNotFound", err)
+	if _, err := store.ListWorkspaces(ctx, domain.WorkspaceQuery{ParentID: "missing-parent"}); !errors.Is(err, domain.ErrWorkspaceNotFound) {
+		t.Fatalf("missing parent listing error = %v, want ErrWorkspaceNotFound", err)
 	}
 }
 
@@ -179,7 +179,7 @@ func TestBorrowedCanvasVersionFenceHasOneConcurrentWinner(t *testing.T) {
 
 // --- merged from workspace_queries_test.go ---
 
-func TestWorkspaceAndCategorySearchTreatLikeMetacharactersLiterally(t *testing.T) {
+func TestWorkspaceSearchTreatsLikeMetacharactersLiterally(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "literal-search.db"))
 	if err != nil {
@@ -199,17 +199,6 @@ func TestWorkspaceAndCategorySearchTreatLikeMetacharactersLiterally(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := store.CreateWorkspace(ctx, "plain workspace"); err != nil {
-		t.Fatal(err)
-	}
-	percentCategory, err := store.CreateCategory(ctx, "100% category")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.CreateCategory(ctx, "plain category"); err != nil {
-		t.Fatal(err)
-	}
-	underscoreCategory, err := store.CreateCategory(ctx, "A_B category")
-	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -235,21 +224,6 @@ func TestWorkspaceAndCategorySearchTreatLikeMetacharactersLiterally(t *testing.T
 	}
 	if len(page.Items) != 1 || page.Items[0].ID != backslashWorkspace.ID {
 		t.Fatalf("backslash workspace search = %#v, want only %q", page.Items, backslashWorkspace.ID)
-	}
-
-	results, err := store.Search(ctx, "%")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != 1 || results[0].Type != "category" || results[0].CategoryID != percentCategory.ID {
-		t.Fatalf("percent category search = %#v, want only category %q", results, percentCategory.ID)
-	}
-	results, err = store.Search(ctx, "_")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != 1 || results[0].Type != "category" || results[0].CategoryID != underscoreCategory.ID {
-		t.Fatalf("underscore category search = %#v, want only category %q", results, underscoreCategory.ID)
 	}
 }
 
@@ -358,19 +332,19 @@ func TestWorkspaceSnapshotIsScopedToFiltersAndExpires(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	firstCategory, err := store.CreateCategory(ctx, "First")
+	firstParent, err := store.CreateWorkspace(ctx, "First")
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondCategory, err := store.CreateCategory(ctx, "Second")
+	secondParent, err := store.CreateWorkspace(ctx, "Second")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateWorkspace(ctx, "Owned", firstCategory.ID); err != nil {
+	if _, err := store.CreateWorkspace(ctx, "Owned", &firstParent.ID); err != nil {
 		t.Fatal(err)
 	}
 	first, err := store.ListWorkspaces(ctx, domain.WorkspaceQuery{
-		CategoryID: firstCategory.ID, Limit: 1, Snapshot: "start",
+		ParentID: firstParent.ID, Limit: 1, Snapshot: "start",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -379,9 +353,10 @@ func TestWorkspaceSnapshotIsScopedToFiltersAndExpires(t *testing.T) {
 		t.Fatalf("incorrect scoped result: %+v", first)
 	}
 	for _, invalid := range []domain.WorkspaceQuery{
-		{CategoryID: secondCategory.ID, Limit: 1, Snapshot: first.Snapshot},
-		{CategoryID: firstCategory.ID, Limit: 1, HasCanvas: true, Snapshot: first.Snapshot},
-		{CategoryID: firstCategory.ID, Limit: 1, Query: "different", Snapshot: first.Snapshot},
+		{ParentID: secondParent.ID, Limit: 1, Snapshot: first.Snapshot},
+		{RootOnly: true, Limit: 1, Snapshot: first.Snapshot},
+		{ParentID: firstParent.ID, Limit: 1, HasCanvas: true, Snapshot: first.Snapshot},
+		{ParentID: firstParent.ID, Limit: 1, Query: "different", Snapshot: first.Snapshot},
 	} {
 		if _, err := store.ListWorkspaces(ctx, invalid); !errors.Is(err, domain.ErrWorkspaceInvalid) {
 			t.Fatalf("mismatched snapshot query returned %v, want invalid", err)
@@ -390,7 +365,7 @@ func TestWorkspaceSnapshotIsScopedToFiltersAndExpires(t *testing.T) {
 	future := time.Now().Add(paging.SnapshotLifetime + time.Second)
 	store.pagination.SetClock(func() time.Time { return future })
 	if _, err := store.ListWorkspaces(ctx, domain.WorkspaceQuery{
-		CategoryID: firstCategory.ID, Limit: 1, Snapshot: first.Snapshot,
+		ParentID: firstParent.ID, Limit: 1, Snapshot: first.Snapshot,
 	}); !errors.Is(err, domain.ErrWorkspaceConflict) {
 		t.Fatalf("expired snapshot error = %v, want conflict", err)
 	}
@@ -398,22 +373,22 @@ func TestWorkspaceSnapshotIsScopedToFiltersAndExpires(t *testing.T) {
 
 // --- merged from workspace_recovery_pagination_proofs_test.go ---
 
-// Category browsing uses a title-based ordering and remains stable across
+// Child workspace browsing uses a title-based ordering and remains stable across
 // unrelated authored Canvas updates.
-func TestCategoryWorkspacePaginationRemainsStableAcrossCanvasAutosave(t *testing.T) {
+func TestChildWorkspacePaginationRemainsStableAcrossCanvasAutosave(t *testing.T) {
 	ctx := context.Background()
-	store, err := Open(ctx, filepath.Join(t.TempDir(), "category-autosave-pagination.db"))
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "child-autosave-pagination.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	category, err := store.CreateCategory(ctx, "Stable pages")
+	parent, err := store.CreateWorkspace(ctx, "Stable pages")
 	if err != nil {
 		t.Fatal(err)
 	}
 	entries := make(map[string]domain.Workspace)
 	for _, name := range []string{"Alpha", "Bravo", "Charlie", "Delta", "Echo"} {
-		created, err := store.CreateWorkspace(ctx, name, category.ID)
+		created, err := store.CreateWorkspace(ctx, name, &parent.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -422,7 +397,7 @@ func TestCategoryWorkspacePaginationRemainsStableAcrossCanvasAutosave(t *testing
 	read := func(offset int) []string {
 		t.Helper()
 		page, err := store.ListWorkspaces(ctx, domain.WorkspaceQuery{
-			CategoryID: category.ID, Limit: 2, Offset: offset,
+			ParentID: parent.ID, Limit: 2, Offset: offset,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -447,6 +422,6 @@ func TestCategoryWorkspacePaginationRemainsStableAcrossCanvasAutosave(t *testing
 	actual := append(append(first, read(2)...), read(4)...)
 	want := []string{"Alpha", "Bravo", "Charlie", "Delta", "Echo"}
 	if !reflect.DeepEqual(actual, want) {
-		t.Fatalf("autosave changed category page membership: got=%q want=%q", actual, want)
+		t.Fatalf("autosave changed child page membership: got=%q want=%q", actual, want)
 	}
 }

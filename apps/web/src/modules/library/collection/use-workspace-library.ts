@@ -1,65 +1,161 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { UNCATEGORIZED_CATEGORY_ID, type CategorySummary, type WorkspaceSummary, type WorkspacePage } from "../../../entities/workspace";
-import { createWorkspace, deleteWorkspace, listAllWorkspaces, listCategories, listCategoryWorkspaces, renameWorkspace, APIError } from "../../../platform/api/workspace-api";
+import type { WorkspacePage, WorkspaceSummary } from "../../../entities/workspace";
+import {
+  APIError,
+  createWorkspace,
+  deleteWorkspace,
+  listAllWorkspaces,
+  listRecentWorkspaces,
+  listRootWorkspaces,
+  moveWorkspaceParent,
+  renameWorkspace,
+  reparentWorkspaceChildren,
+} from "../../../platform/api/workspace-api";
 import { notifyLibraryChanged } from "../../../platform/api/library-invalidation";
 import { useLibraryRevision } from "../use-library-revision";
 import { workspaceRenameTitle } from "../model/naming";
 import { errorMessage } from "../../../shared/lib/error-message";
 import { useToast } from "../../../shared/ui/feedback/toast-provider";
 
-type LibraryView = "all" | "category";
-type CategoryWorkspacePageState = { offset: number };
-const defaultCategoryPageState: CategoryWorkspacePageState = { offset: 0 };
+export type LibraryView = "roots" | "all";
 
 type UseWorkspaceLibraryOptions = {
-  categories: CategorySummary[];
-  initialSelectedCategoryId?: string;
-  initialCategoryPage?: WorkspacePage;
+  initialView: LibraryView;
+  initialPage: WorkspacePage;
+  initialError?: string | null;
+  recentWorkspaces: WorkspaceSummary[];
+  initialAllWorkspaces?: WorkspaceSummary[];
 };
 
-export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, initialCategoryPage }: UseWorkspaceLibraryOptions) {
+export function useWorkspaceLibrary({
+  initialView,
+  initialPage,
+  initialError = null,
+  recentWorkspaces: initialRecent,
+  initialAllWorkspaces = [],
+}: UseWorkspaceLibraryOptions) {
   const navigate = useNavigate();
-  const routeCategory = useRouterState({ select: (state) => typeof state.location.search.category === "string" ? state.location.search.category : "" });
-  const previousRouteCategory = useRef(routeCategory);
+  const routeView = useRouterState({
+    select: (state) => (state.location.search as { view?: string }).view === "all" ? "all" : "roots",
+  });
+  const previousRouteView = useRef<LibraryView>(routeView);
   const { showToast } = useToast();
   const libraryRevision = useLibraryRevision();
   const handledLibraryRevision = useRef(libraryRevision);
   const pageRequestGeneration = useRef(0);
-  const categorySnapshotRef = useRef<{ key: string; token: string } | null>(
-    initialSelectedCategoryId && initialCategoryPage?.snapshot
-      ? { key: initialSelectedCategoryId, token: initialCategoryPage.snapshot }
-      : null,
+  const snapshotRef = useRef<{ view: LibraryView; token: string } | null>(
+    initialPage.snapshot ? { view: initialView, token: initialPage.snapshot } : null,
   );
-  const allSnapshotRef = useRef<string | null>(null);
-  const useInitialCategoryPage = useRef(Boolean(initialSelectedCategoryId && initialCategoryPage));
-  const [view, setView] = useState<LibraryView>(initialSelectedCategoryId ? "category" : "all");
-  const [selectedCategoryId, setSelectedCategoryId] = useState(initialSelectedCategoryId ?? "");
-  const [categoryItems, setCategoryItems] = useState(categories);
-  const [page, setPage] = useState<WorkspacePage | null>(initialCategoryPage ?? null);
-  const [pageLoading, setPageLoading] = useState(!initialSelectedCategoryId);
-  const [allLoadError, setAllLoadError] = useState<string | null>(null);
-  const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
-  const [categoryPageState, setCategoryPageState] = useState<CategoryWorkspacePageState>(defaultCategoryPageState);
-  const selectedCategory = useMemo(() => categoryItems.find((category) => category.id === selectedCategoryId), [categoryItems, selectedCategoryId]);
+
+  const [view, setView] = useState<LibraryView>(initialView);
+  const [page, setPage] = useState<WorkspacePage | null>(initialError ? null : initialPage);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceSummary[]>(initialRecent);
+  const [allWorkspaces, setAllWorkspaces] = useState<WorkspaceSummary[]>(initialAllWorkspaces);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(initialError);
 
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [creatingParentId, setCreatingParentId] = useState<string | null>(null);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const createSubmitting = useRef(false);
-  const pendingWorkspaceCreate = useRef<{ id: string; title: string; categoryId?: string } | null>(null);
+  const pendingWorkspaceCreate = useRef<{ id: string; title: string; parentId: string | null } | null>(null);
   const [recentlyCreatedWorkspaceId, setRecentlyCreatedWorkspaceId] = useState<string | null>(null);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [workspaceTitleDraft, setWorkspaceTitleDraft] = useState("");
   const [savingWorkspaceId, setSavingWorkspaceId] = useState<string | null>(null);
   const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceSummary | null>(null);
+  const [blockedDeleteParent, setBlockedDeleteParent] = useState<WorkspaceSummary | null>(null);
+  const [movingWorkspace, setMovingWorkspace] = useState<WorkspaceSummary | null>(null);
   const workspaceRenameSubmitting = useRef(false);
   const workspaceRenameCancelled = useRef(false);
 
-  const newWorkspaceCategoryId = useMemo(() => {
-    if (view === "category" && selectedCategoryId) return selectedCategoryId;
-    return (categoryItems.find((c) => c.id === UNCATEGORIZED_CATEGORY_ID) ?? categoryItems.find((c) => c.title.toLowerCase() === "uncategorized"))?.id;
-  }, [view, selectedCategoryId, categoryItems]);
+  const fetchPage = useCallback(async (targetView: LibraryView, offset = 0, preserveSnapshot = false) => {
+    const generation = ++pageRequestGeneration.current;
+    const activeSnapshot = preserveSnapshot && snapshotRef.current?.view === targetView
+      ? snapshotRef.current.token
+      : "start";
+    const requestedOffset = offset > 0 && activeSnapshot !== "start" ? offset : 0;
+
+    setLoadError(null);
+    setPageLoading(true);
+    try {
+      const result = targetView === "all"
+        ? await listAllWorkspaces({ offset: requestedOffset, limit: 50, snapshot: activeSnapshot })
+        : await listRootWorkspaces({ offset: requestedOffset, limit: 50, snapshot: activeSnapshot });
+      if (pageRequestGeneration.current !== generation) return;
+      snapshotRef.current = result.snapshot ? { view: targetView, token: result.snapshot } : null;
+      setPage(result);
+    } catch (err) {
+      if (pageRequestGeneration.current !== generation) return;
+      if (err instanceof APIError && err.status === 409 && activeSnapshot !== "start") {
+        snapshotRef.current = null;
+        void fetchPage(targetView, 0, false);
+        return;
+      }
+      setLoadError(err instanceof Error ? err.message : "Could not load workspaces.");
+    } finally {
+      if (pageRequestGeneration.current === generation) {
+        setPageLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (previousRouteView.current === routeView) return;
+    previousRouteView.current = routeView;
+    setView(routeView);
+    snapshotRef.current = null;
+    void fetchPage(routeView, 0, false);
+  }, [fetchPage, routeView]);
+
+  const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
+    const silent = options.silent ?? false;
+    const generation = ++pageRequestGeneration.current;
+    setLoadError(null);
+    if (!silent) setPageLoading(true);
+    const loader = view === "all"
+      ? listAllWorkspaces({ limit: 50, snapshot: "start" })
+      : listRootWorkspaces({ limit: 50, snapshot: "start" });
+    void Promise.all([loader, listRecentWorkspaces(4), listAllWorkspaces({ limit: 100, snapshot: "start" })])
+      .then(([nextPage, nextRecent, nextAll]) => {
+        if (pageRequestGeneration.current !== generation) return;
+        snapshotRef.current = nextPage.snapshot ? { view, token: nextPage.snapshot } : null;
+        setPage(nextPage);
+        setRecentWorkspaces(nextRecent);
+        setAllWorkspaces(nextAll.items);
+      })
+      .catch((err) => {
+        if (pageRequestGeneration.current !== generation) return;
+        setLoadError(err instanceof Error ? err.message : "Could not refresh workspaces.");
+      })
+      .finally(() => {
+        if (!silent && pageRequestGeneration.current === generation) {
+          setPageLoading(false);
+        }
+      });
+  }, [view]);
+
+  useEffect(() => {
+    if (handledLibraryRevision.current === libraryRevision) return;
+    handledLibraryRevision.current = libraryRevision;
+    refreshLibrary();
+  }, [libraryRevision, refreshLibrary]);
+
+  useEffect(() => {
+    if (!recentlyCreatedWorkspaceId) return;
+    const timeout = window.setTimeout(() => setRecentlyCreatedWorkspaceId(null), 600);
+    return () => window.clearTimeout(timeout);
+  }, [recentlyCreatedWorkspaceId]);
+
+  function switchView(nextView: LibraryView) {
+    if (nextView === view) return;
+    void navigate({
+      to: "/map",
+      search: nextView === "all" ? { view: "all" } : {},
+    });
+  }
 
   async function handleCreateWorkspace(event: FormEvent) {
     event.preventDefault();
@@ -69,21 +165,17 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     setCreateLoading(true);
     try {
       const pending = pendingWorkspaceCreate.current;
-      const draft = pending?.title === title && pending.categoryId === newWorkspaceCategoryId
-        ? pending : { id: crypto.randomUUID(), title, categoryId: newWorkspaceCategoryId };
+      const draft = pending?.title === title && pending.parentId === creatingParentId
+        ? pending
+        : { id: crypto.randomUUID(), title, parentId: creatingParentId };
       pendingWorkspaceCreate.current = draft;
-      const workspace = await createWorkspace(title, newWorkspaceCategoryId, draft.id);
+      const workspace = await createWorkspace(title, creatingParentId, draft.id);
       pendingWorkspaceCreate.current = null;
       setRecentlyCreatedWorkspaceId(workspace.id);
 
-      setPage((current) => current ? {
-        ...current,
-        items: [workspace, ...current.items.filter((item) => item.id !== workspace.id)].slice(0, current.limit),
-        total: current.items.some((item) => item.id === workspace.id) ? current.total : current.total + 1,
-      } : current);
-
       setNewWorkspaceTitle("");
       setCreatingWorkspace(false);
+      setCreatingParentId(null);
       await navigate({ to: "/workspaces/$workspaceId", params: { workspaceId: workspace.id }, search: { noteId: undefined } });
       notifyLibraryChanged();
     } catch (err) {
@@ -110,6 +202,7 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
   function replaceWorkspaceInLists(updated: WorkspaceSummary) {
     const replace = (workspace: WorkspaceSummary) => workspace.id === updated.id ? { ...workspace, ...updated } : workspace;
     setPage((current) => current ? { ...current, items: current.items.map(replace) } : current);
+    setRecentWorkspaces((current) => current.map(replace));
   }
 
   async function saveWorkspaceTitle(workspace: WorkspaceSummary) {
@@ -141,6 +234,14 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     }
   }
 
+  function requestDeleteWorkspace(workspace: WorkspaceSummary) {
+    if (workspace.childCount > 0) {
+      setBlockedDeleteParent(workspace);
+      return;
+    }
+    setDeletingWorkspace(workspace);
+  }
+
   async function confirmDeleteWorkspace() {
     if (!deletingWorkspace) return;
     const target = deletingWorkspace;
@@ -152,244 +253,58 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
         const items = current.items.filter((workspace) => workspace.id !== target.id);
         return items.length === current.items.length ? current : { ...current, items, total: Math.max(0, current.total - 1) };
       });
+      setRecentWorkspaces((current) => current.filter((w) => w.id !== target.id));
       if (editingWorkspaceId === target.id) cancelWorkspaceRename();
       notifyLibraryChanged();
       showToast({ kind: "success", message: "Workspace deleted." });
     } catch (err) {
+      if (err instanceof APIError && err.code === "workspace_has_children") {
+        setBlockedDeleteParent(target);
+        return;
+      }
       showToast({ kind: "error", message: errorMessage(err, "Could not delete workspace.") });
     }
   }
 
-  function selectCategory(id: string, force = false) {
-    if (id === selectedCategoryId && !force) return;
-    if (id === selectedCategoryId && force) {
-      setCategoryPageState((current) => ({ ...current }));
-      return;
-    }
-    // URL is the single owner of category selection; the route effect loads one page.
-    void navigate({ to: "/", search: { category: id } });
-  }
-
-  // Default Home to the paginated complete Workspace collection, not Recent.
-  useEffect(() => {
-    if (initialSelectedCategoryId) return;
-    const generation = ++pageRequestGeneration.current;
-    setAllLoadError(null);
-    setPageLoading(true);
-    void listAllWorkspaces({ limit: 50, snapshot: "start" })
-      .then((result) => {
-        if (generation !== pageRequestGeneration.current) return;
-        allSnapshotRef.current = result.snapshot ?? null;
-        setPage(result);
-      })
-      .catch((error) => {
-        if (generation === pageRequestGeneration.current) {
-          setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
-        }
-      })
-      .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
-  }, [initialSelectedCategoryId]);
-
-  // Browser Back/Forward selection is URL-owned; disclosure remains sidebar-owned.
-  useEffect(() => {
-    if (previousRouteCategory.current === routeCategory) return;
-    previousRouteCategory.current = routeCategory;
-    const nextCategory = categoryItems.some((item) => item.id === routeCategory) ? routeCategory : "";
-    pageRequestGeneration.current += 1;
-    categorySnapshotRef.current = null;
-    setSelectedCategoryId(nextCategory);
-    setView(nextCategory ? "category" : "all");
-    setPage(null);
-    setCategoryLoadError(null);
-    setAllLoadError(null);
-    setCategoryPageState({ ...defaultCategoryPageState });
-    if (nextCategory) {
-      setPageLoading(true);
-    } else {
-      const generation = ++pageRequestGeneration.current;
-      setPageLoading(true);
-      void listAllWorkspaces({ limit: 50, snapshot: "start" })
-        .then((result) => {
-          if (generation !== pageRequestGeneration.current) return;
-          allSnapshotRef.current = result.snapshot ?? null;
-          setPage(result);
-        })
-        .catch((error) => {
-          if (generation === pageRequestGeneration.current) setAllLoadError(error instanceof Error ? error.message : "Could not load workspaces.");
-        })
-        .finally(() => { if (generation === pageRequestGeneration.current) setPageLoading(false); });
-    }
-  }, [categoryItems, routeCategory]);
-
-  function updateCategoryPageState(patch: Partial<CategoryWorkspacePageState>) {
-    if (patch.offset === undefined) categorySnapshotRef.current = null;
-    setPageLoading(true);
-    setCategoryPageState((current) => ({ ...current, ...patch, offset: patch.offset ?? 0 }));
-  }
-
-  // Pagination is applied by the server against the complete category,
-  // not just the first loaded 50 items.
-  useEffect(() => {
-    if (view !== "category" || !selectedCategoryId) return;
-    if (useInitialCategoryPage.current) {
-      useInitialCategoryPage.current = false;
-      return; // The route loader already returned the unfiltered first page.
-    }
-    const generation = ++pageRequestGeneration.current;
-    setPageLoading(true);
-    setPage(null);
-    setCategoryLoadError(null);
-    const key = selectedCategoryId;
-    const session = categorySnapshotRef.current;
-    if (categoryPageState.offset > 0 && (!session || session.key !== key)) {
-      setCategoryPageState((current) => ({ ...current, offset: 0 }));
-      return;
-    }
-    const snapshot = session?.key === key ? session.token : "start";
-    void listCategoryWorkspaces(selectedCategoryId, { ...categoryPageState, limit: 50, snapshot })
-      .then((result) => {
-        if (pageRequestGeneration.current === generation) {
-          if (result.snapshot) categorySnapshotRef.current = { key, token: result.snapshot };
-          setPage(result);
-        }
-      })
-      .catch((err) => {
-        if (pageRequestGeneration.current === generation) {
-          if (err instanceof APIError && err.status === 409 && snapshot !== "start") {
-            categorySnapshotRef.current = null;
-            setCategoryPageState((current) => ({ ...current, offset: 0 }));
-            return;
-          }
-          const message = err instanceof Error ? err.message : "Could not load category workspaces.";
-          setCategoryLoadError(message);
-          showToast({ kind: "error", message });
-        }
-      })
-      .finally(() => {
-        if (pageRequestGeneration.current === generation) setPageLoading(false);
-      });
-  }, [selectedCategoryId, view, categoryPageState, showToast]);
-
-  async function openAll(offset = 0, preserveSnapshot = false) {
-    const generation = ++pageRequestGeneration.current;
-    const snapshot = preserveSnapshot && allSnapshotRef.current ? allSnapshotRef.current : "start";
-    const requestedOffset = offset > 0 && snapshot !== "start" ? offset : 0;
-    setView("all");
-    setSelectedCategoryId("");
-    setAllLoadError(null);
-    setPageLoading(true);
-    void navigate({ to: "/", search: {}, replace: true });
+  async function reparentChildrenToParent(parent: WorkspaceSummary) {
     try {
-      const result = await listAllWorkspaces({ offset: requestedOffset, limit: 50, snapshot });
-      if (pageRequestGeneration.current === generation) {
-        allSnapshotRef.current = result.snapshot ?? null;
-        setPage(result);
-      }
+      await reparentWorkspaceChildren(parent.id, parent.parentId ?? null);
+      setBlockedDeleteParent(null);
+      notifyLibraryChanged();
+      showToast({
+        kind: "success",
+        message: parent.parentId ? "Sub-workspaces moved to parent." : "Sub-workspaces moved to top level.",
+      });
     } catch (err) {
-      if (pageRequestGeneration.current === generation) {
-        if (err instanceof APIError && err.status === 409 && snapshot !== "start") {
-          allSnapshotRef.current = null;
-          void openAll(0);
-          return;
-        }
-        setAllLoadError(err instanceof Error ? err.message : "Could not load workspaces.");
-      }
-    } finally {
-      if (pageRequestGeneration.current === generation) setPageLoading(false);
+      showToast({ kind: "error", message: errorMessage(err, "Could not move sub-workspaces.") });
     }
   }
 
-  const refreshLibrary = useCallback((options: { silent?: boolean } = {}) => {
-    const silent = options.silent ?? false;
-    const generation = ++pageRequestGeneration.current;
-
-    if (view === "all") {
-      setAllLoadError(null);
-      if (!silent) setPageLoading(true);
-      void listAllWorkspaces({ limit: 50, snapshot: "start" })
-        .then((result) => {
-          if (generation === pageRequestGeneration.current) {
-            allSnapshotRef.current = result.snapshot ?? null;
-            setPage(result);
-          }
-        })
-        .catch((err) => {
-          if (generation === pageRequestGeneration.current) {
-            setAllLoadError(err instanceof Error ? err.message : "Could not refresh workspaces.");
-          }
-        })
-        .finally(() => {
-          if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
-        });
+  async function moveWorkspaceToParent(workspace: WorkspaceSummary, targetParentId: string | null) {
+    if (workspace.parentId === targetParentId) return;
+    try {
+      await moveWorkspaceParent(workspace.id, targetParentId, workspace.parentId ?? null);
+      notifyLibraryChanged();
+      showToast({ kind: "success", message: "Workspace moved." });
+    } catch (err) {
+      showToast({ kind: "error", message: errorMessage(err, "Could not move workspace.") });
     }
-
-    if (view === "category" && selectedCategoryId && !silent) setPageLoading(true);
-    void listCategories()
-      .then((nextCategories) => {
-        if (generation !== pageRequestGeneration.current) return;
-        setCategoryItems(nextCategories);
-        if (view !== "category" || !selectedCategoryId) return;
-        if (!nextCategories.some((category) => category.id === selectedCategoryId)) {
-          setSelectedCategoryId("");
-          setView("all");
-          setPage(null);
-          setPageLoading(false);
-          void navigate({ to: "/" });
-          return;
-        }
-        void listCategoryWorkspaces(selectedCategoryId, { ...categoryPageState, offset: 0, limit: 50, snapshot: "start" })
-          .then((result) => {
-            if (generation === pageRequestGeneration.current) {
-              categorySnapshotRef.current = { key: selectedCategoryId, token: result.snapshot ?? "" };
-              setPage(result);
-              if (categoryPageState.offset !== 0) setCategoryPageState((current) => ({ ...current, offset: 0 }));
-            }
-          })
-          .catch((err) => {
-            if (generation === pageRequestGeneration.current) {
-              showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh category workspaces." });
-            }
-          })
-          .finally(() => {
-            if (!silent && generation === pageRequestGeneration.current) setPageLoading(false);
-          });
-      })
-      .catch((err) => {
-        if (view === "category" && !silent && generation === pageRequestGeneration.current) setPageLoading(false);
-        if (generation === null || generation === pageRequestGeneration.current) {
-          showToast({ kind: "error", message: err instanceof Error ? err.message : "Could not refresh categories." });
-        }
-      });
-  }, [categoryPageState, navigate, selectedCategoryId, showToast, view]);
-
-  useEffect(() => {
-    if (handledLibraryRevision.current === libraryRevision) return;
-    handledLibraryRevision.current = libraryRevision;
-    refreshLibrary();
-  }, [libraryRevision, refreshLibrary]);
-
-  useEffect(() => {
-    if (!recentlyCreatedWorkspaceId) return;
-    const timeout = window.setTimeout(() => setRecentlyCreatedWorkspaceId(null), 600);
-    return () => window.clearTimeout(timeout);
-  }, [recentlyCreatedWorkspaceId]);
+  }
 
   const items = page?.items ?? [];
-  const heading = view === "all" ? "All workspaces" : selectedCategory?.title ?? "Category";
+  const heading = "Workspace Map";
+  const isLibraryEmpty = !pageLoading && !loadError && page?.total === 0 && recentWorkspaces.length === 0;
 
   return {
     view,
-    selectedCategoryId,
-    categoryItems,
     page,
+    recentWorkspaces,
+    allWorkspaces,
     pageLoading,
-    categoryLoadError,
-    allLoadError,
-    retryAll: () => { void openAll(0); },
-    retryCategory: () => setCategoryPageState((current) => ({ ...current })),
-    categoryPageState,
-    updateCategoryPageState,
+    loadError,
+    isLibraryEmpty,
     creatingWorkspace,
+    creatingParentId,
     newWorkspaceTitle,
     createLoading,
     recentlyCreatedWorkspaceId,
@@ -397,19 +312,28 @@ export function useWorkspaceLibrary({ categories, initialSelectedCategoryId, ini
     workspaceTitleDraft,
     savingWorkspaceId,
     deletingWorkspace,
+    blockedDeleteParent,
+    movingWorkspace,
     items,
     heading,
+    switchView,
+    fetchPage,
+    retry: () => void fetchPage(view, 0, false),
     setCreatingWorkspace,
+    setCreatingParentId,
     setNewWorkspaceTitle,
     setWorkspaceTitleDraft,
     setDeletingWorkspace,
+    setBlockedDeleteParent,
+    setMovingWorkspace,
     handleCreateWorkspace,
     beginWorkspaceRename,
     cancelWorkspaceRename,
     saveWorkspaceTitle,
+    requestDeleteWorkspace,
     confirmDeleteWorkspace,
-    selectCategory,
-    openAll,
+    reparentChildrenToParent,
+    moveWorkspaceToParent,
     refreshLibrary,
   };
 }

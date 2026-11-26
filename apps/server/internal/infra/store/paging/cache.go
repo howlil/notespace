@@ -17,10 +17,11 @@ const (
 )
 
 type key struct {
-	categoryID string
-	query      string
-	sort       string
-	hasCanvas  bool
+	rootOnly  bool
+	parentID  string
+	query     string
+	sort      string
+	hasCanvas bool
 }
 
 type session struct {
@@ -58,10 +59,11 @@ func (c *Cache) SetClock(clock func() time.Time) {
 
 func keyFor(query domain.WorkspaceQuery) key {
 	return key{
-		categoryID: query.CategoryID,
-		query:      query.Query,
-		sort:       query.Sort,
-		hasCanvas:  query.HasCanvas,
+		rootOnly:  query.RootOnly,
+		parentID:  query.ParentID,
+		query:     query.Query,
+		sort:      query.Sort,
+		hasCanvas: query.HasCanvas,
 	}
 }
 

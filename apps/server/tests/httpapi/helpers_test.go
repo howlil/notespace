@@ -74,12 +74,3 @@ func decodeWorkspace(t *testing.T, res *httptest.ResponseRecorder) domain.Worksp
 	}
 	return p
 }
-
-func decodeCategories(t *testing.T, res *httptest.ResponseRecorder) []domain.CategorySummary {
-	t.Helper()
-	var categories []domain.CategorySummary
-	if err := json.Unmarshal(res.Body.Bytes(), &categories); err != nil {
-		t.Fatal(err)
-	}
-	return categories
-}

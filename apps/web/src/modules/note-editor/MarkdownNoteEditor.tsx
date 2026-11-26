@@ -1,11 +1,18 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxTree } from "@codemirror/language";
-import { Annotation, EditorState, Transaction, type Range } from "@codemirror/state";
+import { Annotation, EditorState, Prec, Transaction, type Range } from "@codemirror/state";
 import { Decoration, EditorView, keymap, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteDocument } from "../../entities/note";
+import { listNotes, type NoteSummary } from "../../platform/api/note-api";
 import { storeImageAsset } from "../../platform/assets/image-store";
+import {
+  detectMentionTrigger,
+  formatNoteMentionLink,
+  type MentionTrigger,
+} from "./model/mention-trigger";
+import { NoteMentionPopover, type NoteMentionAnchorRect } from "./NoteMentionPopover";
 
 export type NoteActivationPoint = { clientX: number; clientY: number };
 
@@ -81,6 +88,9 @@ export function MarkdownNoteEditor(props: {
   workspaceId: string;
   document: NoteDocument;
   minHeight?: number;
+  fillContainer?: boolean;
+  autoFocus?: boolean;
+  placeholder?: string;
   activationPoint?: NoteActivationPoint | null;
   bodyMaxHeight?: number;
   onDocumentChange: (document: NoteDocument) => void;
@@ -89,11 +99,84 @@ export function MarkdownNoteEditor(props: {
   onError: (message: string) => void;
   onEscape: () => void;
 }) {
-  const { document, noteId, bodyMaxHeight } = props;
+  const {
+    document,
+    noteId,
+    bodyMaxHeight,
+    fillContainer = false,
+    autoFocus = true,
+    placeholder: placeholderText = "Write in Markdown…",
+    minHeight: requestedMinHeight,
+  } = props;
   const latest = useRef(props);
   latest.current = props;
   const host = useRef<HTMLDivElement>(null);
   const editor = useRef<EditorView | null>(null);
+  const [mention, setMention] = useState<{ trigger: MentionTrigger; anchorRect: NoteMentionAnchorRect } | null>(null);
+  const [mentionNotes, setMentionNotes] = useState<NoteSummary[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionRef = useRef(mention);
+  mentionRef.current = mention;
+  const mentionNotesRef = useRef(mentionNotes);
+  mentionNotesRef.current = mentionNotes;
+  const mentionIndexRef = useRef(mentionIndex);
+  mentionIndexRef.current = mentionIndex;
+  const dismissedFromRef = useRef<number | null>(null);
+
+  const applyMentionSelection = useCallback((note: NoteSummary) => {
+    const view = editor.current;
+    const active = mentionRef.current;
+    if (!view || !active) return;
+    const insertText = formatNoteMentionLink(note.label, note.id);
+    const { from, to } = active.trigger;
+    if (from > view.state.doc.length || to > view.state.doc.length) return;
+    view.dispatch({
+      changes: { from, to, insert: insertText },
+      selection: { anchor: from + insertText.length },
+    });
+    dismissedFromRef.current = null;
+    setMention(null);
+    view.focus();
+  }, []);
+
+  const applyMentionRef = useRef(applyMentionSelection);
+  applyMentionRef.current = applyMentionSelection;
+
+  const mentionOpen = Boolean(mention);
+  const mentionQuery = mention?.trigger.query ?? "";
+
+  useEffect(() => {
+    if (!mentionOpen) {
+      setMentionNotes([]);
+      setMentionLoading(false);
+      return undefined;
+    }
+    let active = true;
+    const query = mentionQuery.trim();
+    setMentionLoading(true);
+    const timer = window.setTimeout(() => {
+      void listNotes({ q: query || undefined, limit: 12 })
+        .then((results) => {
+          if (!active) return;
+          const filtered = results.filter((item) => item.id !== noteId);
+          setMentionNotes(filtered);
+          setMentionIndex(0);
+          setMentionLoading(false);
+        })
+        .catch(() => {
+          if (!active) return;
+          setMentionNotes([]);
+          setMentionLoading(false);
+        });
+    }, query ? 90 : 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [mentionOpen, mentionQuery, noteId]);
 
   useEffect(() => {
     const parent = host.current;
@@ -105,7 +188,25 @@ export function MarkdownNoteEditor(props: {
       state: EditorState.create({
         doc: applied?.type === "markdown" ? applied.text : document.text,
         extensions: [
-          markdown(), preview, history(), EditorView.lineWrapping, placeholder("Write in Markdown…"),
+          markdown(), preview, history(), EditorView.lineWrapping, placeholder(placeholderText),
+          ...(fillContainer
+            ? [
+              EditorView.theme({
+                "&": {
+                  minHeight: `${requestedMinHeight ?? 360}px`,
+                  height: "100%",
+                  cursor: "text",
+                },
+                ".cm-scroller": {
+                  minHeight: "100%",
+                  height: "100%",
+                },
+                ".cm-content": {
+                  minHeight: "100%",
+                },
+              }),
+            ]
+            : []),
           EditorView.contentAttributes.of({ "aria-label": "Note Markdown editor" }),
           EditorView.domEventHandlers({
             paste(event, editor) {
@@ -124,17 +225,73 @@ export function MarkdownNoteEditor(props: {
               return true;
             },
           }),
+          Prec.highest(keymap.of([
+            {
+              key: "ArrowDown",
+              run: () => {
+                if (!mentionRef.current || mentionNotesRef.current.length === 0) return false;
+                setMentionIndex((prev) => (prev + 1) % mentionNotesRef.current.length);
+                return true;
+              },
+            },
+            {
+              key: "ArrowUp",
+              run: () => {
+                if (!mentionRef.current || mentionNotesRef.current.length === 0) return false;
+                setMentionIndex((prev) => (prev - 1 + mentionNotesRef.current.length) % mentionNotesRef.current.length);
+                return true;
+              },
+            },
+            {
+              key: "Enter",
+              run: () => {
+                if (!mentionRef.current) return false;
+                const chosen = mentionNotesRef.current[mentionIndexRef.current];
+                if (!chosen) return false;
+                applyMentionRef.current(chosen);
+                return true;
+              },
+            },
+            {
+              key: "Escape",
+              run: (editorView) => {
+                if (editorView.composing) return false;
+                if (mentionRef.current) {
+                  dismissedFromRef.current = mentionRef.current.trigger.from;
+                  setMention(null);
+                  return true;
+                }
+                latest.current.onEscape();
+                return true;
+              },
+              stopPropagation: true,
+            },
+          ])),
           keymap.of([
-            { key: "Escape", run: (editor) => {
-              if (editor.composing) return false;
-              latest.current.onEscape();
-              return true;
-            }, stopPropagation: true },
             ...historyKeymap, ...defaultKeymap,
           ]),
           EditorView.updateListener.of((event) => {
             if (event.transactions.some((tr) => tr.docChanged && !tr.annotation(syncSource))) {
               latest.current.onDocumentChange({ type: "markdown", text: event.state.doc.toString() });
+            }
+            if (event.docChanged || event.selectionSet) {
+              const sel = event.state.selection.main;
+              const trigger = sel.empty
+                ? detectMentionTrigger(event.state.doc.toString(), sel.head)
+                : null;
+              if (!trigger) {
+                dismissedFromRef.current = null;
+                setMention(null);
+              } else if (dismissedFromRef.current !== trigger.from) {
+                dismissedFromRef.current = null;
+                const coords = event.view.coordsAtPos(trigger.from) ?? event.view.coordsAtPos(sel.head);
+                if (coords) {
+                  setMention({
+                    trigger,
+                    anchorRect: { top: coords.top, left: coords.left, bottom: coords.bottom },
+                  });
+                }
+              }
             }
           }),
         ],
@@ -142,6 +299,7 @@ export function MarkdownNoteEditor(props: {
     });
     editor.current = view;
     const frame = requestAnimationFrame(() => {
+      if (!autoFocus && !activationPoint) return;
       const position = activationPoint ? view.posAtCoords({ x: activationPoint.clientX, y: activationPoint.clientY }) : null;
       view.dispatch({ selection: { anchor: position ?? view.state.doc.length } });
       view.focus();
@@ -157,7 +315,7 @@ export function MarkdownNoteEditor(props: {
       editor.current = null;
       view.destroy();
     };
-  }, [noteId]);
+  }, [autoFocus, fillContainer, noteId, placeholderText, requestedMinHeight]);
 
   useEffect(() => {
     const view = editor.current;
@@ -171,13 +329,39 @@ export function MarkdownNoteEditor(props: {
   }, [noteId, document.text]);
 
   return (
-    <div
-      className="notespace-note-content notespace-note-markdown overflow-y-auto overscroll-contain"
-      data-note-scroll=""
-      data-note-markdown-editor=""
-      style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
-      onKeyDown={(event) => event.stopPropagation()}
-      ref={host}
-    />
+    <>
+      <div
+        className={fillContainer
+          ? "notespace-note-content notespace-note-markdown flex-1 min-h-full cursor-text overflow-y-auto overscroll-contain"
+          : "notespace-note-content notespace-note-markdown overflow-y-auto overscroll-contain"}
+        data-flush={fillContainer ? "true" : undefined}
+        data-note-scroll=""
+        data-note-markdown-editor=""
+        style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
+        onMouseDown={(event) => {
+          if (!fillContainer) return;
+          const view = editor.current;
+          if (!view) return;
+          const target = event.target as HTMLElement | null;
+          if (target === host.current || target === view.scrollDOM || target?.classList.contains("cm-editor")) {
+            event.preventDefault();
+            view.focus();
+            view.dispatch({ selection: { anchor: view.state.doc.length } });
+          }
+        }}
+        onKeyDown={(event) => event.stopPropagation()}
+        ref={host}
+      />
+      <NoteMentionPopover
+        open={Boolean(mention)}
+        anchorRect={mention?.anchorRect ?? null}
+        query={mention?.trigger.query ?? ""}
+        notes={mentionNotes}
+        loading={mentionLoading}
+        selectedIndex={mentionIndex}
+        onSelectedIndexChange={setMentionIndex}
+        onSelectNote={applyMentionSelection}
+      />
+    </>
   );
 }

@@ -1,9 +1,12 @@
 package store
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,15 +151,77 @@ func TestMarkdownConversionFailureRollsBackEveryNote(t *testing.T) {
 	}
 }
 
+func rewriteArchiveManifestMap(t *testing.T, data []byte, mutate func(map[string]any)) []byte {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	for _, file := range reader.File {
+		stream, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(stream)
+		_ = stream.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if file.Name == archive.ManifestPath {
+			var raw map[string]any
+			if err := json.Unmarshal(body, &raw); err != nil {
+				t.Fatal(err)
+			}
+			mutate(raw)
+			body, err = json.Marshal(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		header := file.FileHeader
+		target, err := writer.CreateHeader(&header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := target.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return output.Bytes()
+}
+
 func archiveWithNoteDocument(t *testing.T, store *Store, version int, document string) []byte {
 	t.Helper()
 	exported, err := store.ExportBackupArchive(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return rewriteArchiveManifest(t, exported, func(manifest *archive.Manifest) {
-		manifest.Version = version
-		manifest.Notes[0].Document = json.RawMessage(document)
+	return rewriteArchiveManifestMap(t, exported, func(raw map[string]any) {
+		raw["version"] = version
+		if version < 5 {
+			raw["categories"] = []map[string]any{
+				{"id": "legacy", "title": "Uncategorized", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+			}
+			if workspaces, ok := raw["workspaces"].([]any); ok {
+				for _, entry := range workspaces {
+					if wsMap, ok := entry.(map[string]any); ok {
+						if proj, ok := wsMap["project"].(map[string]any); ok {
+							proj["categoryId"] = "legacy"
+						}
+					}
+				}
+			}
+		}
+		if notes, ok := raw["notes"].([]any); ok && len(notes) > 0 {
+			if noteMap, ok := notes[0].(map[string]any); ok {
+				noteMap["document"] = json.RawMessage(document)
+			}
+		}
 	})
 }
 
@@ -180,18 +245,20 @@ func TestOlderArchiveWithRichNotesIsConvertedAtImport(t *testing.T) {
 	}
 
 	for _, version := range []int{2, 3} {
-		target, err := Open(ctx, filepath.Join(t.TempDir(), "target.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := target.RestoreBackupArchive(ctx, archiveWithNoteDocument(t, source, version, legacyTextNote)); err != nil {
-			t.Fatalf("v%d archive: %v", version, err)
-		}
-		got, err := target.GetNote(ctx, "archived-note")
-		if err != nil || string(got.Document) != `{"type":"markdown","text":"# Zebrafinch migration ^blk-1\n\nkeep this"}` {
-			t.Fatalf("v%d restored Note = %s (%v)", version, got.Document, err)
-		}
-		_ = target.Close()
+		func() {
+			target, err := Open(ctx, filepath.Join(t.TempDir(), "target.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer target.Close()
+			if err := target.RestoreBackupArchive(ctx, archiveWithNoteDocument(t, source, version, legacyTextNote)); err != nil {
+				t.Fatalf("v%d archive: %v", version, err)
+			}
+			got, err := target.GetNote(ctx, "archived-note")
+			if err != nil || string(got.Document) != `{"type":"markdown","text":"# Zebrafinch migration ^blk-1\n\nkeep this"}` {
+				t.Fatalf("v%d restored Note = %s (%v)", version, got.Document, err)
+			}
+		}()
 	}
 }
 

@@ -20,35 +20,31 @@ import (
 
 // --- merged from workspace_http_test.go ---
 
-func TestCategoryGroupsWorkspaces(t *testing.T) {
+func TestParentGroupsChildWorkspaces(t *testing.T) {
 	store, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
-	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Computer Science"})
-	expect(t, createdCategory, 201)
-	var category domain.CategorySummary
-	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
-		t.Fatal(err)
+	parent := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Computer Science"}))
+	createdChild := call(t, api, "POST", "/api/workspaces", map[string]any{"title": "Distributed Systems", "parentId": parent.ID})
+	expect(t, createdChild, 201)
+	child := decodeWorkspace(t, createdChild)
+	if child.ParentID == nil || *child.ParentID != parent.ID {
+		t.Fatalf("child parentId = %v, want %q", child.ParentID, parent.ID)
 	}
-	createdWorkspace := call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems", "categoryId": category.ID})
-	expect(t, createdWorkspace, 201)
-	if workspace := decodeWorkspace(t, createdWorkspace); workspace.CategoryID != category.ID {
-		t.Fatalf("workspace category = %q, want %q", workspace.CategoryID, category.ID)
+	if len(child.Ancestors) != 1 || child.Ancestors[0].ID != parent.ID {
+		t.Fatalf("child ancestors = %+v, want [%s]", child.Ancestors, parent.ID)
 	}
-	categories := decodeCategories(t, call(t, api, "GET", "/api/categories", nil))
-	for _, listed := range categories {
-		if listed.ID == category.ID && listed.WorkspaceCount == 1 {
-			return
-		}
+	refetchedParent := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+parent.ID, nil))
+	if refetchedParent.ChildCount != 1 {
+		t.Fatalf("parent childCount = %d, want 1", refetchedParent.ChildCount)
 	}
-	t.Fatalf("category count missing from %#v", categories)
 }
 
-func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
-	store, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "uncategorized.db"))
+func TestWorkspaceCreateDefaultsToRoot(t *testing.T) {
+	store, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "root.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,31 +52,26 @@ func TestWorkspaceCreateDefaultsToUncategorized(t *testing.T) {
 	api := newAPI(store)
 
 	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Root workspace"}))
-	if workspace.CategoryID != domain.UncategorizedCategoryID {
-		t.Fatalf("root workspace category = %q, want %q", workspace.CategoryID, domain.UncategorizedCategoryID)
+	if workspace.ParentID != nil {
+		t.Fatalf("root workspace parentId = %v, want nil", workspace.ParentID)
 	}
 }
 
-func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
-	store, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "category-browser.db"))
+func TestChildWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) {
+	store, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "child-browser.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	api := newAPI(store)
-	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
-	expect(t, createdCategory, 201)
-	var category domain.CategorySummary
-	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
-		t.Fatal(err)
-	}
+	parent := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend"}))
 	for _, title := range []string{"Redis", "Postgres", "Go"} {
-		expect(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": title, "categoryId": category.ID}), 201)
+		expect(t, call(t, api, "POST", "/api/workspaces", map[string]any{"title": title, "parentId": parent.ID}), 201)
 	}
 	for i := 0; i < 100; i++ {
-		expect(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Workspace " + strconv.Itoa(i), "categoryId": category.ID}), 201)
+		expect(t, call(t, api, "POST", "/api/workspaces", map[string]any{"title": "Workspace " + strconv.Itoa(i), "parentId": parent.ID}), 201)
 	}
-	page := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?q=go&limit=1", nil)
+	page := call(t, api, "GET", "/api/workspaces?parentId="+parent.ID+"&q=go&limit=1", nil)
 	expect(t, page, 200)
 	var result struct {
 		Items      []domain.WorkspaceSummary `json:"items"`
@@ -93,14 +84,14 @@ func TestCategoryWorkspaceBrowserSupportsScopedQueryAndPagination(t *testing.T) 
 	if result.Total != 1 || len(result.Items) != 1 || result.Items[0].Title != "Go" || result.NextOffset != nil {
 		t.Fatalf("scoped browser result = %+v", result)
 	}
-	all := call(t, api, "GET", "/api/categories/"+category.ID+"/workspaces?sort=name&limit=50", nil)
+	all := call(t, api, "GET", "/api/workspaces?parentId="+parent.ID+"&sort=name&limit=50", nil)
 	expect(t, all, 200)
 	if !strings.Contains(all.Body.String(), `"total":103`) || !strings.Contains(all.Body.String(), `"nextOffset":50`) {
 		t.Fatalf("pagination metadata missing: %s", all.Body.String())
 	}
 }
 
-func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
+func TestWorkspaceParentDeletionGuardAndReparent(t *testing.T) {
 	ctx := context.Background()
 	store, err := store.Open(ctx, filepath.Join(t.TempDir(), "management.db"))
 	if err != nil {
@@ -109,41 +100,27 @@ func TestCategoryAndWorkspaceInlineManagement(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 
-	createdCategory := call(t, api, "POST", "/api/categories", map[string]string{"title": "Backend"})
-	expect(t, createdCategory, 201)
-	var category domain.CategorySummary
-	if err := json.Unmarshal(createdCategory.Body.Bytes(), &category); err != nil {
-		t.Fatal(err)
-	}
+	parent := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Backend"}))
+	renameParent := call(t, api, "PATCH", "/api/workspaces/"+parent.ID+"/title", map[string]string{"title": "Backend Engineering"})
+	expect(t, renameParent, 200)
+	parent = decodeWorkspace(t, renameParent)
 
-	renameCategory := call(t, api, "PATCH", "/api/categories/"+category.ID, map[string]string{"title": "Backend Engineering"})
-	expect(t, renameCategory, 200)
-	if got := decodeCategories(t, call(t, api, "GET", "/api/categories", nil))[0].Title; got != "Backend Engineering" {
-		t.Fatalf("category title = %q, want %q", got, "Backend Engineering")
-	}
+	child := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]any{"title": "Go", "parentId": parent.ID}))
 
-	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Go", "categoryId": category.ID}))
-	renameWorkspace := call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/title", map[string]string{"title": "Golang"})
-	expect(t, renameWorkspace, 200)
-	if got := decodeWorkspace(t, renameWorkspace).Title; got != "Golang" {
-		t.Fatalf("workspace title = %q, want %q", got, "Golang")
-	}
+	// Deleting a non-empty parent is blocked with 409 workspace_has_children.
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+parent.ID), 409)
+	expect(t, call(t, api, "GET", "/api/workspaces/"+child.ID, nil), 200)
 
-	// Category deletion must not cascade into active or recoverable workspace data.
-	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
-	expect(t, call(t, api, "GET", "/api/workspaces/"+workspace.ID, nil), 200)
-	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+workspace.ID), 204)
-	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 409)
-	expect(t, call(t, api, "DELETE", "/api/trash/"+workspace.ID, nil), 204)
-	expect(t, call(t, api, "DELETE", "/api/categories/"+category.ID, nil), 204)
-	for _, listed := range decodeCategories(t, call(t, api, "GET", "/api/categories", nil)) {
-		if listed.ID == category.ID {
-			t.Fatal("deleted category remains listed")
-		}
+	// Reparent children to root, then delete the now-empty parent.
+	expect(t, call(t, api, "POST", "/api/workspaces/"+parent.ID+"/reparent-children", map[string]any{"targetParentId": nil}), 200)
+	expect(t, deleteWorkspaceRequest(t, api, "/api/workspaces/"+parent.ID), 204)
+	promoted := decodeWorkspace(t, call(t, api, "GET", "/api/workspaces/"+child.ID, nil))
+	if promoted.ParentID != nil {
+		t.Fatalf("promoted child parentId = %v, want nil", promoted.ParentID)
 	}
 }
 
-func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
+func TestWorkspaceMoveParentCycleRejectionAndBoundedListing(t *testing.T) {
 	ctx := context.Background()
 	store, err := store.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
 	if err != nil {
@@ -152,19 +129,19 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	defer store.Close()
 	api := newAPI(store)
 
-	var firstCategory, secondCategory domain.CategorySummary
-	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Learning"}).Body.Bytes(), &firstCategory); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(call(t, api, "POST", "/api/categories", map[string]string{"title": "Career"}).Body.Bytes(), &secondCategory); err != nil {
-		t.Fatal(err)
-	}
-	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Distributed Systems", "categoryId": firstCategory.ID}))
+	firstParent := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Learning"}))
+	secondParent := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]string{"title": "Career"}))
+	workspace := decodeWorkspace(t, call(t, api, "POST", "/api/workspaces", map[string]any{"title": "Distributed Systems", "parentId": firstParent.ID}))
 
-	moved := call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/category", map[string]string{"categoryId": secondCategory.ID})
+	// Reject self-parenting and cycle (moving firstParent under its child workspace).
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/parent", map[string]any{"parentId": workspace.ID}), 400)
+	expect(t, call(t, api, "PATCH", "/api/workspaces/"+firstParent.ID+"/parent", map[string]any{"parentId": workspace.ID}), 400)
+
+	moved := call(t, api, "PATCH", "/api/workspaces/"+workspace.ID+"/parent", map[string]any{"parentId": secondParent.ID})
 	expect(t, moved, 200)
-	if got := decodeWorkspace(t, moved).CategoryID; got != secondCategory.ID {
-		t.Fatalf("moved workspace category = %q, want %q", got, secondCategory.ID)
+	movedWs := decodeWorkspace(t, moved)
+	if movedWs.ParentID == nil || *movedWs.ParentID != secondParent.ID {
+		t.Fatalf("moved workspace parentId = %v, want %q", movedWs.ParentID, secondParent.ID)
 	}
 
 	all := call(t, api, "GET", "/api/workspaces?limit=1", nil)
@@ -177,14 +154,14 @@ func TestWorkspaceMoveAndBoundedLibraryEndpoints(t *testing.T) {
 	if err := json.Unmarshal(all.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != workspace.ID || page.NextOffset != nil {
+	if page.Total != 3 || len(page.Items) != 1 || page.NextOffset == nil {
 		t.Fatalf("bounded library page = %+v", page)
 	}
 
-	oldCategory := call(t, api, "GET", "/api/categories/"+firstCategory.ID+"/workspaces?limit=5", nil)
-	expect(t, oldCategory, 200)
-	if strings.Contains(oldCategory.Body.String(), workspace.ID) {
-		t.Fatalf("moved workspace still appears in source category: %s", oldCategory.Body.String())
+	oldChildren := call(t, api, "GET", "/api/workspaces?parentId="+firstParent.ID+"&limit=5", nil)
+	expect(t, oldChildren, 200)
+	if strings.Contains(oldChildren.Body.String(), workspace.ID) {
+		t.Fatalf("moved workspace still appears in source parent: %s", oldChildren.Body.String())
 	}
 }
 
@@ -463,37 +440,31 @@ func TestWorkspaceMetadataStalePreconditionsRejectWithoutMutation(t *testing.T) 
 		"title": "Current", "expectedTitle": "Original",
 	}), http.StatusConflict)
 
-	makeCategory := func(title string) string {
+	makeParent := func(title string) string {
 		t.Helper()
-		result := call(t, api, http.MethodPost, "/api/categories", map[string]string{"title": title})
+		result := call(t, api, http.MethodPost, "/api/workspaces", map[string]string{"title": title})
 		expect(t, result, http.StatusCreated)
-		var category struct {
-			ID string `json:"id"`
-		}
-		if err := json.Unmarshal(result.Body.Bytes(), &category); err != nil {
-			t.Fatal(err)
-		}
-		return category.ID
+		return decodeWorkspace(t, result).ID
 	}
-	destination := makeCategory("Destination")
-	alternative := makeCategory("Alternative")
-	categoryPath := "/api/workspaces/" + created.ID + "/category"
-	moved := decodeWorkspace(t, call(t, api, http.MethodPatch, categoryPath, map[string]string{
-		"categoryId": destination, "expectedCategoryId": created.CategoryID,
+	destination := makeParent("Destination")
+	alternative := makeParent("Alternative")
+	parentPath := "/api/workspaces/" + created.ID + "/parent"
+	moved := decodeWorkspace(t, call(t, api, http.MethodPatch, parentPath, map[string]any{
+		"parentId": destination, "expectedParentId": nil,
 	}))
-	if moved.CategoryID != destination || moved.Version != renamed.Version+1 {
-		t.Fatalf("move result category=%q version=%d", moved.CategoryID, moved.Version)
+	if moved.ParentID == nil || *moved.ParentID != destination || moved.Version != renamed.Version+1 {
+		t.Fatalf("move result parent=%v version=%d", moved.ParentID, moved.Version)
 	}
 
-	expect(t, call(t, api, http.MethodPatch, categoryPath, map[string]string{
-		"categoryId": alternative, "expectedCategoryId": created.CategoryID,
+	expect(t, call(t, api, http.MethodPatch, parentPath, map[string]any{
+		"parentId": alternative, "expectedParentId": nil,
 	}), http.StatusConflict)
-	expect(t, call(t, api, http.MethodPatch, categoryPath, map[string]string{
-		"categoryId": destination, "expectedCategoryId": created.CategoryID,
+	expect(t, call(t, api, http.MethodPatch, parentPath, map[string]any{
+		"parentId": destination, "expectedParentId": nil,
 	}), http.StatusConflict)
 
 	persisted := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/"+created.ID, nil))
-	if persisted.Title != renamed.Title || persisted.CategoryID != destination || persisted.Version != moved.Version {
+	if persisted.Title != renamed.Title || persisted.ParentID == nil || *persisted.ParentID != destination || persisted.Version != moved.Version {
 		t.Fatalf("stale metadata request mutated persisted workspace: %+v", persisted.WorkspaceSummary)
 	}
 	if persisted.CanvasVersion != created.CanvasVersion {
@@ -677,8 +648,8 @@ func TestWorkspaceMetadataNoopsDoNotIncrementVersionOrInvalidateSnapshots(t *tes
 	rename := decodeWorkspace(t, call(t, api, http.MethodPatch, "/api/workspaces/"+before.ID+"/title", map[string]string{
 		"title": before.Title, "expectedTitle": before.Title,
 	}))
-	move := decodeWorkspace(t, call(t, api, http.MethodPatch, "/api/workspaces/"+before.ID+"/category", map[string]string{
-		"categoryId": before.CategoryID, "expectedCategoryId": before.CategoryID,
+	move := decodeWorkspace(t, call(t, api, http.MethodPatch, "/api/workspaces/"+before.ID+"/parent", map[string]any{
+		"parentId": nil, "expectedParentId": nil,
 	}))
 	after := decodeWorkspace(t, call(t, api, http.MethodGet, "/api/workspaces/"+before.ID, nil))
 	if rename.Version != before.Version || move.Version != before.Version || after.Version != before.Version {

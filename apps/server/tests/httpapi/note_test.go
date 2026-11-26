@@ -203,16 +203,18 @@ func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
 		t.Fatalf("unexpected note-1 summary: %+v", listPayload.Notes[1])
 	}
 
-	// Limit and query filtering.
-	limitRes := call(t, api, http.MethodGet, "/api/notes?limit=1", nil)
+	// Limit, offset, and query filtering.
+	limitRes := call(t, api, http.MethodGet, "/api/notes?limit=1&offset=0&sort=title", nil)
 	expect(t, limitRes, http.StatusOK)
 	var limitPayload domain.NoteListResult
 	if err := json.Unmarshal(limitRes.Body.Bytes(), &limitPayload); err != nil {
 		t.Fatal(err)
 	}
-	if len(limitPayload.Notes) != 1 {
-		t.Fatalf("GET /api/notes?limit=1 len = %d, want 1", len(limitPayload.Notes))
+	if len(limitPayload.Notes) != 1 || limitPayload.Total != 2 || !limitPayload.HasMore || limitPayload.Notes[0].ID != "http-note-1" {
+		t.Fatalf("GET /api/notes?limit=1&sort=title = %+v", limitPayload)
 	}
+	expect(t, call(t, api, http.MethodGet, "/api/notes?placed=invalid", nil), http.StatusBadRequest)
+	expect(t, call(t, api, http.MethodGet, "/api/notes?sort=invalid", nil), http.StatusBadRequest)
 
 	queryRes := call(t, api, http.MethodGet, "/api/notes?q=detailed", nil)
 	expect(t, queryRes, http.StatusOK)
@@ -227,8 +229,8 @@ func TestListNotesAndNoteInfoHTTPContracts(t *testing.T) {
 	// Noise query must return empty list.
 	noiseRes := call(t, api, http.MethodGet, "/api/notes?q=paragraph", nil)
 	expect(t, noiseRes, http.StatusOK)
-	if strings.TrimSpace(noiseRes.Body.String()) != `{"notes":[]}` {
-		t.Fatalf("noise query body = %s, want {\"notes\":[]}", noiseRes.Body.String())
+	if strings.TrimSpace(noiseRes.Body.String()) != `{"notes":[],"total":0,"hasMore":false}` {
+		t.Fatalf("noise query body = %s, want {\"notes\":[],\"total\":0,\"hasMore\":false}", noiseRes.Body.String())
 	}
 
 	// Validation errors on query params.

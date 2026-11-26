@@ -146,8 +146,48 @@ func Validate(ctx context.Context, q queryContext) error {
 
 type TransactionHook func(context.Context, *sql.Tx, string) error
 
+func requiresForeignKeysOff(name string) bool {
+	return name == WorkspaceHierarchyMigration
+}
+
 func Run(ctx context.Context, db *sql.DB) error {
 	return RunWithHook(ctx, db, nil)
+}
+
+func applyMigration(ctx context.Context, db *sql.DB, name string, contents []byte, wantChecksum string, hook TransactionHook) error {
+	fkOff := requiresForeignKeysOff(name)
+	if fkOff {
+		if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return fmt.Errorf("migration %s: disable foreign keys: %w", name, err)
+		}
+		defer func() { _, _ = db.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`) }()
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, string(contents)); err == nil && hook != nil {
+		err = hook(ctx, tx, name)
+	}
+	if err == nil && fkOff {
+		err = Validate(ctx, tx)
+	}
+	if err == nil {
+		_, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, wantChecksum, time.Now().UTC().Format(time.RFC3339Nano))
+	}
+	if err == nil {
+		var fingerprint string
+		fingerprint, err = schemaFingerprint(ctx, tx)
+		if err == nil {
+			_, err = tx.ExecContext(ctx, `INSERT INTO schema_state(key,value) VALUES ('schema_fingerprint',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, fingerprint)
+		}
+	}
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	return tx.Commit()
 }
 
 func RunWithHook(ctx context.Context, db *sql.DB, hook TransactionHook) error {
@@ -190,28 +230,7 @@ func RunWithHook(ctx context.Context, db *sql.DB, hook TransactionHook) error {
 			return err
 		}
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, string(contents)); err == nil && hook != nil {
-			err = hook(ctx, tx, name)
-		}
-		if err == nil {
-			_, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(name,checksum,applied_at) VALUES (?,?,?)`, name, wantChecksum, time.Now().UTC().Format(time.RFC3339Nano))
-		}
-		if err == nil {
-			var fingerprint string
-			fingerprint, err = schemaFingerprint(ctx, tx)
-			if err == nil {
-				_, err = tx.ExecContext(ctx, `INSERT INTO schema_state(key,value) VALUES ('schema_fingerprint',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, fingerprint)
-			}
-		}
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-		if err = tx.Commit(); err != nil {
+		if err := applyMigration(ctx, db, name, contents, wantChecksum, hook); err != nil {
 			return err
 		}
 		slog.Info("migration applied", "name", name)

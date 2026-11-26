@@ -1,6 +1,7 @@
 import type { NoteDocument } from "../../entities/note";
 import type { Snapshot } from "../../entities/workspace";
 import { fetchTransport, json, request, type HttpTransport } from "./client";
+import type { Tag } from "./tag-api";
 
 export type Note = {
   id: string;
@@ -62,14 +63,33 @@ export type NoteSummary = {
   placementCount: number;
   workspaceIds: string[];
   isEmpty: boolean;
+  tags?: Tag[];
+  relatedReason?: string;
   createdAt: string;
   updatedAt: string;
 };
 
+export type NotePlacedFilter = "all" | "placed" | "unplaced";
+export type NoteSortMode = "updated" | "created" | "title";
+export type NoteCollectionScope = "all" | "related";
+
 export type ListNotesParams = {
   q?: string;
+  placed?: NotePlacedFilter;
   unplaced?: boolean;
+  workspaceId?: string;
+  sort?: NoteSortMode;
+  tagIds?: string[];
+  scope?: NoteCollectionScope;
+  selectedNoteId?: string;
+  offset?: number;
   limit?: number;
+};
+
+export type NoteListPage = {
+  notes: NoteSummary[];
+  total: number;
+  hasMore: boolean;
 };
 
 export type NotePlacementInfo = {
@@ -85,20 +105,32 @@ export type NoteBacklinkKind = "link" | "embed" | "blockRef";
 export type NoteBacklinkInfo = {
   noteId: string;
   label: string;
+  excerpt?: string;
   workspaceId: string;
   workspaceTitle: string;
   kind: NoteBacklinkKind;
 };
 
+export type NoteOutgoingRefInfo = {
+  noteId: string;
+  label: string;
+  excerpt?: string;
+  kind: NoteBacklinkKind;
+  unresolved?: boolean;
+};
+
 export type NoteInfo = {
   noteId: string;
+  tags?: Tag[];
   placements: NotePlacementInfo[];
   backlinks: NoteBacklinkInfo[];
+  outgoing?: NoteOutgoingRefInfo[];
 };
 
 interface NoteHttpClient {
   getNote(noteId: string): Promise<Note>;
   listNotes(params?: ListNotesParams): Promise<NoteSummary[]>;
+  listNotesPage(params?: ListNotesParams): Promise<NoteListPage>;
   getNoteInfo(noteId: string): Promise<NoteInfo>;
   updateNote(noteId: string, document: NoteDocument, expectedRevision: number): Promise<Note>;
   createNoteInstance(workspaceId: string, request: CreateNoteInstanceRequest): Promise<CreateNoteInstanceResult>;
@@ -110,19 +142,45 @@ interface NoteHttpClient {
   deleteTrashedNote(noteId: string): Promise<void>;
 }
 
+function buildListNotesQuery(params?: ListNotesParams): string {
+  const search = new URLSearchParams();
+  const query = params?.q?.trim();
+  if (query) search.set("q", query);
+  if (params?.placed && params.placed !== "all") search.set("placed", params.placed);
+  if (params?.unplaced) search.set("unplaced", "true");
+  if (params?.workspaceId) search.set("workspaceId", params.workspaceId);
+  if (params?.sort) search.set("sort", params.sort);
+  if (params?.tagIds?.length) {
+    const cleanTagIds = params.tagIds.filter(Boolean);
+    if (cleanTagIds.length) search.set("tagIds", cleanTagIds.join(","));
+  }
+  if (params?.scope && params.scope !== "all") search.set("scope", params.scope);
+  if (params?.selectedNoteId) search.set("selectedNoteId", params.selectedNoteId);
+  if (typeof params?.offset === "number" && Number.isFinite(params.offset) && params.offset > 0) {
+    search.set("offset", String(Math.floor(params.offset)));
+  }
+  if (typeof params?.limit === "number" && Number.isFinite(params.limit) && params.limit > 0) {
+    search.set("limit", String(Math.floor(params.limit)));
+  }
+  return search.toString();
+}
+
 function createNoteHttpClient(transport: HttpTransport = fetchTransport): NoteHttpClient {
   return {
     getNote: (noteId) => request<Note>(`/api/notes/${encodeURIComponent(noteId)}`, undefined, transport),
+    listNotesPage: async (params) => {
+      const qs = buildListNotesQuery(params);
+      const response = await request<{ notes?: NoteSummary[]; total?: number; hasMore?: boolean }>(`/api/notes${qs ? `?${qs}` : ""}`, undefined, transport);
+      const notes = Array.isArray(response?.notes) ? response.notes : [];
+      return {
+        notes,
+        total: typeof response?.total === "number" ? response.total : notes.length,
+        hasMore: Boolean(response?.hasMore),
+      };
+    },
     listNotes: async (params) => {
-      const search = new URLSearchParams();
-      const query = params?.q?.trim();
-      if (query) search.set("q", query);
-      if (params?.unplaced) search.set("unplaced", "true");
-      if (typeof params?.limit === "number" && Number.isFinite(params.limit) && params.limit > 0) {
-        search.set("limit", String(Math.floor(params.limit)));
-      }
-      const qs = search.toString();
-      const response = await request<{ notes: NoteSummary[] }>(`/api/notes${qs ? `?${qs}` : ""}`, undefined, transport);
+      const qs = buildListNotesQuery(params);
+      const response = await request<{ notes?: NoteSummary[] }>(`/api/notes${qs ? `?${qs}` : ""}`, undefined, transport);
       return Array.isArray(response?.notes) ? response.notes : [];
     },
     getNoteInfo: (noteId) => request<NoteInfo>(`/api/notes/${encodeURIComponent(noteId)}/info`, undefined, transport),
@@ -152,6 +210,7 @@ function createNoteHttpClient(transport: HttpTransport = fetchTransport): NoteHt
 const defaultClient = createNoteHttpClient();
 export const getNote = defaultClient.getNote;
 export const listNotes = defaultClient.listNotes;
+export const listNotesPage = defaultClient.listNotesPage;
 export const getNoteInfo = defaultClient.getNoteInfo;
 export const updateNote = defaultClient.updateNote;
 export const createNoteInstance = defaultClient.createNoteInstance;

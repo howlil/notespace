@@ -13,12 +13,12 @@ func (h *Handler) ListNotes(w http.ResponseWriter, r *http.Request) {
 		transport.Fail(w, err)
 		return
 	}
-	items, err := h.deps.Library.ListNotes(r.Context(), query)
+	result, err := h.deps.Library.ListNotes(r.Context(), query)
 	if err != nil {
 		transport.Fail(w, err)
 		return
 	}
-	transport.SendJSON(w, http.StatusOK, domain.NoteListResult{Notes: items})
+	transport.SendJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) GetNote(w http.ResponseWriter, r *http.Request) {

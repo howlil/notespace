@@ -38,11 +38,15 @@ func (s *Store) RestoreBackupArchive(ctx context.Context, data []byte) error {
 func (s *Store) SnapshotLibrary(ctx context.Context) (domain.LibraryBackup, error) {
 	var out domain.LibraryBackup
 	err := s.db.WithReadTx(ctx, func(tx *sql.Tx) error {
-		categories, err := listCategoriesTx(ctx, tx)
+		notes, err := snapshotNotesTx(ctx, tx)
 		if err != nil {
 			return err
 		}
-		notes, err := snapshotNotesTx(ctx, tx)
+		tags, err := snapshotTagsTx(ctx, tx)
+		if err != nil {
+			return err
+		}
+		noteTags, err := snapshotNoteTagsTx(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -51,6 +55,10 @@ func (s *Store) SnapshotLibrary(ctx context.Context) (domain.LibraryBackup, erro
 			return err
 		}
 		trash, err := listTrashRecordsTx(ctx, tx)
+		if err != nil {
+			return err
+		}
+		redirects, err := listCategoryRedirectsTx(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -78,9 +86,11 @@ func (s *Store) SnapshotLibrary(ctx context.Context) (domain.LibraryBackup, erro
 			Version:     domain.LibraryBackupVersion,
 			GeneratedAt: sqlite.NowUTC(),
 			Notes:       notes,
-			Categories:  categories,
+			Tags:        tags,
+			NoteTags:    noteTags,
 			Workspaces:  workspaces,
 			Trash:       trash,
+			Redirects:   redirects,
 		}
 		return nil
 	})
@@ -98,40 +108,59 @@ func (s *Store) restoreLibrary(ctx context.Context, value domain.LibraryBackup) 
 	if err := domain.ValidateLibraryBackup(value); err != nil {
 		return err
 	}
+	orderedWorkspaces, err := orderWorkspacesTopologically(value.Workspaces)
+	if err != nil {
+		return err
+	}
 	err = s.db.WithTx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range []string{
 			`DELETE FROM workspace_search`,
 			`DELETE FROM workspace_search_meta`,
 			`DELETE FROM canvas_note_search_meta`,
+			`DELETE FROM note_references`,
+			`DELETE FROM note_tags`,
+			`DELETE FROM tags`,
 			`DELETE FROM canvas_note_create_requests`,
 			`DELETE FROM canvas_note_instances`,
 			`DELETE FROM canvas_notes`,
 			`DELETE FROM workspace_asset_tombstones`,
 			`DELETE FROM workspace_assets`,
 			`DELETE FROM workspace_trash`,
+			`DELETE FROM category_workspace_redirects`,
 			`DELETE FROM workspace_canvas`,
 			`DELETE FROM projects`,
-			`DELETE FROM categories`,
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
-				return err
-			}
-		}
-		for _, category := range value.Categories {
-			if err := insertCategoryTx(ctx, tx, category); err != nil {
 				return err
 			}
 		}
 		if err := restoreNotesTx(ctx, tx, value.Notes); err != nil {
 			return err
 		}
-		for _, envelope := range value.Workspaces {
-			if err := restoreWorkspaceEnvelopeTx(ctx, tx, envelope, envelope.Project.CategoryID); err != nil {
+		if err := restoreTagsTx(ctx, tx, value.Tags); err != nil {
+			return err
+		}
+		if err := restoreNoteTagsTx(ctx, tx, value.NoteTags); err != nil {
+			return err
+		}
+		if err := rebuildAllNoteReferencesTx(ctx, tx); err != nil {
+			return err
+		}
+		for _, envelope := range orderedWorkspaces {
+			if err := restoreWorkspaceEnvelopeTx(ctx, tx, envelope, envelope.Project.ParentID); err != nil {
+				return err
+			}
+		}
+		for _, redirect := range value.Redirects {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO category_workspace_redirects(legacy_category_id,workspace_id) VALUES (?,?)`,
+				redirect.LegacyCategoryID, redirect.WorkspaceID,
+			); err != nil {
 				return err
 			}
 		}
 		for _, record := range value.Trash {
-			if err := insertTrashTx(ctx, tx, record.ID, record.CategoryID, record.Title, record.DeletedAt, record.Payload); err != nil {
+			if err := insertTrashTx(ctx, tx, record.ID, record.ParentID, record.Title, record.DeletedAt, record.Payload); err != nil {
 				return err
 			}
 		}
@@ -144,11 +173,65 @@ func (s *Store) restoreLibrary(ctx context.Context, value domain.LibraryBackup) 
 	return nil
 }
 
+func orderWorkspacesTopologically(envelopes []domain.WorkspaceEnvelope) ([]domain.WorkspaceEnvelope, error) {
+	byID := make(map[string]domain.WorkspaceEnvelope, len(envelopes))
+	for _, env := range envelopes {
+		byID[env.Project.ID] = env
+	}
+	ordered := make([]domain.WorkspaceEnvelope, 0, len(envelopes))
+	state := make(map[string]uint8, len(envelopes)) // 1 = visiting, 2 = visited
+	var visit func(id string) error
+	visit = func(id string) error {
+		switch state[id] {
+		case 2:
+			return nil
+		case 1:
+			return domain.ErrBackupInvalid
+		}
+		state[id] = 1
+		env, ok := byID[id]
+		if !ok {
+			return domain.ErrBackupInvalid
+		}
+		if env.Project.ParentID != nil {
+			if err := visit(*env.Project.ParentID); err != nil {
+				return err
+			}
+		}
+		state[id] = 2
+		ordered = append(ordered, env)
+		return nil
+	}
+	for _, env := range envelopes {
+		if err := visit(env.Project.ID); err != nil {
+			return nil, err
+		}
+	}
+	return ordered, nil
+}
+
 // --- SQLite snapshot, restore & trash helpers ---
+
+func listCategoryRedirectsTx(ctx context.Context, tx sqlite.DBTX) ([]domain.CategoryRedirect, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT legacy_category_id,workspace_id FROM category_workspace_redirects ORDER BY legacy_category_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	redirects := []domain.CategoryRedirect{}
+	for rows.Next() {
+		var r domain.CategoryRedirect
+		if err := rows.Scan(&r.LegacyCategoryID, &r.WorkspaceID); err != nil {
+			return nil, err
+		}
+		redirects = append(redirects, r)
+	}
+	return redirects, rows.Err()
+}
 
 func snapshotAllWorkspacesTx(ctx context.Context, tx sqlite.DBTX) ([]domain.WorkspaceEnvelope, error) {
 	wsRows, err := tx.QueryContext(ctx, `
-		SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,c.canvas_state,c.version
+		SELECT p.id,p.parent_id,p.title,p.created_at,p.updated_at,p.version,c.canvas_state,c.version
 		FROM projects p
 		JOIN workspace_canvas c ON c.workspace_id=p.id
 		ORDER BY p.updated_at DESC,p.id`)
@@ -160,9 +243,14 @@ func snapshotAllWorkspacesTx(ctx context.Context, tx sqlite.DBTX) ([]domain.Work
 	indexByID := map[string]int{}
 	for wsRows.Next() {
 		var ws domain.Workspace
+		var parent sql.NullString
 		var encodedCanvas string
-		if err := wsRows.Scan(&ws.ID, &ws.CategoryID, &ws.Title, &ws.CreatedAt, &ws.UpdatedAt, &ws.Version, &encodedCanvas, &ws.CanvasVersion); err != nil {
+		if err := wsRows.Scan(&ws.ID, &parent, &ws.Title, &ws.CreatedAt, &ws.UpdatedAt, &ws.Version, &encodedCanvas, &ws.CanvasVersion); err != nil {
 			return nil, err
+		}
+		if parent.Valid {
+			val := parent.String
+			ws.ParentID = &val
 		}
 		if err := json.Unmarshal([]byte(encodedCanvas), &ws.Canvas); err != nil {
 			return nil, err
@@ -279,13 +367,13 @@ func snapshotWorkspaceEnvelopeTx(ctx context.Context, tx sqlite.DBTX, id string)
 	return domain.WorkspaceEnvelope{Project: ws, Assets: assets, NoteInstances: instances}, nil
 }
 
-func restoreWorkspaceEnvelopeTx(ctx context.Context, tx sqlite.DBTX, envelope domain.WorkspaceEnvelope, categoryID string) error {
+func restoreWorkspaceEnvelopeTx(ctx context.Context, tx sqlite.DBTX, envelope domain.WorkspaceEnvelope, parentID *string) error {
 	scene, err := domain.ParseScene(envelope.Project.Canvas)
 	if err != nil {
 		return domain.ErrWorkspaceInvalid
 	}
 	ws := envelope.Project
-	ws.CategoryID = categoryID
+	ws.ParentID = parentID
 	if err := insertWorkspaceTx(ctx, tx, ws, scene.ActiveElementCount()); err != nil {
 		return err
 	}
@@ -339,17 +427,22 @@ func restoreNoteInstancesTx(ctx context.Context, tx sqlite.DBTX, workspaceID str
 	return nil
 }
 
-func insertTrashTx(ctx context.Context, tx sqlite.DBTX, id, categoryID, title, deletedAt string, envelope domain.WorkspaceEnvelope) error {
+func insertTrashTx(ctx context.Context, tx sqlite.DBTX, id string, parentID *string, title, deletedAt string, envelope domain.WorkspaceEnvelope) error {
+	envelope.Project.ParentID = parentID
 	payload, err := archive.EncodeTrashEnvelope(envelope)
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_trash(id,category_id,title,deleted_at,payload) VALUES (?,?,?,?,?)`, id, categoryID, title, deletedAt, payload)
+	var parentArg any
+	if parentID != nil {
+		parentArg = *parentID
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO workspace_trash(id,parent_id,title,deleted_at,payload) VALUES (?,?,?,?,?)`, id, parentArg, title, deletedAt, payload)
 	return err
 }
 
 func listTrashRecordsTx(ctx context.Context, tx sqlite.DBTX) ([]domain.TrashRecord, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id,category_id,title,deleted_at,payload FROM workspace_trash ORDER BY deleted_at DESC,id`)
+	rows, err := tx.QueryContext(ctx, `SELECT id,parent_id,title,deleted_at,payload FROM workspace_trash ORDER BY deleted_at DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -357,9 +450,14 @@ func listTrashRecordsTx(ctx context.Context, tx sqlite.DBTX) ([]domain.TrashReco
 	records := []domain.TrashRecord{}
 	for rows.Next() {
 		var record domain.TrashRecord
+		var parent sql.NullString
 		var payload []byte
-		if err := rows.Scan(&record.ID, &record.CategoryID, &record.Title, &record.DeletedAt, &payload); err != nil {
+		if err := rows.Scan(&record.ID, &parent, &record.Title, &record.DeletedAt, &payload); err != nil {
 			return nil, err
+		}
+		if parent.Valid {
+			val := parent.String
+			record.ParentID = &val
 		}
 		if err := archive.DecodeTrashEnvelope(payload, &record.Payload); err != nil {
 			return nil, fmt.Errorf("decode trash payload %s: %w", record.ID, err)
@@ -371,14 +469,19 @@ func listTrashRecordsTx(ctx context.Context, tx sqlite.DBTX) ([]domain.TrashReco
 
 func readTrashTx(ctx context.Context, tx sqlite.DBTX, id string) (domain.TrashRecord, error) {
 	var record domain.TrashRecord
+	var parent sql.NullString
 	var payload []byte
-	err := tx.QueryRowContext(ctx, `SELECT id,category_id,title,deleted_at,payload FROM workspace_trash WHERE id=?`, id).
-		Scan(&record.ID, &record.CategoryID, &record.Title, &record.DeletedAt, &payload)
+	err := tx.QueryRowContext(ctx, `SELECT id,parent_id,title,deleted_at,payload FROM workspace_trash WHERE id=?`, id).
+		Scan(&record.ID, &parent, &record.Title, &record.DeletedAt, &payload)
 	if errors.Is(err, sql.ErrNoRows) {
 		return record, domain.ErrWorkspaceNotFound
 	}
 	if err != nil {
 		return record, err
+	}
+	if parent.Valid {
+		val := parent.String
+		record.ParentID = &val
 	}
 	if err := archive.DecodeTrashEnvelope(payload, &record.Payload); err != nil {
 		return record, fmt.Errorf("decode trash envelope: %w", err)
@@ -386,7 +489,7 @@ func readTrashTx(ctx context.Context, tx sqlite.DBTX, id string) (domain.TrashRe
 	return record, nil
 }
 
-// --- Migration hook: retired-artifact scrubs (0026, 0031) and rich Note conversion (0033) ---
+// --- Migration hook: retired-artifact scrubs (0026, 0031), rich Note conversion (0033), and hierarchy upgrade (0035) ---
 
 func scrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx, name string) error {
 	switch name {
@@ -419,6 +522,10 @@ func scrubRetiredNoteArtifactsTx(ctx context.Context, tx *sql.Tx, name string) e
 		return scrubRetiredTrashTx(ctx, tx)
 	case migrations.NoteMarkdownMigration:
 		return convertNotesToMarkdownTx(ctx, tx)
+	case migrations.WorkspaceHierarchyMigration:
+		return verifyAndUpgradeWorkspaceHierarchyTx(ctx, tx)
+	case migrations.NoteReferencesAndTagsMigration:
+		return rebuildAllNoteReferencesTx(ctx, tx)
 	default:
 		return nil
 	}

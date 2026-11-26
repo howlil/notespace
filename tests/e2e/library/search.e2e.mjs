@@ -14,7 +14,7 @@ test("critical: global search finds a Workspace and opens its Canvas", async () 
   try {
     await goto("/");
     await click(role("button", "Search Notespace", { exact: true }));
-    const field = placeholder("Search workspaces, notes, or categories…");
+    const field = placeholder("Search workspaces or notes…");
     await fill(field, token);
     await click(role("button", new RegExp(token), { scope: role("dialog", "Quick Open"), index: 0 }));
     await waitUrl(new RegExp(`/workspaces/${workspace.id}$`));
@@ -41,7 +41,7 @@ test("Quick Open does not report an empty result during pending search or retrya
 
   const quickOpen = role("dialog", "Quick Open");
   await visible(quickOpen);
-  const search = placeholder("Search workspaces, notes, or categories…");
+  const search = placeholder("Search workspaces or notes…");
   await visible(search);
   await fill(search, "no-results-for-quick-open-query");
 

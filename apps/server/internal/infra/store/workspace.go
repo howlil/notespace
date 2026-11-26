@@ -13,131 +13,73 @@ import (
 	"github.com/howlil/notespace/apps/server/internal/infra/store/paging"
 )
 
-const workspaceColumns = `id,category_id,title,created_at,updated_at,version`
+const workspaceColumns = `id,parent_id,title,created_at,updated_at,version`
 
-func (s *Store) CreateCategory(ctx context.Context, title string) (domain.CategorySummary, error) {
-	title = strings.TrimSpace(title)
-	if !domain.ValidTitle(title) {
-		return domain.CategorySummary{}, domain.ErrWorkspaceInvalid
+func normalizeParentID(parentID *string) (*string, error) {
+	if parentID == nil {
+		return nil, nil
 	}
-	now := sqlite.NowUTC()
-	category := domain.CategorySummary{
-		ID:        rand.Text(),
-		Title:     title,
-		CreatedAt: now,
-		UpdatedAt: now,
+	trimmed := strings.TrimSpace(*parentID)
+	if trimmed == "" {
+		return nil, nil
 	}
-	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
-		return insertCategoryTx(ctx, tx, category)
-	})
-	return category, err
+	if !domain.ValidID(trimmed, domain.MaxIDLength) {
+		return nil, domain.ErrWorkspaceInvalid
+	}
+	return &trimmed, nil
 }
 
-func (s *Store) UpdateCategory(ctx context.Context, id, title string) (domain.CategorySummary, error) {
-	id = strings.TrimSpace(id)
-	title = strings.TrimSpace(title)
-	if id == "" || !domain.ValidTitle(title) {
-		return domain.CategorySummary{}, domain.ErrWorkspaceInvalid
+func sameParentID(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
 	}
-	var out domain.CategorySummary
-	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
-		now := sqlite.NowUTC()
-		err := tx.QueryRowContext(ctx,
-			`UPDATE categories SET title=?,updated_at=? WHERE id=? RETURNING id,title,created_at,updated_at`,
-			title, now, id,
-		).Scan(&out.ID, &out.Title, &out.CreatedAt, &out.UpdatedAt)
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.ErrWorkspaceNotFound
-		}
-		return err
-	})
-	return out, err
-}
-
-func (s *Store) DeleteCategory(ctx context.Context, id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" || id == domain.UncategorizedCategoryID {
-		return domain.ErrWorkspaceInvalid
+	if a == nil || b == nil {
+		return false
 	}
-	return s.db.WithTx(ctx, func(tx *sql.Tx) error {
-		exists, err := categoryExistsTx(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return domain.ErrWorkspaceNotFound
-		}
-		var active int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE category_id=?`, id).Scan(&active); err != nil {
-			return err
-		}
-		if active > 0 {
-			return domain.ErrCategoryNotEmpty
-		}
-		var trashed int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workspace_trash WHERE category_id=?`, id).Scan(&trashed); err != nil {
-			return err
-		}
-		if trashed > 0 {
-			return domain.ErrCategoryNotEmpty
-		}
-		result, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id=?`, id)
-		if err != nil {
-			return err
-		}
-		count, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if count != 1 {
-			return domain.ErrWorkspaceNotFound
-		}
-		return nil
-	})
+	return *a == *b
 }
 
-func (s *Store) ListCategories(ctx context.Context) ([]domain.CategorySummary, error) {
-	return listCategoriesTx(ctx, s.db.ReadPool())
-}
-
-// CreateWorkspace creates a workspace in the optional category (defaulting to
-// domain.UncategorizedCategoryID) with a server-generated ID.
-func (s *Store) CreateWorkspace(ctx context.Context, title string, categoryID ...string) (domain.Workspace, error) {
-	cat := ""
-	if len(categoryID) > 0 {
-		cat = categoryID[0]
+// CreateWorkspace creates a workspace under an optional parentID (nil for root)
+// with a server-generated ID.
+func (s *Store) CreateWorkspace(ctx context.Context, title string, parentID ...*string) (domain.Workspace, error) {
+	var parent *string
+	if len(parentID) > 0 {
+		parent = parentID[0]
 	}
-	return s.CreateWorkspaceWithID(ctx, "", title, cat)
+	return s.CreateWorkspaceWithID(ctx, "", title, parent)
 }
 
-// CreateWorkspaceWithID atomically validates category existence, checks
+// CreateWorkspaceWithID atomically validates parent existence, checks
 // idempotent client-ID replay, and inserts the workspace in one write tx.
-func (s *Store) CreateWorkspaceWithID(ctx context.Context, id, title, categoryID string) (domain.Workspace, error) {
+func (s *Store) CreateWorkspaceWithID(ctx context.Context, id, title string, parentID *string) (domain.Workspace, error) {
 	title = strings.TrimSpace(title)
+	id = strings.TrimSpace(id)
 	if id != "" && !domain.ValidID(id, domain.MaxIDLength) {
 		return domain.Workspace{}, domain.ErrWorkspaceInvalid
 	}
 	if !domain.ValidTitle(title) {
 		return domain.Workspace{}, domain.ErrWorkspaceInvalid
 	}
-	category := domain.UncategorizedCategoryID
-	if strings.TrimSpace(categoryID) != "" {
-		category = strings.TrimSpace(categoryID)
+	parent, err := normalizeParentID(parentID)
+	if err != nil {
+		return domain.Workspace{}, err
 	}
 
 	var out domain.Workspace
-	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
-		exists, err := categoryExistsTx(ctx, tx, category)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return domain.ErrWorkspaceInvalid
+	err = s.db.WithTx(ctx, func(tx *sql.Tx) error {
+		if parent != nil {
+			exists, err := workspaceExistsTx(ctx, tx, *parent)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return domain.ErrWorkspaceNotFound
+			}
 		}
 		if id != "" {
 			existing, err := snapshotWorkspaceRecordTx(ctx, tx, id)
 			if err == nil {
-				if existing.Title == title && existing.CategoryID == category {
+				if existing.Title == title && sameParentID(existing.ParentID, parent) {
 					out = existing
 					return nil
 				}
@@ -153,18 +95,25 @@ func (s *Store) CreateWorkspaceWithID(ctx context.Context, id, title, categoryID
 		now := sqlite.NowUTC()
 		created := domain.Workspace{
 			WorkspaceSummary: domain.WorkspaceSummary{
-				ID:         id,
-				CategoryID: category,
-				Title:      title,
-				CreatedAt:  now,
-				UpdatedAt:  now,
-				Version:    1,
+				ID:        id,
+				ParentID:  parent,
+				Title:     title,
+				CreatedAt: now,
+				UpdatedAt: now,
+				Version:   1,
 			},
 			Canvas:        domain.CanvasSnapshot{Format: "excalidraw", Version: 1, Data: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)},
 			CanvasVersion: 1,
 		}
 		if err := insertWorkspaceTx(ctx, tx, created, 0); err != nil {
 			return err
+		}
+		if created.ParentID != nil {
+			ancestors, err := listWorkspaceAncestorsTx(ctx, tx, created.ParentID)
+			if err != nil {
+				return err
+			}
+			created.Ancestors = ancestors
 		}
 		out = created
 		return nil
@@ -214,38 +163,127 @@ func (s *Store) RenameWorkspace(ctx context.Context, id, title string, expectedT
 	return out, err
 }
 
-func (s *Store) MoveWorkspace(ctx context.Context, id, categoryID string, expectedCategory *string) (domain.Workspace, error) {
+func (s *Store) MoveWorkspaceParent(ctx context.Context, id string, parentID *string, expectedParent domain.OptionalString) (domain.Workspace, error) {
 	id = strings.TrimSpace(id)
-	categoryID = strings.TrimSpace(categoryID)
-	if id == "" || categoryID == "" {
+	if !domain.ValidID(id, domain.MaxIDLength) {
 		return domain.Workspace{}, domain.ErrWorkspaceInvalid
 	}
+	targetParent, err := normalizeParentID(parentID)
+	if err != nil {
+		return domain.Workspace{}, err
+	}
+	var expectedNormalized *string
+	if expectedParent.Set {
+		expectedNormalized, err = normalizeParentID(expectedParent.Value)
+		if err != nil {
+			return domain.Workspace{}, err
+		}
+	}
+
 	var out domain.Workspace
-	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
-		exists, err := categoryExistsTx(ctx, tx, categoryID)
+	err = s.db.WithTx(ctx, func(tx *sql.Tx) error {
+		var currentNull sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT parent_id FROM projects WHERE id=?`, id).Scan(&currentNull); err != nil {
+			return workspaceReadError(err)
+		}
+		var currentParent *string
+		if currentNull.Valid {
+			val := currentNull.String
+			currentParent = &val
+		}
+		if expectedParent.Set && !sameParentID(currentParent, expectedNormalized) {
+			return domain.ErrWorkspaceConflict
+		}
+		if targetParent != nil {
+			if *targetParent == id {
+				return domain.ErrWorkspaceCycle
+			}
+			exists, err := workspaceExistsTx(ctx, tx, *targetParent)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return domain.ErrWorkspaceNotFound
+			}
+			isDescendant, err := isAncestorOfTx(ctx, tx, id, *targetParent)
+			if err != nil {
+				return err
+			}
+			if isDescendant {
+				return domain.ErrWorkspaceCycle
+			}
+		}
+		if !sameParentID(currentParent, targetParent) {
+			now := sqlite.NowUTC()
+			var parentArg any
+			if targetParent != nil {
+				parentArg = *targetParent
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE projects SET parent_id=?,updated_at=?,version=version+1 WHERE id=?`, parentArg, now, id); err != nil {
+				return err
+			}
+		}
+		var err error
+		out, err = snapshotWorkspaceRecordTx(ctx, tx, id)
+		return err
+	})
+	return out, err
+}
+
+func (s *Store) ReparentWorkspaceChildren(ctx context.Context, sourceParentID string, targetParentID *string) (int, error) {
+	sourceParentID = strings.TrimSpace(sourceParentID)
+	if !domain.ValidID(sourceParentID, domain.MaxIDLength) {
+		return 0, domain.ErrWorkspaceInvalid
+	}
+	targetParent, err := normalizeParentID(targetParentID)
+	if err != nil {
+		return 0, err
+	}
+	moved := 0
+	err = s.db.WithTx(ctx, func(tx *sql.Tx) error {
+		exists, err := workspaceExistsTx(ctx, tx, sourceParentID)
 		if err != nil {
 			return err
 		}
 		if !exists {
 			return domain.ErrWorkspaceNotFound
 		}
-		var currentCategory string
-		if err := tx.QueryRowContext(ctx, `SELECT category_id FROM projects WHERE id=?`, id).Scan(&currentCategory); err != nil {
-			return workspaceReadError(err)
-		}
-		if expectedCategory != nil && currentCategory != *expectedCategory {
-			return domain.ErrWorkspaceConflict
-		}
-		if currentCategory != categoryID {
-			now := sqlite.NowUTC()
-			if _, err := tx.ExecContext(ctx, `UPDATE projects SET category_id=?,updated_at=?,version=version+1 WHERE id=?`, categoryID, now, id); err != nil {
+		if targetParent != nil {
+			if *targetParent == sourceParentID {
+				return domain.ErrWorkspaceCycle
+			}
+			targetExists, err := workspaceExistsTx(ctx, tx, *targetParent)
+			if err != nil {
 				return err
 			}
+			if !targetExists {
+				return domain.ErrWorkspaceNotFound
+			}
+			isDescendant, err := isAncestorOfTx(ctx, tx, sourceParentID, *targetParent)
+			if err != nil {
+				return err
+			}
+			if isDescendant {
+				return domain.ErrWorkspaceCycle
+			}
 		}
-		out, err = snapshotWorkspaceRecordTx(ctx, tx, id)
-		return err
+		now := sqlite.NowUTC()
+		var parentArg any
+		if targetParent != nil {
+			parentArg = *targetParent
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE projects SET parent_id=?,updated_at=?,version=version+1 WHERE parent_id=?`, parentArg, now, sourceParentID)
+		if err != nil {
+			return err
+		}
+		count, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		moved = int(count)
+		return nil
 	})
-	return out, err
+	return moved, err
 }
 
 func (s *Store) GetCanvasState(ctx context.Context, workspaceID string) (domain.CanvasState, error) {
@@ -280,10 +318,19 @@ func (s *Store) ListWorkspaces(ctx context.Context, query domain.WorkspaceQuery)
 		return domain.WorkspacePage{}, err
 	}
 	if normalized.Snapshot != "" {
-		return s.listWorkspaceSnapshot(ctx, normalized, false)
+		return s.listWorkspaceSnapshot(ctx, normalized)
 	}
 	var page domain.WorkspacePage
 	err = s.db.WithReadTx(ctx, func(tx *sql.Tx) error {
+		if normalized.ParentID != "" {
+			exists, err := workspaceExistsTx(ctx, tx, normalized.ParentID)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return domain.ErrWorkspaceNotFound
+			}
+		}
 		var err error
 		page, err = listWorkspacesTx(ctx, tx, normalized)
 		return err
@@ -291,40 +338,11 @@ func (s *Store) ListWorkspaces(ctx context.Context, query domain.WorkspaceQuery)
 	return page, err
 }
 
-// ListCategoryWorkspaces atomically verifies category existence and executes
-// the workspace query inside a single consistent WAL read transaction.
-func (s *Store) ListCategoryWorkspaces(ctx context.Context, categoryID string, query domain.WorkspaceQuery) (domain.WorkspacePage, error) {
-	categoryID = strings.TrimSpace(categoryID)
-	if categoryID == "" {
-		return domain.WorkspacePage{}, domain.ErrWorkspaceInvalid
-	}
-	query.CategoryID = categoryID
-	normalized, err := domain.NormalizeWorkspaceQuery(query)
-	if err != nil {
-		return domain.WorkspacePage{}, err
-	}
-	if normalized.Snapshot != "" {
-		return s.listWorkspaceSnapshot(ctx, normalized, true)
-	}
-	var page domain.WorkspacePage
-	err = s.db.WithReadTx(ctx, func(tx *sql.Tx) error {
-		exists, err := categoryExistsTx(ctx, tx, categoryID)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return domain.ErrWorkspaceNotFound
-		}
-		page, err = listWorkspacesTx(ctx, tx, normalized)
-		return err
-	})
-	return page, err
-}
-
-func (s *Store) listWorkspaceSnapshot(ctx context.Context, query domain.WorkspaceQuery, requireCategory bool) (domain.WorkspacePage, error) {
+func (s *Store) listWorkspaceSnapshot(ctx context.Context, query domain.WorkspaceQuery) (domain.WorkspacePage, error) {
+	requireParent := query.ParentID != ""
 	if query.Snapshot != domain.WorkspaceSnapshotStart {
-		if requireCategory {
-			exists, err := categoryExistsTx(ctx, s.db.ReadPool(), query.CategoryID)
+		if requireParent {
+			exists, err := workspaceExistsTx(ctx, s.db.ReadPool(), query.ParentID)
 			if err != nil {
 				return domain.WorkspacePage{}, err
 			}
@@ -336,8 +354,8 @@ func (s *Store) listWorkspaceSnapshot(ctx context.Context, query domain.Workspac
 	}
 	var items []domain.WorkspaceSummary
 	err := s.db.WithReadTx(ctx, func(tx *sql.Tx) error {
-		if requireCategory {
-			exists, err := categoryExistsTx(ctx, tx, query.CategoryID)
+		if requireParent {
+			exists, err := workspaceExistsTx(ctx, tx, query.ParentID)
 			if err != nil {
 				return err
 			}
@@ -345,9 +363,9 @@ func (s *Store) listWorkspaceSnapshot(ctx context.Context, query domain.Workspac
 				return domain.ErrWorkspaceNotFound
 			}
 		}
-		where, args, orderBy, hasCanvas := workspaceListingParts(query)
+		where, args, orderBy, childCountExpr, hasCanvasExpr := workspaceListingParts(query)
 		rows, err := tx.QueryContext(ctx,
-			`SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,`+hasCanvas+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ?`,
+			`SELECT p.id,p.parent_id,p.title,p.created_at,p.updated_at,p.version,`+childCountExpr+`,`+hasCanvasExpr+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ?`,
 			append(args, paging.MaxSnapshotRows+1)...,
 		)
 		if err != nil {
@@ -376,8 +394,15 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string, expectedVersion i
 		if envelope.Project.Version != expectedVersion {
 			return domain.ErrWorkspaceConflict
 		}
+		var childCount int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE parent_id=?`, id).Scan(&childCount); err != nil {
+			return err
+		}
+		if childCount > 0 {
+			return domain.ErrWorkspaceHasChildren
+		}
 		now := sqlite.NowUTC()
-		if err := insertTrashTx(ctx, tx, envelope.Project.ID, envelope.Project.CategoryID, envelope.Project.Title, now, envelope); err != nil {
+		if err := insertTrashTx(ctx, tx, envelope.Project.ID, envelope.Project.ParentID, envelope.Project.Title, now, envelope); err != nil {
 			return err
 		}
 		return deleteProjectTx(ctx, tx, id)
@@ -385,7 +410,11 @@ func (s *Store) TrashWorkspace(ctx context.Context, id string, expectedVersion i
 }
 
 func (s *Store) ListTrash(ctx context.Context) ([]domain.TrashItem, error) {
-	rows, err := s.db.ReadPool().QueryContext(ctx, `SELECT id,category_id,title,deleted_at FROM workspace_trash ORDER BY deleted_at DESC,id`)
+	rows, err := s.db.ReadPool().QueryContext(ctx, `
+		SELECT t.id,t.parent_id,COALESCE(p.title,''),t.title,t.deleted_at
+		FROM workspace_trash t
+		LEFT JOIN projects p ON p.id=t.parent_id
+		ORDER BY t.deleted_at DESC,t.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -393,8 +422,13 @@ func (s *Store) ListTrash(ctx context.Context) ([]domain.TrashItem, error) {
 	items := []domain.TrashItem{}
 	for rows.Next() {
 		var item domain.TrashItem
-		if err := rows.Scan(&item.ID, &item.CategoryID, &item.Title, &item.DeletedAt); err != nil {
+		var parent sql.NullString
+		if err := rows.Scan(&item.ID, &parent, &item.ParentTitle, &item.Title, &item.DeletedAt); err != nil {
 			return nil, err
+		}
+		if parent.Valid {
+			val := parent.String
+			item.ParentID = &val
 		}
 		items = append(items, item)
 	}
@@ -406,20 +440,24 @@ func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (domain.
 	if id == "" {
 		return domain.Workspace{}, domain.ErrWorkspaceInvalid
 	}
+	restoredToRoot := false
 	err := s.db.WithTx(ctx, func(tx *sql.Tx) error {
 		record, err := readTrashTx(ctx, tx, id)
 		if err != nil {
 			return err
 		}
-		categoryID := record.CategoryID
-		exists, err := categoryExistsTx(ctx, tx, categoryID)
-		if err != nil {
-			return err
+		parentID := record.ParentID
+		if parentID != nil {
+			exists, err := workspaceExistsTx(ctx, tx, *parentID)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				parentID = nil
+				restoredToRoot = true
+			}
 		}
-		if !exists {
-			categoryID = domain.UncategorizedCategoryID
-		}
-		if err := restoreWorkspaceEnvelopeTx(ctx, tx, record.Payload, categoryID); err != nil {
+		if err := restoreWorkspaceEnvelopeTx(ctx, tx, record.Payload, parentID); err != nil {
 			return err
 		}
 		result, err := tx.ExecContext(ctx, `DELETE FROM workspace_trash WHERE id=?`, id)
@@ -438,7 +476,12 @@ func (s *Store) RestoreTrashedWorkspace(ctx context.Context, id string) (domain.
 	if err != nil {
 		return domain.Workspace{}, err
 	}
-	return s.GetWorkspace(ctx, id)
+	ws, err := s.GetWorkspace(ctx, id)
+	if err != nil {
+		return domain.Workspace{}, err
+	}
+	ws.RestoredToRoot = restoredToRoot
+	return ws, nil
 }
 
 func (s *Store) DeleteTrashedWorkspace(ctx context.Context, id string) error {
@@ -467,6 +510,33 @@ func (s *Store) DeleteTrashedWorkspace(ctx context.Context, id string) error {
 		}
 		return nil
 	})
+}
+
+// ResolveLegacyCategory maps a retired category ID to its converted root
+// Workspace ID (or nil for the legacy Uncategorized bucket).
+func (s *Store) ResolveLegacyCategory(ctx context.Context, legacyCategoryID string) (*string, bool, error) {
+	legacyCategoryID = strings.TrimSpace(legacyCategoryID)
+	if legacyCategoryID == "" {
+		return nil, false, domain.ErrWorkspaceInvalid
+	}
+	if legacyCategoryID == domain.UncategorizedCategoryID {
+		return nil, true, nil
+	}
+	var workspaceID string
+	err := s.db.ReadPool().QueryRowContext(ctx, `
+		SELECT r.workspace_id
+		FROM category_workspace_redirects r
+		JOIN projects p ON p.id=r.workspace_id
+		WHERE r.legacy_category_id=?`,
+		legacyCategoryID,
+	).Scan(&workspaceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &workspaceID, true, nil
 }
 
 // applyCanvasTx is the single canvas write path shared by UpdateCanvas and
@@ -518,12 +588,12 @@ RETURNING canvas_state,version,updated_at`,
 // --- internal workspace SQL helpers ---
 
 func listWorkspacesTx(ctx context.Context, tx sqlite.DBTX, query domain.WorkspaceQuery) (domain.WorkspacePage, error) {
-	where, args, orderBy, hasCanvasExpr := workspaceListingParts(query)
+	where, args, orderBy, childCountExpr, hasCanvasExpr := workspaceListingParts(query)
 	var total int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects p WHERE `+where, args...).Scan(&total); err != nil {
 		return domain.WorkspacePage{}, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.category_id,p.title,p.created_at,p.updated_at,p.version,`+hasCanvasExpr+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, append(args, query.Limit, query.Offset)...)
+	rows, err := tx.QueryContext(ctx, `SELECT p.id,p.parent_id,p.title,p.created_at,p.updated_at,p.version,`+childCountExpr+`,`+hasCanvasExpr+` FROM projects p WHERE `+where+` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, append(args, query.Limit, query.Offset)...)
 	if err != nil {
 		return domain.WorkspacePage{}, err
 	}
@@ -540,35 +610,68 @@ func listWorkspacesTx(ctx context.Context, tx sqlite.DBTX, query domain.Workspac
 	return page, nil
 }
 
-func insertCategoryTx(ctx context.Context, tx sqlite.DBTX, category domain.CategorySummary) error {
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO categories(id,title,created_at,updated_at) VALUES (?,?,?,?)`,
-		category.ID, category.Title, category.CreatedAt, category.UpdatedAt,
-	)
-	return err
+func workspaceExistsTx(ctx context.Context, db sqlite.DBTX, id string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE id=?`, id).Scan(&count)
+	return count > 0, err
 }
 
-func listCategoriesTx(ctx context.Context, db sqlite.DBTX) ([]domain.CategorySummary, error) {
-	rows, err := db.QueryContext(ctx, `SELECT c.id,c.title,c.created_at,c.updated_at,COUNT(p.id) FROM categories c LEFT JOIN projects p ON p.category_id=c.id GROUP BY c.id ORDER BY c.updated_at DESC,c.id`)
-	if err != nil {
-		return nil, err
+func isAncestorOfTx(ctx context.Context, db sqlite.DBTX, candidateAncestorID, nodeID string) (bool, error) {
+	visited := map[string]bool{}
+	cur := nodeID
+	for cur != "" {
+		if cur == candidateAncestorID {
+			return true, nil
+		}
+		if visited[cur] {
+			return false, nil
+		}
+		visited[cur] = true
+		var parent sql.NullString
+		err := db.QueryRowContext(ctx, `SELECT parent_id FROM projects WHERE id=?`, cur).Scan(&parent)
+		if errors.Is(err, sql.ErrNoRows) || !parent.Valid {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		cur = parent.String
 	}
-	defer func() { _ = rows.Close() }()
-	out := []domain.CategorySummary{}
-	for rows.Next() {
-		var category domain.CategorySummary
-		if err := rows.Scan(&category.ID, &category.Title, &category.CreatedAt, &category.UpdatedAt, &category.WorkspaceCount); err != nil {
+	return false, nil
+}
+
+func listWorkspaceAncestorsTx(ctx context.Context, db sqlite.DBTX, startParentID *string) ([]domain.WorkspaceSummary, error) {
+	if startParentID == nil || *startParentID == "" {
+		return nil, nil
+	}
+	reversed := []domain.WorkspaceSummary{}
+	visited := map[string]bool{}
+	cur := *startParentID
+	for cur != "" && !visited[cur] {
+		visited[cur] = true
+		var item domain.WorkspaceSummary
+		var parent sql.NullString
+		err := db.QueryRowContext(ctx, `SELECT `+workspaceColumns+` FROM projects WHERE id=?`, cur).
+			Scan(&item.ID, &parent, &item.Title, &item.CreatedAt, &item.UpdatedAt, &item.Version)
+		if errors.Is(err, sql.ErrNoRows) {
+			break
+		}
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, category)
+		if parent.Valid {
+			val := parent.String
+			item.ParentID = &val
+			cur = val
+		} else {
+			cur = ""
+		}
+		reversed = append(reversed, item)
 	}
-	return out, rows.Err()
-}
-
-func categoryExistsTx(ctx context.Context, db sqlite.DBTX, id string) (bool, error) {
-	var count int
-	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM categories WHERE id=?`, id).Scan(&count)
-	return count > 0, err
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+	return reversed, nil
 }
 
 func workspaceReadError(err error) error {
@@ -580,11 +683,19 @@ func workspaceReadError(err error) error {
 
 func readProjectRow(row sqlite.Scanner) (domain.Workspace, error) {
 	var p domain.Workspace
-	err := row.Scan(&p.ID, &p.CategoryID, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version)
+	var parent sql.NullString
+	err := row.Scan(&p.ID, &parent, &p.Title, &p.CreatedAt, &p.UpdatedAt, &p.Version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, domain.ErrWorkspaceNotFound
 	}
-	return p, err
+	if err != nil {
+		return p, err
+	}
+	if parent.Valid {
+		val := parent.String
+		p.ParentID = &val
+	}
+	return p, nil
 }
 
 func getWorkspaceRecordTx(ctx context.Context, db sqlite.DBTX, id string) (domain.Workspace, error) {
@@ -623,15 +734,27 @@ func snapshotWorkspaceRecordTx(ctx context.Context, db sqlite.DBTX, id string) (
 	if err != nil {
 		return domain.Workspace{}, err
 	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects WHERE parent_id=?`, value.ID).Scan(&value.ChildCount); err != nil {
+		return domain.Workspace{}, err
+	}
+	ancestors, err := listWorkspaceAncestorsTx(ctx, db, value.ParentID)
+	if err != nil {
+		return domain.Workspace{}, err
+	}
+	value.Ancestors = ancestors
 	value.Canvas = canvas.Canvas
 	value.CanvasVersion = canvas.Version
 	return value, nil
 }
 
 func insertWorkspaceTx(ctx context.Context, tx sqlite.DBTX, value domain.Workspace, elementCount int) error {
+	var parentArg any
+	if value.ParentID != nil {
+		parentArg = *value.ParentID
+	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects(id,category_id,title,created_at,updated_at,version) VALUES (?,?,?,?,?,?)`,
-		value.ID, value.CategoryID, value.Title, value.CreatedAt, value.UpdatedAt, value.Version,
+		`INSERT INTO projects(id,parent_id,title,created_at,updated_at,version) VALUES (?,?,?,?,?,?)`,
+		value.ID, parentArg, value.Title, value.CreatedAt, value.UpdatedAt, value.Version,
 	); err != nil {
 		return err
 	}
@@ -665,13 +788,16 @@ func deleteProjectTx(ctx context.Context, tx sqlite.DBTX, id string) error {
 	return nil
 }
 
-func workspaceListingParts(query domain.WorkspaceQuery) (string, []any, string, string) {
+func workspaceListingParts(query domain.WorkspaceQuery) (string, []any, string, string, string) {
+	childCountExpr := "(SELECT COUNT(*) FROM projects ch WHERE ch.parent_id=p.id)"
 	hasCanvasExpr := "(EXISTS(SELECT 1 FROM workspace_canvas c WHERE c.workspace_id=p.id AND c.element_count>0))"
 	orderBy := "p.updated_at DESC, p.id"
-	if query.CategoryID != "" {
+	if query.ParentID != "" {
 		orderBy = "p.title COLLATE NOCASE ASC, p.id"
 	}
 	switch query.Sort {
+	case "updated":
+		orderBy = "p.updated_at DESC, p.id"
 	case "created":
 		orderBy = "p.created_at DESC, p.id"
 	case "name":
@@ -679,9 +805,11 @@ func workspaceListingParts(query domain.WorkspaceQuery) (string, []any, string, 
 	}
 	conditions := []string{"1=1"}
 	args := []any{}
-	if strings.TrimSpace(query.CategoryID) != "" {
-		conditions = append(conditions, "p.category_id=?")
-		args = append(args, query.CategoryID)
+	if query.RootOnly {
+		conditions = append(conditions, "p.parent_id IS NULL")
+	} else if strings.TrimSpace(query.ParentID) != "" {
+		conditions = append(conditions, "p.parent_id=?")
+		args = append(args, query.ParentID)
 	}
 	if strings.TrimSpace(query.Query) != "" {
 		conditions = append(conditions, "LOWER(p.title) LIKE ? ESCAPE '\\'")
@@ -690,15 +818,20 @@ func workspaceListingParts(query domain.WorkspaceQuery) (string, []any, string, 
 	if query.HasCanvas {
 		conditions = append(conditions, hasCanvasExpr)
 	}
-	return strings.Join(conditions, " AND "), args, orderBy, hasCanvasExpr
+	return strings.Join(conditions, " AND "), args, orderBy, childCountExpr, hasCanvasExpr
 }
 
 func scanWorkspaceSummaries(rows *sql.Rows) ([]domain.WorkspaceSummary, error) {
 	items := make([]domain.WorkspaceSummary, 0)
 	for rows.Next() {
 		var item domain.WorkspaceSummary
-		if err := rows.Scan(&item.ID, &item.CategoryID, &item.Title, &item.CreatedAt, &item.UpdatedAt, &item.Version, &item.HasCanvas); err != nil {
+		var parent sql.NullString
+		if err := rows.Scan(&item.ID, &parent, &item.Title, &item.CreatedAt, &item.UpdatedAt, &item.Version, &item.ChildCount, &item.HasCanvas); err != nil {
 			return nil, err
+		}
+		if parent.Valid {
+			val := parent.String
+			item.ParentID = &val
 		}
 		items = append(items, item)
 	}

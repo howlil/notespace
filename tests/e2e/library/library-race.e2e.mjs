@@ -1,38 +1,143 @@
-/* Library race: the latest category selection wins over a stale response. */
+/* Library race: latest Card Library filter selection wins over a stale response. */
 import { after, before, test } from "node:test";
 import {
-  assert, cleanupWorkspace, click, createCategory, createWorkspace, deleteCategory,
-  expectCount, goto, injectFault, queryParam, rightClick, role, start, stop, visible, waitFor,
+  cleanupWorkspace, click, createWorkspace, expectCount, goto,
+  injectFault, role, start, stop, visible, waitFor, api,
 } from "../support/harness.mjs";
 
 before(start);
 after(stop);
 
-async function viewCategory(title) {
-  await rightClick(role("button", title, { exact: true }));
-  await click(role("menuitem", "View category"));
-}
-
-test("critical: latest Library category selection wins over stale responses", async () => {
+test("critical: latest Library scope selection wins over stale responses", async () => {
   const suffix = Date.now();
-  const categoryA = await createCategory(`Race A ${suffix}`);
-  const categoryB = await createCategory(`Race B ${suffix}`);
-  const workspaceA = await createWorkspace(`Workspace A ${suffix}`, { categoryId: categoryA.id });
-  const workspaceB = await createWorkspace(`Workspace B ${suffix}`, { categoryId: categoryB.id });
+  const ws = await createWorkspace(`Race Board ${suffix}`);
+  const placedId = `race-placed-${suffix}`;
+  const unplacedId = `race-unplaced-${suffix}`;
+  const placedTitle = `Placed Race Card ${suffix}`;
+  const unplacedTitle = `Unplaced Race Card ${suffix}`;
 
   let held = false;
   let release = () => {};
   const gate = new Promise((resolve) => { release = resolve; });
 
   try {
-    await goto("/");
-    await visible(role("navigation", "Categories"));
+    await api(`/api/workspaces/${ws.id}/note-instances`, {
+      method: "POST",
+      body: {
+        clientRequestId: `req-p-${suffix}`,
+        clientNoteId: placedId,
+        clientInstanceId: `inst-p-${suffix}`,
+        elementId: `el-p-${suffix}`,
+        expectedCanvasVersion: ws.canvasVersion,
+        document: { type: "markdown", text: `# ${placedTitle}` },
+        canvas: {
+          format: "excalidraw",
+          version: 1,
+          data: {
+            elements: [
+              {
+                id: `el-p-${suffix}`,
+                type: "rectangle",
+                x: 60,
+                y: 60,
+                width: 300,
+                height: 160,
+                angle: 0,
+                strokeColor: "#b8bec7",
+                backgroundColor: "#ffffff",
+                fillStyle: "solid",
+                strokeWidth: 1,
+                strokeStyle: "solid",
+                roughness: 0,
+                opacity: 0,
+                groupIds: [],
+                frameId: null,
+                index: "a0",
+                roundness: { type: 3 },
+                seed: 1,
+                version: 1,
+                versionNonce: 1,
+                isDeleted: false,
+                boundElements: null,
+                updated: 1,
+                link: null,
+                locked: false,
+                customData: { notespaceNote: { noteId: placedId, instanceId: `inst-p-${suffix}` } },
+              },
+            ],
+            appState: {},
+            files: {},
+          },
+        },
+        x: 60,
+        y: 60,
+        width: 300,
+        height: 160,
+      },
+    });
+    const tempWs = await createWorkspace(`Temp Race ${suffix}`);
+    await api(`/api/workspaces/${tempWs.id}/note-instances`, {
+      method: "POST",
+      body: {
+        clientRequestId: `req-u-${suffix}`,
+        clientNoteId: unplacedId,
+        clientInstanceId: `inst-u-${suffix}`,
+        elementId: `el-u-${suffix}`,
+        expectedCanvasVersion: tempWs.canvasVersion,
+        document: { type: "markdown", text: `# ${unplacedTitle}` },
+        canvas: {
+          format: "excalidraw",
+          version: 1,
+          data: {
+            elements: [
+              {
+                id: `el-u-${suffix}`,
+                type: "rectangle",
+                x: 60,
+                y: 60,
+                width: 300,
+                height: 160,
+                angle: 0,
+                strokeColor: "#b8bec7",
+                backgroundColor: "#ffffff",
+                fillStyle: "solid",
+                strokeWidth: 1,
+                strokeStyle: "solid",
+                roughness: 0,
+                opacity: 0,
+                groupIds: [],
+                frameId: null,
+                index: "a0",
+                roundness: { type: 3 },
+                seed: 1,
+                version: 1,
+                versionNonce: 1,
+                isDeleted: false,
+                boundElements: null,
+                updated: 1,
+                link: null,
+                locked: false,
+                customData: { notespaceNote: { noteId: unplacedId, instanceId: `inst-u-${suffix}` } },
+              },
+            ],
+            appState: {},
+            files: {},
+          },
+        },
+        x: 60,
+        y: 60,
+        width: 300,
+        height: 160,
+      },
+    });
+    await cleanupWorkspace(tempWs.id);
 
-    // Hold the first category fetch at the transport boundary; releasing it after
-    // the second selection is what makes the stale response observable.
+    await goto("/cards");
+    await visible(`[data-note-card-id="${placedId}"]`);
+
     await injectFault({
       method: "GET",
-      path: new RegExp(`/api/categories/${categoryA.id}/workspaces\\?.*limit=50`),
+      path: /\/api\/notes\?.*placed=unplaced/,
       times: 1,
       respond: async () => {
         held = true;
@@ -41,23 +146,21 @@ test("critical: latest Library category selection wins over stale responses", as
       },
     });
 
-    await viewCategory(categoryA.title);
-    await waitFor(() => held, "Category request must reach the transport boundary");
+    await click(role("button", "Unplaced", { exact: true }));
+    await waitFor(() => held, "Unplaced request must reach transport boundary");
 
-    await viewCategory(categoryB.title);
-    await visible(role("link", `Open ${workspaceB.title}`));
+    await click(role("button", "Placed", { exact: true }));
+    await visible(`[data-note-card-id="${placedId}"]`);
 
     release();
-
-    await waitFor(async () => (await queryParam("category")) === categoryB.id, "URL keeps the latest category selection");
-    await visible(role("link", `Open ${workspaceB.title}`));
-    await expectCount(role("link", `Open ${workspaceA.title}`), 0);
-    assert.equal(await queryParam("category"), categoryB.id);
+    await visible(`[data-note-card-id="${placedId}"]`);
+    await expectCount(`[data-note-card-id="${unplacedId}"]`, 0);
   } finally {
     release();
-    await cleanupWorkspace(workspaceA.id);
-    await cleanupWorkspace(workspaceB.id);
-    await deleteCategory(categoryA.id);
-    await deleteCategory(categoryB.id);
+    await cleanupWorkspace(ws.id);
+    await api(`/api/notes/${placedId}/trash`, { method: "POST" }).catch(() => undefined);
+    await api(`/api/trash/notes/${placedId}`, { method: "DELETE" }).catch(() => undefined);
+    await api(`/api/notes/${unplacedId}/trash`, { method: "POST" }).catch(() => undefined);
+    await api(`/api/trash/notes/${unplacedId}`, { method: "DELETE" }).catch(() => undefined);
   }
 });

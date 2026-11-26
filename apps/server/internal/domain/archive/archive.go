@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -18,8 +19,8 @@ import (
 )
 
 const (
-	Version          = 4
-	SchemaVersion    = 16
+	Version          = 6
+	SchemaVersion    = 18
 	ManifestPath     = "manifest.json"
 	MaxManifestBytes = 16 << 20
 )
@@ -46,23 +47,63 @@ type WorkspaceEnvelope struct {
 }
 
 type TrashRecord struct {
-	ID         string            `json:"id"`
-	CategoryID string            `json:"categoryId"`
-	Title      string            `json:"title"`
-	DeletedAt  string            `json:"deletedAt"`
-	Payload    WorkspaceEnvelope `json:"payload"`
+	ID        string            `json:"id"`
+	ParentID  *string           `json:"parentId"`
+	Title     string            `json:"title"`
+	DeletedAt string            `json:"deletedAt"`
+	Payload   WorkspaceEnvelope `json:"payload"`
 }
 
 type Manifest struct {
-	Format        string                   `json:"format"`
-	Version       int                      `json:"version"`
-	SchemaVersion int                      `json:"schemaVersion"`
-	GeneratedAt   string                   `json:"generatedAt"`
-	Categories    []domain.CategorySummary `json:"categories"`
-	Notes         []domain.Note            `json:"notes,omitempty"`
-	Workspaces    []WorkspaceEnvelope      `json:"workspaces"`
-	Trash         []TrashRecord            `json:"trash"`
-	Blobs         []Blob                   `json:"blobs"`
+	Format        string                    `json:"format"`
+	Version       int                       `json:"version"`
+	SchemaVersion int                       `json:"schemaVersion"`
+	GeneratedAt   string                    `json:"generatedAt"`
+	Notes         []domain.Note             `json:"notes,omitempty"`
+	Tags          []domain.Tag              `json:"tags,omitempty"`
+	NoteTags      []domain.NoteTag          `json:"noteTags,omitempty"`
+	Workspaces    []WorkspaceEnvelope       `json:"workspaces"`
+	Trash         []TrashRecord             `json:"trash"`
+	Redirects     []domain.CategoryRedirect `json:"redirects,omitempty"`
+	Blobs         []Blob                    `json:"blobs"`
+}
+
+type legacyCategory struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type legacyWorkspace struct {
+	domain.Workspace
+	CategoryID string `json:"categoryId"`
+}
+
+type legacyWorkspaceEnvelope struct {
+	Project       legacyWorkspace       `json:"project"`
+	Assets        []Asset               `json:"assets"`
+	NoteInstances []domain.NoteInstance `json:"noteInstances,omitempty"`
+}
+
+type legacyTrashRecord struct {
+	ID         string                  `json:"id"`
+	CategoryID string                  `json:"categoryId"`
+	Title      string                  `json:"title"`
+	DeletedAt  string                  `json:"deletedAt"`
+	Payload    legacyWorkspaceEnvelope `json:"payload"`
+}
+
+type legacyManifest struct {
+	Format        string                    `json:"format"`
+	Version       int                       `json:"version"`
+	SchemaVersion int                       `json:"schemaVersion"`
+	GeneratedAt   string                    `json:"generatedAt"`
+	Categories    []legacyCategory          `json:"categories"`
+	Notes         []domain.Note             `json:"notes,omitempty"`
+	Workspaces    []legacyWorkspaceEnvelope `json:"workspaces"`
+	Trash         []legacyTrashRecord       `json:"trash"`
+	Blobs         []Blob                    `json:"blobs"`
 }
 
 func Encode(backup domain.LibraryBackup) ([]byte, error) {
@@ -76,7 +117,7 @@ func Decode(data []byte) (domain.LibraryBackup, error) {
 	if err != nil {
 		return domain.LibraryBackup{}, err
 	}
-	manifest, err := readArchiveManifest(entries)
+	manifest, rawJSON, err := readArchiveManifest(entries)
 	if err != nil {
 		return domain.LibraryBackup{}, err
 	}
@@ -84,7 +125,17 @@ func Decode(data []byte) (domain.LibraryBackup, error) {
 	if err != nil {
 		return domain.LibraryBackup{}, err
 	}
+	if manifest.Version < 5 {
+		return buildBackupFromLegacyArchive(rawJSON, blobDataOrEmpty(blobs))
+	}
 	return buildBackupFromArchive(manifest, blobs)
+}
+
+func blobDataOrEmpty(blobs map[string][]byte) map[string][]byte {
+	if blobs == nil {
+		return map[string][]byte{}
+	}
+	return blobs
 }
 
 func archiveHash(data []byte) string {
@@ -120,17 +171,19 @@ func buildManifest(backup domain.LibraryBackup, blobs map[string][]byte) Manifes
 		Version:       Version,
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   backup.GeneratedAt,
-		Categories:    backup.Categories,
 		Notes:         backup.Notes,
+		Tags:          backup.Tags,
+		NoteTags:      backup.NoteTags,
 		Workspaces:    make([]WorkspaceEnvelope, 0, len(backup.Workspaces)),
 		Trash:         make([]TrashRecord, 0, len(backup.Trash)),
+		Redirects:     backup.Redirects,
 	}
 	for _, ws := range backup.Workspaces {
 		manifest.Workspaces = append(manifest.Workspaces, archiveEnvelope(ws, blobs, catalog))
 	}
 	for _, record := range backup.Trash {
 		manifest.Trash = append(manifest.Trash, TrashRecord{
-			ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt,
+			ID: record.ID, ParentID: record.ParentID, Title: record.Title, DeletedAt: record.DeletedAt,
 			Payload: archiveEnvelope(record.Payload, blobs, catalog),
 		})
 	}
@@ -208,23 +261,23 @@ func readArchiveEntry(file *zip.File, limit uint64) ([]byte, error) {
 	return data, nil
 }
 
-func readArchiveManifest(entries map[string]*zip.File) (Manifest, error) {
+func readArchiveManifest(entries map[string]*zip.File) (Manifest, []byte, error) {
 	manifestFile := entries[ManifestPath]
 	if manifestFile == nil {
-		return Manifest{}, invalidArchive("backup manifest missing")
+		return Manifest{}, nil, invalidArchive("backup manifest missing")
 	}
 	manifestJSON, err := readArchiveEntry(manifestFile, MaxManifestBytes)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, nil, err
 	}
 	var manifest Manifest
 	if err := json.Unmarshal(manifestJSON, &manifest); err != nil {
-		return Manifest{}, invalidArchive("invalid backup manifest")
+		return Manifest{}, nil, invalidArchive("invalid backup manifest")
 	}
 	if manifest.Format != domain.LibraryBackupFormat || (manifest.Version < 2 || manifest.Version > Version) || manifest.SchemaVersion > SchemaVersion {
-		return Manifest{}, invalidArchive("unsupported backup format")
+		return Manifest{}, nil, invalidArchive("unsupported backup format")
 	}
-	return manifest, nil
+	return manifest, manifestJSON, nil
 }
 
 func readArchiveBlobs(manifest Manifest, entries map[string]*zip.File, archiveSize int) (map[string][]byte, error) {
@@ -288,21 +341,17 @@ func buildBackupFromArchive(manifest Manifest, blobData map[string][]byte) (doma
 		Format:      domain.LibraryBackupFormat,
 		Version:     manifest.Version,
 		GeneratedAt: manifest.GeneratedAt,
-		Categories:  manifest.Categories,
 		Notes:       manifest.Notes,
+		Tags:        manifest.Tags,
+		NoteTags:    manifest.NoteTags,
 		Workspaces:  make([]domain.WorkspaceEnvelope, 0, len(manifest.Workspaces)),
 		Trash:       make([]domain.TrashRecord, 0, len(manifest.Trash)),
+		Redirects:   manifest.Redirects,
 	}
 	for _, ws := range manifest.Workspaces {
 		envelope, err := restoreArchiveEnvelope(ws, blobData)
 		if err != nil {
 			return domain.LibraryBackup{}, err
-		}
-		if manifest.Version == 2 {
-			envelope.Project.Canvas, _, _, err = domain.ScrubRetiredSnapshot(envelope.Project.Canvas)
-			if err != nil {
-				return domain.LibraryBackup{}, invalidArchive("invalid canvas snapshot")
-			}
 		}
 		result.Workspaces = append(result.Workspaces, envelope)
 	}
@@ -311,15 +360,168 @@ func buildBackupFromArchive(manifest Manifest, blobData map[string][]byte) (doma
 		if err != nil {
 			return domain.LibraryBackup{}, err
 		}
+		result.Trash = append(result.Trash, domain.TrashRecord{
+			ID: record.ID, ParentID: record.ParentID, Title: record.Title, DeletedAt: record.DeletedAt, Payload: envelope,
+		})
+	}
+	return result, nil
+}
+
+func buildBackupFromLegacyArchive(rawJSON []byte, blobData map[string][]byte) (domain.LibraryBackup, error) {
+	var manifest legacyManifest
+	if err := json.Unmarshal(rawJSON, &manifest); err != nil {
+		return domain.LibraryBackup{}, invalidArchive("invalid legacy backup manifest")
+	}
+	if len(manifest.Categories) == 0 {
+		return domain.LibraryBackup{}, invalidArchive("legacy backup missing categories")
+	}
+	categoryIDs := map[string]bool{}
+	for _, cat := range manifest.Categories {
+		if cat.ID == "" || cat.Title == "" || categoryIDs[cat.ID] {
+			return domain.LibraryBackup{}, invalidArchive("invalid legacy category")
+		}
+		categoryIDs[cat.ID] = true
+	}
+	if !categoryIDs[domain.UncategorizedCategoryID] {
+		return domain.LibraryBackup{}, invalidArchive("legacy backup missing default category")
+	}
+
+	occupied := map[string]bool{}
+	for _, ws := range manifest.Workspaces {
+		occupied[ws.Project.ID] = true
+	}
+	for _, tr := range manifest.Trash {
+		occupied[tr.ID] = true
+	}
+
+	redirects := make([]domain.CategoryRedirect, 0, len(manifest.Categories))
+	redirectMap := map[string]string{}
+	convertedRoots := make([]domain.WorkspaceEnvelope, 0, len(manifest.Categories))
+	emptyCanvas := domain.CanvasSnapshot{
+		Format:  "excalidraw",
+		Version: 1,
+		Data:    json.RawMessage(`{"elements":[],"appState":{},"files":{}}`),
+	}
+
+	for idx, cat := range manifest.Categories {
+		if cat.ID == domain.UncategorizedCategoryID {
+			continue
+		}
+		targetID := cat.ID
+		if occupied[targetID] {
+			prefix := cat.ID
+			if len(prefix) > 80 {
+				prefix = prefix[:80]
+			}
+			for n := 0; ; n++ {
+				suffix := ""
+				if n > 0 {
+					suffix = fmt.Sprintf("-%d", n)
+				}
+				candidate := fmt.Sprintf("cat-%d%s-%s", idx+1, suffix, prefix)
+				if !occupied[candidate] && !categoryIDs[candidate] {
+					targetID = candidate
+					break
+				}
+			}
+		}
+		occupied[targetID] = true
+		redirectMap[cat.ID] = targetID
+		redirects = append(redirects, domain.CategoryRedirect{
+			LegacyCategoryID: cat.ID,
+			WorkspaceID:      targetID,
+		})
+		convertedRoots = append(convertedRoots, domain.WorkspaceEnvelope{
+			Project: domain.Workspace{
+				WorkspaceSummary: domain.WorkspaceSummary{
+					ID:        targetID,
+					ParentID:  nil,
+					Title:     cat.Title,
+					CreatedAt: cat.CreatedAt,
+					UpdatedAt: cat.UpdatedAt,
+					Version:   1,
+				},
+				Canvas:        emptyCanvas,
+				CanvasVersion: 1,
+			},
+			Assets: []domain.StoredAsset{},
+		})
+	}
+
+	result := domain.LibraryBackup{
+		Format:      domain.LibraryBackupFormat,
+		Version:     Version,
+		GeneratedAt: manifest.GeneratedAt,
+		Notes:       manifest.Notes,
+		Workspaces:  make([]domain.WorkspaceEnvelope, 0, len(convertedRoots)+len(manifest.Workspaces)),
+		Trash:       make([]domain.TrashRecord, 0, len(manifest.Trash)),
+		Redirects:   redirects,
+	}
+	result.Workspaces = append(result.Workspaces, convertedRoots...)
+
+	resolveLegacyParent := func(catID string) (*string, bool) {
+		if catID == domain.UncategorizedCategoryID {
+			return nil, true
+		}
+		mapped, ok := redirectMap[catID]
+		if !ok {
+			return nil, false
+		}
+		return &mapped, true
+	}
+
+	for _, ws := range manifest.Workspaces {
+		if !categoryIDs[ws.Project.CategoryID] {
+			return domain.LibraryBackup{}, invalidArchive("workspace references unknown legacy category")
+		}
+		parentID, _ := resolveLegacyParent(ws.Project.CategoryID)
+		project := ws.Project.Workspace
+		project.ParentID = parentID
 		if manifest.Version == 2 {
-			envelope.Project.Canvas, _, _, err = domain.ScrubRetiredSnapshot(envelope.Project.Canvas)
+			var err error
+			project.Canvas, _, _, err = domain.ScrubRetiredSnapshot(project.Canvas)
 			if err != nil {
 				return domain.LibraryBackup{}, invalidArchive("invalid canvas snapshot")
 			}
 		}
-		result.Trash = append(result.Trash, domain.TrashRecord{
-			ID: record.ID, CategoryID: record.CategoryID, Title: record.Title, DeletedAt: record.DeletedAt, Payload: envelope,
+		assets, err := restoreArchiveAssets(ws.Assets, project.ID, blobData)
+		if err != nil {
+			return domain.LibraryBackup{}, err
+		}
+		result.Workspaces = append(result.Workspaces, domain.WorkspaceEnvelope{
+			Project:       project,
+			Assets:        assets,
+			NoteInstances: ws.NoteInstances,
 		})
 	}
+
+	for _, record := range manifest.Trash {
+		parentID, _ := resolveLegacyParent(record.CategoryID)
+		project := record.Payload.Project.Workspace
+		project.ParentID = parentID
+		if manifest.Version == 2 {
+			var err error
+			project.Canvas, _, _, err = domain.ScrubRetiredSnapshot(project.Canvas)
+			if err != nil {
+				return domain.LibraryBackup{}, invalidArchive("invalid canvas snapshot")
+			}
+		}
+		assets, err := restoreArchiveAssets(record.Payload.Assets, project.ID, blobData)
+		if err != nil {
+			return domain.LibraryBackup{}, err
+		}
+		result.Trash = append(result.Trash, domain.TrashRecord{
+			ID:        record.ID,
+			ParentID:  parentID,
+			Title:     record.Title,
+			DeletedAt: record.DeletedAt,
+			Payload: domain.WorkspaceEnvelope{
+				Project:       project,
+				Assets:        assets,
+				NoteInstances: record.Payload.NoteInstances,
+			},
+		})
+	}
+
 	return result, nil
 }

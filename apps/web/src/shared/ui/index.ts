@@ -15,4 +15,10 @@ export { SectionLabel } from "./primitives/section-label";
 export { AsyncStateView } from "./blocks/async-state-view";
 export { CommandListDialog } from "./blocks/command-list-dialog";
 export { SettingRow, SettingSection } from "./blocks/setting-row";
+export {
+  CardEntityIcon,
+  CardsAppIcon,
+  WorkspaceEntityIcon,
+  WorkspaceMapAppIcon,
+} from "./icons/entity-icons";
 export { cn } from "./class-names";

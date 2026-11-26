@@ -207,15 +207,15 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer store.Close()
-	initialCat, err := store.CreateCategory(ctx, "Systems")
+	initialParent, err := store.CreateWorkspace(ctx, "Systems")
 	if err != nil {
 		t.Fatal(err)
 	}
-	movedCat, err := store.CreateCategory(ctx, "Storage")
+	movedParent, err := store.CreateWorkspace(ctx, "Storage")
 	if err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := store.CreateWorkspace(ctx, "Original title", initialCat.ID)
+	workspace, err := store.CreateWorkspace(ctx, "Original title", &initialParent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 		t.Fatalf("note vanished from search after workspace rename: %#v", afterRename)
 	}
 
-	moved, err := store.MoveWorkspace(ctx, workspace.ID, movedCat.ID, &initialCat.ID)
+	moved, err := store.MoveWorkspaceParent(ctx, workspace.ID, &movedParent.ID, domain.OptionalString{Set: true, Value: &initialParent.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,8 +270,8 @@ func TestIndexedSearchHandlesWorkspaceRenameMoveAndInstanceDelete(t *testing.T) 
 	for _, result := range afterMove {
 		if result.Type == "note" && result.NoteID == created.Note.ID {
 			foundMoved = true
-			if result.CategoryID != movedCat.ID || result.CategoryTitle != movedCat.Title {
-				t.Fatalf("note category after move = (%q, %q), want (%q, %q)", result.CategoryID, result.CategoryTitle, movedCat.ID, movedCat.Title)
+			if result.ParentID == nil || *result.ParentID != movedParent.ID || result.ParentTitle != movedParent.Title {
+				t.Fatalf("note parent after move = (%v, %q), want (%q, %q)", result.ParentID, result.ParentTitle, movedParent.ID, movedParent.Title)
 			}
 		}
 	}

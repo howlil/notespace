@@ -332,6 +332,11 @@
   overflow-wrap: anywhere;
 }
 
+.notespace-note-content[data-flush="true"] {
+  padding: 0;
+  line-height: 1.65;
+}
+
 .notespace-note-content > :first-child { margin-top: 0; }
 .notespace-note-content > :last-child { margin-bottom: 0; }
 .notespace-note-markdown .cm-editor, .notespace-note-markdown .cm-scroller { font: inherit; }

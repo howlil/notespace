@@ -37,7 +37,8 @@ test("critical: Welcome and Canvas expose one shell with optional Explorer", asy
     element.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
   });
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "peeking");
-  await click(role("button", "Show Explorer", { exact: true }));
+  await waitFor(async () => (await box("#notespace-home-sidebar")).width >= 220, "Peeked Explorer finishes expanding");
+  await click(role("button", "Show Explorer", { exact: true, scope: "#notespace-home-sidebar" }));
   await visible(role("complementary", "Category explorer"));
   await expectAttribute("#notespace-home-sidebar", "data-notespace-library-explorer", "open");
   assert.equal(await evaluate(role("textbox", "Category title"), (element) => element.value), "Preserved category draft");

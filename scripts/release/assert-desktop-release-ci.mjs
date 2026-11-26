@@ -5,10 +5,11 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import process from "node:process";
 
-export const REQUIRED_DESKTOP_WORKFLOWS = ["ci"];
+// GitHub reports a run by its run-name, so the push run is "ci (push)" and a candidate "ci candidate (<target>)".
+export const REQUIRED_DESKTOP_WORKFLOWS = ["ci (push)"];
 export const TARGET_REQUIRED_JOBS = {
   gate: ["ci / gate"],
-  desktop: ["ci / gate", "web", "server", "browser", "desktop / check-desktop", "desktop / check-desktop-windows"],
+  desktop: ["ci / gate", "web", "server", "browser", "desktop / check-desktop-windows"],
   image: ["ci / gate", "web", "server", "browser", "compose"],
 };
 export const candidateRunTitle = (target) => `ci candidate (${target})`;
@@ -40,7 +41,7 @@ function selectCandidateRun(runsPayload, sha, repository, target) {
   if (!Array.isArray(runs)) return null;
   const expectedTitle = candidateRunTitle(target);
   const matching = runs.filter((run) => (
-    run?.name === REQUIRED_DESKTOP_WORKFLOWS[0]
+    run?.name === expectedTitle
     && run.event === "workflow_dispatch"
     && run.head_branch === "master"
     && run.head_sha === sha

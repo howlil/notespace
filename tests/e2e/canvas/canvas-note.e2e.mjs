@@ -628,7 +628,7 @@ test("advanced Markdown supports image paste, math validation recovery, tables, 
       data.items.add(new File([bytes], "diagram.png", { type: "image/png" }));
       document.querySelector(selector).dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
     }, editor, tinyPng.toString("base64"));
-    await waitFor(async () => /!\[diagram\.png\]\(\/api\/workspaces\/[^)]+\/assets\/[^)]+\)/.test((await api(`/api/notes/${noteId}`)).document.text), "Pasted image is stored as a Markdown image");
+    await waitFor(async () => /!\[diagram\.png\]\(\/api\/workspaces\/[^)]+\/assets\/[^)]+\)/.exec((await api(`/api/notes/${noteId}`)).document.text) !== null, "Pasted image is stored as a Markdown image");
     const imageLine = (await api(`/api/notes/${noteId}`)).document.text.trim();
 
     await press("Enter");
